@@ -106,7 +106,10 @@ has:
 - mandatory `AbortSignal` handling that destroys the socket.
 
 There is no redirect, URL, network fallback, retry loop, or caller-selected
-socket per operation.
+socket per operation. After a complete response is validated, the client
+destroys its socket immediately; it does not wait for a possibly malicious peer
+to close its write side. The service likewise flushes each completed response
+and force-closes that accepted connection.
 
 ## Deliberate non-claim
 
@@ -140,6 +143,13 @@ Only that qualified composition may adapt a service result into #2554's
 `independent_custody_proven=true` dependency seam. This PR does not perform
 that adaptation.
 
+The module is deliberately **not directly executable** in this source-only
+generation. Direct invocation fails closed with
+`datanet_broadcast_generation_custody_direct_executable_activation_not_authorized`.
+The later host-exclusive integration must provide the service launcher/systemd
+lifecycle, termination-signal handling, and stale advertised-socket cleanup
+under the same qualified authority that owns the socket parent.
+
 ## Focused proof
 
 The deterministic proof:
@@ -156,9 +166,14 @@ The deterministic proof:
    stops the old service, and proves the successor inode/listener still works;
 9. proves normal stop retains its stale advertised link and that connecting to
    the stopped endpoint fails closed;
-10. rejects a malformed held response with extra/contradictory fields; and
-11. uses a real non-responding Unix socket to prove an AbortSignal destroys the
-   client connection.
+10. rejects a malformed held response with extra/contradictory fields;
+11. proves the service force-closes an authorized client that keeps its write
+    side open after receiving a response;
+12. proves the client destroys its connection after accepting a valid response
+    from a peer that refuses to close;
+13. proves direct executable activation is fail-closed; and
+14. uses a real non-responding Unix socket to prove an AbortSignal destroys the
+    client connection.
 
 The proof makes no live RPC request and uses no signed artifact or credential.
 

@@ -326,7 +326,7 @@ async function request(options,envelope,rawContext){
         socket.destroy(error);
         reject(error);
       }else{
-        socket.end();
+        socket.destroy();
         resolve(value);
       }
     };

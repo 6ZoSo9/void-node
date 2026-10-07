@@ -22,6 +22,8 @@ export const VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_AUTHORIT
     advertised_socket_policy_before_publish:true,
     advertised_socket_unlink_on_stop:false,
     stale_advertised_socket_cleanup_external:true,
+    direct_executable_activation:false,
+    host_lifecycle_launcher_required:true,
     caller_selected_path:false,
     arbitrary_path_write:false,
     arbitrary_bytes_write:false,
@@ -652,18 +654,17 @@ export async function handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelop
 
 function writeResponse(socket,response){
   const line=JSON.stringify(response)+"\n";
-  if(Buffer.byteLength(line,"utf8")>MAX_RESPONSE_BYTES){
-    socket.end(
-      JSON.stringify(
-        responseEnvelope(
-          sha256Id(Buffer.from("oversize","utf8")),
-          held("datanet_broadcast_generation_custody_response_too_large"),
-        ),
-      )+"\n",
-    );
-    return;
-  }
-  socket.end(line);
+  const output=
+    Buffer.byteLength(line,"utf8")>MAX_RESPONSE_BYTES
+      ? JSON.stringify(
+          responseEnvelope(
+            sha256Id(Buffer.from("oversize","utf8")),
+            held("datanet_broadcast_generation_custody_response_too_large"),
+          ),
+        )+"\n"
+      : line;
+  socket.write(output);
+  socket.destroySoon();
 }
 
 function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
@@ -1024,34 +1025,17 @@ export const VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_CONTRACT
     advertised_socket_policy_before_publish:true,
     advertised_socket_unlink_on_stop:false,
     stale_advertised_socket_cleanup_external:true,
+    direct_executable_activation:false,
+    host_lifecycle_launcher_required:true,
     independent_custody_proven:false,
     live_host_qualification_performed:false,
   });
-
-async function main(){
-  const raw=String(
-    process.env.VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_CONFIG_JSON||
-    "",
-  ).trim();
-  if(!raw) fail("datanet_broadcast_generation_custody_config_missing");
-  let parsed;
-  try{
-    parsed=JSON.parse(raw);
-  }catch(error){
-    void error;
-    fail("datanet_broadcast_generation_custody_config_invalid");
-  }
-  const service=createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(parsed);
-  await service.start();
-  process.stdout.write(
-    VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1+
-    " SOURCE_SERVICE_STARTED\n",
-  );
-}
 
 const invoked=
   process.argv[1]&&
   path.resolve(process.argv[1])===fileURLToPath(import.meta.url);
 if(invoked){
-  await main();
+  fail(
+    "datanet_broadcast_generation_custody_direct_executable_activation_not_authorized",
+  );
 }

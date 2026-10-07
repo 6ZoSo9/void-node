@@ -5,6 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import {
   VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_AUTHORITY_V1,
@@ -236,6 +237,48 @@ try{
   assert.equal(socketStat.isSocket(),true);
   assert.equal(socketStat.mode&0o777,0o660);
   assert.equal(socketStat.gid,socketGroup);
+
+  const stickyClientFence=fence("f");
+  const stickyClientEnvelope={
+    schema:
+      "void_datanet_registry_broadcast_generation_custody_request_v1",
+    marker:VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
+    version:1,
+    method:"claim",
+    fence:stickyClientFence,
+    custody_receipt_sha256:null,
+  };
+  let stickyClientResponse=null;
+  await Promise.race([
+    new Promise((resolve,reject)=>{
+      const socket=net.createConnection(socketPath);
+      let input="";
+      socket.setEncoding("utf8");
+      socket.once("error",reject);
+      socket.once("connect",()=>{
+        socket.write(JSON.stringify(stickyClientEnvelope)+"\n");
+      });
+      socket.on("data",(chunk)=>{
+        input+=chunk;
+        const newline=input.indexOf("\n");
+        if(newline<0||stickyClientResponse!==null) return;
+        stickyClientResponse=JSON.parse(input.slice(0,newline));
+      });
+      socket.once("close",()=>{
+        try{
+          assert(stickyClientResponse);
+          assert.equal(stickyClientResponse.decision.ok,true);
+          resolve();
+        }catch(error){
+          reject(error);
+        }
+      });
+    }),
+    new Promise((_,reject)=>setTimeout(
+      ()=>reject(new Error("service_completed_response_close_timeout")),
+      1500,
+    )),
+  ]);
 
   const transport=
     createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1({
@@ -489,6 +532,106 @@ try{
   await new Promise((resolve)=>malformedHeldServer.close(()=>resolve()));
 }
 
+const stickyHeldParent=path.join(root,"sticky-held-run");
+fs.mkdirSync(stickyHeldParent,{mode:0o750});
+fs.chmodSync(stickyHeldParent,0o750);
+const stickyHeldSocket=path.join(stickyHeldParent,"custody.sock");
+let stickyHeldPeerClosed=false;
+let resolveStickyHeldClose;
+const stickyHeldClose=new Promise((resolve)=>{
+  resolveStickyHeldClose=resolve;
+});
+const stickyHeldServer=net.createServer((socket)=>{
+  socket.setEncoding("utf8");
+  socket.on("close",()=>{
+    stickyHeldPeerClosed=true;
+    resolveStickyHeldClose();
+  });
+  let input="";
+  socket.on("data",(chunk)=>{
+    input+=chunk;
+    const newline=input.indexOf("\n");
+    if(newline<0) return;
+    const envelope=JSON.parse(input.slice(0,newline));
+    const requestSha256=
+      "sha256:"+sha256(Buffer.from(canonicalJson(envelope)));
+    socket.write(JSON.stringify({
+      schema:
+        "void_datanet_registry_broadcast_generation_custody_response_v1",
+      marker:VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
+      version:1,
+      request_sha256:requestSha256,
+      decision:{
+        ok:false,
+        status:"held",
+        reason:"synthetic_hold",
+        broadcast_generation_fence_id:null,
+        custody_receipt_sha256:null,
+        source_service_contract_proven:true,
+        independent_custody_proven:false,
+        live_host_qualification_performed:false,
+        operation_performed:false,
+        rpc_access:false,
+        transaction_broadcast:false,
+        funds_movement:false,
+      },
+    })+"\n");
+  });
+});
+await new Promise((resolve,reject)=>{
+  stickyHeldServer.once("error",reject);
+  stickyHeldServer.listen(stickyHeldSocket,resolve);
+});
+fs.chmodSync(stickyHeldSocket,0o660);
+if(typeof process.getuid==="function"){
+  fs.chownSync(stickyHeldSocket,-1,socketGroup);
+}
+try{
+  const stickyHeldTransport=
+    createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1({
+      socket_path:stickyHeldSocket,
+      connect_timeout_ms:500,
+      response_timeout_ms:500,
+      max_response_bytes:64*1024,
+    });
+  const heldDecision=await stickyHeldTransport.claim(fence("1"),{
+    signal:new AbortController().signal,
+    timeout_ms:1000,
+  });
+  assert.equal(heldDecision.ok,false);
+  assert.equal(heldDecision.reason,"synthetic_hold");
+  await Promise.race([
+    stickyHeldClose,
+    new Promise((_,reject)=>setTimeout(
+      ()=>reject(new Error("client_completed_response_close_timeout")),
+      1500,
+    )),
+  ]);
+  assert.equal(stickyHeldPeerClosed,true);
+}finally{
+  await new Promise((resolve)=>stickyHeldServer.close(()=>resolve()));
+}
+
+const directService=spawnSync(
+  process.execPath,
+  ["tools/void-datanet-registry-broadcast-generation-custody-service-v1.mjs"],
+  {
+    cwd:process.cwd(),
+    encoding:"utf8",
+    env:{
+      PATH:process.env.PATH||"/usr/bin:/bin",
+      LANG:"C",
+      LC_ALL:"C",
+    },
+    timeout:5000,
+  },
+);
+assert.notEqual(directService.status,0);
+assert.match(
+  directService.stderr,
+  /datanet_broadcast_generation_custody_direct_executable_activation_not_authorized/u,
+);
+
 const accessorOptions={
   socket_path:socketPath,
   connect_timeout_ms:500,
@@ -529,6 +672,9 @@ for(const required of [
   "fs.linkSync(boundListenPath,options.socket_path)",
   "advertised_socket_policy_before_publish:true",
   "advertised_socket_unlink_on_stop:false",
+  "direct_executable_activation:false",
+  "host_lifecycle_launcher_required:true",
+  "socket.destroySoon()",
   "independent_custody_proven:false",
 ]){
   assert.ok(serviceSource.includes(required),required);
@@ -590,6 +736,10 @@ console.log("advertised_socket_policy_before_publish=true");
 console.log("advertised_socket_unlink_on_stop=false");
 console.log("stopped_advertised_socket_fails_closed=true");
 console.log("held_response_exact_schema_required=true");
+console.log("service_completed_response_forces_socket_close=true");
+console.log("client_completed_response_destroys_socket=true");
+console.log("direct_executable_activation=false");
+console.log("host_lifecycle_launcher_required=true");
 console.log("abort_signal_destroys_unresponsive_socket=true");
 console.log("startup_chmod_failure_rolls_back_all_resources=true");
 console.log("startup_chown_failure_rolls_back_all_resources=true");
