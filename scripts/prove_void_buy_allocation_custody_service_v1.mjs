@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
+import net from "node:net";
 import path from "node:path";
 
 import {
@@ -113,6 +114,127 @@ const baseCandidate = Object.freeze({
   inventory_allocation_guard_green: true,
   operator_activation_record_green: true,
 });
+
+function canonicalWireJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalWireJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort()
+      .map((key) => JSON.stringify(key) + ":" + canonicalWireJson(value[key]))
+      .join(",") + "}";
+  }
+  throw new Error("custody_proof_noncanonical_request");
+}
+
+function socketExchange(socketPath, firstPart, lastPart = "", expectNoEarlyReply = false) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ path: socketPath });
+    socket.setEncoding("utf8");
+    let text = "";
+    let settled = false;
+    let writeEnded = false;
+    const timer = setTimeout(() => {
+      socket.destroy();
+      finish(new Error("allocation_custody_wire_proof_timeout"));
+    }, 5_000);
+    function finish(error, value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      if (error) reject(error);
+      else resolve(value);
+    }
+    socket.on("error", (error) => finish(error));
+    socket.on("data", (chunk) => {
+      if (!writeEnded && expectNoEarlyReply) {
+        finish(new Error("allocation_custody_responded_before_write_eof"));
+        return;
+      }
+      text += chunk;
+    });
+    socket.on("end", () => {
+      try {
+        const parts = text.split("\n");
+        assert.equal(parts.length, 2, "exactly one response line");
+        assert.equal(parts[1], "");
+        finish(null, JSON.parse(parts[0]));
+      } catch (error) {
+        finish(error);
+      }
+    });
+    socket.on("connect", () => {
+      socket.write(firstPart);
+      const closeWrite = () => {
+        if (settled) return;
+        writeEnded = true;
+        socket.end(lastPart);
+      };
+      if (expectNoEarlyReply) setTimeout(closeWrite, 50);
+      else closeWrite();
+    });
+  });
+}
+
+
+function slowDripRequest(socketPath) {
+  return new Promise((resolve, reject) => {
+    // Keep the write half open and deliver bytes often enough that the
+    // inactivity timeout alone could never terminate this connection.
+    const socket = new net.Socket({ allowHalfOpen: true });
+    socket.setEncoding("utf8");
+    let response = "";
+    let settled = false;
+    const startMs = Date.now();
+    const drip = setInterval(() => {
+      if (!socket.destroyed && socket.writable) socket.write(" ");
+    }, 250);
+    const watchdog = setTimeout(() => {
+      finish(new Error("allocation_custody_slow_drip_watchdog"));
+    }, 11_000);
+    function finish(error, value) {
+      if (settled) return;
+      settled = true;
+      clearInterval(drip);
+      clearTimeout(watchdog);
+      socket.destroy();
+      if (error) reject(error);
+      else resolve(value);
+    }
+    socket.on("error", (error) => finish(error));
+    socket.on("data", (chunk) => { response += chunk; });
+    socket.on("end", () => {
+      try {
+        assert.equal(response.endsWith("\n"), true);
+        assert.equal(response.split("\n").length, 2);
+        const envelope = JSON.parse(response.slice(0, -1));
+        assert.equal(envelope.decision.ok, false);
+        assert.equal(
+          envelope.decision.reason,
+          "allocation_custody_service_request_deadline_exceeded",
+        );
+        assert.ok(
+          Date.now() - startMs < 10_000,
+          "slow drip must not extend the five-second framing deadline",
+        );
+        finish(null, envelope);
+      } catch (error) {
+        finish(error);
+      }
+    });
+    socket.on("close", () => {
+      if (!settled) finish(new Error("allocation_custody_slow_drip_closed_without_response"));
+    });
+    socket.connect({ path: socketPath }, () => socket.write(" "));
+  });
+}
 
 function fixture() {
   const root = fs.mkdtempSync(
@@ -305,6 +427,89 @@ async function decision(f, method, request) {
     assert.equal(socket.isSocket(), true);
     assert.equal(socket.mode & 0o777, 0o660);
     assert.equal(socket.gid, gid);
+    const reserveLine =
+      canonicalWireJson(envelope("reserve", { ...baseCandidate })) + "\n";
+    const inspectLine = canonicalWireJson(envelope("inspect", {})) + "\n";
+    const beforeAnyReserve = fs.readFileSync(
+      path.join(f.ledgerRoot, LEDGER_NAME),
+      "utf8",
+    );
+    assert.equal(beforeAnyReserve, "");
+
+    // The first chunk holds a valid reservation, but a second chunk
+    // introduces another frame. No reservation may happen before EOF.
+    const split = await socketExchange(
+      f.options.socket_path, reserveLine, inspectLine, true,
+    );
+    assert.equal(split.decision.ok, false);
+    assert.equal(
+      split.decision.reason,
+      "allocation_custody_service_multiple_requests_rejected",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      "",
+      "split second frame must never create a reservation",
+    );
+
+    // Duplicate JSON member values must not be normalized by JSON.parse
+    // before the IPC contract's exact-byte validation.
+    const ambiguousLine = reserveLine.replace(
+      '"method":"reserve"',
+      '"method":"inspect","method":"reserve"',
+    );
+    assert.notEqual(ambiguousLine, reserveLine);
+    const ambiguous = await socketExchange(
+      f.options.socket_path, ambiguousLine,
+    );
+    assert.equal(ambiguous.decision.ok, false);
+    assert.equal(
+      ambiguous.decision.reason,
+      "allocation_custody_service_request_noncanonical",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      "",
+    );
+
+    const unterminated = await socketExchange(
+      f.options.socket_path, reserveLine.slice(0, -1),
+    );
+    assert.equal(unterminated.decision.ok, false);
+    assert.equal(
+      unterminated.decision.reason,
+      "allocation_custody_service_request_unterminated",
+    );
+
+    // The client sends bytes every 250ms but never ends its write side.
+    // The absolute deadline, not the idle timeout, must reject it.
+    await slowDripRequest(f.options.socket_path);
+    assert.equal(
+      fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      "",
+      "slow-drip framing timeout must not reserve inventory",
+    );
+
+    const inspected = await socketExchange(
+      f.options.socket_path, inspectLine,
+    );
+    assert.equal(inspected.decision.ok, true);
+    assert.equal(inspected.decision.status, "inspected");
+    assert.equal(inspected.decision.record_count, 0);
+
+    const reserved = await socketExchange(
+      f.options.socket_path, reserveLine, "", true,
+    );
+    assert.equal(reserved.decision.ok, true);
+    assert.equal(reserved.decision.status, "reserved");
+    assert.equal(reserved.decision.record_count, 1);
+
+    const duplicate = await socketExchange(
+      f.options.socket_path, reserveLine,
+    );
+    assert.equal(duplicate.decision.ok, true);
+    assert.equal(duplicate.decision.status, "duplicate");
+    assert.equal(duplicate.decision.operation_performed, false);
     await service.stop();
     assert.equal(fs.existsSync(f.options.socket_path), false);
   } finally {
@@ -366,6 +571,11 @@ console.log("recovery_terminal_before_new_transition=true");
 console.log("service_started_by_import=false");
 console.log("socket_parent_mode_0750_proven=true");
 console.log("socket_mode_0660_proven=true");
+console.log("socket_request_write_eof_required=true");
+console.log("absolute_request_framing_deadline=true");
+console.log("slow_drip_without_eof_hold=true");
+console.log("split_second_frame_rejected_before_reserve=true");
+console.log("duplicate_json_members_rejected_before_reserve=true");
 console.log("runtime_integration=false");
 console.log("payment_acceptance=false");
 console.log("transaction_broadcast=false");
