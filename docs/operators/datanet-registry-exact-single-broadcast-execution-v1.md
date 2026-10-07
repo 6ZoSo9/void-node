@@ -1,9 +1,9 @@
 # DataNet registry exact single broadcast execution v1
 
-Marker: `VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1`
+Marker: `VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_ISOLATED_EXECUTION_V1`
 
-Status: final exact single-attempt Chain-2050 submission gate for the DataNet
-content-commitment registry deployment.
+Status: final isolated exact single-attempt Chain-2050 submission gate for the
+DataNet content-commitment registry deployment.
 
 ## Purpose
 
@@ -46,7 +46,7 @@ Direct mutable-worktree execution is forbidden. This form must HOLD before any
 broadcast input is read:
 
 ```bash
-node ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs ...
+node ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs ...
 ```
 
 The supported operator bootstrap streams the exact launcher Git blob into a
@@ -58,7 +58,7 @@ reviewed artifact/state/output arguments and exact confirmation:
   set -Eeuo pipefail
 
   repo="$HOME/dev/void-node"
-  rel="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
+  rel="ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs"
   cd "$repo"
 
   git_cmd=(
@@ -188,38 +188,42 @@ broadcaster process, so once reviewed execution is prepared the launcher
 permanently replaces the ambient escape hatches for the remainder of that
 process. It does not restore them after module import or after `submit()`.
 
-The disabled ambient routes are `globalThis.fetch`,
+The reviewed graph no longer executes in the operator/parent process. The
+supported launcher verifies exact Git source and package evidence first, then
+executes the reviewed graph in a dedicated child whose stdin/stdout/stderr are
+`/dev/null`, which has no IPC channel, and which exchanges bounded canonical
+input/result bytes only through parent-opened regular-file descriptors.
+
+The child rejects socket/FIFO-backed stdio and ambient socket handles before
+reviewed import. It then permanently fences `globalThis.fetch`,
 `process.getBuiltinModule`, `process.binding`,
-`process._linkedBinding`, `process.dlopen`, and the global
-`WebSocket` / `EventSource` constructors when present. The replacements are
-sealed non-writable/non-configurable fail-closed functions. This process-lifetime
-boundary also covers callbacks attached by reviewed code to pre-existing ambient
-event sources such as `process.beforeExit`, where async-context propagation
-alone would be insufficient. The launcher-owned RPC client itself uses explicit
-`node:http`, so the broadcaster process never needs to reopen a global
-network primitive.
+`process._linkedBinding`, `process.dlopen`, `process.execve`,
+`process._getActiveHandles`, `process._getActiveRequests`, and the global
+`WebSocket` / `EventSource` constructors when present. This prevents a
+reviewed module from recovering an uncensused socket constructor through
+inherited stdio or harvesting a later approved RPC handle. Approved network
+authority remains explicit `node:http` and is still limited by the reviewed
+module/parent census.
 
-The focused proof executes comment-separated `node:net` imports, an
-uncensused-parent `node:http` import, direct
-`process.getBuiltinModule("node:net")`, computed
-`globalThis["fetch"]`, `fetch.call(...)`, aliased `fetch`, a delayed
-timer/promise fetch, a process-event callback after reviewed import, direct
-`process.binding("tcp_wrap")`, and ambient WebSocket construction when the
-runtime exposes it. Each uncensused route must HOLD. Positive controls retain
-approved `node:crypto` and censused-parent `node:http`.
+The isolated focused proof requires zero loopback connections from stdio
+constructor/prototype traversal, rejects direct builtin/execve/active-handle
+escape routes, and separately proves that a censused reviewed `node:http`
+module can reach its explicit loopback control. It also proves abnormal child
+exit is fail-closed and that output-path replacement cannot redirect the
+descriptor-bound result.
 
-This remains a bounded capability fence rather than a claim that the process is
-a fully isolated JavaScript sandbox. This lane intentionally reports:
+This is network-capability isolation for the exact reviewed graph, not a general
+VM/container sandbox claim. The isolated lane reports the following only after
+the child envelope and parent validations succeed:
 
 ```text
-execution_network_isolation_provided=false
+execution_network_isolation_provided=true
 ```
 
-Those modules' presence is content-addressed; it is not treated as evidence that
-the broadcaster validation path invoked either live observer. The focused proof
-traps both `http.request` and `globalThis.fetch` during reviewed
-source/package preparation and module import. The explicit broadcaster RPC
-remains the narrow launcher-injected capability described below.
+The legacy same-process
+`ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs`
+remains a reviewed source/planning component and proof surface, but it is not the
+supported operator transaction-submission entrypoint.
 
 This is execution provenance, not broadcast authorization. A source-green PR or
 private reviewed tree does not authorize a real registry transaction.
