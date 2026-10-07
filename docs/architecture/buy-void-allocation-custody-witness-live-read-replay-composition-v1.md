@@ -98,11 +98,15 @@ The replay writer result must be `persisted_issue` with:
 - well-formed poststate journal/high-water SHA-256 identities;
 - a non-null poststate tip-event SHA-256;
 - poststate journal bytes strictly advanced beyond transition prestate;
-- `last_terminal_state=null`; and
+- `last_terminal_state` exactly equal to the storage prestate's retained
+  terminal state: `null` at genesis, or the prior `consumed` /
+  `abandoned` state on later generations; and
 - null terminal request/response fields.
 
 The transition time-to-live may not exceed the canonical 38-second replay
-limit.
+limit. The retained terminal-state equality is part of storage→issue lineage:
+a later issue cannot erase or substitute the prior terminal outcome merely
+because the new challenge fields are otherwise valid.
 
 ## Installation-artifact rebinding
 
@@ -273,6 +277,11 @@ git diff --check
 The focused proof uses temporary replay roots and the canonical transport server
 classifier. It performs no live SSH or production storage mutation.
 
+It proves both a genesis issue/read/consume cycle and a second complete
+issue/read/consume cycle whose issue retains the prior `consumed` storage
+terminal state. Rewriting that retained state while keeping the remaining
+second-cycle artifacts unchanged must HOLD.
+
 Covered adversaries include:
 
 - forged replay-storage physical disk identity with recomputed qualification ID;
@@ -290,7 +299,7 @@ Covered adversaries include:
   poststate;
 - forged terminal consume journal/high-water SHA, journal-byte and tip-event
   poststate fields;
-- issue result carrying a non-null terminal state;
+- issue retained-terminal-state mismatch against the exact storage prestate;
 - consumed terminal request-ID mismatch;
 - consumed terminal response digest mismatch;
 - tampered transport response bytes; and
