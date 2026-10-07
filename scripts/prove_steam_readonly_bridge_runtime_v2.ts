@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Express, Request, Response as ExpressResponse } from "express";
 import {
+  type SteamReadonlyBridgeRuntimeV2Dependencies,
   registerSteamReadonlyBridgeRuntimeV2,
   steamReadonlyBridgeCredentialReferenceStatusV2,
   steamReadonlyBridgeRuntimeStatusV2,
@@ -417,7 +418,7 @@ const secondGenerationEnv: NodeJS.ProcessEnv = {
   VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
     "voidsteamref1_" + "b".repeat(64),
 };
-const firstGeneration = {
+const firstGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
   env: firstGenerationEnv,
   authorize_operator: () => {
     retryGenerationCalls.push("auth:A");
@@ -427,7 +428,7 @@ const firstGeneration = {
     retryGenerationCalls.push("now:A");
     return 1_754_150_100_000;
   },
-  fetch_impl: async (input: RequestInfo | URL, init?: RequestInit) => {
+  fetch_impl: async (input, init) => {
     retryGenerationCalls.push("fetch:A");
     return responseWithFinalUrl(
       retryMockBody,
@@ -442,7 +443,7 @@ const firstGeneration = {
     );
   },
 };
-const secondGeneration = {
+const secondGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
   env: secondGenerationEnv,
   authorize_operator: () => {
     retryGenerationCalls.push("auth:B");
