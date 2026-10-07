@@ -145,6 +145,22 @@ function globMatchesPath(pattern, candidate) {
   return new RegExp(regex, "u").test(candidate);
 }
 
+function orderedPathFilterIncludes(patterns, candidate) {
+  assert.ok(Array.isArray(patterns), "path filter must be an array");
+  let included = false;
+  for (const rawPattern of patterns) {
+    assert.equal(typeof rawPattern, "string", "path filter pattern must be text");
+    assert.ok(rawPattern.length > 0, "path filter pattern must not be empty");
+    const excluded = rawPattern.startsWith("!");
+    const pattern = excluded ? rawPattern.slice(1) : rawPattern;
+    assert.ok(pattern.length > 0, "negated path filter must name a pattern");
+    if (globMatchesPath(pattern, candidate)) {
+      included = !excluded;
+    }
+  }
+  return included;
+}
+
 function assertV4ConsumerTriggerClosure() {
   assert.equal(
     globMatchesPath(
@@ -167,6 +183,24 @@ function assertV4ConsumerTriggerClosure() {
     ),
     false,
   );
+  const v2ProofPath =
+    "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs";
+  assert.equal(
+    orderedPathFilterIncludes(
+      ["scripts/**", "!" + v2ProofPath],
+      v2ProofPath,
+    ),
+    false,
+    "later negative trigger pattern must exclude a dependency",
+  );
+  assert.equal(
+    orderedPathFilterIncludes(
+      ["scripts/**", "!" + v2ProofPath, v2ProofPath],
+      v2ProofPath,
+    ),
+    true,
+    "later positive trigger pattern must re-include a dependency",
+  );
   for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
     const source = read(ROOT, workflowPath).toString("utf8");
     const eventNames = ["pull_request"];
@@ -177,15 +211,13 @@ function assertV4ConsumerTriggerClosure() {
       const paths = workflowEventPaths(source, eventName);
       assert.ok(paths, workflowPath + " missing " + eventName + " paths");
       for (const dependency of V4_TRIGGER_DEPENDENCIES) {
-        const matchedBy = paths.find((pattern) =>
-          globMatchesPath(pattern, dependency),
-        );
+        const included = orderedPathFilterIncludes(paths, dependency);
         assert.ok(
-          matchedBy,
+          included,
           workflowPath +
             " " +
             eventName +
-            ".paths missing V4 trigger dependency: " +
+            ".paths missing or excluding V4 trigger dependency: " +
             dependency,
         );
       }
@@ -481,7 +513,8 @@ if (
           .enforcement_artifact_set_sha256,
     );
     console.log("predecessor_v3_manifest_bound=true");
-    console.log("v4_consumer_trigger_closure_bound=true");
+    console.log("v4_consumer_trigger_ordered_negation_semantics_bound=true");
+console.log("v4_consumer_trigger_closure_bound=true");
     console.log("predecessor_v2_manifest_bytes_bound=true");
     console.log("dockerfile_only_delta_exact=true");
     console.log("compiled_artifacts_unchanged=true");
