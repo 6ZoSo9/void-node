@@ -1042,6 +1042,33 @@ export async function testOnlyPrepareReviewedExecutionPrivateTreeAbaV1(){
     delete globalThis.__VOID_REVIEWED_PRIVATE_TREE_ABA_SENTINEL;
   }
 }
+export async function testOnlyPrepareAndRecheckReviewedAuthorityV1(){
+  const head=repoGit(["rev-parse","HEAD"]);
+  const launcher=exactHeadFileV1(head,LAUNCHER_REL);
+  const authority=reviewedGitAuthorityV1(launcher.blob);
+  const prepared=await prepareReviewedExecutionV1(authority.head);
+  try{
+    const after=reviewedGitAuthorityV1(
+      authority.launcher_git_blob_sha1,
+    );
+    if(
+      after.head!==authority.head||
+      after.tree!==authority.tree
+    ){
+      fail("reviewed_repository_authority_changed_during_preparation");
+    }
+    prepared.reverify();
+    return Object.freeze({
+      before:authority,
+      after,
+      binding:prepared.binding,
+      transaction_submission_performed:false,
+      rpc_send_invocation_count:0,
+    });
+  }finally{
+    prepared.cleanup();
+  }
+}
 export function testOnlyReviewedGitHeadV1(){
   return repoGit(["rev-parse","HEAD"]);
 }
@@ -1055,7 +1082,9 @@ async function main(){
   );
   const prepared=await prepareReviewedExecutionV1(authority.head);
   try{
-    const authorityAfterPreparation=reviewedGitAuthorityV1();
+    const authorityAfterPreparation=reviewedGitAuthorityV1(
+      authority.launcher_git_blob_sha1,
+    );
     if(
       authorityAfterPreparation.head!==authority.head||
       authorityAfterPreparation.tree!==authority.tree
