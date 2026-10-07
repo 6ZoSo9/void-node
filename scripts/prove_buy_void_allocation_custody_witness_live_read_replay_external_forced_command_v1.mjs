@@ -541,6 +541,36 @@ for (const key of [
   );
 }
 
+{
+  const maxEnvelopeRequest = buildRequest({
+    operation: "append",
+    id: requestId("intent-capacity-envelope"),
+    journal: Buffer.alloc(8 * 1024 * 1024),
+    high_water: Buffer.alloc(16 * 1024, 0x61),
+  });
+  assert.ok(
+    maxEnvelopeRequest.length <= 12 * 1024 * 1024,
+    "maximum decoded replay/high-water envelope must fit request ceiling",
+  );
+  const nestedRequestBase64Bytes = Buffer.byteLength(
+    maxEnvelopeRequest.toString("base64"),
+    "utf8",
+  );
+  assert.ok(
+    nestedRequestBase64Bytes > 8 * 1024 * 1024,
+    "retired 8 MiB intent ceiling cannot hold a near-limit request after the second base64 layer",
+  );
+  const derivedIntentCeiling =
+    4 * Math.ceil((12 * 1024 * 1024) / 3) +
+    4 * Math.ceil((4 * 1024) / 3) +
+    64 * 1024;
+  assert.ok(
+    derivedIntentCeiling >
+      nestedRequestBase64Bytes + 4 * Math.ceil((4 * 1024) / 3),
+    "derived intent ceiling must cover request rebinding plus one maximal witness event and metadata",
+  );
+}
+
 const source = fs.readFileSync(
   "tools/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs",
   "utf8",
@@ -560,6 +590,16 @@ for (const token of [
 assert.doesNotMatch(source, /child_process\.exec/u);
 assert.doesNotMatch(source, /\beval\s*\(/u);
 assert.doesNotMatch(source, /process\.env\[[^\]]+\]\s*=/u);
+assert.doesNotMatch(
+  source,
+  /MAX_INTENT_BYTES\s*=\s*8\s*\*\s*1024\s*\*\s*1024/u,
+  "intent capacity must not regress to the request-smaller 8 MiB ceiling",
+);
+assert.match(
+  source,
+  /4 \* Math\.ceil\(MAX_REQUEST_BYTES \/ 3\)[\s\S]{0,180}4 \* Math\.ceil\(MAX_WITNESS_EVENT_BYTES \/ 3\)[\s\S]{0,180}MAX_INTENT_METADATA_BYTES/u,
+  "intent ceiling must remain derived from request, event, and metadata bounds",
+);
 
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_FORCED_COMMAND_V1,
@@ -581,6 +621,8 @@ console.log("torn_append_crash_recovered=true");
 console.log("full_append_precleanup_crash_recovered=true");
 console.log("read_pending_intent_holds=true");
 console.log("mismatched_recovery_request_holds=true");
+console.log("max_request_intent_capacity_bound=true");
+console.log("retired_8mib_intent_ceiling=false");
 console.log("host_identity_drift_rejected=true");
 console.log("caller_path_injection_rejected=true");
 console.log("live_nimo_installed=false");
