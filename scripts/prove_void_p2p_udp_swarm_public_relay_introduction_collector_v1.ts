@@ -325,6 +325,34 @@ await assert.rejects(
 assert.equal(oversizedBodyCancelled, true);
 assert.ok(oversizedBodyPulls <= 3);
 
+let zeroProgressBodyCancelled = false;
+let zeroProgressBodyPulls = 0;
+globalThis.fetch = (async () =>
+  new Response(
+    new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          zeroProgressBodyPulls += 1;
+          controller.enqueue(new Uint8Array(0));
+        },
+        cancel() {
+          zeroProgressBodyCancelled = true;
+        },
+      },
+      { highWaterMark: 0 },
+    ),
+    { status: 200, headers: { "content-type": "application/json" } },
+  )) as typeof fetch;
+await assert.rejects(
+  fetchVoidUdpSwarmPublicRelayIntroductionV1({
+    source_node_id: sourceA.nodeId,
+    url: "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
+  }),
+  /stream made no progress/,
+);
+assert.equal(zeroProgressBodyCancelled, true);
+assert.equal(zeroProgressBodyPulls, 1);
+
 globalThis.fetch = (async () =>
   new Response(JSON.stringify(envelope()), {
     status: 200,
@@ -867,6 +895,8 @@ console.log("unauthorized_authenticated_peers_are_topology_authority=false");
 console.log("unauthorized_authenticated_transport_quorum_bootstrap_fetches=0");
 console.log(`transport_response_max_bytes=${VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_MAX_BYTES_V1}`);
 console.log("bounded_streaming_fetch_verified=true");
+console.log("zero_progress_stream_rejected=true");
+console.log("zero_progress_stream_cancelled=true");
 console.log("authorized_discovery_composition_invoked=true");
 console.log("existing_runtime_activation_invoked=true");
 console.log("peer_identity_exposed_in_status=false");
