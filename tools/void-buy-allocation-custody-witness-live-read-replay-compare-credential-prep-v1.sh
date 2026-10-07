@@ -12,6 +12,8 @@ hostfile="$hostdir/known_hosts"
 uid=994
 gid=981
 user=void-buy-custody
+precision_hostname=zoso-Precision-Tower-7810
+precision_machine_id_sha256=sha256:11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2
 
 hold() {
   echo "hold_reason=$1" >&2
@@ -35,7 +37,7 @@ echo "wallet_or_signer=false"
 echo "transaction=false"
 echo "funds_moved=false"
 
-for cmd in git ssh-keyscan ssh-keygen sudo install stat awk getent id sort; do
+for cmd in git ssh-keyscan ssh-keygen sudo install stat awk getent id sort hostname sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || hold "missing_command:$cmd"
 done
 [[ -d "$repo/.git" ]] || hold source_repository_missing
@@ -44,6 +46,23 @@ done
   hold custody_identity_mismatch
 [[ "$(getent passwd "$uid" | awk -F: '{print $1}')" == "$user" ]] ||
   hold custody_account_mismatch
+
+[[ "$(hostname)" == "$precision_hostname" ]] ||
+  hold precision_hostname_mismatch
+[[ -r /etc/machine-id ]] || hold precision_machine_id_unreadable
+machine_id="$(< /etc/machine-id)"
+[[ "$machine_id" =~ ^[0-9a-f]{32}$ ]] ||
+  hold precision_machine_id_invalid
+machine_id_sha256="sha256:$(
+  printf '%s' "$machine_id" |
+    sha256sum |
+    awk 'NR==1 {print $1}'
+)"
+[[ "$machine_id_sha256" == "$precision_machine_id_sha256" ]] ||
+  hold precision_machine_id_mismatch
+echo "precision_hostname=$precision_hostname"
+echo "precision_machine_id_sha256=$machine_id_sha256"
+echo "precision_host_identity_bound=true"
 
 git -C "$repo" fetch --quiet origin main
 [[ "$(git -C "$repo" rev-parse origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs)" == "309b4de7c40c5b8a21bbc956cc445f6600a33215" ]] ||
