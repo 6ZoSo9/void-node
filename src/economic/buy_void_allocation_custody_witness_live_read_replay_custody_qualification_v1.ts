@@ -517,6 +517,13 @@ function parseReceipt(
   if (
     receipt.sequence !== receipt.event_count ||
     BigInt(receipt.custody_epoch) !== BigInt(receipt.event_count) ||
+    (receipt.event_count === 0
+      ? receipt.previous_receipt_sha256 !== null
+      : receipt.previous_receipt_sha256 === null)
+  ) {
+    fail("witness_replay_custody_receipt_chain_invalid");
+  }
+  if (
     sha256Id(Buffer.from(receipt.high_water_json, "utf8")) !==
       receipt.high_water_sha256 ||
     sha256Id(
