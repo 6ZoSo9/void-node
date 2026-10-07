@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -25,6 +26,11 @@ const REQUEST_ID=/^voiddrbar1_[0-9a-f]{64}$/u;
 const OBS_ID=/^voiddrpbo1_[0-9a-f]{64}$/u;
 const OP_ID=/^voiddrbo1_[0-9a-f]{64}$/u;
 const CONSUMPTION_ID=/^voiddrbac1_[0-9a-f]{64}$/u;
+const SEND_GUARD_ID=/^voiddrbsg1_[0-9a-f]{64}$/u;
+const SEND_GUARD_MARKER=
+  "VOID_DATANET_REGISTRY_BROADCAST_SEND_GUARD_V1";
+const SEND_GUARD_RELATIVE_ROOT=
+  ".config/void/datanet-registry-broadcast-send-guards-v1";
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -104,6 +110,87 @@ function validateStateRoot(raw){
     ino:String(big.ino),
   });
 }
+
+function validateDirectOwnedDirectory(directory,{exactMode=null}={}){
+  assertNoSymlinkAncestors(directory);
+  const stat=fs.lstatSync(directory);
+  const big=fs.lstatSync(directory,{bigint:true});
+  if(
+    stat.isSymbolicLink()||
+    !stat.isDirectory()||
+    fs.realpathSync.native(directory)!==directory||
+    (typeof process.getuid==="function"&&stat.uid!==process.getuid())||
+    (stat.mode&0o022)!==0||
+    (exactMode!==null&&(stat.mode&0o777)!==exactMode)
+  ){
+    throw new Error("registry_broadcast_execution_authority_directory_invalid");
+  }
+  return Object.freeze({
+    realpath:directory,
+    dev:String(big.dev),
+    ino:String(big.ino),
+  });
+}
+
+function ensureAuthorityGuardRoot(stateRoot,testOnlyRoot=null){
+  if(testOnlyRoot!==null){
+    const resolved=path.resolve(String(testOnlyRoot||""));
+    if(
+      !resolved||
+      !path.isAbsolute(resolved)||
+      resolved!==String(testOnlyRoot)
+    ){
+      throw new Error("registry_broadcast_execution_test_guard_root_invalid");
+    }
+    const checked=validateDirectOwnedDirectory(resolved,{exactMode:0o700});
+    const relative=path.relative(stateRoot.realpath,checked.realpath);
+    if(
+      relative===""||
+      (!relative.startsWith(".."+path.sep)&&
+        relative!==".."&&!path.isAbsolute(relative))
+    ){
+      throw new Error("registry_broadcast_execution_send_guard_inside_state_root");
+    }
+    return checked;
+  }
+
+  const home=path.resolve(os.homedir());
+  if(!home||home===path.parse(home).root){
+    throw new Error("registry_broadcast_execution_home_invalid");
+  }
+  validateDirectOwnedDirectory(home);
+
+  let cursor=home;
+  for(const segment of [".config","void","datanet-registry-broadcast-send-guards-v1"]){
+    const next=path.join(cursor,segment);
+    try{
+      fs.mkdirSync(next,{mode:0o700});
+      fs.chmodSync(next,0o700);
+      fsyncDir(cursor);
+    }catch(error){
+      if(error?.code!=="EEXIST") throw error;
+    }
+    validateDirectOwnedDirectory(
+      next,
+      segment==="datanet-registry-broadcast-send-guards-v1"
+        ? {exactMode:0o700}
+        : {},
+    );
+    cursor=next;
+  }
+
+  const checked=validateDirectOwnedDirectory(cursor,{exactMode:0o700});
+  const relative=path.relative(stateRoot.realpath,checked.realpath);
+  if(
+    relative===""||
+    (!relative.startsWith(".."+path.sep)&&
+      relative!==".."&&!path.isAbsolute(relative))
+  ){
+    throw new Error("registry_broadcast_execution_send_guard_inside_state_root");
+  }
+  return checked;
+}
+
 function assertStateGeneration(root){
   const big=fs.lstatSync(root.realpath,{bigint:true});
   if(
@@ -186,6 +273,78 @@ function atomicCreate(file,value){
   fsyncDir(path.dirname(file));
   return "created";
 }
+function validateSendGuardRecord(
+  record,
+  {authorization,root,operationId,intent},
+){
+  if(
+    !record||
+    record.marker!==SEND_GUARD_MARKER||
+    record.version!==1||
+    record.status!==
+      "SINGLE_BROADCAST_SEND_GUARD_DURABLE_OUTSIDE_STATE_ROOT"||
+    !SEND_GUARD_ID.test(String(record.send_guard_id||""))||
+    record.broadcast_operation_id!==operationId||
+    record.submission_intent_id!==intent.submission_intent_id||
+    record.broadcast_authorization_id!==authorization.broadcast_authorization_id||
+    record.signed_transaction_id!==authorization.signed_transaction_id||
+    record.signed_transaction_hash!==
+      authorization.transaction_summary.signed_transaction_hash||
+    record.state_store_realpath_sha256!==root.realpath_sha256||
+    record.state_store_root_dev!==root.dev||
+    record.state_store_root_ino!==root.ino||
+    record.one_submission_attempt_only!==true||
+    record.automatic_retry_authorized!==false||
+    record.replacement_transaction_authorized!==false
+  ){
+    throw new Error("registry_broadcast_execution_send_guard_binding_invalid");
+  }
+  const material=structuredClone(record);
+  const id=material.send_guard_id;
+  delete material.send_guard_id;
+  if(id!=="voiddrbsg1_"+sha256(Buffer.from(canonicalJson(material)))){
+    throw new Error("registry_broadcast_execution_send_guard_id_invalid");
+  }
+  return record;
+}
+
+function validateAttemptIntentRecord(
+  record,
+  {authorization,observation,operationId,consumption},
+){
+  if(
+    !record||
+    record.marker!==VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1||
+    record.version!==1||
+    record.status!=="SINGLE_BROADCAST_ATTEMPT_INTENT_DURABLE_BEFORE_RPC"||
+    record.broadcast_operation_id!==operationId||
+    record.consumption_record_id!==consumption.consumption_record_id||
+    record.broadcast_authorization_id!==authorization.broadcast_authorization_id||
+    record.broadcast_authorization_request_id!==
+      authorization.broadcast_authorization_request_id||
+    record.prebroadcast_observation_id!==observation.prebroadcast_observation_id||
+    record.signed_transaction_id!==authorization.signed_transaction_id||
+    record.signed_transaction_hash!==
+      authorization.transaction_summary.signed_transaction_hash||
+    record.predicted_contract_address!==
+      authorization.transaction_summary.predicted_contract_address||
+    record.one_submission_attempt_only!==true||
+    record.automatic_retry_authorized!==false||
+    record.replacement_transaction_authorized!==false||
+    typeof record.submission_intent_id!=="string"||
+    !/^voiddrbei1_[0-9a-f]{64}$/u.test(record.submission_intent_id)
+  ){
+    throw new Error("registry_broadcast_execution_attempt_intent_binding_invalid");
+  }
+  const material=structuredClone(record);
+  const id=material.submission_intent_id;
+  delete material.submission_intent_id;
+  if(id!=="voiddrbei1_"+sha256(Buffer.from(canonicalJson(material)))){
+    throw new Error("registry_broadcast_execution_attempt_intent_id_invalid");
+  }
+  return record;
+}
+
 function validateConsumptionRecord(record,{authorization,observation,root,operationId}){
   if(
     !record||
@@ -291,7 +450,15 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     typeof dependencies.validate_observation!=="function"||
     typeof dependencies.validate_signed_transaction!=="function"||
     typeof dependencies.rpc!=="function"||
-    typeof dependencies.now!=="function"
+    typeof dependencies.now!=="function"||
+    !(
+      dependencies.test_only_guard_root===undefined||
+      typeof dependencies.test_only_guard_root==="string"
+    )||
+    !(
+      dependencies.test_only_after_send_guard_before_rpc===undefined||
+      typeof dependencies.test_only_after_send_guard_before_rpc==="function"
+    )
   ){
     throw new Error("registry_broadcast_execution_dependencies_invalid");
   }
@@ -443,6 +610,10 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
   try{
     assertRuntimeWindow(authorization,observation,dependencies.now());
     assertStateGeneration(root);
+    validateAttemptIntentRecord(
+      readPrivateJson(intentFile),
+      {authorization,observation,operationId,consumption},
+    );
   }catch(error){
     return held(
       "registry_broadcast_execution_final_pre_send_gate_failed",
@@ -454,6 +625,65 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
         attempt_intent_recorded:true,
       },
     );
+  }
+
+  let sendGuard;
+  let sendGuardFile;
+  try{
+    const guardRoot=ensureAuthorityGuardRoot(
+      root,
+      dependencies.test_only_guard_root??null,
+    );
+    sendGuardFile=path.join(guardRoot.realpath,operationId+".json");
+    const sendGuardMaterial={
+      marker:SEND_GUARD_MARKER,
+      version:1,
+      status:"SINGLE_BROADCAST_SEND_GUARD_DURABLE_OUTSIDE_STATE_ROOT",
+      broadcast_operation_id:operationId,
+      submission_intent_id:intent.submission_intent_id,
+      broadcast_authorization_id:authorization.broadcast_authorization_id,
+      signed_transaction_id:signed.signed_transaction_id,
+      signed_transaction_hash:signed.signed_transaction_hash,
+      state_store_realpath_sha256:root.realpath_sha256,
+      state_store_root_dev:root.dev,
+      state_store_root_ino:root.ino,
+      one_submission_attempt_only:true,
+      automatic_retry_authorized:false,
+      replacement_transaction_authorized:false,
+      created_at_utc:new Date(dependencies.now()).toISOString(),
+    };
+    sendGuard={
+      ...sendGuardMaterial,
+      send_guard_id:
+        "voiddrbsg1_"+sha256(Buffer.from(canonicalJson(sendGuardMaterial))),
+    };
+    if(atomicCreate(sendGuardFile,sendGuard)!=="created"){
+      return held("registry_broadcast_execution_send_guard_already_recorded",{
+        broadcast_operation_id:operationId,
+        submission_intent_id:intent.submission_intent_id,
+        attempt_intent_recorded:true,
+      });
+    }
+    validateSendGuardRecord(
+      readPrivateJson(sendGuardFile),
+      {authorization,root,operationId,intent},
+    );
+  }catch(error){
+    return held("registry_broadcast_execution_send_guard_publication_failed",{
+      error:safeError(error),
+      broadcast_operation_id:operationId,
+      submission_intent_id:intent.submission_intent_id,
+      attempt_intent_recorded:true,
+    });
+  }
+
+  if(dependencies.test_only_after_send_guard_before_rpc){
+    await dependencies.test_only_after_send_guard_before_rpc({
+      state_root:root.realpath,
+      send_guard_file:sendGuardFile,
+      send_guard_id:sendGuard.send_guard_id,
+      broadcast_operation_id:operationId,
+    });
   }
 
   let sendResult=null;
@@ -506,6 +736,7 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     status:"SINGLE_BROADCAST_ATTEMPT_TERMINAL_RECORD",
     broadcast_operation_id:operationId,
     submission_intent_id:intent.submission_intent_id,
+    send_guard_id:sendGuard.send_guard_id,
     consumption_record_id:consumption.consumption_record_id,
     broadcast_authorization_id:authorization.broadcast_authorization_id,
     signed_transaction_id:signed.signed_transaction_id,
