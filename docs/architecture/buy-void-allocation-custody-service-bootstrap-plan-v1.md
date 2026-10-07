@@ -111,6 +111,34 @@ public runtime must have only reviewed group-based socket access, without
 write/rename/recreate rights over the socket directory or either data root.
 Those runtime filesystem and group facts are **not** established by this plan.
 
+### Writable socket parent inside `ProtectSystem=strict`
+
+The candidate policy requires `ProtectSystem=strict` but enumerates only the
+ledger and high-water roots in `ReadWritePaths`. Those **exact two paths** are
+also required by the existing merged custody classifier. The source service
+creates and unlinks the AF_UNIX socket itself; it does not inherit a prebound
+socket from systemd. A pre-existing directory with correct UID/GID/mode is
+**insufficient** if the service sees the parent as read-only inside its mount
+namespace. Neither socket bind nor cleanup is proven merely by DAC checks.
+
+Before proposing an executable unit, a separate source/host gate must select
+and verify a **qualifier-compatible writable namespace exception** for that
+socket parent (for example, a reviewed systemd-managed `RuntimeDirectory`
+arrangement or another explicitly qualified mechanism). It must also prove
+that the final parent retains the required *distinct* IPC group rather than
+silently reverting to the custody service's primary group at startup or restart,
+that the public runtime can connect without replacing socket entries, and
+that bind/unlink/restart works under the effective hardening policy. Do not
+add a third `ReadWritePaths` entry without amending and reviewing the existing
+exact-paths qualification contract. Do not use a competing systemd socket unit.
+
+The new source-only observation field
+`socket_parent_namespace_write_exception_proven=false` is untrusted and
+cannot authorize live service startup. The plan deliberately leaves the
+exception mechanism unselected and reports
+`HOLD_SOCKET_PARENT_WRITABLE_NAMESPACE_EXCEPTION`; a fabricated true value
+still returns `HOLD_SOURCE_ONLY`.
+
 ## Service-control boundary
 
 A secure public-runtime policy needs effective `NoNewPrivileges=yes`, empty
@@ -141,7 +169,8 @@ rule or run `pkcheck`.
 2. Review and qualify the public runtime's user-manager hardening. No
    unreviewed drop-in or live service restart is part of this package.
 3. Review and bootstrap the distinct system-manager custody identity, service,
-   IPC group, socket parent and exact fixed server config. Preserve both
+   IPC group, socket parent, exact fixed server config and reviewed
+   `ProtectSystem=strict` socket-parent writable-namespace exception. Preserve
    canonical ledger/high-water files unchanged; no automatic genesis rewrite.
 4. Install and independently verify the exact global runtime Polkit denial;
    prove live runtime privilege/capability and service-control boundaries.

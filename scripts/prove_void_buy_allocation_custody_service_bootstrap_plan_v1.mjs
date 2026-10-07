@@ -35,6 +35,7 @@ const expectedHolds = [
   "HOLD_EXACT_EXEC_START",
   "HOLD_DEDICATED_SERVICE_HARDENING",
   "HOLD_PRIVATE_AF_UNIX_SOCKET",
+  "HOLD_SOCKET_PARENT_WRITABLE_NAMESPACE_EXCEPTION",
   "HOLD_RUNTIME_SYSTEMD_POLKIT_CONTROL_DENIAL",
   "HOLD_INDEPENDENT_MONOTONIC_CUSTODY_ANCHOR",
   "HOLD_SAME_UID_JOINT_ROLLBACK",
@@ -47,6 +48,10 @@ assert.equal(decision.candidate.socket_activation_implemented, false);
 assert.equal(decision.candidate.socket_transport, "AF_UNIX");
 assert.equal(decision.candidate.socket_mode_target, "0660");
 assert.equal(decision.candidate.socket_parent_mode_target, "0750");
+assert.equal(decision.candidate.socket_parent_write_namespace_exception_required, true);
+assert.equal(decision.candidate.socket_parent_writable_inside_service_namespace_proven, false);
+assert.equal(decision.candidate.socket_parent_namespace_exception_mechanism_selected, false);
+assert.equal(decision.candidate.socket_parent_namespace_exception_mechanism, null);
 assert.equal(decision.candidate.systemd_manager, "system");
 assert.equal(decision.candidate.public_node_systemd_manager, "user");
 assert.equal(decision.candidate.service_policy_target.NoNewPrivileges, true);
@@ -87,6 +92,16 @@ assert.equal(forged.observation_trusted_as_authority, false);
 assert.equal(forged.production_gate_ready, false);
 assert.equal(forged.executable_unit_emitted, false);
 assert.equal(forged.candidate.requested_exec_start, null);
+
+const absentSocketWrite = {
+  ...candidateAllTrue,
+  socket_parent_namespace_write_exception_proven: false,
+};
+assert.deepEqual(
+  classifyBuyAllocationCustodyServiceBootstrapPlanV1(absentSocketWrite)
+    .reported_missing_requirements,
+  ["HOLD_SOCKET_PARENT_WRITABLE_NAMESPACE_EXCEPTION"],
+);
 
 const absentSeparation = {
   ...candidateAllTrue,
