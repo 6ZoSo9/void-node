@@ -383,6 +383,60 @@ if (!matched0.ok) throw new Error("genesis match held");
 assert.equal(matched0.status, "matched");
 assert.equal(matched0.exact_live_match, true);
 
+{
+  const numericIdentity =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: witness0,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity: {
+        ...identity,
+        source_hostname: 123,
+      },
+    });
+  assert.equal(numericIdentity.ok, false);
+  if (numericIdentity.ok) {
+    throw new Error("numeric identity field unexpectedly green");
+  }
+  assert.equal(
+    numericIdentity.reason,
+    "witness_replay_external_witness_source_identity_invalid",
+  );
+}
+
+{
+  let coercionCalls = 0;
+  const hostileIdentity = {
+    toString() {
+      coercionCalls += 1;
+      return identity.source_hostname;
+    },
+  };
+  const objectIdentity =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: "",
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity: {
+        ...identity,
+        source_hostname: hostileIdentity,
+      },
+    });
+  assert.equal(objectIdentity.ok, false);
+  if (objectIdentity.ok) {
+    throw new Error("object identity field unexpectedly green");
+  }
+  assert.equal(
+    objectIdentity.reason,
+    "witness_replay_external_witness_source_identity_invalid",
+  );
+  assert.equal(
+    coercionCalls,
+    0,
+    "identity validation must not invoke caller-controlled toString",
+  );
+}
+
 const issueA =
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1({
     journal_jsonl: journal0,
