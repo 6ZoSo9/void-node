@@ -16,7 +16,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
+import { dirname, parse, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compileFunction } from "node:vm";
 import { validateV3OnionHostname } from "./void-tor-onion-descriptor-v1.mjs";
@@ -410,22 +410,86 @@ function sameBindingFileGenerationV1(left, right) {
   );
 }
 
+function sameBindingDirectoryIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid
+  );
+}
+
 export function readVoidNodeOnionBindingFileV1(
   pathValue,
   fileSystem = VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1,
 ) {
   const path = resolve(pathValue);
+  const parsed = parse(path);
+  const components = relative(parsed.root, path).split(sep).filter(Boolean);
   const noFollow = fileSystem.constants?.O_NOFOLLOW;
-  if (typeof noFollow !== "number") {
-    fail("binding file no-follow reads are unavailable");
+  const directoryOnly = fileSystem.constants?.O_DIRECTORY;
+  const nonBlock = fileSystem.constants?.O_NONBLOCK;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number" ||
+    typeof nonBlock !== "number"
+  ) {
+    fail("binding file descriptor safety is unavailable");
+  }
+  if (components.length < 1) {
+    fail("binding file path is invalid");
   }
 
+  const directoryFlags =
+    fileSystem.constants.O_RDONLY |
+    noFollow |
+    directoryOnly |
+    nonBlock;
+  const fileFlags =
+    fileSystem.constants.O_RDONLY |
+    noFollow |
+    nonBlock;
+  const directoryDescriptors = [];
+  const directoryStates = [];
+  const directoryPaths = [];
   let descriptor;
   try {
-    descriptor = fileSystem.openSync(
-      path,
-      fileSystem.constants.O_RDONLY | noFollow,
-    );
+    try {
+      let directoryDescriptor = fileSystem.openSync(parsed.root, directoryFlags);
+      directoryDescriptors.push(directoryDescriptor);
+      directoryStates.push(
+        fileSystem.fstatSync(directoryDescriptor, { bigint: true }),
+      );
+      directoryPaths.push(parsed.root);
+
+      let visibleDirectoryPath = parsed.root;
+      for (const component of components.slice(0, -1)) {
+        const nextDescriptor = fileSystem.openSync(
+          `/proc/self/fd/${directoryDescriptor}/${component}`,
+          directoryFlags,
+        );
+        directoryDescriptor = nextDescriptor;
+        directoryDescriptors.push(nextDescriptor);
+        directoryStates.push(
+          fileSystem.fstatSync(nextDescriptor, { bigint: true }),
+        );
+        visibleDirectoryPath = resolve(visibleDirectoryPath, component);
+        directoryPaths.push(visibleDirectoryPath);
+      }
+
+      descriptor = fileSystem.openSync(
+        `/proc/self/fd/${directoryDescriptor}/${components.at(-1)}`,
+        fileFlags,
+      );
+    } catch {
+      fail("binding file path is not descriptor-openable");
+    }
+
+    if (directoryStates.some((state) => !state.isDirectory())) {
+      fail("binding file path must remain directory-rooted");
+    }
+
     const before = fileSystem.fstatSync(descriptor, { bigint: true });
     if (!before.isFile() || before.isSymbolicLink()) {
       fail("binding file must be a regular non-symlink file");
@@ -461,6 +525,23 @@ export function readVoidNodeOnionBindingFileV1(
       fail("binding file changed during read");
     }
 
+    for (let index = 0; index < directoryPaths.length; index += 1) {
+      const visibleDirectory = fileSystem.lstatSync(
+        directoryPaths[index],
+        { bigint: true },
+      );
+      if (
+        visibleDirectory.isSymbolicLink() ||
+        !visibleDirectory.isDirectory() ||
+        !sameBindingDirectoryIdentityV1(
+          directoryStates[index],
+          visibleDirectory,
+        )
+      ) {
+        fail("binding file path changed during read");
+      }
+    }
+
     const visible = fileSystem.lstatSync(path, { bigint: true });
     if (
       !visible.isFile() ||
@@ -472,6 +553,13 @@ export function readVoidNodeOnionBindingFileV1(
     return bytes;
   } finally {
     if (descriptor !== undefined) fileSystem.closeSync(descriptor);
+    for (
+      let index = directoryDescriptors.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      fileSystem.closeSync(directoryDescriptors[index]);
+    }
   }
 }
 
