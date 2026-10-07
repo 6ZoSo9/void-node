@@ -310,6 +310,11 @@ assert.match(html, /Historical DataNet evidence/);
 assert.match(html, /historical evidence, not current Nimo connectivity or current network topology/);
 assert.match(html, /HISTORICAL \/ READ-ONLY/);
 assert.match(html, /Live topology<\/span><strong>NOT CLAIMED/);
+assert.match(
+  html,
+  /<div class="hero-content" role="status" aria-live="polite" aria-atomic="true">[\s\S]*data-datanet-state-chip[\s\S]*data-datanet-message[\s\S]*data-datanet-updated[\s\S]*<\/div>/,
+  "dynamic DataNet state must remain inside one polite atomic live region",
+);
 assert.match(html, /Recorded field path/);
 assert.match(html, /Recorded network path/);
 assert.match(html, /Verified historical field object/);
