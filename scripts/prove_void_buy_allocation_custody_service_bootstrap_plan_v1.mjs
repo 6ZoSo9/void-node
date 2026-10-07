@@ -128,8 +128,17 @@ process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) source += chunk;
 const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
 let requests;
-if (Array.isArray(module.moduleRequests)) {
-  // Newer Node exposes the full host module-request descriptor.
+// Node 22.23.x may expose moduleRequests without a phase field. Do not
+// mistake that partial API for the modern complete metadata contract.
+const major = Number(process.versions.node.split(".")[0]);
+if (![22, 24, 26].includes(major)) {
+  throw new Error("custody_bootstrap_plan_unsupported_node_major_hold");
+}
+if (major >= 24) {
+  if (!Array.isArray(module.moduleRequests)) {
+    throw new Error("custody_bootstrap_plan_modern_requests_unavailable_hold");
+  }
+  // Node 24/26 must expose the full host module-request descriptor.
   requests = module.moduleRequests.map((request) => {
     if (typeof request?.specifier !== "string" ||
         !request.attributes || typeof request.attributes !== "object" ||
