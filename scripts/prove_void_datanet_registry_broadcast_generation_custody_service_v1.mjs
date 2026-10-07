@@ -503,6 +503,44 @@ try{
   );
   fs.unlinkSync(fifoPath);
 
+  const serializationAbortController=new AbortController();
+  const serializationAbortFenceSnapshot=fence("2");
+  const serializationAbortFence={
+    ...serializationAbortFenceSnapshot,
+  };
+  Object.defineProperty(
+    serializationAbortFence,
+    "toJSON",
+    {
+      enumerable:false,
+      configurable:false,
+      value(){
+        serializationAbortController.abort(
+          new Error("synthetic_abort_during_serialization"),
+        );
+        return serializationAbortFenceSnapshot;
+      },
+    },
+  );
+  await assert.rejects(
+    ()=>transport.claim(
+      serializationAbortFence,
+      {
+        signal:serializationAbortController.signal,
+        timeout_ms:1000,
+      },
+    ),
+    /synthetic_abort_during_serialization/u,
+  );
+  assert.equal(
+    fs.existsSync(path.join(
+      fenceRoot,
+      serializationAbortFenceSnapshot.broadcast_generation_fence_id+".json",
+    )),
+    false,
+    "aborted serialization must not create the one-attempt fence record",
+  );
+
   const injected=await handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelopeV1(
     options,
     {
