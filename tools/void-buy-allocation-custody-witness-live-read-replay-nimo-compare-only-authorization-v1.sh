@@ -232,6 +232,7 @@ done
   hold installer_trusted_metadata_changed
 [[ "$(stat -c '%u:%g:%a:%F' /root)" == "0:0:700:directory" ]] ||
   hold root_directory_custody_changed
+trap cleanup EXIT
 [[ "$(getent passwd 997 | awk -F: '{print $1 ":" $4}')" == "voidwitness:984" ]] ||
   hold voidwitness_identity_changed
 
@@ -292,7 +293,6 @@ fi
 
 original_auth_sha="$(sha256sum "$auth" | awk '{print $1}')"
 old_two_sha="$(head -n 2 "$auth" | sha256sum | awk '{print $1}')"
-trap cleanup EXIT
 
 echo "=== install or verify fixed compare-only wrapper ==="
 if [[ -e "$wrapper" ]]; then
