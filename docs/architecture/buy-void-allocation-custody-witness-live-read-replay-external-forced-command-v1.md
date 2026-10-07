@@ -82,6 +82,12 @@ canonical request bytes again. A near-capacity valid replay state must not pass
 planning and then fail solely because its crash-recovery intent cannot represent
 the accepted request.
 
+Recovery first re-runs the canonical #2551 external-witness planner against
+the exact reconstructed prior witness and the exact request bound by the
+intent. The stored next line, complete next witness bytes, replay sequence,
+event count, tip, and digest must all equal that fresh planner result before any
+truncate, append, or intent cleanup may occur.
+
 Recovery accepts only:
 
 - exact prior witness;
@@ -143,9 +149,10 @@ git diff --check
 
 The proof covers empty read, canonical genesis append, one-event advance,
 idempotence, intent-only crash, torn append, full append before intent cleanup,
-read HOLD with pending intent, mismatched recovery request, host-identity drift,
-caller path injection, the nested-base64 near-capacity request/intent bound, and
-negative live/economic authority flags.
+read HOLD with pending intent, mismatched recovery request, canonical-but-forged
+intent rejection before witness mutation, host-identity drift, caller path
+injection, the nested-base64 near-capacity request/intent bound, and negative
+live/economic authority flags.
 
 ## Next gate
 
