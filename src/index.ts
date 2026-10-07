@@ -108,7 +108,7 @@ import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../t
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 // VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1
-let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__BL=m}).catch(()=>0);
+let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d")__BL=m}).catch(()=>0);
 const __bld=()=>{try{return __BL?.readBuyLaunchGateV1()||{ready:0}}catch{return{ready:0}}},__blo=(r:any)=>{try{return __BL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())}catch{return false}},__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f);
 
 // __VOID_TS_DECLARES_V1__

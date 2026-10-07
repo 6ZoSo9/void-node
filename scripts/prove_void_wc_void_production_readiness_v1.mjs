@@ -55,7 +55,7 @@ assert.equal(held.authority.funds_movement, false);
 assert.equal(candidate.market_vault_compiled_identity_committed, true);
 assert.equal(
   candidate.market_vault_compiled_identity_acceptance.packet_id,
-  "voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202",
+  "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05",
 );
 assert.equal(
   candidate.market_vault_compiled_identity_acceptance.identity_id,
@@ -325,7 +325,10 @@ console.log("market_vault_recovery_path_ready=true");
 console.log("market_vault_compiler_profile_locked=true");
 console.log("market_vault_dual_compiler_gate_implemented=true");
 console.log("market_vault_compiled_identity_committed=true");
-console.log("market_vault_compiled_identity_packet_id=voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202");
+console.log(
+  "market_vault_compiled_identity_packet_id=" +
+    candidate.market_vault_compiled_identity_acceptance.packet_id,
+);
 console.log("market_vault_compiled_identity_id=voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a");
 console.log("market_vault_deployment_attested=false");
 console.log("market_vault_address_present=false");

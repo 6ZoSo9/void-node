@@ -20,17 +20,17 @@ The current coupled launch is bound in both representations:
 
 ```text
 opening_domain_coupled_launch_id=
-sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
+sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d
 
 vault_coupled_launch_id=
-0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
+0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d
 ```
 
 ## Read-only collection
 
 `collectWcVoidMarketVaultAtUseRevalidationV1(...)` accepts only:
 
-- the reviewed compiled-identity acceptance packet;
+- the reviewed current corrected compiled-identity binding packet;
 - exact deployment/role/launch bindings;
 - minimum finality confirmations; and
 - the existing injected read-only RPC transport.
@@ -75,7 +75,7 @@ head's validity window.
 
 ## Semantic revalidation
 
-The artifact embeds the complete reviewed compiled-identity acceptance packet,
+The artifact embeds the complete reviewed current corrected compiled-identity binding packet,
 the complete runtime attestation, and an exact expected binding. Source-only
 re-verification first reconstructs the deployed runtime from the acceptance
 packet plus the attested immutable deployment bindings and requires exact

@@ -2,7 +2,7 @@
 
 Marker: `VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2`
 
-Status: **corrected generation derived; authoritative rebind required; HOLD**.
+Status: **corrected generation atomic rebind source-green; runtime/economic action HOLD**.
 
 ## Purpose
 
@@ -19,10 +19,24 @@ and the corresponding vault bytes32 is:
 0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d
 ```
 
-This lane does **not** apply that identity. It derives it independently from the
+Historically, the pre-application form of this census only derived the corrected
+identity and inventoried authoritative source bindings still tied to the
+superseded `fe02b5...fdc26` generation. That historical behavior is preserved
+as lineage.
+
+On the current #2533 source generation, the atomic rebind has been applied across
+the reviewed current-authority set. The census now requires and reports:
+
+- `status=CORRECTED_GENERATION_ATOMIC_REBIND_SOURCE_GREEN`;
+- `remaining_superseded_authoritative_path_count=0`;
+- `all_authoritative_rebindings_complete=true`;
+- `remaining_superseded_compiled_identity_consumer_count=0`; and
+- `all_current_authority_compiled_identity_rebindings_complete=true`.
+
+The census still independently rederives the corrected identity from the
 corrected compiler artifacts plus the unchanged canonical presale/WC-opening
-policy, then inventories the current authoritative source bindings still tied to
-the superseded `fe02b5...fdc26` generation.
+policy and retains explicit superseded lineage as non-authoritative historical
+evidence.
 
 The correction input is accepted only through the canonical #2435 correction
 verifier against the superseded v1 acceptance packet; a copied set of corrected
@@ -70,8 +84,10 @@ Canonical JSON SHA-256 of that commitment is exactly the corrected
 
 ## Authoritative rebind census
 
-The census treats the following as current-authority bindings that must be
-reviewed together in the later application lane:
+The census treats the following as the current-authority bindings that had to be
+reviewed and rebound together. On the current #2533 generation all 14 are
+required to carry the corrected generation, and any remaining superseded pin
+fails closed:
 
 1. canonical coupled-economic candidate;
 2. coupled-economic source classifier;
@@ -100,8 +116,9 @@ and must not be mistaken for another current rebind consumer.
 
 ### Superseded compiled-identity consumers
 
-The corrected-generation application must also rebind these current consumers
-of the old V1 deployment identity:
+The current #2533 corrected-generation application also requires these nine
+current consumers of the old V1 deployment identity to be rebound. The exact
+current census requires zero remaining superseded compiled-identity consumers:
 
 1. WC/VOID production candidate;
 2. production-readiness classifier;
@@ -121,11 +138,12 @@ or imports the V1 acceptance module makes the census fail closed.
 
 ## Fail-closed rule
 
-This census deliberately reports
-`all_authoritative_rebindings_complete=false`.
+The current #2533 census deliberately reports
+`all_authoritative_rebindings_complete=true` only when the full reviewed set
+is on the corrected generation. It also requires
+`all_current_authority_compiled_identity_rebindings_complete=true`.
 
-The later application lane must update and prove the authoritative set as one
-reviewed generation. In particular:
+Source-green rebind completion is not live authority. In particular:
 
 - the old control signature is not reusable;
 - old signing requests are not reusable;
@@ -147,8 +165,12 @@ git diff --check
 
 ## Next gate
 
-`apply_corrected_coupled_launch_generation_as_one_reviewed_rebind_set`
+`fresh_corrected_generation_control_ceremony_then_read_only_vault_observation`
 
-That later gate must rederive every dependent content-addressed candidate,
-policy, challenge, and proof. This census does not authorize the application,
-signing ceremony, deployment, runtime activation, or any economic action.
+The source rebind is complete, but old controller signatures, signing requests,
+and live-activation receipts are not reusable for the corrected generation.
+The next reviewed lifecycle step is therefore a fresh corrected-generation
+control ceremony, followed by read-only vault observation. This census does not
+authorize signing, deployment, inventory funding, runtime activation, market or
+public-presale activation, Chain-2050 mutation, treasury/liquidity action, or
+funds movement.

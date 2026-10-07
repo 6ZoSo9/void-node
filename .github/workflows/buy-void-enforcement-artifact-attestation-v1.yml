@@ -12,6 +12,14 @@ on:
       - 'scripts/copy_void_runtime_js_v1.mjs'
       - 'scripts/retire_saveblock_periodic_rewriters_v1.mjs'
       - 'scripts/prove_buy_void_enforcement_*'
+      - 'scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs'
+      - 'scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs'
+      - 'scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs'
+      - 'scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs'
+      - 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.json'
+      - 'docs/architecture/buy-void-enforcement-artifact-attestation-v2.json'
+      - 'docs/architecture/buy-void-enforcement-artifact-attestation-v3.json'
+      - 'docs/architecture/buy-void-enforcement-artifact-attestation-v4.json'
       - 'scripts/prove_buy_void_source_finality_execution_preflight_v1.ts'
       - 'scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs'
       - 'scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs'
@@ -22,6 +30,7 @@ on:
       - 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.*'
       - 'docs/architecture/buy-void-enforcement-artifact-attestation-v2.*'
       - 'docs/architecture/buy-void-enforcement-artifact-attestation-v3.*'
+      - 'docs/architecture/buy-void-enforcement-artifact-attestation-v4.*'
       - '.github/workflows/buy-void-enforcement-artifact-attestation-v1.yml'
   workflow_dispatch:
 
@@ -69,9 +78,9 @@ jobs:
           npm run build
           node --import tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
           node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive > enforcement-raw-candidate.json
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs --derive > enforcement-candidate-v3.json
-          cmp enforcement-candidate-v3.json docs/architecture/buy-void-enforcement-artifact-attestation-v3.json
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs | tee enforcement-proof.log
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs --derive > enforcement-candidate-v4.json
+          cmp enforcement-candidate-v4.json docs/architecture/buy-void-enforcement-artifact-attestation-v4.json
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs | tee enforcement-proof.log
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
           python3 scripts/prove_buy_void_enforcement_image_identity_v1.py --self-test
           git diff --exit-code
@@ -81,7 +90,7 @@ jobs:
           name: enforcement-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             enforcement-raw-candidate.json
-            enforcement-candidate-v3.json
+            enforcement-candidate-v4.json
             enforcement-proof.log
           if-no-files-found: error
           retention-days: 7
@@ -129,7 +138,7 @@ jobs:
           set -euo pipefail
           npm run build
           node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive > enforcement-current-candidate.json
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs \
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs \
             --packaged-root "$RUNNER_TEMP/enforcement-root" | tee enforcement-package-proof.log
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
           python3 scripts/prove_buy_void_enforcement_image_identity_v1.py \

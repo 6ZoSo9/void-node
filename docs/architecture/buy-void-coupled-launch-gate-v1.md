@@ -28,10 +28,14 @@ It delegates readiness to
 `classifyVoidWcVoidCoupledLaunchReadinessV1(...)` and additionally binds the
 reviewed coupled launch ID:
 
-`sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`
+`sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d`
 
 Nested policy drift is therefore rejected by the canonical classifiers instead
 of being reduced to a hand-picked set of top-level booleans.
+
+The prior generation is superseded source lineage only. It is not current
+activation authority, and its control signatures/activation receipts are not
+reusable against the corrected generation.
 
 A source-ready result records the canonical coupled composition ID, but it still
 reports activation/funding/presale/market/funds authority false.

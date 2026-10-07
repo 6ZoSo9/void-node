@@ -1,0 +1,85 @@
+{
+  "marker": "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CURRENT_BINDING_V2",
+  "version": 2,
+  "status": "COMPILED_IDENTITY_CURRENT_CORRECTED_DEPLOYMENT_HOLD",
+  "correction_id": "voidwcvcic2_a33bd59683b48ddae0390fa1ed48c40263e61d094ec9fcdf6ff88d2b1361da8e",
+  "corrected_coupled_launch_id": "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+  "corrected_vault_bytes32": "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+  "archive": {
+    "path": "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64",
+    "zip_bytes": 11283,
+    "zip_sha256": "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc",
+    "identity_entry": "identity.json",
+    "identity_json_bytes": 57245,
+    "identity_json_sha256": "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b"
+  },
+  "identity": {
+    "identity_id": "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
+    "reviewed_at_utc": "2026-09-28T18:20:05.000Z",
+    "workflow_run_id": 36464403015,
+    "workflow_job_id": 109070717228,
+    "workflow_artifact_id": 10988626461
+  },
+  "source": {
+    "repository": "6ZoSo9/void-node",
+    "source_commit": "dba4a50b444dc5b1369d96fd63f5aa79f185e3e4",
+    "source_ref": "feat/wc-void-vault-compiled-identity-v1-20260928",
+    "contract_path": "contracts/mainnet/WCVoidMarketVaultV2.sol",
+    "contract_name": "WCVoidMarketVaultV2",
+    "contract_source_sha256": "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925",
+    "contract_source_bytes": 10830,
+    "standard_json_input_canonical_sha256": "bf268481fc655693e2b3d564222af253151cd60fac6ace43a7f3b6e7b2cf38f5"
+  },
+  "artifacts": {
+    "creation_bytecode_bytes": 9441,
+    "creation_bytecode_sha256": "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+    "creation_bytecode_keccak256": "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
+    "runtime_template_bytes": 8342,
+    "runtime_template_sha256": "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+    "runtime_template_keccak256": "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
+    "immutable_layout_sha256": "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b",
+    "abi_sha256": "27e6d3a1b9e071b891bdd16abf0f2ee4a06ba988803e8dac60e2542b00f0ff5b",
+    "metadata_sha256": "c51f421ac8f35bb8aa7d8b525c8291a12e9765a6300058ea859624bcac3f7141",
+    "storage_layout_sha256": "f92175f62ad1bc13d0e3aa074dd95e28005553f2616530783a67b934cbc0a5d2",
+    "method_identifiers_sha256": "e8ad68bd3137823246432c9b6126da8f2c9f3fdabe097b95227bf9f47c5a0702"
+  },
+  "deployment_identity_requirements": {
+    "constructor_signature": "constructor(address,address,address,address,bytes32)",
+    "constructor_order": [
+      "void_token",
+      "launch_controller",
+      "settlement_executor",
+      "closeout_controller",
+      "coupled_launch_id"
+    ],
+    "deployed_runtime_must_patch_exact_immutable_layout": true,
+    "live_opening_inventory_atoms_must_equal": "10000000000000000000000000"
+  },
+  "decision": {
+    "current_compiled_identity_binding": true,
+    "v1_deployment_artifact_superseded": true,
+    "old_control_signature_generation_reusable": false,
+    "deployment_authorized": false,
+    "inventory_funding_authorized": false,
+    "market_activation_authorized": false,
+    "public_presale_activation_authorized": false,
+    "next_gate": "atomic_corrected_generation_rebind_then_fresh_control_qualification"
+  },
+  "authority": {
+    "source_binding_only": true,
+    "rpc_call": false,
+    "credential_access": false,
+    "private_key_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "deployment": false,
+    "chain2050_write": false,
+    "inventory_funding": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "funds_movement": false
+  },
+  "binding_id": "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05"
+}

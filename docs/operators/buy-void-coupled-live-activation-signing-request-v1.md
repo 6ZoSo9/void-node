@@ -22,9 +22,12 @@ reviewed coupled-launch gate:
 - Sovereign/closeout controller:
   `0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b`;
 - coupled launch ID:
-  `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`.
+  `sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d`.
 
 Callers cannot substitute either signing identity.
+
+The superseded generation must not be signed or reused. The corrected
+generation requires a fresh control/signing ceremony.
 
 ## Exact input
 
