@@ -1125,7 +1125,27 @@ export const renderEarnHistoryV1 = (
   }
 };
 
+export const clearEarnHistoryEvidenceV1 = () => {
+  setText('[data-earn-jobs-count]', '0');
+  setText('[data-earn-receipts-count]', '0');
+
+  renderEarnHistoryV1(
+    '[data-earn-jobs-list]',
+    '[data-earn-jobs-empty]',
+    { available: false, items: [] },
+    'job',
+  );
+  renderEarnHistoryV1(
+    '[data-earn-receipts-list]',
+    '[data-earn-receipts-empty]',
+    { available: false, items: [] },
+    'receipt',
+  );
+};
+
 const renderError = (message) => {
+  clearEarnHistoryEvidenceV1();
+
   setChip(
     document.querySelector('[data-earn-state-chip]'),
     'warning',
@@ -1351,7 +1371,7 @@ export const clearEarnViewV1 = ({
   input?.focus();
 };
 
-const loadAccount = async (account, button) => {
+export const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
 
   if (!ACCOUNT_PATTERN.test(value)) {
