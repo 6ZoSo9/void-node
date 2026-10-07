@@ -774,12 +774,14 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
             requestSha256=sha256Id(
               Buffer.from(canonicalJson(envelope),"utf8"),
             );
+            const decision=decideWithPinnedRoot(pinned,envelope);
+            if(responded) return;
             responded=true;
             writeResponse(
               socket,
               responseEnvelope(
                 requestSha256,
-                decideWithPinnedRoot(pinned,envelope),
+                decision,
               ),
             );
           }catch(error){
