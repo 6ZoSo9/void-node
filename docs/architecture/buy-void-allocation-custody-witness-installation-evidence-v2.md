@@ -238,12 +238,29 @@ The receipt binds:
 
 `collector_receipt_sha256` is the SHA-256 of the canonical receipt body.
 
-## Normalized qualification package
+## Normalized qualification packet and package
 
 The default collector output remains the existing V2 receipt unchanged.
 
-For later live-read composition, callers may request the companion package with
-`--package`. The package is produced from the **same double census** and
+The stable packet API is:
+
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(...)`
+
+It performs the same double census once and returns:
+
+- `receipt`: the exact legacy V2 receipt; and
+- `normalized_installation_qualification`: the exact normalized V2
+  qualification from that same accepted second census.
+
+The legacy
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(...)`
+API is a receipt-only projection of that packet, so callers that do not need
+the normalized object retain the exact historical return shape.
+
+For materialized handoff, callers may request the companion package with
+`--package`. `collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1(...)`
+consumes the packet API rather than running a competing qualification path. The
+package therefore derives from the same stable receipt/normalized pair and
 contains:
 
 - the exact existing `installation_receipt`;
@@ -274,6 +291,8 @@ VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_V2_CONFIG_JSON='<json>' \
 ```
 
 Without `--package`, CLI output is the pre-existing V2 receipt.
+The packet API is programmatic only; adding PackageV1 does not remove or
+supersede PacketV2.
 
 ## Authority boundary
 
