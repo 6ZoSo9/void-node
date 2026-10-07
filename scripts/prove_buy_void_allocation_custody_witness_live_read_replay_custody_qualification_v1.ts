@@ -430,6 +430,31 @@ function rebuildReceipt(
   );
 }
 
+for (const overrides of [
+  { hostname: "different-host" },
+  { journal_root_path: "/var/lib/other-journal" },
+  { journal_parent_device: "/dev/sdz" },
+  { journal_disk_serial: "DIFFERENT-JOURNAL-SERIAL" },
+  { journal_disk_wwn: "different-journal-wwn" },
+  { high_water_root_path: "/var/lib/other-high-water" },
+  { high_water_parent_device: "/dev/sdy" },
+  { high_water_disk_serial: "DIFFERENT-HIGH-WATER-SERIAL" },
+  { high_water_disk_wwn: "different-high-water-wwn" },
+] as const) {
+  const forgedPolicyProjection = rebuildReceipt(
+    genesis.receipt,
+    overrides,
+  );
+  assert.equal(
+    forgedPolicyProjection.storage_policy_fingerprint_sha256,
+    genesis.receipt.storage_policy_fingerprint_sha256,
+  );
+  expectHeld(
+    classify(journal0, forgedPolicyProjection),
+    "witness_replay_custody_prior_receipt_policy_projection_mismatch",
+  );
+}
+
 {
   const forged = rebuildReceipt(genesis.receipt, {
     journal_sha256: entropy("f"),
