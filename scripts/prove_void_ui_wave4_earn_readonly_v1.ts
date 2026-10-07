@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
+import {
+  loadAccount,
+  renderEarnHistoryV1,
+  validateEarnHistoryV1,
+} from "../public/void-app-wave1-v1/assets/js/earn-live.js";
 
 const root = process.cwd();
 
@@ -51,6 +56,386 @@ assert.equal(exactNonNegative(0), 0);
 assert.equal(exactNonNegative(1.25), 1.25);
 assert.equal(exactNonNegative(-0.25), null);
 
+for (const kind of ["job", "receipt"] as const) {
+  assert.throws(
+    () =>
+      validateEarnHistoryV1(
+        {
+          available: false,
+          count: 1,
+          limit: 5,
+          items: [{}],
+        },
+        kind,
+      ),
+    new RegExp(`earn ${kind} unavailable history must be empty`),
+  );
+}
+
+const priorDocument = globalThis.document;
+const staleJobRow = Object.freeze({ id: "stale-job-row" });
+const staleReceiptRow = Object.freeze({ id: "stale-receipt-row" });
+const inertNodes = new Map<string, {
+  children?: unknown[];
+  hidden?: boolean;
+  textContent?: string;
+  replaceChildren?: (...children: unknown[]) => void;
+}>([
+  [
+    "[data-earn-jobs-list]",
+    {
+      children: [staleJobRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-jobs-empty]",
+    { hidden: true, textContent: "stale jobs" },
+  ],
+  [
+    "[data-earn-receipts-list]",
+    {
+      children: [staleReceiptRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-receipts-empty]",
+    { hidden: true, textContent: "stale receipts" },
+  ],
+]);
+
+Object.defineProperty(globalThis, "document", {
+  configurable: true,
+  value: {
+    querySelector: (selector: string) => inertNodes.get(selector) ?? null,
+    createElement: () => {
+      throw new Error("unavailable history attempted to render a row");
+    },
+  },
+});
+try {
+  renderEarnHistoryV1(
+    "[data-earn-jobs-list]",
+    "[data-earn-jobs-empty]",
+    { available: false, count: 1, limit: 5, items: [{}] },
+    "job",
+  );
+  renderEarnHistoryV1(
+    "[data-earn-receipts-list]",
+    "[data-earn-receipts-empty]",
+    { available: false, count: 1, limit: 5, items: [{}] },
+    "receipt",
+  );
+} finally {
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: priorDocument,
+  });
+}
+
+assert.deepEqual(inertNodes.get("[data-earn-jobs-list]")?.children, []);
+assert.equal(inertNodes.get("[data-earn-jobs-empty]")?.hidden, false);
+assert.equal(
+  inertNodes.get("[data-earn-jobs-empty]")?.textContent,
+  "Recent job history unavailable.",
+);
+assert.deepEqual(inertNodes.get("[data-earn-receipts-list]")?.children, []);
+assert.equal(inertNodes.get("[data-earn-receipts-empty]")?.hidden, false);
+assert.equal(
+  inertNodes.get("[data-earn-receipts-empty]")?.textContent,
+  "Verification receipt history unavailable.",
+);
+
+const unavailableSource = (route: string) => ({
+  route,
+  ok: false,
+  status: 0,
+});
+
+const loadPathSnapshot = (
+  account = "account-A",
+  generatedAt = new Date().toISOString(),
+) => ({
+  ok: true,
+  marker: "VOID_UI_WAVE4_EARN_READONLY_V1",
+  generated_at: generatedAt,
+  read_only: true,
+  network_name: "Mainnet-0",
+  node: {
+    label: "Local node",
+    role: "local",
+  },
+  account: {
+    selected: true,
+    id: account,
+    label: account,
+  },
+  earning: {
+    source_available: false,
+    status: "unavailable",
+    status_label: "Unavailable",
+    enabled: false,
+    manual_only: false,
+    automatic_background: false,
+    safe_mode: false,
+    policy: "Policy unavailable",
+    approved_task_classes: [],
+    jobs_last_hour: null,
+    max_jobs_per_hour: null,
+    summary: "Earning status is unavailable.",
+    available_work: {
+      available: false,
+      task_class: null,
+      task_label: "No task selected",
+      reason: "No selection reason is currently available.",
+      difficulty: null,
+      network_need_score: null,
+      dataset_selected: false,
+      execution_available: false,
+    },
+  },
+  accounting: {
+    legacy_wc: {
+      available: false,
+      earned: null,
+      earned_display: "—",
+      redeemed: null,
+      redeemed_display: "—",
+      redeemable: null,
+      redeemable_display: "—",
+      debited: null,
+      debited_display: "—",
+      spendable_claimed: false,
+      redemption_action_available: false,
+    },
+    production_wc: {
+      available: false,
+      balance: null,
+      display: "—",
+      entries: null,
+      ledger_version: "",
+      spendable: false,
+      redeemable: false,
+      transferable: false,
+      included_in_legacy_balance: false,
+    },
+    rewards_last_hour: {
+      total: null,
+      total_display: "—",
+      publish: null,
+      verify: null,
+      redundancy: null,
+    },
+    last_credit: {
+      available: false,
+      amount: null,
+      amount_display: "—",
+      task_class: null,
+      task_label: "No credit recorded",
+      reason: "No credit recorded.",
+      recorded_at: null,
+    },
+  },
+  recent_jobs: {
+    available: false,
+    count: 1,
+    limit: 5,
+    items: [{}],
+  },
+  verification_receipts: {
+    available: false,
+    count: 0,
+    limit: 5,
+    items: [],
+  },
+  datanet: {
+    source_available: false,
+    status: "unavailable",
+    receipt_store_records: null,
+    account_wc_events: null,
+    useful_work_policy: "Policy unavailable",
+    mutation: false,
+  },
+  sources: {
+    runner_status: unavailableSource("/wc/runner/status"),
+    reward_stats: unavailableSource("/wc/reward-stats"),
+    redeemable: unavailableSource("/wc/redeemable"),
+    production_wc: unavailableSource("/wc/production/balance"),
+    jobs: unavailableSource("/jobs"),
+    receipts: unavailableSource("/receipts"),
+    datanet_wc: unavailableSource("/__void/participant/datanet-wc/status"),
+  },
+  sanitization: {
+    raw_source_bodies: false,
+    absolute_paths: false,
+    wallet_addresses: false,
+    redeemed_event_wallets: false,
+    job_inputs: false,
+    job_meta: false,
+    receipt_roots: false,
+    receipt_leaves: false,
+    receipt_payloads: false,
+  },
+  boundaries: {
+    job_execution: false,
+    job_submission: false,
+    reward_award: false,
+    runner_activation: false,
+    runner_tick: false,
+    runner_config: false,
+    wc_redeem: false,
+    wc_send: false,
+    wc_to_void: false,
+    ledger_write: false,
+    browser_wallet_connection: false,
+    validator_mutation: false,
+    operator_mutation: false,
+    money_movement: false,
+  },
+});
+
+const loadNodes = new Map<string, any>([
+  ["[data-earn-state-chip]", { className: "", textContent: "Loaded" }],
+  ["[data-earn-message]", { textContent: "stale loaded message" }],
+  ["[data-earn-jobs-count]", { textContent: "7" }],
+  ["[data-earn-receipts-count]", { textContent: "9" }],
+  [
+    "[data-earn-jobs-list]",
+    {
+      children: [staleJobRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-jobs-empty]",
+    { hidden: true, textContent: "stale jobs" },
+  ],
+  [
+    "[data-earn-receipts-list]",
+    {
+      children: [staleReceiptRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-receipts-empty]",
+    { hidden: true, textContent: "stale receipts" },
+  ],
+]);
+
+const priorWindow = globalThis.window;
+const priorSessionStorage = globalThis.sessionStorage;
+const priorFetch = globalThis.fetch;
+const loadButton = { disabled: false };
+let storageWrites = 0;
+
+Object.defineProperty(globalThis, "document", {
+  configurable: true,
+  value: {
+    querySelector: (selector: string) => loadNodes.get(selector) ?? null,
+    querySelectorAll: (selector: string) => {
+      const node = loadNodes.get(selector);
+      return node ? [node] : [];
+    },
+    createElement: () => {
+      throw new Error("load error path attempted to render a history row");
+    },
+  },
+});
+Object.defineProperty(globalThis, "window", {
+  configurable: true,
+  value: {
+    location: {
+      hash: "#/earn",
+      origin: "https://void.example",
+    },
+  },
+});
+Object.defineProperty(globalThis, "sessionStorage", {
+  configurable: true,
+  value: {
+    setItem() {
+      storageWrites += 1;
+    },
+    getItem() {
+      return null;
+    },
+    removeItem() {},
+  },
+});
+Object.defineProperty(globalThis, "fetch", {
+  configurable: true,
+  value: async () => {
+    const response = new Response(
+      JSON.stringify(loadPathSnapshot()),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+    Object.defineProperty(response, "url", {
+      configurable: true,
+      value: "https://void.example/__void/ui/wave4/earn.json?account=account-A",
+    });
+    return response;
+  },
+});
+
+try {
+  await loadAccount("account-A", loadButton);
+} finally {
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: priorDocument,
+  });
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: priorWindow,
+  });
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: priorSessionStorage,
+  });
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: priorFetch,
+  });
+}
+
+assert.equal(loadButton.disabled, false);
+assert.equal(storageWrites, 0);
+assert.equal(loadNodes.get("[data-earn-jobs-count]")?.textContent, "0");
+assert.equal(loadNodes.get("[data-earn-receipts-count]")?.textContent, "0");
+assert.deepEqual(loadNodes.get("[data-earn-jobs-list]")?.children, []);
+assert.deepEqual(loadNodes.get("[data-earn-receipts-list]")?.children, []);
+assert.equal(loadNodes.get("[data-earn-jobs-empty]")?.hidden, false);
+assert.equal(
+  loadNodes.get("[data-earn-jobs-empty]")?.textContent,
+  "Recent job history unavailable.",
+);
+assert.equal(loadNodes.get("[data-earn-receipts-empty]")?.hidden, false);
+assert.equal(
+  loadNodes.get("[data-earn-receipts-empty]")?.textContent,
+  "Verification receipt history unavailable.",
+);
+assert.equal(
+  loadNodes.get("[data-earn-state-chip]")?.textContent,
+  "Earn state unavailable",
+);
+assert.match(
+  String(loadNodes.get("[data-earn-message]")?.textContent || ""),
+  /earn job unavailable history must be empty/,
+);
+
 for (const marker of [
   'return typeof raw === "number" && Number.isFinite(raw)',
   "const lastCreditAvailable =",
@@ -84,6 +469,15 @@ for (const marker of [
   "lastCredit.available === true",
   "setText('[data-earn-jobs-count]', jobsCount)",
   "setText('[data-earn-receipts-count]', receiptsCount)",
+  "value.available === false &&",
+  "unavailable history must be empty",
+  "jobs.available === true",
+  "receipts.available === true",
+  "renderEarnHistoryV1(",
+  "clearEarnHistoryEvidenceV1();",
+  "export const loadAccount = async",
+  "Recent job history unavailable.",
+  "Verification receipt history unavailable.",
 ]) {
   if (!client.includes(marker)) {
     fail(`browser numeric evidence contract missing: ${marker}`);
