@@ -18,6 +18,7 @@ const CANONICAL_ORIGINS=new Set([
 const MAX_JSON=24*1024*1024;
 const MAX_RPC_RESPONSE=64*1024;
 const MAX_SOURCE_BYTES=8*1024*1024;
+const LAUNCHER_REL="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const TOOL_REL="tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const RPC_REL="tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs";
 const REVIEWED_RUNTIME_TOOL_REL="tools/void-reviewed-node-package-runtime-v1.mjs";
@@ -128,7 +129,45 @@ function remoteMainHead(){
   if(!match) fail("canonical_remote_main_invalid");
   return match[1];
 }
-function reviewedGitAuthorityV1(){
+function reviewedBootstrapV1(){
+  if(process.argv[1]!=="-"){
+    fail("reviewed_git_object_bootstrap_required");
+  }
+  if(
+    !Array.isArray(process.execArgv)||
+    process.execArgv.length!==1||
+    process.execArgv[0]!=="--input-type=module"
+  ){
+    fail("reviewed_bootstrap_node_argv_invalid");
+  }
+  for(const key of [
+    "NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH",
+    "HTTP_PROXY","HTTPS_PROXY","ALL_PROXY",
+    "http_proxy","https_proxy","all_proxy",
+  ]){
+    if(Object.hasOwn(process.env,key)){
+      fail("reviewed_bootstrap_environment_not_sanitized");
+    }
+  }
+  if(
+    process.env.PATH!=="/usr/bin:/bin"||
+    process.env.LANG!=="C"||
+    process.env.LC_ALL!=="C"||
+    !/^[0-9a-f]{40}$/u.test(
+      String(process.env.VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1||""),
+    )
+  ){
+    fail("reviewed_bootstrap_environment_invalid");
+  }
+  return Object.freeze({
+    launcher_git_blob_sha1:
+      process.env.VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1,
+    streamed_exact_git_object:true,
+    node_input_type_module:true,
+    ambient_loader_environment_absent:true,
+  });
+}
+function reviewedGitAuthorityV1(expectedLauncherBlob){
   if(ROOT!==path.resolve(process.cwd())){
     fail("repository_root_not_canonical");
   }
@@ -150,11 +189,17 @@ function reviewedGitAuthorityV1(){
   }
   const remoteHead=remoteMainHead();
   if(remoteHead!==head) fail("local_head_not_canonical_remote_main");
+  const launcher=exactHeadFileV1(head,LAUNCHER_REL);
+  if(launcher.blob!==expectedLauncherBlob){
+    fail("reviewed_launcher_git_blob_mismatch");
+  }
   return Object.freeze({
     head,
     tree,
     origin,
     remote_main_head:remoteHead,
+    launcher_git_blob_sha1:launcher.blob,
+    launcher_sha256:launcher.sha256,
     git_executable:GIT,
     git_config_isolated:true,
   });
@@ -687,9 +732,12 @@ export function testOnlyReviewedGitHeadV1(){
 }
 
 async function main(){
+  const bootstrap=reviewedBootstrapV1();
   if(os.hostname()!=="zoso-Precision-Tower-7810") fail("precision_host_required");
   const args=parseArgs(process.argv.slice(2));
-  const authority=reviewedGitAuthorityV1();
+  const authority=reviewedGitAuthorityV1(
+    bootstrap.launcher_git_blob_sha1,
+  );
   const prepared=await prepareReviewedExecutionV1(authority.head);
   try{
     const authorityAfterPreparation=reviewedGitAuthorityV1();
@@ -743,6 +791,9 @@ async function main(){
     console.log("rpc_send_invocation_count="+String(result.rpc_send_invocation_count||0));
     console.log("classification="+String(result.classification||""));
     console.log("reviewed_repository_head_sha="+authority.head);
+    console.log("reviewed_launcher_git_blob_sha1="+authority.launcher_git_blob_sha1);
+    console.log("reviewed_launcher_sha256="+authority.launcher_sha256);
+    console.log("reviewed_launcher_streamed_exact_git_object=true");
     console.log("reviewed_source_closure_count="+String(prepared.binding.closure_count));
     console.log("reviewed_source_closure_aggregate_sha256="+
       prepared.binding.closure_aggregate_sha256);
@@ -773,9 +824,13 @@ async function main(){
   }
 }
 
-if(
+const directPathExecution=
   process.argv[1]&&
-  import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href
-){
+  process.argv[1]!=="-"&&
+  import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href;
+if(directPathExecution){
+  fail("reviewed_git_object_bootstrap_required");
+}
+if(process.argv[1]==="-"){
   await main();
 }
