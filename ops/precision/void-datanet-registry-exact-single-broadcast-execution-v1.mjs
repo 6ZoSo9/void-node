@@ -35,6 +35,20 @@ const EXPECTED_NETWORK_CAPABLE_MODULES=Object.freeze([
   "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs",
   "tools/void-datanet-registry-prebroadcast-observer-v1.mjs",
 ]);
+const EXPECTED_SAFE_NODE_BUILTINS=Object.freeze([
+  "node:crypto",
+  "node:fs",
+  "node:path",
+]);
+const EXPECTED_NETWORK_NODE_BUILTINS=Object.freeze([
+  "node:http",
+]);
+const EXPECTED_REVIEWED_NODE_BUILTINS=Object.freeze(
+  [
+    ...EXPECTED_SAFE_NODE_BUILTINS,
+    ...EXPECTED_NETWORK_NODE_BUILTINS,
+  ].sort(),
+);
 const EXPECTED_REVIEWED_RELATIVE_CLOSURE_V1=Object.freeze([
   "tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs",
   "tools/datanet-content-commitment-compiler-profile-v1.mjs",
@@ -311,10 +325,23 @@ function resolveRelativeImport(fromRelative,specifier){
   }
   return validateRelativePath(resolved);
 }
+function classifyReviewedNodeBuiltinV1(specifier){
+  if(
+    typeof specifier!=="string"||
+    !specifier.startsWith("node:")
+  ){
+    fail("reviewed_source_builtin_import_invalid");
+  }
+  if(EXPECTED_SAFE_NODE_BUILTINS.includes(specifier)) return "safe";
+  if(EXPECTED_NETWORK_NODE_BUILTINS.includes(specifier)) return "network";
+  fail("reviewed_source_builtin_import_unapproved");
+}
+
 function reviewedSourcePlanV1(head){
   const pending=[TOOL_REL,RPC_REL];
   const seen=new Map();
   const barePackages=new Set();
+  const nodeBuiltins=new Set();
   const networkModules=new Set();
   while(pending.length){
     const relativePath=pending.shift();
@@ -334,14 +361,8 @@ function reviewedSourcePlanV1(head){
         continue;
       }
       if(specifier.startsWith("node:")){
-        if(
-          specifier==="node:http"||
-          specifier==="node:https"||
-          specifier==="node:net"||
-          specifier==="node:tls"||
-          specifier==="node:dns"||
-          specifier==="node:dgram"
-        ){
+        nodeBuiltins.add(specifier);
+        if(classifyReviewedNodeBuiltinV1(specifier)==="network"){
           networkModules.add(relativePath);
         }
         continue;
@@ -352,11 +373,14 @@ function reviewedSourcePlanV1(head){
   }
   const closure=[...seen.keys()].sort();
   const packages=[...barePackages].sort();
+  const builtins=[...nodeBuiltins].sort();
   const network=[...networkModules].sort();
   if(
     JSON.stringify(closure)!==
       JSON.stringify(EXPECTED_REVIEWED_RELATIVE_CLOSURE_V1)||
     JSON.stringify(packages)!==JSON.stringify(EXPECTED_BARE_PACKAGES)||
+    JSON.stringify(builtins)!==
+      JSON.stringify(EXPECTED_REVIEWED_NODE_BUILTINS)||
     JSON.stringify(network)!==
       JSON.stringify(EXPECTED_NETWORK_CAPABLE_MODULES)
   ){
@@ -375,6 +399,7 @@ function reviewedSourcePlanV1(head){
     head,
     closure:Object.freeze(closure),
     bare_packages:Object.freeze(packages),
+    node_builtins:Object.freeze(builtins),
     network_capable_modules:Object.freeze(network),
     rows:Object.freeze(rows),
     closure_aggregate_sha256:sha256(
@@ -1031,6 +1056,10 @@ function rpcFactory(rpcUrl){
     if(!Object.hasOwn(parsed,"result")) fail("rpc_result_missing");
     return parsed.result;
   };
+}
+
+export function testOnlyClassifyReviewedNodeBuiltinV1(specifier){
+  return classifyReviewedNodeBuiltinV1(specifier);
 }
 
 export function testOnlyReviewedSourcePlanV1(){
