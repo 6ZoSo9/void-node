@@ -4,6 +4,7 @@ import {
   createHash,
   generateKeyPairSync,
 } from "node:crypto";
+import * as fs from "node:fs";
 import {
   chmodSync,
   mkdtempSync,
@@ -81,6 +82,21 @@ function assertThrows(callback, expectedText) {
   }
   assert(error, `expected failure containing ${expectedText}`);
   assert(String(error.message || error).includes(expectedText), `failure did not contain ${expectedText}: ${error}`);
+}
+
+function assertThrowsOneOf(callback, expectedTexts) {
+  let error;
+  try {
+    callback();
+  } catch (caught) {
+    error = caught;
+  }
+  assert(error, `expected failure containing one of: ${expectedTexts.join(", ")}`);
+  const message = String(error.message || error);
+  assert(
+    expectedTexts.some((expectedText) => message.includes(expectedText)),
+    `failure did not contain an expected message: ${error}`,
+  );
 }
 
 async function assertRejects(callback, expectedText) {
@@ -355,6 +371,168 @@ async function main() {
     });
     assert(cliBinding.binding.signature.value === binding.signature.value, "CLI binding drifted from library output");
 
+    const bindingBytes = readFileSync(bindingPath);
+    const parkedBindingPath = join(temp, "binding-original.json");
+    const replacementPair = generateKeyPairSync("ed25519");
+    const replacementBinding = signVoidNodeOnionBindingV1({
+      nodeId: "void-node:replacement",
+      privateKey: replacementPair.privateKey,
+      publicKey: replacementPair.publicKey,
+      onionHostname,
+      virtualPort: 80,
+      issuedAt,
+      expiresAt,
+    });
+    const replacementBytes = Buffer.from(
+      `${JSON.stringify(replacementBinding, null, 2)}\n`,
+      "utf8",
+    );
+    const consumerVerification = {
+      expectedOnionHostname: onionHostname,
+      expectedVirtualPort: 80,
+      now: issuedAt,
+      allowNotYetValidWithinSkew: true,
+    };
+
+    const ancestorSourceDirectory = join(temp, "binding-ancestor-source");
+    const ancestorLinkDirectory = join(temp, "binding-ancestor-link");
+    mkdirSync(ancestorSourceDirectory, { mode: 0o700 });
+    const ancestorSourcePath = join(
+      ancestorSourceDirectory,
+      "binding.json",
+    );
+    writeFileSync(ancestorSourcePath, bindingBytes, { mode: 0o600 });
+    fs.symlinkSync(
+      ancestorSourceDirectory,
+      ancestorLinkDirectory,
+      "dir",
+    );
+    assertThrowsOneOf(
+      () => readAndVerifyVoidNodeOnionBindingV1(
+        join(ancestorLinkDirectory, "binding.json"),
+        consumerVerification,
+      ),
+      [
+        "binding file path is not descriptor-openable",
+        "binding file path changed during read",
+      ],
+    );
+    const fileSystemWithReadHook = (hook) => {
+      let fired = false;
+      return {
+        ...fs,
+        readSync(...args) {
+          if (!fired) {
+            fired = true;
+            hook();
+          }
+          return fs.readSync(...args);
+        },
+      };
+    };
+    const restoreBindingPath = () => {
+      rmSync(bindingPath, { force: true });
+      if (fs.existsSync(parkedBindingPath)) {
+        fs.renameSync(parkedBindingPath, bindingPath);
+      } else {
+        writeFileSync(bindingPath, bindingBytes, { mode: 0o600 });
+      }
+    };
+
+    try {
+      assertThrowsOneOf(
+        () => readAndVerifyVoidNodeOnionBindingV1(
+          bindingPath,
+          consumerVerification,
+          fileSystemWithReadHook(() => {
+            fs.renameSync(bindingPath, parkedBindingPath);
+            writeFileSync(bindingPath, replacementBytes, { mode: 0o600 });
+          }),
+        ),
+        [
+          "binding file changed during read",
+          "binding file path changed during read",
+        ],
+      );
+    } finally {
+      restoreBindingPath();
+    }
+
+    try {
+      assertThrowsOneOf(
+        () => readAndVerifyVoidNodeOnionBindingV1(
+          bindingPath,
+          consumerVerification,
+          fileSystemWithReadHook(() => {
+            fs.renameSync(bindingPath, parkedBindingPath);
+            fs.symlinkSync(parkedBindingPath, bindingPath);
+          }),
+        ),
+        [
+          "binding file changed during read",
+          "binding file path changed during read",
+        ],
+      );
+    } finally {
+      restoreBindingPath();
+    }
+
+    try {
+      assertThrowsOneOf(
+        () => readAndVerifyVoidNodeOnionBindingV1(
+          bindingPath,
+          consumerVerification,
+          fileSystemWithReadHook(() => {
+            fs.renameSync(bindingPath, parkedBindingPath);
+            writeFileSync(bindingPath, Buffer.alloc(64 * 1024 + 1, 0x78), {
+              mode: 0o600,
+            });
+          }),
+        ),
+        [
+          "binding file changed during read",
+          "binding file path changed during read",
+        ],
+      );
+    } finally {
+      restoreBindingPath();
+    }
+
+    const inPlaceMutationBytes = Buffer.from(bindingBytes);
+    inPlaceMutationBytes[inPlaceMutationBytes.length - 2] =
+      inPlaceMutationBytes[inPlaceMutationBytes.length - 2] === 0x20
+        ? 0x21
+        : 0x20;
+    try {
+      assertThrowsOneOf(
+        () => readAndVerifyVoidNodeOnionBindingV1(
+          bindingPath,
+          consumerVerification,
+          fileSystemWithReadHook(() => {
+            writeFileSync(bindingPath, inPlaceMutationBytes, { mode: 0o600 });
+          }),
+        ),
+        ["binding file changed during read"],
+      );
+    } finally {
+      writeFileSync(bindingPath, bindingBytes, { mode: 0o600 });
+    }
+
+    const serverSource = read(SERVER);
+    const descriptorCliSource = read(DESCRIPTOR_CLI);
+    assert(
+      serverSource.includes(
+        "readAndVerifyVoidNodeOnionBindingV1(options.bindingFile",
+      ),
+      "public-node consumer bypasses descriptor-bound binding verification",
+    );
+    assert(
+      descriptorCliSource.includes(
+        "readAndVerifyVoidNodeOnionBindingV1(options.bindingFile",
+      ),
+      "descriptor consumer bypasses descriptor-bound binding verification",
+    );
+
     const commonJsBindingPath = join(temp, "binding-commonjs.json");
     const commonJsCli = run(process.execPath, [
       BINDING_CLI, "create",
@@ -499,6 +677,9 @@ async function main() {
     console.log("parallel_identity_key=false");
     console.log("binding_routes=2");
     console.log("descriptor_fail_closed=true");
+    console.log("binding_descriptor_bound_read=true");
+    console.log("binding_replacement_identity_published=false");
+    console.log("binding_oversized_replacement_read=false");
     console.log("service_restart=false");
     console.log("read_only=true");
     console.log("runtime_mutation=false");
