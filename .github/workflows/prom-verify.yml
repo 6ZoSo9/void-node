@@ -2,7 +2,16 @@ name: prom-verify
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/prom-verify.yml'
+      - 'ops/rules/*.yml'
+      - 'ops/alerts/*.yml'
   pull_request:
+    paths:
+      - '.github/workflows/prom-verify.yml'
+      - 'ops/rules/*.yml'
+      - 'ops/alerts/*.yml'
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
