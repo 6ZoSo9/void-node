@@ -19,11 +19,15 @@ on:
       - '.github/workflows/public-python-bytecode-hygiene-v1.yml'
       - 'ops/security/public-python-bytecode-hygiene-v1-proof.sh'
       - 'scripts/prove_public_python_bytecode_hygiene_v1.mjs'
+      - 'ops/release/normalize-github-ssh-remote-v1.sh'
+      - '.gitignore'
       - '**/*.py'
       - '**/*.pyc'
       - '**/*.pyo'
       - '**/*.pyd'
       - '**/__pycache__/**'
+  workflow_dispatch:
+
 permissions:
   contents: read
 
