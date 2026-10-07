@@ -37,6 +37,19 @@ const DEPENDENCIES = Symbol.for(
   "void.steam-readonly-bridge-runtime-v2.dependencies",
 );
 
+type SteamReadonlyBridgeRegistrationStateV2 =
+  | "unattempted"
+  | "indeterminate"
+  | "bound";
+
+function registrationStateV2(
+  value: unknown,
+): SteamReadonlyBridgeRegistrationStateV2 {
+  if (value === true || value === "bound") return "bound";
+  if (value === "indeterminate") return "indeterminate";
+  return "unattempted";
+}
+
 type JsonObject = Record<string, unknown>;
 
 type SteamPlayerSummariesRouteRequestV2 = {
@@ -495,8 +508,8 @@ export function registerSteamReadonlyBridgeRuntimeV2(
 ): SteamReadonlyBridgeRuntimeRegistrationV2 {
   const anyApp = app as Express & {
     [BOUND]?: boolean;
-    [STATUS_BOUND]?: boolean;
-    [REQUEST_BOUND]?: boolean;
+    [STATUS_BOUND]?: boolean | SteamReadonlyBridgeRegistrationStateV2;
+    [REQUEST_BOUND]?: boolean | SteamReadonlyBridgeRegistrationStateV2;
     [DEPENDENCIES]?: SteamReadonlyBridgeRuntimeV2Dependencies;
   };
   if (!anyApp[DEPENDENCIES]) {
@@ -508,6 +521,22 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     });
   }
   const retainedDependencies = anyApp[DEPENDENCIES];
+
+  const registrationConclusive = (): boolean =>
+    registrationStateV2(anyApp[STATUS_BOUND]) === "bound" &&
+    registrationStateV2(anyApp[REQUEST_BOUND]) === "bound";
+
+  const holdIndeterminateRegistration = (
+    response: Response,
+  ): boolean => {
+    if (registrationConclusive()) return false;
+    response.status(503).json({
+      ok: false,
+      marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
+      error: "steam_readonly_bridge_registration_indeterminate",
+    });
+    return true;
+  };
 
   if (anyApp[BOUND]) {
     return {
@@ -522,11 +551,23 @@ export function registerSteamReadonlyBridgeRuntimeV2(
       live_steam_request: false,
     };
   }
-  if (!anyApp[STATUS_BOUND]) {
+  const statusRegistrationState = registrationStateV2(
+    anyApp[STATUS_BOUND],
+  );
+  if (statusRegistrationState === "indeterminate") {
+    throw new Error(
+      "steam_readonly_bridge_status_registration_indeterminate",
+    );
+  }
+  if (statusRegistrationState !== "bound") {
+    anyApp[STATUS_BOUND] = "indeterminate";
     app.get(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
       async (request: Request, response: Response) => {
         if (!(await authorized(request, response, retainedDependencies))) {
+          return;
+        }
+        if (holdIndeterminateRegistration(response)) {
           return;
         }
         response.json({
@@ -535,14 +576,26 @@ export function registerSteamReadonlyBridgeRuntimeV2(
         });
       },
     );
-    anyApp[STATUS_BOUND] = true;
+    anyApp[STATUS_BOUND] = "bound";
   }
 
-  if (!anyApp[REQUEST_BOUND]) {
+  const requestRegistrationState = registrationStateV2(
+    anyApp[REQUEST_BOUND],
+  );
+  if (requestRegistrationState === "indeterminate") {
+    throw new Error(
+      "steam_readonly_bridge_request_registration_indeterminate",
+    );
+  }
+  if (requestRegistrationState !== "bound") {
+    anyApp[REQUEST_BOUND] = "indeterminate";
     app.post(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
       async (request: Request, response: Response) => {
         if (!(await authorized(request, response, retainedDependencies))) {
+          return;
+        }
+        if (holdIndeterminateRegistration(response)) {
           return;
         }
 
@@ -611,7 +664,7 @@ export function registerSteamReadonlyBridgeRuntimeV2(
         }
       },
     );
-    anyApp[REQUEST_BOUND] = true;
+    anyApp[REQUEST_BOUND] = "bound";
   }
   anyApp[BOUND] = true;
 

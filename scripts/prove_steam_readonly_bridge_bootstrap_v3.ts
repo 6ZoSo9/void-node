@@ -60,13 +60,13 @@ class FakeApp {
   }
 }
 
-class FailOncePostApp extends FakeApp {
-  post(pathname: string, handler: Handler): this {
-    if (this.postAttempts === 0) {
-      this.postAttempts += 1;
-      throw new Error("synthetic request-route registration failure");
+class InstallThenThrowUseApp extends FakeApp {
+  use(pathname: string, handler: RequestHandler): this {
+    super.use(pathname, handler);
+    if (this.useAttempts === 1) {
+      throw new Error("synthetic parser post-install failure");
     }
-    return super.post(pathname, handler);
+    return this;
   }
 }
 
@@ -378,99 +378,55 @@ const parser = ((_request, _response, next) => next()) as RequestHandler;
 const replacementParser = (
   (_request, _response, next) => next()
 ) as RequestHandler;
-const failOnceApp = new FailOncePostApp();
-let partialRegistrationFailed = false;
+const installThenThrowUseApp = new InstallThenThrowUseApp();
+let parserPostInstallFailed = false;
 try {
   registerSteamReadonlyBridgeBootstrapV3(
-    failOnceApp as unknown as Express,
+    installThenThrowUseApp as unknown as Express,
     {
       env: retryEnv,
       json_body_parser: parser,
     },
   );
 } catch (error) {
-  partialRegistrationFailed =
+  parserPostInstallFailed =
     error instanceof Error &&
-    error.message === "synthetic request-route registration failure";
+    error.message === "synthetic parser post-install failure";
 }
-need(partialRegistrationFailed, "bootstrap partial registration did not fail");
-const partialAttempts = registrationAttempts(failOnceApp);
+need(parserPostInstallFailed, "parser post-install failure was not observed");
 need(
-  partialAttempts.use === 1 &&
-    partialAttempts.get === 1 &&
-    partialAttempts.post === 1,
-  "bootstrap partial failure registration attempt counts mismatch",
+  installThenThrowUseApp.useHandlers.length === 1 &&
+    installThenThrowUseApp.useAttempts === 1 &&
+    installThenThrowUseApp.getAttempts === 0 &&
+    installThenThrowUseApp.postAttempts === 0,
+  "parser post-install failure did not retain one ambiguous middleware",
 );
+let parserRetryHeld = false;
+try {
+  registerSteamReadonlyBridgeBootstrapV3(
+    installThenThrowUseApp as unknown as Express,
+    {
+      env: {},
+      json_body_parser: replacementParser,
+    },
+  );
+} catch (error) {
+  parserRetryHeld =
+    error instanceof Error &&
+    error.message ===
+      "steam_readonly_bridge_parser_registration_indeterminate";
+}
+need(parserRetryHeld, "indeterminate parser registration retry was not held");
 need(
-  failOnceApp.useHandlers.length === 1 &&
-    failOnceApp.getHandlers.size === 1 &&
-    failOnceApp.postHandlers.size === 0,
-  "bootstrap partial failure retained an invalid route set",
-);
-
-const resumed = registerSteamReadonlyBridgeBootstrapV3(
-  failOnceApp as unknown as Express,
-  {
-    env: {},
-    json_body_parser: replacementParser,
-  },
-);
-need(resumed.registered === true, "bootstrap retry did not resume");
-need(
-  resumed.operator_authentication.token_hash_valid === true,
-  "bootstrap retry did not preserve the first configuration generation",
-);
-const resumedAttempts = registrationAttempts(failOnceApp);
-need(
-  resumedAttempts.use === 1 &&
-    resumedAttempts.get === 1 &&
-    resumedAttempts.post === 2,
-  "bootstrap retry duplicated a completed registration step",
+  installThenThrowUseApp.useHandlers.length === 1 &&
+    installThenThrowUseApp.useAttempts === 1 &&
+    installThenThrowUseApp.getAttempts === 0 &&
+    installThenThrowUseApp.postAttempts === 0,
+  "held parser retry duplicated or extended the middleware set",
 );
 need(
   rawCredentialReads === 0,
-  "bootstrap registration or retry read the raw credential",
-);
-need(
-  failOnceApp.useHandlers[0]?.handler === parser,
-  "bootstrap retry replaced the first parser generation",
-);
-const resumedRequest = await invoke(
-  failOnceApp.postHandlers.get(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
-  ),
-  requestFixture({
-    authorization: `Bearer ${token}`,
-    remoteAddress: "127.0.0.1",
-    body: {
-      confirmation: "steamReadonlyBridgeRouteFetchV2",
-      operation: "player_summaries",
-      steamids: ["76561198000000000"],
-    },
-  }),
-);
-need(
-  resumedRequest.status === 503,
-  "bootstrap retry did not retain the first authorization generation",
-);
-
-const resumedDuplicate = registerSteamReadonlyBridgeBootstrapV3(
-  failOnceApp as unknown as Express,
-  {
-    env: {},
-    json_body_parser: replacementParser,
-  },
-);
-need(
-  resumedDuplicate.registered === false,
-  "completed bootstrap retry was not idempotent",
-);
-const completedAttempts = registrationAttempts(failOnceApp);
-need(
-  completedAttempts.use === 1 &&
-    completedAttempts.get === 1 &&
-    completedAttempts.post === 2,
-  "completed bootstrap retry changed registration call counts",
+  "bootstrap parser registration or held retry read the raw credential",
 );
 
 const app = new FakeApp();
