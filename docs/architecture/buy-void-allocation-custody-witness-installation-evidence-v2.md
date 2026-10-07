@@ -238,6 +238,43 @@ The receipt binds:
 
 `collector_receipt_sha256` is the SHA-256 of the canonical receipt body.
 
+## Normalized qualification package
+
+The default collector output remains the existing V2 receipt unchanged.
+
+For later live-read composition, callers may request the companion package with
+`--package`. The package is produced from the **same double census** and
+contains:
+
+- the exact existing `installation_receipt`;
+- the exact `installation_normalized_qualification` object returned by the V2
+  installation qualifier;
+- the canonical SHA-256 of that normalized object;
+- the exact `voidwiq2_...` installation qualification ID reconstructed from
+  the same digest; and
+- a content-addressed `package_sha256` over the package body.
+
+The package function recomputes and requires both commitments before returning:
+the normalized SHA must equal the receipt's
+`normalized_qualification_sha256`, and the digest must reconstruct the
+receipt's `installation_qualification_id`.
+
+This does not change the receipt schema or promote authority. The package still
+reports live-origin, external transport/storage, runtime, production and funds
+authority as false. Its purpose is only to materialize bytes that were already
+committed by the receipt so the live-read qualifier does not need to invent or
+reconstruct them later.
+
+Usage:
+
+```bash
+VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_V2_CONFIG_JSON='<json>' \
+  node tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs \
+  --package
+```
+
+Without `--package`, CLI output is the pre-existing V2 receipt.
+
 ## Authority boundary
 
 Even a successful receipt reports:
@@ -267,6 +304,7 @@ material, and perform authenticated external read/append qualification before
 npm run build
 node --check tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs
 node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
+# --package is also source/proof covered; default receipt output remains unchanged.
 node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_installation_qualification_v2.ts
