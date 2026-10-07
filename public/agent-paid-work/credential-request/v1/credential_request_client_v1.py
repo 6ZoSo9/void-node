@@ -630,11 +630,20 @@ def submit_request(
         fail("gateway returned a redirect")
 
     try:
+        response_text = response_body.decode(
+            "utf-8"
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(
+            "gateway response is not JSON"
+        ) from error
+
+    try:
         parsed_response = json.loads(
-            response_body.decode("utf-8"),
+            response_text,
             object_pairs_hook=reject_duplicate_json_keys,
         )
-    except Exception as error:
+    except json.JSONDecodeError as error:
         raise ValueError(
             "gateway response is not JSON"
         ) from error
