@@ -444,6 +444,21 @@ def true_authority_paths(
     return output
 
 
+def reject_duplicate_json_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+
+    for key, child in pairs:
+        if key in value:
+            fail(
+                "gateway response contains duplicate object key"
+            )
+        value[key] = child
+
+    return value
+
+
 def validate_gateway_response(
     *,
     status: int,
@@ -616,7 +631,8 @@ def submit_request(
 
     try:
         parsed_response = json.loads(
-            response_body.decode("utf-8")
+            response_body.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_json_keys,
         )
     except Exception as error:
         raise ValueError(
@@ -852,6 +868,7 @@ def command_submit(
             identity_key=args.identity_key,
         )
     )
+    held = response.get("ok") is False
     output = {
         "marker": (
             "VOID_EXTERNAL_AGENT_CREDENTIAL_REQUEST_SUBMISSION_RESULT_V1"
@@ -876,12 +893,20 @@ def command_submit(
         "credential_created": False,
         "raw_token_read": False,
     }
+
+    if held:
+        output["submitted"] = False
+        output["gateway_error"] = response[
+            "error"
+        ]
+        output["automatic_retry"] = False
+
     write_private_json(
         output_path,
         output,
     )
 
-    if response.get("ok") is False:
+    if held:
         print(
             json.dumps(
                 {
