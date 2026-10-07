@@ -38,6 +38,32 @@ const DIRECT_V4_CONSUMER_WORKFLOWS = Object.freeze([
 
 const V4_TRIGGER_DEPENDENCIES = Object.freeze([
   "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs",
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs",
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs",
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
+]);
+
+function yamlScalar(value) {
+  const trimmed = String(value || "").trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function workflowEventPaths(source, eventName) {
+  const lines = String(source || "").split(/\r?\n/u);
+  const eventPattern = new RegExp(
+    "^([ ]*)" + eventName.replace(/[.*+?^$()|[\\]\\]/gu, "\\const V4_TRIGGER_DEPENDENCIES = Object.freeze([
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs",
   "scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs",
   "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
   "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
@@ -59,6 +85,77 @@ function assertV4ConsumerTriggerClosure() {
         true,
         workflowPath + " missing V4 trigger dependency: " + dependency,
       );
+    }
+  }
+}
+") + ":[ ]*$",
+    "u",
+  );
+  let eventIndex = -1;
+  let eventIndent = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = eventPattern.exec(lines[index]);
+    if (match) {
+      eventIndex = index;
+      eventIndent = match[1].length;
+      break;
+    }
+  }
+  if (eventIndex < 0) return null;
+
+  let pathsIndex = -1;
+  let pathsIndent = -1;
+  for (let index = eventIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    const indent = line.match(/^[ ]*/u)[0].length;
+    if (indent <= eventIndent) break;
+    const match = /^([ ]*)paths:[ ]*$/u.exec(line);
+    if (match) {
+      pathsIndex = index;
+      pathsIndent = match[1].length;
+      break;
+    }
+  }
+  assert.notEqual(
+    pathsIndex,
+    -1,
+    eventName + " paths filter missing",
+  );
+
+  const paths = [];
+  for (let index = pathsIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    const indent = line.match(/^[ ]*/u)[0].length;
+    if (indent <= pathsIndent) break;
+    const match = /^[ ]*-[ ]+(.+?)[ ]*$/u.exec(line);
+    if (match) paths.push(yamlScalar(match[1]));
+  }
+  return new Set(paths);
+}
+
+function assertV4ConsumerTriggerClosure() {
+  for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
+    const source = read(ROOT, workflowPath).toString("utf8");
+    const eventNames = ["pull_request"];
+    if (workflowEventPaths(source, "push") !== null) {
+      eventNames.push("push");
+    }
+    for (const eventName of eventNames) {
+      const paths = workflowEventPaths(source, eventName);
+      assert.ok(paths, workflowPath + " missing " + eventName + " paths");
+      for (const dependency of V4_TRIGGER_DEPENDENCIES) {
+        assert.equal(
+          paths.has(dependency),
+          true,
+          workflowPath +
+            " " +
+            eventName +
+            ".paths missing V4 trigger dependency: " +
+            dependency,
+        );
+      }
     }
   }
 }
