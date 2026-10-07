@@ -5,12 +5,14 @@
 `VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_V1`
 is a pure source composition gate for one durable witness-read ceremony.
 
-It composes four already-defined domains:
+It composes five already-defined domains:
 
-1. a live replay-storage installation-evidence receipt;
-2. one successful durable replay `persisted_issue`;
-3. one content-addressed live-read packet qualification; and
-4. one successful durable replay `persisted_consumed`.
+1. the materialized V2 witness installation-evidence package plus exact
+   client `known_hosts` bytes;
+2. a live replay-storage installation-evidence receipt;
+3. one successful durable replay `persisted_issue`;
+4. one content-addressed live-read packet qualification; and
+5. one successful durable replay `persisted_consumed`.
 
 The composition contract performs no filesystem access, SSH, credential access,
 network operation, witness mutation, replay mutation, payment, wallet/signer
@@ -90,6 +92,8 @@ The replay writer result must be `persisted_issue` with:
 - exactly one generation/sequence/event advance over storage prestate;
 - pending challenge state;
 - exact transition challenge SHA-256 and challenge ID;
+- challenge ID suffix exactly equal to the challenge SHA-256 digest, as
+  required by the canonical replay-state derivation;
 - exact persisted issue and expiry times;
 - well-formed poststate journal/high-water SHA-256 identities;
 - a non-null poststate tip-event SHA-256;
@@ -99,6 +103,39 @@ The replay writer result must be `persisted_issue` with:
 
 The transition time-to-live may not exceed the canonical 38-second replay
 limit.
+
+## Installation-artifact rebinding
+
+The composition requires the exact materialized
+`VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1`
+object produced by the V2 installation-evidence lane.
+
+The package body and `package_sha256` are recomputed. Its normalized
+installation qualification SHA-256 and `voidwiq2_...` ID must recompute and
+must equal the same commitments in the enclosed installation receipt.
+
+The composition then re-runs the canonical
+`classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(...)`
+classifier using:
+
+- the package's exact installation receipt;
+- the package's exact normalized installation qualification;
+- the independently classified transport policy;
+- the exact supplied client `known_hosts` bytes;
+- the durable issue challenge;
+- the live-read time/generation/network observations; and
+- the exact request/response bytes.
+
+The reclassified live-read qualification ID and complete normalized result must
+equal the supplied live-read parent exactly. Therefore installation hostname,
+installation/witness machine IDs, identity path, continuity use, SSH network
+context, witness state, remote user, host-key/known-hosts/client-key
+commitments, runtime-bundle receipt lineage, request identity, and timing cannot
+be substituted independently while preserving GREEN.
+
+This is still source-level commitment binding. It does not prove that the
+package itself came from a trusted live collector;
+`live_evidence_origin_proven=false` remains authoritative.
 
 ## Qualified packet binding
 
@@ -176,6 +213,8 @@ the exact qualified packet supplied to this composition.
 
 A GREEN composition reports:
 
+- `installation_artifacts_bound=true`;
+- `canonical_live_read_reclassified=true`;
 - `validated_packet_binding_proven=true`;
 - `durable_consume_packet_binding_proven=true`;
 - exact storage snapshot → issue transition prestate digest/byte lineage;
