@@ -52,6 +52,13 @@ const nonNegativeSafeInteger = (value, label) => {
   return value;
 };
 
+const formatAccountingBalance = (value) => new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 9,
+}).format(value);
+
+const NATIVE_GAS_DISPLAY_PATTERN =
+  /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/;
+
 const currentRoute = () => {
   if (typeof window === 'undefined') return '';
   return String(window.location.hash || '')
@@ -70,6 +77,9 @@ const validateSource = (source, route, label) => {
     source.status > 599
   ) {
     throw new Error(`${label}.status must be an integer HTTP status or zero`);
+  }
+  if (source.ok !== (source.status >= 200 && source.status < 300)) {
+    throw new Error(`${label} HTTP outcome mismatch`);
   }
 };
 
@@ -93,10 +103,17 @@ const validateAccounting = (value, label, extraKeys = []) => {
     throw new Error(`${label} display metadata invalid`);
   }
   if (value.available) {
-    nonNegativeFinite(value.balance, `${label}.balance`);
+    const balance = nonNegativeFinite(value.balance, `${label}.balance`);
     nonNegativeSafeInteger(value.entries, `${label}.entries`);
-  } else if (value.balance !== null || value.entries !== null) {
-    throw new Error(`${label} unavailable evidence must remain null`);
+    if (value.display !== formatAccountingBalance(balance)) {
+      throw new Error(`${label}.display does not match balance`);
+    }
+  } else if (
+    value.balance !== null ||
+    value.entries !== null ||
+    value.display !== '—'
+  ) {
+    throw new Error(`${label} unavailable evidence must remain null and undisplayed`);
   }
 };
 
@@ -232,6 +249,34 @@ export const validateWalletSnapshotV1 = (
   if (snapshot.wallet.unlocked && !snapshot.wallet.has_wallet) {
     throw new Error('wallet unlocked without wallet');
   }
+  if (
+    !snapshot.wallet.source_available &&
+    (
+      snapshot.wallet.has_wallet ||
+      snapshot.wallet.address !== '' ||
+      snapshot.wallet.unlocked ||
+      snapshot.wallet.native_gas_available ||
+      snapshot.wallet.native_gas_display !== '—'
+    )
+  ) {
+    throw new Error('wallet unavailable source exposed wallet evidence');
+  }
+  if (
+    snapshot.wallet.native_gas_available &&
+    !NATIVE_GAS_DISPLAY_PATTERN.test(snapshot.wallet.native_gas_display)
+  ) {
+    throw new Error('wallet native gas display invalid');
+  }
+  if (
+    snapshot.wallet.native_gas_available
+      ? (
+        !snapshot.wallet.source_available ||
+        !snapshot.wallet.has_wallet
+      )
+      : snapshot.wallet.native_gas_display !== '—'
+  ) {
+    throw new Error('wallet native gas availability mismatch');
+  }
 
   exactKeys(snapshot.balances, ['void', 'ledger_wc', 'production_wc'], 'wallet snapshot.balances');
   exactKeys(
@@ -241,8 +286,9 @@ export const validateWalletSnapshotV1 = (
   );
   if (
     snapshot.balances.void.available !== false ||
-    typeof snapshot.balances.void.display !== 'string' ||
-    typeof snapshot.balances.void.reason !== 'string'
+    snapshot.balances.void.display !== '—' ||
+    typeof snapshot.balances.void.reason !== 'string' ||
+    snapshot.balances.void.reason.trim().length === 0
   ) {
     throw new Error('VOID balance boundary mismatch');
   }
@@ -293,6 +339,33 @@ export const validateWalletSnapshotV1 = (
     '/wc/production/balance',
     'wallet snapshot.sources.production_wc',
   );
+  if (
+    snapshot.wallet.source_available &&
+    (
+      !snapshot.sources.wallet_status.ok ||
+      snapshot.sources.wallet_status.status !== 200
+    )
+  ) {
+    throw new Error('wallet evidence available without its source');
+  }
+  if (
+    snapshot.balances.ledger_wc.available &&
+    (
+      !snapshot.sources.ledger_wc.ok ||
+      snapshot.sources.ledger_wc.status !== 200
+    )
+  ) {
+    throw new Error('ledger WC available without its source');
+  }
+  if (
+    snapshot.balances.production_wc.available &&
+    (
+      !snapshot.sources.production_wc.ok ||
+      snapshot.sources.production_wc.status !== 200
+    )
+  ) {
+    throw new Error('production WC available without its source');
+  }
 
   const boundaryKeys = [
     'browser_wallet_connection',
@@ -365,16 +438,25 @@ const resetWalletView = (message = 'Enter an account ID to load read-only contex
   setText('[data-wallet-source-production]', 'Not checked');
 };
 
-const renderError = (message) => {
+export const renderWalletLoadingV1 = () => {
+  resetWalletView('Reading three fixed local sources.');
+  setChip(
+    document.querySelector('[data-wallet-state-chip]'),
+    'info',
+    'Loading account'
+  );
+};
+
+export const renderWalletErrorV1 = (message) => {
+  resetWalletView(message || 'The read-only adapter did not respond.');
   setChip(
     document.querySelector('[data-wallet-state-chip]'),
     'warning',
     'Account unavailable'
   );
-  setText('[data-wallet-message]', message || 'The read-only adapter did not respond.');
 };
 
-const renderWallet = (
+export const renderWalletV1 = (
   snapshot,
   expectedAccount,
   requestStartedAtMs = Date.now(),
@@ -388,23 +470,50 @@ const renderWallet = (
   const balances = checked.balances;
   const sources = checked.sources;
 
+  const walletSourceUnavailable = !wallet.source_available;
   setChip(
     document.querySelector('[data-wallet-state-chip]'),
-    wallet.has_wallet ? 'positive' : 'info',
-    wallet.has_wallet ? 'Local wallet found' : 'Account loaded'
+    walletSourceUnavailable
+      ? 'warning'
+      : wallet.has_wallet
+        ? 'positive'
+        : 'info',
+    walletSourceUnavailable
+      ? 'Wallet status unavailable'
+      : wallet.has_wallet
+        ? 'Local wallet found'
+        : 'Account loaded'
   );
   setText(
     '[data-wallet-message]',
-    wallet.has_wallet
-      ? 'Local wallet identity and accounting balances are shown read-only.'
-      : 'No local managed wallet is attached to this account ID. Accounting balances remain read-only.'
+    walletSourceUnavailable
+      ? 'Wallet presence and lock state could not be checked. Independently available accounting balances remain read-only.'
+      : wallet.has_wallet
+        ? 'Local wallet identity and accounting balances are shown read-only.'
+        : 'No local managed wallet is attached to this account ID. Accounting balances remain read-only.'
   );
   setText('[data-wallet-account-id]', account.id);
-  setText('[data-wallet-address]', wallet.address || 'No local wallet address');
-  setText('[data-wallet-local-status]', wallet.has_wallet ? 'Configured' : 'Not configured');
+  setText(
+    '[data-wallet-address]',
+    walletSourceUnavailable
+      ? 'Unavailable'
+      : wallet.address || 'No local wallet address'
+  );
+  setText(
+    '[data-wallet-local-status]',
+    walletSourceUnavailable
+      ? 'Unavailable'
+      : wallet.has_wallet
+        ? 'Configured'
+        : 'Not configured'
+  );
   setText(
     '[data-wallet-lock-state]',
-    wallet.has_wallet ? (wallet.unlocked ? 'Unlocked' : 'Locked') : 'Not applicable'
+    walletSourceUnavailable
+      ? 'Not checked'
+      : wallet.has_wallet
+        ? (wallet.unlocked ? 'Unlocked' : 'Locked')
+        : 'Not applicable'
   );
   setText('[data-wallet-native-gas]', wallet.native_gas_display);
   setText('[data-wallet-void-balance]', balances.void.display);
@@ -451,10 +560,12 @@ export const clearWalletViewV1 = ({
   input?.focus();
 };
 
-const loadAccount = async (account, button) => {
+export const loadWalletAccountV1 = async (account, button) => {
   const value = String(account || '').trim();
   if (!ACCOUNT_PATTERN.test(value)) {
-    renderError('Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.');
+    invalidateWalletRequest('wallet request replaced by invalid account');
+    restoreWalletLoadControlV1(button);
+    renderWalletErrorV1('Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.');
     return;
   }
 
@@ -463,12 +574,7 @@ const loadAccount = async (account, button) => {
   walletRequestOwner.cancel('wallet request replaced');
   if (button) button.disabled = true;
 
-  setChip(
-    document.querySelector('[data-wallet-state-chip]'),
-    'info',
-    'Loading account'
-  );
-  setText('[data-wallet-message]', 'Reading three fixed local sources.');
+  renderWalletLoadingV1();
 
   const route = `${WALLET_ENDPOINT}?account=${encodeURIComponent(value)}`;
   const expectedUrl = new URL(route, window.location.origin).href;
@@ -510,10 +616,10 @@ const loadAccount = async (account, button) => {
 
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     sessionStorage.setItem(ACCOUNT_STORAGE_KEY, value);
-    renderWallet(body, value, requestStartedAtMs);
+    renderWalletV1(body, value, requestStartedAtMs);
   } catch (error) {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
-    renderError(error instanceof Error ? error.message : String(error));
+    renderWalletErrorV1(error instanceof Error ? error.message : String(error));
   } finally {
     if (serial === requestSerial && currentRoute() === 'wallet') {
       restoreWalletLoadControlV1(button);
@@ -556,7 +662,7 @@ const bindWalletView = () => {
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    loadAccount(input?.value, button);
+    loadWalletAccountV1(input?.value, button);
   });
 
   const clear = form.querySelector('[data-wallet-clear]');

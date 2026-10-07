@@ -107,6 +107,18 @@ function walletNonNegativeFiniteNumberV1(raw: unknown): number | null {
   return value !== null && value >= 0 ? value : null;
 }
 
+const NATIVE_GAS_DISPLAY_PATTERN_V1 =
+  /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/;
+
+export function walletNativeGasDisplayV1(raw: unknown): string | null {
+  return (
+    typeof raw === "string" &&
+    NATIVE_GAS_DISPLAY_PATTERN_V1.test(raw)
+  )
+    ? raw
+    : null;
+}
+
 function displayNumber(raw: number | null): string {
   if (raw === null) return "—";
 
@@ -417,9 +429,8 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
 
   const nativeGas =
     walletStateValid &&
-    typeof walletBody.native_gas === "string" &&
-    walletBody.native_gas.length > 0
-      ? walletBody.native_gas
+    walletBody.has_wallet === true
+      ? walletNativeGasDisplayV1(walletBody.native_gas)
       : null;
 
   return {
