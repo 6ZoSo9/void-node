@@ -844,8 +844,6 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_CONTRACT_V1 =
     arbitrary_bytes_write: false,
     caller_selected_generation: false,
     automatic_retry: false,
-    reserve_method_enabled: false,
-    verified_payment_provenance_independently_bound: false,
     runtime_integration: false,
     payment_acceptance: false,
     wallet_or_signer_access: false,
