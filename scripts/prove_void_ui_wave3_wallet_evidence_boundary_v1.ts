@@ -8,6 +8,7 @@ import {
   fetchVoidUiWave3WalletSourceJsonV1,
   walletAccountIdV1,
   walletFiniteNumberV1,
+  walletNativeGasDisplayV1,
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
 import {
@@ -153,6 +154,34 @@ for (const wrong of [null, true, "0", -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
 }
 assert.equal(walletNonNegativeSafeIntegerV1(0), 0);
 assert.equal(walletNonNegativeSafeIntegerV1(42), 42);
+
+for (const invalidNativeGas of [
+  null,
+  undefined,
+  0,
+  "unlimited",
+  "1 ETH",
+  "+1",
+  "-1",
+  "1e3",
+  "1,000",
+  "01",
+  ".5",
+  "1.",
+  "0." + "1".repeat(19),
+]) {
+  assert.equal(walletNativeGasDisplayV1(invalidNativeGas), null);
+}
+for (const validNativeGas of [
+  "0",
+  "0.0",
+  "1",
+  "1.0",
+  "0.500000000",
+  "1." + "0".repeat(18),
+]) {
+  assert.equal(walletNativeGasDisplayV1(validNativeGas), validNativeGas);
+}
 
 for (const wrong of [
   null,
