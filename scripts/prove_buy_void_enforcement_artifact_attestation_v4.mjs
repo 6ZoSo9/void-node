@@ -60,19 +60,27 @@ function yamlScalar(value) {
 }
 
 function workflowEventPaths(source, eventName) {
-  assert.ok(
-    eventName === "pull_request" || eventName === "push",
-    "unsupported workflow event",
-  );
   const lines = String(source || "").split(/\r?\n/u);
-  const eventPattern = new RegExp("^([ ]*)" + eventName + ":[ ]*$", "u");
+  const onIndex = lines.findIndex(
+    (line) => /^on:[ ]*$/u.test(line),
+  );
+  assert.ok(onIndex >= 0, "workflow on block missing");
+
+  const onIndent = lines[onIndex].match(/^[ ]*/u)[0].length;
   let eventIndex = -1;
   let eventIndent = -1;
-  for (let index = 0; index < lines.length; index += 1) {
-    const match = eventPattern.exec(lines[index]);
-    if (match) {
+
+  for (let index = onIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    const indent = line.match(/^[ ]*/u)[0].length;
+    if (indent <= onIndent) break;
+    if (
+      line.trim() === eventName + ":" &&
+      indent > onIndent
+    ) {
       eventIndex = index;
-      eventIndent = match[1].length;
+      eventIndent = indent;
       break;
     }
   }
@@ -85,13 +93,13 @@ function workflowEventPaths(source, eventName) {
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
     const indent = line.match(/^[ ]*/u)[0].length;
     if (indent <= eventIndent) break;
-    const match = /^([ ]*)paths:[ ]*$/u.exec(line);
-    if (match) {
+    if (line.trim() === "paths:") {
       pathsIndex = index;
-      pathsIndent = match[1].length;
+      pathsIndent = indent;
       break;
     }
   }
+
   assert.notEqual(
     pathsIndex,
     -1,
@@ -107,7 +115,30 @@ function workflowEventPaths(source, eventName) {
     const match = /^[ ]*-[ ]+(.+?)[ ]*$/u.exec(line);
     if (match) paths.push(yamlScalar(match[1]));
   }
-  return new Set(paths);
+  return Object.freeze(paths);
+}
+
+function globMatchesPath(pattern, candidate) {
+  let regex = "^";
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index];
+    if (char === "*") {
+      if (pattern[index + 1] === "*") {
+        regex += ".*";
+        index += 1;
+      } else {
+        regex += "[^/]*";
+      }
+      continue;
+    }
+    if (char === "?") {
+      regex += "[^/]";
+      continue;
+    }
+    regex += char.replace(/[.*+?^$()|[\]{}\\]/gu, "\\$&");
+  }
+  regex += "$";
+  return new RegExp(regex, "u").test(candidate);
 }
 
 function assertV4ConsumerTriggerClosure() {
@@ -121,9 +152,11 @@ function assertV4ConsumerTriggerClosure() {
       const paths = workflowEventPaths(source, eventName);
       assert.ok(paths, workflowPath + " missing " + eventName + " paths");
       for (const dependency of V4_TRIGGER_DEPENDENCIES) {
-        assert.equal(
-          paths.has(dependency),
-          true,
+        const matchedBy = paths.find((pattern) =>
+          globMatchesPath(pattern, dependency),
+        );
+        assert.ok(
+          matchedBy,
           workflowPath +
             " " +
             eventName +
