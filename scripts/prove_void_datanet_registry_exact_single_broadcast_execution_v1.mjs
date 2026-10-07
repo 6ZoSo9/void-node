@@ -110,6 +110,41 @@ assert.throws(
   "comment-separated dynamic import must fail reviewed planning",
 );
 
+let reviewedExecveSentinelCalls=0;
+if(typeof process.execve==="function"){
+  const execveDescriptor=
+    Object.getOwnPropertyDescriptor(process,"execve");
+  assert.ok(execveDescriptor);
+  assert.equal(typeof execveDescriptor.value,"function");
+  assert.ok(
+    execveDescriptor.configurable===true||
+    execveDescriptor.writable===true,
+    "process.execve must be replaceable before reviewed fence installation",
+  );
+  Object.defineProperty(process,"execve",{
+    ...execveDescriptor,
+    value(){
+      reviewedExecveSentinelCalls+=1;
+      throw new Error("reviewed_execve_test_sentinel_called");
+    },
+  });
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(
+      'export default process.execve('+
+      'process.execPath,'+
+      '[process.execPath,"-e","process.exit(91)"],'+
+      'process.env);',
+    ),
+    /reviewed_ambient_process_execve_forbidden/u,
+    "reviewed module must not replace the broadcaster process through process.execve",
+  );
+  assert.equal(
+    reviewedExecveSentinelCalls,
+    0,
+    "reviewed ambient fence must replace the execve sentinel before module execution",
+  );
+}
+
 await assert.rejects(
   ()=>testOnlyImportSyntheticReviewedModuleV1(
     'import/**/ * as net from/* gap */"node:net"; export default net;',
@@ -1048,7 +1083,8 @@ try{
     assert.equal(toolSource.includes(forbidden),false,forbidden);
   }
 
-  console.log("reviewed_rpc_3xx_rejected_without_redirect_follow=true");
+  console.log("reviewed_process_execve_forbidden=true");
+console.log("reviewed_rpc_3xx_rejected_without_redirect_follow=true");
 console.log("VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1_PROOF_GREEN");
   console.log("durable_attempt_intent_before_rpc=true");
   console.log("eth_sendRawTransaction_maximum_invocations_per_attempt=1");
