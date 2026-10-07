@@ -325,6 +325,28 @@ await assert.rejects(
 assert.equal(oversizedBodyCancelled, true);
 assert.ok(oversizedBodyPulls <= 3);
 
+let zeroProgressBodyCancelled = false;
+globalThis.fetch = (async () =>
+  new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(0));
+      },
+      cancel() {
+        zeroProgressBodyCancelled = true;
+      },
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  )) as typeof fetch;
+await assert.rejects(
+  fetchVoidUdpSwarmPublicRelayIntroductionV1({
+    source_node_id: sourceA.nodeId,
+    url: "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
+  }),
+  /stream made no progress/u,
+);
+assert.equal(zeroProgressBodyCancelled, true);
+
 globalThis.fetch = (async () =>
   new Response(JSON.stringify(envelope()), {
     status: 200,
@@ -872,4 +894,5 @@ console.log("existing_runtime_activation_invoked=true");
 console.log("peer_identity_exposed_in_status=false");
 console.log("deployment=none");
 console.log("service_restart=none");
+console.log("zero_progress_transport_stream_rejected=true");
 console.log(MARKER);
