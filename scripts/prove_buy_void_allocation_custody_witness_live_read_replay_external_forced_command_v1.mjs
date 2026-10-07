@@ -368,6 +368,111 @@ for (const phase of [
     const journal0 = Buffer.alloc(0);
     const append = buildRequest({
       operation: "append",
+      id: requestId("intent-unlinked-before-write"),
+      journal: journal0,
+      high_water: highWater(journal0),
+    });
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          append,
+          {
+            ...deps,
+            hooks: { unlink_intent_after_create: true },
+          },
+        ),
+      /ENOENT|witness_replay_external_forced_command_intent_invalid/u,
+    );
+    assert.equal(
+      fs.readFileSync(f.witness).length,
+      0,
+      "missing just-created intent must HOLD before any witness byte is written",
+    );
+    assert.equal(fs.existsSync(f.intent), false);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const journal0 = Buffer.alloc(0);
+    const append = buildRequest({
+      operation: "append",
+      id: requestId("orphan-torn-recovery"),
+      journal: journal0,
+      high_water: highWater(journal0),
+    });
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          append,
+          {
+            ...deps,
+            hooks: { interrupt_after_partial_append: true },
+          },
+        ),
+      /test_interrupt_after_partial_append/u,
+    );
+    assert.equal(fs.existsSync(f.intent), true);
+    const torn = fs.readFileSync(f.witness);
+    assert.ok(torn.length > 0, "partial append must leave a torn tail");
+
+    fs.unlinkSync(f.intent);
+    assert.equal(fs.existsSync(f.intent), false);
+
+    const read = buildRequest({
+      operation: "read",
+      id: requestId("orphan-torn-read"),
+    });
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          read,
+          deps,
+        ),
+      /witness|json|newline|invalid|parse/u,
+    );
+    assert.deepEqual(
+      fs.readFileSync(f.witness),
+      torn,
+      "read must not repair or mutate an orphan torn witness",
+    );
+
+    const recovered =
+      handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+        f.config,
+        append,
+        deps,
+      );
+    const recoveredResponse = parseResponse(recovered.response_json);
+    assert.equal(recoveredResponse.initialized, true);
+    assert.equal(recoveredResponse.operation_performed, true);
+    assert.equal(recoveredResponse.recovered_intent, true);
+    assert.equal(recoveredResponse.event_count, 1);
+    assert.equal(recoveredResponse.witnessed_replay_sequence, 0);
+    assert.equal(fs.existsSync(f.intent), false);
+    const parsed =
+      parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessJournalV1(
+        fs.readFileSync(f.witness),
+      );
+    assert.equal(parsed.event_count, 1);
+    assert.equal(parsed.tip.replay_sequence, 0);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const journal0 = Buffer.alloc(0);
+    const append = buildRequest({
+      operation: "append",
       id: requestId("tampered-intent"),
       journal: journal0,
       high_water: highWater(journal0),
@@ -612,6 +717,7 @@ for (const key of [
   "durable_append_intent",
   "exact_idempotence",
   "torn_append_recovery",
+  "planner_bound_orphan_torn_recovery",
   "witness_file_fsync",
   "authority_directory_fsync",
   "post_mutation_path_rebind",
@@ -675,6 +781,10 @@ for (const token of [
   "config_parent_invalid",
   "config_path_not_bound",
   "config_changed_during_read",
+  "assertExactPrivateFile",
+  "recoverOrphanTornAppend",
+  "planner_bound_orphan_torn_recovery",
+  "unlink_intent_after_create",
 ]) {
   assert.equal(source.includes(token), true, token);
 }
@@ -701,6 +811,16 @@ assert.match(
   /4 \* Math\.ceil\(MAX_REQUEST_BYTES \/ 3\)[\s\S]{0,180}4 \* Math\.ceil\(MAX_WITNESS_EVENT_BYTES \/ 3\)[\s\S]{0,180}MAX_INTENT_METADATA_BYTES/u,
   "intent ceiling must remain derived from request, event, and metadata bounds",
 );
+assert.match(
+  source,
+  /function unlinkPrivateFile\([\s\S]*fs\.unlinkSync\(pinned\);[\s\S]*fs\.fsyncSync\(directory\.fd\);[\s\S]*assertPrivateDirectoryVisible\(/u,
+  "final intent cleanup must rebind the authority-root pathname",
+);
+assert.match(
+  source,
+  /createPrivateFile\([\s\S]*INTENT_NAME[\s\S]*assertExactPrivateFile\([\s\S]*INTENT_NAME[\s\S]*appendWithHooks\(/u,
+  "new append must rebind exact durable intent bytes before witness mutation",
+);
 
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_FORCED_COMMAND_V1,
@@ -721,6 +841,10 @@ console.log("one_planned_event_per_append=true");
 console.log("exact_idempotence=true");
 console.log("intent_only_crash_recovered=true");
 console.log("torn_append_crash_recovered=true");
+console.log("planner_bound_orphan_torn_recovery=true");
+console.log("post_create_intent_unlink_holds_before_witness_write=true");
+console.log("orphan_torn_read_nonmutating=true");
+console.log("final_intent_cleanup_rebind=true");
 console.log("full_append_precleanup_crash_recovered=true");
 console.log("read_pending_intent_holds=true");
 console.log("mismatched_recovery_request_holds=true");
