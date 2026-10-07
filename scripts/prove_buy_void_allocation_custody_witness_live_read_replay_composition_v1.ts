@@ -926,7 +926,7 @@ try {
     if (held.ok) throw new Error("transport port drift unexpectedly green");
     assert.equal(
       held.reason,
-      "witness_live_read_replay_composition_live_read_binding_invalid",
+      "witness_live_read_replay_composition_installation_binding_invalid",
     );
   }
 
@@ -946,7 +946,7 @@ try {
     if (held.ok) throw new Error("transport host drift unexpectedly green");
     assert.equal(
       held.reason,
-      "witness_live_read_replay_composition_live_read_binding_invalid",
+      "witness_live_read_replay_composition_installation_binding_invalid",
     );
   }
 
