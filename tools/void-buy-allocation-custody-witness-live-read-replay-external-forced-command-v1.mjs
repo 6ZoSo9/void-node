@@ -962,8 +962,10 @@ function parseIntent(bytes) {
   if (
     requestBytes.toString("base64") !== raw.request_json_base64 ||
     line.toString("base64") !== raw.next_line_base64 ||
+    requestBytes.length > MAX_REQUEST_BYTES ||
     sha256Id(requestBytes) !== raw.request_sha256 ||
     line.length < 2 ||
+    line.length > MAX_WITNESS_EVENT_BYTES ||
     line.at(-1) !== 0x0a ||
     line.subarray(0, -1).includes(0x0a) ||
     raw.expected_next_witness_bytes !== raw.prior_witness_bytes + line.length ||
@@ -1017,6 +1019,58 @@ function appendWithHooks(directory, prior, nextBytes, hooks) {
   }
 }
 
+function validateIntentAgainstPlanner(
+  intent,
+  request,
+  identity,
+  prior,
+) {
+  const priorState = witnessState(prior);
+  if (
+    priorState.witness_sha256 !== intent.prior_witness_sha256 ||
+    priorState.witness_bytes !== intent.prior_witness_bytes ||
+    priorState.event_count !== intent.prior_event_count ||
+    priorState.tip_event_sha256 !== intent.prior_tip_event_sha256
+  ) {
+    fail("witness_replay_external_forced_command_intent_prior_mismatch");
+  }
+
+  const planned =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: prior,
+      current_journal_jsonl: request.journal,
+      current_high_water_json: request.high_water,
+      identity,
+    });
+  if (
+    planned.ok !== true ||
+    (planned.status !== "planned" &&
+      planned.status !== "planned_genesis") ||
+    typeof planned.event_jsonl_line !== "string" ||
+    typeof planned.next_witness_jsonl !== "string"
+  ) {
+    fail("witness_replay_external_forced_command_intent_plan_mismatch");
+  }
+
+  const line = Buffer.from(planned.event_jsonl_line, "utf8");
+  const next = Buffer.from(planned.next_witness_jsonl, "utf8");
+  const nextState = witnessState(next);
+  if (
+    !line.equals(intent.next_line) ||
+    !next.subarray(0, prior.length).equals(prior) ||
+    !next.subarray(prior.length).equals(line) ||
+    next.length !== intent.expected_next_witness_bytes ||
+    sha256Id(next) !== intent.expected_next_witness_sha256 ||
+    nextState.event_count !== intent.next_event_count ||
+    nextState.tip_event_sha256 !== intent.next_tip_event_sha256 ||
+    nextState.witnessed_replay_sequence !==
+      intent.next_witnessed_replay_sequence
+  ) {
+    fail("witness_replay_external_forced_command_intent_plan_mismatch");
+  }
+  return next;
+}
+
 function recoverIntent(directory, config, request, identity) {
   const bytes = readOptionalPrivateFile(
     directory,
@@ -1037,6 +1091,7 @@ function recoverIntent(directory, config, request, identity) {
   if (!intent.request_bytes.equals(request.bytes)) {
     fail("witness_replay_external_forced_command_pending_intent_request_mismatch");
   }
+
   let current = readPinnedPrivateFile(
     directory,
     WITNESS_NAME,
@@ -1044,6 +1099,9 @@ function recoverIntent(directory, config, request, identity) {
     true,
     "witness_replay_external_forced_command_witness_invalid",
   );
+
+  let prior;
+  let phase;
   const currentState = (() => {
     try {
       requireWitnessIdentity(current, identity);
@@ -1060,6 +1118,55 @@ function recoverIntent(directory, config, request, identity) {
     currentState.event_count === intent.next_event_count &&
     currentState.tip_event_sha256 === intent.next_tip_event_sha256
   ) {
+    if (
+      intent.prior_witness_bytes < 0 ||
+      intent.prior_witness_bytes >= current.length
+    ) {
+      fail("witness_replay_external_forced_command_intent_recovery_conflict");
+    }
+    prior = current.subarray(0, intent.prior_witness_bytes);
+    requireWitnessIdentity(prior, identity);
+    phase = "complete";
+  } else if (
+    currentState &&
+    currentState.witness_sha256 === intent.prior_witness_sha256 &&
+    currentState.witness_bytes === intent.prior_witness_bytes &&
+    currentState.event_count === intent.prior_event_count &&
+    currentState.tip_event_sha256 === intent.prior_tip_event_sha256
+  ) {
+    prior = current;
+    phase = "prior";
+  } else {
+    if (
+      current.length <= intent.prior_witness_bytes ||
+      current.length >= intent.expected_next_witness_bytes
+    ) {
+      fail("witness_replay_external_forced_command_intent_recovery_conflict");
+    }
+    prior = current.subarray(0, intent.prior_witness_bytes);
+    requireWitnessIdentity(prior, identity);
+    const tail = current.subarray(intent.prior_witness_bytes);
+    if (
+      tail.length < 1 ||
+      tail.length >= intent.next_line.length ||
+      !intent.next_line.subarray(0, tail.length).equals(tail)
+    ) {
+      fail("witness_replay_external_forced_command_intent_recovery_conflict");
+    }
+    phase = "partial";
+  }
+
+  const nextBytes = validateIntentAgainstPlanner(
+    intent,
+    request,
+    identity,
+    prior,
+  );
+
+  if (phase === "complete") {
+    if (!current.equals(nextBytes)) {
+      fail("witness_replay_external_forced_command_intent_next_mismatch");
+    }
     unlinkPrivateFile(
       directory,
       INTENT_NAME,
@@ -1072,48 +1179,7 @@ function recoverIntent(directory, config, request, identity) {
     });
   }
 
-  let prior = current;
-  const priorState = (() => {
-    try {
-      requireWitnessIdentity(current, identity);
-      return witnessState(current);
-    } catch {
-      return null;
-    }
-  })();
-  if (
-    priorState &&
-    priorState.witness_sha256 === intent.prior_witness_sha256 &&
-    priorState.witness_bytes === intent.prior_witness_bytes &&
-    priorState.event_count === intent.prior_event_count &&
-    priorState.tip_event_sha256 === intent.prior_tip_event_sha256
-  ) {
-    prior = current;
-  } else {
-    if (
-      current.length <= intent.prior_witness_bytes ||
-      current.length >= intent.expected_next_witness_bytes
-    ) {
-      fail("witness_replay_external_forced_command_intent_recovery_conflict");
-    }
-    prior = current.subarray(0, intent.prior_witness_bytes);
-    requireWitnessIdentity(prior, identity);
-    const priorObserved = witnessState(prior);
-    if (
-      priorObserved.witness_sha256 !== intent.prior_witness_sha256 ||
-      priorObserved.event_count !== intent.prior_event_count ||
-      priorObserved.tip_event_sha256 !== intent.prior_tip_event_sha256
-    ) {
-      fail("witness_replay_external_forced_command_intent_recovery_conflict");
-    }
-    const tail = current.subarray(intent.prior_witness_bytes);
-    if (
-      tail.length < 1 ||
-      tail.length >= intent.next_line.length ||
-      !intent.next_line.subarray(0, tail.length).equals(tail)
-    ) {
-      fail("witness_replay_external_forced_command_intent_recovery_conflict");
-    }
+  if (phase === "partial") {
     const witness = openWitnessForUpdate(directory);
     try {
       fs.ftruncateSync(witness.fd, intent.prior_witness_bytes);
@@ -1124,13 +1190,6 @@ function recoverIntent(directory, config, request, identity) {
     }
   }
 
-  const nextBytes = Buffer.concat([prior, intent.next_line]);
-  if (
-    nextBytes.length !== intent.expected_next_witness_bytes ||
-    sha256Id(nextBytes) !== intent.expected_next_witness_sha256
-  ) {
-    fail("witness_replay_external_forced_command_intent_next_mismatch");
-  }
   appendWithHooks(directory, prior, nextBytes, null);
   current = readPinnedPrivateFile(
     directory,
@@ -1142,9 +1201,12 @@ function recoverIntent(directory, config, request, identity) {
   requireWitnessIdentity(current, identity);
   const finalState = witnessState(current);
   if (
+    !current.equals(nextBytes) ||
     finalState.witness_sha256 !== intent.expected_next_witness_sha256 ||
     finalState.event_count !== intent.next_event_count ||
-    finalState.tip_event_sha256 !== intent.next_tip_event_sha256
+    finalState.tip_event_sha256 !== intent.next_tip_event_sha256 ||
+    finalState.witnessed_replay_sequence !==
+      intent.next_witnessed_replay_sequence
   ) {
     fail("witness_replay_external_forced_command_intent_postcheck_failed");
   }
