@@ -81,6 +81,9 @@ SAFE_GATEWAY_ERROR_CODES = {
         "public_credential_request_global_rate_limit_exceeded",
         "rate_limit_exceeded",
     }),
+    502: frozenset({
+        "agent_paid_work_credential_request_gateway_upstream_failed",
+    }),
     503: frozenset({
         "agent_paid_work_credential_request_gateway_unavailable",
         "applicant_rate_limit_capacity",
