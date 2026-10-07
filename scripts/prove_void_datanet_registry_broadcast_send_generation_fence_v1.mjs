@@ -469,6 +469,64 @@ try{
   await new Promise((resolve)=>custodyServer.close(()=>resolve()));
 }
 
+
+const abortResolveRoot=path.join(parent,"custody-abort-resolve-state");
+fs.mkdirSync(abortResolveRoot,{mode:0o700});
+fs.chmodSync(abortResolveRoot,0o700);
+writeConsumptionForRoot(abortResolveRoot);
+let abortResolveObserved=false;
+let abortResolveRpcCalls=0;
+const abortResolveStarted=Date.now();
+const abortResolve=
+  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+    {
+      broadcast_request:request,
+      broadcast_authorization:authorization,
+      prebroadcast_observation:observation,
+      signed_transaction:signed,
+      state_dir:abortResolveRoot,
+      confirmation:authorization.required_confirmation,
+    },
+    {
+      ...baseDependencies,
+      generation_custody_timeout_ms:50,
+      claim_generation_fence:async(fence)=>Object.freeze({
+        status:"created",
+        broadcast_generation_fence_id:
+          fence.broadcast_generation_fence_id,
+        custody_receipt_sha256:
+          "sha256:"+
+          sha256(Buffer.from("abort-resolve:"+canonicalJson(fence))),
+        independent_custody_proven:true,
+      }),
+      assert_generation_fence:async(_claim,_fence,context)=>
+        await new Promise((resolve)=>{
+          const onAbort=()=>{
+            abortResolveObserved=true;
+            resolve(true);
+          };
+          if(context.signal.aborted) onAbort();
+          else context.signal.addEventListener("abort",onAbort,{once:true});
+        }),
+      rpc:async()=>{
+        abortResolveRpcCalls+=1;
+        throw new Error("abort_resolve_timeout_must_not_reach_rpc");
+      },
+    },
+  );
+assert.equal(abortResolve.ok,false);
+assert.equal(
+  abortResolve.reason,
+  "registry_broadcast_execution_final_pre_send_gate_failed",
+);
+assert.equal(abortResolveObserved,true);
+assert.equal(abortResolveRpcCalls,0);
+assert.equal(abortResolve.transaction_submission_performed,false);
+assert.ok(
+  Date.now()-abortResolveStarted<1000,
+  "timeout rejection must win before abort-handler resolution",
+);
+
 const firstDependencies={
   ...baseDependencies,
   rpc:async (method)=>{
@@ -673,6 +731,7 @@ try{
   console.log("external_custody_revalidation_timeout_bounded=true");
   console.log("external_custody_timeout_abort_signal_delivered=true");
   console.log("external_custody_timeout_socket_destroyed=true");
+  console.log("timeout_rejection_precedes_abort_handler_resolution=true");
   console.log("runtime_window_rechecked_after_custody=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");

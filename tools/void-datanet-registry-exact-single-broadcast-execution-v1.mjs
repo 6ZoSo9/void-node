@@ -133,8 +133,8 @@ async function awaitBoundedGenerationCustodyV1(
       new Promise((_,reject)=>{
         timer=setTimeout(()=>{
           const error=new Error(timeoutCode);
-          controller.abort(error);
           reject(error);
+          controller.abort(error);
         },timeoutMs);
       }),
     ]);

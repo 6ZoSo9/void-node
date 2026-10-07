@@ -44,9 +44,11 @@ An existing claim fails closed before a replacement state root can create a new
 immediately before the single send admission. Both claim and revalidation are
 bounded by a hard maximum 5,000 ms wait. Each custody callback receives a
 frozen context containing an `AbortSignal` and the bounded timeout. When the
-deadline fires the core aborts that signal before returning HOLD. A future
-AF_UNIX adapter must destroy/close its socket on that abort; merely ignoring
-the signal does not qualify as production custody integration. The final
+deadline fires the core first settles the timeout rejection and only then
+dispatches the abort signal. This ordering prevents a transport abort handler
+that resolves with a stale successful assertion from winning the deadline
+race. A future AF_UNIX adapter must destroy/close its socket on that abort;
+merely ignoring the signal does not qualify as production custody integration. The final
 authorization/observation runtime window and visible state-root generation are
 checked again **after** custody revalidation returns, so a slow custody response
 cannot carry an expired authorization into `eth_sendRawTransaction`.
@@ -94,7 +96,9 @@ adversaries prove that a custody revalidation that advances the synthetic clock
 to the authorization expiry boundary performs zero RPC. The timeout adversary
 uses a real local Unix socket whose peer never replies; it requires the core
 deadline to abort the callback signal, the client socket to be destroyed, and
-zero RPC submission.
+zero RPC submission. A separate adversary deliberately resolves `true` from
+the abort handler and requires the already-settled timeout rejection to win,
+again with zero RPC.
 
 ## Required next gate
 
