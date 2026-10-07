@@ -15,6 +15,7 @@ import {
   WALLET_SNAPSHOT_MAX_AGE_MS,
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   clearWalletViewV1,
+  renderWalletV1,
   validateWalletSnapshotV1,
 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
 
@@ -590,6 +591,70 @@ absent.wallet.native_gas_available = false;
 absent.wallet.native_gas_display = "—";
 assert.doesNotThrow(() => validateWalletAt(absent));
 
+const unavailableSource = validSnapshot() as any;
+unavailableSource.wallet.source_available = false;
+unavailableSource.wallet.has_wallet = false;
+unavailableSource.wallet.address = "";
+unavailableSource.wallet.unlocked = false;
+unavailableSource.wallet.native_gas_available = false;
+unavailableSource.wallet.native_gas_display = "—";
+unavailableSource.sources.wallet_status.ok = false;
+unavailableSource.sources.wallet_status.status = 503;
+
+const rendered = new Map<string, { textContent: string; className: string }>();
+const originalDocument = (globalThis as any).document;
+const originalDateNow = Date.now;
+try {
+  (globalThis as any).document = {
+    querySelector: (selector: string) => {
+      if (!rendered.has(selector)) {
+        rendered.set(selector, { textContent: "", className: "" });
+      }
+      return rendered.get(selector);
+    },
+  };
+  Date.now = () => PROOF_NOW_MS;
+  assert.doesNotThrow(() =>
+    renderWalletV1(unavailableSource, "account-A", PROOF_NOW_MS),
+  );
+} finally {
+  Date.now = originalDateNow;
+  if (originalDocument === undefined) delete (globalThis as any).document;
+  else (globalThis as any).document = originalDocument;
+}
+assert.equal(
+  rendered.get("[data-wallet-state-chip]")?.textContent,
+  "Wallet status unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-state-chip]")?.className,
+  "status-chip status-chip--warning",
+);
+assert.equal(
+  rendered.get("[data-wallet-message]")?.textContent,
+  "Wallet presence and lock state could not be checked. Independently available accounting balances remain read-only.",
+);
+assert.equal(
+  rendered.get("[data-wallet-address]")?.textContent,
+  "Unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-local-status]")?.textContent,
+  "Unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-lock-state]")?.textContent,
+  "Not checked",
+);
+assert.equal(
+  rendered.get("[data-wallet-ledger-wc]")?.textContent,
+  "3",
+);
+assert.equal(
+  rendered.get("[data-wallet-production-wc]")?.textContent,
+  "1.5",
+);
+
 let clearGeneration = 7;
 const pendingGeneration = clearGeneration;
 let clearReason = "";
@@ -707,6 +772,7 @@ console.log("browser_unavailable_evidence_undisplayed=true");
 console.log("browser_available_display_balance_bound=true");
 console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
+console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");

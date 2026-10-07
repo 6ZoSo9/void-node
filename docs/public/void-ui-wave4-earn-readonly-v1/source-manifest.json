@@ -67,8 +67,8 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "4d7810586cbb5ba5bfd8c756283adefa2f43a2decceed9a07523122a77709462",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "4c93636c94ee50c170add7b5e337a4717096e77d8e32b68cce1e0524f6f52488",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "91dff319f905576e31b5b81fb239fe37f16962fea7329b05e4b21f3c4a0169bb",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "ecde66101db53662434d860ecb2e1b23c5434f12cdc1e90b597e48facfb65154",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",

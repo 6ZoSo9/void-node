@@ -447,7 +447,7 @@ const renderError = (message) => {
   setText('[data-wallet-message]', message || 'The read-only adapter did not respond.');
 };
 
-const renderWallet = (
+export const renderWalletV1 = (
   snapshot,
   expectedAccount,
   requestStartedAtMs = Date.now(),
@@ -461,23 +461,50 @@ const renderWallet = (
   const balances = checked.balances;
   const sources = checked.sources;
 
+  const walletSourceUnavailable = !wallet.source_available;
   setChip(
     document.querySelector('[data-wallet-state-chip]'),
-    wallet.has_wallet ? 'positive' : 'info',
-    wallet.has_wallet ? 'Local wallet found' : 'Account loaded'
+    walletSourceUnavailable
+      ? 'warning'
+      : wallet.has_wallet
+        ? 'positive'
+        : 'info',
+    walletSourceUnavailable
+      ? 'Wallet status unavailable'
+      : wallet.has_wallet
+        ? 'Local wallet found'
+        : 'Account loaded'
   );
   setText(
     '[data-wallet-message]',
-    wallet.has_wallet
-      ? 'Local wallet identity and accounting balances are shown read-only.'
-      : 'No local managed wallet is attached to this account ID. Accounting balances remain read-only.'
+    walletSourceUnavailable
+      ? 'Wallet presence and lock state could not be checked. Independently available accounting balances remain read-only.'
+      : wallet.has_wallet
+        ? 'Local wallet identity and accounting balances are shown read-only.'
+        : 'No local managed wallet is attached to this account ID. Accounting balances remain read-only.'
   );
   setText('[data-wallet-account-id]', account.id);
-  setText('[data-wallet-address]', wallet.address || 'No local wallet address');
-  setText('[data-wallet-local-status]', wallet.has_wallet ? 'Configured' : 'Not configured');
+  setText(
+    '[data-wallet-address]',
+    walletSourceUnavailable
+      ? 'Unavailable'
+      : wallet.address || 'No local wallet address'
+  );
+  setText(
+    '[data-wallet-local-status]',
+    walletSourceUnavailable
+      ? 'Unavailable'
+      : wallet.has_wallet
+        ? 'Configured'
+        : 'Not configured'
+  );
   setText(
     '[data-wallet-lock-state]',
-    wallet.has_wallet ? (wallet.unlocked ? 'Unlocked' : 'Locked') : 'Not applicable'
+    walletSourceUnavailable
+      ? 'Not checked'
+      : wallet.has_wallet
+        ? (wallet.unlocked ? 'Unlocked' : 'Locked')
+        : 'Not applicable'
   );
   setText('[data-wallet-native-gas]', wallet.native_gas_display);
   setText('[data-wallet-void-balance]', balances.void.display);
@@ -583,7 +610,7 @@ const loadAccount = async (account, button) => {
 
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     sessionStorage.setItem(ACCOUNT_STORAGE_KEY, value);
-    renderWallet(body, value, requestStartedAtMs);
+    renderWalletV1(body, value, requestStartedAtMs);
   } catch (error) {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
     renderError(error instanceof Error ? error.message : String(error));
