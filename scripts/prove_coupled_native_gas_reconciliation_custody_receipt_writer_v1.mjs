@@ -28,6 +28,7 @@ import {
   testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1,
   testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1,
   testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1,
+  testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1,
   testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1,
@@ -1105,6 +1106,79 @@ for (const phase of ["before_journal", "before_high_water"]) {
   }
 }
 
+for (const phase of ["before_journal", "before_high_water"]) {
+  const f = fixture();
+  try {
+    const crashPhase =
+      phase === "before_journal"
+        ? "after_high_water_intent"
+        : "after_journal_write";
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        crashPhase,
+      ),
+    );
+    assert.match(crashed.reason, new RegExp("test_crash_" + crashPhase, "u"));
+
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        phase,
+      ),
+    );
+    assert.match(
+      held.reason,
+      phase === "before_journal"
+        ? /receipt_writer_high_water_state_snapshot_changed/u
+        : /receipt_writer_journal_state_snapshot_changed/u,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      phase + " recovery peer-state replacement must not advance journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      phase + " recovery peer-state replacement must not advance high-water",
+    );
+
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "recovery peer-state retry:" + phase,
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.generation, 1);
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)),
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)),
+      ).ok,
+      true,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
 async function proveSingleRootReplacementSerialization(replaceRoot) {
   const f = fixture();
   const detached = path.join(
@@ -1363,4 +1437,6 @@ console.log("paired_state_snapshot_before_journal_rename=true");
 console.log("paired_state_snapshot_before_high_water_rename=true");
 console.log("peer_high_water_replacement_blocks_journal_rename=true");
 console.log("peer_journal_replacement_blocks_high_water_rename=true");
+console.log("recovery_peer_high_water_replacement_blocks_journal_rename=true");
+console.log("recovery_peer_journal_replacement_blocks_high_water_rename=true");
 console.log("funds_movement=false");
