@@ -22,6 +22,64 @@ const sha = (hex: string): string =>
 const requestId = (hex: string): string =>
   "voidwreq1_" + hex.repeat(64);
 
+function canonicalJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(record)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + canonicalJson(record[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical_fixture_value");
+}
+
+function sha256Id(value: string): string {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value, "utf8").digest("hex")
+  );
+}
+
+function rehashWitnessJsonl(
+  witness: Buffer,
+  mutate: (events: Array<Record<string, unknown>>) => void,
+): Buffer {
+  const events = witness
+    .toString("utf8")
+    .trimEnd()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  mutate(events);
+  let previous: string | null = null;
+  for (const event of events) {
+    event.previous_event_sha256 = previous;
+    const body = { ...event };
+    delete body.event_sha256;
+    event.event_sha256 = sha256Id(canonicalJson(body));
+    previous = String(event.event_sha256);
+  }
+  return Buffer.from(
+    events.map((event) => canonicalJson(event)).join("\n") + "\n",
+    "utf8",
+  );
+}
+
 const identity = Object.freeze({
   source_hostname: "zoso-Precision-Tower-7810",
   source_journal_root:
@@ -198,6 +256,50 @@ assert.equal(
   "witness_replay_external_witness_local_rollback_detected",
 );
 assert.equal(rollback.rollback_regression_detected, true);
+
+{
+  const forgedAhead = rehashWitnessJsonl(witnessA2, (events) => {
+    events[0].journal_sha256 = sha("d");
+    events[0].high_water_sha256 = sha("e");
+  });
+  const forgedClassification =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: forgedAhead,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(forgedClassification.ok, false);
+  if (forgedClassification.ok) {
+    throw new Error("forged ahead witness unexpectedly green");
+  }
+  assert.equal(
+    forgedClassification.reason,
+    "witness_replay_external_witness_local_history_conflict",
+  );
+  assert.equal(
+    forgedClassification.rollback_regression_detected,
+    false,
+    "rollback evidence requires a canonical common witness prefix",
+  );
+
+  const forgedPlan =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: forgedAhead,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(forgedPlan.ok, false);
+  if (forgedPlan.ok) {
+    throw new Error("forged ahead witness plan unexpectedly green");
+  }
+  assert.equal(
+    forgedPlan.reason,
+    "witness_replay_external_witness_local_history_conflict",
+  );
+  assert.equal(forgedPlan.rollback_regression_detected, false);
+}
 
 const idempotent =
   planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
@@ -407,6 +509,8 @@ console.log("one_event_per_replay_sequence=true");
 console.log("sequential_catchup=true");
 console.log("mixed_history_conflict_rejected=true");
 console.log("local_rollback_detected=true");
+console.log("rollback_requires_canonical_common_prefix=true");
+console.log("forged_ahead_witness_not_labeled_rollback=true");
 console.log("identity_drift_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("external_transport_authenticated=false");
