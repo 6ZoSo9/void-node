@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs"
-      - "scripts/prove_buy_void_allocation_custody_witness_live-read-replay-rollback-policy-evidence-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts"
@@ -62,10 +62,10 @@ jobs:
       - name: Syntax-check rollback policy evidence collector
         run: |
           node --check tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs
-          node --check scripts/prove_buy_void_allocation_custody_witness_live-read-replay-rollback-policy-evidence-v1.mjs
+          node --check scripts/prove_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_v1.mjs
 
       - name: Prove rollback policy evidence collector
-        run: node scripts/prove_buy_void_allocation_custody_witness_live-read-replay-rollback-policy-evidence-v1.mjs
+        run: node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_v1.mjs
 
       - name: Preserve rollback independence classifier
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.ts
