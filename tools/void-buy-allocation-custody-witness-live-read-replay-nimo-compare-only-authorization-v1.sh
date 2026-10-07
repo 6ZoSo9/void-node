@@ -148,7 +148,7 @@ run_source_self_test_v1() {
   local root trusted key_a key_b stage_key expected_fpr expected_public
   local auth_test backup_test old_two full_before mismatch_backup rename_backup
   root="$(mktemp -d)"
-  trap 'rm -rf -- "$root"' RETURN
+  trap 'rm -r -- "$root"' RETURN
   chmod 0700 "$root"
   trusted="$root/trusted"
   mkdir -m 0700 "$trusted"
