@@ -404,15 +404,25 @@ need(
     registrationAttempts(installThenThrowGetApp)[0] === 1,
   "held status retry duplicated or extended the ambiguous route set",
 );
-const retainedIndeterminateStatus = await invoke(
+const retainedIndeterminateStatusUnauth = await invoke(
   installThenThrowGetApp.getHandlers.get(
     VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
   ),
   undefined,
 );
 need(
+  retainedIndeterminateStatusUnauth.status === 401,
+  "unauthenticated retained status handler did not preserve auth boundary",
+);
+const retainedIndeterminateStatus = await invoke(
+  installThenThrowGetApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  { proof_auth: true },
+);
+need(
   retainedIndeterminateStatus.status === 503,
-  "retained indeterminate status handler did not HOLD",
+  "authenticated retained indeterminate status handler did not HOLD",
 );
 need(
   asObject(
@@ -478,18 +488,28 @@ need(
   "held request retry duplicated the ambiguous route set",
 );
 
-const retainedRequestIndeterminateStatus = await invoke(
+const retainedRequestIndeterminateStatusUnauth = await invoke(
   installThenThrowPostApp.getHandlers.get(
     VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
   ),
   undefined,
 );
 need(
+  retainedRequestIndeterminateStatusUnauth.status === 401,
+  "unauthenticated request-indeterminate status leaked registration state",
+);
+const retainedRequestIndeterminateStatus = await invoke(
+  installThenThrowPostApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  { proof_auth: true },
+);
+need(
   retainedRequestIndeterminateStatus.status === 503,
-  "status route reported ready while request registration was indeterminate",
+  "authenticated status route reported ready while request registration was indeterminate",
 );
 
-const retainedIndeterminateRequest = await invoke(
+const retainedIndeterminateRequestUnauth = await invoke(
   installThenThrowPostApp.postHandlers.get(
     VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
   ),
@@ -501,8 +521,24 @@ const retainedIndeterminateRequest = await invoke(
   },
 );
 need(
+  retainedIndeterminateRequestUnauth.status === 401,
+  "unauthenticated retained request handler leaked registration state",
+);
+const retainedIndeterminateRequest = await invoke(
+  installThenThrowPostApp.postHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  {
+    proof_auth: true,
+    confirmation:
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_CONFIRMATION,
+    operation: "player_summaries",
+    steamids: ["76561198000000000"],
+  },
+);
+need(
   retainedIndeterminateRequest.status === 503,
-  "retained indeterminate request handler did not HOLD",
+  "authenticated retained indeterminate request handler did not HOLD",
 );
 need(
   asObject(
