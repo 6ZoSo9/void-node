@@ -157,7 +157,7 @@ assert.notDeepEqual(
 
 assert.throws(
   () => observedCompiledImports(serviceSource + '\nvoid import("./dynamic.mjs");\n'),
-  /Expected values to be strictly non-matching regular expression/u,
+  "dynamic import must fail closed before static dependency acceptance",
 );
 assert.equal(decision.candidate.reviewed_compiled_transitive_closure_proven, false);
 assert.equal(decision.candidate.production_gate_ready, false);
