@@ -79,9 +79,25 @@ assert.deepEqual(decision.candidate.top_level_source_imports, [
 // Fail closed when a future security repair changes the checked-out service's
 // compiled imports without rebinding the untrusted bootstrap candidate.
 // This checks top-level specifiers only; it does NOT qualify transitive code.
-const serviceSource = readFileSync(path.resolve(
+const sourceBytes = readFileSync(path.resolve(
   here, "../tools/void-buy-allocation-custody-service-v1.mjs",
-), "utf8");
+));
+const serviceSource = sourceBytes.toString("utf8");
+const sourceSha256Expected = decision.candidate.service_source_sha256_expected;
+assert.match(sourceSha256Expected, /^sha256:[0-9a-f]{64}$/u);
+
+function requireHistoricalServiceBytes(bytes) {
+  const digest = "sha256:" + createHash("sha256").update(bytes).digest("hex");
+  if (digest !== sourceSha256Expected) {
+    throw new Error("custody_bootstrap_plan_service_source_bytes_drift_hold");
+  }
+}
+const serviceContract = JSON.parse(readFileSync(path.resolve(
+  here, "../docs/architecture/buy-void-allocation-custody-service-contract-v1.json",
+), "utf8"));
+assert.equal(serviceContract.service_source_sha256, sourceSha256Expected,
+  "bootstrap snapshot must bind the separately reviewed service contract digest");
+requireHistoricalServiceBytes(sourceBytes);
 function observedCompiledImports(sourceText) {
   // Dynamic loaders are outside the reviewed closure and HOLD outright.
   // This is deliberately lexical/fail-closed: even a commented future loader
@@ -159,6 +175,25 @@ assert.throws(
   () => observedCompiledImports(serviceSource + '\nvoid import("./dynamic.mjs");\n'),
   "dynamic import must fail closed before static dependency acceptance",
 );
+
+// The full source checksum must reject every source-text change, even loaders
+// missed by a lexical import()/require() check (valid comment-separated forms).
+// This is not executable-closure, host, operator or signed provenance.
+for (const candidate of [
+  changedImport,
+  droppedImport,
+  semicolonlessImport,
+  exportFromDependency,
+  serviceSource + '\nvoid import("./dynamic.mjs");\n',
+  serviceSource + '\nvoid import/*comment*/("./evade.mjs");\n',
+  serviceSource + '\nvoid require/*comment*/("./module.cjs");\n',
+  serviceSource + '\n// harmless-looking source edit\n',
+]) {
+  assert.throws(
+    () => requireHistoricalServiceBytes(Buffer.from(candidate, "utf8")),
+    /custody_bootstrap_plan_service_source_bytes_drift_hold/u,
+  );
+}
 assert.equal(decision.candidate.reviewed_compiled_transitive_closure_proven, false);
 assert.equal(decision.candidate.production_gate_ready, false);
 
@@ -288,6 +323,9 @@ console.log("separate_host_service_needed=true");
 console.log("mutable_repo_execstart_not_emitted=true");
 console.log("systemd_socket_unit_not_claimed=true");
 console.log("protected_executable_import_closure_required=true");
+console.log("historical_service_source_sha256_pinned=true");
+console.log("source_digest_matches_reviewed_contract=true");
+console.log("semicolonless_import_export_and_comment_separated_loader_drift_hold=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("module_parser_static_import_census=true");
 console.log("semicolonless_and_export_from_dependencies_bound=true");
