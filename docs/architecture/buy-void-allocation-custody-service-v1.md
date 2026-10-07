@@ -21,7 +21,7 @@ The machine-readable reviewed contract is:
 
 The contract binds the exact service source SHA-256:
 
-`sha256:bbc42447cc5b21f524cb7d1fb76a94c6322ffd36c901b5e5b2a8cbfe09918cd5`
+`sha256:da54d33e325df76a1b14dce00c6ecddc40e70d4c0a1a26f4547f7d9e152add4a`
 
 ## Authority split
 
