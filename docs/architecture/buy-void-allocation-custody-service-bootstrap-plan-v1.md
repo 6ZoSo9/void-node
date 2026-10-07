@@ -91,9 +91,28 @@ buy_void_allocation_reservation_high_water_v1.js
 buy_void_allocation_reservation_publication_writer_v1.js
 ~~~
 
-Those modules have their own transitive runtime imports. Checking only the
-service's top-level Git blob, or copying the service from a mutable
-`/home/zoso/dev/void-node` checkout, does **not** bind the executable closure.
+Those modules have their own transitive runtime imports. The candidate
+additionally pins the **historical** service bytes with
+`service_source_sha256_expected=sha256:bf9befd0974db3e1bcc928336f5cc3f1a0f1086ace061cdbd71d607171647690`. The
+synthetic proof compares the actual source-byte SHA-256 and the reviewed
+service contract's `service_source_sha256` to that independently frozen
+candidate value. A semicolonless import, an ESM re-export, a dynamic loader
+with intervening comments, or any other source edit MUST HOLD—even if a
+formatting-sensitive import census misses it.
+
+This is a **source-only drift checksum**, not authenticated Git identity,
+trusted host/freshness evidence or executable/transitive dependency
+qualification; an actor able to edit both the candidate digest and source
+can publish another self-consistent but unauthenticated plan. Source
+security patch #2606 removes the old publication-writer import; **before
+the new source can replace this historical snapshot**, the plan, contract
+and complete compiled closure need jointly reviewed rebinding. The old
+three-import source checksum must not be silently treated as current
+production service authority.
+
+Checking only the service's top-level Git blob, or copying the service from
+a mutable `/home/zoso/dev/void-node` checkout, does **not** bind the
+executable closure.
 
 **Do not construct a runnable `ExecStart` or install/start the custody unit
 until an independently reviewed plan qualifies the complete executing Node
