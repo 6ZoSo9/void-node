@@ -251,13 +251,15 @@ const currentIdentityWorkflowDependencies = Object.freeze([
   "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
   "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
   "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
   "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
   "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
 ]);
 for (const workflowPath of [
   ".github/workflows/void-wc-void-market-vault-runtime-attestation-v1.yml",
   ".github/workflows/void-wc-void-market-vault-at-use-revalidation-v1.yml",
-  ".github/workflows/void-wc-void-bounded-canary-evidence-v1.yml"
+  ".github/workflows/void-wc-void-bounded-canary-evidence-v1.yml",
+  ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml"
 ]) {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   for (const dependency of currentIdentityWorkflowDependencies) {
