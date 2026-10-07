@@ -200,6 +200,13 @@ The proof rejects accessor/proxy/extra-key/caller-authority injections, verifies
 missing-host-gate diagnosis, confirms an all-true forged observation still
 cannot authorize production, requires an unresolved exact `ExecStart`, rejects
 `--apply`/`--install` modes, and checks the no-mutation authority contract.
+It also checks that the checked-out custody service's **top-level compiled
+ESM import specifiers** exactly match the frozen candidate list; removal or
+substitution causes proof failure, not silent deployment-plan reuse. This is
+not a review of transitive imports, not protected-executable qualification,
+and not host or payment authority. The #2604/#2606 reserve/recovery HOLD
+patches change that import list; rebind this plan to the reviewed final
+service source and compiled closure before promoting any host bootstrap.
 All planned outcomes retain `production_gate_ready=false`.
 
 **PROTECT THE CORE.**
