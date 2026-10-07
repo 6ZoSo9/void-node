@@ -30,12 +30,25 @@ const BOOTSTRAP_STATE = Symbol.for(
   "void.steam-readonly-bridge-bootstrap-v3.state",
 );
 
+type SteamReadonlyBridgeRegistrationStateV3 =
+  | "unattempted"
+  | "indeterminate"
+  | "bound";
+
+function registrationStateV3(
+  value: unknown,
+): SteamReadonlyBridgeRegistrationStateV3 {
+  if (value === true || value === "bound") return "bound";
+  if (value === "indeterminate") return "indeterminate";
+  return "unattempted";
+}
+
 type SteamReadonlyBridgeBootstrapStateV3 = {
   readonly json_body_parser: RequestHandler;
   readonly env: NodeJS.ProcessEnv;
   readonly fetch_impl: typeof fetch | undefined;
   readonly now: (() => number) | undefined;
-  parser_registered: boolean;
+  parser_registration_state: SteamReadonlyBridgeRegistrationStateV3;
 };
 
 type BootstrapApp = Express & {
@@ -207,7 +220,7 @@ export function registerSteamReadonlyBridgeBootstrapV3(
       env: normalizedEnv(options.env),
       fetch_impl: options.fetch_impl,
       now: options.now,
-      parser_registered: false,
+      parser_registration_state: "unattempted",
     };
     anyApp[BOOTSTRAP_STATE] = state;
   }
@@ -230,12 +243,21 @@ export function registerSteamReadonlyBridgeBootstrapV3(
   }
 
   let parserRegistered = false;
-  if (!state.parser_registered) {
+  const parserRegistrationState = registrationStateV3(
+    state.parser_registration_state,
+  );
+  if (parserRegistrationState === "indeterminate") {
+    throw new Error(
+      "steam_readonly_bridge_parser_registration_indeterminate",
+    );
+  }
+  if (parserRegistrationState !== "bound") {
+    state.parser_registration_state = "indeterminate";
     app.use(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
       state.json_body_parser,
     );
-    state.parser_registered = true;
+    state.parser_registration_state = "bound";
     parserRegistered = true;
   }
 
