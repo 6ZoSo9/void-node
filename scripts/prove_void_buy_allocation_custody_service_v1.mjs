@@ -492,12 +492,45 @@ async function decision(f, method, request) {
     assert.equal(repeat.decision.ok, false);
     assert.equal(repeat.decision.reason, forged.decision.reason);
     assert.equal(repeat.decision.operation_performed, false);
+
+    // A legacy pending intent can be publication-valid yet originate from
+    // caller-asserted payment flags rather than a durable payment_verified row.
+    // Prove the real IPC path cannot advance that pre-existing obligation.
+    const pendingPlan = requireOk(planBuyVoidAllocationReservationV1({
+      ledger_jsonl: "",
+      ...baseCandidate,
+    }));
+    const pending = requireOk(buildBuyVoidAllocationReservationPublicationIntentV1({
+      current_ledger_jsonl: "",
+      current_high_water_json: f.genesisHighWater,
+      next_ledger_jsonl: pendingPlan.next_ledger_jsonl,
+    }));
+    for (const root of [f.ledgerRoot, f.custodyRoot]) {
+      fs.writeFileSync(path.join(root, INTENT_NAME), pending.intent_json,
+        { mode: 0o600 });
+    }
+
     const recoverLine = canonicalWireJson(envelope("recover", {})) + "\n";
     const recover = await socketExchange(f.options.socket_path, recoverLine);
     assert.equal(recover.decision.ok, false);
     assert.equal(recover.decision.reason,
       "allocation_custody_service_verified_payment_recovery_not_bound");
     assert.equal(recover.decision.operation_performed, false);
+    for (const root of [f.ledgerRoot, f.custodyRoot]) {
+      assert.equal(fs.readFileSync(path.join(root, INTENT_NAME), "utf8"),
+        pending.intent_json, "IPC recovery must preserve legacy intent bytes");
+    }
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
+    assert.equal(fs.readFileSync(path.join(f.custodyRoot, HIGH_WATER_NAME), "utf8"),
+      f.genesisHighWater);
+    const forgedWithIntent = await socketExchange(f.options.socket_path, reserveLine);
+    assert.equal(forgedWithIntent.decision.ok, false);
+    assert.equal(forgedWithIntent.decision.reason, forged.decision.reason);
+    assert.equal(forgedWithIntent.decision.operation_performed, false);
+    for (const root of [f.ledgerRoot, f.custodyRoot]) {
+      assert.equal(fs.readFileSync(path.join(root, INTENT_NAME), "utf8"),
+        pending.intent_json, "forged reserve must not clear legacy intent");
+    }
     await service.stop();
     assert.equal(fs.existsSync(f.options.socket_path), false);
   } finally {
