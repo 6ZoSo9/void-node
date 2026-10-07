@@ -6,6 +6,7 @@ import fs from "node:fs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+  testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationSequenceV1,
   testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationWindowV1,
   testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs";
@@ -313,6 +314,42 @@ for (const terminalNowMs of [NOW - 1, NOW + 1_001]) {
   );
 }
 
+{
+  const installation = installationEvidence();
+  const observed = policyObservation();
+  assert.equal(
+    testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationSequenceV1({
+      first_installation: installation,
+      second_installation: installation,
+      terminal_installation: installation,
+      first_policy: observed,
+      second_policy: observed,
+      terminal_policy: observed,
+    }),
+    true,
+  );
+
+  const swappedControl = control();
+  swappedControl.policy_generation = "2";
+  const terminalSwap = policyObservation(swappedControl, {
+    ino: "9002",
+    mtime_ns: "1791333000000000001",
+    ctime_ns: "1791333000000000001",
+  });
+  assert.throws(
+    () =>
+      testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationSequenceV1({
+        first_installation: installation,
+        second_installation: installation,
+        terminal_installation: installation,
+        first_policy: observed,
+        second_policy: observed,
+        terminal_policy: terminalSwap,
+      }),
+    /witness_replay_rollback_policy_evidence_changed_during_observation/u,
+  );
+}
+
 for (const patch of [
   { path: "/tmp/policy.json" },
   { uid: 1000 },
@@ -476,6 +513,7 @@ for (const key of [
   "double_storage_census_required",
   "policy_file_double_read_stability_required",
   "terminal_storage_reobservation_required",
+  "terminal_policy_rebind_required",
 ]) {
   assert.equal(
     VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1[
@@ -499,12 +537,19 @@ for (const token of [
   "classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackIndependenceV1",
   "live_policy_observation_proven: live === true",
   "terminalInstallation",
+  "terminalPolicy",
+  "assertObservationSequenceStable",
   "assertPolicyObservationWindowFresh",
   "witness_replay_rollback_policy_evidence_observation_window_expired",
   "live_policy_enforcement_proven: false",
 ]) {
   assert.equal(source.includes(token), true, "missing source token: " + token);
 }
+assert.match(
+  source,
+  /const terminalInstallation =[\s\S]*const terminalPolicy = readRootOwnedPolicyFile\(\);[\s\S]*terminal_policy: terminalPolicy/u,
+  "terminal policy must be rebound after the terminal storage census",
+);
 assert.doesNotMatch(
   source,
   /fs\.(?:writeFileSync|appendFileSync|renameSync|unlinkSync|mkdirSync|chmodSync|chownSync|linkSync)\(/u,
@@ -527,6 +572,8 @@ console.log("root_owned_read_only_policy_file_required=true");
 console.log("canonical_policy_control_required=true");
 console.log("live_replay_storage_reobservation_required=true");
 console.log("policy_file_double_read_stability_required=true");
+console.log("terminal_policy_rebind_required=true");
+console.log("terminal_policy_swap_after_second_read_rejected=true");
 console.log("terminal_policy_freshness_rechecked=true");
 console.log("synthetic_live_policy_authority=false");
 console.log("live_policy_enforcement_proven=false");
