@@ -225,6 +225,30 @@ const streamed=spawnSync(
 assert.notEqual(streamed.status,0);
 assert.match(streamed.stderr,/precision_host_required|missing_argument:/u);
 
+const contaminated=spawnSync(
+  process.execPath,
+  ["--input-type=module","-"],
+  {
+    cwd:process.cwd(),
+    input:launcher.bytes,
+    encoding:"utf8",
+    stdio:["pipe","pipe","pipe"],
+    env:{
+      PATH:"/usr/bin:/bin",
+      LANG:"C",
+      LC_ALL:"C",
+      NODE_OPTIONS:"--no-warnings",
+      VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1:launcher.blob,
+    },
+  },
+);
+assert.notEqual(contaminated.status,0);
+assert.match(
+  contaminated.stderr,
+  /reviewed_bootstrap_environment_not_sanitized/u,
+  "supported isolated launcher must reject ambient Node loader contamination",
+);
+
 console.log("VOID_DATANET_REGISTRY_ISOLATED_REVIEWED_EXECUTION_V1_GREEN");
 console.log("reviewed_graph_executes_in_parent=false");
 console.log("child_stdio_null=true");
