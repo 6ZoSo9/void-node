@@ -257,6 +257,31 @@ function readPrivateJson(file){
   }
   return JSON.parse(fs.readFileSync(file,"utf8"));
 }
+
+function readPinnedPrivateJson(file){
+  let fd=-1;
+  try{
+    fd=fs.openSync(
+      file,
+      fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+    );
+    const st=fs.fstatSync(fd);
+    if(
+      !st.isFile()||
+      st.isSymbolicLink()||
+      st.nlink!==1||
+      (typeof process.getuid==="function"&&st.uid!==process.getuid())||
+      (st.mode&0o777)!==0o600||
+      st.size<2||
+      st.size>MAX_RECORD_BYTES
+    ){
+      throw new Error("registry_broadcast_execution_pinned_record_invalid");
+    }
+    return JSON.parse(fs.readFileSync(fd,"utf8"));
+  }finally{
+    if(fd>=0) fs.closeSync(fd);
+  }
+}
 function fsyncDir(dir){
   const fd=fs.openSync(dir,fs.constants.O_RDONLY|Number(fs.constants.O_DIRECTORY||0));
   try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
@@ -565,19 +590,52 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }
 
-  let attempts;
+  let attemptsFd=-1;
   try{
-    attempts=ensurePrivateDir(root.realpath,"broadcast-attempts");
-    assertStateGeneration(root);
-  }catch(error){
-    return held("registry_broadcast_execution_attempt_store_invalid",{
-      error:safeError(error),
-      broadcast_operation_id:operationId,
-    });
-  }
+    let attempts;
+    try{
+      attempts=ensurePrivateDir(root.realpath,"broadcast-attempts");
+      assertStateGeneration(root);
+      attemptsFd=fs.openSync(
+        attempts,
+        fs.constants.O_RDONLY|
+          Number(fs.constants.O_DIRECTORY||0)|
+          Number(fs.constants.O_NOFOLLOW||0),
+      );
+      const opened=fs.fstatSync(attemptsFd,{bigint:true});
+      const visible=fs.lstatSync(attempts,{bigint:true});
+      if(
+        !opened.isDirectory()||
+        !visible.isDirectory()||
+        visible.isSymbolicLink()||
+        opened.dev!==visible.dev||
+        opened.ino!==visible.ino||
+        Number(opened.mode&0o777n)!==0o700||
+        (
+          typeof process.getuid==="function"&&
+          opened.uid!==BigInt(process.getuid())
+        )
+      ){
+        throw new Error(
+          "registry_broadcast_execution_attempt_store_descriptor_invalid",
+        );
+      }
+    }catch(error){
+      return held("registry_broadcast_execution_attempt_store_invalid",{
+        error:safeError(error),
+        broadcast_operation_id:operationId,
+      });
+    }
 
-  const intentFile=path.join(attempts,operationId+".intent.json");
-  const resultFile=path.join(attempts,operationId+".result.json");
+    const attemptsPinned="/proc/self/fd/"+String(attemptsFd);
+    const intentFile=path.join(
+      attemptsPinned,
+      operationId+".intent.json",
+    );
+    const resultFile=path.join(
+      attemptsPinned,
+      operationId+".result.json",
+    );
   const intentMaterial={
     marker:VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1,
     version:1,
@@ -628,7 +686,7 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     assertRuntimeWindow(authorization,observation,dependencies.now());
     assertStateGeneration(root);
     validateAttemptIntentRecord(
-      readPrivateJson(intentFile),
+      readPinnedPrivateJson(intentFile),
       {authorization,observation,operationId,consumption},
     );
   }catch(error){
@@ -799,13 +857,18 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }
 
-  return Object.freeze({
-    ok:true,
-    ...result,
-    broadcaster_access_performed:sendCount===1,
-    transaction_submission_performed:sendCount===1,
-    transaction_broadcast_performed:sendCount===1,
-  });
+    return Object.freeze({
+      ok:true,
+      ...result,
+      broadcaster_access_performed:sendCount===1,
+      transaction_submission_performed:sendCount===1,
+      transaction_broadcast_performed:sendCount===1,
+    });
+  }finally{
+    if(attemptsFd>=0){
+      try{fs.closeSync(attemptsFd);}catch{}
+    }
+  }
 }
 
 export async function submitVoidDatanetRegistryExactSingleBroadcastV1(input){
