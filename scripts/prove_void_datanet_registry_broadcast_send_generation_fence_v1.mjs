@@ -193,7 +193,7 @@ function writeConsumptionForRoot(targetRoot){
   return record;
 }
 
-writeConsumptionForRoot(root);
+const originalConsumption=writeConsumptionForRoot(root);
 
 let simulatedNetworkSends=0;
 let rootReplacementPerformed=false;
@@ -468,7 +468,7 @@ try{
   );
   assert.notEqual(
     replacementConsumption.consumption_record_id,
-    consumption.consumption_record_id,
+    originalConsumption.consumption_record_id,
   );
   assert.equal(secondRpcCalls,0);
   assert.equal(simulatedNetworkSends,1);
