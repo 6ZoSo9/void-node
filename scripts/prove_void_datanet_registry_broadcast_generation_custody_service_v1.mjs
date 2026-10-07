@@ -159,6 +159,69 @@ async function proveStartupRollback(failureKind){
 await proveStartupRollback("chmod");
 await proveStartupRollback("chown");
 
+async function proveConcurrentLifecycle(){
+  const racePath=path.join(socketParent,"custody-lifecycle-race.sock");
+  const raceOptions=Object.freeze({
+    socket_path:racePath,
+    fence_root:fenceRoot,
+    socket_group_gid:socketGroup,
+  });
+  const raceService=
+    createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+      raceOptions,
+    );
+  const beforeHidden=fs.readdirSync(socketParent)
+    .filter((name)=>name.startsWith(".v")).sort();
+  const startResults=await Promise.allSettled([
+    raceService.start(),
+    raceService.start(),
+  ]);
+  assert.deepEqual(
+    startResults.map((result)=>result.status),
+    ["fulfilled","rejected"],
+  );
+  assert.match(
+    String(startResults[1].reason?.message||""),
+    /datanet_broadcast_generation_custody_lifecycle_busy/u,
+  );
+  assert.equal(fs.lstatSync(racePath).isSocket(),true);
+
+  const stopResults=await Promise.allSettled([
+    raceService.stop(),
+    raceService.stop(),
+  ]);
+  assert.deepEqual(
+    stopResults.map((result)=>result.status),
+    ["fulfilled","rejected"],
+  );
+  assert.match(
+    String(stopResults[1].reason?.message||""),
+    /datanet_broadcast_generation_custody_lifecycle_busy/u,
+  );
+  assert.equal(
+    fs.existsSync(racePath),
+    true,
+    "stale advertised socket must stay fail closed",
+  );
+  assert.deepEqual(
+    fs.readdirSync(socketParent)
+      .filter((name)=>name.startsWith(".v")).sort(),
+    beforeHidden,
+    "concurrent lifecycle must not leak a private listener",
+  );
+  await assert.rejects(
+    new Promise((resolve,reject)=>{
+      const socket=net.createConnection(racePath);
+      socket.once("connect",()=>resolve());
+      socket.once("error",reject);
+    }),
+    (error)=>error?.code==="ECONNREFUSED",
+  );
+  fs.unlinkSync(racePath);
+}
+
+await proveConcurrentLifecycle();
+
 async function proveReplacementSocketPreservedOnStop(){
   const replacedPath=path.join(socketParent,"custody-replacement.sock");
   const replacedOptions=Object.freeze({
@@ -782,6 +845,8 @@ console.log("record_tamper_holds=true");
 console.log("record_exact_schema_required=true");
 console.log("nested_record_exact_schema_required=true");
 console.log("caller_selected_path=false");
+console.log("concurrent_start_stop_single_owner=true");
+console.log("concurrent_lifecycle_private_listener_leak=false");
 console.log("replacement_socket_preserved_on_old_listener_close=true");
 console.log("advertised_socket_policy_before_publish=true");
 console.log("advertised_socket_unlink_on_stop=false");

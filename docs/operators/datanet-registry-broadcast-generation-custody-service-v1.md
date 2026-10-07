@@ -92,6 +92,14 @@ closed with no listener. Safe stale-link removal/restart requires the later
 host-exclusive installation/lifecycle gate; this source service deliberately
 does not perform a path-mutating cleanup race.
 
+The source service also serializes its lifecycle authority: a shared
+`lifecycleBusy` guard rejects overlapping `start()` or `stop()` calls
+before either can mutate listener or pinned-root state. An in-progress start
+cannot create a second independent listener and an in-progress stop cannot
+race cleanup. The focused proof exercises both concurrent-start and
+concurrent-stop schedules and requires a single owner, no private listener
+leak, and a stale advertised socket that remains non-connectable.
+
 ## Client transport
 
 The client source is:

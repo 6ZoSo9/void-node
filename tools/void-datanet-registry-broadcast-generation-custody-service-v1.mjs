@@ -731,6 +731,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
   let server=null;
   let pinned=null;
   let started=false;
+  let lifecycleBusy=false;
   let boundSocketIdentity=null;
   let boundListenPath=null;
   let queue=Promise.resolve();
@@ -808,7 +809,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     started=false;
   }
 
-  async function start(){
+  async function startInternal(){
     if(started) fail("datanet_broadcast_generation_custody_service_already_started");
     assertDirectDirectory(
       path.dirname(options.socket_path),
@@ -1019,7 +1020,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     }
   }
 
-  async function stop(){
+  async function stopInternal(){
     if(
       !started&&
       server===null&&
@@ -1031,6 +1032,37 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
       return;
     }
     await cleanupResources();
+  }
+
+  async function start(){
+    if(
+      lifecycleBusy||
+      started||
+      server!==null||
+      pinned!==null||
+      boundSocketIdentity!==null||
+      boundListenPath!==null
+    ){
+      fail("datanet_broadcast_generation_custody_lifecycle_busy");
+    }
+    lifecycleBusy=true;
+    try{
+      return await startInternal();
+    }finally{
+      lifecycleBusy=false;
+    }
+  }
+
+  async function stop(){
+    if(lifecycleBusy){
+      fail("datanet_broadcast_generation_custody_lifecycle_busy");
+    }
+    lifecycleBusy=true;
+    try{
+      return await stopInternal();
+    }finally{
+      lifecycleBusy=false;
+    }
   }
 
   const api={start,stop,options};
