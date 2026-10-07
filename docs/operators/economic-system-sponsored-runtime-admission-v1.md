@@ -13,6 +13,9 @@ required order without crossing into transaction execution:
 constructor-bound reviewed launch policy artifact
   -> exact request normalization
   -> non-mutating signed candidate preflight
+  -> read-only durable execution-replay inspection
+       CONSUMED -> HOLD before trusted-time mutation
+       NOT CONSUMED -> advisory only
   -> non-mutating reservation-store structural/history preflight
   -> non-mutating trusted-time preview
   -> current signed candidate revalidation at preview time
@@ -26,8 +29,10 @@ constructor-bound reviewed launch policy artifact
   -> STOP before sponsored execution
 ```
 
-It is stacked on the durable observation-time store. It does not mount a public
-route, sponsor gas, consume the execution replay store, or submit a transaction.
+It is stacked on the durable observation-time store and binds the canonical
+durable execution-replay store for **read-only consumed inspection**. It does not
+mount a public route, sponsor gas, call `consumeIfFresh(...)`, grant negative
+freshness from a missing marker, or submit a transaction.
 
 ## Constructor authority
 
@@ -37,12 +42,13 @@ The constructor captures exactly:
 - one expected `bundle_id`;
 - one injected clock dependency;
 - one pre-provisioned observation-time store root;
-- one pre-provisioned sponsored-reservation root; and
+- one pre-provisioned sponsored-reservation root;
+- one pre-provisioned durable execution-replay root; and
 - one exact allowed-target list.
 
 Requests cannot replace any of those values.
 
-The two authority roots must be absolute and path-disjoint.
+The three authority roots must be absolute and pairwise path-disjoint.
 
 ## Bundle verification
 
@@ -137,6 +143,59 @@ shape verification. It does **not** replace the later execution replay store.
 A malformed signature, calldata, target, request shape, policy binding, or
 candidate identity therefore HOLDs before the clock is called and before a
 durable time receipt can be created.
+
+## Read-only execution-replay inspection before trusted time
+
+After successful signed-candidate cryptographic preflight, the binder calls the
+canonical durable replay store's:
+
+`inspectConsumed(typed_data_digest, metadata)`
+
+before reservation-history inspection or any trusted-clock call.
+
+The digest is the exact typed-data digest returned by the already-verified
+signed submission. Replay metadata is reconstructed only from that snapshotted,
+verified signed intent and matches the execution gateway's canonical domain:
+
+```text
+chain_id = 2050
+execution_epoch
+gateway_id
+signer
+nonce
+target
+calldata_keccak256
+expires_at_unix
+```
+
+No request field supplies replay metadata or a replay decision.
+
+An existing consumed marker must return the canonical read-only shape and causes
+`SPONSORED_RUNTIME_EXECUTION_REPLAY_ALREADY_CONSUMED` before reservation-store
+history work or trusted-time preview. The runtime admission does not mutate the
+replay store in either direction.
+
+A missing marker is **not** positive freshness authority. The canonical
+`inspectConsumed(...)` result explicitly retains:
+
+```text
+negative_freshness_authorized=false
+atomic_consume_performed=false
+execution_authorized=false
+```
+
+Therefore the source may report:
+
+```text
+execution_replay_store_bound=true
+read_only_execution_replay_inspection=true
+consumed_execution_replay_rejected_before_time=true
+```
+
+while still requiring a later execution-stage `consumeIfFresh(...)` before any
+exactly-once transaction execution. A concurrent consume after this inspection
+is harmless: this admission lane never treats the negative inspection as
+execution permission.
 
 ## Reservation-store structural/history preflight after authentication
 
@@ -314,7 +373,12 @@ cross_boot_restart_continuity_proven=false
 time_store_rollback_resistance_proven=false
 reservation_store_root_stability_proven=false
 valid_denied_request_time_growth_bounded=true
-execution_replay_store_bound=false
+execution_replay_store_bound=true
+read_only_execution_replay_inspection=true
+consumed_execution_replay_rejected_before_time=true
+execution_replay_negative_freshness_authorized=false
+execution_replay_atomic_consume_performed=false
+execution_replay_execution_authorized=false
 runtime_route_active=false
 runtime_enforcement_verified=false
 gas_sponsorship_performed=false
@@ -334,6 +398,7 @@ funds_movement=false
 npm run build
 node scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs
 node scripts/prove_void_economic_system_sponsored_reservation_store_v1.mjs
+node scripts/prove_void_economic_epoch2_durable_replay_store_v1.mjs
 node scripts/prove_void_economic_system_sponsored_runtime_admission_v1.mjs
 git diff --check
 ```
@@ -342,7 +407,12 @@ The runtime proof covers:
 
 - bundle-ID mismatch;
 - whole-bundle digest tamper;
-- overlapping authority roots;
+- overlapping authority roots, including replay-root overlap;
+- a canonically consumed signed-submission digest HOLD before reservation
+  inspection or any trusted-clock call, with zero replay/time/reservation
+  mutation;
+- successful/duplicate sponsored admission leaves the replay root unchanged,
+  proving inspection is read-only and does not pre-consume execution freshness;
 - missing preprovisioned reservation lock queue HOLD before signature/time,
   with zero clock calls and zero time/reservation growth;
 - reservation-root loss after successful structural preflight but during the
@@ -372,8 +442,10 @@ Before any live sponsored execution:
 2. prove host clock trust and restart continuity;
 3. prove rollback-resistant time-store custody;
 4. prove reservation-store host/root stability;
-5. bind the durable execution replay store;
+5. bind the later execution stage to atomic replay `consumeIfFresh(...)` and
+   prove that read-only negative inspection is never treated as freshness
+   authority;
 6. prove any remaining public request-rate/CPU/storage bounds separately; and
-7. only then define the sponsored transaction execution stage.
+7. only then define/activate the sponsored transaction execution stage.
 
 This lane itself authorizes none of those live actions.
