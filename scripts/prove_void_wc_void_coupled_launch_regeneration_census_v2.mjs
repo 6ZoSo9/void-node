@@ -263,7 +263,9 @@ for (const workflowPath of [
   ".github/workflows/void-wc-void-market-vault-runtime-attestation-import-v1.yml",
   ".github/workflows/void-wc-void-bounded-canary-semantic-promotion-v1.yml",
   ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml",
-  ".github/workflows/void-wc-void-bounded-canary-canonical-application-v1.yml"
+  ".github/workflows/void-wc-void-bounded-canary-canonical-application-v1.yml",
+  ".github/workflows/void-wc-void-coupled-launch-regeneration-v2.yml",
+  ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
 ]) {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   for (const dependency of currentIdentityWorkflowDependencies) {
