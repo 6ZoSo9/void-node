@@ -17,6 +17,8 @@ on:
       - "scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
@@ -99,6 +101,9 @@ jobs:
 
       - name: Preserve transport contract
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
+
+      - name: Preserve runtime-bundle evidence
+        run: node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 
       - name: Preserve runtime-bundle qualification
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
