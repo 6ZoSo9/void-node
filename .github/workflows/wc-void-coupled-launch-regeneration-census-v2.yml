@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
       - "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs"
+      - "src/index.ts"
       - "scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs"
       - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
@@ -39,6 +40,7 @@ on:
     paths:
       - ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
       - "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs"
+      - "src/index.ts"
       - "scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs"
       - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
