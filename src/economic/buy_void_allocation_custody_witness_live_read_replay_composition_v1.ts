@@ -727,6 +727,8 @@ function storageParent(input: unknown) {
     generation,
     sequence,
     event_count: eventCount,
+    last_terminal_state:
+      normalized.last_terminal_state as "consumed" | "abandoned" | null,
     journal_sha256: journalIdentity.sha256,
     journal_bytes: journalIdentity.bytes,
     high_water_sha256: normalized.high_water_sha256 as string,
@@ -923,6 +925,14 @@ function writerResult(
     value.tip_event_sha256,
     "witness_live_read_replay_composition_writer_poststate_invalid",
   );
+  const lastTerminalState =
+    value.last_terminal_state === null ||
+    value.last_terminal_state === "consumed" ||
+    value.last_terminal_state === "abandoned"
+      ? value.last_terminal_state
+      : fail(
+          "witness_live_read_replay_composition_writer_poststate_invalid",
+        );
   if (journalBytes <= transitionBeforeJournalBytes) {
     fail("witness_live_read_replay_composition_writer_poststate_invalid");
   }
@@ -934,7 +944,6 @@ function writerResult(
         value.transition_challenge_sha256 ||
       value.pending_challenge_id !== value.transition_challenge_id ||
       value.pending_expires_at_ms !== expiresAt ||
-      value.last_terminal_state !== null ||
       value.terminal_request_id !== null ||
       value.terminal_response_sha256 !== null
     ) {
@@ -947,7 +956,7 @@ function writerResult(
       value.pending_challenge_sha256 !== null ||
       value.pending_challenge_id !== null ||
       value.pending_expires_at_ms !== null ||
-      value.last_terminal_state !== "consumed" ||
+      lastTerminalState !== "consumed" ||
       typeof value.terminal_request_id !== "string" ||
       !REQUEST_ID.test(value.terminal_request_id) ||
       typeof value.terminal_response_sha256 !== "string" ||
@@ -972,6 +981,7 @@ function writerResult(
     journal_bytes: journalBytes,
     high_water_sha256: highWaterSha256,
     tip_event_sha256: tipEventSha256,
+    last_terminal_state: lastTerminalState,
   });
 }
 
@@ -1190,6 +1200,13 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       issue.event_count !== storage.event_count + 1
     ) {
       fail("witness_live_read_replay_composition_issue_progression_invalid");
+    }
+    if (
+      issue.last_terminal_state !== storage.last_terminal_state
+    ) {
+      fail(
+        "witness_live_read_replay_composition_issue_terminal_state_mismatch",
+      );
     }
     if (
       issue.transition_before_journal_sha256 !== storage.journal_sha256 ||
