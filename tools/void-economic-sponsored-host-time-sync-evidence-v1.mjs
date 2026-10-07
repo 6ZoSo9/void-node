@@ -20,6 +20,7 @@ export const VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_AUTHORITY_V1 =
     boot_identity_stability_required: true,
     boot_relative_monotonic_bracket_required: true,
     capture_span_bounded: true,
+    production_evidence_requires_fixed_collector: true,
     caller_timestamp_input: false,
     caller_path_input: false,
     caller_command_input: false,
@@ -214,9 +215,13 @@ const CAPTURE_KEYS = Object.freeze([
   "boot_id_after_text",
 ]);
 
-export function classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+function classifyCaptureV1(
   rawCapture,
+  productionFixedSourcesObserved,
 ) {
+  if (typeof productionFixedSourcesObserved !== "boolean") {
+    fail("host_time_sync_collection_mode_invalid");
+  }
   const capture = exactObject(
     rawCapture,
     CAPTURE_KEYS,
@@ -263,6 +268,10 @@ export function classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
     time_sync_command: TIMEDATECTL_PATH,
     time_sync_args: [...TIMEDATECTL_ARGS],
     wall_clock_source: WALL_CLOCK_SOURCE,
+    production_fixed_sources_observed:
+      productionFixedSourcesObserved,
+    test_only_injected_dependencies:
+      !productionFixedSourcesObserved,
     restart_continuation_authorized: false,
     cross_boot_continuity_proven: false,
     trusted_clock_runtime_authority: false,
@@ -328,8 +337,14 @@ function exactDependencies(value) {
   return deps;
 }
 
-function collectWithDependencies(dependencies) {
+function collectWithDependencies(
+  dependencies,
+  productionFixedSourcesObserved,
+) {
   const deps = exactDependencies(dependencies);
+  if (typeof productionFixedSourcesObserved !== "boolean") {
+    fail("host_time_sync_collection_mode_invalid");
+  }
 
   const bootIdBefore = deps.readText(BOOT_ID_PATH);
   const uptimeBefore = deps.readText(UPTIME_PATH);
@@ -345,7 +360,7 @@ function collectWithDependencies(dependencies) {
   const uptimeAfter = deps.readText(UPTIME_PATH);
   const bootIdAfter = deps.readText(BOOT_ID_PATH);
 
-  return classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1({
+  return classifyCaptureV1({
     boot_id_before_text: bootIdBefore,
     uptime_before_text: uptimeBefore,
     ntp_before: ntpBefore,
@@ -353,20 +368,29 @@ function collectWithDependencies(dependencies) {
     ntp_after: ntpAfter,
     uptime_after_text: uptimeAfter,
     boot_id_after_text: bootIdAfter,
-  });
+  }, productionFixedSourcesObserved);
 }
 
 export function collectVoidEconomicSponsoredHostTimeSyncEvidenceV1() {
   if (arguments.length !== 0) {
     fail("host_time_sync_caller_input_forbidden");
   }
-  return collectWithDependencies(productionDependencies());
+  return collectWithDependencies(
+    productionDependencies(),
+    true,
+  );
 }
 
 export function testOnlyCollectVoidEconomicSponsoredHostTimeSyncEvidenceV1(
   dependencies,
 ) {
-  return collectWithDependencies(dependencies);
+  return collectWithDependencies(dependencies, false);
+}
+
+export function testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+  rawCapture,
+) {
+  return classifyCaptureV1(rawCapture, false);
 }
 
 export const VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_SOURCES_V1 =
