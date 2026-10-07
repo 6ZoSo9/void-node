@@ -206,11 +206,13 @@ under the newly pinned replacement root, and #2446 permits only the exact
 forward transition needed to converge to the reviewed next pair.
 
 A successful persistence or recovery result now revalidates both pinned
-storage-root identities against their visible paths once more after
-publication-intent cleanup and before returning to the caller. The focused
-proof injects a root replacement *after the final intent-directory fsync* for
-each root and requires a deterministic HOLD rather than a false successful
-publication claim.
+storage-root identities against their visible paths twice at the terminal
+boundary: once after publication-intent cleanup while both bakery locks remain
+held, and again after both bakery-lock release/finally paths have completed
+while the pinned root descriptors are still open. Only then may the public call
+return success. The focused proof injects root replacement both *after the final
+intent-directory fsync* and during the bakery queue release fsync for each root;
+every case must HOLD rather than escape as a false successful publication claim.
 
 This still does **not** prove arbitrary pathname stability or rollback-resistant
 custody after a completed publication, and it does not cover simultaneous
