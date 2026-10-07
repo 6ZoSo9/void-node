@@ -273,15 +273,28 @@ export function nodeCoordinateToMicrocellOriginV1(nodeCoordinate: number): numbe
   );
 }
 
+function nodeCoordinateToMicrocellBoundaryBigIntV1(
+  nodeCoordinate: unknown,
+  label: string,
+  nodeOffset = 0,
+): bigint {
+  const coordinate = requireSafeInteger(nodeCoordinate, label);
+  return (
+    (BigInt(coordinate) + BigInt(nodeOffset)) *
+    BigInt(MICROCELLS_PER_STANDARD_EDGE)
+  );
+}
+
 function nodeCoordinateToMicrocellBoundaryV1(
   nodeCoordinate: unknown,
   label: string,
   nodeOffset = 0,
 ): number {
-  const coordinate = requireSafeInteger(nodeCoordinate, label);
-  const result =
-    (BigInt(coordinate) + BigInt(nodeOffset)) *
-    BigInt(MICROCELLS_PER_STANDARD_EDGE);
+  const result = nodeCoordinateToMicrocellBoundaryBigIntV1(
+    nodeCoordinate,
+    label,
+    nodeOffset,
+  );
   assertCondition(
     result >= BigInt(Number.MIN_SAFE_INTEGER) &&
       result <= BigInt(Number.MAX_SAFE_INTEGER),
@@ -360,42 +373,45 @@ export function placementFitsRegionV1(
   edgeMicrocells: 1 | 2 | 4,
 ): boolean {
   const origin = validateVoidRealmsMicrocellPositionV1(originValue);
-  const minimumX = nodeCoordinateToMicrocellBoundaryV1(
+  const minimumX = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.minimum_x,
     "region.minimum_x",
   );
-  const maximumXExclusive = nodeCoordinateToMicrocellBoundaryV1(
+  const maximumXExclusive = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.maximum_x,
     "region.maximum_x",
     1,
   );
-  const minimumY = nodeCoordinateToMicrocellBoundaryV1(
+  const minimumY = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.minimum_y,
     "region.minimum_y",
   );
-  const maximumYExclusive = nodeCoordinateToMicrocellBoundaryV1(
+  const maximumYExclusive = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.maximum_y,
     "region.maximum_y",
     1,
   );
-  const minimumZ = nodeCoordinateToMicrocellBoundaryV1(
+  const minimumZ = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.minimum_z,
     "region.minimum_z",
   );
-  const maximumZExclusive = nodeCoordinateToMicrocellBoundaryV1(
+  const maximumZExclusive = nodeCoordinateToMicrocellBoundaryBigIntV1(
     region.maximum_z,
     "region.maximum_z",
     1,
   );
+  const originX = BigInt(origin.x);
+  const originY = BigInt(origin.y);
+  const originZ = BigInt(origin.z);
   const edge = BigInt(edgeMicrocells);
 
   return (
-    origin.x >= minimumX &&
-    origin.y >= minimumY &&
-    origin.z >= minimumZ &&
-    BigInt(origin.x) + edge <= BigInt(maximumXExclusive) &&
-    BigInt(origin.y) + edge <= BigInt(maximumYExclusive) &&
-    BigInt(origin.z) + edge <= BigInt(maximumZExclusive)
+    originX >= minimumX &&
+    originY >= minimumY &&
+    originZ >= minimumZ &&
+    originX + edge <= maximumXExclusive &&
+    originY + edge <= maximumYExclusive &&
+    originZ + edge <= maximumZExclusive
   );
 }
 
