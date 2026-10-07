@@ -21,6 +21,14 @@ assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN
 assert.equal(decision.status, "HOLD_SOURCE_ONLY");
 assert.equal(decision.observation_trusted_as_authority, false);
 assert.equal(decision.source_head_verified_against_remote, false);
+assert.equal(decision.plan_digest_scope, "canonical_plan_body_only");
+assert.equal(decision.plan_digest_authenticated, false);
+assert.equal(decision.plan_digest_signed, false);
+assert.equal(decision.plan_digest_is_attestation, false);
+assert.equal(decision.plan_digest_source_provenance_verified, false);
+assert.equal(decision.plan_digest_designated_host_bound, false);
+assert.equal(decision.plan_digest_operator_identity_bound, false);
+assert.equal(decision.plan_digest_freshness_bound, false);
 assert.equal(decision.executable_unit_emitted, false);
 assert.equal(decision.production_gate_ready, false);
 assert.equal(decision.independent_custody_proven, false);
@@ -107,8 +115,13 @@ for (const key of [
   "service_installed", "service_started", "polkit_rule_installed", "socket_created",
   "runtime_updated_or_restarted", "mount_or_permissions_mutated", "executable_closure_proven",
   "independent_custody_proven", "runtime_integration", "transaction_construction",
-  "transaction_submission", "payment_acceptance", "market_or_presale_activation",
-  "wallet_or_signer_access", "funds_movement", "production_gate_ready",
+  "transaction_submission", "transaction_signing", "transaction_broadcast",
+  "payment_acceptance", "market_or_presale_activation", "presale_activation",
+  "wallet_or_signer_access", "private_key_access", "credential_access",
+  "chain2050_write", "work_credit_write", "inventory_funding",
+  "treasury_movement", "liquidity_movement", "systemd_daemon_reload",
+  "systemd_enablement", "data_root_mutation", "funds_movement",
+  "production_gate_ready",
 ]) {
   assert.equal(VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_AUTHORITY_V1[key], false, key);
 }
@@ -121,6 +134,13 @@ const forged = classifyBuyAllocationCustodyServiceBootstrapPlanV1(candidateAllTr
 assert.deepEqual(forged.reported_missing_requirements, []);
 assert.equal(forged.status, "HOLD_SOURCE_ONLY");
 assert.equal(forged.observation_trusted_as_authority, false);
+assert.equal(forged.plan_digest_authenticated, false);
+assert.equal(forged.plan_digest_signed, false);
+assert.equal(forged.plan_digest_is_attestation, false);
+assert.equal(forged.plan_digest_source_provenance_verified, false);
+assert.equal(forged.plan_digest_designated_host_bound, false);
+assert.equal(forged.plan_digest_operator_identity_bound, false);
+assert.equal(forged.plan_digest_freshness_bound, false);
 assert.equal(forged.production_gate_ready, false);
 assert.equal(forged.executable_unit_emitted, false);
 assert.equal(forged.candidate.requested_exec_start, null);
@@ -209,6 +229,9 @@ assert.equal(plan_sha256, exactId);
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1_SOURCE_GREEN");
 console.log("source_only=true");
 console.log("operator_snapshot_untrusted=true");
+console.log("plan_digest_authenticated=false");
+console.log("plan_digest_is_attestation=false");
+console.log("explicit_denied_authorities_bound=true");
 console.log("separate_host_service_needed=true");
 console.log("mutable_repo_execstart_not_emitted=true");
 console.log("systemd_socket_unit_not_claimed=true");
