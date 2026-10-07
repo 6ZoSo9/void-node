@@ -67,6 +67,38 @@ assert.deepEqual(decision.candidate.top_level_source_imports, [
   "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
   "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js",
 ]);
+
+// Fail closed when a future security repair changes the checked-out service's
+// compiled imports without rebinding the untrusted bootstrap candidate.
+// This checks top-level specifiers only; it does NOT qualify transitive code.
+const serviceSource = readFileSync(path.resolve(
+  here, "../tools/void-buy-allocation-custody-service-v1.mjs",
+), "utf8");
+function observedCompiledImports(sourceText) {
+  assert.doesNotMatch(sourceText, /\bimport\s*\\(/u);
+  assert.doesNotMatch(sourceText, /\brequire\s*\\(/u);
+  const declarations = [...sourceText.matchAll(/^import\b[\s\S]*?;[ \t]*$/gmu)];
+  const specifiers = declarations.map(([declaration]) => {
+    const found = /(?:\bfrom\s+)?["']([^"'\n]+)["']\s*;[ \t]*$/u.exec(declaration);
+    assert.ok(found, "unrecognized static import syntax must HOLD");
+    return found[1];
+  });
+  return specifiers.filter(specifier => specifier.startsWith("../dist/")).sort();
+}
+const expectedCompiledImports = [...decision.candidate.top_level_source_imports].sort();
+assert.deepEqual(observedCompiledImports(serviceSource), expectedCompiledImports);
+const changedImport = serviceSource.replace(
+  "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js",
+  "../dist/economic/unreviewed_writer_v1.js",
+);
+assert.notEqual(changedImport, serviceSource);
+assert.notDeepEqual(observedCompiledImports(changedImport), expectedCompiledImports);
+const droppedImport = serviceSource.replace(
+  /import \{[\s\S]*?\} from ["']\.\.\/dist\/economic\/buy_void_allocation_reservation_publication_writer_v1\.js["'];/u,
+  "",
+);
+assert.notEqual(droppedImport, serviceSource);
+assert.notDeepEqual(observedCompiledImports(droppedImport), expectedCompiledImports);
 assert.equal(decision.candidate.reviewed_compiled_transitive_closure_proven, false);
 assert.equal(decision.candidate.production_gate_ready, false);
 
@@ -181,6 +213,7 @@ console.log("separate_host_service_needed=true");
 console.log("mutable_repo_execstart_not_emitted=true");
 console.log("systemd_socket_unit_not_claimed=true");
 console.log("protected_executable_import_closure_required=true");
+console.log("current_service_compiled_imports_match_candidate=true");
 console.log("forged_all_green_observations_still_hold=true");
 console.log("apply_or_install_modes_rejected=true");
 console.log("service_or_funds_mutation=false");
