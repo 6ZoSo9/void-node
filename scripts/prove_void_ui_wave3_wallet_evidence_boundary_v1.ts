@@ -15,6 +15,8 @@ import {
   WALLET_SNAPSHOT_MAX_AGE_MS,
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   clearWalletViewV1,
+  renderWalletErrorV1,
+  renderWalletLoadingV1,
   renderWalletV1,
   validateWalletSnapshotV1,
 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
@@ -615,6 +617,97 @@ try {
   };
   Date.now = () => PROOF_NOW_MS;
   assert.doesNotThrow(() =>
+    renderWalletV1(validSnapshot(), "account-A", PROOF_NOW_MS),
+  );
+  assert.equal(
+    rendered.get("[data-wallet-address]")?.textContent,
+    "0x" + "a".repeat(40),
+  );
+  assert.equal(rendered.get("[data-wallet-native-gas]")?.textContent, "1");
+  assert.equal(rendered.get("[data-wallet-ledger-wc]")?.textContent, "3");
+  assert.equal(
+    rendered.get("[data-wallet-source-status]")?.textContent,
+    "Available",
+  );
+
+  renderWalletLoadingV1();
+  assert.equal(
+    rendered.get("[data-wallet-state-chip]")?.textContent,
+    "Loading account",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-message]")?.textContent,
+    "Reading three fixed local sources.",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "—");
+  }
+  for (const selector of [
+    "[data-wallet-local-status]",
+    "[data-wallet-lock-state]",
+    "[data-wallet-source-status]",
+    "[data-wallet-source-ledger]",
+    "[data-wallet-source-production]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "Not checked");
+  }
+  assert.equal(
+    rendered.get("[data-wallet-ledger-meta]")?.textContent,
+    "No account loaded",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-production-meta]")?.textContent,
+    "No account loaded",
+  );
+
+  assert.doesNotThrow(() =>
+    renderWalletV1(validSnapshot(), "account-A", PROOF_NOW_MS),
+  );
+  renderWalletErrorV1("Proof adapter failure");
+  assert.equal(
+    rendered.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-message]")?.textContent,
+    "Proof adapter failure",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "—");
+  }
+  for (const selector of [
+    "[data-wallet-local-status]",
+    "[data-wallet-lock-state]",
+    "[data-wallet-source-status]",
+    "[data-wallet-source-ledger]",
+    "[data-wallet-source-production]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "Not checked");
+  }
+  assert.equal(
+    rendered.get("[data-wallet-ledger-meta]")?.textContent,
+    "No account loaded",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-production-meta]")?.textContent,
+    "No account loaded",
+  );
+
+  assert.doesNotThrow(() =>
     renderWalletV1(unavailableSource, "account-A", PROOF_NOW_MS),
   );
 } finally {
@@ -773,6 +866,7 @@ console.log("browser_available_display_balance_bound=true");
 console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
+console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");

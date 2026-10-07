@@ -438,13 +438,22 @@ const resetWalletView = (message = 'Enter an account ID to load read-only contex
   setText('[data-wallet-source-production]', 'Not checked');
 };
 
-const renderError = (message) => {
+export const renderWalletLoadingV1 = () => {
+  resetWalletView('Reading three fixed local sources.');
+  setChip(
+    document.querySelector('[data-wallet-state-chip]'),
+    'info',
+    'Loading account'
+  );
+};
+
+export const renderWalletErrorV1 = (message) => {
+  resetWalletView(message || 'The read-only adapter did not respond.');
   setChip(
     document.querySelector('[data-wallet-state-chip]'),
     'warning',
     'Account unavailable'
   );
-  setText('[data-wallet-message]', message || 'The read-only adapter did not respond.');
 };
 
 export const renderWalletV1 = (
@@ -554,7 +563,7 @@ export const clearWalletViewV1 = ({
 const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
   if (!ACCOUNT_PATTERN.test(value)) {
-    renderError('Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.');
+    renderWalletErrorV1('Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.');
     return;
   }
 
@@ -563,12 +572,7 @@ const loadAccount = async (account, button) => {
   walletRequestOwner.cancel('wallet request replaced');
   if (button) button.disabled = true;
 
-  setChip(
-    document.querySelector('[data-wallet-state-chip]'),
-    'info',
-    'Loading account'
-  );
-  setText('[data-wallet-message]', 'Reading three fixed local sources.');
+  renderWalletLoadingV1();
 
   const route = `${WALLET_ENDPOINT}?account=${encodeURIComponent(value)}`;
   const expectedUrl = new URL(route, window.location.origin).href;
@@ -613,7 +617,7 @@ const loadAccount = async (account, button) => {
     renderWalletV1(body, value, requestStartedAtMs);
   } catch (error) {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
-    renderError(error instanceof Error ? error.message : String(error));
+    renderWalletErrorV1(error instanceof Error ? error.message : String(error));
   } finally {
     if (serial === requestSerial && currentRoute() === 'wallet') {
       restoreWalletLoadControlV1(button);
