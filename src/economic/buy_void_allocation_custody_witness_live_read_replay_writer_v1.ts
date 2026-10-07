@@ -1074,6 +1074,12 @@ function success(
   highWaterSha256: string,
   operationPerformed: boolean,
   recoveryPerformed: boolean,
+  transitionChallengeSha256: string | null = null,
+  transitionChallengeId: string | null = null,
+  transitionIssuedAtMs: number | null = null,
+  transitionExpiresAtMs: number | null = null,
+  terminalRequestId: string | null = null,
+  terminalResponseSha256: string | null = null,
 ) {
   return Object.freeze({
     ok: true as const,
@@ -1096,6 +1102,12 @@ function success(
     journal_sha256: highWater.journal_sha256,
     journal_bytes: highWater.journal_bytes,
     high_water_sha256: highWaterSha256,
+    transition_challenge_sha256: transitionChallengeSha256,
+    transition_challenge_id: transitionChallengeId,
+    transition_issued_at_ms: transitionIssuedAtMs,
+    transition_expires_at_ms: transitionExpiresAtMs,
+    terminal_request_id: terminalRequestId,
+    terminal_response_sha256: terminalResponseSha256,
     durable_journal_publication_semantics: true as const,
     durable_high_water_publication_semantics: true as const,
     cross_root_rollback_detection_semantics: true as const,
@@ -1326,6 +1338,16 @@ function persistTransition(
           post.high_water_sha256,
           true,
           recovered.recovered,
+          String(planned.event.challenge_sha256),
+          String(planned.event.challenge_id),
+          Number(planned.event.issued_at_ms),
+          Number(planned.event.expires_at_ms),
+          operation === "consumed"
+            ? String(planned.event.request_id)
+            : null,
+          operation === "consumed"
+            ? String(planned.event.response_sha256)
+            : null,
         );
       },
     );
