@@ -37,6 +37,8 @@ function canonicalJson(value){
   return JSON.stringify(canonical(value));
 }
 
+const REVIEWED_LAUNCHER_REL =
+  "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const REVIEWED_TOOL_REL =
   "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const REVIEWED_NETWORK_MODULE =
@@ -54,6 +56,79 @@ assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
 const reviewedHead=testOnlyReviewedGitHeadV1();
 assert.match(reviewedHead,/^[0-9a-f]{40}$/u);
+
+const reviewedLauncher=
+  testOnlyReadExactHeadSourceV1(REVIEWED_LAUNCHER_REL);
+assert.match(reviewedLauncher.blob,/^[0-9a-f]{40}$/u);
+assert.match(reviewedLauncher.sha256,/^[0-9a-f]{64}$/u);
+
+{
+  const direct=spawnSync(
+    process.execPath,
+    [path.resolve(REVIEWED_LAUNCHER_REL)],
+    {
+      cwd:process.cwd(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+    },
+  );
+  assert.notEqual(direct.status,0);
+  assert.match(
+    direct.stderr,
+    /reviewed_git_object_bootstrap_required/u,
+  );
+}
+
+{
+  const streamed=spawnSync(
+    process.execPath,
+    ["--input-type=module","-"],
+    {
+      cwd:process.cwd(),
+      input:reviewedLauncher.bytes,
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      env:{
+        PATH:"/usr/bin:/bin",
+        LANG:"C",
+        LC_ALL:"C",
+        VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1:
+          reviewedLauncher.blob,
+      },
+    },
+  );
+  assert.notEqual(streamed.status,0);
+  assert.match(
+    streamed.stderr,
+    /precision_host_required|missing_argument:/u,
+    "exact Git-object stdin bootstrap must pass bootstrap validation before ordinary host/argument HOLD",
+  );
+
+  const contaminated=spawnSync(
+    process.execPath,
+    ["--input-type=module","-"],
+    {
+      cwd:process.cwd(),
+      input:reviewedLauncher.bytes,
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      env:{
+        PATH:"/usr/bin:/bin",
+        LANG:"C",
+        LC_ALL:"C",
+        NODE_OPTIONS:"--no-warnings",
+        VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1:
+          reviewedLauncher.blob,
+      },
+    },
+  );
+  assert.notEqual(contaminated.status,0);
+  assert.match(
+    contaminated.stderr,
+    /reviewed_bootstrap_environment_not_sanitized/u,
+  );
+}
 
 {
   const saved=new Map(
@@ -108,6 +183,42 @@ assert.match(reviewedHead,/^[0-9a-f]{40}$/u);
     const clear=spawnSync(
       "/usr/bin/git",
       ["update-index","--no-assume-unchanged","--",REVIEWED_TOOL_REL],
+      {cwd:process.cwd(),encoding:"utf8"},
+    );
+    assert.equal(clear.status,0,clear.stderr);
+  }
+}
+
+{
+  const launcherFile=path.resolve(REVIEWED_LAUNCHER_REL);
+  const original=fs.readFileSync(launcherFile);
+  const marker=
+    "\n// VOID_REVIEWED_LAUNCHER_ASSUME_UNCHANGED_SENTINEL\n";
+  const mark=spawnSync(
+    "/usr/bin/git",
+    ["update-index","--assume-unchanged","--",REVIEWED_LAUNCHER_REL],
+    {cwd:process.cwd(),encoding:"utf8"},
+  );
+  assert.equal(mark.status,0,mark.stderr);
+  try{
+    fs.appendFileSync(launcherFile,marker,"utf8");
+    const reviewed=
+      testOnlyReadExactHeadSourceV1(REVIEWED_LAUNCHER_REL);
+    assert.equal(reviewed.bytes.equals(original),true);
+    assert.equal(
+      reviewed.bytes.includes(
+        Buffer.from(
+          "VOID_REVIEWED_LAUNCHER_ASSUME_UNCHANGED_SENTINEL",
+          "utf8",
+        ),
+      ),
+      false,
+    );
+  }finally{
+    fs.writeFileSync(launcherFile,original);
+    const clear=spawnSync(
+      "/usr/bin/git",
+      ["update-index","--no-assume-unchanged","--",REVIEWED_LAUNCHER_REL],
       {cwd:process.cwd(),encoding:"utf8"},
     );
     assert.equal(clear.status,0,clear.stderr);
@@ -525,6 +636,10 @@ try{
     'GIT_NO_REPLACE_OBJECTS:"1"',
     '"ls-remote",CANONICAL_REMOTE,"refs/heads/main"',
     "local_head_not_canonical_remote_main",
+    "reviewed_git_object_bootstrap_required",
+    "reviewed_bootstrap_environment_not_sanitized",
+    "reviewed_launcher_git_blob_mismatch",
+    "VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1",
     "reviewed_source_closure_mismatch",
     "execution_network_isolation_provided=false",
   ]){
@@ -563,6 +678,10 @@ try{
   console.log("canonical_remote_main_equality_required=true");
   console.log("absolute_isolated_git_required=true");
   console.log("reviewed_source_closure_count=27");
+  console.log("reviewed_launcher_direct_path_execution_rejected=true");
+  console.log("reviewed_launcher_exact_git_object_stream_required=true");
+  console.log("reviewed_launcher_ambient_loader_environment_rejected=true");
+  console.log("reviewed_launcher_hidden_worktree_drift_excluded=true");
   console.log("reviewed_source_hidden_worktree_drift_excluded=true");
   console.log("reviewed_private_source_drift_rejected=true");
   console.log("reviewed_ethers_runtime_verified=true");
