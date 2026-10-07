@@ -25,9 +25,6 @@ import {
   persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
 import {
-  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
-} from "../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
-import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1,
@@ -86,6 +83,38 @@ function contentId(prefix: string, value: unknown): string {
 function mutableClone<T>(value: T): any {
   return structuredClone(value) as any;
 }
+
+function sourceSlice(
+  source: string,
+  start: string,
+  end: string,
+): string {
+  const from = source.indexOf(start);
+  const to = source.indexOf(end, from + start.length);
+  assert.ok(from >= 0 && to > from, "source slice anchors must exist");
+  return source.slice(from + start.length, to);
+}
+
+const replayInstallationEvidenceSource = fs.readFileSync(
+  "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs",
+  "utf8",
+);
+const replayInstallationAuthorityBlock = sourceSlice(
+  replayInstallationEvidenceSource,
+  "export const replayInstallationAuthority =\n  Object.freeze({",
+  "  });\n\nconst JOURNAL_NAME",
+);
+const replayInstallationAuthority = Object.freeze(
+  Object.fromEntries(
+    [...replayInstallationAuthorityBlock.matchAll(
+      /^\s{4}([A-Za-z0-9_]+): (true|false),$/gmu,
+    )].map((match) => [match[1], match[2] === "true"]),
+  ),
+);
+assert.ok(
+  Object.keys(replayInstallationAuthority).length > 20,
+  "replay installation authority source parse must be nontrivial",
+);
 
 function fixture() {
   const root = fs.mkdtempSync(
@@ -167,7 +196,7 @@ function replayStorageEvidence() {
     production_gate_ready: false,
     funds_movement: false,
     authority:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
+      replayInstallationAuthority,
   });
 }
 
