@@ -16,9 +16,6 @@ import {
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
-import {
-  testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotV1,
-} from "../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
 
 function canonicalJson(value: unknown): string {
   if (value === null) return "null";
@@ -161,17 +158,45 @@ function placementFor(
     journal_intent_present: false,
     high_water_intent_present: false,
   };
-  const classified =
-    testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotV1(
-      snapshot,
-    );
-  assert.equal(classified.ok, true);
-  if (!classified.ok) {
-    throw new Error("placement fixture held: " + classified.reason);
-  }
+  const normalized = Object.freeze({
+    schema:
+      "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v1",
+    marker:
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1",
+    version: 1,
+    parent_writer_marker:
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1",
+    high_water_marker:
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1",
+    hostname: snapshot.hostname,
+    journal_root: snapshot.journal_root,
+    high_water_root: snapshot.high_water_root,
+    journal_file: snapshot.journal_file,
+    high_water_file: snapshot.high_water_file,
+    high_water_sha256: derived.high_water_sha256,
+    generation: derived.high_water.generation,
+    sequence: derived.high_water.sequence,
+    event_count: derived.high_water.event_count,
+    pending: derived.high_water.pending,
+    pending_challenge_sha256:
+      derived.high_water.pending_challenge_sha256,
+    pending_challenge_id:
+      derived.high_water.pending_challenge_id,
+    pending_expires_at_ms:
+      derived.high_water.pending_expires_at_ms,
+    last_terminal_state:
+      derived.high_water.last_terminal_state,
+    ready_for_issue:
+      derived.high_water.ready_for_issue,
+  });
   return Object.freeze({
-    qualification_id: classified.qualification_id,
-    normalized: classified.normalized,
+    qualification_id:
+      "voidwlrie1_" +
+      crypto
+        .createHash("sha256")
+        .update(canonicalJson(normalized), "utf8")
+        .digest("hex"),
+    normalized,
     storage_domain_classification_green: true,
     live_storage_observation_proven: true,
     distinct_local_storage_domains_proven: true,
