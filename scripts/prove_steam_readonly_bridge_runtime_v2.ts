@@ -73,6 +73,10 @@ function routeCounts(app: FakeApp): readonly [number, number] {
   return [app.getHandlers.size, app.postHandlers.size];
 }
 
+function registrationAttempts(app: FakeApp): readonly [number, number] {
+  return [app.getAttempts, app.postAttempts];
+}
+
 function responseCapture(): {
   readonly response: ExpressResponse;
   readonly read: () => CapturedResponse;
@@ -385,7 +389,7 @@ need(
   "initial registration retry did not resume",
 );
 need(
-  failOnceGetApp.getAttempts === 2 &&
+  registrationAttempts(failOnceGetApp)[0] === 2 &&
     routeCounts(failOnceGetApp).every((count) => count === 1),
   "initial registration retry did not install both routes once",
 );
@@ -426,8 +430,9 @@ need(
   resumedRegistration.registered === true,
   "partial registration retry did not resume",
 );
+const resumedAttempts = registrationAttempts(failOnceApp);
 need(
-  failOnceApp.getHandlers.size === 1 && failOnceApp.getAttempts === 1,
+  failOnceApp.getHandlers.size === 1 && resumedAttempts[0] === 1,
   "partial registration retry duplicated the status route",
 );
 need(
@@ -437,7 +442,7 @@ need(
   "partial registration retry did not install the request route",
 );
 need(
-  failOnceApp.postAttempts === 2,
+  resumedAttempts[1] === 2,
   "partial registration retry used an unexpected request-route attempt count",
 );
 const resumedDuplicate = registerSteamReadonlyBridgeRuntimeV2(
@@ -451,10 +456,11 @@ need(
   resumedDuplicate.registered === false,
   "completed partial-registration retry was not idempotent",
 );
+const completedAttempts = registrationAttempts(failOnceApp);
 need(
   routeCounts(failOnceApp).every((count) => count === 1) &&
-    failOnceApp.getAttempts === 1 &&
-    failOnceApp.postAttempts === 2,
+    completedAttempts[0] === 1 &&
+    completedAttempts[1] === 2,
   "duplicate retry changed the completed route set or registration call count",
 );
 
