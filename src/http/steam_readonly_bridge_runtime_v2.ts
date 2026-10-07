@@ -33,6 +33,9 @@ const STATUS_BOUND = Symbol.for(
 const REQUEST_BOUND = Symbol.for(
   "void.steam-readonly-bridge-runtime-v2.request-bound",
 );
+const DEPENDENCIES = Symbol.for(
+  "void.steam-readonly-bridge-runtime-v2.dependencies",
+);
 
 type JsonObject = Record<string, unknown>;
 
@@ -494,7 +497,18 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     [BOUND]?: boolean;
     [STATUS_BOUND]?: boolean;
     [REQUEST_BOUND]?: boolean;
+    [DEPENDENCIES]?: SteamReadonlyBridgeRuntimeV2Dependencies;
   };
+  if (!anyApp[DEPENDENCIES]) {
+    anyApp[DEPENDENCIES] = Object.freeze({
+      authorize_operator: dependencies.authorize_operator,
+      env: dependencies.env,
+      fetch_impl: retainedDependencies.fetch_impl,
+      now: dependencies.now,
+    });
+  }
+  const retainedDependencies = anyApp[DEPENDENCIES];
+
   if (anyApp[BOUND]) {
     return {
       marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
@@ -512,12 +526,12 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.get(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
       async (request: Request, response: Response) => {
-        if (!(await authorized(request, response, dependencies))) {
+        if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
         response.json({
           ok: true,
-          ...steamReadonlyBridgeRuntimeStatusV2(dependencies.env),
+          ...steamReadonlyBridgeRuntimeStatusV2(retainedDependencies.env),
         });
       },
     );
@@ -528,13 +542,13 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.post(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
       async (request: Request, response: Response) => {
-        if (!(await authorized(request, response, dependencies))) {
+        if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
 
         try {
           const parsed = parseRouteRequest(request.body);
-          const env = normalizedEnv(dependencies.env);
+          const env = normalizedEnv(retainedDependencies.env);
           const status = steamReadonlyBridgeRuntimeStatusV2(env);
           if (status.status !== "ready_for_confirmed_attempt") {
             throw new RuntimeRouteError(
@@ -545,13 +559,13 @@ export function registerSteamReadonlyBridgeRuntimeV2(
             );
           }
 
-          const clock = dependencies.now ?? Date.now;
+          const clock = retainedDependencies.now ?? Date.now;
           const startedMs = clock();
           const upstream = await executeSteamReadonlyRequest(
             upstreamRequest(parsed),
             {
               env,
-              fetch_impl: dependencies.fetch_impl,
+              fetch_impl: retainedDependencies.fetch_impl,
             },
           );
           const completedMs = clock();
