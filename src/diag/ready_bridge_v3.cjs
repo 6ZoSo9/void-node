@@ -57,6 +57,11 @@ function mountOnce() {
   if (G[MOUNT_STATE_KEY] === "indeterminate") return true;
 
   const middleware = (req, res, next) => {
+    // app.use() may install this handler and then throw. Until registration
+    // completes normally, a retained handler must not rewrite readiness.
+    if (G[MOUNT_STATE_KEY] !== "mounted" ||
+        G.__void_ready_bridge_v3_mounted !== true) return next();
+
     const url = (req.originalUrl || req.url || "");
     const want = url.startsWith("/__void/ready.json") || url.startsWith("/__void/ready.details.prom");
     if (!want) return next();
