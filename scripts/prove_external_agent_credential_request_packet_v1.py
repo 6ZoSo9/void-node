@@ -825,6 +825,32 @@ try:
                 "gateway error with extra fields was accepted"
             )
 
+        FakeConnection.response_status = 401
+        FakeConnection.response_body = (
+            b'{"ok":true,"ok":false,"error":"applicant_auth_invalid"}\n'
+        )
+        try:
+            module.submit_request(
+                endpoint=(
+                    "https://zoso-precision-tower-7810."
+                    "taila47fd.ts.net:10000"
+                    "/__void/agents/paid-work/"
+                    "credential-requests/v1"
+                ),
+                request=request,
+                identity_key=identity_key,
+            )
+        except ValueError as error:
+            if (
+                "gateway response contains duplicate object key"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "gateway duplicate error key was accepted"
+            )
+
         FakeConnection.response_status = 412
         FakeConnection.response_body = (
             json.dumps(
@@ -916,6 +942,18 @@ try:
                 "ok": False,
                 "error": "rate_limit_exceeded",
             }
+            or held_value.get(
+                "submitted"
+            )
+            is not False
+            or held_value.get(
+                "gateway_error"
+            )
+            != "rate_limit_exceeded"
+            or held_value.get(
+                "automatic_retry"
+            )
+            is not False
             or len(
                 FakeConnection.requests
             )
@@ -1125,6 +1163,12 @@ try:
     )
     print(
         "gateway_error_401_412_429_503_regressions=1"
+    )
+    print(
+        "gateway_error_duplicate_keys_rejected=1"
+    )
+    print(
+        "gateway_held_state_persisted=1"
     )
     print(
         "applicant_identity_private_key_is_wallet_key=0"
