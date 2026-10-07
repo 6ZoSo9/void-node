@@ -35,7 +35,7 @@ const duplicateGuard = read(
 const verifiedPaymentV2 = read(
   "src/economic/buy_void_verified_payment_v2.ts",
 );
-assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
+assert.ok(Buffer.byteLength(index, "utf8") <= 3852487, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
@@ -67,6 +67,11 @@ assert.ok(index.includes("...verified.event"));
 assert.ok(index.includes("...verified.event.payment_verifier"));
 assert.ok(index.includes("rpc_env:chainCfg.rpc_env"));
 assert.ok(index.includes("receipt_status:receipt.status"));
+assert.ok(index.includes("readBuyVoidEthereumPublicCheckoutReadinessV1(process.env)"));
+assert.ok(index.includes("ethereum_finality.payment_instructions_finality_gate_ready===true"));
+assert.ok(index.includes("runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env})"));
+assert.ok(index.includes("const verifiedEvent:any=finality.canonical_verified_payment_event"));
+assert.ok(index.includes('error:"ethereum_source_finality_hold"'));
 assert.equal(index.includes("function __voidBuyVoidUsdcTransferMatchV1"), false);
 assert.equal(index.includes("function __voidBuyVoidHexToBigIntV1"), false);
 assert.equal(index.includes("function __voidBuyVoidTopicAddressV1"), false);
