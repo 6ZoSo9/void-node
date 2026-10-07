@@ -797,6 +797,32 @@ function parsePlacement(value: unknown) {
   });
 }
 
+function assertReceiptMatchesHighWater(
+  receipt: BuyVoidAllocationCustodyWitnessLiveReadReplayCustodyReceiptV1,
+  highWater: any,
+  highWaterSha256: string,
+): void {
+  if (
+    receipt.high_water_sha256 !== highWaterSha256 ||
+    receipt.generation !== highWater.generation ||
+    receipt.sequence !== highWater.sequence ||
+    receipt.event_count !== highWater.event_count ||
+    receipt.tip_event_sha256 !== highWater.tip_event_sha256 ||
+    receipt.pending !== highWater.pending ||
+    receipt.pending_challenge_sha256 !==
+      highWater.pending_challenge_sha256 ||
+    receipt.pending_challenge_id !==
+      highWater.pending_challenge_id ||
+    receipt.pending_expires_at_ms !==
+      highWater.pending_expires_at_ms ||
+    receipt.last_terminal_state !==
+      highWater.last_terminal_state ||
+    receipt.ready_for_issue !== highWater.ready_for_issue
+  ) {
+    fail("witness_replay_custody_prior_receipt_state_mismatch");
+  }
+}
+
 function buildReceipt(
   placement: ReturnType<typeof parsePlacement>,
   journal: Buffer,
@@ -943,6 +969,11 @@ function qualifyOrThrow(input: {
       ) {
         fail("witness_replay_custody_same_epoch_state_conflict");
       }
+      assertReceiptMatchesHighWater(
+        prior,
+        current.high_water,
+        current.high_water_sha256,
+      );
       status = "idempotent";
     } else {
       if (
@@ -967,6 +998,11 @@ function qualifyOrThrow(input: {
       ) {
         fail("witness_replay_custody_prior_high_water_invalid");
       }
+      assertReceiptMatchesHighWater(
+        prior,
+        priorBinding.high_water,
+        priorBinding.high_water_sha256,
+      );
       const advance =
         planBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterAdvanceV1({
           current_journal_jsonl: priorJournal,
