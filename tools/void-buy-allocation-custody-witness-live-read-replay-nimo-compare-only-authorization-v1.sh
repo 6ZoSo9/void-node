@@ -145,13 +145,20 @@ cleanup() {
 }
 
 run_source_self_test_v1() {
-  local root trusted key_a key_b stage_key expected_fpr expected_public
-  local auth_test backup_test old_two full_before mismatch_backup rename_backup
+  local root='' trusted='' key_a='' key_b='' stage_key=''
+  local expected_fpr='' expected_public='' auth_test=''
+  local old_two='' full_before='' mismatch_backup='' rename_backup=''
   root="$(mktemp -d)"
-  trap 'rm -r -- "$root"' RETURN
   chmod 0700 "$root"
   trusted="$root/trusted"
   mkdir -m 0700 "$trusted"
+  trap '
+    rm -f -- \
+      "$key_a" "$key_a.pub" "$key_b" "$key_b.pub" \
+      "$stage_key" "$auth_test" "$mismatch_backup" "$rename_backup"
+    rm -f -- "$trusted"/.void-replay-compare-key.*.pub
+    rmdir -- "$trusted" "$root" 2>/dev/null || true
+  ' RETURN
 
   key_a="$root/key-a"
   key_b="$root/key-b"
