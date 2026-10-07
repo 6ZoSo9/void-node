@@ -97,6 +97,15 @@ same recovery decision window. Replacing only the journal-root intent after its
 read, or only the high-water-root intent after its read, HOLDS before canonical
 journal/high-water publication.
 
+Fresh ordinary persistence uses the same rule: after create-once publication of
+both intent copies, both files are immediately opened as retained no-follow
+snapshots and remain pinned through journal publication, high-water publication,
+the coherent postcheck, and exact intent cleanup. Both visible intent pathnames
+are rebound to those retained snapshots inside the exact pre-rename callback for
+each authoritative state publication. Replacing either freshly created intent
+after snapshot capture therefore HOLDS before the first canonical journal/high-
+water mutation.
+
 Recovery never invents a receipt or accepts caller-selected journal bytes.
 
 When ordinary `persist(...)` encounters a pending crash intent, automatic
@@ -199,6 +208,10 @@ The proof covers:
   journal/high-water bytes unchanged;
 - high-water-only pending-intent replacement after retained read HOLD with
   journal/high-water bytes unchanged;
+- freshly created journal-intent replacement after retained snapshot capture
+  HOLD before canonical journal/high-water publication;
+- freshly created high-water-intent replacement after retained snapshot capture
+  HOLD before canonical journal/high-water publication;
 - one-sided intent survivor binding before redundant-copy recreation;
 - cross-process one-root-replacement serialization for both roots: a valid
   contender must enqueue on the unchanged shared queue, cannot publish while
