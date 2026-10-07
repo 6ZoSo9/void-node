@@ -9,6 +9,7 @@ import {syncBuiltinESMExports} from "node:module";
 import {spawnSync} from "node:child_process";
 
 import {
+  testOnlyClassifyReviewedNodeBuiltinV1,
   testOnlyMaterializeReviewedSourcesV1,
   testOnlyPrepareAndRecheckReviewedAuthorityV1,
   testOnlyPrepareReviewedExecutionPrivateTreeAbaV1,
@@ -54,9 +55,35 @@ const reviewedPlan=testOnlyReviewedSourcePlanV1();
 assert.equal(reviewedPlan.closure.length,27);
 assert.deepEqual(reviewedPlan.bare_packages,["ethers"]);
 assert.deepEqual(
+  reviewedPlan.node_builtins,
+  ["node:crypto","node:fs","node:http","node:path"],
+);
+assert.deepEqual(
   reviewedPlan.network_capable_modules,
   REVIEWED_NETWORK_MODULES,
 );
+assert.equal(
+  testOnlyClassifyReviewedNodeBuiltinV1("node:crypto"),
+  "safe",
+);
+assert.equal(
+  testOnlyClassifyReviewedNodeBuiltinV1("node:http"),
+  "network",
+);
+for(const forbidden of [
+  "node:http2",
+  "node:https",
+  "node:net",
+  "node:tls",
+  "node:dns",
+  "node:dgram",
+]){
+  assert.throws(
+    ()=>testOnlyClassifyReviewedNodeBuiltinV1(forbidden),
+    /reviewed_source_builtin_import_unapproved/u,
+    "uncensused reviewed built-in must HOLD: "+forbidden,
+  );
+}
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
