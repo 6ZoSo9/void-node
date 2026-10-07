@@ -417,6 +417,40 @@ try {
     }),
     /byte bound|content length/u,
   );
+
+  let zeroProgressBodyCancelled=false;
+  let zeroProgressBodyPulls=0;
+  globalThis.fetch=(async ()=>{
+    fetchCalls += 1;
+    return new Response(
+      new ReadableStream<Uint8Array>(
+        {
+          pull(controller){
+            zeroProgressBodyPulls += 1;
+            controller.enqueue(new Uint8Array(0));
+          },
+          cancel(){
+            zeroProgressBodyCancelled=true;
+          },
+        },
+        {highWaterMark:0},
+      ),
+      {status:200,headers:{"content-type":"application/json"}},
+    );
+  }) as typeof fetch;
+  await assert.rejects(
+    fetchVoidPublicP2pBootstrapContentBytesV1({
+      mirror:{
+        transport:"https",
+        base_url:"https://mirror.example/void/bootstrap/v2",
+        failure_domain:"mirror-a",
+      },
+      url:"https://mirror.example/void/bootstrap/v2/records/voidpbr2_"+"c".repeat(64)+".json",
+    }),
+    /stream made no progress/u,
+  );
+  assert.equal(zeroProgressBodyCancelled,true);
+  assert.equal(zeroProgressBodyPulls,1);
 } finally {
   globalThis.fetch=originalFetch;
 }
@@ -455,6 +489,8 @@ console.log("short_oversized_nonregular_malformed_rejected=true");
 console.log("caller_selectable_trust_path=false");
 console.log("immutable_mirror_namespace_enforced=true");
 console.log("bounded_fetch=true");
+console.log("zero_progress_stream_rejected=true");
+console.log("zero_progress_stream_cancelled=true");
 console.log("entrypoint_mount_binding_wired=true");
 console.log("rejected_opt_in_cleans_up_runtime_mount_and_node=true");
 console.log("production_key_generated_or_read=false");
