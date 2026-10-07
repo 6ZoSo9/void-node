@@ -1,0 +1,1442 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import {
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_SOURCE_GENERATION_ID_V1,
+  classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1,
+} from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-continuity-v1.mjs";
+
+import {
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1,
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
+} from "../tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
+
+import {
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_AUTHORITY_V1,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_HIGH_WATER_V1,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_V1,
+  classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1,
+  deriveCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1,
+  inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1,
+  persistCoupledNativeGasReconciliationCustodyReceiptWriterV1,
+  recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1,
+  testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1,
+  testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1,
+  testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1,
+  testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1,
+  testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
+  testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
+  testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1,
+  testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1,
+} from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs";
+
+const JOURNAL_NAME =
+  "coupled-native-gas-reconciliation-custody-receipts-v1.jsonl";
+const HIGH_WATER_NAME =
+  "coupled-native-gas-reconciliation-custody-receipt-high-water-v1.json";
+const INTENT_NAME =
+  "coupled-native-gas-reconciliation-custody-receipt-writer-intent-v1.json";
+const LOCK_QUEUE_NAME =
+  "coupled-native-gas-reconciliation-custody-receipt-writer-v1.queue";
+const COLLECTOR_MARKER =
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1";
+const QUALIFICATION_MARKER =
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_QUALIFICATION_V1";
+const QUALIFICATION_RECEIPT_MARKER =
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_V1";
+const QUALIFICATION_RECEIPT_SCHEMA =
+  "void_coupled_native_gas_reconciliation_custody_receipt_v1";
+const QUALIFICATION_DOMAIN =
+  "void-coupled-native-gas-reconciliation-custody-qualification-v1";
+
+function canonical(value) {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) throw new Error("noncanonical_number");
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonical).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map((key) => JSON.stringify(key) + ":" + canonical(value[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical_value");
+}
+
+function sha256Id(value) {
+  return (
+    "sha256:" +
+    crypto
+      .createHash("sha256")
+      .update(Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8"))
+      .digest("hex")
+  );
+}
+
+function sha256Hex(value) {
+  return crypto
+    .createHash("sha256")
+    .update(Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8"))
+    .digest("hex");
+}
+
+function sha(fill) {
+  return "sha256:" + fill.repeat(64);
+}
+
+function makeCollector({
+  host = "nimo-writer-proof-host",
+  payer = "0x" + "a".repeat(40),
+  payerDomain = "voidngpd1_writer_proof",
+  root = "/var/lib/void-native-gas-reconciliation-writer-proof",
+  rootDev = "1048577",
+  rootIno = "1001",
+  rootMountId = 77,
+  machine = sha("1"),
+  boot = sha("2"),
+  observed = 1_800_000_000_000,
+  completed = observed + 100,
+  evidenceGeneration = String(observed),
+  mount = sha("3"),
+  policy = sha("4"),
+  evidence = sha("5"),
+  service = sha("6"),
+} = {}) {
+  const receiptBody = {
+    schema: QUALIFICATION_RECEIPT_SCHEMA,
+    marker: QUALIFICATION_RECEIPT_MARKER,
+    version: 1,
+    host_id: host,
+    payer_address: payer,
+    evidence_generation: evidenceGeneration,
+    observed_at_ms: observed,
+    expires_at_ms: observed + 120_000,
+    boot_id_sha256: boot,
+    payer_domain_id: payerDomain,
+    payer_root_path: root,
+    payer_root_dev: rootDev,
+    payer_root_ino: rootIno,
+    payer_root_mount_id: rootMountId,
+    records_ino: "1002",
+    reconciliations_ino: "1003",
+    queue_ino: "1004",
+    mount_instance_fingerprint_sha256: mount,
+    service_unit_sha256: service,
+    qualification_policy_fingerprint_sha256: policy,
+    evidence_snapshot_fingerprint_sha256: evidence,
+  };
+  const receipt = {
+    ...receiptBody,
+    receipt_sha256: sha256Id(canonical(receiptBody)),
+  };
+  const qualificationId = sha256Id(
+    canonical({
+      domain: QUALIFICATION_DOMAIN,
+      qualification_policy_fingerprint_sha256: policy,
+      evidence_snapshot_fingerprint_sha256: evidence,
+      receipt_sha256: receipt.receipt_sha256,
+    }),
+  );
+  return {
+    ok: true,
+    status: "HOST_EVIDENCE_OBSERVED_SOURCE_QUALIFIED_NOT_AUTHORIZED",
+    marker: COLLECTOR_MARKER,
+    version: 1,
+    live_observation_backed: true,
+    synthetic_snapshot_authority: false,
+    trusted_collector_proven: false,
+    writer_generation_binding_proven: false,
+    bootstrap_receipt_external_trust_proven: false,
+    evidence_generation_monotonicity_proven: false,
+    verification_clock_authority_proven: false,
+    live_host_qualification_performed: false,
+    storage_bootstrap: false,
+    runtime_integration: false,
+    production_gate_ready: false,
+    funds_movement: false,
+    qualification: {
+      ok: true,
+      status: "source_qualified",
+      marker: QUALIFICATION_MARKER,
+      version: 1,
+      qualification_id_sha256: qualificationId,
+      evidence_snapshot_fingerprint_sha256: evidence,
+      qualification_policy_fingerprint_sha256: policy,
+      mount_instance_fingerprint_sha256: mount,
+      host_id: host,
+      payer_address: payer,
+      payer_domain_id: payerDomain,
+      payer_root_path: root,
+      receipt,
+      writer_generation_binding_proven: false,
+      bootstrap_receipt_external_trust_proven: false,
+      evidence_generation_monotonicity_proven: false,
+      verification_clock_authority_proven: false,
+      live_host_qualification_performed: false,
+      storage_bootstrap: false,
+      runtime_integration: false,
+      production_gate_ready: false,
+    },
+    classifier_input: {
+      host_evidence: {
+        evidence_snapshot: {
+          evidence_generation: evidenceGeneration,
+        },
+      },
+    },
+    collector_evidence: {
+      observed_at_ms: observed,
+      completed_at_ms: completed,
+      boot_id_sha256: boot,
+      machine_id_sha256: machine,
+    },
+  };
+}
+
+function sourceBinding() {
+  const value =
+    testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
+      repository_head_sha: "a".repeat(40),
+      repository_tree_sha: "b".repeat(40),
+      repository_origin: "https://github.com/6ZoSo9/void-node.git",
+      worktree_clean: true,
+      reviewed_base_is_ancestor: true,
+      source_blobs:
+        VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.map(
+          (row) => ({
+            path: row.path,
+            git_blob_sha1: row.git_blob_sha1,
+            worktree_git_blob_sha1: row.git_blob_sha1,
+          }),
+        ),
+    });
+  assert.equal(value.ok, true, JSON.stringify(value));
+  return value;
+}
+
+function highWaterBytes(journal) {
+  const value =
+    deriveCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+      journal,
+    );
+  return Buffer.from(canonical(value) + "\n", "utf8");
+}
+
+function fixture({
+  journal = Buffer.alloc(0),
+  highWater = null,
+  lockQueue = true,
+} = {}) {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-native-gas-receipt-writer-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const journalRoot = path.join(root, "journal");
+  const highWaterRoot = path.join(root, "high-water");
+  fs.mkdirSync(journalRoot, { mode: 0o700 });
+  fs.mkdirSync(highWaterRoot, { mode: 0o700 });
+  if (lockQueue) {
+    fs.mkdirSync(path.join(journalRoot, LOCK_QUEUE_NAME), { mode: 0o700 });
+    fs.mkdirSync(path.join(highWaterRoot, LOCK_QUEUE_NAME), { mode: 0o700 });
+  }
+  fs.writeFileSync(path.join(journalRoot, JOURNAL_NAME), journal, {
+    mode: 0o600,
+  });
+  fs.writeFileSync(
+    path.join(highWaterRoot, HIGH_WATER_NAME),
+    highWater ?? highWaterBytes(journal),
+    { mode: 0o600 },
+  );
+  return { root, journalRoot, highWaterRoot };
+}
+
+function cleanup(f) {
+  fs.rmSync(f.root, { recursive: true, force: true });
+}
+
+function inputFor(f, collector = makeCollector()) {
+  return {
+    journal_root: f.journalRoot,
+    high_water_root: f.highWaterRoot,
+    collector_decision: collector,
+    source_binding: sourceBinding(),
+  };
+}
+
+function requireOk(value, label = "unexpected_hold") {
+  assert.equal(value.ok, true, label + ":" + JSON.stringify(value));
+  return value;
+}
+
+function requireHeld(value, reason = null) {
+  assert.equal(value.ok, false, JSON.stringify(value));
+  assert.equal(value.status, "held");
+  if (reason !== null) assert.equal(value.reason, reason);
+  assert.equal(value.production_gate_ready, false);
+  assert.equal(value.runtime_integration, false);
+  assert.equal(value.funds_movement, false);
+  return value;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForPath(file, child, label) {
+  const deadline = Date.now() + 10_000;
+  while (!fs.existsSync(file)) {
+    if (child.exitCode !== null) {
+      throw new Error(
+        label + "_child_exited:" + child.exitCode +
+        "\nstdout:\n" + child.stdout.read() +
+        "\nstderr:\n" + child.stderr.read(),
+      );
+    }
+    if (Date.now() >= deadline) throw new Error(label + "_timeout");
+    await sleep(10);
+  }
+}
+
+async function waitForTicketCount(queue, minimum, child, label) {
+  const deadline = Date.now() + 10_000;
+  while (true) {
+    const count = fs
+      .readdirSync(queue)
+      .filter((name) => /^ticket-[0-9]{16}-[1-9][0-9]*-[0-9a-f]{32}\.json$/u.test(name))
+      .length;
+    if (count >= minimum) return;
+    if (child.exitCode !== null) {
+      throw new Error(
+        label + "_child_exited:" + child.exitCode +
+        "\nstdout:\n" + child.stdout.read() +
+        "\nstderr:\n" + child.stderr.read(),
+      );
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(label + "_timeout:" + count);
+    }
+    await sleep(10);
+  }
+}
+
+async function waitForChild(child, label) {
+  if (child.exitCode !== null) {
+    if (child.exitCode !== 0) {
+      throw new Error(
+        label + "_exit:" + child.exitCode +
+        "\nstdout:\n" + child.stdout.read() +
+        "\nstderr:\n" + child.stderr.read(),
+      );
+    }
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code !== 0) {
+        reject(
+          new Error(
+            label + "_exit:" + code +
+            "\nstdout:\n" + child.stdout.read() +
+            "\nstderr:\n" + child.stderr.read(),
+          ),
+        );
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function spawnLockHolder(f, entered, release) {
+  const code = `
+    import fs from "node:fs";
+    const w = await import("./tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs");
+    await w.testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1(
+      { journal_root: process.env.JOURNAL_ROOT, high_water_root: process.env.HIGH_WATER_ROOT },
+      async () => {
+        fs.writeFileSync(process.env.ENTERED, "entered\\n", { mode: 0o600 });
+        while (!fs.existsSync(process.env.RELEASE)) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      },
+    );
+  `;
+  return spawn(process.execPath, ["--input-type=module", "-e", code], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      JOURNAL_ROOT: f.journalRoot,
+      HIGH_WATER_ROOT: f.highWaterRoot,
+      ENTERED: entered,
+      RELEASE: release,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function spawnPersist(f, inputPath, started, resultPath) {
+  const code = `
+    import fs from "node:fs";
+    const w = await import("./tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs");
+    const input = JSON.parse(fs.readFileSync(process.env.INPUT, "utf8"));
+    fs.writeFileSync(process.env.STARTED, "started\\n", { mode: 0o600 });
+    const result = await w.persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(input);
+    fs.writeFileSync(process.env.RESULT, JSON.stringify(result) + "\\n", { mode: 0o600 });
+  `;
+  return spawn(process.execPath, ["--input-type=module", "-e", code], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      JOURNAL_ROOT: f.journalRoot,
+      HIGH_WATER_ROOT: f.highWaterRoot,
+      INPUT: inputPath,
+      STARTED: started,
+      RESULT: resultPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_V1,
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_V1",
+);
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_HIGH_WATER_V1,
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_HIGH_WATER_V1",
+);
+
+const trueAuthority = new Set([
+  "source_only_writer",
+  "continuity_contract_reused",
+  "exact_planned_append_required",
+  "descriptor_bound_reads",
+  "filesystem_read",
+  "filesystem_write",
+  "serialized_publication",
+  "dual_root_serialization_lock",
+  "preprovisioned_lock_queue_required",
+  "separate_storage_roots_required",
+  "redundant_publication_intent",
+  "crash_recovery",
+  "atomic_journal_publication",
+  "atomic_high_water_publication",
+  "exact_post_reclassification",
+  "exact_terminal_idempotent_retry",
+  "paired_terminal_root_revalidation",
+  "high_water_exact_journal_binding",
+]);
+for (const [key, value] of Object.entries(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_AUTHORITY_V1,
+)) {
+  assert.equal(value, trueAuthority.has(key), key);
+}
+
+const emptyHighWater =
+  deriveCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1("");
+assert.equal(emptyHighWater.generation, 0);
+assert.equal(emptyHighWater.record_count, 0);
+assert.equal(
+  emptyHighWater.source_generation_id,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_SOURCE_GENERATION_ID_V1,
+);
+assert.equal(
+  classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+    "",
+    highWaterBytes(Buffer.alloc(0)),
+  ).ok,
+  true,
+);
+
+{
+  const f = fixture();
+  try {
+    const inspected = requireOk(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+    assert.equal(inspected.status, "clean");
+    assert.equal(inspected.generation, 0);
+    assert.equal(inspected.record_count, 0);
+    assert.equal(inspected.operation_performed, false);
+
+    const persisted = requireOk(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+    assert.equal(persisted.status, "persisted");
+    assert.equal(persisted.generation, 1);
+    assert.equal(persisted.record_count, 1);
+    assert.equal(persisted.operation_performed, true);
+    assert.equal(persisted.recovery_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+
+    const journal = fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME));
+    const highWater = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    const continuity = requireOk(
+      classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
+        journal,
+      ),
+    );
+    assert.equal(continuity.generation, 1);
+    assert.equal(continuity.record_count, 1);
+    assert.equal(
+      continuity.tip_receipt_sha256,
+      persisted.tip_receipt_sha256,
+    );
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        journal,
+        highWater,
+      ).ok,
+      true,
+    );
+
+    const duplicate = requireOk(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+      "exact terminal retry",
+    );
+    assert.equal(duplicate.status, "idempotent");
+    assert.equal(duplicate.operation_performed, false);
+    assert.equal(duplicate.recovery_performed, false);
+    assert.equal(duplicate.generation, persisted.generation);
+    assert.equal(
+      duplicate.tip_receipt_sha256,
+      persisted.tip_receipt_sha256,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(journal),
+      true,
+      "idempotent retry must not rewrite journal bytes",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWater,
+      ),
+      true,
+      "idempotent retry must not rewrite high-water bytes",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const phase of [
+  "after_journal_intent",
+  "after_high_water_intent",
+  "after_journal_write",
+  "after_high_water_write",
+  "after_journal_intent_remove",
+]) {
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        phase,
+      ),
+    );
+    assert.match(crashed.reason, new RegExp("test_crash_" + phase, "u"));
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "recovery:" + phase,
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.recovery_performed, true);
+    assert.equal(recovered.generation, 1);
+    assert.equal(recovered.record_count, 1);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+      phase,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+      phase,
+    );
+    const inspected = requireOk(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+    );
+    assert.equal(inspected.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const originalInput = inputFor(f);
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        originalInput,
+        "after_high_water_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_high_water_intent/u);
+    const alternate = requireHeld(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(
+          f,
+          makeCollector({ observed: 1_800_000_001_000 }),
+        ),
+      ),
+      "receipt_writer_pending_intent_input_mismatch",
+    );
+    assert.equal(alternate.operation_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      true,
+    );
+    const exactRetry = requireOk(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        originalInput,
+      ),
+      "exact pending intent retry",
+    );
+    assert.equal(exactRetry.status, "recovered");
+    assert.equal(exactRetry.recovery_performed, true);
+    assert.equal(exactRetry.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_high_water_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_high_water_intent/u);
+    const intent = JSON.parse(
+      fs.readFileSync(
+        path.join(f.journalRoot, INTENT_NAME),
+        "utf8",
+      ),
+    );
+    assert.equal(typeof intent.after_high_water_json, "string");
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      intent.after_high_water_json,
+      { mode: 0o600 },
+    );
+
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "intent-bound high-water-ahead recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.recovery_performed, true);
+    assert.equal(recovered.generation, 1);
+    assert.equal(recovered.record_count, 1);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)),
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)),
+      ).ok,
+      true,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_journal_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_journal_intent/u);
+    const finalIntent = path.join(f.journalRoot, INTENT_NAME);
+    const linkedTemp = path.join(
+      f.journalRoot,
+      "." + INTENT_NAME + ".tmp-" + String(process.pid) + "-aaaaaaaaaaaaaaaa",
+    );
+    fs.linkSync(finalIntent, linkedTemp);
+    assert.equal(fs.statSync(finalIntent).nlink, 2);
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "linked-intent-temp recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.operation_performed, true);
+    assert.equal(fs.existsSync(linkedTemp), false);
+    assert.equal(fs.existsSync(finalIntent), false);
+    assert.equal(recovered.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_journal_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_journal_intent/u);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      Buffer.from('{"stale":true}\n', "utf8"),
+      { mode: 0o600 },
+    );
+    const held = requireHeld(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+    );
+    assert.match(held.reason, /receipt_writer_recovery_high_water_unknown/u);
+    assert.equal(
+      held.operation_performed,
+      false,
+      "unknown-state recovery must not repair the missing redundant intent",
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const staleTemp = path.join(
+      f.journalRoot,
+      "." + JOURNAL_NAME + ".tmp-" + String(process.pid) + "-bbbbbbbbbbbbbbbb",
+    );
+    fs.writeFileSync(staleTemp, Buffer.alloc(0), { mode: 0o600 });
+    const inspected = requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "receipt_writer_recovery_required",
+    );
+    assert.equal(inspected.operation_performed, false);
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "stale-temp recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.operation_performed, true);
+    assert.equal(fs.existsSync(staleTemp), false);
+    assert.equal(recovered.generation, 0);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture({ lockQueue: false });
+  try {
+    requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const missingRoot of ["journal", "high-water"]) {
+  const f = fixture();
+  try {
+    fs.rmSync(
+      path.join(
+        missingRoot === "journal" ? f.journalRoot : f.highWaterRoot,
+        LOCK_QUEUE_NAME,
+      ),
+      { recursive: true, force: true },
+    );
+    const held = requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+    assert.match(
+      held.reason,
+      missingRoot === "journal"
+        ? /receipt_writer_journal_lock_queue/u
+        : /receipt_writer_high_water_lock_queue/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      Buffer.from('{"forged":true}\n', "utf8"),
+      { mode: 0o600 },
+    );
+    const held = requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+    assert.match(held.reason, /receipt_writer_high_water_mismatch/u);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const journalSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1(
+        inputFor(f),
+        "journal",
+      );
+    requireHeld(journalSwap);
+    const highWaterSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1(
+        inputFor(f),
+        "high_water",
+      );
+    requireHeld(highWaterSwap);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const journalFileSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1(
+        inputFor(f),
+        "journal",
+      );
+    const heldJournal = requireHeld(journalFileSwap);
+    assert.match(
+      heldJournal.reason,
+      /receipt_writer_journal_snapshot_changed/u,
+    );
+
+    const highWaterFileSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1(
+        inputFor(f),
+        "high_water",
+      );
+    const heldHighWater = requireHeld(highWaterFileSwap);
+    assert.match(
+      heldHighWater.reason,
+      /receipt_writer_high_water_snapshot_changed/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const which of ["journal", "high_water"]) {
+  const f = fixture();
+  try {
+    const originalInput = inputFor(f);
+    const crashPhase =
+      which === "journal"
+        ? "after_journal_intent"
+        : "after_high_water_intent";
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        originalInput,
+        crashPhase,
+      ),
+    );
+    assert.match(
+      crashed.reason,
+      new RegExp("test_crash_" + crashPhase, "u"),
+    );
+
+    if (which === "high_water") {
+      fs.unlinkSync(path.join(f.journalRoot, INTENT_NAME));
+    }
+
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    const survivorPath =
+      which === "journal"
+        ? path.join(f.journalRoot, INTENT_NAME)
+        : path.join(f.highWaterRoot, INTENT_NAME);
+    assert.equal(fs.existsSync(survivorPath), true);
+
+    const held = requireHeld(
+      await testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        which,
+      ),
+    );
+    assert.match(
+      held.reason,
+      which === "journal"
+        ? /receipt_writer_journal_intent_snapshot_changed/u
+        : /receipt_writer_high_water_intent_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      false,
+      which + " intent replacement must HOLD before mutation",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      which + " intent replacement must not mutate journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      which + " intent replacement must not mutate high-water",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const which of ["journal", "high_water"]) {
+  const f = fixture();
+  try {
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1(
+        inputFor(f),
+        which,
+      ),
+    );
+    assert.match(
+      held.reason,
+      which === "journal"
+        ? /receipt_writer_journal_intent_snapshot_changed/u
+        : /receipt_writer_high_water_intent_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      true,
+      which + " fresh intent replacement occurs only after redundant intent creation",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      which + " fresh intent replacement must not mutate journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      which + " fresh intent replacement must not mutate high-water",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const phase of ["before_journal", "before_high_water"]) {
+  const f = fixture();
+  try {
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+        inputFor(f),
+        phase,
+      ),
+    );
+    assert.match(
+      held.reason,
+      phase === "before_journal"
+        ? /receipt_writer_high_water_state_snapshot_changed/u
+        : /receipt_writer_journal_state_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      true,
+      phase + " peer-state replacement occurs after durable intent publication",
+    );
+
+    const journalAfter = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterAfter = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    assert.equal(
+      highWaterAfter.equals(highWaterBefore),
+      true,
+      phase + " peer-state replacement must not publish next high-water",
+    );
+
+    if (phase === "before_journal") {
+      assert.equal(
+        journalAfter.equals(journalBefore),
+        true,
+        "peer high-water replacement must HOLD before journal publication",
+      );
+    } else {
+      const continuity =
+        classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
+          journalAfter,
+        );
+      assert.equal(
+        continuity.ok,
+        true,
+        "journal already published before peer journal replacement must remain canonical",
+      );
+      assert.equal(
+        continuity.record_count,
+        1,
+        "before-high-water adversary must leave exactly the one planned receipt",
+      );
+      assert.equal(
+        journalAfter.equals(journalBefore),
+        false,
+        "journal publication must precede the blocked high-water rename",
+      );
+    }
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const phase of ["before_journal", "before_high_water"]) {
+  const f = fixture();
+  try {
+    const crashPhase =
+      phase === "before_journal"
+        ? "after_high_water_intent"
+        : "after_journal_write";
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        crashPhase,
+      ),
+    );
+    assert.match(crashed.reason, new RegExp("test_crash_" + crashPhase, "u"));
+
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        phase,
+      ),
+    );
+    assert.match(
+      held.reason,
+      phase === "before_journal"
+        ? /receipt_writer_high_water_state_snapshot_changed/u
+        : /receipt_writer_journal_state_snapshot_changed/u,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      phase + " recovery peer-state replacement must not advance journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      phase + " recovery peer-state replacement must not advance high-water",
+    );
+
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "recovery peer-state retry:" + phase,
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.generation, 1);
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)),
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)),
+      ).ok,
+      true,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+async function proveSingleRootReplacementSerialization(replaceRoot) {
+  const f = fixture();
+  const detached = path.join(
+    f.root,
+    replaceRoot === "journal"
+      ? "journal-detached"
+      : "high-water-detached",
+  );
+  const entered = path.join(f.root, replaceRoot + "-holder-entered");
+  const release = path.join(f.root, replaceRoot + "-holder-release");
+  const started = path.join(f.root, replaceRoot + "-contender-started");
+  const resultPath = path.join(f.root, replaceRoot + "-contender-result.json");
+  const inputPath = path.join(f.root, replaceRoot + "-input.json");
+  let holder = null;
+  let contender = null;
+  try {
+    fs.writeFileSync(
+      inputPath,
+      JSON.stringify(inputFor(f)) + "\n",
+      { mode: 0o600 },
+    );
+
+    holder = spawnLockHolder(f, entered, release);
+    await waitForPath(entered, holder, replaceRoot + "_holder_entered");
+
+    if (replaceRoot === "journal") {
+      fs.renameSync(f.journalRoot, detached);
+      fs.mkdirSync(f.journalRoot, { mode: 0o700 });
+      fs.mkdirSync(
+        path.join(f.journalRoot, LOCK_QUEUE_NAME),
+        { mode: 0o700 },
+      );
+      fs.writeFileSync(
+        path.join(f.journalRoot, JOURNAL_NAME),
+        "",
+        { mode: 0o600 },
+      );
+    } else {
+      fs.renameSync(f.highWaterRoot, detached);
+      fs.mkdirSync(f.highWaterRoot, { mode: 0o700 });
+      fs.mkdirSync(
+        path.join(f.highWaterRoot, LOCK_QUEUE_NAME),
+        { mode: 0o700 },
+      );
+      fs.writeFileSync(
+        path.join(f.highWaterRoot, HIGH_WATER_NAME),
+        highWaterBytes(Buffer.alloc(0)),
+        { mode: 0o600 },
+      );
+    }
+
+    const replacementInput = inputFor(f);
+    fs.writeFileSync(
+      inputPath,
+      JSON.stringify(replacementInput) + "\n",
+      { mode: 0o600 },
+    );
+    contender = spawnPersist(f, inputPath, started, resultPath);
+    await waitForPath(
+      started,
+      contender,
+      replaceRoot + "_contender_started",
+    );
+
+    const sharedQueue = path.join(
+      replaceRoot === "journal" ? f.highWaterRoot : f.journalRoot,
+      LOCK_QUEUE_NAME,
+    );
+    await waitForTicketCount(
+      sharedQueue,
+      2,
+      contender,
+      replaceRoot + "_shared_queue_wait",
+    );
+    assert.equal(
+      fs.existsSync(resultPath),
+      false,
+      replaceRoot + " replacement must not admit a competing writer",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.journalRoot, JOURNAL_NAME),
+        "utf8",
+      ),
+      "",
+      replaceRoot + " replacement must not publish before holder release",
+    );
+
+    fs.writeFileSync(release, "release\n", { mode: 0o600 });
+    await waitForChild(holder, replaceRoot + "_holder");
+    await waitForPath(
+      resultPath,
+      contender,
+      replaceRoot + "_contender_result",
+    );
+    await waitForChild(contender, replaceRoot + "_contender");
+
+    const result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.status, "persisted");
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)),
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)),
+      ).ok,
+      true,
+    );
+  } finally {
+    for (const child of [holder, contender]) {
+      if (child && child.exitCode === null) child.kill("SIGKILL");
+    }
+    cleanup(f);
+  }
+}
+
+await proveSingleRootReplacementSerialization("journal");
+await proveSingleRootReplacementSerialization("high-water");
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-native-gas-receipt-writer-same-root-"),
+  );
+  fs.chmodSync(root, 0o700);
+  fs.mkdirSync(path.join(root, LOCK_QUEUE_NAME), { mode: 0o700 });
+  fs.writeFileSync(path.join(root, JOURNAL_NAME), "", { mode: 0o600 });
+  fs.writeFileSync(
+    path.join(root, HIGH_WATER_NAME),
+    highWaterBytes(Buffer.alloc(0)),
+    { mode: 0o600 },
+  );
+  try {
+    requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: root,
+        high_water_root: root,
+      }),
+      "receipt_writer_storage_roots_not_distinct",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    fs.rmSync(path.join(f.highWaterRoot, HIGH_WATER_NAME));
+    requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(f),
+      ),
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const crash =
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_journal_intent",
+      );
+    requireHeld(crash);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+const writerSource = fs.readFileSync(
+  "tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs",
+  "utf8",
+);
+assert.match(writerSource, /O_NOFOLLOW/u);
+assert.match(writerSource, /\/proc\/self\/fd/u);
+assert.match(writerSource, /withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1/u);
+assert.match(writerSource, /const orderedLocks = \[/u);
+assert.match(writerSource, /journal_lock_queue/u);
+assert.match(writerSource, /high_water_lock_queue/u);
+assert.match(writerSource, /beforeReplace/u);
+assert.match(writerSource, /function openPinnedNamedFileSnapshot\(/u);
+assert.match(writerSource, /function assertPinnedNamedFileSnapshotVisible\(/u);
+assert.match(
+  writerSource,
+  /assertPinnedNamedFileSnapshotVisible\(journalSnapshot\)[\s\S]*assertPinnedNamedFileSnapshotVisible\(highWaterSnapshot\)/u,
+);
+assert.match(writerSource, /planCoupledNativeGasReconciliationCustodyReceiptV1/u);
+assert.match(writerSource, /classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1/u);
+assert.equal(writerSource.includes("Date.now("), false);
+assert.equal(writerSource.includes("process.env.DATA_DIR"), false);
+
+console.log(
+  "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_V1_GREEN",
+);
+console.log("exact_continuity_planner_reused=true");
+console.log("descriptor_bound_private_roots=true");
+console.log("separate_storage_roots_required=true");
+console.log("preprovisioned_lock_queue_required=true");
+console.log("dual_root_serialization_lock=true");
+console.log("journal_root_replacement_keeps_shared_lock=true");
+console.log("high_water_root_replacement_keeps_shared_lock=true");
+console.log("single_root_replacement_blocks_valid_competing_publication=true");
+console.log("redundant_publication_intent=true");
+console.log("five_crash_cutpoints_recovered=true");
+console.log("linked_intent_temp_recovered=true");
+console.log("stale_atomic_temp_recovered=true");
+console.log("paired_terminal_root_revalidation=true");
+console.log("paired_authoritative_file_snapshot_revalidation=true");
+console.log("journal_file_post_read_replacement_hold=true");
+console.log("high_water_file_post_read_replacement_hold=true");
+console.log("journal_intent_post_read_replacement_hold=true");
+console.log("high_water_intent_post_read_replacement_hold=true");
+console.log("fresh_journal_intent_prepublication_replacement_hold=true");
+console.log("fresh_high_water_intent_prepublication_replacement_hold=true");
+console.log("one_sided_intent_snapshot_bound_before_redundancy=true");
+console.log("high_water_exact_journal_binding=true");
+console.log("exact_post_reclassification=true");
+console.log("exact_terminal_idempotent_retry=true");
+console.log("intent_bound_high_water_ahead_recovery=true");
+console.log("pending_intent_exact_input_binding=true");
+console.log("unknown_state_before_redundant_intent_repair=true");
+console.log("storage_bootstrap=false");
+console.log("rollback_resistance_proven=false");
+console.log("protected_custody_proven=false");
+console.log("independent_custody_proven=false");
+console.log("trusted_collector_proven=false");
+console.log("verification_clock_authority_proven=false");
+console.log("runtime_integration=false");
+console.log("production_gate_ready=false");
+console.log("paired_state_snapshot_before_journal_rename=true");
+console.log("paired_state_snapshot_before_high_water_rename=true");
+console.log("peer_high_water_replacement_blocks_journal_rename=true");
+console.log("peer_journal_replacement_blocks_high_water_rename=true");
+console.log("recovery_peer_high_water_replacement_blocks_journal_rename=true");
+console.log("recovery_peer_journal_replacement_blocks_high_water_rename=true");
+console.log("funds_movement=false");

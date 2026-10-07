@@ -90,6 +90,50 @@ This preserves the replay state's generation increment, single-pending-
 challenge, one-terminal-transition, expiry, request-ID, response-SHA, and
 canonical JSONL rules.
 
+## Transition prestate identity
+
+Every persisted issue/consume/abandon success exposes the exact state observed
+under both locks immediately before the canonical planner runs:
+
+- `transition_before_journal_sha256`;
+- `transition_before_journal_bytes`; and
+- `transition_before_high_water_sha256`.
+
+These values are derived from the descriptor-bound journal and canonical
+high-water snapshot already held by the writer; callers cannot supply them.
+They allow a later composition layer to prove that a transition originated
+from one exact installation-evidence snapshot rather than merely from another
+valid replay state with the same generation/sequence counters.
+
+For a terminal transition, the exposed prestate must equal the preceding issue
+result's poststate journal/high-water identities. Read-only inspection and
+recovery-only success results expose these transition-prestate fields as
+`null`, because they did not plan a new transition.
+
+
+## Terminal packet observability
+
+Every successful persisted transition exposes the exact replay event identity:
+
+- `transition_challenge_sha256`;
+- `transition_challenge_id`;
+- `transition_issued_at_ms`; and
+- `transition_expires_at_ms`.
+
+A successful `persisted_consumed` result additionally exposes the exact
+`terminal_request_id` and `terminal_response_sha256` persisted in that
+terminal replay event.
+
+The transition fields are null for plain inspect/recovery results.
+The terminal request/response fields are null for issue and abandoned results.
+
+This is an observability/binding surface for the next composition gate only.
+The replay writer still does not decide whether a request/response packet is a
+valid authenticated witness read, so `validated_packet_binding_proven=false`
+remains authoritative. The later live-read composition contract must require
+exact equality between these persisted terminal fields and the already-qualified
+live-read packet.
+
 ## Serialization
 
 Both pinned roots are locked before inspection or mutation using the existing
@@ -215,6 +259,10 @@ The proof uses temporary local directories only. It covers:
   `voidwlrhw1_` identity;
 - explicit preprovisioned genesis;
 - issue and consume persistence;
+- exact persisted transition challenge/timing exposure;
+- exact consumed terminal request-ID/response-SHA exposure;
+- null transition fields on plain inspect/recovery;
+- null terminal packet fields on inspect/issue/abandon;
 - duplicate consume rejection;
 - crash recovery after journal intent only;
 - crash recovery after both intents;
