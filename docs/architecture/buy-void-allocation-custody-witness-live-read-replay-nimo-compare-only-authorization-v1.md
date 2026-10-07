@@ -1,0 +1,155 @@
+# Nimo replay compare-only SSH authorization v1
+
+## Purpose
+
+This gate follows the GREEN Precision compare-only credential preparation. The
+client key (UID 994/GID 981) and Nimo host pin already exist on Precision, but
+Nimo has only the original two forced-command authorized-key entries and lacks
+the independently restricted compare-only wrapper.
+
+This bounded operator script installs **one fixed compare-only wrapper** and
+**one third root-owned SSH authorized-key line** on Nimo. It retains both
+existing authorized-key lines byte-for-byte, cannot reuse the append-capable
+credential, and leaves replay/witness/config/sshd/runtime signer state untouched.
+
+Script: tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh
+
+## Pinned prerequisites
+
+Nimo must already have the compare-capable replay handler installed through
+the previously merged, bounded handler-upgrade procedure. The installer HOLDS
+if that upgrade has not happened.
+
+~~~text
+Nimo hostname: Nimo
+voidwitness UID:GID: 997:984
+installed compare handler SHA256:
+511ffe6ee55e0ef3ac2e8582ffdc94b3d294884408d55c174875fed928a18831
+
+existing protected config SHA256:
+ab71fa8af4f91529010cf22f219f616460efb9390eaaefe368b18df3ae9292a6
+
+existing Nimo replay witness SHA256:
+b1d6cb7d55fb97b48a388b19e230ed272a654f7b924ed786c050d8028c9f761e
+
+new wrapper reviewed Git blob:
+309b4de7c40c5b8a21bbc956cc445f6600a33215
+
+new Precision custody compare-only public-key fingerprint:
+SHA256:8NrrP3xxlMTcJEDYgNE+8DWMm1Z6zxFW5FpHWdk0EGI
+~~~
+
+All existing protected files must have the exact expected ownership/modes.
+The original root-owned authorized_keys file must have exactly two entries,
+or exactly three with the third entry matching the fixed command/key byte for
+byte (idempotent case). Any other state HOLDS.
+
+## Fixed Nimo stage
+
+The script is Nimo-only, run as root with no arguments. It requires these
+non-symlinked files in the unprivileged operator's Nimo staging directory:
+
+~~~text
+/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/
+    wrapper.mjs
+    id_ed25519.pub
+    authorize.sh
+~~~
+
+The installer verifies the complete wrapper against the reviewed Git blob
+and passes its .mjs syntax check. The compare public key must be exactly one
+ED25519 line with the independent fingerprint above. No private key is staged
+or transferred.
+
+## Atomic apply and postcheck
+
+The wrapper is installed root:root mode 0555 at:
+
+~~~text
+/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs
+~~~
+
+The new key's root-controlled third entry invokes only the fixed wrapper:
+
+~~~text
+restrict,command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1
+~~~
+
+The script stages the updated authorized_keys in the same directory, checks
+the exact two-line prefix, and atomically replaces the file. On a post-commit
+failure it attempts to restore the previously copied original file.
+
+No sshd configuration change or reload is required. The two previous
+witness keys remain valid and retain their original forced commands.
+
+The installer proves **installation**, not authenticated authorization or
+production enforcement. After GREEN, a separately reviewed Precision
+read-only test must:
+
+1. compare against exact Precision replay sequence 2 and require canonical
+   "matched" through the new key, using the pinned Nimo host key;
+2. attempt "read" and "append" with that **same new key** and require
+   rejection without any data mutation;
+3. verify Nimo's three-event witness SHA and original keys remain unchanged.
+
+The SSH key used for this ceremony belongs to the replay-compare transport
+only; it has no wallet/signer privilege.
+
+## Operator materialization
+
+On Precision, after merge to main and exact Git-object preflight:
+
+~~~bash
+cd ~/dev/void-node
+git fetch origin main
+stage="$HOME/Downloads/void-replay-compare-only-nimo-auth-v1"
+install -d -m 0700 "$stage"
+
+git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs > "$stage/wrapper.mjs"
+git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh > "$stage/authorize.sh"
+
+test "$(git hash-object "$stage/wrapper.mjs")" = 309b4de7c40c5b8a21bbc956cc445f6600a33215
+bash -n "$stage/authorize.sh"
+node --check "$stage/wrapper.mjs"
+sudo cat /var/lib/void-replay-compare-transport-v1/id_ed25519.pub > "$stage/id_ed25519.pub"
+
+ssh -tt zoso@nimo 'install -d -m 0700 "$HOME/.local/state/void-replay-compare-only-nimo-auth-v1"'
+scp "$stage/wrapper.mjs" "$stage/authorize.sh" "$stage/id_ed25519.pub" \
+  zoso@nimo:/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/
+ssh -tt zoso@nimo \
+  'sudo /bin/bash /home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/authorize.sh'
+~~~
+
+The current Nimo handler may still be old because a previous attempt
+stopped at a temporary file with an unrecognized extension. If the installer
+HOLDS at compare_handler_upgrade_required, run the separately merged handler
+upgrade first, then retry this idempotent installer. Never bypass the exact
+handler SHA check.
+
+## Deliberate authority limits
+
+~~~text
+server_compare_only_authorization_proven=false
+live_authenticated_compare_proven=false
+live_policy_enforcement_proven=false
+rollback_resistance_proven=false
+protected_high_water_custody_proven=false
+independent_custody_proven=false
+production_gate_ready=false
+funds_moved=false
+~~~
+
+These stay false even after an installation GREEN until independent
+authenticated negative/positive transport tests and exclusive guarded-writer
+runtime qualification succeed.
+
+## Source-only proof
+
+~~~bash
+bash -n tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh
+node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_nimo_compare_only_authorization_v1.mjs
+git diff --check
+~~~
+
+CI executes --help and syntax/static guard checks, never the privileged Nimo
+installer path.
