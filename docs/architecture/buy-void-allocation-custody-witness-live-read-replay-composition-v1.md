@@ -82,17 +82,29 @@ limit.
 
 The supplied live-read qualification must:
 
-- match the canonical live-read authority object;
+- match the canonical live-read authority object and exact closed parent shape;
 - recompute to its `voidwlrq1_...` qualification ID;
 - preserve all parent negative live/runtime/custody authority flags;
+- carry canonical SHA-256 / qualification-ID fields for installation,
+  runtime-bundle, transport, host/client keys, machine identities and witness
+  state;
+- carry canonical bounded host/user/port, IP-address, challenge-time,
+  generation and event-count fields;
+- preserve the parent's witness-identity-path / continuity-attestation /
+  machine-ID relationship;
+- bind remote host/port/user and known-hosts/host-key/client-key digests to the
+  independently classified canonical transport policy;
 - bind the exact replay issue challenge SHA-256;
 - use the exact durable replay event issue time;
 - use storage generation as prior generation;
 - use issue generation as evidence generation; and
-- have response observation time inside the durable replay issue/expiry window.
+- have response observation time inside both the canonical 38-second live-read
+  window and the durable replay issue/expiry window.
 
-V1 deliberately does not reinterpret the parent installation or known-hosts
-proofs.
+V1 still does not claim live origin for the supplied parent receipt; instead it
+requires the supplied object to be one the canonical parent classifier could
+have emitted and independently revalidates the transport request/response
+bindings below.
 
 ## Transport request and response revalidation
 
@@ -191,6 +203,9 @@ npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_compo
 npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
+npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
+npx tsx scripts/prove_buy_void_allocation_custody_external_witness_v1.ts
+npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
 git diff --check
 ```
 
@@ -199,6 +214,10 @@ classifier. It performs no live SSH or production storage mutation.
 
 Covered adversaries include:
 
+- malformed live-read machine digest;
+- malformed live-read observed network address;
+- inconsistent witness identity-path / continuity-attestation pairing;
+- live-read transport host/port drift despite a recomputed qualification ID;
 - replay issue time drift from qualified packet;
 - stale/wrong storage generation;
 - a same-counter storage artifact with a different journal digest;
