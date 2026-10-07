@@ -20,8 +20,25 @@ key or host pin.
 
 ## Source and host binding
 
-The operator script first binds current \`origin/main\` to exact reviewed
-Git blobs for the compare-only forced command and client adapter.
+Before any Git fetch, Nimo key scan, `sudo` admission, directory creation or
+key generation, the mutating path requires the reviewed non-secret Precision
+host identity:
+
+```text
+hostname=zoso-Precision-Tower-7810
+machine_id_sha256=sha256:11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2
+```
+
+The machine ID digest follows the canonical witness convention: trim
+`/etc/machine-id` to its exact 32 lowercase hexadecimal characters and
+SHA-256 those UTF-8 bytes. A hostname or machine-ID mismatch HOLDS before any
+credential or privileged action. The focused proof uses an inert wrong-host
+environment and requires that Git/network/`sudo`/key-generation sentinels are
+never invoked.
+
+Only after that host guard does the operator script bind current `origin/main`
+to exact reviewed Git blobs for the compare-only forced command and client
+adapter.
 
 It independently retrieves Nimo's ED25519 host public key from
 \`100.91.79.112:22\`, requires exactly one unique key and verifies its
