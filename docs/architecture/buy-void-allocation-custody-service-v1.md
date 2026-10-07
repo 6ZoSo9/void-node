@@ -21,7 +21,7 @@ The machine-readable reviewed contract is:
 
 The contract binds the exact service source SHA-256:
 
-`sha256:39fce366d9c3a3dc5217e62da20958405ce576cc7f40965c744ec059a96d5519`
+`sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
 
 ## Authority split
 
@@ -34,12 +34,11 @@ The service is created with server-controlled configuration:
 
 None of those paths or identities are accepted from an IPC request.
 
-The service reuses the merged canonical contracts:
-
-1. #2433 allocation planner/ledger classifier;
-2. #2442 current ledger/high-water binding;
-3. #2446 publication/recovery state machine; and
-4. #2451 descriptor-bound crash-recoverable publication writer.
+The service uses the merged #2433 ledger classifier and #2442
+ledger/high-water binding **for read-only inspection**. The #2446 publication
+state machine and #2451 crash-recoverable writer remain separate synthetic
+proof dependencies; neither is imported or called by this IPC service while
+payment provenance is unbound.
 
 The public caller cannot submit an arbitrary file path, arbitrary high-water
 generation, arbitrary next-ledger byte string, or arbitrary bytes-to-file
@@ -64,16 +63,24 @@ durable request and payment-event history, verify identity, amount, destination,
 source chain, log index and launch generation, and serialize the resulting
 allocation under the existing verified-payment capacity/duplicate boundary.
 No request-controlled boolean or environment override can bypass this HOLD.
-The pure planner and writer remain separately available for synthetic proof and
-explicit recovery. This is containment, not live payment-provenance readiness.
+The pure planner and writer remain separately available for synthetic proof.
+Any later operator recovery must independently bind and validate the durable
+payment provenance of each pending intent before publication. This is
+containment, not live payment-provenance readiness.
 
 ### `recover`
 
 The request object must be empty.
 
-The service delegates only to #2451 recovery and then requires the final
-canonical ledger/high-water binding. The caller cannot select a recovery
-generation or state.
+The method now always returns
+`allocation_custody_service_verified_payment_recovery_not_bound` with
+`operation_performed=false`. A legacy publication intent could have been
+created from untrusted caller flags before the reserve HOLD; its canonical
+shape, checksums and existing high-water binding are **not** proof that the
+corresponding payment was verified. In particular, merely connecting to the
+AF_UNIX socket must not permit completing such an intent. Pending intents
+remain untouched for later independently authorized, provenance-verified
+recovery under the shared serialized admission domain.
 
 ### `inspect`
 
@@ -199,15 +206,15 @@ The proof uses temporary private roots only. It covers:
 - clean inspection;
 - forged caller-authority reserve HOLD with unchanged ledger/high-water/intent;
 - repeat unverified reserve HOLD;
-- clean recovery;
-- forged reserve unable to trigger a pre-existing intent recovery;
-- explicit recover method preserves durable-intent forward recovery;
+- clean `recover` method HOLD without writes;
+- forged reserve and explicit recovery both unable to commit a pre-existing,
+  syntactically valid but unverified publication intent;
 - full UNIX-socket request/write-EOF round trips;
 - a split second frame and duplicate-member JSON rejection before reservation;
 - a slow-drip client that sends bytes every 250 ms but never half-closes,
   proving the five-second absolute deadline HOLDs without allocating;
 - a missing newline rejection and a forged reserve/repeat HOLD over AF_UNIX;
-- terminal explicit recovery with reserve still held;
+- direct and AF_UNIX explicit recovery HOLD with reserve still held;
 - rejection of caller path injection;
 - rejection of caller generation injection;
 - preservation of no-runtime/no-payment/no-transaction/no-funds authority.
