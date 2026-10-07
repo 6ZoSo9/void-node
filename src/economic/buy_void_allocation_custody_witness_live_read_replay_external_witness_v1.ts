@@ -770,13 +770,10 @@ function rebindWitnessHistory(
   >,
   prefixes: readonly Buffer[],
 ): void {
-  if (prefixes.length - 1 < witness.tip.replay_sequence) {
-    return;
-  }
   for (const event of witness.events) {
     const prefix = prefixes[event.replay_sequence];
     if (!prefix) {
-      fail("witness_replay_external_witness_local_history_missing");
+      break;
     }
     const derived =
       deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
@@ -829,15 +826,15 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWit
       );
     }
 
+    const prefixes = splitJournalPrefixes(input.current_journal_jsonl);
+    rebindWitnessHistory(witness, prefixes);
+
     if (current.high_water.sequence < witness.tip.replay_sequence) {
       return held(
         "witness_replay_external_witness_local_rollback_detected",
         true,
       );
     }
-
-    const prefixes = splitJournalPrefixes(input.current_journal_jsonl);
-    rebindWitnessHistory(witness, prefixes);
 
     if (current.high_water.sequence > witness.tip.replay_sequence) {
       return Object.freeze({
@@ -964,13 +961,13 @@ export function planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitness
     if (!eventIdentityMatches(witness.tip, identity)) {
       fail("witness_replay_external_witness_identity_mismatch");
     }
+    rebindWitnessHistory(witness, prefixes);
     if (current.high_water.sequence < witness.tip.replay_sequence) {
       return held(
         "witness_replay_external_witness_local_rollback_detected",
         true,
       );
     }
-    rebindWitnessHistory(witness, prefixes);
 
     if (current.high_water.sequence === witness.tip.replay_sequence) {
       if (
