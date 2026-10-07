@@ -1226,6 +1226,31 @@ assert.equal(
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
 );
 
+const workflowSource = fs.readFileSync(
+  ".github/workflows/void-economic-system-sponsored-runtime-admission-v1.yml",
+  "utf8",
+);
+const pushStart = workflowSource.indexOf("\n  push:");
+const permissionsStart = workflowSource.indexOf("\npermissions:");
+assert.ok(pushStart >= 0 && permissionsStart > pushStart);
+const pushTriggerSource = workflowSource.slice(
+  pushStart,
+  permissionsStart,
+);
+for (const dependencyPath of [
+  "tools/void-economic-epoch2-durable-replay-store-v1.mjs",
+  "scripts/prove_void_economic_epoch2_durable_replay_store_v1.mjs",
+]) {
+  assert.match(
+    pushTriggerSource,
+    new RegExp(dependencyPath.replace(/[.*+?^$()|[\]\\]/gu, "\\const source = fs.readFileSync(
+  "tools/void-economic-system-sponsored-runtime-admission-v1.mjs",
+  "utf8",
+);"), "u"),
+    "main-push trigger must include replay dependency: " + dependencyPath,
+  );
+}
+
 const source = fs.readFileSync(
   "tools/void-economic-system-sponsored-runtime-admission-v1.mjs",
   "utf8",
@@ -1334,6 +1359,7 @@ console.log("valid_denied_request_can_advance_time=false");
 console.log("expired_duplicate_can_advance_time=false");
 console.log("valid_denied_request_time_growth_bounded=true");
 console.log("execution_replay_store_bound=true");
+console.log("replay_dependency_main_push_trigger_bound=true");
 console.log("read_only_execution_replay_inspection=true");
 console.log("consumed_execution_replay_rejected_before_time=true");
 console.log("sponsored_runtime_calls_replay_consume=false");
