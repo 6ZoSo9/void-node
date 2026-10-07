@@ -92,6 +92,21 @@ const CONTROL_KEYS = Object.freeze([
   "coordinated_rollback_without_second_control",
 ]);
 
+const POLICY_OBSERVATION_KEYS = Object.freeze([
+  "path",
+  "bytes",
+  "sha256",
+  "uid",
+  "gid",
+  "mode",
+  "nlink",
+  "dev",
+  "ino",
+  "mtime_ns",
+  "ctime_ns",
+  "control",
+]);
+
 const CONTROL_DOMAIN_KEYS = Object.freeze([
   "role",
   "snapshot_enabled",
@@ -312,6 +327,56 @@ function normalizeControl(value) {
     hostwide_restore_can_revert_both: false,
     shared_rollback_controller: false,
     coordinated_rollback_without_second_control: false,
+  });
+}
+
+function normalizePolicyObservation(value) {
+  const raw = exactDataObject(
+    value,
+    POLICY_OBSERVATION_KEYS,
+    "witness_replay_rollback_policy_evidence_policy_observation_invalid",
+  );
+  if (
+    raw.path !== POLICY_PATH ||
+    !Buffer.isBuffer(raw.bytes) ||
+    typeof raw.sha256 !== "string" ||
+    !/^sha256:[0-9a-f]{64}$/u.test(raw.sha256) ||
+    raw.sha256 !== sha256Id(raw.bytes) ||
+    raw.uid !== 0 ||
+    raw.gid !== 0 ||
+    raw.mode !== 0o444 ||
+    raw.nlink !== 1 ||
+    typeof raw.dev !== "string" ||
+    !/^[0-9]+$/u.test(raw.dev) ||
+    typeof raw.ino !== "string" ||
+    !/^[1-9][0-9]*$/u.test(raw.ino) ||
+    typeof raw.mtime_ns !== "string" ||
+    !/^[0-9]+$/u.test(raw.mtime_ns) ||
+    typeof raw.ctime_ns !== "string" ||
+    !/^[0-9]+$/u.test(raw.ctime_ns)
+  ) {
+    fail("witness_replay_rollback_policy_evidence_policy_observation_invalid");
+  }
+  const control = normalizeControl(raw.control);
+  if (
+    raw.bytes.at(-1) !== 0x0a ||
+    canonicalJson(control) + "\n" !== raw.bytes.toString("utf8")
+  ) {
+    fail("witness_replay_rollback_policy_evidence_policy_noncanonical");
+  }
+  return Object.freeze({
+    path: raw.path,
+    bytes: Buffer.from(raw.bytes),
+    sha256: raw.sha256,
+    uid: raw.uid,
+    gid: raw.gid,
+    mode: raw.mode,
+    nlink: raw.nlink,
+    dev: raw.dev,
+    ino: raw.ino,
+    mtime_ns: raw.mtime_ns,
+    ctime_ns: raw.ctime_ns,
+    control,
   });
 }
 
@@ -571,13 +636,13 @@ function installationCommitment(value) {
 
 function classifyObserved({
   installation_evidence,
-  control,
   policy_file,
   verification_now_ms,
   live,
 }) {
+  const observedPolicy = normalizePolicyObservation(policy_file);
   const policy = buildPolicy(
-    normalizeControl(control),
+    observedPolicy.control,
     installation_evidence,
     verification_now_ms,
   );
@@ -601,12 +666,12 @@ function classifyObserved({
     version: 1,
     parent_marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_INDEPENDENCE_V1,
-    policy_path: policy_file.path,
-    policy_file_sha256: policy_file.sha256,
-    policy_file_uid: policy_file.uid,
-    policy_file_gid: policy_file.gid,
-    policy_file_mode: policy_file.mode,
-    policy_file_nlink: policy_file.nlink,
+    policy_path: observedPolicy.path,
+    policy_file_sha256: observedPolicy.sha256,
+    policy_file_uid: observedPolicy.uid,
+    policy_file_gid: observedPolicy.gid,
+    policy_file_mode: observedPolicy.mode,
+    policy_file_nlink: observedPolicy.nlink,
     installation_qualification_id:
       parent.installation_qualification_id,
     installation_high_water_sha256:
@@ -635,7 +700,7 @@ function classifyObserved({
     normalized,
     parent_qualification: parent,
     operation_performed: false,
-    root_owned_policy_file_observed: true,
+    root_owned_policy_file_observed: live === true,
     rollback_independence_policy_qualified: true,
     installation_storage_rebound: true,
     bounded_policy_freshness_checked: true,
@@ -666,7 +731,6 @@ export function testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRol
   try {
     return classifyObserved({
       installation_evidence: input?.installation_evidence,
-      control: input?.control,
       policy_file: input?.policy_file,
       verification_now_ms: input?.verification_now_ms,
       live: false,
@@ -714,7 +778,6 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPoli
     const nowMs = Date.now();
     const classified = classifyObserved({
       installation_evidence: firstInstallation,
-      control: firstPolicy.control,
       policy_file: firstPolicy,
       verification_now_ms: nowMs,
       live: true,
