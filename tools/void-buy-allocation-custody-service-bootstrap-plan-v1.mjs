@@ -131,11 +131,14 @@ const CANDIDATE = Object.freeze({
   requested_exec_start: null,
   reviewed_root_owned_code_closure_selected: false,
   service_source: "tools/void-buy-allocation-custody-service-v1.mjs",
+  service_source_sha256:
+    "sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d",
   service_contract: "docs/architecture/buy-void-allocation-custody-service-contract-v1.json",
+  service_contract_sha256:
+    "sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477",
   top_level_source_imports: Object.freeze([
     "../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
     "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
-    "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js",
   ]),
   reviewed_compiled_transitive_closure_proven: false,
   service_policy_target: Object.freeze({
