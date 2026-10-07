@@ -21,7 +21,10 @@ export const VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_AUTHORITY_V1 =
     boot_relative_monotonic_bracket_required: true,
     capture_span_bounded: true,
     production_evidence_requires_fixed_collector: true,
+    fixed_source_nofollow_bounded_reads: true,
+    sanitized_time_sync_environment: true,
     caller_timestamp_input: false,
+    caller_environment_override: false,
     caller_path_input: false,
     caller_command_input: false,
     fallback_source: false,
@@ -57,6 +60,11 @@ const TIMEDATECTL_ARGS = Object.freeze([
   "--value",
 ]);
 const WALL_CLOCK_SOURCE = "Date.now";
+const TIMEDATECTL_ENV = Object.freeze({
+  LANG: "C",
+  LC_ALL: "C",
+  PATH: "/usr/bin:/bin",
+});
 const MAX_TEXT_BYTES = 256;
 const MAX_CAPTURE_SPAN_NS = 5_000_000_000n;
 const UUID_RE =
@@ -267,6 +275,7 @@ function classifyCaptureV1(
     boot_uptime_source: UPTIME_PATH,
     time_sync_command: TIMEDATECTL_PATH,
     time_sync_args: [...TIMEDATECTL_ARGS],
+    time_sync_environment: { ...TIMEDATECTL_ENV },
     wall_clock_source: WALL_CLOCK_SOURCE,
     production_fixed_sources_observed:
       productionFixedSourcesObserved,
@@ -290,13 +299,36 @@ function classifyCaptureV1(
   });
 }
 
+function readBoundedFixedText(file) {
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY |
+        Number(fs.constants.O_NOFOLLOW || 0) |
+        Number(fs.constants.O_CLOEXEC || 0),
+    );
+    const buffer = Buffer.alloc(MAX_TEXT_BYTES + 1);
+    const count = fs.readSync(
+      fd,
+      buffer,
+      0,
+      buffer.length,
+      null,
+    );
+    if (count < 1 || count > MAX_TEXT_BYTES) {
+      fail("host_time_sync_fixed_source_size_invalid");
+    }
+    return buffer.subarray(0, count).toString("utf8");
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
 function productionDependencies() {
   return Object.freeze({
     readText(file) {
-      return fs.readFileSync(file, {
-        encoding: "utf8",
-        flag: "r",
-      });
+      return readBoundedFixedText(file);
     },
     runCommand(file, args) {
       const result = spawnSync(file, args, {
@@ -305,6 +337,7 @@ function productionDependencies() {
         timeout: 2_000,
         maxBuffer: 4_096,
         windowsHide: true,
+        env: { ...TIMEDATECTL_ENV },
       });
       return {
         status: result.status,
@@ -399,6 +432,7 @@ export const VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_SOURCES_V1 =
     uptime_path: UPTIME_PATH,
     timedatectl_path: TIMEDATECTL_PATH,
     timedatectl_args: TIMEDATECTL_ARGS,
+    timedatectl_environment: TIMEDATECTL_ENV,
     wall_clock_source: WALL_CLOCK_SOURCE,
     max_capture_span_ns: MAX_CAPTURE_SPAN_NS.toString(),
   });
