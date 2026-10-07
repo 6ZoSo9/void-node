@@ -804,10 +804,40 @@ function writeConsumptionForRoot(targetRoot){
 }
 
 let sendCount=0;
+const externalFenceStore=new Map();
+function externalFenceKey(fence){
+  return fence.state_store_realpath_sha256+":"+fence.broadcast_operation_id;
+}
+async function claimGenerationFence(fence){
+  const key=externalFenceKey(fence);
+  const existing=externalFenceStore.get(key);
+  if(existing) return Object.freeze({...existing,status:"exists"});
+  const claim=Object.freeze({
+    status:"created",
+    broadcast_generation_fence_id:fence.broadcast_generation_fence_id,
+    custody_receipt_sha256:
+      "sha256:"+sha256(Buffer.from("external-custody:"+canonicalJson(fence))),
+    independent_custody_proven:true,
+  });
+  externalFenceStore.set(key,claim);
+  return claim;
+}
+async function assertGenerationFence(claim,fence){
+  const existing=externalFenceStore.get(externalFenceKey(fence));
+  return (
+    existing?.broadcast_generation_fence_id===
+      claim.broadcast_generation_fence_id&&
+    existing?.custody_receipt_sha256===claim.custody_receipt_sha256&&
+    existing?.independent_custody_proven===true
+  );
+}
+
 const dependencies={
   validate_runtime:()=>({request,authorization}),
   validate_observation:()=>observation,
   validate_signed_transaction:()=>signed,
+  claim_generation_fence:claimGenerationFence,
+  assert_generation_fence:assertGenerationFence,
   now:()=>now,
   rpc:async (method)=>{
     if(method==="eth_sendRawTransaction"){
