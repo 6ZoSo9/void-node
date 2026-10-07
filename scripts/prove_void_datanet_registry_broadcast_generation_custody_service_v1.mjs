@@ -470,6 +470,39 @@ try{
   fs.writeFileSync(recordPath,originalBytes,{mode:0o600});
   fs.chmodSync(recordPath,0o600);
 
+  const fifoFence=fence("f");
+  const fifoPath=path.join(
+    fenceRoot,
+    fifoFence.broadcast_generation_fence_id+".json",
+  );
+  const fifoCreate=spawnSync(
+    "/usr/bin/mkfifo",
+    [fifoPath],
+    {
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+    },
+  );
+  assert.equal(
+    fifoCreate.status,
+    0,
+    "FIFO adversary creation failed: "+String(fifoCreate.stderr||""),
+  );
+  fs.chmodSync(fifoPath,0o600);
+  const fifoStarted=Date.now();
+  const fifoDecision=await transport.claim(fifoFence,{
+    signal:new AbortController().signal,
+    timeout_ms:1000,
+  });
+  assert.equal(fifoDecision.ok,false);
+  assert.equal(fifoDecision.status,"held");
+  assert.equal(fifoDecision.operation_performed,false);
+  assert.ok(
+    Date.now()-fifoStarted<1000,
+    "FIFO record must HOLD without blocking the service event loop",
+  );
+  fs.unlinkSync(fifoPath);
+
   const injected=await handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelopeV1(
     options,
     {
@@ -1012,6 +1045,7 @@ for(const forbidden of [
   assert.equal(serviceSource.includes(forbidden),false,forbidden);
 }
 for(const required of [
+  "Number(fs.constants.O_NONBLOCK||0)",
   "abort_signal_required:true",
   "serializedRequest.fence?.broadcast_generation_fence_id",
   "typeof value.reason!==\"string\"",
