@@ -40,10 +40,13 @@ The policy file must be:
 - opened descriptor-relative with `O_NOFOLLOW`; and
 - canonical JSON with one trailing newline.
 
-The policy bytes are reread after the live storage reobservation and must retain
-the same file identity, SHA-256 and exact canonical content.
+The policy is observed three times: before classification, after the second live
+storage observation, and once more after the terminal storage census. All three
+observations must retain the same file identity, SHA-256 and exact canonical
+content. The final rebind prevents a policy replacement during the terminal
+storage census from producing stale GREEN evidence.
 
-After the terminal storage census, the collector re-reads the local clock and
+After the terminal policy rebind, the collector re-reads the local clock and
 requires the observation to still be inside the exact parent-policy expiry
 window. A clock regression below the original observation time or a terminal
 time after expiry HOLDS instead of returning stale `LIVE_ROLLBACK_POLICY_OBSERVED`
@@ -77,11 +80,16 @@ interpretation.
 
 ## Live storage rebound
 
-The collector runs the live replay installation evidence before policy
-classification, again after classification, and a third time after the final
-policy-file reread.
+The collector interleaves the two evidence domains in this exact order:
 
-All three observations must commit to the same:
+1. first live replay installation observation;
+2. first protected policy read and canonical classification;
+3. second live replay installation observation;
+4. second protected policy read;
+5. terminal live replay installation observation; and
+6. terminal protected policy rebind.
+
+All three storage observations must commit to the same:
 
 - installation qualification ID;
 - normalized root/file identities;
@@ -92,9 +100,11 @@ All three observations must commit to the same:
 - stable double census.
 
 A storage mutation, root replacement, file mutation or pending replay-writer
-intent therefore HOLDs the policy observation. The terminal third observation
-closes the same-UID replay-storage race after the final root-owned policy read
-and before success is returned.
+intent therefore HOLDs the policy observation. The terminal policy rebind then
+requires the fixed root-owned policy to remain exact across the terminal storage
+census. A policy replacement after the second policy read but before that
+terminal census completes therefore HOLDS instead of returning stale policy
+evidence.
 
 ## What live GREEN proves
 
@@ -233,6 +243,9 @@ The proof covers:
 - shared restore-credential rejection;
 - forged live storage identity rejection;
 - synthetic evidence cannot claim live observation;
+- terminal policy rebind after the terminal storage census;
+- a canonical policy swap after the second read but before terminal storage
+  completion HOLDS;
 - terminal observation-time equality is accepted;
 - clock regression and terminal observation after expiry are rejected; and
 - all negative enforcement/custody/runtime/economic authority flags.
