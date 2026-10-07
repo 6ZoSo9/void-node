@@ -443,7 +443,15 @@ async function request(options,envelope,rawContext){
       }
       let parsed;
       try{
-        parsed=JSON.parse(input.slice(0,newline));
+        const wireResponse=input.slice(0,newline);
+        parsed=JSON.parse(wireResponse);
+        // JSON.parse erases duplicate response keys. Require an exact
+        // JSON round trip before granting any custody response authority.
+        if(JSON.stringify(parsed)!==wireResponse){
+          throw new Error(
+            "datanet_broadcast_generation_custody_client_response_noncanonical",
+          );
+        }
       }catch(error){
         void error;
         finish(

@@ -133,7 +133,11 @@ The client's response acceptance checks use a snapshot parsed from the exact
 serialized wire request, never a later read of caller-owned fence objects.
 Successful responses must match the requested method, fence ID, and assertion
 receipt. Held responses require a literal string reason (arrays cannot pass by
-coercion).
+coercion). Before any response is trusted, the client also requires the
+received JSON bytes to match their exact `JSON.stringify(JSON.parse(...))`
+round trip. This rejects duplicate response members (including conflicting
+`operation_performed` claims), alternate encodings, and ambiguous peer
+authority. The service already emits this compact JSON representation.
 
 There is no redirect, URL, network fallback, retry loop, or caller-selected
 socket per operation. After a complete response is validated, the client

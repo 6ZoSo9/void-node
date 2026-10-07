@@ -968,6 +968,7 @@ fs.mkdirSync(malformedParent,{mode:0o750});
 fs.chmodSync(malformedParent,0o750);
 const malformedSocket=path.join(malformedParent,"custody.sock");
 let responseMutation=null;
+let responseWireMutation=null;
 const malformedServer=net.createServer((socket)=>{
   socket.setEncoding("utf8");
   let input="";
@@ -1000,7 +1001,11 @@ const malformedServer=net.createServer((socket)=>{
         funds_movement:false,
       }),
     };
-    socket.end(JSON.stringify(response)+"\n");
+    const wireResponse=JSON.stringify(response);
+    socket.end(
+      (responseWireMutation?responseWireMutation(wireResponse):wireResponse)+
+        "\n",
+    );
   });
 });
 await new Promise((resolve,reject)=>{
@@ -1086,6 +1091,26 @@ try{
       testCase.label,
     );
   }
+
+  // Duplicate response keys must never be collapsed into authority.
+  responseMutation=(decision)=>decision;
+  responseWireMutation=(wire)=>{
+    const mutant=wire.replace(
+      '"operation_performed":true',
+      '"operation_performed":false,"operation_performed":true',
+    );
+    assert.notEqual(mutant,wire);
+    return mutant;
+  };
+  await assert.rejects(
+    malformedTransport.claim(fence("e"),{
+      signal:new AbortController().signal,
+      timeout_ms:1000,
+    }),
+    /datanet_broadcast_generation_custody_client_response_invalid/u,
+    "duplicate operation_performed response members must be rejected",
+  );
+  responseWireMutation=null;
 
   // The peer echoes the digest of the *sent* request but forges success
   // against a fence ID mutated by its caller after request serialization.
@@ -1215,6 +1240,7 @@ console.log("create_only_record=true");
 console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
 console.log("duplicate_request_member_holds_without_record=true");
+console.log("duplicate_response_member_rejected_before_authority=true");
 console.log("record_duplicate_keys_rejected=true");
 console.log("record_exact_canonical_bytes_required=true");
 console.log("record_exact_schema_required=true");
