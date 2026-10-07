@@ -1421,30 +1421,76 @@ function ensureRedundantIntentSnapshot(roots, pair, markMutation) {
   }
 }
 
-function createIntentPair(roots, bytes, crashAfter, markMutation) {
-  createOnceFile(
-    roots.journal,
-    INTENT_NAME,
-    bytes,
-    MAX_INTENT_BYTES,
-    "receipt_writer_journal_intent",
-  );
-  markMutation();
-  if (crashAfter === "after_journal_intent") {
-    fail("receipt_writer_test_crash_after_journal_intent");
+function createIntentPairSnapshot(
+  roots,
+  bytes,
+  crashAfter,
+  markMutation,
+) {
+  let leftSnapshot = null;
+  let rightSnapshot = null;
+  try {
+    createOnceFile(
+      roots.journal,
+      INTENT_NAME,
+      bytes,
+      MAX_INTENT_BYTES,
+      "receipt_writer_journal_intent",
+    );
+    markMutation();
+    if (crashAfter === "after_journal_intent") {
+      fail("receipt_writer_test_crash_after_journal_intent");
+    }
+    leftSnapshot = openPinnedNamedFileSnapshot(
+      roots.journal,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      false,
+      "receipt_writer_journal_intent",
+    );
+    if (!leftSnapshot.bytes.equals(bytes)) {
+      fail("receipt_writer_journal_intent_changed_after_create");
+    }
+
+    createOnceFile(
+      roots.high_water,
+      INTENT_NAME,
+      bytes,
+      MAX_INTENT_BYTES,
+      "receipt_writer_high_water_intent",
+    );
+    markMutation();
+    if (crashAfter === "after_high_water_intent") {
+      fail("receipt_writer_test_crash_after_high_water_intent");
+    }
+    rightSnapshot = openPinnedNamedFileSnapshot(
+      roots.high_water,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      false,
+      "receipt_writer_high_water_intent",
+    );
+    if (!rightSnapshot.bytes.equals(bytes)) {
+      fail("receipt_writer_high_water_intent_changed_after_create");
+    }
+
+    const pair = {
+      left: Buffer.from(leftSnapshot.bytes),
+      right: Buffer.from(rightSnapshot.bytes),
+      left_snapshot: leftSnapshot,
+      right_snapshot: rightSnapshot,
+    };
+    const parsed = parseIntentPair(pair);
+    if (!parsed.bytes.equals(bytes)) {
+      fail("receipt_writer_fresh_intent_pair_changed");
+    }
+    assertIntentPairSnapshotVisible(roots, pair);
+    return pair;
+  } catch (error) {
+    if (rightSnapshot !== null) closePinnedNamedFileSnapshot(rightSnapshot);
+    if (leftSnapshot !== null) closePinnedNamedFileSnapshot(leftSnapshot);
+    throw error;
   }
-  createOnceFile(
-    roots.high_water,
-    INTENT_NAME,
-    bytes,
-    MAX_INTENT_BYTES,
-    "receipt_writer_high_water_intent",
-  );
-  markMutation();
-  if (crashAfter === "after_high_water_intent") {
-    fail("receipt_writer_test_crash_after_high_water_intent");
-  }
-  assertRootsVisible(roots);
 }
 
 function removeIntentPair(roots, expected, markMutation, crashAfter) {
@@ -1470,7 +1516,13 @@ function removeIntentPair(roots, expected, markMutation, crashAfter) {
   assertRootsVisible(roots);
 }
 
-function publishJournal(roots, before, after, markMutation) {
+function publishJournal(
+  roots,
+  before,
+  after,
+  markMutation,
+  beforeReplace = null,
+) {
   atomicReplaceFile(
     roots.journal,
     JOURNAL_NAME,
@@ -1479,12 +1531,21 @@ function publishJournal(roots, before, after, markMutation) {
     MAX_JOURNAL_BYTES,
     true,
     "receipt_writer_journal",
-    () => assertRootsVisible(roots),
+    () => {
+      assertRootsVisible(roots);
+      if (typeof beforeReplace === "function") beforeReplace();
+    },
   );
   markMutation();
 }
 
-function publishHighWater(roots, before, after, markMutation) {
+function publishHighWater(
+  roots,
+  before,
+  after,
+  markMutation,
+  beforeReplace = null,
+) {
   atomicReplaceFile(
     roots.high_water,
     HIGH_WATER_NAME,
@@ -1493,7 +1554,10 @@ function publishHighWater(roots, before, after, markMutation) {
     MAX_HIGH_WATER_BYTES,
     false,
     "receipt_writer_high_water",
-    () => assertRootsVisible(roots),
+    () => {
+      assertRootsVisible(roots);
+      if (typeof beforeReplace === "function") beforeReplace();
+    },
   );
   markMutation();
 }
@@ -1669,6 +1733,7 @@ function recoverLocked(
         parsedIntent.before_journal,
         parsedIntent.after_journal,
         markMutation,
+        () => assertIntentPairSnapshotVisible(roots, pair),
       );
       if (crashAfter === "after_recovery_journal") {
         fail("receipt_writer_test_crash_after_recovery_journal");
@@ -1681,6 +1746,7 @@ function recoverLocked(
         parsedIntent.before_high_water,
         parsedIntent.after_high_water,
         markMutation,
+        () => assertIntentPairSnapshotVisible(roots, pair),
       );
       if (crashAfter === "after_recovery_high_water") {
         fail("receipt_writer_test_crash_after_recovery_high_water");
@@ -1759,7 +1825,11 @@ export async function testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWr
   return await withWriterLock(input, callback);
 }
 
-async function persistInternal(input, crashAfter = null) {
+async function persistInternal(
+  input,
+  crashAfter = null,
+  { afterFreshIntentPairSnapshotHook = null } = {},
+) {
   let mutationPerformed = false;
   const markMutation = () => {
     mutationPerformed = true;
@@ -1810,43 +1880,70 @@ async function persistInternal(input, crashAfter = null) {
         receiptSha256: planned.receipt_sha256,
       });
 
-      createIntentPair(roots, intent, crashAfter, markMutation);
-      publishJournal(
-        roots,
-        state.journal,
-        nextJournal,
-        markMutation,
-      );
-      if (crashAfter === "after_journal_write") {
-        fail("receipt_writer_test_crash_after_journal_write");
-      }
-      publishHighWater(
-        roots,
-        state.high_water,
-        nextHighWater,
-        markMutation,
-      );
-      if (crashAfter === "after_high_water_write") {
-        fail("receipt_writer_test_crash_after_high_water_write");
-      }
+      let freshIntentPair = null;
+      try {
+        freshIntentPair = createIntentPairSnapshot(
+          roots,
+          intent,
+          crashAfter,
+          markMutation,
+        );
+        if (afterFreshIntentPairSnapshotHook !== null) {
+          if (typeof afterFreshIntentPairSnapshotHook !== "function") {
+            fail("receipt_writer_test_fresh_intent_hook_invalid");
+          }
+          afterFreshIntentPairSnapshotHook(roots, freshIntentPair);
+        }
 
-      const post = coherentState(roots);
-      if (
-        !post.journal.equals(nextJournal) ||
-        !post.high_water.equals(nextHighWater) ||
-        post.continuity.generation !== planned.generation ||
-        post.continuity.tip_receipt_sha256 !== planned.receipt_sha256
-      ) {
-        fail("receipt_writer_persist_postcheck_failed");
+        const assertFreshIntent = () =>
+          assertIntentPairSnapshotVisible(roots, freshIntentPair);
+
+        assertFreshIntent();
+        publishJournal(
+          roots,
+          state.journal,
+          nextJournal,
+          markMutation,
+          assertFreshIntent,
+        );
+        if (crashAfter === "after_journal_write") {
+          fail("receipt_writer_test_crash_after_journal_write");
+        }
+
+        assertFreshIntent();
+        publishHighWater(
+          roots,
+          state.high_water,
+          nextHighWater,
+          markMutation,
+          assertFreshIntent,
+        );
+        if (crashAfter === "after_high_water_write") {
+          fail("receipt_writer_test_crash_after_high_water_write");
+        }
+
+        assertFreshIntent();
+        const post = coherentState(roots);
+        if (
+          !post.journal.equals(nextJournal) ||
+          !post.high_water.equals(nextHighWater) ||
+          post.continuity.generation !== planned.generation ||
+          post.continuity.tip_receipt_sha256 !== planned.receipt_sha256
+        ) {
+          fail("receipt_writer_persist_postcheck_failed");
+        }
+        assertFreshIntent();
+        removeIntentPair(
+          roots,
+          intent,
+          markMutation,
+          crashAfter,
+        );
+        const finalState = coherentState(roots);
+        return success("persisted", finalState, true, false);
+      } finally {
+        closeIntentPairSnapshot(freshIntentPair);
       }
-      removeIntentPair(
-        roots,
-        intent,
-        markMutation,
-        crashAfter,
-      );
-      const finalState = coherentState(roots);
-      return success("persisted", finalState, true, false);
     });
   } catch (error) {
     return held(
@@ -1970,6 +2067,53 @@ export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceip
     return held(
       error instanceof Error ? error.message : String(error),
       mutationPerformed,
+    );
+  } finally {
+    try {
+      if (replacementCreated && target && fs.existsSync(target)) {
+        fs.unlinkSync(target);
+      }
+      if (displaced && target && fs.existsSync(displaced)) {
+        fs.renameSync(displaced, target);
+      }
+    } catch (error) {
+      void error;
+    }
+  }
+}
+
+export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1(
+  input,
+  which = "journal",
+) {
+  if (which !== "journal" && which !== "high_water") {
+    return held("receipt_writer_test_fresh_intent_swap_target_invalid", false);
+  }
+  let target = null;
+  let displaced = null;
+  let replacementCreated = false;
+  try {
+    return await persistInternal(
+      input,
+      null,
+      {
+        afterFreshIntentPairSnapshotHook(roots) {
+          const directory =
+            which === "high_water" ? roots.high_water : roots.journal;
+          target = path.join(directory.path, INTENT_NAME);
+          displaced =
+            target +
+            ".test-fresh-intent-displaced-" +
+            process.pid +
+            "-" +
+            which;
+          const bytes = fs.readFileSync(target);
+          fs.renameSync(target, displaced);
+          fs.writeFileSync(target, bytes, { mode: 0o600 });
+          fs.fsyncSync(directory.fd);
+          replacementCreated = true;
+        },
+      },
     );
   } finally {
     try {
