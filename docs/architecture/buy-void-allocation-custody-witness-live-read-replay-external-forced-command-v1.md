@@ -46,10 +46,10 @@ Two operations exist:
 
 ### read
 
-The request carries no replay payload. It returns the current witness state and
-performs no mutation unless it is completing the exact append request already
-bound by a pending durable intent. A read while an unrelated append intent is
-pending HOLDS.
+The request carries no replay payload and performs no mutation. It returns the
+current witness state only when no durable append intent is pending. If any
+durable append intent exists, read HOLDS before intent recovery; the exact
+append retry owns recovery and cleanup.
 
 ### append
 
