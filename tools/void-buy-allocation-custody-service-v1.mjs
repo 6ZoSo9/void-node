@@ -6,16 +6,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   classifyBuyVoidAllocationReservationLedgerV1,
-  planBuyVoidAllocationReservationV1,
 } from "../dist/economic/buy_void_allocation_reservation_ledger_v1.js";
 import {
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
 } from "../dist/economic/buy_void_allocation_reservation_high_water_v1.js";
-import {
-  persistBuyVoidAllocationReservationPublicationWriterV1,
-  recoverBuyVoidAllocationReservationPublicationWriterV1,
-} from "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js";
-
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1 =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1";
 
@@ -28,11 +22,13 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1 =
     server_controlled_custody_root: true,
     exact_request_schema_required: true,
     exact_response_schema_required: true,
-    canonical_allocation_planner_reused: true,
+    canonical_allocation_planner_reused: false,
     canonical_high_water_binding_reused: true,
-    canonical_publication_writer_reused: true,
-    one_allocation_transition_per_reserve: true,
-    recovery_terminal_before_new_transition: true,
+    canonical_publication_writer_reused: false,
+    one_allocation_transition_per_reserve: false,
+    verified_payment_provenance_independently_bound: false,
+    reserve_method_enabled: false,
+    recovery_terminal_before_new_transition: false,
     caller_selected_path: false,
     caller_selected_generation: false,
     arbitrary_path_write: false,
@@ -456,97 +452,21 @@ function responseEnvelope(requestSha256, decision) {
   });
 }
 
-function writerRoots(options) {
-  return {
-    ledger_root: options.ledger_root,
-    high_water_root: options.custody_root,
-  };
+function recoverCore() {
+  // A syntactically valid publication intent does not establish that the
+  // underlying payment_verified event was independently verified and fsynced.
+  // Older intents may originate from caller-asserted green flags.
+  // Block even explicit IPC recovery until that durable lineage is proven.
+  return held("allocation_custody_service_verified_payment_recovery_not_bound");
 }
 
-function recoverCore(options) {
-  const recovered =
-    recoverBuyVoidAllocationReservationPublicationWriterV1(
-      writerRoots(options),
-    );
-  if (recovered.ok !== true) {
-    return held(
-      "allocation_custody_service_recovery_" +
-        String(recovered.reason || "held"),
-    );
-  }
-  const state = readAuthorityState(options);
-  return success(
-    recovered.status === "recovered" ? "recovered" : "clean",
-    state,
-    recovered.operation_performed === true,
-  );
-}
-
-function reserveCore(options, request) {
-  const recovery =
-    recoverBuyVoidAllocationReservationPublicationWriterV1(
-      writerRoots(options),
-    );
-  if (recovery.ok !== true) {
-    return held(
-      "allocation_custody_service_recovery_" +
-        String(recovery.reason || "held"),
-    );
-  }
-  if (recovery.status === "recovered") {
-    const state = readAuthorityState(options);
-    return success(
-      "recovered_retry_required",
-      state,
-      true,
-    );
-  }
-
-  const state = readAuthorityState(options);
-  const plan = planBuyVoidAllocationReservationV1({
-    ledger_jsonl: state.ledger,
-    ...request,
-  });
-  if (plan.ok !== true) {
-    return held(
-      "allocation_custody_service_plan_" +
-        String(plan.reason || "held"),
-    );
-  }
-
-  const persisted =
-    persistBuyVoidAllocationReservationPublicationWriterV1({
-      ...writerRoots(options),
-      next_ledger_jsonl: plan.next_ledger_jsonl,
-    });
-  if (persisted.ok !== true) {
-    return held(
-      "allocation_custody_service_persist_" +
-        String(persisted.reason || "held"),
-    );
-  }
-  if (persisted.status === "recovered") {
-    const afterRecovery = readAuthorityState(options);
-    return success(
-      "recovered_retry_required",
-      afterRecovery,
-      true,
-    );
-  }
-
-  const after = readAuthorityState(options);
-  if (
-    after.record_count !== plan.next_record_count ||
-    after.tip_hash !== plan.record.allocation_record_hash
-  ) {
-    return held("allocation_custody_service_postcheck_mismatch");
-  }
-  return success(
-    plan.status === "idempotent" ? "duplicate" : "reserved",
-    after,
-    persisted.operation_performed === true,
-    plan.record,
-  );
+function reserveCore() {
+  // The socket request contains caller-asserted payment/duplicate/capacity
+  // booleans and digest-shaped strings, not independently verified authority.
+  // Until the custody service can descriptor-bind a durable payment_verified
+  // event inside the shared admission serialization boundary, no client may
+  // cause an allocation write through this IPC method.
+  return held("allocation_custody_service_verified_payment_provenance_not_bound");
 }
 
 export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
@@ -574,9 +494,9 @@ export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
   try {
     let decision;
     if (envelope.method === "reserve") {
-      decision = reserveCore(options, envelope.request);
+      decision = reserveCore();
     } else if (envelope.method === "recover") {
-      decision = recoverCore(options);
+      decision = recoverCore();
     } else {
       const state = readAuthorityState(options);
       decision = success("inspected", state, false);
