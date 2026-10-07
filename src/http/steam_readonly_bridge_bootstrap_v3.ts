@@ -202,7 +202,9 @@ export function registerSteamReadonlyBridgeBootstrapV3(
   if (!state) {
     state = {
       json_body_parser: options.json_body_parser,
-      env: { ...normalizedEnv(options.env) },
+      // Preserve the original provider identity across retries without
+      // enumerating or retaining every secret-bearing environment value.
+      env: normalizedEnv(options.env),
       fetch_impl: options.fetch_impl,
       now: options.now,
       parser_registered: false,
