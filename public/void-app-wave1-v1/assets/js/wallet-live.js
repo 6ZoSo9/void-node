@@ -71,6 +71,9 @@ const validateSource = (source, route, label) => {
   ) {
     throw new Error(`${label}.status must be an integer HTTP status or zero`);
   }
+  if (source.ok !== (source.status >= 200 && source.status < 300)) {
+    throw new Error(`${label} HTTP outcome mismatch`);
+  }
 };
 
 const validateAccounting = (value, label, extraKeys = []) => {
@@ -95,8 +98,12 @@ const validateAccounting = (value, label, extraKeys = []) => {
   if (value.available) {
     nonNegativeFinite(value.balance, `${label}.balance`);
     nonNegativeSafeInteger(value.entries, `${label}.entries`);
-  } else if (value.balance !== null || value.entries !== null) {
-    throw new Error(`${label} unavailable evidence must remain null`);
+  } else if (
+    value.balance !== null ||
+    value.entries !== null ||
+    value.display !== '—'
+  ) {
+    throw new Error(`${label} unavailable evidence must remain null and undisplayed`);
   }
 };
 
@@ -232,6 +239,29 @@ export const validateWalletSnapshotV1 = (
   if (snapshot.wallet.unlocked && !snapshot.wallet.has_wallet) {
     throw new Error('wallet unlocked without wallet');
   }
+  if (
+    !snapshot.wallet.source_available &&
+    (
+      snapshot.wallet.has_wallet ||
+      snapshot.wallet.address !== '' ||
+      snapshot.wallet.unlocked ||
+      snapshot.wallet.native_gas_available ||
+      snapshot.wallet.native_gas_display !== '—'
+    )
+  ) {
+    throw new Error('wallet unavailable source exposed wallet evidence');
+  }
+  if (
+    snapshot.wallet.native_gas_available
+      ? (
+        !snapshot.wallet.source_available ||
+        snapshot.wallet.native_gas_display.length === 0 ||
+        snapshot.wallet.native_gas_display === '—'
+      )
+      : snapshot.wallet.native_gas_display !== '—'
+  ) {
+    throw new Error('wallet native gas availability mismatch');
+  }
 
   exactKeys(snapshot.balances, ['void', 'ledger_wc', 'production_wc'], 'wallet snapshot.balances');
   exactKeys(
@@ -241,8 +271,9 @@ export const validateWalletSnapshotV1 = (
   );
   if (
     snapshot.balances.void.available !== false ||
-    typeof snapshot.balances.void.display !== 'string' ||
-    typeof snapshot.balances.void.reason !== 'string'
+    snapshot.balances.void.display !== '—' ||
+    typeof snapshot.balances.void.reason !== 'string' ||
+    snapshot.balances.void.reason.trim().length === 0
   ) {
     throw new Error('VOID balance boundary mismatch');
   }
@@ -293,6 +324,33 @@ export const validateWalletSnapshotV1 = (
     '/wc/production/balance',
     'wallet snapshot.sources.production_wc',
   );
+  if (
+    snapshot.wallet.source_available &&
+    (
+      !snapshot.sources.wallet_status.ok ||
+      snapshot.sources.wallet_status.status !== 200
+    )
+  ) {
+    throw new Error('wallet evidence available without its source');
+  }
+  if (
+    snapshot.balances.ledger_wc.available &&
+    (
+      !snapshot.sources.ledger_wc.ok ||
+      snapshot.sources.ledger_wc.status !== 200
+    )
+  ) {
+    throw new Error('ledger WC available without its source');
+  }
+  if (
+    snapshot.balances.production_wc.available &&
+    (
+      !snapshot.sources.production_wc.ok ||
+      snapshot.sources.production_wc.status !== 200
+    )
+  ) {
+    throw new Error('production WC available without its source');
+  }
 
   const boundaryKeys = [
     'browser_wallet_connection',

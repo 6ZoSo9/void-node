@@ -67,8 +67,8 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "a79d2dd9c557eda889036a155e0559d4c32f4d5fe6a120c8b1d9093b69868e73",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "24ce5f7f0701836f6578139f49cca5d1b4546e8707c14721ec93fbbd3331568b",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "ba7818e50691da74e55db669f85225c3027a8a077897dcab6d87ce924c562e10",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "3afd2bad5d40412d4e670c46d5569e16cb3019f5a3a59b9c94199953b7b36669",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -103,5 +103,6 @@
   "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30",
   "earn_backend_source_allowlist_refresh_date": "2026-09-30",
   "earn_backend_source_deadline_timer_ref_refresh_date": "2026-09-30",
-  "earn_backend_source_content_length_refresh_date": "2026-09-30"
+  "earn_backend_source_content_length_refresh_date": "2026-09-30",
+  "wallet_unavailable_evidence_coherence_refresh_date": "2026-10-06"
 }

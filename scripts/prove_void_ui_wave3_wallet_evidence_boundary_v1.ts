@@ -441,6 +441,57 @@ const statusString = validSnapshot() as any;
 statusString.sources.wallet_status.status = "200";
 assert.throws(() => validateWalletAt(statusString));
 
+for (const [ok, status] of [[false, 200], [true, 503]] as const) {
+  const value = validSnapshot() as any;
+  value.sources.wallet_status.ok = ok;
+  value.sources.wallet_status.status = status;
+  assert.throws(
+    () => validateWalletAt(value),
+    /HTTP outcome mismatch/,
+  );
+}
+
+for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
+  const value = validSnapshot() as any;
+  value.balances[balanceKey].available = false;
+  value.balances[balanceKey].balance = null;
+  value.balances[balanceKey].entries = null;
+  value.balances[balanceKey].display = "999";
+  assert.throws(
+    () => validateWalletAt(value),
+    /unavailable evidence must remain null and undisplayed/,
+  );
+}
+
+const inventedVoidDisplay = validSnapshot() as any;
+inventedVoidDisplay.balances.void.display = "999 VOID";
+assert.throws(
+  () => validateWalletAt(inventedVoidDisplay),
+  /VOID balance boundary mismatch/,
+);
+
+const unavailableWalletEvidence = validSnapshot() as any;
+unavailableWalletEvidence.wallet.source_available = false;
+assert.throws(
+  () => validateWalletAt(unavailableWalletEvidence),
+  /unavailable source exposed wallet evidence/,
+);
+
+const unavailableNativeGasDisplay = validSnapshot() as any;
+unavailableNativeGasDisplay.wallet.native_gas_available = false;
+assert.throws(
+  () => validateWalletAt(unavailableNativeGasDisplay),
+  /native gas availability mismatch/,
+);
+
+const ledgerWithoutSource = validSnapshot() as any;
+ledgerWithoutSource.sources.ledger_wc.ok = false;
+ledgerWithoutSource.sources.ledger_wc.status = 503;
+assert.throws(
+  () => validateWalletAt(ledgerWithoutSource),
+  /ledger WC available without its source/,
+);
+
 const fractionalCount = validSnapshot() as any;
 fractionalCount.balances.ledger_wc.entries = 1.5;
 assert.throws(() => validateWalletAt(fractionalCount));
@@ -567,6 +618,9 @@ console.log("server_final_url_exact=true");
 console.log("browser_schema_closed=true");
 console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
+console.log("browser_source_outcome_coherent=true");
+console.log("browser_unavailable_evidence_undisplayed=true");
+console.log("browser_available_evidence_source_bound=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");
