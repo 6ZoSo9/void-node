@@ -25,24 +25,26 @@ type CapturedResponse = {
 class FakeApp {
   readonly getHandlers = new Map<string, Handler>();
   readonly postHandlers = new Map<string, Handler>();
+  getAttempts = 0;
+  postAttempts = 0;
 
   get(pathname: string, handler: Handler): this {
+    this.getAttempts += 1;
     this.getHandlers.set(pathname, handler);
     return this;
   }
 
   post(pathname: string, handler: Handler): this {
+    this.postAttempts += 1;
     this.postHandlers.set(pathname, handler);
     return this;
   }
 }
 
 class FailOnceGetApp extends FakeApp {
-  getAttempts = 0;
-
   get(pathname: string, handler: Handler): this {
-    this.getAttempts += 1;
-    if (this.getAttempts === 1) {
+    if (this.getAttempts === 0) {
+      this.getAttempts += 1;
       throw new Error("synthetic status-route registration failure");
     }
     return super.get(pathname, handler);
@@ -50,11 +52,9 @@ class FailOnceGetApp extends FakeApp {
 }
 
 class FailOncePostApp extends FakeApp {
-  postAttempts = 0;
-
   post(pathname: string, handler: Handler): this {
-    this.postAttempts += 1;
-    if (this.postAttempts === 1) {
+    if (this.postAttempts === 0) {
+      this.postAttempts += 1;
       throw new Error("synthetic request-route registration failure");
     }
     return super.post(pathname, handler);
@@ -407,12 +407,12 @@ try {
 }
 need(partialRegistrationFailed, "partial registration did not fail");
 need(
-  failOnceApp.getHandlers.size === 1,
-  "status route missing after partial registration",
+  failOnceApp.getHandlers.size === 1 && failOnceApp.getAttempts === 1,
+  "status route missing or registered more than once after partial registration",
 );
 need(
-  failOnceApp.postHandlers.size === 0,
-  "failed request route was retained",
+  failOnceApp.postHandlers.size === 0 && failOnceApp.postAttempts === 1,
+  "failed request route was retained or attempt count mismatched",
 );
 
 const resumedRegistration = registerSteamReadonlyBridgeRuntimeV2(
@@ -427,7 +427,7 @@ need(
   "partial registration retry did not resume",
 );
 need(
-  failOnceApp.getHandlers.size === 1,
+  failOnceApp.getHandlers.size === 1 && failOnceApp.getAttempts === 1,
   "partial registration retry duplicated the status route",
 );
 need(
@@ -452,8 +452,10 @@ need(
   "completed partial-registration retry was not idempotent",
 );
 need(
-  routeCounts(failOnceApp).every((count) => count === 1),
-  "duplicate retry changed the completed route set",
+  routeCounts(failOnceApp).every((count) => count === 1) &&
+    failOnceApp.getAttempts === 1 &&
+    failOnceApp.postAttempts === 2,
+  "duplicate retry changed the completed route set or registration call count",
 );
 
 const app = new FakeApp();
