@@ -6,6 +6,9 @@ import {
   withBuyVoidFilesystemBakeryLockV1,
 } from "./buy_void_filesystem_bakery_lock_v1.js";
 import {
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComparePacketV1,
+} from "./buy_void_allocation_custody_witness_live_read_replay_compare_packet_v1.js";
+import {
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1,
 } from "./buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
@@ -39,6 +42,13 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_AU
     crash_recovery: true,
     exact_postcheck: true,
     cross_root_rollback_detection_semantics: true,
+    guarded_compare_entrypoints_available: true,
+    guarded_compare_inside_dual_lock: true,
+    guarded_compare_precedes_any_recovery_or_transition_write: true,
+    guarded_compare_postcheck_required: true,
+    guarded_compare_transport_origin_proven: false,
+    unguarded_entrypoints_retired: false,
+    runtime_guard_integration: false,
     storage_bootstrap: false,
     validated_packet_binding_proven: false,
     live_durable_storage_proven: false,
@@ -110,6 +120,16 @@ type CrashPhaseV1 =
   | "after_intents"
   | "after_journal"
   | "after_high_water";
+
+export type BuyVoidWitnessLiveReadReplayCompareCallbackV1 = (
+  input: Readonly<{
+    journal_jsonl: Buffer;
+    high_water_json: Buffer;
+  }>,
+) => Readonly<{
+  request_json: string | Buffer;
+  response_json: string | Buffer;
+}>;
 
 function fail(code: string): never {
   throw new Error(code);
@@ -1244,12 +1264,66 @@ function persistTransition(
       },
   crashPhase: CrashPhaseV1 | null,
   testOnlyFinalSnapshotHook: (() => void) | null = null,
+  compareGuard: BuyVoidWitnessLiveReadReplayCompareCallbackV1 | null = null,
 ) {
   try {
     return withPinnedRoots(
       input.journal_root,
       input.high_water_root,
       (journalDirectory, highWaterDirectory) => {
+        if (compareGuard !== null) {
+          if (typeof compareGuard !== "function") {
+            fail("witness_live_read_replay_writer_guard_callback_required");
+          }
+          if (
+            readOptionalIntent(journalDirectory) ||
+            readOptionalIntent(highWaterDirectory)
+          ) {
+            fail("witness_live_read_replay_writer_guard_pending_intent");
+          }
+          const beforeCompare = coherentState(
+            journalDirectory,
+            highWaterDirectory,
+          );
+          const compared = compareGuard(Object.freeze({
+            journal_jsonl: Buffer.from(beforeCompare.journal),
+            high_water_json: Buffer.from(beforeCompare.high_water_bytes),
+          }));
+          if (!compared || typeof compared !== "object") {
+            fail("witness_live_read_replay_writer_guard_result_invalid");
+          }
+          const decision =
+            classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComparePacketV1({
+              current_journal_jsonl: beforeCompare.journal,
+              current_high_water_json: beforeCompare.high_water_bytes,
+              request_json: compared.request_json,
+              response_json: compared.response_json,
+            });
+          if (decision.ok !== true) {
+            fail(
+              "witness_live_read_replay_writer_guard_" +
+                String(decision.reason || "invalid"),
+            );
+          }
+          if (
+            readOptionalIntent(journalDirectory) ||
+            readOptionalIntent(highWaterDirectory)
+          ) {
+            fail("witness_live_read_replay_writer_guard_intent_changed");
+          }
+          const afterCompare = coherentState(
+            journalDirectory,
+            highWaterDirectory,
+          );
+          if (
+            !beforeCompare.journal.equals(afterCompare.journal) ||
+            !beforeCompare.high_water_bytes.equals(
+              afterCompare.high_water_bytes,
+            )
+          ) {
+            fail("witness_live_read_replay_writer_guard_state_changed");
+          }
+        }
         const recovered = recoveryLocked(
           journalDirectory,
           highWaterDirectory,
@@ -1406,6 +1480,49 @@ export function persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1(
   },
 ) {
   return persistTransition({ ...input, kind: "terminal" }, null);
+}
+
+export function persistBuyVoidAllocationCustodyWitnessLiveReadReplayGuardedIssueV1(
+  input: {
+    journal_root: string;
+    high_water_root: string;
+    entropy_sha256: unknown;
+    issued_at_ms: unknown;
+    expires_at_ms: unknown;
+    compare_live: BuyVoidWitnessLiveReadReplayCompareCallbackV1;
+  },
+) {
+  if (typeof input.compare_live !== "function") {
+    return held("witness_live_read_replay_writer_guard_callback_required");
+  }
+  return persistTransition(
+    { ...input, kind: "issue" },
+    null,
+    null,
+    input.compare_live,
+  );
+}
+
+export function persistBuyVoidAllocationCustodyWitnessLiveReadReplayGuardedTerminalV1(
+  input: {
+    journal_root: string;
+    high_water_root: string;
+    outcome: unknown;
+    request_id?: unknown;
+    response_sha256?: unknown;
+    terminal_at_ms: unknown;
+    compare_live: BuyVoidWitnessLiveReadReplayCompareCallbackV1;
+  },
+) {
+  if (typeof input.compare_live !== "function") {
+    return held("witness_live_read_replay_writer_guard_callback_required");
+  }
+  return persistTransition(
+    { ...input, kind: "terminal" },
+    null,
+    null,
+    input.compare_live,
+  );
 }
 
 export function testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueCrashV1(

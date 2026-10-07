@@ -16,6 +16,7 @@ import {
   normalizeVoidRealmsSelectorValueV1,
   occupancyRootForPlacementsV1,
   placementOriginIsAlignedV1,
+  placementFitsRegionV1,
   planVoidRealmsTriScaleBreakV1,
   planVoidRealmsTriScalePlacementV1,
   simulateVoidRealmsTriScaleBreakV1,
@@ -101,6 +102,83 @@ async function main(): Promise<void> {
       microcellToNodeCoordinateV1(-4) === -1 &&
       microcellToNodeCoordinateV1(-5) === -2,
     "node/microcell conversion mismatch",
+  );
+  const maximumNodeCoordinate = Math.floor(
+    Number.MAX_SAFE_INTEGER / MICROCELLS_PER_STANDARD_EDGE,
+  );
+  const minimumNodeCoordinate = Math.ceil(
+    Number.MIN_SAFE_INTEGER / MICROCELLS_PER_STANDARD_EDGE,
+  );
+  assertCondition(
+    Number.isSafeInteger(
+      nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate),
+    ) &&
+      Number.isSafeInteger(
+        nodeCoordinateToMicrocellOriginV1(minimumNodeCoordinate),
+      ),
+    "bounded node coordinates did not map to exact microcells",
+  );
+  await expectReject("positive node-to-microcell overflow", () =>
+    nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate + 1),
+  );
+  await expectReject("negative node-to-microcell overflow", () =>
+    nodeCoordinateToMicrocellOriginV1(minimumNodeCoordinate - 1),
+  );
+  const maximumEnumeratedOrigin = Number.MAX_SAFE_INTEGER - 3;
+  assertCondition(
+    enumeratePlacementMicrocellKeysV1(
+      { x: maximumEnumeratedOrigin, y: 0, z: 0 },
+      4,
+    ).some((key) => key.startsWith(`${Number.MAX_SAFE_INTEGER}:`)),
+    "maximum safe microcell key was not enumerated exactly",
+  );
+  await expectReject("placement-key coordinate overflow", () =>
+    enumeratePlacementMicrocellKeysV1(
+      { x: maximumEnumeratedOrigin + 1, y: 0, z: 0 },
+      4,
+    ),
+  );
+  const maximumRegionOrigin =
+    nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate);
+  assertCondition(
+    maximumRegionOrigin === maximumEnumeratedOrigin,
+    "maximum node origin does not align with the final safe microcell",
+  );
+  assertCondition(
+    placementFitsRegionV1(
+      {
+        ...region,
+        minimum_x: maximumNodeCoordinate,
+        maximum_x: maximumNodeCoordinate,
+        minimum_y: maximumNodeCoordinate,
+        maximum_y: maximumNodeCoordinate,
+        minimum_z: maximumNodeCoordinate,
+        maximum_z: maximumNodeCoordinate,
+      },
+      {
+        x: maximumRegionOrigin,
+        y: maximumRegionOrigin,
+        z: maximumRegionOrigin,
+      },
+      4,
+    ),
+    "final safe standard-node placement did not fit its exact region",
+  );
+  assertCondition(
+    placementFitsRegionV1(
+      {
+        ...region,
+        minimum_x: 0,
+        maximum_x: Number.MAX_SAFE_INTEGER,
+        minimum_y: 0,
+        maximum_y: 0,
+        minimum_z: 0,
+        maximum_z: 0,
+      },
+      { x: 0, y: 0, z: 0 },
+      1,
+    ),
+    "safe-integer region boundary was not compared exactly",
   );
   assertCondition(
     placementOriginIsAlignedV1({ x: -4, y: 0, z: 4 }, 4) &&
