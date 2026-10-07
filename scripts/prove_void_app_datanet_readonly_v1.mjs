@@ -310,10 +310,54 @@ assert.match(html, /Historical DataNet evidence/);
 assert.match(html, /historical evidence, not current Nimo connectivity or current network topology/);
 assert.match(html, /HISTORICAL \/ READ-ONLY/);
 assert.match(html, /Live topology<\/span><strong>NOT CLAIMED/);
+
+const liveRegionOpen =
+  '<div class="hero-content" role="status" aria-live="polite" aria-atomic="true">';
+const liveRegionStart = html.indexOf(liveRegionOpen);
+assert.ok(liveRegionStart >= 0, "DataNet polite atomic live region opening tag missing");
+const liveRegionEnd = html.indexOf("</div>", liveRegionStart + liveRegionOpen.length);
+assert.ok(liveRegionEnd > liveRegionStart, "DataNet polite atomic live region closing tag missing");
+const liveRegion = html.slice(liveRegionStart, liveRegionEnd + "</div>".length);
+for (const field of [
+  "data-datanet-state-chip",
+  "data-datanet-state-title",
+  "data-datanet-message",
+  "data-datanet-updated",
+]) {
+  assert.match(
+    liveRegion,
+    new RegExp(field),
+    `dynamic DataNet field must remain inside one polite atomic live region: ${field}`,
+  );
+}
+
+const updatedNodeMatch = liveRegion.match(
+  /<small class="home-updated" data-datanet-updated>[\s\S]*?<\/small>/,
+);
+assert.ok(updatedNodeMatch, "DataNet updated node missing from live region fixture");
+const liveRegionWithoutUpdated = liveRegion.replace(updatedNodeMatch[0], "");
+const outOfRegionUpdated = html.replace(
+  liveRegion,
+  liveRegionWithoutUpdated + updatedNodeMatch[0],
+);
+const mutatedStart = outOfRegionUpdated.indexOf(liveRegionOpen);
+const mutatedEnd = outOfRegionUpdated.indexOf(
+  "</div>",
+  mutatedStart + liveRegionOpen.length,
+);
+const mutatedLiveRegion = outOfRegionUpdated.slice(
+  mutatedStart,
+  mutatedEnd + "</div>".length,
+);
+assert.doesNotMatch(
+  mutatedLiveRegion,
+  /data-datanet-updated/,
+  "proof adversary must move updated state outside the live region",
+);
 assert.match(
-  html,
-  /<div class="hero-content" role="status" aria-live="polite" aria-atomic="true">[\s\S]*data-datanet-state-chip[\s\S]*data-datanet-message[\s\S]*data-datanet-updated[\s\S]*<\/div>/,
-  "dynamic DataNet state must remain inside one polite atomic live region",
+  outOfRegionUpdated.slice(mutatedEnd + "</div>".length),
+  /data-datanet-updated/,
+  "proof adversary must retain updated state outside the live region",
 );
 assert.match(html, /Recorded field path/);
 assert.match(html, /Recorded network path/);
