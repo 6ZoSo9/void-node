@@ -179,7 +179,7 @@ const isolated=spawnSync("/bin/sh",["-c",inertForced],{
 assert.equal(isolated.status,0,isolated.stderr);
 assert.ok(isolated.stdout.includes("SSH_ORIGINAL_COMMAND="+originalCommand+"\n"));
 assert.doesNotMatch(isolated.stdout,/NODE_OPTIONS|NODE_PATH|ATTACKER_OTHER_VAR/u);
-assert.ok(isolated.stdout.includes("VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1\\n"));
+assert.ok(isolated.stdout.includes("VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1\n"));
 
 assert.doesNotMatch(s, /(?:ssh|sshd)\s+-[A-Za-z]*R\b/u);
 assert.doesNotMatch(s, /\brm\s+-rf\b/u);
