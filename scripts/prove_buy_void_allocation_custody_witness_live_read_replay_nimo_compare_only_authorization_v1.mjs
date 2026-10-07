@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const script =
@@ -227,9 +229,15 @@ assert.match(
   guide,
   /sudo \/usr\/bin\/git hash-object "\$trusted"/u,
 );
-assert.match(
+assert.equal(
+  guide.includes('sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"'),
+  true,
+  "Nimo root installer must start with a cleared and reviewed Bash environment",
+);
+assert.doesNotMatch(
   guide,
-  /sudo \/bin\/bash "\$trusted"/u,
+  /^\s*sudo\s+\/bin\/bash\s+"\$trusted"/mu,
+  "unisolated privileged Bash must never be an operator launch step",
 );
 assert.doesNotMatch(
   guide,
@@ -237,7 +245,44 @@ assert.doesNotMatch(
   "operator handoff must never execute the user-writable staged installer as root",
 );
 
+// Inert nonprivileged regression: BASH_ENV is read before a trusted
+// noninteractive Bash script, even with --noprofile --norc. Verify
+// the operator's reviewed env -i argument sequence blocks that hook.
+function proveRootBashStartupEnvIsolationV1() {
+  const fixtureDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-nimo-bash-startup-"),
+  );
+  try {
+    const startup = path.join(fixtureDir, "startup.sh");
+    const trusted = path.join(fixtureDir, "trusted.sh");
+    fs.writeFileSync(startup, "echo BASH_ENV_PRE_BODY=1" + String.fromCharCode(10), {mode:0o600});
+    fs.writeFileSync(trusted, "echo TRUSTED_BODY=1" + String.fromCharCode(10), {mode:0o600});
+    const injected = {...process.env, BASH_ENV: startup};
+    const original = spawnSync(
+      "/bin/bash", ["--noprofile", "--norc", trusted],
+      {env:injected, encoding:"utf8", timeout:5000},
+    );
+    assert.equal(original.status, 0, original.stderr);
+    assert.match(original.stdout, /BASH_ENV_PRE_BODY=1/u);
+
+    const protectedRun = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i", "PATH=/usr/bin:/bin", "HOME=/root", "LANG=C", "LC_ALL=C",
+        "/bin/bash", "--noprofile", "--norc", trusted,
+      ],
+      {env:injected, encoding:"utf8", timeout:5000},
+    );
+    assert.equal(protectedRun.status, 0, protectedRun.stderr);
+    assert.equal(protectedRun.stdout, "TRUSTED_BODY=1" + String.fromCharCode(10));
+  } finally {
+    fs.rmSync(fixtureDir, {recursive:true, force:true});
+  }
+}
+proveRootBashStartupEnvIsolationV1();
+
 console.log("VOID_REPLAY_NIMO_COMPARE_ONLY_AUTHORIZATION_SOURCE_PROOF_V1_GREEN");
+console.log("privileged_bash_startup_environment_cleared=true");
 console.log("source_only=true");
 console.log("nimo_install_executed=false");
 console.log("new_wrapper_content_pinned=true");

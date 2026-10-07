@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const file =
@@ -25,7 +27,7 @@ for (const required of [
   "8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f",
   'sudo /usr/bin/install -o 0 -g 0 -m 0500 -- "$src" "$trusted"',
   "sudo /usr/bin/sha256sum --status -c -",
-  'sudo /bin/bash "$trusted"',
+  'sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"',
   "0:0:700:directory",
   "0:0:500:1:regular file",
 ]) {
@@ -35,6 +37,11 @@ assert.equal(
   operatorShell.includes('sudo /bin/bash "$HOME/.local/state/void-replay-compare-handler-upgrade-v1/upgrade.sh"'),
   false,
   "never execute user-writable staging source as root",
+);
+assert.doesNotMatch(
+  operatorShell,
+  /^\s*sudo\s+\/bin\/bash\s+"\$trusted"/mu,
+  "unisolated privileged Bash must never be an operator launch step",
 );
 const handoffSyntax = spawnSync("bash", ["-n"], {
   input: operatorShell, encoding: "utf8", timeout: 5000,
@@ -86,7 +93,44 @@ assert.equal(help.status,0,help.stderr);
 assert.match(help.stdout,/Nimo-only handler replacement/u);
 assert.equal(help.stderr,"");
 
+// Inert nonprivileged regression: BASH_ENV is read before a trusted
+// noninteractive Bash script, even with --noprofile --norc. Verify
+// the operator's reviewed env -i argument sequence blocks that hook.
+function proveRootBashStartupEnvIsolationV1() {
+  const fixtureDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-nimo-bash-startup-"),
+  );
+  try {
+    const startup = path.join(fixtureDir, "startup.sh");
+    const trusted = path.join(fixtureDir, "trusted.sh");
+    fs.writeFileSync(startup, "echo BASH_ENV_PRE_BODY=1" + String.fromCharCode(10), {mode:0o600});
+    fs.writeFileSync(trusted, "echo TRUSTED_BODY=1" + String.fromCharCode(10), {mode:0o600});
+    const injected = {...process.env, BASH_ENV: startup};
+    const original = spawnSync(
+      "/bin/bash", ["--noprofile", "--norc", trusted],
+      {env:injected, encoding:"utf8", timeout:5000},
+    );
+    assert.equal(original.status, 0, original.stderr);
+    assert.match(original.stdout, /BASH_ENV_PRE_BODY=1/u);
+
+    const protectedRun = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i", "PATH=/usr/bin:/bin", "HOME=/root", "LANG=C", "LC_ALL=C",
+        "/bin/bash", "--noprofile", "--norc", trusted,
+      ],
+      {env:injected, encoding:"utf8", timeout:5000},
+    );
+    assert.equal(protectedRun.status, 0, protectedRun.stderr);
+    assert.equal(protectedRun.stdout, "TRUSTED_BODY=1" + String.fromCharCode(10));
+  } finally {
+    fs.rmSync(fixtureDir, {recursive:true, force:true});
+  }
+}
+proveRootBashStartupEnvIsolationV1();
+
 console.log("VOID_REPLAY_NIMO_COMPARE_HANDLER_UPGRADE_V1_SOURCE_GREEN");
+console.log("privileged_bash_startup_environment_cleared=true");
 console.log("source_only_test=true");
 console.log("privileged_script_root_copied_and_digest_verified=true");
 console.log("temporary_mjs_suffix_required=true");

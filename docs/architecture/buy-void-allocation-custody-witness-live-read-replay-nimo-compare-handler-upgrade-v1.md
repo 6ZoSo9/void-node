@@ -108,7 +108,7 @@ else
 fi
 [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%h:%F" "$trusted")" == "0:0:500:1:regular file" ]] || exit 2
 echo "$expected  $trusted" | sudo /usr/bin/sha256sum --status -c - || exit 2
-sudo /bin/bash "$trusted"
+sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"
 '
 ```
 
@@ -116,6 +116,12 @@ The `scp` staging directory is unprivileged and **never** a trusted
 privileged-script execution location. The fixed trusted copy lives under
 root-owned mode-`0700` `/root`, has exact root/root mode-`0500` metadata,
 and is verified against its reviewed source SHA-256 before invocation.
+The privileged Bash process starts via `/usr/bin/env -i` with only
+`PATH=/usr/bin:/bin`, `HOME=/root`, `LANG=C` and `LC_ALL=C`, plus
+`--noprofile --norc`. This prevents an ambient `BASH_ENV` (if preserved
+by an unusual sudo environment policy) from sourcing unreviewed code before
+the pinned operator script runs. Environment isolation is a source-level
+launch requirement, not evidence that Nimo's live sudo policy was examined.
 An existing trusted copy with unknown bytes or metadata HOLDS rather than being
 silently overwritten. Nimo does not run a shell script directly from
 `/home/zoso` with `sudo`.
