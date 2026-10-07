@@ -96,7 +96,8 @@ The source-only proof uses Node's ESM parser to compare **every static module
 specifier** against that explicit complete allowlist.
 It also disallows **import attributes and non-evaluation import phases** even
 when the module specifier is already allowed. Node 24/26 expose import-request
-metadata directly; Node 22 checks attributes through an inert vm.Module linker,
+metadata directly; Node 22 checks attributes through an inert vm.Module linker
+**even if its partial `moduleRequests` API is present without `phase` fields**,
 without evaluating the custody service or imported modules. Parser/metadata
 incompatibility HOLDs rather than trusting a reduced specifier list.
 The census rejects new relative helpers, third-party packages, built-ins or
