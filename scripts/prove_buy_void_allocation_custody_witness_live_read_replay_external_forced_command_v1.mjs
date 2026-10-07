@@ -204,6 +204,29 @@ const deps = Object.freeze({
       journal: journal0,
       high_water: highWater(journal0),
     });
+    const append0Value = JSON.parse(append0.toString("utf8"));
+    assert.equal(
+      append0Value.source_journal_json_base64,
+      "",
+      "canonical genesis replay journal must encode as empty base64",
+    );
+    const invalidEmptyHighWater = Buffer.from(
+      canonicalLine({
+        ...append0Value,
+        request_id: requestId("append-genesis-empty-high-water"),
+        source_high_water_json_base64: "",
+      }),
+      "utf8",
+    );
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          invalidEmptyHighWater,
+          deps,
+        ),
+      /append_payload_invalid/u,
+    );
     const appended =
       handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
         f.config,
@@ -677,6 +700,8 @@ console.log("caller_selected_identity=false");
 console.log("server_observed_witness_identity=true");
 console.log("read_empty_witness_nonmutating=true");
 console.log("canonical_genesis_append=true");
+console.log("empty_genesis_journal_base64_admitted=true");
+console.log("empty_high_water_base64_rejected=true");
 console.log("one_planned_event_per_append=true");
 console.log("exact_idempotence=true");
 console.log("intent_only_crash_recovered=true");
