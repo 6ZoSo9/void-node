@@ -240,6 +240,9 @@ done
 [[ "$(stat -c '%u:%g:%a:%F' /root)" == "0:0:700:directory" ]] ||
   hold root_directory_custody_changed
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 [[ "$(getent passwd 997 | awk -F: '{print $1 ":" $4}')" == "voidwitness:984" ]] ||
   hold voidwitness_identity_changed
 
@@ -283,8 +286,8 @@ snapshot_compare_public_key_v1   "$compare_pub" /root "$compare_fpr" false '' ||
   hold compare_public_snapshot_or_fingerprint_invalid
 public="$compare_public"
 
-forced_command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 /usr/bin/node $wrapper"
-third="restrict,command=\"$forced_command\" ssh-ed25519 $public void-replay-compare-only-v1"
+forced_command="/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND=\"\${SSH_ORIGINAL_COMMAND-}\" /usr/bin/node $wrapper"
+third="restrict,command=\"${forced_command//\"/\\\"}\" ssh-ed25519 $public void-replay-compare-only-v1"
 
 count="$(awk 'END {print NR}' "$auth")"
 [[ "$count" == 2 || "$count" == 3 ]] || hold authorized_key_count_changed
@@ -348,9 +351,13 @@ if [[ "$count" == 2 ]]; then
   [[ "$(sha256sum "$auth" | awk '{print $1}')" == "$original_auth_sha" ]] ||
     hold original_authorized_keys_changed
   [[ ! -e "$intent" && ! -L "$intent" ]] || hold intent_appeared
-  mv -T -- "$tmpauth" "$auth"
-  tmpauth=''
+  # Mark the rollback obligation before the atomic rename. A HUP/TERM after
+  # publication must not skip recovery because the assignment came later.
   committed=true
+  if ! mv -T -- "$tmpauth" "$auth"; then
+    hold authorized_keys_atomic_publish_failed
+  fi
+  tmpauth=''
   echo "third_key_atomically_installed=true"
 else
   echo "third_key_already_installed=true"
