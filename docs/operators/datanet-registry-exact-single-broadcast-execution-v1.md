@@ -135,7 +135,13 @@ it must establish one exact source authority:
 9. load the broadcaster authority from that in-memory graph rather than from a
    mutable pathname.
 
-The launcher itself is streamed from its exact Git object. The 27 relative
+The launcher itself is streamed from its exact Git object. The launcher blob
+SHA-1 pinned by bootstrap is carried through the entire preparation boundary:
+after reviewed source/package preparation, the launcher repeats canonical
+repository/remote-main authority using that same exact launcher blob before any
+broadcast input is parsed or RPC submission capability is exposed.
+
+The 27 relative
 module bodies executed by the broadcaster are the exact captured Git-object
 bytes supplied from memory. The reviewed-runtime helper is likewise supplied
 from exact Git-object bytes through an in-memory hook. The private source tree
@@ -249,7 +255,11 @@ existing dependency-injected single-attempt semantics, it permanently checks:
   is sourced from the in-memory reviewed graph;
 - the reviewed `ethers` profile can be verified and materialized, its exact
   package aggregate can bind the standalone in-memory bundle, and neither source
-  preparation nor module import performs an RPC call or transaction submission.
+  preparation nor module import performs an RPC call or transaction submission;
+- the post-preparation repository authority check reuses the exact launcher
+  Git-blob identity pinned before preparation, reaches that second check with
+  external effects trapped, and performs zero RPC sends or transaction
+  submission.
 
 The proof restores its temporary worktree mutation and CI requires a clean
 checkout afterwards.
