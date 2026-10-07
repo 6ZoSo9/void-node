@@ -135,13 +135,38 @@ function globMatchesPath(pattern, candidate) {
       regex += "[^/]";
       continue;
     }
-    regex += char.replace(/[.*+?^$()|[\]{}\\]/gu, "\\$&");
+    if ("\\.^$+()[]{}|".includes(char)) {
+      regex += "\\" + char;
+    } else {
+      regex += char;
+    }
   }
   regex += "$";
   return new RegExp(regex, "u").test(candidate);
 }
 
 function assertV4ConsumerTriggerClosure() {
+  assert.equal(
+    globMatchesPath(
+      "scripts/prove_buy_void_enforcement_*",
+      "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs",
+    ),
+    true,
+  );
+  assert.equal(
+    globMatchesPath(
+      "docs/architecture/buy-void-enforcement-artifact-attestation-v1.*",
+      "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+    ),
+    true,
+  );
+  assert.equal(
+    globMatchesPath(
+      "docs/architecture/buy-void-enforcement-artifact-attestation-v1.*",
+      "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
+    ),
+    false,
+  );
   for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
     const source = read(ROOT, workflowPath).toString("utf8");
     const eventNames = ["pull_request"];
