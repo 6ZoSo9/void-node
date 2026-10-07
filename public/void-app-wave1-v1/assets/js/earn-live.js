@@ -1144,7 +1144,9 @@ export const clearEarnHistoryEvidenceV1 = () => {
 };
 
 const renderError = (message) => {
-  clearEarnHistoryEvidenceV1();
+  resetEarnView(
+    message || 'The read-only Earn adapter did not respond.'
+  );
 
   setChip(
     document.querySelector('[data-earn-state-chip]'),
@@ -1152,10 +1154,6 @@ const renderError = (message) => {
     'Earn state unavailable'
   );
 
-  setText(
-    '[data-earn-message]',
-    message || 'The read-only Earn adapter did not respond.'
-  );
 };
 
 const renderEarn = (
@@ -1375,6 +1373,8 @@ export const loadAccount = async (account, button) => {
   const value = String(account || '').trim();
 
   if (!ACCOUNT_PATTERN.test(value)) {
+    invalidateEarnRequest('earn request replaced by invalid account');
+    restoreEarnLoadControlV1(button);
     renderError(
       'Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.'
     );
