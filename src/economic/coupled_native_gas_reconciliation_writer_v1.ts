@@ -988,7 +988,7 @@ async function persistWithDependencies(
       "coupled_native_gas_reconciliation_writer_queue",
     );
 
-    return await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+    const decision = await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
       queue.proc_path,
       async () => {
         assertPinnedDirectoryVisible(
@@ -1307,6 +1307,28 @@ async function persistWithDependencies(
         });
       },
     );
+    // The bakery queue's final unlink/fsync occurs AFTER its callback.
+    // A successful result must not survive pathname replacement there.
+    // Host-enforced storage-root stability remains independently unproven.
+    if (decision.ok === true) {
+      assertPinnedDirectoryVisible(
+        root!,
+        "coupled_native_gas_reconciliation_writer_root",
+      );
+      assertPinnedDirectoryVisible(
+        records!,
+        "coupled_native_gas_reconciliation_writer_records_directory",
+      );
+      assertPinnedDirectoryVisible(
+        reconciliations!,
+        "coupled_native_gas_reconciliation_writer_reconciliations_directory",
+      );
+      assertPinnedDirectoryVisible(
+        queue!,
+        "coupled_native_gas_reconciliation_writer_queue",
+      );
+    }
+    return decision;
   } catch (error) {
     return held(
       error instanceof Error

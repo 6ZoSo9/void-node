@@ -1031,6 +1031,119 @@ for (const [key, value] of Object.entries(
   }
 }
 
+
+async function proveTerminalBakeryReleaseRootSwapHolds(
+  target: "root" | "records" | "reconciliations" | "queue",
+  replay: boolean,
+): Promise<void> {
+  const liability = makeLiability();
+  const reconciliation = makeReconciliation(liability);
+  const f = fixture([liability], replay ? [reconciliation] : []);
+  const originalFsync = fs.fsyncSync;
+  const queueDir = path.join(f.root, QUEUE);
+  const reconciliationPath = path.join(
+    f.root, RECONCILIATIONS, reconciliation.reconciliation_id + ".json",
+  );
+  const pathForTarget = {
+    root: f.root,
+    records: path.join(f.root, RECORDS),
+    reconciliations: path.join(f.root, RECONCILIATIONS),
+    queue: queueDir,
+  } as const;
+  const visible = pathForTarget[target];
+  const detached =
+    target === "root"
+      ? f.root + "-terminal-" + (replay ? "replay" : "stored") + "-detached"
+      : path.join(f.root, target + "-terminal-detached");
+  let injected = false;
+  try {
+    (fs as any).fsyncSync = (fd: number) => {
+      const result = originalFsync(fd);
+      if (injected) return result;
+      let fdPath = "";
+      try {
+        fdPath = fs.readlinkSync("/proc/self/fd/" + String(fd));
+      } catch {
+        return result;
+      }
+      if (
+        fdPath !== queueDir ||
+        !fs.existsSync(reconciliationPath) ||
+        fs.readdirSync(queueDir).some((name) => name.startsWith("ticket-"))
+      ) {
+        return result;
+      }
+      // Trigger strictly after the bakery ticket has been unlinked and
+      // its queue-directory fsync completed, before result publication.
+      injected = true;
+      fs.renameSync(visible, detached);
+      fs.mkdirSync(visible, { mode: 0o700 });
+      return result;
+    };
+
+    const outcome =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () =>
+            resolved(liability, reconciliation),
+        },
+      );
+    assert.equal(injected, true, target + " release swap not exercised");
+    requireHeld(outcome);
+    assert.equal(
+      outcome.status,
+      replay ? "held" : "held_after_mutation",
+    );
+    assert.equal(
+      outcome.mutation_performed,
+      !replay,
+      "durable first publication cannot be misreported as uncommitted",
+    );
+    assert.equal(
+      outcome.reason,
+      "coupled_native_gas_reconciliation_writer_" +
+        (target === "root"
+          ? "root"
+          : target === "records"
+            ? "records_directory"
+            : target === "reconciliations"
+              ? "reconciliations_directory"
+              : "queue") +
+        "_changed",
+    );
+    const durablePath =
+      target === "root"
+        ? path.join(detached, RECONCILIATIONS, reconciliation.reconciliation_id + ".json")
+        : target === "reconciliations"
+          ? path.join(detached, reconciliation.reconciliation_id + ".json")
+          : reconciliationPath;
+    assert.equal(fs.existsSync(durablePath), true);
+    assert.equal(
+      VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1
+        .root_path_stability_proven,
+      false,
+    );
+  } finally {
+    (fs as any).fsyncSync = originalFsync;
+    cleanup(f);
+    if (target === "root") {
+      fs.rmSync(detached, { recursive: true, force: true });
+    }
+  }
+}
+
+for (const replay of [false, true]) {
+  for (const target of ["root", "records", "reconciliations", "queue"] as const) {
+    await proveTerminalBakeryReleaseRootSwapHolds(target, replay);
+  }
+}
+
 const writerSource = fs.readFileSync(
   path.join(
     process.cwd(),
@@ -1074,6 +1187,9 @@ console.log("stale_writer_temp_cleanup_reports_mutation=true");
 console.log("linked_writer_temp_recovery_idempotent=true");
 console.log("record_filename_identity_binding=true");
 console.log("concurrent_exact_replay_single_record=true");
+console.log("terminal_bakery_release_root_records_reconciliations_queue_hold=true");
+console.log("terminal_bakery_release_idempotent_replay_hold=true");
+console.log("terminal_bakery_release_mutation_truth_preserved=true");
 console.log("storage_bootstrap=false");
 console.log("liability_record_mutation=false");
 console.log("retry_execution=false");
