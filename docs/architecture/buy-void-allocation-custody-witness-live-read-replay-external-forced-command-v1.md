@@ -74,6 +74,14 @@ Before any append the handler writes a durable same-root intent binding:
 
 The intent is fsynced before witness mutation.
 
+The intent-size ceiling is derived from the 12 MiB canonical request ceiling,
+one maximal 4 KiB witness event, and bounded metadata. It is intentionally
+larger than the replay journal ceiling because the request already base64-wraps
+the replay/high-water payload and the durable intent base64-wraps those exact
+canonical request bytes again. A near-capacity valid replay state must not pass
+planning and then fail solely because its crash-recovery intent cannot represent
+the accepted request.
+
 Recovery accepts only:
 
 - exact prior witness;
@@ -136,7 +144,8 @@ git diff --check
 The proof covers empty read, canonical genesis append, one-event advance,
 idempotence, intent-only crash, torn append, full append before intent cleanup,
 read HOLD with pending intent, mismatched recovery request, host-identity drift,
-caller path injection, and negative live/economic authority flags.
+caller path injection, the nested-base64 near-capacity request/intent bound, and
+negative live/economic authority flags.
 
 ## Next gate
 
