@@ -106,21 +106,71 @@ async function support(head){
 }
 function stableJson(raw,label,{privateMode=false}={}){
   const file=path.resolve(raw);
-  const st=fs.lstatSync(file);
-  if(st.isSymbolicLink()||!st.isFile()||fs.realpathSync.native(file)!==file||
-    st.size<2||st.size>MAX_JSON||
-    (privateMode&&(st.nlink!==1||(typeof process.getuid==="function"&&st.uid!==process.getuid())||(st.mode&0o777)!==0o600))){
+  const listed=fs.lstatSync(file,{bigint:true});
+  if(
+    listed.isSymbolicLink()||
+    !listed.isFile()||
+    fs.realpathSync.native(file)!==file||
+    listed.size<2n||
+    listed.size>BigInt(MAX_JSON)||
+    (privateMode&&(
+      listed.nlink!==1n||
+      (typeof process.getuid==="function"&&
+        listed.uid!==BigInt(process.getuid()))||
+      Number(listed.mode&0o777n)!==0o600
+    ))
+  ){
     fail(label+"_file_policy_invalid");
   }
-  const fd=fs.openSync(file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0));
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
   try{
-    const a=fs.fstatSync(fd,{bigint:true});
-    const bytes=Buffer.alloc(Number(a.size));let n=0;
-    while(n<bytes.length){const x=fs.readSync(fd,bytes,n,bytes.length-n,n);if(x<=0)fail(label+"_short_read");n+=x;}
-    const b=fs.fstatSync(fd,{bigint:true});
-    for(const k of["dev","ino","size","mtimeNs","ctimeNs","mode","uid","gid","nlink"])if(a[k]!==b[k])fail(label+"_changed");
+    const opened=fs.fstatSync(fd,{bigint:true});
+    if(
+      !opened.isFile()||
+      opened.nlink!==listed.nlink||
+      opened.size!==listed.size||
+      opened.size<2n||
+      opened.size>BigInt(MAX_JSON)||
+      opened.dev!==listed.dev||
+      opened.ino!==listed.ino||
+      (privateMode&&(
+        (typeof process.getuid==="function"&&
+          opened.uid!==BigInt(process.getuid()))||
+        Number(opened.mode&0o777n)!==0o600
+      ))
+    ){
+      fail(label+"_opened_file_policy_invalid");
+    }
+    const bytes=Buffer.alloc(Number(opened.size));
+    let n=0;
+    while(n<bytes.length){
+      const x=fs.readSync(fd,bytes,n,bytes.length-n,n);
+      if(x<=0)fail(label+"_short_read");
+      n+=x;
+    }
+    const probe=Buffer.alloc(1);
+    if(fs.readSync(fd,probe,0,1,bytes.length)!==0){
+      fail(label+"_grew_during_read");
+    }
+    const after=fs.fstatSync(fd,{bigint:true});
+    const visible=fs.lstatSync(file,{bigint:true});
+    for(const k of[
+      "dev","ino","size","mtimeNs","ctimeNs","mode","uid","gid","nlink",
+    ]){
+      if(opened[k]!==after[k]||after[k]!==visible[k]){
+        fail(label+"_changed_or_rebound");
+      }
+    }
+    if(visible.isSymbolicLink()||!visible.isFile()){
+      fail(label+"_visible_file_policy_invalid");
+    }
     return JSON.parse(bytes.toString("utf8"));
-  }finally{fs.closeSync(fd);}
+  }finally{
+    fs.closeSync(fd);
+  }
 }
 function stateDir(raw){
   const dir=path.resolve(raw),st=fs.lstatSync(dir);
