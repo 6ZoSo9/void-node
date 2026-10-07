@@ -83,6 +83,10 @@ function contentId(prefix: string, value: unknown): string {
   );
 }
 
+function mutableClone<T>(value: T): any {
+  return structuredClone(value) as any;
+}
+
 function fixture() {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-replay-composition-v1-"),
@@ -201,6 +205,7 @@ const policyDecision =
   );
 assert.equal(policyDecision.ok, true);
 if (!policyDecision.ok) throw new Error("policy fixture held");
+const qualifiedPolicyDecision = policyDecision;
 
 const genesisBody = {
   allocation_tip_sha256: "sha256:" + "0".repeat(64),
@@ -274,7 +279,7 @@ function liveReadQualification({
     runtime_bundle_collector_receipt_sha256: sha("8"),
     transport_marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
-    transport_policy_sha256: policyDecision.policy_sha256,
+    transport_policy_sha256: qualifiedPolicyDecision.policy_sha256,
     remote_host: "nimo",
     installation_hostname: "Nimo",
     installation_machine_id_sha256: sha("9"),
@@ -374,6 +379,9 @@ try {
     });
   assert.equal(validated.ok, true);
   if (!validated.ok) throw new Error("response fixture held");
+  if (validated.status !== "read_response_verified") {
+    throw new Error("response fixture was not a read response");
+  }
 
   const liveRead = liveReadQualification({
     challengeSha256: issue.transition_challenge_sha256,
@@ -429,7 +437,7 @@ try {
   assert.equal(green.funds_movement, false);
 
   {
-    const badLive = structuredClone(liveRead);
+    const badLive = mutableClone(liveRead);
     badLive.normalized.challenge_issued_at_ms = 1_001;
     badLive.normalized.challenge_age_ms =
       badLive.normalized.response_observed_at_ms - 1_001;
@@ -449,7 +457,7 @@ try {
   }
 
   {
-    const badStorage = structuredClone(baseInput.replay_storage_evidence);
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
     badStorage.authority.synthetic_storage_authority = true;
     const held =
       classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
@@ -465,7 +473,7 @@ try {
   }
 
   {
-    const badStorage = structuredClone(baseInput.replay_storage_evidence);
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
     badStorage.normalized.generation = 1;
     badStorage.qualification_id =
       contentId("voidwlrie1_", badStorage.normalized);
@@ -483,7 +491,7 @@ try {
   }
 
   {
-    const badConsume = structuredClone(consume);
+    const badConsume = mutableClone(consume);
     badConsume.terminal_request_id =
       "voidwreq1_" + "f".repeat(64);
     const held =
@@ -500,7 +508,7 @@ try {
   }
 
   {
-    const badConsume = structuredClone(consume);
+    const badConsume = mutableClone(consume);
     badConsume.terminal_response_sha256 = sha("f");
     const held =
       classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
@@ -534,7 +542,7 @@ try {
   }
 
   {
-    const badConsume = structuredClone(consume);
+    const badConsume = mutableClone(consume);
     badConsume.sequence += 1;
     badConsume.event_count += 1;
     const held =
