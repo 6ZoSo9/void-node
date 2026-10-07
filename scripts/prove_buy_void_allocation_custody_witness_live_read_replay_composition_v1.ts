@@ -497,6 +497,16 @@ try {
   assert.equal(green.consume_transition_bound, true);
   assert.equal(green.validated_packet_binding_proven, true);
   assert.equal(green.durable_consume_packet_binding_proven, true);
+  assert.match(green.normalized.consume_journal_sha256, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(green.normalized.consume_high_water_sha256, /^sha256:[0-9a-f]{64}$/u);
+  assert.equal(
+    green.normalized.consume_journal_sha256,
+    consume.journal_sha256,
+  );
+  assert.equal(
+    green.normalized.consume_high_water_sha256,
+    consume.high_water_sha256,
+  );
   assert.equal(green.external_transport_authenticated, false);
   assert.equal(green.live_remote_read_performed, false);
   assert.equal(green.production_gate_ready, false);
@@ -591,6 +601,47 @@ try {
     assert.equal(
       held.reason,
       "witness_live_read_replay_composition_consume_prestate_digest_mismatch",
+    );
+  }
+
+  for (const patch of [
+    { journal_sha256: "not-a-sha" },
+    { high_water_sha256: "also-not-a-sha" },
+    { tip_event_sha256: null },
+    { journal_bytes: consume.transition_before_journal_bytes },
+  ]) {
+    const badConsume = mutableClone(consume);
+    Object.assign(badConsume, patch);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        consume_result: badConsume,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("invalid consume poststate unexpectedly green");
+    }
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_writer_poststate_invalid",
+    );
+  }
+
+  {
+    const badIssue = mutableClone(issue);
+    badIssue.last_terminal_state = "consumed";
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        issue_result: badIssue,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("terminal issue state unexpectedly green");
+    }
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_issue_invalid",
     );
   }
 
