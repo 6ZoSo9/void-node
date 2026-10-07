@@ -1834,7 +1834,8 @@ server.listen({ host, port, exclusive: true }, () => {
         applicant_identity_scheme: "void-agent:ed25519",
         applicant_auth_header:
           VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1,
-        applicant_max_requests_per_minute:
+        applicant_max_requests_per_minute: null,
+        signing_key_max_requests_per_minute:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE ||
           null,
         upstream_global_limit_per_minute:
@@ -1852,8 +1853,10 @@ server.listen({ host, port, exclusive: true }, () => {
         upstream_observed_max_requests_per_minute:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION
             .observed_max_requests_per_minute,
-        two_applicant_capacity_reserved:
+        two_applicant_capacity_reserved: false,
+        two_signing_key_buckets_fit_under_global_wall:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
+        rotation_resistant_fairness_proven: false,
         nonce_replay_protection: true,
         preauth_global_rate_wall: true,
         preauth_max_requests_per_minute:
