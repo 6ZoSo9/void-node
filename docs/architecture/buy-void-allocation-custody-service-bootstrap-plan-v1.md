@@ -82,36 +82,31 @@ or fake their later runtime evidence by marking a planning boolean `true`.
 
 ## Critical executable-closure prerequisite
 
-The custody service source imports at least these three **compiled** ESM
-modules from `dist/economic`:
+The canonical custody service after merged security patch #2606 imports
+exactly **two compiled** ESM modules from `dist/economic`:
 
 ~~~text
 buy_void_allocation_reservation_ledger_v1.js
 buy_void_allocation_reservation_high_water_v1.js
-buy_void_allocation_reservation_publication_writer_v1.js
 ~~~
 
-Those modules have their own transitive runtime imports. The candidate
-additionally pins the **historical** service bytes with
-`service_source_sha256_expected=sha256:bf9befd0974db3e1bcc928336f5cc3f1a0f1086ace061cdbd71d607171647690`. The
-synthetic proof compares the actual source-byte SHA-256 and the reviewed
-service contract's `service_source_sha256` to that independently frozen
-candidate value. A semicolonless import, an ESM re-export, a dynamic loader
-with intervening comments, or any other source edit MUST HOLD—even if a
-formatting-sensitive import census misses it.
+Its other **static** ESM imports are exactly the reviewed built-ins
+`node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
+The source-only proof uses Node's ESM parser to compare **every static module
+specifier** against that explicit complete allowlist. It rejects new relative
+helpers, third-party packages, built-ins or other specifiers instead of silently
+discarding imports outside `../dist/`; an independent full service-byte digest
+also detects changes that this parser might not enumerate. The current source
+pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
+and contract
+`service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.
 
-This is a **source-only drift checksum**, not authenticated Git identity,
-trusted host/freshness evidence or executable/transitive dependency
-qualification; an actor able to edit both the candidate digest and source
-can publish another self-consistent but unauthenticated plan. Source
-security patch #2606 removes the old publication-writer import; **before
-the new source can replace this historical snapshot**, the plan, contract
-and complete compiled closure need jointly reviewed rebinding. The old
-three-import source checksum must not be silently treated as current
-production service authority.
-
-Checking only the service's top-level Git blob, or copying the service from
-a mutable `/home/zoso/dev/void-node` checkout, does **not** bind the
+The IPC `reserve` and `recover` methods remain provenance-HOLD, and this
+two-import source does not load the allocation publication writer. Those two
+modules may have their own transitive runtime imports: neither this top-level
+census nor a checksum of the untrusted candidate plan proves a protected
+executable closure, signed provenance or qualified host custody. Copying source
+from a mutable `/home/zoso/dev/void-node` checkout does **not** bind the
 executable closure.
 
 **Do not construct a runnable `ExecStart` or install/start the custody unit
