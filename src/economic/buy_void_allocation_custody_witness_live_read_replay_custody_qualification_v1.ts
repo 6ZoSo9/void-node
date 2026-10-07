@@ -67,7 +67,7 @@ const QUALIFICATION_DOMAIN =
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const QUALIFICATION_ID = /^voidwlrie1_[0-9a-f]{64}$/u;
 const LOCAL_FS_TYPES = new Set(["ext4", "xfs", "btrfs"]);
-const SAFE_DEVICE_PATH = /^\\/dev\\/[A-Za-z0-9._:+/-]{1,300}$/u;
+const SAFE_DEVICE_PATH = /^\/dev\/[A-Za-z0-9._:+/-]{1,300}$/u;
 const SAFE_TOKEN = /^[A-Za-z0-9._:+-]{1,300}$/u;
 const RECEIPT_KEYS = Object.freeze([
   "schema",
