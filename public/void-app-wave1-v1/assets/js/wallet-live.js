@@ -52,6 +52,10 @@ const nonNegativeSafeInteger = (value, label) => {
   return value;
 };
 
+const formatAccountingBalance = (value) => new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 9,
+}).format(value);
+
 const currentRoute = () => {
   if (typeof window === 'undefined') return '';
   return String(window.location.hash || '')
@@ -96,8 +100,11 @@ const validateAccounting = (value, label, extraKeys = []) => {
     throw new Error(`${label} display metadata invalid`);
   }
   if (value.available) {
-    nonNegativeFinite(value.balance, `${label}.balance`);
+    const balance = nonNegativeFinite(value.balance, `${label}.balance`);
     nonNegativeSafeInteger(value.entries, `${label}.entries`);
+    if (value.display !== formatAccountingBalance(balance)) {
+      throw new Error(`${label}.display does not match balance`);
+    }
   } else if (
     value.balance !== null ||
     value.entries !== null ||
@@ -255,6 +262,7 @@ export const validateWalletSnapshotV1 = (
     snapshot.wallet.native_gas_available
       ? (
         !snapshot.wallet.source_available ||
+        !snapshot.wallet.has_wallet ||
         snapshot.wallet.native_gas_display.length === 0 ||
         snapshot.wallet.native_gas_display === '—'
       )

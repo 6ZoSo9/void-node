@@ -463,6 +463,15 @@ for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
   );
 }
 
+for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
+  const value = validSnapshot() as any;
+  value.balances[balanceKey].display = "999";
+  assert.throws(
+    () => validateWalletAt(value),
+    /display does not match balance/,
+  );
+}
+
 const inventedVoidDisplay = validSnapshot() as any;
 inventedVoidDisplay.balances.void.display = "999 VOID";
 assert.throws(
@@ -481,6 +490,15 @@ const unavailableNativeGasDisplay = validSnapshot() as any;
 unavailableNativeGasDisplay.wallet.native_gas_available = false;
 assert.throws(
   () => validateWalletAt(unavailableNativeGasDisplay),
+  /native gas availability mismatch/,
+);
+
+const nativeGasWithoutWallet = validSnapshot() as any;
+nativeGasWithoutWallet.wallet.has_wallet = false;
+nativeGasWithoutWallet.wallet.address = "";
+nativeGasWithoutWallet.wallet.unlocked = false;
+assert.throws(
+  () => validateWalletAt(nativeGasWithoutWallet),
   /native gas availability mismatch/,
 );
 
@@ -504,6 +522,8 @@ const absent = validSnapshot() as any;
 absent.wallet.has_wallet = false;
 absent.wallet.unlocked = false;
 absent.wallet.address = "";
+absent.wallet.native_gas_available = false;
+absent.wallet.native_gas_display = "—";
 assert.doesNotThrow(() => validateWalletAt(absent));
 
 let clearGeneration = 7;
@@ -620,7 +640,9 @@ console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
 console.log("browser_source_outcome_coherent=true");
 console.log("browser_unavailable_evidence_undisplayed=true");
+console.log("browser_available_display_balance_bound=true");
 console.log("browser_available_evidence_source_bound=true");
+console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");
