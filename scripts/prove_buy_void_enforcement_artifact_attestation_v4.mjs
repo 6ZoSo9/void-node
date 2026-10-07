@@ -60,37 +60,12 @@ function yamlScalar(value) {
 }
 
 function workflowEventPaths(source, eventName) {
-  const lines = String(source || "").split(/\r?\n/u);
-  const eventPattern = new RegExp(
-    "^([ ]*)" + eventName.replace(/[.*+?^$()|[\\]\\]/gu, "\\const V4_TRIGGER_DEPENDENCIES = Object.freeze([
-  "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs",
-  "scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs",
-  "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
-  "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
-  "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
-  "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
-]);
-
-function assertV4ConsumerTriggerClosure() {
-  for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
-    const source = read(ROOT, workflowPath).toString("utf8");
-    for (const dependency of V4_TRIGGER_DEPENDENCIES) {
-      const enforcementWildcard =
-        dependency.startsWith(
-          "scripts/prove_buy_void_enforcement_artifact_attestation_",
-        ) &&
-        source.includes("scripts/prove_buy_void_enforcement_*");
-      assert.equal(
-        source.includes(dependency) || enforcementWildcard,
-        true,
-        workflowPath + " missing V4 trigger dependency: " + dependency,
-      );
-    }
-  }
-}
-") + ":[ ]*$",
-    "u",
+  assert.ok(
+    eventName === "pull_request" || eventName === "push",
+    "unsupported workflow event",
   );
+  const lines = String(source || "").split(/\r?\n/u);
+  const eventPattern = new RegExp("^([ ]*)" + eventName + ":[ ]*$", "u");
   let eventIndex = -1;
   let eventIndent = -1;
   for (let index = 0; index < lines.length; index += 1) {
