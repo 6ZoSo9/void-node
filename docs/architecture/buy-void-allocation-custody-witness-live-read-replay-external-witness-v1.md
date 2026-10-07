@@ -27,7 +27,15 @@ external witness sequence = replay sequence + 1
 
 Therefore external event 1 commits replay genesis sequence 0.
 
-Every event binds the exact canonical replay high-water projection:
+Every event binds the exact canonical replay high-water projection. Pending
+challenge state also preserves the canonical replay identity equation:
+
+```text
+pending_challenge_sha256 = sha256:<digest>
+pending_challenge_id     = voidwlrc1_<same digest>
+```
+
+Every event binds:
 
 - replay sequence;
 - generation;
@@ -100,6 +108,8 @@ The classifier HOLDs for:
   prefix rebinds exactly: rollback detected;
 - forged/mixed/divergent historical prefixes, including an ahead witness whose
   shared genesis/history does not match local canonical replay;
+- internally impossible pending challenge state, including a challenge ID whose
+  suffix does not equal the pending challenge SHA-256 digest;
 - current journal/high-water binding failure;
 - source or witness identity drift;
 - malformed/noncanonical/tampered external witness;
@@ -182,6 +192,8 @@ The focused proof covers:
 - sequential catch-up;
 - local rollback detection only after canonical common-prefix rebinding;
 - forged-ahead witness rejection without false rollback classification;
+- pending challenge ID/digest mismatch rejection, including in unavailable
+  future witness prefixes;
 - mixed-history conflict rejection;
 - source/witness identity drift rejection;
 - witness tamper rejection;
