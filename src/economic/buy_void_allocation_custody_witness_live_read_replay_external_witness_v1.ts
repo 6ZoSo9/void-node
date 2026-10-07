@@ -424,7 +424,10 @@ function parseEvent(
       (
         pendingChallengeSha === null ||
         pendingChallengeId === null ||
-        pendingExpires === null
+        pendingExpires === null ||
+        pendingChallengeId !==
+          "voidwlrc1_" +
+            pendingChallengeSha.slice("sha256:".length)
       )
     ) ||
     (
