@@ -71,10 +71,8 @@ const trueAuthority = new Set([
   "server_controlled_custody_root",
   "exact_request_schema_required",
   "exact_response_schema_required",
-  "canonical_allocation_planner_reused",
   "canonical_high_water_binding_reused",
   "canonical_publication_writer_reused",
-  "one_allocation_transition_per_reserve",
   "recovery_terminal_before_new_transition",
 ]);
 for (const [key, value] of Object.entries(
@@ -306,45 +304,21 @@ async function decision(f, method, request) {
     assert.equal(inspected.status, "inspected");
     assert.equal(inspected.record_count, 0);
     assert.equal(inspected.operation_performed, false);
-
-    const reserved = requireOk(
-      await decision(f, "reserve", { ...baseCandidate }),
-    );
-    assert.equal(reserved.status, "reserved");
-    assert.equal(reserved.record_count, 1);
-    assert.equal(reserved.operation_performed, true);
-    assert.match(reserved.record_id, /^voidalloc1_[0-9a-f]{64}$/u);
-    assert.match(
-      reserved.allocation_record_hash,
-      /^sha256:[0-9a-f]{64}$/u,
-    );
-
-    const ledger = fs.readFileSync(
-      path.join(f.ledgerRoot, LEDGER_NAME),
-      "utf8",
-    );
-    const highWater = fs.readFileSync(
-      path.join(f.custodyRoot, HIGH_WATER_NAME),
-      "utf8",
-    );
-    const binding =
-      classifyBuyVoidAllocationReservationHighWaterBindingV1({
-        ledger_jsonl: ledger,
-        high_water_json: highWater,
-      });
-    assert.equal(binding.ok, true);
-
-    const replay = requireOk(
-      await decision(f, "reserve", { ...baseCandidate }),
-    );
-    assert.equal(replay.status, "duplicate");
-    assert.equal(replay.operation_performed, false);
-    assert.equal(replay.record_id, reserved.record_id);
-    assert.equal(
-      replay.allocation_record_hash,
-      reserved.allocation_record_hash,
-    );
-
+    const forged = await decision(f, "reserve", { ...baseCandidate });
+    assert.equal(forged.ok, false);
+    assert.equal(forged.reason,
+      "allocation_custody_service_verified_payment_provenance_not_bound");
+    assert.equal(forged.operation_performed, false);
+    assert.equal(forged.record_id, null);
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
+    assert.equal(fs.readFileSync(path.join(f.custodyRoot, HIGH_WATER_NAME), "utf8"),
+      f.genesisHighWater);
+    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), false);
+    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), false);
+    const retry = await decision(f, "reserve", { ...baseCandidate });
+    assert.equal(retry.ok, false);
+    assert.equal(retry.reason, forged.reason);
+    assert.equal(retry.operation_performed, false);
     const clean = requireOk(await decision(f, "recover", {}));
     assert.equal(clean.status, "clean");
     assert.equal(clean.operation_performed, false);
@@ -381,24 +355,25 @@ async function decision(f, method, request) {
       { mode: 0o600 },
     );
 
-    const recovered = requireOk(
-      await decision(f, "reserve", { ...baseCandidate }),
-    );
-    assert.equal(recovered.status, "recovered_retry_required");
+    // Caller assertions cannot even trigger recovery of a durable intent.
+    const forged = await decision(f, "reserve", { ...baseCandidate });
+    assert.equal(forged.ok, false);
+    assert.equal(forged.reason,
+      "allocation_custody_service_verified_payment_provenance_not_bound");
+    assert.equal(forged.operation_performed, false);
+    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), true);
+    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), true);
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
+    const recovered = requireOk(await decision(f, "recover", {}));
+    assert.equal(recovered.status, "recovered");
     assert.equal(recovered.operation_performed, true);
-    assert.equal(
-      fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)),
-      false,
-    );
-    assert.equal(
-      fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)),
-      false,
-    );
-
-    const retry = requireOk(
-      await decision(f, "reserve", { ...baseCandidate }),
-    );
-    assert.equal(retry.status, "duplicate");
+    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), false);
+    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), false);
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      plan.next_ledger_jsonl);
+    const retry = await decision(f, "reserve", { ...baseCandidate });
+    assert.equal(retry.ok, false);
+    assert.equal(retry.reason, forged.reason);
     assert.equal(retry.operation_performed, false);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
@@ -497,19 +472,21 @@ async function decision(f, method, request) {
     assert.equal(inspected.decision.status, "inspected");
     assert.equal(inspected.decision.record_count, 0);
 
-    const reserved = await socketExchange(
-      f.options.socket_path, reserveLine, "", true,
-    );
-    assert.equal(reserved.decision.ok, true);
-    assert.equal(reserved.decision.status, "reserved");
-    assert.equal(reserved.decision.record_count, 1);
-
-    const duplicate = await socketExchange(
-      f.options.socket_path, reserveLine,
-    );
-    assert.equal(duplicate.decision.ok, true);
-    assert.equal(duplicate.decision.status, "duplicate");
-    assert.equal(duplicate.decision.operation_performed, false);
+    const forged = await socketExchange(f.options.socket_path, reserveLine, "", true);
+    assert.equal(forged.decision.ok, false);
+    assert.equal(forged.decision.reason,
+      "allocation_custody_service_verified_payment_provenance_not_bound");
+    assert.equal(forged.decision.operation_performed, false);
+    assert.equal(forged.decision.record_id, null);
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
+    assert.equal(fs.readFileSync(path.join(f.custodyRoot, HIGH_WATER_NAME), "utf8"),
+      f.genesisHighWater);
+    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), false);
+    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), false);
+    const repeat = await socketExchange(f.options.socket_path, reserveLine);
+    assert.equal(repeat.decision.ok, false);
+    assert.equal(repeat.decision.reason, forged.decision.reason);
+    assert.equal(repeat.decision.operation_performed, false);
     await service.stop();
     assert.equal(fs.existsSync(f.options.socket_path), false);
   } finally {
@@ -548,11 +525,10 @@ assert.doesNotMatch(source, /ledger_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /custody_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /caller_selected_generation\s*:\s*true/u);
 assert.match(source, /service_started_by_import:\s*false/u);
-assert.match(source, /planBuyVoidAllocationReservationV1/u);
-assert.match(
-  source,
-  /persistBuyVoidAllocationReservationPublicationWriterV1/u,
-);
+assert.doesNotMatch(source, /planBuyVoidAllocationReservationV1/u);
+assert.doesNotMatch(source,
+  /persistBuyVoidAllocationReservationPublicationWriterV1/u);
+assert.match(source, /allocation_custody_service_verified_payment_provenance_not_bound/u);
 assert.match(
   source,
   /recoverBuyVoidAllocationReservationPublicationWriterV1/u,
@@ -564,9 +540,10 @@ console.log("server_controlled_roots=true");
 console.log("caller_selected_path=false");
 console.log("caller_selected_generation=false");
 console.log("arbitrary_bytes_write=false");
-console.log("canonical_planner_reused=true");
+console.log("caller_asserted_payment_evidence_not_trusted=true");
 console.log("canonical_writer_reused=true");
-console.log("idempotent_replay=true");
+console.log("reserve_ipc_default_hold=true");
+console.log("explicit_intent_recovery_preserved=true");
 console.log("recovery_terminal_before_new_transition=true");
 console.log("service_started_by_import=false");
 console.log("socket_parent_mode_0750_proven=true");

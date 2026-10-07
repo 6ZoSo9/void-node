@@ -21,7 +21,7 @@ The machine-readable reviewed contract is:
 
 The contract binds the exact service source SHA-256:
 
-`sha256:bf9befd0974db3e1bcc928336f5cc3f1a0f1086ace061cdbd71d607171647690`
+`sha256:48cea4736ea5874386ab3e4fbd7c979d8fca2fd8ada2e37c62729a373b4d1aa7`
 
 ## Authority split
 
@@ -49,26 +49,23 @@ operation.
 
 The request envelope is exact-schema and accepts only three methods.
 
-### `reserve`
+### `reserve` — default HOLD
 
-The caller supplies the canonical allocation candidate fields that are already
-required by `planBuyVoidAllocationReservationV1(...)`.
+The reviewed IPC envelope still accepts the exact reserve request schema, but
+its source implementation **does not authorize reservations**. Caller-supplied
+green flags and receipt/digest-shaped strings do not prove an accepted,
+fsynced `payment_verified` event. A syntactically valid request receives
+`allocation_custody_service_verified_payment_provenance_not_bound` with
+`operation_performed=false`, and invokes no allocation planner, writer or
+recovery operation.
 
-The service:
-
-1. first runs writer recovery;
-2. if recovery changed durable state, returns
-   `recovered_retry_required` and performs no new allocation in that
-   invocation;
-3. reads the server-controlled canonical ledger/high-water pair;
-4. requires exact #2442 binding;
-5. re-plans the candidate through #2433;
-6. gives only that planner-produced exact next ledger to #2451;
-7. re-reads and requires the final record count/tip to equal the planner result.
-
-A normal successful transition returns `reserved`. Exact replay returns
-`duplicate`. A concurrent stale plan cannot silently win because #2451
-revalidates the exact current state under its serialization boundary.
+A later independently reviewed integration must descriptor-bind the canonical
+durable request and payment-event history, verify identity, amount, destination,
+source chain, log index and launch generation, and serialize the resulting
+allocation under the existing verified-payment capacity/duplicate boundary.
+No request-controlled boolean or environment override can bypass this HOLD.
+The pure planner and writer remain separately available for synthetic proof and
+explicit recovery. This is containment, not live payment-provenance readiness.
 
 ### `recover`
 
@@ -200,16 +197,17 @@ The proof uses temporary private roots only. It covers:
 - exact service-source SHA-256 binding;
 - exact contract shape;
 - clean inspection;
-- one canonical allocation publication;
-- exact replay idempotence;
+- forged caller-authority reserve HOLD with unchanged ledger/high-water/intent;
+- repeat unverified reserve HOLD;
 - clean recovery;
-- a pre-existing durable publication intent recovered before a new reservation;
+- forged reserve unable to trigger a pre-existing intent recovery;
+- explicit recover method preserves durable-intent forward recovery;
 - full UNIX-socket request/write-EOF round trips;
 - a split second frame and duplicate-member JSON rejection before reservation;
 - a slow-drip client that sends bytes every 250 ms but never half-closes,
   proving the five-second absolute deadline HOLDs without allocating;
-- a missing newline rejection and a valid reserve/duplicate round trip;
-- terminal `recovered_retry_required` behavior;
+- a missing newline rejection and a forged reserve/repeat HOLD over AF_UNIX;
+- terminal explicit recovery with reserve still held;
 - rejection of caller path injection;
 - rejection of caller generation injection;
 - preservation of no-runtime/no-payment/no-transaction/no-funds authority.
