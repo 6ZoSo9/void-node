@@ -71,10 +71,17 @@ historical replay prefix from the supplied current canonical journal:
 - external event 3 is rebound to replay journal prefix sequence 2;
 - and so on.
 
-Each locally available reconstructed prefix is passed through the merged
-canonical replay high-water derivation before any comparison is allowed. If the
-external witness is ahead of local replay, the complete local common prefix must
-still rebind exactly.
+The current replay journal is first validated once through the merged canonical
+replay high-water binding. Historical witness rebinding then performs one
+forward byte scan over that already-canonical journal. It keeps one incremental
+SHA-256 state plus the current replay-tip projection and, for planning, at most
+one requested next-prefix projection. It does **not** retain cumulative journal
+buffers or reparse every prefix.
+
+The scan reconstructs each locally available canonical high-water projection
+from the validated replay event stream and compares it to the corresponding
+witness event. If the external witness is ahead of local replay, the complete
+local common prefix must still rebind exactly.
 
 A divergent shared prefix is a history conflict. An ahead tail beyond the local
 reconstructable prefix is **unverified external state**, even when its JSONL
@@ -197,6 +204,8 @@ git diff --check
 The focused proof covers:
 
 - exact external genesis;
+- full 8,192-event replay / 8,193-event witness boundary with no cumulative
+  prefix-buffer retention and exact final catch-up planning;
 - canonical issue and consume mirroring;
 - exact match;
 - update-required classification;
