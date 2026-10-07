@@ -4,6 +4,16 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {spawnSync} from "node:child_process";
+
+import {
+  testOnlyMaterializeReviewedSourcesV1,
+  testOnlyPrepareReviewedExecutionV1,
+  testOnlyReadExactHeadSourceV1,
+  testOnlyReviewedGitHeadV1,
+  testOnlyReviewedSourcePlanV1,
+  testOnlyVerifyReviewedSourcesV1,
+} from "../ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 
 import {
   submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1,
@@ -26,6 +36,132 @@ function canonical(value){
 function canonicalJson(value){
   return JSON.stringify(canonical(value));
 }
+
+const REVIEWED_TOOL_REL =
+  "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
+const REVIEWED_NETWORK_MODULE =
+  "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs";
+
+const reviewedPlan=testOnlyReviewedSourcePlanV1();
+assert.equal(reviewedPlan.closure.length,27);
+assert.deepEqual(reviewedPlan.bare_packages,["ethers"]);
+assert.deepEqual(
+  reviewedPlan.network_capable_modules,
+  [REVIEWED_NETWORK_MODULE],
+);
+assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
+assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
+
+const reviewedHead=testOnlyReviewedGitHeadV1();
+assert.match(reviewedHead,/^[0-9a-f]{40}$/u);
+
+{
+  const saved=new Map(
+    ["PATH","HOME","XDG_CONFIG_HOME","GIT_CONFIG_GLOBAL","GIT_CONFIG_SYSTEM",
+      "GIT_CONFIG_NOSYSTEM","GIT_ATTR_NOSYSTEM","GIT_NO_REPLACE_OBJECTS",
+      "GIT_OPTIONAL_LOCKS","GIT_TERMINAL_PROMPT"]
+      .map((key)=>[key,process.env[key]]),
+  );
+  try{
+    process.env.PATH="/tmp/void-malicious-bin";
+    process.env.HOME="/tmp/void-malicious-home";
+    process.env.XDG_CONFIG_HOME="/tmp/void-malicious-xdg";
+    process.env.GIT_CONFIG_GLOBAL="/tmp/void-malicious-global";
+    process.env.GIT_CONFIG_SYSTEM="/tmp/void-malicious-system";
+    process.env.GIT_CONFIG_NOSYSTEM="0";
+    process.env.GIT_ATTR_NOSYSTEM="0";
+    process.env.GIT_NO_REPLACE_OBJECTS="0";
+    process.env.GIT_OPTIONAL_LOCKS="1";
+    process.env.GIT_TERMINAL_PROMPT="1";
+    assert.equal(testOnlyReviewedGitHeadV1(),reviewedHead);
+  }finally{
+    for(const [key,value] of saved){
+      if(value===undefined) delete process.env[key];
+      else process.env[key]=value;
+    }
+  }
+}
+
+{
+  const worktreeFile=path.resolve(REVIEWED_TOOL_REL);
+  const original=fs.readFileSync(worktreeFile);
+  const marker="\n// VOID_REVIEWED_SOURCE_ASSUME_UNCHANGED_SENTINEL\n";
+  const mark=spawnSync(
+    "/usr/bin/git",
+    ["update-index","--assume-unchanged","--",REVIEWED_TOOL_REL],
+    {cwd:process.cwd(),encoding:"utf8"},
+  );
+  assert.equal(mark.status,0,mark.stderr);
+  try{
+    fs.appendFileSync(worktreeFile,marker,"utf8");
+    const reviewed=testOnlyReadExactHeadSourceV1(REVIEWED_TOOL_REL);
+    assert.equal(reviewed.blob.length,40);
+    assert.equal(reviewed.bytes.equals(original),true);
+    assert.equal(
+      reviewed.bytes.includes(
+        Buffer.from("VOID_REVIEWED_SOURCE_ASSUME_UNCHANGED_SENTINEL","utf8"),
+      ),
+      false,
+    );
+  }finally{
+    fs.writeFileSync(worktreeFile,original);
+    const clear=spawnSync(
+      "/usr/bin/git",
+      ["update-index","--no-assume-unchanged","--",REVIEWED_TOOL_REL],
+      {cwd:process.cwd(),encoding:"utf8"},
+    );
+    assert.equal(clear.status,0,clear.stderr);
+  }
+}
+
+{
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-registry-reviewed-source-proof-"),
+  );
+  const destination=path.join(parent,"reviewed");
+  try{
+    const materialized=testOnlyMaterializeReviewedSourcesV1(destination);
+    assert.equal(materialized.verification.closure_count,27);
+    const privateTool=path.join(
+      destination,
+      ...REVIEWED_TOOL_REL.split("/"),
+    );
+    fs.chmodSync(privateTool,0o600);
+    fs.appendFileSync(
+      privateTool,
+      "\n// VOID_PRIVATE_REVIEWED_SOURCE_DRIFT_SENTINEL\n",
+      "utf8",
+    );
+    assert.throws(
+      ()=>testOnlyVerifyReviewedSourcesV1(
+        materialized.plan,
+        destination,
+      ),
+      /reviewed_private_source_mismatch/u,
+    );
+  }finally{
+    fs.rmSync(parent,{recursive:true,force:true});
+  }
+}
+
+const reviewedExecution=await testOnlyPrepareReviewedExecutionV1();
+assert.equal(reviewedExecution.repository_head_sha,reviewedHead);
+assert.equal(reviewedExecution.closure_count,27);
+assert.deepEqual(reviewedExecution.bare_packages,["ethers"]);
+assert.deepEqual(
+  reviewedExecution.network_capable_modules,
+  [REVIEWED_NETWORK_MODULE],
+);
+assert.match(
+  reviewedExecution.reviewed_runtime_profile_id,
+  /^voidrnpr1_[0-9a-f]{64}$/u,
+);
+assert.match(
+  reviewedExecution.reviewed_runtime_packages_aggregate_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+assert.equal(reviewedExecution.private_exact_head_tree,true);
+assert.equal(reviewedExecution.execution_network_isolation_provided,false);
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-registry-broadcast-exec-v1-"));
 fs.chmodSync(root,0o700);
@@ -372,6 +508,28 @@ try{
     runnerSource.includes('redirect:"error"'),
     "loopback RPC fetch must reject redirects",
   );
+  assert.doesNotMatch(
+    runnerSource,
+    /from\s+["']\.\.\/\.\.\/tools\//u,
+    "Precision bootstrap must not statically execute mutable worktree tools",
+  );
+  assert.equal(
+    runnerSource.includes('spawnSync("git"'),
+    false,
+    "Precision bootstrap must not invoke ambient git by PATH",
+  );
+  for(const required of [
+    'const GIT="/usr/bin/git"',
+    'GIT_CONFIG_GLOBAL:"/dev/null"',
+    'GIT_CONFIG_SYSTEM:"/dev/null"',
+    'GIT_NO_REPLACE_OBJECTS:"1"',
+    '"ls-remote",CANONICAL_REMOTE,"refs/heads/main"',
+    "local_head_not_canonical_remote_main",
+    "reviewed_source_closure_mismatch",
+    "execution_network_isolation_provided=false",
+  ]){
+    assert.ok(runnerSource.includes(required),required);
+  }
   for(const forbidden of [
     "SigningKey",
     "Wallet(",
@@ -402,6 +560,14 @@ try{
   console.log("replacement_transaction=false");
   console.log("credential_access=false");
   console.log("private_key_access=false");
+  console.log("canonical_remote_main_equality_required=true");
+  console.log("absolute_isolated_git_required=true");
+  console.log("reviewed_source_closure_count=27");
+  console.log("reviewed_source_hidden_worktree_drift_excluded=true");
+  console.log("reviewed_private_source_drift_rejected=true");
+  console.log("reviewed_ethers_runtime_verified=true");
+  console.log("reviewed_network_capable_module_count=1");
+  console.log("execution_network_isolation_provided=false");
 }finally{
   fs.rmSync(root,{recursive:true,force:true});
 }
