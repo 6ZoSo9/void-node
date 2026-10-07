@@ -69,6 +69,56 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITI
 
 const REPLAY_INSTALLATION_MARKER =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1";
+const REPLAY_INSTALLATION_AUTHORITY = Object.freeze({
+  source_only_collector: true,
+  designated_host_read_only_observation: true,
+  canonical_replay_writer_required: true,
+  canonical_replay_high_water_required: true,
+  descriptor_bound_root_observation: true,
+  descriptor_bound_file_reads: true,
+  terminal_root_and_file_revalidation: true,
+  double_census_required: true,
+  proc_mountinfo_read: true,
+  mountinfo_stability_required: true,
+  local_block_filesystem_required: true,
+  distinct_mount_domains_required: true,
+  distinct_parent_block_devices_required: true,
+  mount_source_device_number_bound: true,
+  single_parent_block_topology_required: true,
+  parent_disk_serial_and_wwn_required: true,
+  no_pending_publication_intent_required: true,
+  caller_supplied_snapshot_authority: false,
+  synthetic_storage_authority: false,
+  filesystem_write: false,
+  mount_mutation: false,
+  storage_bootstrap: false,
+  replay_journal_write: false,
+  high_water_write: false,
+  writer_intent_write: false,
+  live_durable_storage_proven: false,
+  rollback_resistance_proven: false,
+  protected_high_water_custody_proven: false,
+  independent_custody_proven: false,
+  trusted_verification_clock_proven: false,
+  challenge_entropy_proven: false,
+  challenge_unpredictability_proven: false,
+  live_evidence_origin_proven: false,
+  external_transport_authenticated: false,
+  external_witness_storage_proven: false,
+  live_remote_read_performed: false,
+  runtime_integration: false,
+  production_gate_ready: false,
+  payment_acceptance: false,
+  wallet_or_signer_access: false,
+  private_key_access: false,
+  transaction_construction: false,
+  transaction_signing: false,
+  transaction_broadcast: false,
+  chain2050_write: false,
+  presale_activation: false,
+  market_activation: false,
+  funds_movement: false,
+});
 const REPLAY_INSTALLATION_ID = /^voidwlrie1_[0-9a-f]{64}$/u;
 const LIVE_READ_ID = /^voidwlrq1_[0-9a-f]{64}$/u;
 const REQUEST_ID = /^voidwreq1_[0-9a-f]{64}$/u;
@@ -367,6 +417,8 @@ function storageParent(input: unknown) {
     value.runtime_integration !== false ||
     value.production_gate_ready !== false ||
     value.funds_movement !== false ||
+    canonicalJson(value.authority) !==
+      canonicalJson(REPLAY_INSTALLATION_AUTHORITY) ||
     normalized.schema !==
       "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v1" ||
     normalized.marker !== REPLAY_INSTALLATION_MARKER ||
