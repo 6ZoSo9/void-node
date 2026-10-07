@@ -110,6 +110,18 @@ function writeExact(file,bytes,mode){
     fs.writeFileSync(fd,bytes);fs.fchmodSync(fd,mode);fs.fsyncSync(fd);
   }finally{fs.closeSync(fd);}
 }
+function makeRemovableTree(root){
+  if(!fs.existsSync(root)) return;
+  function walk(dir){
+    fs.chmodSync(dir,0o700);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory()) walk(file);
+      else fs.chmodSync(file,0o600);
+    }
+  }
+  walk(root);
+}
 async function importCore(repoRoot,head){
   const source=exactGitFileV1(repoRoot,head,CORE_REL);
   const previous=process.argv[1];
@@ -199,9 +211,16 @@ export async function prepareIsolatedReviewedExecutionV1({repoRoot,head}){
           profile:profile.profile,destinationRoot:runtimeRoot,repoRoot,
         });
       },
-      cleanup(){fs.rmSync(root,{recursive:true,force:true});},
+      cleanup(){
+        makeRemovableTree(root);
+        fs.rmSync(root,{recursive:true,force:true});
+      },
     });
-  }catch(e){fs.rmSync(root,{recursive:true,force:true});throw e;}
+  }catch(e){
+    makeRemovableTree(root);
+    fs.rmSync(root,{recursive:true,force:true});
+    throw e;
+  }
 }
 function sourceObject(plan){
   const out={};
