@@ -695,33 +695,135 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     accepted_socket_count:sockets.size,
   });
 
+  const sameSocketIdentity=(identity,stat)=>
+    identity!==null&&
+    String(stat.dev)===identity.dev&&
+    String(stat.ino)===identity.ino;
+
+  function freshSocketQuarantinePath(){
+    const parent=path.dirname(options.socket_path);
+    for(let attempt=0;attempt<32;attempt++){
+      const candidate=path.join(
+        parent,
+        ".v"+crypto.randomBytes(2).toString("hex"),
+      );
+      try{
+        fs.lstatSync(candidate);
+      }catch(error){
+        if(error?.code==="ENOENT") return candidate;
+        throw error;
+      }
+    }
+    fail(
+      "datanet_broadcast_generation_custody_socket_quarantine_unavailable",
+    );
+  }
+
+  function isolateAdvertisedSocketPathBeforeClose(){
+    if(boundSocketIdentity===null){
+      return Object.freeze({kind:"none"});
+    }
+    let visible;
+    try{
+      visible=fs.lstatSync(options.socket_path,{bigint:true});
+    }catch(error){
+      if(error?.code==="ENOENT"){
+        return Object.freeze({kind:"absent"});
+      }
+      throw error;
+    }
+    const identity=Object.freeze({
+      dev:String(visible.dev),
+      ino:String(visible.ino),
+    });
+    const kind=
+      visible.isSocket()&&sameSocketIdentity(boundSocketIdentity,visible)
+        ?"bound"
+        :"replacement";
+    const quarantine=freshSocketQuarantinePath();
+    fs.renameSync(options.socket_path,quarantine);
+    const moved=fs.lstatSync(quarantine,{bigint:true});
+    if(!sameSocketIdentity(identity,moved)){
+      fail(
+        "datanet_broadcast_generation_custody_socket_quarantine_identity_mismatch",
+      );
+    }
+    try{
+      fs.lstatSync(options.socket_path);
+      fail(
+        "datanet_broadcast_generation_custody_socket_path_reoccupied_during_isolation",
+      );
+    }catch(error){
+      if(
+        error instanceof Error&&
+        error.message===
+          "datanet_broadcast_generation_custody_socket_path_reoccupied_during_isolation"
+      ){
+        throw error;
+      }
+      if(error?.code!=="ENOENT") throw error;
+    }
+    return Object.freeze({
+      kind,
+      quarantine,
+      identity,
+    });
+  }
+
+  function finalizeIsolatedSocketPathAfterClose(isolated){
+    if(!isolated||["none","absent"].includes(isolated.kind)) return;
+    const moved=fs.lstatSync(isolated.quarantine,{bigint:true});
+    if(!sameSocketIdentity(isolated.identity,moved)){
+      fail(
+        "datanet_broadcast_generation_custody_socket_quarantine_changed",
+      );
+    }
+
+    if(isolated.kind==="bound"){
+      fs.unlinkSync(isolated.quarantine);
+      return;
+    }
+
+    try{
+      fs.lstatSync(options.socket_path);
+      fail(
+        "datanet_broadcast_generation_custody_socket_path_reoccupied_before_restore",
+      );
+    }catch(error){
+      if(
+        error instanceof Error&&
+        error.message===
+          "datanet_broadcast_generation_custody_socket_path_reoccupied_before_restore"
+      ){
+        throw error;
+      }
+      if(error?.code!=="ENOENT") throw error;
+    }
+    fs.renameSync(isolated.quarantine,options.socket_path);
+    const restored=fs.lstatSync(options.socket_path,{bigint:true});
+    if(!sameSocketIdentity(isolated.identity,restored)){
+      fail(
+        "datanet_broadcast_generation_custody_socket_restore_identity_mismatch",
+      );
+    }
+  }
+
   async function cleanupResources(){
     for(const socket of sockets) socket.destroy();
+
+    let isolated=null;
     if(server!==null&&server.listening){
+      isolated=isolateAdvertisedSocketPathBeforeClose();
       await new Promise((resolve)=>server.close(()=>resolve()));
+      finalizeIsolatedSocketPathAfterClose(isolated);
+    }else if(boundSocketIdentity!==null){
+      isolated=isolateAdvertisedSocketPathBeforeClose();
+      finalizeIsolatedSocketPathAfterClose(isolated);
     }
+
     await queue.catch(()=>undefined);
     closePinnedRoot(pinned);
     pinned=null;
-
-    if(boundSocketIdentity!==null){
-      try{
-        const stat=fs.lstatSync(options.socket_path,{bigint:true});
-        if(
-          !stat.isSocket()||
-          String(stat.dev)!==boundSocketIdentity.dev||
-          String(stat.ino)!==boundSocketIdentity.ino
-        ){
-          fail(
-            "datanet_broadcast_generation_custody_socket_path_replaced_during_cleanup",
-          );
-        }
-        fs.unlinkSync(options.socket_path);
-      }catch(error){
-        if(error?.code!=="ENOENT") throw error;
-      }
-    }
-
     boundSocketIdentity=null;
     server=null;
     started=false;

@@ -71,6 +71,14 @@ back to the exact stable fence identity.
 An existing record returns `status=exists`; it is never removed to create a
 retry opportunity.
 
+Service cleanup also isolates the advertised Unix-socket pathname before
+calling Node's `server.close()`. If the pathname still refers to this service's
+bound inode, that inode is quarantined and removed only after close. If a
+successor socket has replaced the advertised pathname, the successor is
+quarantined, the old listener is closed while the advertised pathname is
+absent, and the exact successor inode is restored afterward. This prevents old
+service cleanup from unlinking another live service's endpoint.
+
 ## Client transport
 
 The client source is:
@@ -131,8 +139,11 @@ The deterministic proof:
    the stable fence ID and proves it still returns the same existing slot;
 5. corrupts the stored record and requires HOLD;
 6. attempts request path injection and requires HOLD;
-7. creates a second operation and proves a distinct slot; and
-8. uses a real non-responding Unix socket to prove an AbortSignal destroys the
+7. creates a second operation and proves a distinct slot;
+8. replaces a still-live old service socket pathname with a successor server,
+   stops the old service, and proves the successor inode/listener still works;
+   and
+9. uses a real non-responding Unix socket to prove an AbortSignal destroys the
    client connection.
 
 The proof makes no live RPC request and uses no signed artifact or credential.

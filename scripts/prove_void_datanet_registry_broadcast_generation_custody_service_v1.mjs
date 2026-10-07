@@ -147,6 +147,74 @@ async function proveStartupRollback(failureKind){
 await proveStartupRollback("chmod");
 await proveStartupRollback("chown");
 
+async function proveReplacementSocketPreservedOnStop(){
+  const replacedPath=path.join(socketParent,"custody-replacement.sock");
+  const replacedOptions=Object.freeze({
+    socket_path:replacedPath,
+    fence_root:fenceRoot,
+    socket_group_gid:socketGroup,
+  });
+  const replacedService=
+    createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+      replacedOptions,
+    );
+  const successor=net.createServer((socket)=>socket.end("successor\n"));
+  let successorStarted=false;
+  try{
+    await replacedService.start();
+    const original=fs.lstatSync(replacedPath,{bigint:true});
+    assert.equal(original.isSocket(),true);
+
+    fs.unlinkSync(replacedPath);
+    await new Promise((resolve,reject)=>{
+      successor.once("error",reject);
+      successor.listen(replacedPath,resolve);
+    });
+    successorStarted=true;
+    fs.chmodSync(replacedPath,0o660);
+    if(typeof process.getuid==="function"){
+      fs.chownSync(replacedPath,-1,socketGroup);
+    }
+    const successorBefore=fs.lstatSync(replacedPath,{bigint:true});
+    assert.equal(successorBefore.isSocket(),true);
+    assert.notEqual(String(successorBefore.ino),String(original.ino));
+
+    await replacedService.stop();
+
+    const successorAfter=fs.lstatSync(replacedPath,{bigint:true});
+    assert.equal(successorAfter.isSocket(),true);
+    assert.equal(String(successorAfter.dev),String(successorBefore.dev));
+    assert.equal(String(successorAfter.ino),String(successorBefore.ino));
+    assert.equal(successor.listening,true);
+
+    const reply=await new Promise((resolve,reject)=>{
+      const socket=net.createConnection(replacedPath);
+      let input="";
+      socket.setEncoding("utf8");
+      socket.once("error",reject);
+      socket.on("data",(chunk)=>{input+=chunk;});
+      socket.on("end",()=>resolve(input));
+    });
+    assert.equal(reply,"successor\n");
+  }finally{
+    try{
+      await replacedService.stop();
+    }catch(error){
+      void error;
+    }
+    if(successorStarted){
+      await new Promise((resolve)=>successor.close(()=>resolve()));
+    }
+  }
+  assert.equal(
+    fs.existsSync(replacedPath),
+    false,
+    "successor owns normal unlink only after its own close",
+  );
+}
+
+await proveReplacementSocketPreservedOnStop();
+
 try{
   const started=await service.start();
   assert.equal(started.ok,true);
@@ -367,6 +435,8 @@ for(const required of [
   "/proc/self/fd/",
   "fs.fsyncSync",
   "server_controlled_fence_root:true",
+  "isolateAdvertisedSocketPathBeforeClose",
+  "finalizeIsolatedSocketPathAfterClose",
   "independent_custody_proven:false",
 ]){
   assert.ok(serviceSource.includes(required),required);
@@ -422,6 +492,7 @@ console.log("create_only_record=true");
 console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
 console.log("caller_selected_path=false");
+console.log("replacement_socket_preserved_on_old_listener_close=true");
 console.log("abort_signal_destroys_unresponsive_socket=true");
 console.log("startup_chmod_failure_rolls_back_all_resources=true");
 console.log("startup_chown_failure_rolls_back_all_resources=true");
