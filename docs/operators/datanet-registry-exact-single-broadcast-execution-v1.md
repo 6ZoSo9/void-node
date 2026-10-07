@@ -40,6 +40,48 @@ exactly match the authorization artifact. The transaction-submitting API repeats
 that exact comparison internally; library callers cannot bypass the
 operation-bound confirmation by skipping the Precision CLI.
 
+## Reviewed execution provenance
+
+The Precision launcher is now a built-ins-only bootstrap. Before it reads the
+signed transaction artifact or exposes the RPC capability, it must establish
+one exact source authority:
+
+1. use absolute `/usr/bin/git` with replacement objects, global/system config,
+   hooks, attributes, fsmonitor, untracked cache, preload index and recursive
+   submodules disabled;
+2. require canonical `main`, a clean checkout including untracked files, the
+   reviewed origin, and exact local `HEAD == GitHub refs/heads/main`;
+3. recursively derive the broadcaster authority's complete relative import
+   closure from exact captured HEAD Git objects;
+4. require that closure to contain exactly 27 reviewed relative modules, with
+   only the bare package `ethers`;
+5. record the one network-capable dependency module
+   `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`
+   explicitly instead of claiming a network-free closure;
+6. materialize those exact Git-object bytes into a private temporary tree;
+7. verify and privately materialize the reviewed `ethers` package closure using
+   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`; and
+8. load the broadcaster authority only from that private exact-HEAD tree.
+
+The private source tree and reviewed package runtime are reverified after module
+loading and again immediately before the signed artifact/RPC boundary. Hidden
+worktree drift such as `assume-unchanged` cannot become execution authority
+because execution bytes come from exact HEAD Git objects.
+
+The reviewed closure contains one module that can perform live HTTP observation
+in other workflows, so this lane intentionally reports:
+
+```text
+execution_network_isolation_provided=false
+```
+
+That module's presence is content-addressed; it is not treated as evidence that
+the broadcaster validation path invoked the live observer. The explicit
+broadcaster RPC remains the narrow launcher-injected capability described below.
+
+This is execution provenance, not broadcast authorization. A source-green PR or
+private reviewed tree does not authorize a real registry transaction.
+
 ## Replay and crash boundary
 
 The executor validates the immutable consumption record from:
@@ -76,7 +118,8 @@ returns an explicit HOLD/error result with zero broadcaster/RPC-send access.
 It does not continue through reconciliation as a successful broadcast attempt,
 and the durable intent still prevents later replay.
 
-The only mutating RPC method available to this gate is:
+The only mutating RPC method available to the launcher-injected RPC capability
+is:
 
 `eth_sendRawTransaction`
 
@@ -108,9 +151,31 @@ Immediate classifications include:
 - ambiguous/rejected send error, no retry; or
 - submission returned without immediate confirmation, no retry.
 
+## Proof-only adversaries
+
+The focused repository proof does not invoke a live RPC. In addition to the
+existing dependency-injected single-attempt semantics, it permanently checks:
+
+- exact 27-module relative closure, exact `ethers` bare-package set and exact
+  one-module network-capable set;
+- hostile PATH/Git environment values cannot replace the absolute isolated Git
+  authority;
+- an `assume-unchanged` mutation of the dangerous worktree broadcaster is not
+  present in the exact HEAD bytes selected for reviewed execution;
+- mutation of the private reviewed source copy is detected by its Git
+  blob/SHA-256 revalidation; and
+- the reviewed `ethers` profile can be verified and materialized with no RPC
+  call or transaction submission.
+
+The proof restores its temporary worktree mutation and CI requires a clean
+checkout afterwards.
+
 ## Authority boundary
 
-A green execution proves one submission attempt occurred. It does not itself
+A real green execution proves one submission attempt occurred. A repository
+proof green proves only that the reviewed execution boundary and inert
+dependency-injected semantics are coherent; it does **not** prove that a live
+broadcast occurred. It does not itself
 prove contract deployment finality or runtime bytecode correctness.
 
 The expected transaction is the exact signed DataNet registry deployment:
