@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
+import {
+  renderEarnHistoryV1,
+  validateEarnHistoryV1,
+} from "../public/void-app-wave1-v1/assets/js/earn-live.js";
 
 const root = process.cwd();
 
@@ -51,6 +55,101 @@ assert.equal(exactNonNegative(0), 0);
 assert.equal(exactNonNegative(1.25), 1.25);
 assert.equal(exactNonNegative(-0.25), null);
 
+for (const kind of ["job", "receipt"] as const) {
+  assert.throws(
+    () =>
+      validateEarnHistoryV1(
+        {
+          available: false,
+          count: 1,
+          limit: 5,
+          items: [{}],
+        },
+        kind,
+      ),
+    new RegExp(`earn ${kind} unavailable history must be empty`),
+  );
+}
+
+const priorDocument = globalThis.document;
+const staleJobRow = Object.freeze({ id: "stale-job-row" });
+const staleReceiptRow = Object.freeze({ id: "stale-receipt-row" });
+const inertNodes = new Map<string, {
+  children?: unknown[];
+  hidden?: boolean;
+  textContent?: string;
+  replaceChildren?: (...children: unknown[]) => void;
+}>([
+  [
+    "[data-earn-jobs-list]",
+    {
+      children: [staleJobRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-jobs-empty]",
+    { hidden: true, textContent: "stale jobs" },
+  ],
+  [
+    "[data-earn-receipts-list]",
+    {
+      children: [staleReceiptRow],
+      replaceChildren(...children: unknown[]) {
+        this.children = children;
+      },
+    },
+  ],
+  [
+    "[data-earn-receipts-empty]",
+    { hidden: true, textContent: "stale receipts" },
+  ],
+]);
+
+Object.defineProperty(globalThis, "document", {
+  configurable: true,
+  value: {
+    querySelector: (selector: string) => inertNodes.get(selector) ?? null,
+    createElement: () => {
+      throw new Error("unavailable history attempted to render a row");
+    },
+  },
+});
+try {
+  renderEarnHistoryV1(
+    "[data-earn-jobs-list]",
+    "[data-earn-jobs-empty]",
+    { available: false, count: 1, limit: 5, items: [{}] },
+    "job",
+  );
+  renderEarnHistoryV1(
+    "[data-earn-receipts-list]",
+    "[data-earn-receipts-empty]",
+    { available: false, count: 1, limit: 5, items: [{}] },
+    "receipt",
+  );
+} finally {
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: priorDocument,
+  });
+}
+
+assert.deepEqual(inertNodes.get("[data-earn-jobs-list]")?.children, []);
+assert.equal(inertNodes.get("[data-earn-jobs-empty]")?.hidden, false);
+assert.equal(
+  inertNodes.get("[data-earn-jobs-empty]")?.textContent,
+  "Recent job history unavailable.",
+);
+assert.deepEqual(inertNodes.get("[data-earn-receipts-list]")?.children, []);
+assert.equal(inertNodes.get("[data-earn-receipts-empty]")?.hidden, false);
+assert.equal(
+  inertNodes.get("[data-earn-receipts-empty]")?.textContent,
+  "Verification receipt history unavailable.",
+);
+
 for (const marker of [
   'return typeof raw === "number" && Number.isFinite(raw)',
   "const lastCreditAvailable =",
@@ -84,6 +183,13 @@ for (const marker of [
   "lastCredit.available === true",
   "setText('[data-earn-jobs-count]', jobsCount)",
   "setText('[data-earn-receipts-count]', receiptsCount)",
+  "value.available === false &&",
+  "unavailable history must be empty",
+  "jobs.available === true",
+  "receipts.available === true",
+  "renderEarnHistoryV1(",
+  "Recent job history unavailable.",
+  "Verification receipt history unavailable.",
 ]) {
   if (!client.includes(marker)) {
     fail(`browser numeric evidence contract missing: ${marker}`);
