@@ -2,9 +2,19 @@ name: public-root-artifact-rotation-closeout
 
 on:
   pull_request:
+    paths:
+      - '.github/workflows/public-root-artifact-rotation-closeout.yml'
+      - 'tools/check_public_root_artifact_history_exposure_rotation_closeout_v1.sh'
+      - 'tools/check_public_repo_hygiene.sh'
+      - 'docs/security/public-root-artifact-history-exposure-rotation-closeout-v1.md'
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/public-root-artifact-rotation-closeout.yml'
+      - 'tools/check_public_root_artifact_history_exposure_rotation_closeout_v1.sh'
+      - 'tools/check_public_repo_hygiene.sh'
+      - 'docs/security/public-root-artifact-history-exposure-rotation-closeout-v1.md'
 
 permissions:
   contents: read

@@ -26,5 +26,15 @@ jobs:
             exit 1
           fi
 
+      - name: Block root-owned tracked files
+        run: |
+          set -euo pipefail
+          ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
+          if [ -n "${ROOTY:-}" ]; then
+            echo "Root-owned files:"
+            echo "$ROOTY"
+            exit 1
+          fi
+
       - name: Block blobs >=10MB anywhere in history
         run: bash tools/check_large_history_baseline.sh

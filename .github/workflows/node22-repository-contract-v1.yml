@@ -36,8 +36,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: node-compatibility-repository-contract-v2-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prove:

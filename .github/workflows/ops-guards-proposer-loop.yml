@@ -2,7 +2,45 @@ name: Ops Guards (proposer loop)
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/ops-guards-proposer-loop.yml'
+      - 'ops/systemd/user/void-proposer-loop.service'
+      - 'scripts/prove_proposer_seal_rejection_containment_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_true_dry_run_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts'
+      - 'scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/dev_proposer_merge.js'
+      - 'scripts/dev_proposer_merge.ts'
+      - 'ops/proposer-rescue-ping-proof.sh'
+      - 'ops/mainnet0/public-live-boundary-v1-proof.sh'
+      - 'docs/public/mainnet0-public-route-contract-v1.md'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
   pull_request:
+    paths:
+      - '.github/workflows/ops-guards-proposer-loop.yml'
+      - 'ops/systemd/user/void-proposer-loop.service'
+      - 'scripts/prove_proposer_seal_rejection_containment_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_true_dry_run_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts'
+      - 'scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/dev_proposer_merge.js'
+      - 'scripts/dev_proposer_merge.ts'
+      - 'ops/proposer-rescue-ping-proof.sh'
+      - 'ops/mainnet0/public-live-boundary-v1-proof.sh'
+      - 'docs/public/mainnet0-public-route-contract-v1.md'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
