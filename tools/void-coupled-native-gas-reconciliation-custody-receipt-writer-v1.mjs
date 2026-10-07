@@ -2237,6 +2237,77 @@ export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceip
   }
 }
 
+export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+  input,
+  phase = "before_journal",
+) {
+  if (phase !== "before_journal" && phase !== "before_high_water") {
+    return held(
+      "receipt_writer_test_recovery_peer_state_swap_phase_invalid",
+      false,
+    );
+  }
+  let target = null;
+  let displaced = null;
+  let replacementCreated = false;
+  let mutationPerformed = false;
+  const markMutation = () => {
+    mutationPerformed = true;
+  };
+  try {
+    return await withWriterLock(input, async (roots) => {
+      normalizeReviewedTemps(roots, markMutation);
+      const replacePeer = () => {
+        const directory =
+          phase === "before_journal" ? roots.high_water : roots.journal;
+        const name =
+          phase === "before_journal" ? HIGH_WATER_NAME : JOURNAL_NAME;
+        target = path.join(directory.path, name);
+        displaced =
+          target +
+          ".test-recovery-peer-state-displaced-" +
+          process.pid +
+          "-" +
+          phase;
+        const bytes = fs.readFileSync(target);
+        fs.renameSync(target, displaced);
+        fs.writeFileSync(target, bytes, { mode: 0o600 });
+        fs.fsyncSync(directory.fd);
+        replacementCreated = true;
+      };
+      return recoverLocked(
+        roots,
+        markMutation,
+        null,
+        null,
+        mutationPerformed,
+        {
+          afterRecoveryJournalStateSnapshotHook:
+            phase === "before_journal" ? replacePeer : null,
+          afterRecoveryHighWaterStateSnapshotHook:
+            phase === "before_high_water" ? replacePeer : null,
+        },
+      );
+    });
+  } catch (error) {
+    return held(
+      error instanceof Error ? error.message : String(error),
+      mutationPerformed,
+    );
+  } finally {
+    try {
+      if (replacementCreated && target && fs.existsSync(target)) {
+        fs.unlinkSync(target);
+      }
+      if (displaced && target && fs.existsSync(displaced)) {
+        fs.renameSync(displaced, target);
+      }
+    } catch (error) {
+      void error;
+    }
+  }
+}
+
 export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1(
   input,
   which = "journal",
