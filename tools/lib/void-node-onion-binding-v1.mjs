@@ -5,7 +5,16 @@ import {
   timingSafeEqual,
   verify as cryptoVerify,
 } from "node:crypto";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readSync,
+  realpathSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -380,11 +389,99 @@ export function verifyVoidNodeOnionBindingV1(value, options = {}) {
   };
 }
 
-export function readAndVerifyVoidNodeOnionBindingV1(pathValue, options = {}) {
+const VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1 = Object.freeze({
+  closeSync,
+  constants: fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+});
+
+function sameBindingFileGenerationV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+export function readVoidNodeOnionBindingFileV1(
+  pathValue,
+  fileSystem = VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1,
+) {
   const path = resolve(pathValue);
-  const stat = lstatSync(path);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("binding file must be a regular non-symlink file");
-  if (stat.size < 2 || stat.size > MAX_BINDING_BYTES) fail("binding file size is invalid");
-  const value = JSON.parse(readFileSync(path, "utf8"));
+  const noFollow = fileSystem.constants?.O_NOFOLLOW;
+  if (typeof noFollow !== "number") {
+    fail("binding file no-follow reads are unavailable");
+  }
+
+  let descriptor;
+  try {
+    descriptor = fileSystem.openSync(
+      path,
+      fileSystem.constants.O_RDONLY | noFollow,
+    );
+    const before = fileSystem.fstatSync(descriptor, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink()) {
+      fail("binding file must be a regular non-symlink file");
+    }
+    if (before.size < 2n || before.size > BigInt(MAX_BINDING_BYTES)) {
+      fail("binding file size is invalid");
+    }
+
+    const length = Number(before.size);
+    const bytes = Buffer.alloc(length);
+    let used = 0;
+    while (used < length) {
+      const count = fileSystem.readSync(
+        descriptor,
+        bytes,
+        used,
+        length - used,
+        used,
+      );
+      if (!Number.isInteger(count) || count < 1 || count > length - used) {
+        fail("binding file ended before its opened size");
+      }
+      used += count;
+    }
+
+    const eofProbe = Buffer.alloc(1);
+    if (fileSystem.readSync(descriptor, eofProbe, 0, 1, length) !== 0) {
+      fail("binding file grew beyond its opened size");
+    }
+
+    const after = fileSystem.fstatSync(descriptor, { bigint: true });
+    if (!sameBindingFileGenerationV1(before, after)) {
+      fail("binding file changed during read");
+    }
+
+    const visible = fileSystem.lstatSync(path, { bigint: true });
+    if (
+      !visible.isFile() ||
+      visible.isSymbolicLink() ||
+      !sameBindingFileGenerationV1(after, visible)
+    ) {
+      fail("binding file path changed during read");
+    }
+    return bytes;
+  } finally {
+    if (descriptor !== undefined) fileSystem.closeSync(descriptor);
+  }
+}
+
+export function readAndVerifyVoidNodeOnionBindingV1(
+  pathValue,
+  options = {},
+  fileSystem = VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1,
+) {
+  const value = JSON.parse(
+    readVoidNodeOnionBindingFileV1(pathValue, fileSystem).toString("utf8"),
+  );
   return verifyVoidNodeOnionBindingV1(value, options);
 }
