@@ -224,6 +224,25 @@ function reviewedGitAuthorityV1(expectedLauncherBlob){
     git_config_isolated:true,
   });
 }
+function testOnlyReviewedCheckoutAuthorityV1(expectedLauncherBlob){
+  const head=repoGit(["rev-parse","HEAD"]);
+  const tree=repoGit(["rev-parse","HEAD^{tree}"]);
+  if(!/^[0-9a-f]{40}$/u.test(head)||!/^[0-9a-f]{40}$/u.test(tree)){
+    fail("test_reviewed_checkout_authority_invalid");
+  }
+  const launcher=exactHeadFileV1(head,LAUNCHER_REL);
+  if(launcher.blob!==expectedLauncherBlob){
+    fail("reviewed_launcher_git_blob_mismatch");
+  }
+  return Object.freeze({
+    head,
+    tree,
+    launcher_git_blob_sha1:launcher.blob,
+    launcher_sha256:launcher.sha256,
+    test_only_current_checkout:true,
+  });
+}
+
 function validateRelativePath(relativePath){
   if(
     typeof relativePath!=="string"||
@@ -1045,10 +1064,10 @@ export async function testOnlyPrepareReviewedExecutionPrivateTreeAbaV1(){
 export async function testOnlyPrepareAndRecheckReviewedAuthorityV1(){
   const head=repoGit(["rev-parse","HEAD"]);
   const launcher=exactHeadFileV1(head,LAUNCHER_REL);
-  const authority=reviewedGitAuthorityV1(launcher.blob);
+  const authority=testOnlyReviewedCheckoutAuthorityV1(launcher.blob);
   const prepared=await prepareReviewedExecutionV1(authority.head);
   try{
-    const after=reviewedGitAuthorityV1(
+    const after=testOnlyReviewedCheckoutAuthorityV1(
       authority.launcher_git_blob_sha1,
     );
     if(
