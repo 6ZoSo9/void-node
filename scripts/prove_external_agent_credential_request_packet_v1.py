@@ -80,9 +80,9 @@ class FakeResponse:
 
     def read(
         self,
-        _: int,
+        limit: int,
     ) -> bytes:
-        return self._body
+        return self._body[:limit]
 
     def getheaders(
         self,
@@ -1006,6 +1006,54 @@ try:
             encoding="utf-8",
         )
 
+        oversized_output = (
+            temporary
+            / "oversized-response-result.json"
+        )
+        valid_response_prefix = (
+            json.dumps(response) + "\n"
+        ).encode("utf-8")
+        if len(valid_response_prefix) >= module.MAX_RESPONSE_BYTES:
+            raise RuntimeError(
+                "fixture response unexpectedly exceeds client limit"
+            )
+        FakeConnection.response_status = 202
+        FakeConnection.response_body = (
+            valid_response_prefix
+            + b" " * (
+                module.MAX_RESPONSE_BYTES
+                - len(valid_response_prefix)
+            )
+            + b"X"
+        )
+        FakeConnection.requests.clear()
+        try:
+            module.command_submit(
+                module.argparse.Namespace(
+                    request=str(request_path),
+                    identity_key=str(identity_key),
+                    output=str(oversized_output),
+                )
+            )
+        except ValueError as error:
+            if (
+                "gateway response exceeds maximum bytes"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "oversized gateway response was accepted"
+            )
+        if oversized_output.exists():
+            raise RuntimeError(
+                "oversized gateway response created durable result"
+            )
+        if len(FakeConnection.requests) != 1:
+            raise RuntimeError(
+                "oversized gateway response triggered unexpected retry"
+            )
+
         for (
             held_status,
             held_error,
@@ -1304,6 +1352,12 @@ try:
     )
     print(
         "gateway_held_state_persisted=1"
+    )
+    print(
+        "gateway_response_complete_body_bounded=1"
+    )
+    print(
+        "gateway_response_oversize_no_persistence=1"
     )
     print(
         "applicant_identity_private_key_is_wallet_key=0"
