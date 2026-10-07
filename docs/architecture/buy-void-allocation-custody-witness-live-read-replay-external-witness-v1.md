@@ -58,8 +58,11 @@ historical replay prefix from the supplied current canonical journal:
 - external event 3 is rebound to replay journal prefix sequence 2;
 - and so on.
 
-Each reconstructed prefix is passed through the merged canonical replay
-high-water derivation.
+Each locally available reconstructed prefix is passed through the merged
+canonical replay high-water derivation before any rollback classification is
+allowed. If the external witness is ahead of local replay, the complete local
+common prefix must still rebind exactly. A malformed or forged ahead witness is
+therefore a history conflict, not rollback evidence.
 
 A syntactically valid mixed history such as:
 
@@ -93,8 +96,10 @@ This is not authority to treat the new local replay state as rollback anchored.
 
 The classifier HOLDs for:
 
-- local replay sequence behind the external witness: rollback detected;
-- mixed/divergent historical prefixes;
+- local replay sequence behind a witness whose complete locally available
+  prefix rebinds exactly: rollback detected;
+- forged/mixed/divergent historical prefixes, including an ahead witness whose
+  shared genesis/history does not match local canonical replay;
 - current journal/high-water binding failure;
 - source or witness identity drift;
 - malformed/noncanonical/tampered external witness;
@@ -175,7 +180,8 @@ The focused proof covers:
 - update-required classification;
 - idempotence;
 - sequential catch-up;
-- local rollback detection;
+- local rollback detection only after canonical common-prefix rebinding;
+- forged-ahead witness rejection without false rollback classification;
 - mixed-history conflict rejection;
 - source/witness identity drift rejection;
 - witness tamper rejection;
