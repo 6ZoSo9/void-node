@@ -522,6 +522,22 @@ export function registerSteamReadonlyBridgeRuntimeV2(
   }
   const retainedDependencies = anyApp[DEPENDENCIES];
 
+  const registrationConclusive = (): boolean =>
+    registrationStateV2(anyApp[STATUS_BOUND]) === "bound" &&
+    registrationStateV2(anyApp[REQUEST_BOUND]) === "bound";
+
+  const holdIndeterminateRegistration = (
+    response: Response,
+  ): boolean => {
+    if (registrationConclusive()) return false;
+    response.status(503).json({
+      ok: false,
+      marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
+      error: "steam_readonly_bridge_registration_indeterminate",
+    });
+    return true;
+  };
+
   if (anyApp[BOUND]) {
     return {
       marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
@@ -548,6 +564,9 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.get(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
       async (request: Request, response: Response) => {
+        if (holdIndeterminateRegistration(response)) {
+          return;
+        }
         if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
@@ -573,6 +592,9 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.post(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
       async (request: Request, response: Response) => {
+        if (holdIndeterminateRegistration(response)) {
+          return;
+        }
         if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
