@@ -1,0 +1,93 @@
+name: VOID Buy VOID witness live-read replay executor v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-executor-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_executor_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-executor-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-executor-v1.yml"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_composition_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_qualification_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-witness-live-read-replay-executor-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: witness live-read replay executor v1 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Syntax-check executor
+        run: |
+          node --check tools/void-buy-allocation-custody-witness-live-read-replay-executor-v1.mjs
+          node --check scripts/prove_buy_void_allocation_custody_witness_live_read_replay_executor_v1.mjs
+
+      - name: Prove bounded executor without network
+        run: node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_executor_v1.mjs
+
+      - name: Preserve replay composition
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_composition_v1.ts
+
+      - name: Preserve replay writer
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts
+
+      - name: Preserve live-read qualification
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts
+
+      - name: Preserve transport
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
+
+      - name: Preserve installation evidence package
+        run: node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
