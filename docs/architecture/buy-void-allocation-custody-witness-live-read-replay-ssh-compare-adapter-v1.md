@@ -64,6 +64,13 @@ verify the remote witness bytes stayed unchanged.
 No such credentials or Nimo compare-only restriction are installed by this
 source-only PR.
 
+The SSH subprocess will read its dedicated transport private key after
+installation. That is intentional SSH authentication, **not** wallet or signer
+key access. The adapter's JavaScript does not read or return the key material.
+The authority object therefore reports `private_key_access=true` for the
+SSH transport capability, alongside `wallet_or_signer_access=false` and
+`private_key_material_read_by_adapter_js=false`.
+
 ## Source-only / not production authority
 
 The public factory is
