@@ -120,7 +120,7 @@ function mustRejectRequest(name, payload, pattern) {
       payload,()=>{
         executions++;
         return {status:0,signal:null,stdout:matchedResponse,stderr:Buffer.alloc(0)};
-      }),
+      },
     ),
     pattern,
     name,
