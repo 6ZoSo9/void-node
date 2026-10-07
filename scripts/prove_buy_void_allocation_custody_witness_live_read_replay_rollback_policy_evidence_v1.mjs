@@ -11,10 +11,10 @@ import {
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
-} from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1,
-} from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
 
 const NOW = 1_800_000_000_000;
 const POLICY_PATH =
