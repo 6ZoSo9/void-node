@@ -1,9 +1,7 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Express, Request, Response as ExpressResponse } from "express";
 import {
-  type SteamReadonlyBridgeRuntimeV2Dependencies,
   registerSteamReadonlyBridgeRuntimeV2,
   steamReadonlyBridgeCredentialReferenceStatusV2,
   steamReadonlyBridgeRuntimeStatusV2,
@@ -43,23 +41,23 @@ class FakeApp {
   }
 }
 
-class FailOnceGetApp extends FakeApp {
+class InstallThenThrowGetApp extends FakeApp {
   get(pathname: string, handler: Handler): this {
-    if (this.getAttempts === 0) {
-      this.getAttempts += 1;
-      throw new Error("synthetic status-route registration failure");
+    super.get(pathname, handler);
+    if (this.getAttempts === 1) {
+      throw new Error("synthetic status-route post-install failure");
     }
-    return super.get(pathname, handler);
+    return this;
   }
 }
 
-class FailOncePostApp extends FakeApp {
+class InstallThenThrowPostApp extends FakeApp {
   post(pathname: string, handler: Handler): this {
-    if (this.postAttempts === 0) {
-      this.postAttempts += 1;
-      throw new Error("synthetic request-route registration failure");
+    super.post(pathname, handler);
+    if (this.postAttempts === 1) {
+      throw new Error("synthetic request-route post-install failure");
     }
-    return super.post(pathname, handler);
+    return this;
   }
 }
 
@@ -358,229 +356,96 @@ need(
   "unauthorized error mismatch",
 );
 
-const failOnceGetApp = new FailOnceGetApp();
-let initialRegistrationFailed = false;
+const installThenThrowGetApp = new InstallThenThrowGetApp();
+let statusPostInstallFailed = false;
 try {
   registerSteamReadonlyBridgeRuntimeV2(
-    failOnceGetApp as unknown as Express,
+    installThenThrowGetApp as unknown as Express,
     {
       env,
       authorize_operator: () => true,
     },
   );
 } catch (error) {
-  initialRegistrationFailed =
+  statusPostInstallFailed =
     error instanceof Error &&
-    error.message === "synthetic status-route registration failure";
+    error.message === "synthetic status-route post-install failure";
 }
-need(initialRegistrationFailed, "initial registration did not fail");
+need(statusPostInstallFailed, "status post-install failure was not observed");
 need(
-  routeCounts(failOnceGetApp).every((count) => count === 0),
-  "failed initial registration retained a route",
+  routeCounts(installThenThrowGetApp)[0] === 1 &&
+    routeCounts(installThenThrowGetApp)[1] === 0 &&
+    registrationAttempts(installThenThrowGetApp)[0] === 1,
+  "status post-install failure did not retain exactly one ambiguous route",
 );
-
-const retriedInitialRegistration = registerSteamReadonlyBridgeRuntimeV2(
-  failOnceGetApp as unknown as Express,
-  {
-    env,
-    authorize_operator: () => true,
-  },
-);
-need(
-  retriedInitialRegistration.registered === true,
-  "initial registration retry did not resume",
-);
-need(
-  registrationAttempts(failOnceGetApp)[0] === 2 &&
-    routeCounts(failOnceGetApp).every((count) => count === 1),
-  "initial registration retry did not install both routes once",
-);
-
-const failOnceApp = new FailOncePostApp();
-const retryGenerationCalls: string[] = [];
-const retryMockBody = JSON.stringify({
-  response: {
-    players: [
-      {
-        steamid: "76561198000000000",
-        personaname: "retry-proof-persona",
-      },
-    ],
-  },
-});
-const firstGenerationEnv: NodeJS.ProcessEnv = {
-  ...env,
-  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
-    "voidsteamref1_" + "a".repeat(64),
-};
-const secondGenerationEnv: NodeJS.ProcessEnv = {
-  ...env,
-  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
-    "voidsteamref1_" + "b".repeat(64),
-};
-const firstGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
-  env: firstGenerationEnv,
-  authorize_operator: () => {
-    retryGenerationCalls.push("auth:A");
-    return true;
-  },
-  now: () => {
-    retryGenerationCalls.push("now:A");
-    return 1_754_150_100_000;
-  },
-  fetch_impl: async (input, init) => {
-    retryGenerationCalls.push("fetch:A");
-    return responseWithFinalUrl(
-      retryMockBody,
-      {
-        status: 200,
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "content-length": String(Buffer.byteLength(retryMockBody)),
-        },
-      },
-      String(input),
-    );
-  },
-};
-const secondGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
-  env: secondGenerationEnv,
-  authorize_operator: () => {
-    retryGenerationCalls.push("auth:B");
-    return false;
-  },
-  now: () => {
-    retryGenerationCalls.push("now:B");
-    return 1_754_150_200_000;
-  },
-  fetch_impl: async () => {
-    retryGenerationCalls.push("fetch:B");
-    throw new Error("generation B fetch must never run");
-  },
-};
-
-let partialRegistrationFailed = false;
+let statusRetryHeld = false;
 try {
   registerSteamReadonlyBridgeRuntimeV2(
-    failOnceApp as unknown as Express,
-    firstGeneration,
+    installThenThrowGetApp as unknown as Express,
+    {
+      env: {},
+      authorize_operator: () => false,
+    },
   );
 } catch (error) {
-  partialRegistrationFailed =
+  statusRetryHeld =
     error instanceof Error &&
-    error.message === "synthetic request-route registration failure";
+    error.message ===
+      "steam_readonly_bridge_status_registration_indeterminate";
 }
-need(partialRegistrationFailed, "partial registration did not fail");
+need(statusRetryHeld, "indeterminate status registration retry was not held");
 need(
-  failOnceApp.getHandlers.size === 1 && failOnceApp.getAttempts === 1,
-  "status route missing or registered more than once after partial registration",
-);
-need(
-  failOnceApp.postHandlers.size === 0 && failOnceApp.postAttempts === 1,
-  "failed request route was retained or attempt count mismatched",
+  routeCounts(installThenThrowGetApp)[0] === 1 &&
+    routeCounts(installThenThrowGetApp)[1] === 0 &&
+    registrationAttempts(installThenThrowGetApp)[0] === 1,
+  "held status retry duplicated or extended the ambiguous route set",
 );
 
-const resumedRegistration = registerSteamReadonlyBridgeRuntimeV2(
-  failOnceApp as unknown as Express,
-  secondGeneration,
-);
+const installThenThrowPostApp = new InstallThenThrowPostApp();
+let requestPostInstallFailed = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    installThenThrowPostApp as unknown as Express,
+    {
+      env,
+      authorize_operator: () => true,
+    },
+  );
+} catch (error) {
+  requestPostInstallFailed =
+    error instanceof Error &&
+    error.message === "synthetic request-route post-install failure";
+}
+need(requestPostInstallFailed, "request post-install failure was not observed");
 need(
-  resumedRegistration.registered === true,
-  "partial registration retry did not resume",
+  routeCounts(installThenThrowPostApp).every((count) => count === 1) &&
+    registrationAttempts(installThenThrowPostApp).every(
+      (count) => count === 1,
+    ),
+  "request post-install failure did not retain one route per step",
 );
-const resumedAttempts = registrationAttempts(failOnceApp);
+let requestRetryHeld = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    installThenThrowPostApp as unknown as Express,
+    {
+      env: {},
+      authorize_operator: () => false,
+    },
+  );
+} catch (error) {
+  requestRetryHeld =
+    error instanceof Error &&
+    error.message ===
+      "steam_readonly_bridge_request_registration_indeterminate";
+}
+need(requestRetryHeld, "indeterminate request registration retry was not held");
 need(
-  failOnceApp.getHandlers.size === 1 && resumedAttempts[0] === 1,
-  "partial registration retry duplicated the status route",
-);
-need(
-  failOnceApp.postHandlers.has(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
-  ),
-  "partial registration retry did not install the request route",
-);
-need(
-  resumedAttempts[1] === 2,
-  "partial registration retry used an unexpected request-route attempt count",
-);
-
-const retainedStatus = await invoke(
-  failOnceApp.getHandlers.get(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
-  ),
-  undefined,
-);
-need(retainedStatus.status === 200, "retained status generation failed");
-const retainedStatusBody = asObject(
-  retainedStatus.body,
-  "retained status body missing",
-);
-const retainedCredential = asObject(
-  retainedStatusBody.credential_reference,
-  "retained credential reference missing",
-);
-need(
-  retainedCredential.reference_id_sha256 ===
-    crypto.createHash("sha256")
-      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
-      .digest("hex"),
-  "status route drifted from generation A env",
-);
-
-const retainedRequest = await invoke(
-  failOnceApp.postHandlers.get(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
-  ),
-  {
-    confirmation:
-      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_CONFIRMATION,
-    operation: "player_summaries",
-    steamids: ["76561198000000000"],
-  },
-);
-need(retainedRequest.status === 200, "retained request generation failed");
-const retainedRequestBody = asObject(
-  retainedRequest.body,
-  "retained request body missing",
-);
-const retainedRequestReceipt = asObject(
-  retainedRequestBody.receipt,
-  "retained request receipt missing",
-);
-need(
-  retainedRequestReceipt.credential_reference_id_sha256 ===
-    crypto.createHash("sha256")
-      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
-      .digest("hex"),
-  "request route drifted from generation A env",
-);
-need(
-  retryGenerationCalls.includes("auth:A") &&
-    retryGenerationCalls.includes("fetch:A") &&
-    retryGenerationCalls.includes("now:A"),
-  "generation A providers were not retained",
-);
-need(
-  retryGenerationCalls.every((entry) => !entry.endsWith(":B")),
-  "retry mixed dependency generation B into resumed routes",
-);
-const resumedDuplicate = registerSteamReadonlyBridgeRuntimeV2(
-  failOnceApp as unknown as Express,
-  {
-    env,
-    authorize_operator: () => true,
-  },
-);
-need(
-  resumedDuplicate.registered === false,
-  "completed partial-registration retry was not idempotent",
-);
-const completedAttempts = registrationAttempts(failOnceApp);
-need(
-  routeCounts(failOnceApp).every((count) => count === 1) &&
-    completedAttempts[0] === 1 &&
-    completedAttempts[1] === 2,
-  "duplicate retry changed the completed route set or registration call count",
+  routeCounts(installThenThrowPostApp).every((count) => count === 1) &&
+    registrationAttempts(installThenThrowPostApp).every(
+      (count) => count === 1,
+    ),
+  "held request retry duplicated the ambiguous route set",
 );
 
 const app = new FakeApp();
@@ -755,6 +620,6 @@ need(
   "receipt locator binding mismatch",
 );
 
-console.log("retry_dependency_generation_retained=true");
-console.log("retry_dependency_generation_split_rejected=true");
+console.log("post_install_registration_failure_holds_retry=true");
+console.log("indeterminate_registration_never_retries=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_GREEN");
