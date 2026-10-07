@@ -1,8 +1,8 @@
 {
   "marker": "VOID_GUARD_BASELINE_INDEX_TS_SIZE_V1",
-  "reason": "Raised for the reviewed jobs/DataNet generation-authority integration. The intentional src/index.ts delta is limited to generation revalidation hooks around existing worker effect boundaries and the automatic-worker generation assertion handoff; witness/state authority remains implemented in dedicated modules.",
+  "reason": "Raised for the reviewed Ethereum checkout canonical source-finality integration. The intentional src/index.ts delta is limited to request/config readiness composition and the Ethereum operator-verification bridge; Base verification and all mutation authority remain on existing bounded paths.",
   "path": "src/index.ts",
-  "baseline_bytes": 3851076,
+  "baseline_bytes": 3852487,
   "old_hard_limit_bytes": 3834264,
   "max_lines": 100000,
   "policy": {
@@ -12,13 +12,13 @@
     "override_env": "VOID_INDEX_TS_BASELINE_BYTES",
     "route_body_outside_index_required": true,
     "index_mount_hook_only": true,
-    "baseline_update_reason": "reviewed jobs/DataNet generation-authority integration adds exactly 908 bytes of effect-bound generation revalidation wiring",
+    "baseline_update_reason": "reviewed Ethereum checkout source-finality integration adds exactly 1411 bytes of config and verifier wiring",
     "well_known_discovery_link_only": true,
     "well_known_smoke_links_only": true,
     "public_node_runtime_card_only": true,
     "well_known_public_node_card_index_link_only": true,
     "well_known_runtime_closeout_rollup_link_only": true
   },
-  "previous_baseline_bytes": 3850168,
-  "note": "Raised by exactly 908 bytes from 3850168 to 3851076. The guard remains an exact ceiling and rejects any future index growth beyond 3851076."
+  "previous_baseline_bytes": 3851076,
+  "note": "Raised by exactly 1411 bytes from 3851076 to 3852487. The guard remains an exact ceiling and rejects any future index growth beyond 3852487."
 }

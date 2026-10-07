@@ -15,6 +15,7 @@ import {
 } from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 import {
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
+  planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
 import {
   parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessJournalV1,
@@ -168,6 +169,30 @@ function parseResponse(text) {
   return value;
 }
 
+function parseCompareResponse(text) {
+  const value = JSON.parse(text);
+  assert.equal(
+    canonicalLine(value),
+    text,
+    "compare response must be canonical single-line JSON",
+  );
+  assert.equal(
+    value.marker,
+    "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_FORCED_COMMAND_COMPARE_RESPONSE_V1",
+  );
+  assert.equal(value.schema,
+    "void_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_compare_response_v1",
+  );
+  assert.equal(value.operation_performed, false);
+  assert.equal(value.recovered_intent, false);
+  assert.equal(value.server_controlled_witness_observed, true);
+  assert.equal(value.external_transport_authenticated, false);
+  assert.equal(value.external_witness_storage_proven, false);
+  assert.equal(value.production_gate_ready, false);
+  assert.equal(value.funds_movement, false);
+  return value;
+}
+
 const deps = Object.freeze({
   read_host_facts_impl() {
     return expectedHost;
@@ -300,6 +325,100 @@ const deps = Object.freeze({
       );
     assert.equal(parsed2.event_count, 2);
     assert.equal(parsed2.tip.replay_sequence, 1);
+    const witness2 = fs.readFileSync(f.witness);
+
+    const compareMatched = buildRequest({
+      operation: "compare",
+      id: requestId("compare-matched"),
+      journal: journal1,
+      high_water: highWater(journal1),
+    });
+    const matched =
+      handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+        f.config,
+        compareMatched,
+        deps,
+      );
+    const matchedResponse = parseCompareResponse(matched.response_json);
+    assert.equal(matchedResponse.comparison_status, "matched");
+    assert.equal(matchedResponse.local_replay_sequence, 1);
+    assert.equal(matchedResponse.witnessed_replay_sequence, 1);
+    assert.equal(matchedResponse.event_count, 2);
+    assert.equal(matchedResponse.exact_live_match, true);
+    assert.equal(matchedResponse.external_witness_update_required, false);
+    assert.equal(matchedResponse.rollback_regression_candidate, false);
+    assert.equal(matchedResponse.rollback_regression_detected, false);
+    assert.equal(matchedResponse.mutation_admission_allowed, true);
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
+
+    const compareWitnessAhead = buildRequest({
+      operation: "compare",
+      id: requestId("compare-witness-ahead"),
+      journal: journal0,
+      high_water: highWater(journal0),
+    });
+    const witnessAhead =
+      handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+        f.config,
+        compareWitnessAhead,
+        deps,
+      );
+    const witnessAheadResponse =
+      parseCompareResponse(witnessAhead.response_json);
+    assert.equal(witnessAheadResponse.comparison_status, "witness_ahead");
+    assert.equal(witnessAheadResponse.local_replay_sequence, 0);
+    assert.equal(witnessAheadResponse.witnessed_replay_sequence, 1);
+    assert.equal(witnessAheadResponse.exact_live_match, false);
+    assert.equal(
+      witnessAheadResponse.external_witness_update_required,
+      false,
+    );
+    assert.equal(witnessAheadResponse.rollback_regression_candidate, true);
+    assert.equal(witnessAheadResponse.rollback_regression_detected, false);
+    assert.equal(witnessAheadResponse.mutation_admission_allowed, false);
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
+
+    const terminal =
+      planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1({
+        journal_jsonl: journal1,
+        outcome: "consumed",
+        request_id:
+          "voidwreq1_" +
+          crypto
+            .createHash("sha256")
+            .update("compare-terminal-request")
+            .digest("hex"),
+        response_sha256: sha256Id(
+          Buffer.from("compare-terminal-response", "utf8"),
+        ),
+        terminal_at_ms: 2_000,
+      });
+    assert.equal(terminal.ok, true);
+    if (!terminal.ok) throw new Error("compare terminal held");
+    const journal2 = Buffer.from(terminal.next_journal_jsonl, "utf8");
+    const compareLocalAhead = buildRequest({
+      operation: "compare",
+      id: requestId("compare-local-ahead"),
+      journal: journal2,
+      high_water: highWater(journal2),
+    });
+    const localAhead =
+      handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+        f.config,
+        compareLocalAhead,
+        deps,
+      );
+    const localAheadResponse =
+      parseCompareResponse(localAhead.response_json);
+    assert.equal(localAheadResponse.comparison_status, "local_ahead");
+    assert.equal(localAheadResponse.local_replay_sequence, 2);
+    assert.equal(localAheadResponse.witnessed_replay_sequence, 1);
+    assert.equal(localAheadResponse.exact_live_match, false);
+    assert.equal(localAheadResponse.external_witness_update_required, true);
+    assert.equal(localAheadResponse.rollback_regression_candidate, false);
+    assert.equal(localAheadResponse.rollback_regression_detected, false);
+    assert.equal(localAheadResponse.mutation_admission_allowed, false);
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
   } finally {
     cleanup(f);
   }
@@ -722,6 +841,10 @@ for (const key of [
   "authority_directory_fsync",
   "post_mutation_path_rebind",
   "server_observed_witness_identity_required",
+  "server_side_compare_operation",
+  "server_side_compare_read_only",
+  "compare_shared_history_rebinding_required",
+  "compare_rollback_regression_candidate",
   "original_remote_command_rejected",
 ]) {
   assert.equal(
@@ -770,6 +893,9 @@ const source = fs.readFileSync(
 for (const token of [
   "withBuyVoidFilesystemBakeryLockV1",
   "planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1",
+  "classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1",
+  "COMPARE_RESPONSE_MARKER",
+  "compareWitnessAgainstPresentedReplay",
   "O_NOFOLLOW",
   "O_DIRECTORY",
   "fs.fsyncSync",
@@ -834,6 +960,11 @@ console.log("fixed_witness_path=true");
 console.log("caller_selected_identity=false");
 console.log("server_observed_witness_identity=true");
 console.log("read_empty_witness_nonmutating=true");
+console.log("compare_matched_nonmutating=true");
+console.log("compare_local_ahead_nonmutating=true");
+console.log("compare_witness_ahead_rollback_candidate=true");
+console.log("compare_source_rollback_detected=false");
+console.log("compare_exact_match_mutation_admission=true");
 console.log("canonical_genesis_append=true");
 console.log("empty_genesis_journal_base64_admitted=true");
 console.log("empty_high_water_base64_rejected=true");

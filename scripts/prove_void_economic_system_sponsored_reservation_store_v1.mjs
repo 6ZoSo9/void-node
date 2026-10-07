@@ -1348,6 +1348,106 @@ const observedAt = (BASE_UNIX + 140) * 1000;
   }
 }
 
+
+async function proveTerminalBakeryReleaseSwapHolds(target) {
+  const f = fixture();
+  const originalFsync = fs.fsyncSync;
+  const detached =
+    target === "root"
+      ? f.root + "-terminal-detached"
+      : path.join(f.root, target + "-terminal-detached");
+  let injected = false;
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "3",
+      reservationDigit: "4",
+      walletDigit: "3",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    const recordName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    fs.fsyncSync = function patchedFsync(fd, ...args) {
+      const result = originalFsync.call(fs, fd, ...args);
+      if (injected) return result;
+      let descriptorPath;
+      try {
+        descriptorPath = fs.readlinkSync(
+          "/proc/self/fd/" + String(fd),
+        );
+      } catch {
+        return result;
+      }
+      if (
+        descriptorPath !== f.queue ||
+        !fs.existsSync(path.join(f.records, recordName)) ||
+        fs.readdirSync(f.queue).some(
+          (name) => name.startsWith("ticket-"),
+        )
+      ) {
+        return result;
+      }
+      // At this point the last bakery claim has been removed and the
+      // release-directory fsync has completed, but the callback outcome
+      // has not yet returned to the caller.
+      injected = true;
+      const visible =
+        target === "root"
+          ? f.root
+          : target === "records"
+            ? f.records
+            : f.queue;
+      fs.renameSync(visible, detached);
+      fs.mkdirSync(visible, { mode: 0o700 });
+      return result;
+    };
+    const outcome =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(injected, true, target + " release swap not exercised");
+    assert.equal(outcome.ok, false, JSON.stringify(outcome));
+    assert.equal(outcome.status, "held");
+    assert.equal(
+      outcome.reason,
+      target === "root"
+        ? "SPONSORED_RESERVATION_STORE_ROOT_CHANGED"
+        : target === "records"
+          ? "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED"
+          : "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY_CHANGED",
+    );
+    assert.equal(
+      outcome.mutation_performed,
+      true,
+      "durable reservation remains committed despite the rejected success",
+    );
+    const committedRecord =
+      target === "root"
+        ? path.join(detached, "records", recordName)
+        : target === "records"
+          ? path.join(detached, recordName)
+          : path.join(f.records, recordName);
+    assert.equal(fs.existsSync(committedRecord), true);
+    assert.equal(outcome.gas_sponsorship_performed, false);
+    assert.equal(outcome.transaction_submission, false);
+    assert.equal(outcome.transaction_broadcast, false);
+    assert.equal(outcome.funds_movement, false);
+  } finally {
+    fs.fsyncSync = originalFsync;
+    cleanup(f);
+    if (target === "root") {
+      fs.rmSync(detached, { recursive: true, force: true });
+    }
+  }
+}
+
+await proveTerminalBakeryReleaseSwapHolds("root");
+await proveTerminalBakeryReleaseSwapHolds("records");
+await proveTerminalBakeryReleaseSwapHolds("queue");
+
 const historicalState = verifyEconomicSystemSponsoredStateV1({
   sponsorship_policy: sponsor,
   ttl_caps_policy: ttl,
@@ -1431,6 +1531,9 @@ console.log("ordinary_duplicate_replay_reports_mutation=false");
 console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("duplicate_root_path_revalidated=true");
+console.log("terminal_bakery_release_root_swap_hold=true");
+console.log("terminal_bakery_release_records_swap_hold=true");
+console.log("terminal_bakery_release_queue_swap_hold=true");
 console.log("duplicate_path_swap_holds_without_store_mutation=true");
 console.log("existing_queue_lock_missing_queue_bootstrap=false");
 console.log("existing_queue_lock_permission_normalization=false");

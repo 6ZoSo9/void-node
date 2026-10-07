@@ -3,7 +3,27 @@ name: Legacy txroot forensics bundle retirement
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/legacy-txroot-forensics-bundle-retirement.yml'
+      - 'scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'src/diag/txroot_forensics_bundle_v5_v73.js'
+      - 'ops/security/public-sensitive-route-guard-proof.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/legacy-txroot-forensics-bundle-retirement.yml'
+      - 'scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'src/diag/txroot_forensics_bundle_v5_v73.js'
+      - 'ops/security/public-sensitive-route-guard-proof.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
 
 permissions:
   contents: read

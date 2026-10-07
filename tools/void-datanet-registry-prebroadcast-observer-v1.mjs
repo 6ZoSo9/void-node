@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import * as http from "node:http";
 import {getCreateAddress} from "ethers";
 
 import {
@@ -351,35 +352,100 @@ function decimal(value,label){
   return BigInt(raw);
 }
 async function defaultTransport({url,method,params}){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),5000);
-  try{
-    const response=await fetch(url,{
-      method:"POST",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify({
-        jsonrpc:"2.0",
-        id:1,
-        method,
-        params,
-      }),
-      signal:controller.signal,
-    });
-    const text=await response.text();
-    if(Buffer.byteLength(text)>MAX_RESPONSE_BYTES){
-      throw new Error("rpc_response_too_large");
-    }
-    if(!response.ok){
-      throw new Error("rpc_http_"+String(response.status));
-    }
-    const parsed=JSON.parse(text);
-    if(parsed?.error){
-      throw new Error("rpc_error");
-    }
-    return parsed?.result;
-  }finally{
-    clearTimeout(timer);
+  if(url!==PRIVATE_SUCCESSOR_RPC_V1){
+    throw new Error("rpc_url_not_reviewed");
   }
+  const body=JSON.stringify({
+    jsonrpc:"2.0",
+    id:1,
+    method,
+    params,
+  });
+  return await new Promise((resolve,reject)=>{
+    let settled=false;
+    let totalTimer=null;
+    const finish=(error,value)=>{
+      if(settled) return;
+      settled=true;
+      if(totalTimer!==null){
+        clearTimeout(totalTimer);
+        totalTimer=null;
+      }
+      if(error) reject(error);
+      else resolve(value);
+    };
+    const req=http.request({
+      protocol:"http:",
+      hostname:"127.0.0.1",
+      port:18553,
+      path:"/",
+      method:"POST",
+      family:4,
+      agent:false,
+      headers:{
+        Accept:"application/json",
+        "Content-Type":"application/json",
+        "Content-Length":String(Buffer.byteLength(body)),
+        Connection:"close",
+        "User-Agent":"void-datanet-registry-prebroadcast-observer-v1",
+      },
+    },(res)=>{
+      const chunks=[];
+      let total=0;
+      let responseEnded=false;
+      res.on("aborted",()=>finish(new Error("rpc_response_aborted")));
+      res.on("error",(error)=>finish(error));
+      res.on("close",()=>{
+        if(!responseEnded&&!res.complete){
+          finish(new Error("rpc_response_premature_close"));
+        }
+      });
+      res.on("data",(chunk)=>{
+        const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+        total+=bytes.length;
+        if(total>MAX_RESPONSE_BYTES){
+          const error=new Error("rpc_response_too_large");
+          finish(error);
+          req.destroy(error);
+          return;
+        }
+        chunks.push(bytes);
+      });
+      res.on("end",()=>{
+        responseEnded=true;
+        const status=Number(res.statusCode);
+        if(!Number.isInteger(status)||status<200||status>=300){
+          finish(new Error("rpc_http_"+String(res.statusCode)));
+          return;
+        }
+        let parsed;
+        try{
+          parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        }catch{
+          finish(new Error("rpc_json_invalid"));
+          return;
+        }
+        if(parsed?.error){
+          finish(new Error("rpc_error"));
+          return;
+        }
+        finish(null,parsed?.result);
+      });
+    });
+    totalTimer=setTimeout(()=>{
+      const error=new Error("rpc_total_deadline_exceeded");
+      finish(error);
+      req.destroy(error);
+    },5000);
+    req.setTimeout(5000);
+    req.on("timeout",()=>{
+      const error=new Error("rpc_timeout");
+      finish(error);
+      req.destroy(error);
+    });
+    req.on("error",(error)=>finish(error));
+    req.end(body);
+  });
 }
 
 export async function observeVoidDatanetRegistryPrebroadcastV1(input){
