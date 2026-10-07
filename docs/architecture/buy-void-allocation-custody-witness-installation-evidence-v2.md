@@ -238,6 +238,25 @@ The receipt binds:
 
 `collector_receipt_sha256` is the SHA-256 of the canonical receipt body.
 
+## Qualification packet export
+
+The legacy
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(...)`
+API remains receipt-only and byte-for-byte compatible with existing consumers.
+
+For later live-read composition,
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(...)`
+runs the same double census and returns:
+
+- `receipt`: the exact legacy collector receipt; and
+- `normalized_qualification`: the exact canonical V2 normalized
+  installation qualification whose SHA-256 is already committed by
+  `receipt.normalized_qualification_sha256`.
+
+The packet wrapper grants no additional authority. Consumers must recompute the
+normalized qualification digest and bind it back to the unchanged receipt
+before use.
+
 ## Authority boundary
 
 Even a successful receipt reports:
