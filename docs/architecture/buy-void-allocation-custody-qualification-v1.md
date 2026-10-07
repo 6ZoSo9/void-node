@@ -6,18 +6,27 @@ Status: **source-only host/storage evidence classifier; no host I/O and no produ
 
 Reviewed writer provenance head:
 
-`5534146b140fc5fb2b3c445370a46be6d092c93f`
+`65a87dba3f4a480a970f01804beb1fffec543350`
 
 Reviewed writer source blob (Git SHA-1):
 
-`2db8493d1ee84878ef5fa2b0f655070622335d0d`
+`59b336eb82222bf0f5bcfe37060ec520c54e9b62`
 
 Reviewed writer source SHA-256:
 
-`sha256:620ccfbdc26268b0f09e0282776ef88a9848a8f4307f71b5f7f7894558ae1cfb`
+`sha256:84ba3aa4fd77fdcf6cc12b8707014a9698a4f2b04808e3179a4d016435c9fd4b`
 
 The source SHA-256 is the primary authority-bearing implementation binding.
 Git blob SHA-1 and commit head remain provenance/cross-check evidence.
+
+**Candidate requalification only:** this draft rebinds the source classifier to
+the terminal root-swap hardening commit above. Its focused writer tests and
+full downstream hosted checks are required, and an independent review plus fresh
+designated-host custody evidence must occur before treating these candidate
+bytes as operationally reviewed. The previous writer identity remains
+historical evidence; it cannot qualify the changed implementation or silently
+inherit any old custody receipt. No service, runtime, payment, or production
+authority follows from updating these source constants.
 
 ## Purpose
 
