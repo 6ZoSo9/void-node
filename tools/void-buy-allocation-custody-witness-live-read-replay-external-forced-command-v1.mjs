@@ -97,10 +97,15 @@ const LOCK_NAME =
 
 const MAX_CONFIG_BYTES = 256 * 1024;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
-const MAX_INTENT_BYTES = 8 * 1024 * 1024;
+const MAX_WITNESS_EVENT_BYTES = 4 * 1024;
+const MAX_INTENT_METADATA_BYTES = 64 * 1024;
+const MAX_INTENT_BYTES =
+  4 * Math.ceil(MAX_REQUEST_BYTES / 3) +
+  4 * Math.ceil(MAX_WITNESS_EVENT_BYTES / 3) +
+  MAX_INTENT_METADATA_BYTES;
 const MAX_REPLAY_JOURNAL_BYTES = 8 * 1024 * 1024;
 const MAX_HIGH_WATER_BYTES = 16 * 1024;
-const MAX_WITNESS_BYTES = 8193 * 4096;
+const MAX_WITNESS_BYTES = 8193 * MAX_WITNESS_EVENT_BYTES;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
 const REQUEST_ID = /^voidwlrwreq1_[0-9a-f]{64}$/u;
@@ -849,6 +854,9 @@ function intentFromPlan(request, current, nextBytes, eventLine) {
   const prior = witnessState(current);
   const next = witnessState(nextBytes);
   const line = Buffer.from(eventLine, "utf8");
+  if (line.length > MAX_WITNESS_EVENT_BYTES) {
+    fail("witness_replay_external_forced_command_plan_event_too_large");
+  }
   if (
     nextBytes.length <= current.length ||
     !nextBytes.subarray(0, current.length).equals(current) ||
