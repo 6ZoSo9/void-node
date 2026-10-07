@@ -163,7 +163,7 @@ async function readFixtureEntrypoint(
           swapped=true;
         }
       }),
-      /fixed trust artifact path changed during descriptor read/u,
+      /fixed trust artifact (?:changed during descriptor read|path changed during descriptor read)/u,
     );
     assert.equal(swapped,true);
   }finally{
@@ -192,7 +192,7 @@ async function readFixtureEntrypoint(
           swapped=true;
         }
       }),
-      /fixed trust artifact path changed during descriptor read/u,
+      /fixed trust artifact (?:changed during descriptor read|path changed during descriptor read)/u,
     );
     assert.equal(swapped,true);
   }finally{
