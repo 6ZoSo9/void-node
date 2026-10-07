@@ -220,30 +220,33 @@ inventory_reservation_write_performed=false
 It can prove whether a synthetic object *would* satisfy the strict structural
 checks, but cannot mint the production gate marker/status.
 
-## Deferred runtime integration
+## Runtime integration
 
-The old `src/index.ts` ownership collision is gone, but runtime wiring must not
-skip the newly exposed pre-attempt boundary.
+The canonical public checkout now composes this gate directly:
 
-A later integration step must:
+- `__voidBuyVoidConfigV1()` requires
+  `readBuyVoidEthereumPublicCheckoutReadinessV1(process.env)` to return exact
+  payment-instruction readiness before `ethereum_requests_enabled` can become
+  true. The existing coupled-launch request gate remains an independent
+  prerequisite.
+- the server-owned request reader supplies the exact persisted Ethereum request
+  to `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)`;
+- the operator verification route accepts the helper's internally rebuilt
+  `canonical_verified_payment_event` only when
+  `payment_verified_transition_ready=true`;
+- a local `eth_getTransactionReceipt` + Transfer-log match is no longer an
+  Ethereum `payment_verified` authority path;
+- Base keeps the existing canonical receipt/log verifier unchanged;
+- both rails still converge on the existing shared launch-authority,
+  duplicate-payment, and verified-capacity mutation writer before an operator
+  event can persist; and
+- browser rail state remains derived from the server's
+  `config.ethereum_requests_enabled` value.
 
-- require `readBuyVoidEthereumPublicCheckoutReadinessV1(...)` before returning
-  any new Ethereum payment instructions;
-- resolve the exact request ID through the existing server-owned request
-  reader/snapshot boundary and pass only that server-derived request into
-  `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)`; client request
-  objects are not authoritative; if it becomes ready, any later
-  `payment_verified` persistence must use its returned
-  `canonical_verified_payment_event`, not caller-supplied payment evidence;
-- keep the execution-attempt
-  `runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(...)` check for later
-  attempt-bound fulfillment/execution authority;
-- keep reorg/stale/non-finalized outcomes unreserved;
-- expose the same Ethereum HOLD/readiness state through config/API/browser and
-  legacy participant copy; and
-- preserve Base behavior.
-
-Until that runtime composition lands, Ethereum public intake remains HOLD.
+Existing paid Ethereum attempts may still be reconciled after new intake is
+closed because the pre-attempt finality bridge itself does not depend on the
+public intake toggle. Reorg, stale, non-finalized, mismatched-generation, or
+non-authoritative observations remain HOLD and cannot reserve inventory.
 
 ## Authority boundary
 
