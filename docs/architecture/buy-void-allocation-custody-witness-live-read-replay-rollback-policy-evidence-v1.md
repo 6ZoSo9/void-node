@@ -70,10 +70,11 @@ interpretation.
 
 ## Live storage rebound
 
-The collector runs the live replay installation evidence twice around the policy
-observation.
+The collector runs the live replay installation evidence before policy
+classification, again after classification, and a third time after the final
+policy-file reread.
 
-Both observations must commit to the same:
+All three observations must commit to the same:
 
 - installation qualification ID;
 - normalized root/file identities;
@@ -84,7 +85,9 @@ Both observations must commit to the same:
 - stable double census.
 
 A storage mutation, root replacement, file mutation or pending replay-writer
-intent therefore HOLDs the policy observation.
+intent therefore HOLDs the policy observation. The terminal third observation
+closes the same-UID replay-storage race after the final root-owned policy read
+and before success is returned.
 
 ## What live GREEN proves
 
