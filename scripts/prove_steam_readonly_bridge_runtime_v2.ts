@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Express, Request, Response as ExpressResponse } from "express";
@@ -396,6 +397,16 @@ need(
 
 const failOnceApp = new FailOncePostApp();
 const retryGenerationCalls: string[] = [];
+const retryMockBody = JSON.stringify({
+  response: {
+    players: [
+      {
+        steamid: "76561198000000000",
+        personaname: "retry-proof-persona",
+      },
+    ],
+  },
+});
 const firstGenerationEnv: NodeJS.ProcessEnv = {
   ...env,
   VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
@@ -419,12 +430,12 @@ const firstGeneration = {
   fetch_impl: async (input: RequestInfo | URL, init?: RequestInit) => {
     retryGenerationCalls.push("fetch:A");
     return responseWithFinalUrl(
-      mockBody,
+      retryMockBody,
       {
         status: 200,
         headers: {
           "content-type": "application/json; charset=utf-8",
-          "content-length": String(Buffer.byteLength(mockBody)),
+          "content-length": String(Buffer.byteLength(retryMockBody)),
         },
       },
       String(input),
