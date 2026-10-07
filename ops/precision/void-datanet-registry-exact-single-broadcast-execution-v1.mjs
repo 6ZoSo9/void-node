@@ -33,6 +33,7 @@ const EXPECTED_RPC="http://127.0.0.1:18553/";
 const EXPECTED_BARE_PACKAGES=Object.freeze(["ethers"]);
 const EXPECTED_NETWORK_CAPABLE_MODULES=Object.freeze([
   "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs",
+  "tools/void-datanet-registry-prebroadcast-observer-v1.mjs",
 ]);
 const EXPECTED_REVIEWED_RELATIVE_CLOSURE_V1=Object.freeze([
   "tools/datanet-content-commitment-compiled-identity-acceptance-v1.mjs",
@@ -320,6 +321,12 @@ function reviewedSourcePlanV1(head){
     if(seen.has(relativePath)) continue;
     const source=exactHeadFileV1(head,relativePath);
     const text=source.bytes.toString("utf8");
+    if(
+      /(^|[^A-Za-z0-9_$\.])fetch\s*\(/mu.test(text)||
+      /\bglobalThis\.fetch\s*\(/u.test(text)
+    ){
+      networkModules.add(relativePath);
+    }
     for(const specifier of staticImportSpecifiers(text)){
       if(specifier.startsWith(".")){
         const dependency=resolveRelativeImport(relativePath,specifier);
@@ -748,6 +755,7 @@ async function prepareReviewedExecutionV1(
     const profileSource=runtime.readReviewedNodePackageRuntimeProfileV1({
       relativePath:REVIEWED_RUNTIME_PROFILE_REL,
       repoRoot:ROOT,
+      reviewedHead:head,
     });
     if(
       JSON.stringify(profileSource.profile.root_packages)!==
@@ -758,11 +766,13 @@ async function prepareReviewedExecutionV1(
     runtime.verifyReviewedNodePackageRuntimeV1({
       profile:profileSource.profile,
       repoRoot:ROOT,
+      reviewedHead:head,
     });
     runtime.materializeReviewedNodePackageRuntimeV1({
       profile:profileSource.profile,
       repoRoot:ROOT,
       destinationRoot:runtimeRoot,
+      reviewedHead:head,
     });
     for(const row of plan.rows){
       const source=plan.sources.get(row.relative_path);
