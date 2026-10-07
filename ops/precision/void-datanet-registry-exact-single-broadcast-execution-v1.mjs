@@ -302,12 +302,30 @@ function exactHeadFileV1(head,relativePath){
     bytes,
   });
 }
+const IMPORT_GAP_SOURCE=
+  String.raw`(?:\\s|\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\r\\n]*(?:\\r?\\n|$))*`;
+const IMPORT_BODY_SOURCE=
+  String.raw`(?:(?:\\/\\*[\\s\\S]*?\\*\\/)|(?:\\/\\/[^\\r\\n]*(?:\\r?\\n|$))|[^;"'])*?`;
+
 function staticImportSpecifiers(source){
-  if(/\bimport\s*\(/u.test(source)){
+  if(typeof source!=="string"){
+    fail("reviewed_source_import_source_invalid");
+  }
+  const dynamicExpression=new RegExp(
+    "\\bimport"+IMPORT_GAP_SOURCE+"\\(",
+    "u",
+  );
+  if(dynamicExpression.test(source)){
     fail("reviewed_source_dynamic_import_forbidden");
   }
   const found=[];
-  const expression=/\b(?:import|export)\s+(?:[^;]*?\s+from\s+)?["']([^"']+)["']/gsu;
+  const expression=new RegExp(
+    "\\b(?:import|export)"+
+      IMPORT_GAP_SOURCE+
+      "(?:"+IMPORT_BODY_SOURCE+"\\bfrom"+IMPORT_GAP_SOURCE+")?"+
+      "[\"']([^\"']+)[\"']",
+    "gsu",
+  );
   for(const match of source.matchAll(expression)) found.push(match[1]);
   return found;
 }
@@ -601,13 +619,45 @@ import path from "node:path";
 let prefix="";
 let sources=Object.create(null);
 let ethersSource="";
+let allowedNodeBuiltins=new Set();
+let networkNodeBuiltins=new Set();
+let networkCapableModules=new Set();
 const PACKAGE_URL="void-reviewed-package:ethers";
+function exactStringSet(value,label){
+  if(!Array.isArray(value)||value.some(
+    item=>typeof item!=="string"||item.length<1
+  )){
+    throw new Error("reviewed_graph_"+label+"_invalid");
+  }
+  const set=new Set(value);
+  if(set.size!==value.length){
+    throw new Error("reviewed_graph_"+label+"_invalid");
+  }
+  return set;
+}
 export function initialize(data){
   prefix=String(data?.prefix||"");
   sources=Object.assign(Object.create(null),data?.sources||{});
   ethersSource=String(data?.ethersSource||"");
+  allowedNodeBuiltins=exactStringSet(
+    data?.allowedNodeBuiltins,
+    "allowed_node_builtins",
+  );
+  networkNodeBuiltins=exactStringSet(
+    data?.networkNodeBuiltins,
+    "network_node_builtins",
+  );
+  networkCapableModules=exactStringSet(
+    data?.networkCapableModules,
+    "network_capable_modules",
+  );
   if(!prefix.startsWith("void-reviewed:")||ethersSource.length<1){
     throw new Error("reviewed_graph_hook_init_invalid");
+  }
+  for(const specifier of networkNodeBuiltins){
+    if(!allowedNodeBuiltins.has(specifier)){
+      throw new Error("reviewed_graph_network_builtin_not_allowed");
+    }
   }
 }
 function reviewedPath(url){
@@ -642,6 +692,20 @@ export async function resolve(specifier,context,nextResolve){
       return {url:prefix+resolved,shortCircuit:true};
     }
     if(specifier.startsWith("node:")){
+      if(!allowedNodeBuiltins.has(specifier)){
+        throw new Error(
+          "reviewed_graph_builtin_import_unapproved:"+specifier
+        );
+      }
+      if(
+        networkNodeBuiltins.has(specifier)&&
+        !networkCapableModules.has(parent)
+      ){
+        throw new Error(
+          "reviewed_graph_network_builtin_parent_uncensused:"+
+          parent+":"+specifier
+        );
+      }
       return nextResolve(specifier,context);
     }
     throw new Error("reviewed_graph_bare_import_forbidden:"+specifier);
@@ -680,6 +744,9 @@ function registerReviewedModuleGraphV1(plan,ethersBundle,head){
       prefix,
       sources,
       ethersSource:ethersBundle.source,
+      allowedNodeBuiltins:plan.node_builtins,
+      networkNodeBuiltins:EXPECTED_NETWORK_NODE_BUILTINS,
+      networkCapableModules:plan.network_capable_modules,
     },
   });
   return Object.freeze({
@@ -1058,8 +1125,54 @@ function rpcFactory(rpcUrl){
   };
 }
 
+let testSyntheticReviewedGraphCounterV1=0;
+
 export function testOnlyClassifyReviewedNodeBuiltinV1(specifier){
   return classifyReviewedNodeBuiltinV1(specifier);
+}
+
+export function testOnlyStaticImportSpecifiersV1(source){
+  return Object.freeze([...staticImportSpecifiers(source)]);
+}
+
+export async function testOnlyImportSyntheticReviewedModuleV1(
+  source,
+  {networkCapable=false}={},
+){
+  if(typeof source!=="string"||source.length<1||source.length>64*1024){
+    fail("reviewed_test_synthetic_source_invalid");
+  }
+  const bytes=Buffer.from(source,"utf8");
+  const relativePath=TOOL_REL;
+  const syntheticHead=sha256(
+    Buffer.from(
+      "reviewed-synthetic-graph-v1:"+
+      String(++testSyntheticReviewedGraphCounterV1)+
+      ":"+source,
+      "utf8",
+    ),
+  ).slice(0,40);
+  const plan=Object.freeze({
+    rows:Object.freeze([
+      Object.freeze({relative_path:relativePath}),
+    ]),
+    sources:new Map([
+      [
+        relativePath,
+        Object.freeze({bytes}),
+      ],
+    ]),
+    node_builtins:EXPECTED_REVIEWED_NODE_BUILTINS,
+    network_capable_modules:Object.freeze(
+      networkCapable?[relativePath]:[],
+    ),
+  });
+  const graph=registerReviewedModuleGraphV1(
+    plan,
+    Object.freeze({source:"export default Object.freeze({});"}),
+    syntheticHead,
+  );
+  return import(graph.tool_url);
 }
 
 export function testOnlyReviewedSourcePlanV1(){
