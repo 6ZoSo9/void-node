@@ -90,6 +90,27 @@ This preserves the replay state's generation increment, single-pending-
 challenge, one-terminal-transition, expiry, request-ID, response-SHA, and
 canonical JSONL rules.
 
+## Transition prestate identity
+
+Every persisted issue/consume/abandon success exposes the exact state observed
+under both locks immediately before the canonical planner runs:
+
+- `transition_before_journal_sha256`;
+- `transition_before_journal_bytes`; and
+- `transition_before_high_water_sha256`.
+
+These values are derived from the descriptor-bound journal and canonical
+high-water snapshot already held by the writer; callers cannot supply them.
+They allow a later composition layer to prove that a transition originated
+from one exact installation-evidence snapshot rather than merely from another
+valid replay state with the same generation/sequence counters.
+
+For a terminal transition, the exposed prestate must equal the preceding issue
+result's poststate journal/high-water identities. Read-only inspection and
+recovery-only success results expose these transition-prestate fields as
+`null`, because they did not plan a new transition.
+
+
 ## Terminal packet observability
 
 Every successful persisted transition exposes the exact replay event identity:

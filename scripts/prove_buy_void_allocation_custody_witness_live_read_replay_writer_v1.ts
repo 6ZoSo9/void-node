@@ -28,6 +28,9 @@ const INTENT_NAME = "live-read-replay-publication-intent-v1.json";
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
 
+const digest = (value: string | Buffer): string =>
+  "sha256:" + crypto.createHash("sha256").update(value).digest("hex");
+
 function requireWriterOk<T extends { ok: boolean }>(
   value: T,
   label: string,
@@ -161,6 +164,9 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(inspected.transition_expires_at_ms, null);
     assert.equal(inspected.terminal_request_id, null);
     assert.equal(inspected.terminal_response_sha256, null);
+    assert.equal(inspected.transition_before_journal_sha256, null);
+    assert.equal(inspected.transition_before_journal_bytes, null);
+    assert.equal(inspected.transition_before_high_water_sha256, null);
 
     const issued = issue(f);
     assert.equal(issued.ok, true);
@@ -188,6 +194,18 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(issued.transition_expires_at_ms, 39_000);
     assert.equal(issued.terminal_request_id, null);
     assert.equal(issued.terminal_response_sha256, null);
+    assert.equal(
+      issued.transition_before_journal_sha256,
+      digest(f.genesisJournal),
+    );
+    assert.equal(
+      issued.transition_before_journal_bytes,
+      f.genesisJournal.length,
+    );
+    assert.equal(
+      issued.transition_before_high_water_sha256,
+      digest(f.genesisHighWater),
+    );
     const issuedJournal = fs.readFileSync(
       path.join(f.journalRoot, JOURNAL_NAME),
     );
@@ -280,6 +298,18 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(consumed.transition_expires_at_ms, 39_000);
     assert.equal(consumed.terminal_request_id, requestId("a"));
     assert.equal(consumed.terminal_response_sha256, sha("b"));
+    assert.equal(
+      consumed.transition_before_journal_sha256,
+      issued.journal_sha256,
+    );
+    assert.equal(
+      consumed.transition_before_journal_bytes,
+      issued.journal_bytes,
+    );
+    assert.equal(
+      consumed.transition_before_high_water_sha256,
+      issued.high_water_sha256,
+    );
 
     const duplicate =
       persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1({
@@ -316,6 +346,9 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(finalInspect.transition_expires_at_ms, null);
     assert.equal(finalInspect.terminal_request_id, null);
     assert.equal(finalInspect.terminal_response_sha256, null);
+    assert.equal(finalInspect.transition_before_journal_sha256, null);
+    assert.equal(finalInspect.transition_before_journal_bytes, null);
+    assert.equal(finalInspect.transition_before_high_water_sha256, null);
   } finally {
     cleanup(f);
   }
@@ -353,6 +386,18 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(abandoned.transition_expires_at_ms, 39_000);
     assert.equal(abandoned.terminal_request_id, null);
     assert.equal(abandoned.terminal_response_sha256, null);
+    assert.equal(
+      abandoned.transition_before_journal_sha256,
+      issued.journal_sha256,
+    );
+    assert.equal(
+      abandoned.transition_before_journal_bytes,
+      issued.journal_bytes,
+    );
+    assert.equal(
+      abandoned.transition_before_high_water_sha256,
+      issued.high_water_sha256,
+    );
   } finally {
     cleanup(f);
   }
@@ -826,6 +871,9 @@ assert.doesNotMatch(source, /const HIGH_WATER_MARKER/u);
 assert.doesNotMatch(source, /voidwlrhw1_/u);
 assert.match(source, /redundant_transaction_intent:\s*true/u);
 assert.match(source, /journal_first_publication_order:\s*true/u);
+assert.match(source, /transition_before_journal_sha256/u);
+assert.match(source, /transition_before_journal_bytes/u);
+assert.match(source, /transition_before_high_water_sha256/u);
 assert.match(source, /function assertPinnedRootsVisible\(/u);
 assert.match(
   source,
@@ -847,6 +895,8 @@ console.log("canonical_replay_planner_composed=true");
 console.log("canonical_replay_high_water_composed=true");
 console.log("persisted_transition_challenge_timing_exposed=true");
 console.log("consumed_terminal_packet_binding_exposed=true");
+console.log("transition_prestate_journal_binding_exposed=true");
+console.log("transition_prestate_high_water_binding_exposed=true");
 console.log("private_high_water_schema_fork=false");
 console.log("journal_first_publication=true");
 console.log("atomic_journal_publication=true");
