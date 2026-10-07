@@ -121,15 +121,21 @@ it must establish one exact source authority:
    closure from exact captured HEAD Git objects;
 4. require that closure to contain exactly 27 reviewed relative modules, with
    only the bare package `ethers`;
-5. record the one network-capable dependency module
-   `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`
-   explicitly instead of claiming a network-free closure;
+5. record both network-capable dependency modules explicitly instead of
+   claiming a network-free closure:
+   - `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`
+     through imported Node HTTP capability; and
+   - `tools/void-datanet-registry-prebroadcast-observer-v1.mjs` through
+     direct/global `fetch()`;
 6. materialize those exact Git-object bytes into a private temporary tree
    as an independently reverified evidence copy;
 7. verify and privately materialize the reviewed `ethers` package closure using
-   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`, then recompute the exact
-   `node_modules/ethers` inventory from the same bounded reads used to capture
-   `dist/ethers.min.js`;
+   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`, while passing the already captured
+   reviewed 40-hex HEAD through profile read, installed-runtime verification,
+   and materialization. Package/lock metadata must therefore match that exact
+   reviewed commit even if the checkout's moving `HEAD` is transiently changed.
+   The exact `node_modules/ethers` inventory is then recomputed from the same
+   bounded reads used to capture `dist/ethers.min.js`;
 8. register the exact reviewed source map and exact reviewed standalone
    `ethers` bundle through built-in in-memory module hooks; and
 9. load the broadcaster authority from that in-memory graph rather than from a
@@ -154,16 +160,19 @@ the already selected in-memory module source. Hidden worktree drift such as
 `assume-unchanged`, private-tree replacement, and ancestor/worktree package
 resolution therefore cannot become the selected launcher/core/package bytes.
 
-The reviewed closure contains one module that can perform live HTTP observation
-in other workflows, so this lane intentionally reports:
+The reviewed closure contains two modules that can perform live network
+observation in other workflows (one through Node HTTP and one through global
+`fetch`), so this lane intentionally reports:
 
 ```text
 execution_network_isolation_provided=false
 ```
 
-That module's presence is content-addressed; it is not treated as evidence that
-the broadcaster validation path invoked the live observer. The explicit
-broadcaster RPC remains the narrow launcher-injected capability described below.
+Those modules' presence is content-addressed; it is not treated as evidence that
+the broadcaster validation path invoked either live observer. The focused proof
+traps both `http.request` and `globalThis.fetch` during reviewed
+source/package preparation and module import. The explicit broadcaster RPC
+remains the narrow launcher-injected capability described below.
 
 This is execution provenance, not broadcast authorization. A source-green PR or
 private reviewed tree does not authorize a real registry transaction.
@@ -243,7 +252,7 @@ The focused repository proof does not invoke a live RPC. In addition to the
 existing dependency-injected single-attempt semantics, it permanently checks:
 
 - exact 27-module relative closure, exact `ethers` bare-package set and exact
-  one-module network-capable set;
+  two-module network-capable set;
 - hostile PATH/Git environment values cannot replace the absolute isolated Git
   authority;
 - an `assume-unchanged` mutation of the dangerous worktree broadcaster is not
@@ -253,9 +262,11 @@ existing dependency-injected single-attempt semantics, it permanently checks:
 - a proof-only same-UID-style ABA replacement of the private broadcaster file
   during the first import window cannot execute sentinel code because execution
   is sourced from the in-memory reviewed graph;
-- the reviewed `ethers` profile can be verified and materialized, its exact
-  package aggregate can bind the standalone in-memory bundle, and neither source
-  preparation nor module import performs an RPC call or transaction submission;
+- the reviewed `ethers` profile, package/lock metadata, installed inventory,
+  and private materialization are all bound to the captured reviewed commit
+  rather than a moving `HEAD`; the exact package aggregate binds the standalone
+  in-memory bundle; neither source preparation nor module import performs an
+  HTTP request, global fetch, RPC call, or transaction submission;
 - the post-preparation repository authority check reuses the exact launcher
   Git-blob identity pinned before preparation, reaches that second check with
   external effects trapped, and performs zero RPC sends or transaction
