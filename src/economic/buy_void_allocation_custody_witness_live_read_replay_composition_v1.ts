@@ -732,6 +732,11 @@ function storageParent(input: unknown) {
     journal_sha256: journalIdentity.sha256,
     journal_bytes: journalIdentity.bytes,
     high_water_sha256: normalized.high_water_sha256 as string,
+    last_terminal_state:
+      normalized.last_terminal_state as
+        | "consumed"
+        | "abandoned"
+        | null,
   });
 }
 
@@ -1188,6 +1193,13 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
     );
     const storage = storageParent(input?.replay_storage_evidence);
     const issue = writerResult(input?.issue_result, "persisted_issue");
+    if (
+      issue.last_terminal_state !== storage.last_terminal_state
+    ) {
+      fail(
+        "witness_live_read_replay_composition_issue_terminal_prestate_mismatch",
+      );
+    }
     const liveRead = liveReadParent(input?.live_read_qualification);
     const consume = writerResult(
       input?.consume_result,
