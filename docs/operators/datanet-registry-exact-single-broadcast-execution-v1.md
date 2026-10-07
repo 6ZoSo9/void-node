@@ -124,16 +124,29 @@ it must establish one exact source authority:
 5. record the one network-capable dependency module
    `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`
    explicitly instead of claiming a network-free closure;
-6. materialize those exact Git-object bytes into a private temporary tree;
+6. materialize those exact Git-object bytes into a private temporary tree
+   as an independently reverified evidence copy;
 7. verify and privately materialize the reviewed `ethers` package closure using
-   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`; and
-8. load the broadcaster authority only from that private exact-HEAD tree.
+   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`, then recompute the exact
+   `node_modules/ethers` inventory from the same bounded reads used to capture
+   `dist/ethers.min.js`;
+8. register the exact reviewed source map and exact reviewed standalone
+   `ethers` bundle through built-in in-memory module hooks; and
+9. load the broadcaster authority from that in-memory graph rather than from a
+   mutable pathname.
 
-The launcher itself and the private source tree are selected from exact Git
-objects rather than mutable worktree bytes. The private source tree and reviewed
-package runtime are reverified after module loading and again immediately before
-the signed artifact/RPC boundary. Hidden worktree drift such as
-`assume-unchanged` therefore cannot become the selected launcher/core bytes.
+The launcher itself is streamed from its exact Git object. The 27 relative
+module bodies executed by the broadcaster are the exact captured Git-object
+bytes supplied from memory. The reviewed-runtime helper is likewise supplied
+from exact Git-object bytes through an in-memory hook. The private source tree
+and reviewed package runtime remain reverified evidence copies, but are not the
+execution path.
+
+This distinction closes same-UID ABA replacement of a temporary module between
+pre-import and post-import verification: temporary tree mutation cannot change
+the already selected in-memory module source. Hidden worktree drift such as
+`assume-unchanged`, private-tree replacement, and ancestor/worktree package
+resolution therefore cannot become the selected launcher/core/package bytes.
 
 The reviewed closure contains one module that can perform live HTTP observation
 in other workflows, so this lane intentionally reports:
@@ -230,9 +243,13 @@ existing dependency-injected single-attempt semantics, it permanently checks:
 - an `assume-unchanged` mutation of the dangerous worktree broadcaster is not
   present in the exact HEAD bytes selected for reviewed execution;
 - mutation of the private reviewed source copy is detected by its Git
-  blob/SHA-256 revalidation; and
-- the reviewed `ethers` profile can be verified and materialized with no RPC
-  call or transaction submission.
+  blob/SHA-256 revalidation;
+- a proof-only same-UID-style ABA replacement of the private broadcaster file
+  during the first import window cannot execute sentinel code because execution
+  is sourced from the in-memory reviewed graph;
+- the reviewed `ethers` profile can be verified and materialized, its exact
+  package aggregate can bind the standalone in-memory bundle, and neither source
+  preparation nor module import performs an RPC call or transaction submission.
 
 The proof restores its temporary worktree mutation and CI requires a clean
 checkout afterwards.
