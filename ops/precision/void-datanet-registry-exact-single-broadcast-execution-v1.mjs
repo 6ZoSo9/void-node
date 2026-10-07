@@ -686,7 +686,10 @@ function makeRemovableTree(root){
   };
   walk(root);
 }
-async function prepareReviewedExecutionV1(head){
+async function prepareReviewedExecutionV1(
+  head,
+  {testOnlyPrivateTreeAba=false}={},
+){
   const plan=reviewedSourcePlanV1(head);
   const parent=fs.mkdtempSync(
     path.join(os.tmpdir(),"void-datanet-registry-reviewed-broadcast-v1-"),
@@ -762,8 +765,40 @@ async function prepareReviewedExecutionV1(head){
     if(graph.source_count!==plan.rows.length){
       fail("reviewed_in_memory_source_count_mismatch");
     }
-    const tool=await import(graph.tool_url);
-    const rpcModule=await import(graph.rpc_url);
+
+    const privateToolPath=path.join(runtimeRoot,...TOOL_REL.split("/"));
+    let privateToolOriginal=null;
+    if(testOnlyPrivateTreeAba){
+      privateToolOriginal=stableFileBytes(
+        privateToolPath,
+        "reviewed_private_aba_original",
+      );
+      fs.chmodSync(privateToolPath,0o600);
+      fs.writeFileSync(
+        privateToolPath,
+        Buffer.concat([
+          privateToolOriginal,
+          Buffer.from(
+            "\nglobalThis.__VOID_REVIEWED_PRIVATE_TREE_ABA_SENTINEL=true;\n",
+            "utf8",
+          ),
+        ]),
+      );
+      fs.chmodSync(privateToolPath,0o400);
+    }
+
+    let tool;
+    let rpcModule;
+    try{
+      tool=await import(graph.tool_url);
+      rpcModule=await import(graph.rpc_url);
+    }finally{
+      if(Buffer.isBuffer(privateToolOriginal)){
+        fs.chmodSync(privateToolPath,0o600);
+        fs.writeFileSync(privateToolPath,privateToolOriginal);
+        fs.chmodSync(privateToolPath,0o400);
+      }
+    }
     if(
       typeof tool.submitVoidDatanetRegistryExactSingleBroadcastV1!=="function"||
       rpcModule.PRIVATE_SUCCESSOR_RPC_V1!==EXPECTED_RPC
@@ -799,6 +834,8 @@ async function prepareReviewedExecutionV1(head){
         private_exact_head_tree:true,
         private_tree_execution:false,
         in_memory_exact_head_execution:true,
+        private_tree_aba_sentinel_observed:
+          globalThis.__VOID_REVIEWED_PRIVATE_TREE_ABA_SENTINEL===true,
         execution_network_isolation_provided:false,
       }),
       reverify(){
@@ -985,6 +1022,19 @@ export async function testOnlyPrepareReviewedExecutionV1(){
   const prepared=await prepareReviewedExecutionV1(head);
   try{return prepared.binding;}
   finally{prepared.cleanup();}
+}
+export async function testOnlyPrepareReviewedExecutionPrivateTreeAbaV1(){
+  delete globalThis.__VOID_REVIEWED_PRIVATE_TREE_ABA_SENTINEL;
+  const head=repoGit(["rev-parse","HEAD"]);
+  const prepared=await prepareReviewedExecutionV1(
+    head,
+    {testOnlyPrivateTreeAba:true},
+  );
+  try{return prepared.binding;}
+  finally{
+    prepared.cleanup();
+    delete globalThis.__VOID_REVIEWED_PRIVATE_TREE_ABA_SENTINEL;
+  }
 }
 export function testOnlyReviewedGitHeadV1(){
   return repoGit(["rev-parse","HEAD"]);
