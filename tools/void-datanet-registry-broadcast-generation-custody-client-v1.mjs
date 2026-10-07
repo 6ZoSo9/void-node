@@ -323,6 +323,11 @@ async function request(options,envelope,rawContext){
   if(typeof requestJson!=="string"){
     fail("datanet_broadcast_generation_custody_client_request_invalid");
   }
+  if(context.signal.aborted){
+    throw context.signal.reason instanceof Error
+      ? context.signal.reason
+      : new Error("datanet_broadcast_generation_custody_client_aborted");
+  }
   const serializedRequest=JSON.parse(requestJson);
   const requestSha256=sha256Id(
     Buffer.from(canonicalJson(serializedRequest),"utf8"),
@@ -345,7 +350,7 @@ async function request(options,envelope,rawContext){
     let totalTimer=null;
     let connectTimer=null;
     let responseTimer=null;
-    const socket=net.createConnection(options.socket_path);
+    let socket=null;
 
     const cleanup=()=>{
       if(totalTimer!==null) clearTimeout(totalTimer);
@@ -358,10 +363,10 @@ async function request(options,envelope,rawContext){
       settled=true;
       cleanup();
       if(error){
-        socket.destroy(error);
+        if(socket!==null) socket.destroy(error);
         reject(error);
       }else{
-        socket.destroy();
+        if(socket!==null) socket.destroy();
         resolve(value);
       }
     };
@@ -385,6 +390,10 @@ async function request(options,envelope,rawContext){
     };
 
     context.signal.addEventListener("abort",onAbort,{once:true});
+    if(context.signal.aborted){
+      onAbort();
+      return;
+    }
     totalTimer=setTimeout(
       ()=>finish(
         new Error("datanet_broadcast_generation_custody_client_total_timeout"),
@@ -398,6 +407,7 @@ async function request(options,envelope,rawContext){
       connectTimeout,
     );
 
+    socket=net.createConnection(options.socket_path);
     socket.on("error",(error)=>finish(error));
     socket.on("connect",()=>{
       connected=true;
