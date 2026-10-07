@@ -47,6 +47,28 @@ The parent replay-storage evidence must be a live
 
 The storage qualification ID is recomputed from its normalized body.
 
+Because that identifier is content-addressed rather than secret, V1 also
+revalidates the complete closed replay-storage parent shape instead of trusting
+the parent flags alone. It requires:
+
+- canonical hostname syntax;
+- exact journal/high-water root field sets;
+- absolute canonical root and mount paths;
+- private mode-`0700` same-owner roots;
+- local `ext4`/`xfs`/`btrfs` mount classes;
+- canonical `/dev/...` mount, resolved-source and parent-device paths;
+- path-disjoint roots;
+- distinct root device, mount ID, major:minor, mount-source, resolved-source,
+  parent-device, disk-serial and disk-WWN identities;
+- journal/high-water files at the exact fixed names underneath their respective
+  roots;
+- file device/UID/GID identity matching the parent root;
+- mode-`0600`, single-link, regular non-symlink file shape; and
+- the canonical 8 MiB journal / 16 KiB high-water byte ceilings.
+
+A caller cannot rewrite storage topology or file-placement fields, recompute the
+qualification ID, and still reach storage→issue lineage.
+
 The composition also requires exact canonical-file prestate binding:
 
 - `normalized.journal_file.sha256` equals
@@ -214,6 +236,10 @@ classifier. It performs no live SSH or production storage mutation.
 
 Covered adversaries include:
 
+- forged replay-storage physical disk identity with recomputed qualification ID;
+- forged replay journal path/device identity;
+- writable/non-private replay root metadata;
+- oversized replay high-water file metadata;
 - malformed live-read machine digest;
 - malformed live-read observed network address;
 - inconsistent witness identity-path / continuity-attestation pairing;
