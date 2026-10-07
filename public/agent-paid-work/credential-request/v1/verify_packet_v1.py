@@ -102,6 +102,10 @@ if (
     )
     is not True
     or manifest.get(
+        "applicant_identity_descriptor_binding_requires_linux_procfs"
+    )
+    is not True
+    or manifest.get(
         "applicant_identity_private_key_is_wallet_key"
     )
     is not False

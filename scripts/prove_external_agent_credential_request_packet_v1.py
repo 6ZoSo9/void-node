@@ -206,6 +206,11 @@ try:
             False,
         ),
         (
+            "procfs-required",
+            "applicant_identity_descriptor_binding_requires_linux_procfs",
+            False,
+        ),
+        (
             "forwarded-auth",
             "applicant_auth_forwarded_to_review_gateway",
             True,
@@ -272,6 +277,50 @@ try:
             )
 
     module = load_client()
+    auth_module = sys.modules.get(
+        "applicant_auth_v1"
+    )
+
+    if auth_module is None:
+        raise RuntimeError(
+            "applicant auth module not loaded"
+        )
+
+    unsupported_identity_key = (
+        temporary
+        / "unsupported-procfs-identity.pem"
+    )
+    original_descriptor_root = (
+        auth_module.IDENTITY_KEY_DESCRIPTOR_ROOT
+    )
+    auth_module.IDENTITY_KEY_DESCRIPTOR_ROOT = (
+        temporary
+        / "missing-proc-self-fd"
+    )
+    try:
+        try:
+            module.generate_identity_key(
+                unsupported_identity_key
+            )
+        except ValueError as error:
+            if (
+                "descriptor-bound identity key access unavailable"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "unsupported descriptor-binding host was accepted"
+            )
+        if unsupported_identity_key.exists():
+            raise RuntimeError(
+                "unsupported descriptor-binding host left an identity key behind"
+            )
+    finally:
+        auth_module.IDENTITY_KEY_DESCRIPTOR_ROOT = (
+            original_descriptor_root
+        )
+
     identity_key = (
         temporary
         / "credential-request-ed25519.pem"
@@ -288,15 +337,6 @@ try:
     ):
         raise RuntimeError(
             "public applicant identity generation mismatch"
-        )
-
-    auth_module = sys.modules.get(
-        "applicant_auth_v1"
-    )
-
-    if auth_module is None:
-        raise RuntimeError(
-            "applicant auth module not loaded"
         )
 
     def exercise_identity_key_rebind(

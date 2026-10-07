@@ -27,7 +27,7 @@ The client prints the derived public identity:
 void-agent:ed25519:<digest>
 ```
 
-The key file is create-only mode `0600`. The private key is never printed or included in a request.
+The client preflights descriptor-bound key access before generating or creating the key. On an unsupported host it fails without leaving the requested key path behind. The key file is create-only mode `0600`. The private key is never printed or included in a request.
 
 ## Generate a request
 
@@ -82,6 +82,7 @@ A VOID operator or bounded review agent may inspect the request. Credential issu
 ## Requirements
 
 - Python 3.10 or newer
+- Linux with mounted `/proc/self/fd` support for descriptor-bound identity-key access
 - OpenSSL 3.x with Ed25519 `genpkey`, `pkey`, and `pkeyutl -rawin`
 - Internet access to the public HTTPS gateway
 - No VOID node installation

@@ -43,5 +43,6 @@
   "applicant_identity_must_match_inner_agent_id": true,
   "applicant_identity_private_key_required_by_client": true,
   "applicant_identity_private_key_is_wallet_key": false,
-  "applicant_auth_forwarded_to_review_gateway": false
+  "applicant_auth_forwarded_to_review_gateway": false,
+  "applicant_identity_descriptor_binding_requires_linux_procfs": true
 }

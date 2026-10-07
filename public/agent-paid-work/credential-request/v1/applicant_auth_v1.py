@@ -62,6 +62,9 @@ def openssl_binary() -> str:
 
 OPENSSL_TIMEOUT_SECONDS = 10
 IDENTITY_KEY_MAX_BYTES = 4096
+IDENTITY_KEY_DESCRIPTOR_ROOT = Path(
+    "/proc/self/fd"
+)
 
 
 def run_openssl(
@@ -289,20 +292,21 @@ def open_validated_identity_key(
         raise
 
 
-def identity_key_descriptor_path(
-    descriptor: int,
-) -> str:
-    root = Path(
-        "/proc/self/fd"
-    )
-
-    if not root.is_dir():
+def require_identity_key_descriptor_binding_support(
+) -> None:
+    if not IDENTITY_KEY_DESCRIPTOR_ROOT.is_dir():
         fail(
             "descriptor-bound identity key access unavailable"
         )
 
+
+def identity_key_descriptor_path(
+    descriptor: int,
+) -> str:
+    require_identity_key_descriptor_binding_support()
+
     return str(
-        root
+        IDENTITY_KEY_DESCRIPTOR_ROOT
         / str(
             descriptor
         )
@@ -400,6 +404,8 @@ def write_private_bytes(
 def generate_identity_key(
     value: str | Path,
 ) -> dict[str, Any]:
+    require_identity_key_descriptor_binding_support()
+
     path = resolve_identity_key(
         value,
         must_exist=False,
