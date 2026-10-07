@@ -70,6 +70,11 @@ assert.deepEqual(good.time_sync_args, [
   "--property=NTPSynchronized",
   "--value",
 ]);
+assert.deepEqual(good.time_sync_environment, {
+  LANG: "C",
+  LC_ALL: "C",
+  PATH: "/usr/bin:/bin",
+});
 assert.equal(good.wall_clock_source, "Date.now");
 assert.equal(good.production_fixed_sources_observed, false);
 assert.equal(good.test_only_injected_dependencies, true);
@@ -282,6 +287,11 @@ assert.deepEqual(
       "--property=NTPSynchronized",
       "--value",
     ],
+    timedatectl_environment: {
+      LANG: "C",
+      LC_ALL: "C",
+      PATH: "/usr/bin:/bin",
+    },
     wall_clock_source: "Date.now",
     max_capture_span_ns: "5000000000",
   },
@@ -300,6 +310,8 @@ for (const [key, value] of Object.entries(
     "boot_relative_monotonic_bracket_required",
     "capture_span_bounded",
     "production_evidence_requires_fixed_collector",
+    "fixed_source_nofollow_bounded_reads",
+    "sanitized_time_sync_environment",
   ]);
   assert.equal(value, expectedTrue.has(key), key);
 }
@@ -319,6 +331,10 @@ assert.match(
 );
 assert.match(source, /"\/proc\/uptime"/u);
 assert.match(source, /Date\.now\(\)/u);
+assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
+assert.match(source, /Buffer\.alloc\(MAX_TEXT_BYTES \+ 1\)/u);
+assert.match(source, /env: \{ \.\.\.TIMEDATECTL_ENV \}/u);
+assert.doesNotMatch(source, /process\.env/u);
 assert.match(
   source,
   /collectWithDependencies\(\s*productionDependencies\(\),\s*true,?\s*\)/u,
@@ -349,6 +365,9 @@ console.log("boot_identity_stability_required=true");
 console.log("boot_relative_monotonic_bracket_required=true");
 console.log("capture_span_bounded=true");
 console.log("production_evidence_requires_fixed_collector=true");
+console.log("fixed_source_nofollow_bounded_reads=true");
+console.log("sanitized_time_sync_environment=true");
+console.log("caller_environment_override=false");
 console.log("test_evidence_production_fixed_sources_observed=false");
 console.log("max_capture_span_ns=5000000000");
 console.log("caller_timestamp_input=false");
