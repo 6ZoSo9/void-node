@@ -236,6 +236,20 @@ assert.doesNotMatch(
   /sudo \/bin\/bash \/home\/zoso\/\.local\/state\/void-replay-compare-only-nimo-auth-v1\/authorize\.sh/u,
   "operator handoff must never execute the user-writable staged installer as root",
 );
+const documentedForcedCommand =
+  'restrict,command="/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND=\\\"\${SSH_ORIGINAL_COMMAND-}\\\" /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1';
+assert.equal(
+  guide.includes(documentedForcedCommand),
+  true,
+  "operator guide must publish the exact environment-clearing forced-command shape",
+);
+assert.equal(
+  guide.includes(
+    'restrict,command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 ',
+  ),
+  false,
+  "operator guide must not retain the inherited-environment forced-command example",
+);
 
 console.log("VOID_REPLAY_NIMO_COMPARE_ONLY_AUTHORIZATION_SOURCE_PROOF_V1_GREEN");
 console.log("source_only=true");
