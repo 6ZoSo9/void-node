@@ -20,8 +20,12 @@ The production collector accepts no caller arguments and uses only:
 - `/usr/bin/timedatectl show --property=NTPSynchronized --value`;
 - one `Date.now()` wall-clock sample.
 
-There is no caller-selected path, command, timestamp, prior receipt, sync state,
-or fallback source.
+There is no caller-selected path, command, environment, timestamp, prior
+receipt, sync state, or fallback source. Fixed procfs reads are opened no-follow
+and read through a bounded 257-byte buffer that rejects content above the
+256-byte contract limit. The `timedatectl` child receives only a fixed
+`LANG=C`, `LC_ALL=C`, `PATH=/usr/bin:/bin` environment rather than the
+parent process environment.
 
 The capture order is closed:
 
