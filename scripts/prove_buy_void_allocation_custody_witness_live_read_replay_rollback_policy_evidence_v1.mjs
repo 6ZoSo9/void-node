@@ -6,6 +6,7 @@ import fs from "node:fs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+  testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationWindowV1,
   testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs";
 import {
@@ -292,6 +293,26 @@ assert.equal(
   false,
 );
 
+assert.equal(
+  testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationWindowV1({
+    observed_at_ms: NOW,
+    expires_at_ms: NOW + 1_000,
+    terminal_now_ms: NOW + 1_000,
+  }),
+  true,
+);
+for (const terminalNowMs of [NOW - 1, NOW + 1_001]) {
+  assert.throws(
+    () =>
+      testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationWindowV1({
+        observed_at_ms: NOW,
+        expires_at_ms: NOW + 1_000,
+        terminal_now_ms: terminalNowMs,
+      }),
+    /witness_replay_rollback_policy_evidence_observation_window_expired/u,
+  );
+}
+
 for (const patch of [
   { path: "/tmp/policy.json" },
   { uid: 1000 },
@@ -478,6 +499,8 @@ for (const token of [
   "classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackIndependenceV1",
   "live_policy_observation_proven: live === true",
   "terminalInstallation",
+  "assertPolicyObservationWindowFresh",
+  "witness_replay_rollback_policy_evidence_observation_window_expired",
   "live_policy_enforcement_proven: false",
 ]) {
   assert.equal(source.includes(token), true, "missing source token: " + token);
@@ -504,6 +527,7 @@ console.log("root_owned_read_only_policy_file_required=true");
 console.log("canonical_policy_control_required=true");
 console.log("live_replay_storage_reobservation_required=true");
 console.log("policy_file_double_read_stability_required=true");
+console.log("terminal_policy_freshness_rechecked=true");
 console.log("synthetic_live_policy_authority=false");
 console.log("live_policy_enforcement_proven=false");
 console.log("rollback_resistance_proven=false");
