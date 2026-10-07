@@ -696,6 +696,20 @@ assert.equal(
   false,
 );
 assert.equal(
+  gatewaySource.includes(
+    "credential request public signing-key rate must reserve room for two signing-key buckets under the global wall",
+  ),
+  true,
+  "configuration HOLD must describe signing-key capacity, not applicant isolation",
+);
+assert.equal(
+  gatewaySource.includes(
+    "credential request public applicant rate must reserve capacity for a second applicant",
+  ),
+  false,
+  "stale applicant-capacity HOLD wording must stay retired",
+);
+assert.equal(
   ready.paid_work_credential_request_route
     .two_signing_key_buckets_fit_under_global_wall,
   true,
