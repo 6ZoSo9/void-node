@@ -1,7 +1,9 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Express, Request, Response as ExpressResponse } from "express";
 import {
+  type SteamReadonlyBridgeRuntimeV2Dependencies,
   registerSteamReadonlyBridgeRuntimeV2,
   steamReadonlyBridgeCredentialReferenceStatusV2,
   steamReadonlyBridgeRuntimeStatusV2,
@@ -25,15 +27,39 @@ type CapturedResponse = {
 class FakeApp {
   readonly getHandlers = new Map<string, Handler>();
   readonly postHandlers = new Map<string, Handler>();
+  getAttempts = 0;
+  postAttempts = 0;
 
   get(pathname: string, handler: Handler): this {
+    this.getAttempts += 1;
     this.getHandlers.set(pathname, handler);
     return this;
   }
 
   post(pathname: string, handler: Handler): this {
+    this.postAttempts += 1;
     this.postHandlers.set(pathname, handler);
     return this;
+  }
+}
+
+class FailOnceGetApp extends FakeApp {
+  get(pathname: string, handler: Handler): this {
+    if (this.getAttempts === 0) {
+      this.getAttempts += 1;
+      throw new Error("synthetic status-route registration failure");
+    }
+    return super.get(pathname, handler);
+  }
+}
+
+class FailOncePostApp extends FakeApp {
+  post(pathname: string, handler: Handler): this {
+    if (this.postAttempts === 0) {
+      this.postAttempts += 1;
+      throw new Error("synthetic request-route registration failure");
+    }
+    return super.post(pathname, handler);
   }
 }
 
@@ -43,6 +69,14 @@ function need(condition: unknown, message: string): asserts condition {
       `VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_FAIL: ${message}`,
     );
   }
+}
+
+function routeCounts(app: FakeApp): readonly [number, number] {
+  return [app.getHandlers.size, app.postHandlers.size];
+}
+
+function registrationAttempts(app: FakeApp): readonly [number, number] {
+  return [app.getAttempts, app.postAttempts];
 }
 
 function responseCapture(): {
@@ -324,6 +358,231 @@ need(
   "unauthorized error mismatch",
 );
 
+const failOnceGetApp = new FailOnceGetApp();
+let initialRegistrationFailed = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    failOnceGetApp as unknown as Express,
+    {
+      env,
+      authorize_operator: () => true,
+    },
+  );
+} catch (error) {
+  initialRegistrationFailed =
+    error instanceof Error &&
+    error.message === "synthetic status-route registration failure";
+}
+need(initialRegistrationFailed, "initial registration did not fail");
+need(
+  routeCounts(failOnceGetApp).every((count) => count === 0),
+  "failed initial registration retained a route",
+);
+
+const retriedInitialRegistration = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceGetApp as unknown as Express,
+  {
+    env,
+    authorize_operator: () => true,
+  },
+);
+need(
+  retriedInitialRegistration.registered === true,
+  "initial registration retry did not resume",
+);
+need(
+  registrationAttempts(failOnceGetApp)[0] === 2 &&
+    routeCounts(failOnceGetApp).every((count) => count === 1),
+  "initial registration retry did not install both routes once",
+);
+
+const failOnceApp = new FailOncePostApp();
+const retryGenerationCalls: string[] = [];
+const retryMockBody = JSON.stringify({
+  response: {
+    players: [
+      {
+        steamid: "76561198000000000",
+        personaname: "retry-proof-persona",
+      },
+    ],
+  },
+});
+const firstGenerationEnv: NodeJS.ProcessEnv = {
+  ...env,
+  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
+    "voidsteamref1_" + "a".repeat(64),
+};
+const secondGenerationEnv: NodeJS.ProcessEnv = {
+  ...env,
+  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
+    "voidsteamref1_" + "b".repeat(64),
+};
+const firstGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
+  env: firstGenerationEnv,
+  authorize_operator: () => {
+    retryGenerationCalls.push("auth:A");
+    return true;
+  },
+  now: () => {
+    retryGenerationCalls.push("now:A");
+    return 1_754_150_100_000;
+  },
+  fetch_impl: async (input, init) => {
+    retryGenerationCalls.push("fetch:A");
+    return responseWithFinalUrl(
+      retryMockBody,
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(retryMockBody)),
+        },
+      },
+      String(input),
+    );
+  },
+};
+const secondGeneration: SteamReadonlyBridgeRuntimeV2Dependencies = {
+  env: secondGenerationEnv,
+  authorize_operator: () => {
+    retryGenerationCalls.push("auth:B");
+    return false;
+  },
+  now: () => {
+    retryGenerationCalls.push("now:B");
+    return 1_754_150_200_000;
+  },
+  fetch_impl: async () => {
+    retryGenerationCalls.push("fetch:B");
+    throw new Error("generation B fetch must never run");
+  },
+};
+
+let partialRegistrationFailed = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    failOnceApp as unknown as Express,
+    firstGeneration,
+  );
+} catch (error) {
+  partialRegistrationFailed =
+    error instanceof Error &&
+    error.message === "synthetic request-route registration failure";
+}
+need(partialRegistrationFailed, "partial registration did not fail");
+need(
+  failOnceApp.getHandlers.size === 1 && failOnceApp.getAttempts === 1,
+  "status route missing or registered more than once after partial registration",
+);
+need(
+  failOnceApp.postHandlers.size === 0 && failOnceApp.postAttempts === 1,
+  "failed request route was retained or attempt count mismatched",
+);
+
+const resumedRegistration = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceApp as unknown as Express,
+  secondGeneration,
+);
+need(
+  resumedRegistration.registered === true,
+  "partial registration retry did not resume",
+);
+const resumedAttempts = registrationAttempts(failOnceApp);
+need(
+  failOnceApp.getHandlers.size === 1 && resumedAttempts[0] === 1,
+  "partial registration retry duplicated the status route",
+);
+need(
+  failOnceApp.postHandlers.has(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  "partial registration retry did not install the request route",
+);
+need(
+  resumedAttempts[1] === 2,
+  "partial registration retry used an unexpected request-route attempt count",
+);
+
+const retainedStatus = await invoke(
+  failOnceApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  undefined,
+);
+need(retainedStatus.status === 200, "retained status generation failed");
+const retainedStatusBody = asObject(
+  retainedStatus.body,
+  "retained status body missing",
+);
+const retainedCredential = asObject(
+  retainedStatusBody.credential_reference,
+  "retained credential reference missing",
+);
+need(
+  retainedCredential.reference_id_sha256 ===
+    crypto.createHash("sha256")
+      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
+      .digest("hex"),
+  "status route drifted from generation A env",
+);
+
+const retainedRequest = await invoke(
+  failOnceApp.postHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  {
+    confirmation:
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_CONFIRMATION,
+    operation: "player_summaries",
+    steamids: ["76561198000000000"],
+  },
+);
+need(retainedRequest.status === 200, "retained request generation failed");
+const retainedRequestBody = asObject(
+  retainedRequest.body,
+  "retained request body missing",
+);
+const retainedRequestReceipt = asObject(
+  retainedRequestBody.receipt,
+  "retained request receipt missing",
+);
+need(
+  retainedRequestReceipt.credential_reference_id_sha256 ===
+    crypto.createHash("sha256")
+      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
+      .digest("hex"),
+  "request route drifted from generation A env",
+);
+need(
+  retryGenerationCalls.includes("auth:A") &&
+    retryGenerationCalls.includes("fetch:A") &&
+    retryGenerationCalls.includes("now:A"),
+  "generation A providers were not retained",
+);
+need(
+  retryGenerationCalls.every((entry) => !entry.endsWith(":B")),
+  "retry mixed dependency generation B into resumed routes",
+);
+const resumedDuplicate = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceApp as unknown as Express,
+  {
+    env,
+    authorize_operator: () => true,
+  },
+);
+need(
+  resumedDuplicate.registered === false,
+  "completed partial-registration retry was not idempotent",
+);
+const completedAttempts = registrationAttempts(failOnceApp);
+need(
+  routeCounts(failOnceApp).every((count) => count === 1) &&
+    completedAttempts[0] === 1 &&
+    completedAttempts[1] === 2,
+  "duplicate retry changed the completed route set or registration call count",
+);
+
 const app = new FakeApp();
 let observedUrl = "";
 let observedHeaders: Record<string, string> = {};
@@ -496,4 +755,6 @@ need(
   "receipt locator binding mismatch",
 );
 
+console.log("retry_dependency_generation_retained=true");
+console.log("retry_dependency_generation_split_rejected=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_GREEN");

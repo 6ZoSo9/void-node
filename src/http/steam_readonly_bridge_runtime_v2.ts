@@ -27,6 +27,15 @@ const BRIDGE_ENABLED_ENV = "VOID_STEAM_READONLY_BRIDGE_ENABLED";
 const HEX64 = /^[0-9a-f]{64}$/;
 const REFERENCE_ID = /^voidsteamref1_[0-9a-f]{64}$/;
 const BOUND = Symbol.for("void.steam-readonly-bridge-runtime-v2.bound");
+const STATUS_BOUND = Symbol.for(
+  "void.steam-readonly-bridge-runtime-v2.status-bound",
+);
+const REQUEST_BOUND = Symbol.for(
+  "void.steam-readonly-bridge-runtime-v2.request-bound",
+);
+const DEPENDENCIES = Symbol.for(
+  "void.steam-readonly-bridge-runtime-v2.dependencies",
+);
 
 type JsonObject = Record<string, unknown>;
 
@@ -484,7 +493,22 @@ export function registerSteamReadonlyBridgeRuntimeV2(
   app: Express,
   dependencies: SteamReadonlyBridgeRuntimeV2Dependencies,
 ): SteamReadonlyBridgeRuntimeRegistrationV2 {
-  const anyApp = app as Express & { [BOUND]?: boolean };
+  const anyApp = app as Express & {
+    [BOUND]?: boolean;
+    [STATUS_BOUND]?: boolean;
+    [REQUEST_BOUND]?: boolean;
+    [DEPENDENCIES]?: SteamReadonlyBridgeRuntimeV2Dependencies;
+  };
+  if (!anyApp[DEPENDENCIES]) {
+    anyApp[DEPENDENCIES] = Object.freeze({
+      authorize_operator: dependencies.authorize_operator,
+      env: dependencies.env,
+      fetch_impl: dependencies.fetch_impl,
+      now: dependencies.now,
+    });
+  }
+  const retainedDependencies = anyApp[DEPENDENCIES];
+
   if (anyApp[BOUND]) {
     return {
       marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
@@ -498,93 +522,98 @@ export function registerSteamReadonlyBridgeRuntimeV2(
       live_steam_request: false,
     };
   }
-  anyApp[BOUND] = true;
-
-  app.get(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
-    async (request: Request, response: Response) => {
-      if (!(await authorized(request, response, dependencies))) {
-        return;
-      }
-      response.json({
-        ok: true,
-        ...steamReadonlyBridgeRuntimeStatusV2(dependencies.env),
-      });
-    },
-  );
-
-  app.post(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
-    async (request: Request, response: Response) => {
-      if (!(await authorized(request, response, dependencies))) {
-        return;
-      }
-
-      try {
-        const parsed = parseRouteRequest(request.body);
-        const env = normalizedEnv(dependencies.env);
-        const status = steamReadonlyBridgeRuntimeStatusV2(env);
-        if (status.status !== "ready_for_confirmed_attempt") {
-          throw new RuntimeRouteError(
-            status.status === "disabled"
-              ? "bridge_disabled"
-              : "credential_reference_not_ready",
-            503,
-          );
+  if (!anyApp[STATUS_BOUND]) {
+    app.get(
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+      async (request: Request, response: Response) => {
+        if (!(await authorized(request, response, retainedDependencies))) {
+          return;
         }
-
-        const clock = dependencies.now ?? Date.now;
-        const startedMs = clock();
-        const upstream = await executeSteamReadonlyRequest(
-          upstreamRequest(parsed),
-          {
-            env,
-            fetch_impl: dependencies.fetch_impl,
-          },
-        );
-        const completedMs = clock();
-
-        const receipt = buildReceipt({
-          request: parsed,
-          credential_reference: status.credential_reference,
-          started_ms: startedMs,
-          completed_ms: completedMs,
-          upstream_status: upstream.upstream.status,
-          received_bytes: upstream.received_bytes,
-          response_sha256: upstream.response_sha256,
-        });
-
         response.json({
           ok: true,
-          marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
-          data: upstream.data,
-          receipt,
+          ...steamReadonlyBridgeRuntimeStatusV2(retainedDependencies.env),
         });
-      } catch (error) {
-        if (error instanceof RuntimeRouteError) {
-          response.status(error.http_status).json({
-            ok: false,
-            marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
-            error: error.code,
-          });
+      },
+    );
+    anyApp[STATUS_BOUND] = true;
+  }
+
+  if (!anyApp[REQUEST_BOUND]) {
+    app.post(
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+      async (request: Request, response: Response) => {
+        if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
-        if (error instanceof SteamReadonlyBridgeError) {
-          response.status(steamErrorStatus(error.code)).json({
+
+        try {
+          const parsed = parseRouteRequest(request.body);
+          const env = normalizedEnv(retainedDependencies.env);
+          const status = steamReadonlyBridgeRuntimeStatusV2(env);
+          if (status.status !== "ready_for_confirmed_attempt") {
+            throw new RuntimeRouteError(
+              status.status === "disabled"
+                ? "bridge_disabled"
+                : "credential_reference_not_ready",
+              503,
+            );
+          }
+
+          const clock = retainedDependencies.now ?? Date.now;
+          const startedMs = clock();
+          const upstream = await executeSteamReadonlyRequest(
+            upstreamRequest(parsed),
+            {
+              env,
+              fetch_impl: retainedDependencies.fetch_impl,
+            },
+          );
+          const completedMs = clock();
+
+          const receipt = buildReceipt({
+            request: parsed,
+            credential_reference: status.credential_reference,
+            started_ms: startedMs,
+            completed_ms: completedMs,
+            upstream_status: upstream.upstream.status,
+            received_bytes: upstream.received_bytes,
+            response_sha256: upstream.response_sha256,
+          });
+
+          response.json({
+            ok: true,
+            marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
+            data: upstream.data,
+            receipt,
+          });
+        } catch (error) {
+          if (error instanceof RuntimeRouteError) {
+            response.status(error.http_status).json({
+              ok: false,
+              marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
+              error: error.code,
+            });
+            return;
+          }
+          if (error instanceof SteamReadonlyBridgeError) {
+            response.status(steamErrorStatus(error.code)).json({
+              ok: false,
+              marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
+              error: error.code,
+            });
+            return;
+          }
+          response.status(500).json({
             ok: false,
             marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
-            error: error.code,
+            error: "steam_readonly_bridge_runtime_failure",
           });
-          return;
         }
-        response.status(500).json({
-          ok: false,
-          marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,
-          error: "steam_readonly_bridge_runtime_failure",
-        });
-      }
-    },
-  );
+      },
+    );
+    anyApp[REQUEST_BOUND] = true;
+  }
+  anyApp[BOUND] = true;
 
   return {
     marker: VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2,

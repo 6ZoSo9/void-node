@@ -67,14 +67,14 @@
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "28ebfc58b91f955f701eba4f31e92427a77d3c0c37ad15005235ccef97a0b98b",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "46862b2be719243342b869cfd28a9fa8b49808227fc7b658ef1ed5cbf77430cc",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "e68a08abaf29fb8e08b8fdff6a7efec419bab1ee2c8938fba35c9e704d1aa09e",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "2f6ba4471ed6824c9a30cab1c124d051cb246ea20ada263bceb86f0cff91d8cc",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "docs/public/void-ui-wave4-earn-readonly-v1/VISUAL_APPROVAL.md": "eca316b11d1280868f5c41501f152e83024a03e05ce1e10a607d0445f9c8cd95",
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "d87eecb9679d6e92707cc6973de487302c3313958e25b5d6ec74381e6c9a779b",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "d2ea039a1bc06bce00e1b924741ba9654d1ac56e24d653f7568c5d628f2ff562",
     "public/void-app-wave1-v1/assets/js/views.js": "b12d5b61ae05d70e4608d76e542bd0c8781dbb90bd66f43214ef0d59188d2fbb",
     "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "9c216f2127b22a8fd0c0d65cd8d4532ad399799adc80eca67eb7fcc9218b785c",
@@ -107,5 +107,6 @@
   "wallet_unavailable_evidence_coherence_refresh_date": "2026-10-06",
   "wallet_stale_evidence_clear_refresh_date": "2026-10-07",
   "wallet_invalid_input_supersession_refresh_date": "2026-10-07",
-  "coupled_opening_copy_refresh_date": "2026-10-07"
+  "coupled_opening_copy_refresh_date": "2026-10-07",
+  "earn_unavailable_history_fail_closed_refresh_date": "2026-10-07"
 }
