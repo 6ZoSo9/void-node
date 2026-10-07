@@ -41,32 +41,177 @@ function exactFlag(
   fail(`${name} must be exactly 0 or 1`);
 }
 
+type FixedTrustAfterFstatHookV1 = (
+  input: Readonly<{
+    relativePath: string;
+    target: string;
+    configDir: string;
+  }>,
+) => void;
+
+function sameOpenedFileStateV1(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function sameOpenedDirectoryIdentityV1(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid
+  );
+}
+
 function fixedJson(
   rootDir: string,
   relativePath: string,
+  testOnlyAfterFstat?: FixedTrustAfterFstatHookV1,
 ): unknown {
   const root = path.resolve(rootDir);
   const target = path.resolve(root, relativePath);
+  const configDir = path.dirname(target);
   if (!target.startsWith(`${root}${path.sep}`)) {
     fail(`fixed trust path escaped repository root: ${relativePath}`);
   }
-  if (!fs.existsSync(target)) {
-    fail(`required fixed trust artifact is missing: ${relativePath}`);
-  }
-  const stat = fs.lstatSync(target);
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    fail(`fixed trust artifact must be a regular non-symlink file: ${relativePath}`);
-  }
+
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directoryOnly = fs.constants.O_DIRECTORY;
   if (
-    stat.size < 2 ||
-    stat.size > VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FETCH_MAX_BYTES_V1
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number"
   ) {
-    fail(`fixed trust artifact size is outside its bound: ${relativePath}`);
+    fail("fixed trust descriptor safety is unavailable");
   }
+
+  const directoryFlags =
+    fs.constants.O_RDONLY |
+    noFollow |
+    directoryOnly |
+    fs.constants.O_NONBLOCK;
+  let rootDescriptor = -1;
+  let configDescriptor = -1;
+  let descriptor = -1;
   try {
-    return JSON.parse(fs.readFileSync(target, "utf8"));
-  } catch {
-    fail(`fixed trust artifact is not valid JSON: ${relativePath}`);
+    try {
+      rootDescriptor = fs.openSync(root, directoryFlags);
+      configDescriptor = fs.openSync(
+        `/proc/self/fd/${rootDescriptor}/${path.dirname(relativePath)}`,
+        directoryFlags,
+      );
+      descriptor = fs.openSync(
+        `/proc/self/fd/${configDescriptor}/${path.basename(relativePath)}`,
+        fs.constants.O_RDONLY |
+          noFollow |
+          fs.constants.O_NONBLOCK,
+      );
+    } catch {
+      fail(
+        `required fixed trust artifact is not descriptor-openable: ${relativePath}`,
+      );
+    }
+
+    const rootBefore = fs.fstatSync(rootDescriptor, { bigint: true });
+    const configBefore = fs.fstatSync(configDescriptor, { bigint: true });
+    const before = fs.fstatSync(descriptor, { bigint: true });
+    if (!rootBefore.isDirectory() || !configBefore.isDirectory()) {
+      fail(`fixed trust artifact must remain directory-rooted: ${relativePath}`);
+    }
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink()
+    ) {
+      fail(
+        `fixed trust artifact must be a regular non-symlink file: ${relativePath}`,
+      );
+    }
+    if (
+      before.size < 2n ||
+      before.size >
+        BigInt(VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FETCH_MAX_BYTES_V1)
+    ) {
+      fail(`fixed trust artifact size is outside its bound: ${relativePath}`);
+    }
+
+    testOnlyAfterFstat?.(
+      Object.freeze({ relativePath, target, configDir }),
+    );
+
+    const expectedBytes = Number(before.size);
+    const bytes = Buffer.alloc(expectedBytes);
+    let offset = 0;
+    while (offset < expectedBytes) {
+      const count = fs.readSync(
+        descriptor,
+        bytes,
+        offset,
+        expectedBytes - offset,
+        offset,
+      );
+      if (count <= 0) {
+        fail(`fixed trust artifact changed during descriptor read: ${relativePath}`);
+      }
+      offset += count;
+    }
+    const eofProbe = Buffer.alloc(1);
+    if (fs.readSync(descriptor, eofProbe, 0, 1, expectedBytes) !== 0) {
+      fail(`fixed trust artifact changed during descriptor read: ${relativePath}`);
+    }
+
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    if (!sameOpenedFileStateV1(before, after)) {
+      fail(`fixed trust artifact changed during descriptor read: ${relativePath}`);
+    }
+
+    let rootVisible: fs.BigIntStats;
+    let configVisible: fs.BigIntStats;
+    let fileVisible: fs.BigIntStats;
+    try {
+      rootVisible = fs.lstatSync(root, { bigint: true });
+      configVisible = fs.lstatSync(configDir, { bigint: true });
+      fileVisible = fs.lstatSync(target, { bigint: true });
+    } catch {
+      fail(`fixed trust artifact path changed during descriptor read: ${relativePath}`);
+    }
+    if (
+      rootVisible.isSymbolicLink() ||
+      configVisible.isSymbolicLink() ||
+      fileVisible.isSymbolicLink() ||
+      !rootVisible.isDirectory() ||
+      !configVisible.isDirectory() ||
+      !fileVisible.isFile() ||
+      !sameOpenedDirectoryIdentityV1(rootBefore, rootVisible) ||
+      !sameOpenedDirectoryIdentityV1(configBefore, configVisible) ||
+      !sameOpenedFileStateV1(after, fileVisible)
+    ) {
+      fail(`fixed trust artifact path changed during descriptor read: ${relativePath}`);
+    }
+
+    try {
+      return JSON.parse(bytes.toString("utf8"));
+    } catch {
+      fail(`fixed trust artifact is not valid JSON: ${relativePath}`);
+    }
+  } finally {
+    if (descriptor >= 0) fs.closeSync(descriptor);
+    if (configDescriptor >= 0) fs.closeSync(configDescriptor);
+    if (rootDescriptor >= 0) fs.closeSync(rootDescriptor);
   }
 }
 
@@ -270,11 +415,13 @@ export async function readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1
   env = process.env,
   udpRuntimeEnabled,
   nowMs = Date.now(),
+  testOnlyAfterFixedTrustFstat,
 }: Readonly<{
   rootDir: string;
   env?: EnvironmentV1;
   udpRuntimeEnabled: boolean;
   nowMs?: number;
+  testOnlyAfterFixedTrustFstat?: FixedTrustAfterFstatHookV1;
 }>): Promise<VoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1 | null> {
   const enabled = exactFlag(
     env,
@@ -294,6 +441,7 @@ export async function readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1
   const releaseRoot = fixedJson(
     rootDir,
     VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_RELEASE_ROOT_V1,
+    testOnlyAfterFixedTrustFstat,
   );
   const validatedRoot = validators.validateReleaseRoot(
     releaseRoot,
@@ -303,6 +451,7 @@ export async function readVoidUdpSwarmPublicRelayIntroductionEntrypointOptionsV1
   const observerAuthorization = fixedJson(
     rootDir,
     VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_OBSERVER_AUTHORIZATION_V1,
+    testOnlyAfterFixedTrustFstat,
   );
   validators.validateObserverAuthorization(
     observerAuthorization,
