@@ -12,6 +12,7 @@ import {
   VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
   createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1,
   handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelopeV1,
+  testOnlyCreateVoidDatanetRegistryBroadcastGenerationCustodyServiceV1,
 } from "../tools/void-datanet-registry-broadcast-generation-custody-service-v1.mjs";
 import {
   VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_CLIENT_AUTHORITY_V1,
@@ -84,6 +85,67 @@ const options=Object.freeze({
 const service=createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
   options,
 );
+
+async function proveStartupRollback(failureKind){
+  const failedSocket=path.join(
+    socketParent,
+    "custody-"+failureKind+".sock",
+  );
+  const failedOptions=Object.freeze({
+    socket_path:failedSocket,
+    fence_root:fenceRoot,
+    socket_group_gid:socketGroup,
+  });
+  const failedService=
+    testOnlyCreateVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+      failedOptions,
+      failureKind,
+    );
+
+  await assert.rejects(
+    failedService.start(),
+    new RegExp(
+      "test_only_datanet_broadcast_generation_custody_"+
+      failureKind+
+      "_failure",
+      "u",
+    ),
+  );
+
+  assert.deepEqual(
+    failedService.testOnlyResourceState(),
+    {
+      started:false,
+      server_present:false,
+      server_listening:false,
+      pinned_root_open:false,
+      bound_socket_identity:false,
+      accepted_socket_count:0,
+    },
+  );
+  assert.equal(
+    fs.existsSync(failedSocket),
+    false,
+    failureKind+" startup failure must remove the Unix socket path",
+  );
+
+  const retry=
+    createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+      failedOptions,
+    );
+  const retryStarted=await retry.start();
+  assert.equal(retryStarted.ok,true);
+  assert.equal(fs.existsSync(failedSocket),true);
+  await retry.stop();
+  assert.equal(
+    fs.existsSync(failedSocket),
+    false,
+    failureKind+" cleanup must leave the same path reusable",
+  );
+}
+
+await proveStartupRollback("chmod");
+await proveStartupRollback("chown");
 
 try{
   const started=await service.start();
@@ -361,6 +423,9 @@ console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
 console.log("caller_selected_path=false");
 console.log("abort_signal_destroys_unresponsive_socket=true");
+console.log("startup_chmod_failure_rolls_back_all_resources=true");
+console.log("startup_chown_failure_rolls_back_all_resources=true");
+console.log("startup_failure_same_path_retry_succeeds=true");
 console.log("source_service_contract_only=true");
 console.log("independent_custody_proven=false");
 console.log("live_host_qualification_performed=false");
