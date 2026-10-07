@@ -237,3 +237,24 @@ post-link temp cleanup with truthful mutation reporting, filename/row identity
 mismatch HOLD, recovery by authenticated idempotent replay, idempotent
 directory-durability refresh, and two concurrent exact requests producing one
 canonical record.
+
+## Terminal bakery-release pathname check
+
+The bakery lock callback returns before its queue-ticket cleanup and final
+directory fsync finish. A successful writer outcome now revalidates the
+descriptor-pinned payer root, liability records, reconciliation records, and
+existing bakery queue against their visible paths **after** the lock-release
+cleanup. Any terminal replacement HOLDS instead of returning a false `stored`
+or `idempotent` success.
+
+Inert tests replace each of the four visible directories during the last
+queue-release fsync for both first publication and idempotent replay.
+A previously durable reconciliation remains recorded. A first-publication
+failure must report `held_after_mutation` and
+`mutation_performed=true`; a clean replay failure reports `held` and
+`mutation_performed=false`.
+
+This guards one source-level timing window only. It does not establish
+root stability after the API returns, independent custody, live designated-host
+qualification, runtime integration, native-gas spend, market/presale activation,
+or funds authority. `root_path_stability_proven=false` remains unchanged.

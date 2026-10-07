@@ -200,3 +200,19 @@ The focused proof:
 - requires every non-allowlisted authority bit to remain false; and
 - poisons ambient Git repository/config/replacement variables while the real
   checkout inspector must still pass through its closed Git environment.
+
+## Candidate generation after terminal bakery-release repair
+
+This source-only revision rebinds the 21-blob reviewed-source manifest's
+native-gas reconciliation writer entry to Git blob `67517092b5c94733c50135ef7ce7e5679b641a0e`,
+superseding historical blob `d8f17a770ea79c6abc868737fc1d7e4f1850d6dc`.
+The downstream receipt-continuity source verifier binds the same candidate
+writer generation; the content-addressed manifest/source-generation identities
+are recomputed by the canonical source-binding implementation.
+
+**Historical receipts are not rewritten or silently promoted.** A former
+source-generation ID cannot qualify the new candidate code. Exact-head CI,
+independent review, and fresh designated-host source/custody evidence are still
+required. Host trust, rollback resistance, external high-water, runtime
+integration, gas spending, presale/WC activation, and funds authority remain
+unproven.
