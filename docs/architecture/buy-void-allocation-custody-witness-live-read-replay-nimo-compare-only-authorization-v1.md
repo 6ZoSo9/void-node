@@ -67,7 +67,7 @@ and must be root:root mode 0500 with link count 1. The reviewed installer Git
 blob for this generation is:
 
 ~~~text
-1e8f7683f30a160d1df7992e624d613c93274998
+d42647c0b08cbd4e55da805a56df270aec6ee223
 ~~~
 
 The root-controlled copy is verified against that exact Git blob before Bash
@@ -139,7 +139,7 @@ cd ~/dev/void-node
 git fetch origin main
 
 wrapper_blob=309b4de7c40c5b8a21bbc956cc445f6600a33215
-installer_blob=1e8f7683f30a160d1df7992e624d613c93274998
+installer_blob=d42647c0b08cbd4e55da805a56df270aec6ee223
 installer_path=tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh
 
 test "$(git rev-parse "origin/main:$installer_path")" = "$installer_blob"
@@ -164,7 +164,7 @@ ssh -tt zoso@nimo '
 set -Eeuo pipefail
 src=/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/authorize.sh
 trusted=/root/.void-replay-compare-only-nimo-authorization-v1.sh
-expected_blob=1e8f7683f30a160d1df7992e624d613c93274998
+expected_blob=d42647c0b08cbd4e55da805a56df270aec6ee223
 
 [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%F" /root)" == "0:0:700:directory" ]] || exit 2
 
