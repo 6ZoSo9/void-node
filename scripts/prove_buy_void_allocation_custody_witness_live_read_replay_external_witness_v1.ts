@@ -242,20 +242,94 @@ assert.equal(matchedA2.ok, true);
 if (!matchedA2.ok) throw new Error("A2 match held");
 assert.equal(matchedA2.status, "matched");
 
-const rollback =
+const aheadWithoutTrustedProvenance =
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
     witness_jsonl: witnessA2,
     current_journal_jsonl: journal0,
     current_high_water_json: high0.high_water_json,
     identity,
   });
-assert.equal(rollback.ok, false);
-if (rollback.ok) throw new Error("rollback unexpectedly green");
+assert.equal(aheadWithoutTrustedProvenance.ok, false);
+if (aheadWithoutTrustedProvenance.ok) {
+  throw new Error("unauthenticated ahead witness unexpectedly green");
+}
 assert.equal(
-  rollback.reason,
-  "witness_replay_external_witness_local_rollback_detected",
+  aheadWithoutTrustedProvenance.reason,
+  "witness_replay_external_witness_ahead_unverified",
 );
-assert.equal(rollback.rollback_regression_detected, true);
+assert.equal(
+  aheadWithoutTrustedProvenance.rollback_regression_detected,
+  false,
+  "source-only witness must not claim rollback from unauthenticated ahead state",
+);
+
+const aheadPlanWithoutTrustedProvenance =
+  planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+    witness_jsonl: witnessA2,
+    current_journal_jsonl: journal0,
+    current_high_water_json: high0.high_water_json,
+    identity,
+  });
+assert.equal(aheadPlanWithoutTrustedProvenance.ok, false);
+if (aheadPlanWithoutTrustedProvenance.ok) {
+  throw new Error("unauthenticated ahead witness plan unexpectedly green");
+}
+assert.equal(
+  aheadPlanWithoutTrustedProvenance.reason,
+  "witness_replay_external_witness_ahead_unverified",
+);
+assert.equal(
+  aheadPlanWithoutTrustedProvenance.rollback_regression_detected,
+  false,
+);
+
+{
+  const validPrefixForgedTail = rehashWitnessJsonl(
+    witnessA2,
+    (events) => {
+      events[1].journal_sha256 = sha("c");
+      events[1].high_water_sha256 = sha("d");
+      events[1].tip_event_sha256 = sha("e");
+    },
+  );
+  const forgedTailClassification =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: validPrefixForgedTail,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(forgedTailClassification.ok, false);
+  if (forgedTailClassification.ok) {
+    throw new Error("valid-prefix forged tail unexpectedly green");
+  }
+  assert.equal(
+    forgedTailClassification.reason,
+    "witness_replay_external_witness_ahead_unverified",
+  );
+  assert.equal(
+    forgedTailClassification.rollback_regression_detected,
+    false,
+    "unavailable future tail has no authenticated rollback provenance",
+  );
+
+  const forgedTailPlan =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: validPrefixForgedTail,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(forgedTailPlan.ok, false);
+  if (forgedTailPlan.ok) {
+    throw new Error("valid-prefix forged tail plan unexpectedly green");
+  }
+  assert.equal(
+    forgedTailPlan.reason,
+    "witness_replay_external_witness_ahead_unverified",
+  );
+  assert.equal(forgedTailPlan.rollback_regression_detected, false);
+}
 
 {
   const forgedAhead = rehashWitnessJsonl(witnessA2, (events) => {
@@ -485,6 +559,7 @@ assert.equal(
 }
 
 for (const key of [
+  "rollback_regression_detection",
   "external_transport_authenticated",
   "external_witness_storage_proven",
   "live_remote_read_performed",
@@ -526,7 +601,6 @@ for (const key of [
   "append_only_hash_chain",
   "one_witness_event_per_replay_sequence",
   "exact_next_sequence_planning",
-  "rollback_regression_detection",
   "mixed_history_conflict_rejection",
   "source_storage_identity_invariant",
   "witness_host_identity_invariant",
@@ -554,9 +628,10 @@ console.log("genesis_planning=true");
 console.log("one_event_per_replay_sequence=true");
 console.log("sequential_catchup=true");
 console.log("mixed_history_conflict_rejected=true");
-console.log("local_rollback_detected=true");
-console.log("rollback_requires_canonical_common_prefix=true");
-console.log("forged_ahead_witness_not_labeled_rollback=true");
+console.log("unauthenticated_ahead_witness_held=true");
+console.log("rollback_claim_requires_authenticated_external_provenance=true");
+console.log("valid_prefix_forged_tail_not_labeled_rollback=true");
+console.log("forged_shared_prefix_not_labeled_rollback=true");
 console.log("pending_challenge_id_digest_binding=true");
 console.log("impossible_pending_witness_not_labeled_rollback=true");
 console.log("identity_drift_rejected=true");
