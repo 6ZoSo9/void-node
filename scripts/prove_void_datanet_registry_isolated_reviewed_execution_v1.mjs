@@ -78,12 +78,14 @@ if(typeof process.execve==="function"){
   );
 }
 
-await assert.rejects(
-  ()=>testOnlyRunSyntheticReviewedChildV1(
-    'export default process.getBuiltinModule?.("node:net");',
-  ),
-  /reviewed_ambient_get_builtin_module_forbidden/u,
-);
+if(typeof process.getBuiltinModule==="function"){
+  await assert.rejects(
+    ()=>testOnlyRunSyntheticReviewedChildV1(
+      'export default process.getBuiltinModule("node:net");',
+    ),
+    /reviewed_ambient_get_builtin_module_forbidden/u,
+  );
+}
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-datanet-child-proof-"));
 const portFile=path.join(tmp,"port");
