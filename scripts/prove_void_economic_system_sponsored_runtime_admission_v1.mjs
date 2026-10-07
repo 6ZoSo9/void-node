@@ -585,6 +585,7 @@ assert.equal(
       trustedClock: () => sample(1000, 1_000_000_000n),
       time_root: f.timeRoot,
       reservation_root: f.reservationRoot,
+      replay_root: f.replayRoot,
       allowed_targets: [TARGET],
     };
     Object.defineProperty(accessorBinding, "policy_bundle", {
@@ -1245,6 +1246,12 @@ assert.match(
   source,
   /listEconomicSystemSponsoredReservationsV1/u,
 );
+assert.match(
+  source,
+  /createVoidEconomicEpoch2DurableReplayStoreV1/u,
+);
+assert.match(source, /replayStore\.inspectConsumed\(/u);
+assert.doesNotMatch(source, /replayStore\.consumeIfFresh\(/u);
 assert.match(source, /timeStore\.preview\(\)/u);
 const admitSource = source.slice(
   source.indexOf("async admit(inputRequest)"),
@@ -1259,6 +1266,10 @@ assert.ok(
 );
 assert.ok(
   admitSource.indexOf("preflight = preflightCandidate(") <
+    admitSource.indexOf("replayStore.inspectConsumed("),
+);
+assert.ok(
+  admitSource.indexOf("replayStore.inspectConsumed(") <
     admitSource.indexOf(
       "inspectEconomicSystemSponsoredReservationStoreV1",
     ),
@@ -1325,6 +1336,8 @@ console.log("valid_denied_request_time_growth_bounded=true");
 console.log("execution_replay_store_bound=true");
 console.log("read_only_execution_replay_inspection=true");
 console.log("consumed_execution_replay_rejected_before_time=true");
+console.log("sponsored_runtime_calls_replay_consume=false");
+console.log("replay_inspection_precedes_reservation_and_time=true");
 console.log("execution_replay_negative_freshness_authorized=false");
 console.log("execution_replay_atomic_consume_performed=false");
 console.log("execution_replay_execution_authorized=false");
