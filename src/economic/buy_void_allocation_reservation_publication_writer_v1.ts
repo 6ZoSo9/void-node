@@ -1146,7 +1146,7 @@ function withWriterRoots<T>(
       if (left.directory.stat.ino > right.directory.stat.ino) return 1;
       return left.directory.path.localeCompare(right.directory.path);
     });
-    return withBuyVoidFilesystemBakeryLockV1(
+    const result = withBuyVoidFilesystemBakeryLockV1(
       orderedLocks[0].lock_path,
       () =>
         withBuyVoidFilesystemBakeryLockV1(
@@ -1163,6 +1163,15 @@ function withWriterRoots<T>(
           },
         ),
     );
+    // Both bakery-lock release/finally paths have completed here, while both
+    // pinned root descriptors are still retained by this wrapper. A visible
+    // root replacement during lock release must therefore HOLD before any
+    // public success can escape.
+    assertWriterRootsVisible(
+      ledgerDirectory,
+      highWaterDirectory,
+    );
+    return result;
   } finally {
     if (highWaterDirectory) {
       try {
