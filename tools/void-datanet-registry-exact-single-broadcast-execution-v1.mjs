@@ -215,7 +215,7 @@ function openPinnedPrivateDirectoryV1(dir,label){
 }
 function closePinnedPrivateDirectoryV1(pinned){
   if(!pinned) return;
-  try{fs.closeSync(pinned.fd);}catch{}
+  try{fs.closeSync(pinned.fd);}catch(_closeError){void _closeError;}
 }
 function pinnedRecordPathV1(pinned,name){
   if(
