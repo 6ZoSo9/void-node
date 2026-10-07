@@ -3,7 +3,41 @@ name: Economic Activation WC Capability v1
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/economic-activation-wc-capability-v1.yml'
+      - 'scripts/prove_economic_activation_wc_capability_v1.ts'
+      - 'scripts/prove_economic_activation_wc_capability_runtime_v1.ts'
+      - 'scripts/prove_wc_public_state_directory_fsync_stabilization_v1.ts'
+      - 'scripts/prove_wc_verified_receipt_acceptance_v1.ts'
+      - 'scripts/prove_wc_mutation_containment_v1.ts'
+      - 'scripts/prove_wc_production_canary_v1.ts'
+      - 'scripts/recover_wc_capability_failed_receipt_v1.ts'
+      - 'src/economic/wc_*'
+      - 'src/http/datanet_routes.ts'
+      - 'src/index.ts'
+      - 'ops/private/wc-to-void-fixed-rate-v1-retirement-proof.sh'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/economic-activation-wc-capability-v1.yml'
+      - 'scripts/prove_economic_activation_wc_capability_v1.ts'
+      - 'scripts/prove_economic_activation_wc_capability_runtime_v1.ts'
+      - 'scripts/prove_wc_public_state_directory_fsync_stabilization_v1.ts'
+      - 'scripts/prove_wc_verified_receipt_acceptance_v1.ts'
+      - 'scripts/prove_wc_mutation_containment_v1.ts'
+      - 'scripts/prove_wc_production_canary_v1.ts'
+      - 'scripts/recover_wc_capability_failed_receipt_v1.ts'
+      - 'src/economic/wc_*'
+      - 'src/http/datanet_routes.ts'
+      - 'src/index.ts'
+      - 'ops/private/wc-to-void-fixed-rate-v1-retirement-proof.sh'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
 
 permissions:
   contents: read

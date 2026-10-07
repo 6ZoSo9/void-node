@@ -3,7 +3,25 @@ name: WC Public Earning Participant CLI v1
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/wc-public-earning-participant-cli-v1.yml'
+      - 'ops/mainnet0/wc-public-earning-participant-v1.sh'
+      - 'scripts/prove_wc_public_earning_participant_cli_v1.ts'
+      - 'tools/check_index_size.sh'
+      - 'src/index.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/wc-public-earning-participant-cli-v1.yml'
+      - 'ops/mainnet0/wc-public-earning-participant-v1.sh'
+      - 'scripts/prove_wc_public_earning_participant_cli_v1.ts'
+      - 'tools/check_index_size.sh'
+      - 'src/index.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
 
 permissions:
   contents: read

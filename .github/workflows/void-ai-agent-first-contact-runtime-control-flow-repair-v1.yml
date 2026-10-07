@@ -3,7 +3,33 @@ name: VOID AI Agent First Contact Runtime Control-Flow Repair V1
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'docs/public/ai-agent-first-contact-runtime-v1.md'
+      - 'fixtures/ops/guard-baselines/index-ts-size-v1.json'
+      - 'public/public-node/agents/first-contact-v1.json'
+      - 'public/public-node/agents/join-v1.html'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'docs/public/ai-agent-first-contact-runtime-v1.md'
+      - 'fixtures/ops/guard-baselines/index-ts-size-v1.json'
+      - 'public/public-node/agents/first-contact-v1.json'
+      - 'public/public-node/agents/join-v1.html'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   workflow_dispatch:
 
 permissions:
