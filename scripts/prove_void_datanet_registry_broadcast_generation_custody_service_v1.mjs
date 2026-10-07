@@ -350,15 +350,60 @@ try{
   );
   assert.equal(fs.existsSync(recordPath),true);
   const originalBytes=fs.readFileSync(recordPath);
-  fs.writeFileSync(recordPath,"{}\n",{mode:0o600});
-  fs.chmodSync(recordPath,0o600);
-  const tampered=await transport.assert(first,firstFence,{
-    signal:new AbortController().signal,
-    timeout_ms:1000,
-  });
-  assert.equal(tampered.ok,false);
-  assert.equal(tampered.status,"held");
-  assert.equal(tampered.independent_custody_proven,false);
+  const originalRecord=JSON.parse(originalBytes.toString("utf8"));
+  const tamperCases=[
+    {
+      label:"top-level-extra",
+      mutate:(record)=>({...record,extra_field:"forbidden"}),
+    },
+    {
+      label:"policy-extra",
+      mutate:(record)=>({
+        ...record,
+        policy:{...record.policy,extra_field:"forbidden"},
+      }),
+    },
+    {
+      label:"first-observation-extra",
+      mutate:(record)=>({
+        ...record,
+        first_observation:{
+          ...record.first_observation,
+          extra_field:"forbidden",
+        },
+      }),
+    },
+    {
+      label:"identity-extra",
+      mutate:(record)=>({
+        ...record,
+        fence_identity:{
+          ...record.fence_identity,
+          extra_field:"forbidden",
+        },
+      }),
+    },
+  ];
+  for(const tamperCase of tamperCases){
+    const changed=tamperCase.mutate(structuredClone(originalRecord));
+    fs.writeFileSync(
+      recordPath,
+      JSON.stringify(changed,null,2)+"\n",
+      {mode:0o600},
+    );
+    fs.chmodSync(recordPath,0o600);
+    const tampered=await transport.assert(first,firstFence,{
+      signal:new AbortController().signal,
+      timeout_ms:1000,
+    });
+    assert.equal(tampered.ok,false,tamperCase.label);
+    assert.equal(tampered.status,"held",tamperCase.label);
+    assert.equal(
+      tampered.independent_custody_proven,
+      false,
+      tamperCase.label,
+    );
+  }
   fs.writeFileSync(recordPath,originalBytes,{mode:0o600});
   fs.chmodSync(recordPath,0o600);
 
@@ -666,6 +711,10 @@ for(const required of [
   "O_EXCL",
   "O_NOFOLLOW",
   "/proc/self/fd/",
+  "RECORD_KEYS",
+  "FENCE_IDENTITY_KEYS",
+  "FIRST_OBSERVATION_KEYS",
+  "POLICY_KEYS",
   "fs.fsyncSync",
   "server_controlled_fence_root:true",
   "freshBoundListenPath",
@@ -730,6 +779,8 @@ console.log("stable_fence_identity_rederived=true");
 console.log("create_only_record=true");
 console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
+console.log("record_exact_schema_required=true");
+console.log("nested_record_exact_schema_required=true");
 console.log("caller_selected_path=false");
 console.log("replacement_socket_preserved_on_old_listener_close=true");
 console.log("advertised_socket_policy_before_publish=true");

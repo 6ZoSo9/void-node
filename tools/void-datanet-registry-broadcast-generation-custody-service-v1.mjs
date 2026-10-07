@@ -95,6 +95,38 @@ const FENCE_KEYS=Object.freeze([
   "observed_state_store_root_dev",
   "observed_state_store_root_ino",
 ]);
+const RECORD_KEYS=Object.freeze([
+  "schema",
+  "marker",
+  "version",
+  "broadcast_generation_fence_id",
+  "fence_identity",
+  "first_observation",
+  "policy",
+]);
+const FENCE_IDENTITY_KEYS=Object.freeze([
+  "marker",
+  "version",
+  "broadcast_operation_id",
+  "broadcast_authorization_id",
+  "broadcast_authorization_request_id",
+  "signed_transaction_id",
+  "signed_transaction_hash",
+  "state_store_realpath_sha256",
+  "one_submission_attempt_only",
+  "automatic_retry_authorized",
+  "replacement_transaction_authorized",
+]);
+const FIRST_OBSERVATION_KEYS=Object.freeze([
+  "observed_consumption_record_id",
+  "observed_state_store_root_dev",
+  "observed_state_store_root_ino",
+]);
+const POLICY_KEYS=Object.freeze([
+  "one_submission_attempt_only",
+  "automatic_retry_authorized",
+  "replacement_transaction_authorized",
+]);
 
 function fail(code){
   throw new Error(code);
@@ -382,21 +414,40 @@ function serializeRecord(record){
 }
 
 function assertRecord(record,fence){
+  const value=directObject(
+    record,
+    RECORD_KEYS,
+    "datanet_broadcast_generation_custody_record_invalid",
+  );
+  const identity=directObject(
+    value.fence_identity,
+    FENCE_IDENTITY_KEYS,
+    "datanet_broadcast_generation_custody_record_invalid",
+  );
+  const observation=directObject(
+    value.first_observation,
+    FIRST_OBSERVATION_KEYS,
+    "datanet_broadcast_generation_custody_record_invalid",
+  );
+  const policy=directObject(
+    value.policy,
+    POLICY_KEYS,
+    "datanet_broadcast_generation_custody_record_invalid",
+  );
   if(
-    !record||
-    record.schema!==RECORD_SCHEMA||
-    record.marker!==VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1||
-    record.version!==1||
-    record.broadcast_generation_fence_id!==fence.broadcast_generation_fence_id||
-    canonicalJson(record.fence_identity)!==canonicalJson(fenceIdentity(fence))||
-    record.policy?.one_submission_attempt_only!==true||
-    record.policy?.automatic_retry_authorized!==false||
-    record.policy?.replacement_transaction_authorized!==false||
+    value.schema!==RECORD_SCHEMA||
+    value.marker!==VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1||
+    value.version!==1||
+    value.broadcast_generation_fence_id!==fence.broadcast_generation_fence_id||
+    canonicalJson(identity)!==canonicalJson(fenceIdentity(fence))||
+    policy.one_submission_attempt_only!==true||
+    policy.automatic_retry_authorized!==false||
+    policy.replacement_transaction_authorized!==false||
     !CONSUMPTION_ID.test(
-      String(record.first_observation?.observed_consumption_record_id||""),
+      String(observation.observed_consumption_record_id||""),
     )||
-    !DECIMAL.test(String(record.first_observation?.observed_state_store_root_dev||""))||
-    !DECIMAL.test(String(record.first_observation?.observed_state_store_root_ino||""))
+    !DECIMAL.test(String(observation.observed_state_store_root_dev||""))||
+    !DECIMAL.test(String(observation.observed_state_store_root_ino||""))
   ){
     fail("datanet_broadcast_generation_custody_record_invalid");
   }

@@ -65,8 +65,11 @@ directory and retains the descriptor. Record I/O is relative to
 directory.
 
 Existing records are bounded, single-link, owner/mode checked, read through an
-opened descriptor, checked for change during read, schema-validated, and bound
-back to the exact stable fence identity.
+opened descriptor, checked for change during read, and validated with exact
+closed key allowlists at every object layer: top-level record, stable
+`fence_identity`, `first_observation`, and `policy`. Extra fields are a
+HOLD, not new receipt material. Valid records are then bound back to the exact
+stable fence identity.
 
 An existing record returns `status=exists`; it is never removed to create a
 retry opportunity.
@@ -159,7 +162,8 @@ The deterministic proof:
 3. proves exact replay returns `exists`;
 4. changes generation-local consumption/dev/inode evidence while preserving
    the stable fence ID and proves it still returns the same existing slot;
-5. corrupts the stored record and requires HOLD;
+5. tampers the stored record with extra fields at the top level and in each
+   nested contract object and requires HOLD for every case;
 6. attempts request path injection and requires HOLD;
 7. creates a second operation and proves a distinct slot;
 8. replaces a still-live old service socket pathname with a successor server,
