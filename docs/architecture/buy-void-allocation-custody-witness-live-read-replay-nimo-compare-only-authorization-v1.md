@@ -69,7 +69,7 @@ and must be root:root mode 0500 with link count 1. The reviewed installer Git
 blob for this generation is:
 
 ~~~text
-cca3328322b99401ec0ec983dc9f65425f34fa14
+d35187688ae570a85db68c9334d20f5be12a467d
 ~~~
 
 The root-controlled copy is verified against that exact Git blob before Bash
@@ -93,14 +93,26 @@ The wrapper is installed root:root mode 0555 at:
 /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs
 ~~~
 
-The new key's root-controlled third entry invokes only the fixed wrapper:
+The new key's root-controlled third entry invokes only the fixed wrapper: The forced command starts Node with
+`/usr/bin/env -i` and an explicit PATH/LANG/LC_ALL/HOME/marker allowlist.
+It preserves the actual SSH original command as a quoted environment value,
+so the wrapper still rejects caller-supplied remote commands while refusing
+inherited `NODE_OPTIONS`, `NODE_PATH` or other ambient settings.
+The authorized-key quoted command escapes its nested quotes exactly.
+
 
 ~~~text
 restrict,command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1
 ~~~
 
 The script stages the updated authorized_keys in the same directory, checks
-the exact two-line prefix, and atomically replaces the file. On a post-commit
+the exact two-line prefix, and atomically replaces the file.
+It records the rollback obligation **before** the rename; HUP/TERM/INT
+lead to the EXIT cleanup path. If publication is interrupted after the
+atomic rename, that cleanup must either restore the backed-up authorization
+through a verified atomic replacement or retain the recovery backup and
+issue a manual-restore HOLD. The script never treats an incomplete
+publication as a verified GREEN. On a post-commit
 failure it attempts to restore from a separately preserved backup using a new
 same-directory restore candidate. The backup is deleted only after verified
 successful restore or a completed successful installation. If the backup bytes
@@ -141,7 +153,7 @@ cd ~/dev/void-node
 git fetch origin main
 
 wrapper_blob=309b4de7c40c5b8a21bbc956cc445f6600a33215
-installer_blob=cca3328322b99401ec0ec983dc9f65425f34fa14
+installer_blob=d35187688ae570a85db68c9334d20f5be12a467d
 installer_path=tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh
 
 test "$(git rev-parse "origin/main:$installer_path")" = "$installer_blob"
@@ -166,7 +178,7 @@ ssh -tt zoso@nimo '
 set -Eeuo pipefail
 src=/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/authorize.sh
 trusted=/root/.void-replay-compare-only-nimo-authorization-v1.sh
-expected_blob=cca3328322b99401ec0ec983dc9f65425f34fa14
+expected_blob=d35187688ae570a85db68c9334d20f5be12a467d
 
 [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%F" /root)" == "0:0:700:directory" ]] || exit 2
 
