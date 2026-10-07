@@ -24,6 +24,8 @@ on:
       - "docs/operators/economic-system-sponsored-runtime-admission-v1.md"
       - "tools/void-economic-system-sponsored-runtime-admission-v1.mjs"
       - "scripts/prove_void_economic_system_sponsored_runtime_admission_v1.mjs"
+      - "tools/void-economic-epoch2-durable-replay-store-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_durable_replay_store_v1.mjs"
 
 permissions:
   contents: read
