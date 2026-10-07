@@ -9,7 +9,10 @@ on:
       - "tools/void-datanet-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
+      - "ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs"
+      - "ops/precision/void-datanet-registry-reviewed-execution-child-v1.mjs"
       - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"
+      - "scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs"
       - ".github/workflows/void-datanet-registry-exact-single-broadcast-execution-v1.yml"
       - "docs/operators/datanet-registry-exact-single-broadcast-execution-v1.md"
   workflow_dispatch:
@@ -39,12 +42,20 @@ jobs:
         run: |
           set -euo pipefail
           node --check tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs
+          node --check tools/void-datanet-registry-isolated-parent-support-v1.mjs
           node --check ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs
+          node --check ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs
+          node --check ops/precision/void-datanet-registry-reviewed-execution-child-v1.mjs
           node --check scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
+          node --check scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs
       - name: Prove exact single broadcast execution
         run: |
           set -euo pipefail
           node scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
+      - name: Prove isolated reviewed execution
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_datanet_registry_isolated_reviewed_execution_v1.mjs
       - name: Diff and cleanup hygiene
         run: |
           set -euo pipefail
