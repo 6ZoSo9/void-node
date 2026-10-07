@@ -8,8 +8,8 @@ import {
   derive as deriveBuyVoidEnforcementArtifactAttestationV1,
 } from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
 import {
-  deriveBuyVoidEnforcementArtifactAttestationV3,
-} from "./prove_buy_void_enforcement_artifact_attestation_v3.mjs";
+  deriveBuyVoidEnforcementArtifactAttestationV4,
+} from "./prove_buy_void_enforcement_artifact_attestation_v4.mjs";
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
@@ -442,19 +442,19 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
   const manifest =
     deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
   const expectedSuccessor =
-    deriveBuyVoidEnforcementArtifactAttestationV3(ROOT);
+    deriveBuyVoidEnforcementArtifactAttestationV4(ROOT);
   const committedSuccessor = JSON.parse(read(
-    "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
+    "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
   assert.deepEqual(
     committedSuccessor,
     expectedSuccessor,
-    "committed enforcement V3 successor must match current closure",
+    "committed enforcement V4 successor must match current closure",
   );
   assert.equal(
     committedSuccessor.current_enforcement.enforcement_artifact_set_sha256,
     manifest.enforcement_artifact_set_sha256,
-    "runtime integration must bind the V3-attested current enforcement closure",
+    "runtime integration must bind the V4-attested current enforcement closure",
   );
   const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
   const lockBytes = fs.readFileSync(
