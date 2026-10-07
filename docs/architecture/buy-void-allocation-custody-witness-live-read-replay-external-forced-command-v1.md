@@ -28,7 +28,12 @@ or arbitrary event bytes.
 
 The production CLI accepts only one absolute `--config=...` path. The config
 file must be root:root, mode 0444, single-link, and opened with
-`O_NOFOLLOW` beneath a root-owned non-writable parent.
+`O_NOFOLLOW` beneath a root-owned non-writable parent. The parent is not
+trusted by pathname alone: the handler walks every ancestor descriptor-relative
+from filesystem root with `O_DIRECTORY|O_NOFOLLOW`, requires each visible and
+opened ancestor to remain root-owned and non-writable, binds the config's
+visible inode to the opened descriptor before reading, and revalidates both the
+file and pinned parent after the read.
 
 The authority root must be a direct same-UID mode-0700 directory. Witness and
 intent files must be single-link mode-0600 regular files.
@@ -153,8 +158,9 @@ The proof covers empty read, canonical genesis append, one-event advance,
 idempotence, intent-only crash, torn append, full append before intent cleanup,
 read HOLD with pending intent, mismatched recovery request, canonical-but-forged
 intent rejection before witness mutation, host-identity drift, caller path
-injection, the nested-base64 near-capacity request/intent bound, and negative
-live/economic authority flags.
+injection, root-owned descriptor-walked config ancestry and file binding, the
+nested-base64 near-capacity request/intent bound, and negative live/economic
+authority flags.
 
 ## Next gate
 
