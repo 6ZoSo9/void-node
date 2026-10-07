@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import {AsyncLocalStorage} from "node:async_hooks";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import * as http from "node:http";
@@ -758,15 +757,26 @@ function registerReviewedModuleGraphV1(plan,ethersBundle,head){
   });
 }
 
-const REVIEWED_AMBIENT_CONTEXT_V1=new AsyncLocalStorage();
 let reviewedAmbientFenceInstalledV1=false;
 
 function installReviewedAmbientFenceV1(){
   if(reviewedAmbientFenceInstalledV1) return;
-  const wrap=(target,key,reason,{optional=false}={})=>{
+  const targets=[
+    [globalThis,"fetch","reviewed_ambient_fetch_forbidden",false],
+    [process,"getBuiltinModule",
+      "reviewed_ambient_get_builtin_module_forbidden",true],
+    [process,"binding","reviewed_ambient_process_binding_forbidden",true],
+    [process,"_linkedBinding",
+      "reviewed_ambient_process_linked_binding_forbidden",true],
+    [process,"dlopen","reviewed_ambient_process_dlopen_forbidden",true],
+    [globalThis,"WebSocket","reviewed_ambient_websocket_forbidden",true],
+    [globalThis,"EventSource","reviewed_ambient_eventsource_forbidden",true],
+  ];
+  const reviewed=[];
+  for(const [target,key,reason,optional] of targets){
     const descriptor=Object.getOwnPropertyDescriptor(target,key);
     if(!descriptor){
-      if(optional) return;
+      if(optional) continue;
       fail("reviewed_ambient_guard_unavailable:"+key);
     }
     if(
@@ -776,56 +786,19 @@ function installReviewedAmbientFenceV1(){
     ){
       fail("reviewed_ambient_guard_unavailable:"+key);
     }
-    const original=descriptor.value;
-    const guarded=function(...args){
-      if(REVIEWED_AMBIENT_CONTEXT_V1.getStore()===true){
-        throw new Error(reason);
-      }
-      return Reflect.apply(original,this,args);
+    reviewed.push({target,key,reason,descriptor});
+  }
+  for(const {target,key,reason,descriptor} of reviewed){
+    const denied=function(){
+      throw new Error(reason);
     };
-    if(descriptor.configurable===true){
-      Object.defineProperty(target,key,{...descriptor,value:guarded});
-    }else{
-      target[key]=guarded;
-    }
-  };
-  wrap(globalThis,"fetch","reviewed_ambient_fetch_forbidden");
-  wrap(
-    process,
-    "getBuiltinModule",
-    "reviewed_ambient_get_builtin_module_forbidden",
-    {optional:true},
-  );
-  wrap(
-    process,
-    "binding",
-    "reviewed_ambient_process_binding_forbidden",
-    {optional:true},
-  );
-  wrap(
-    process,
-    "_linkedBinding",
-    "reviewed_ambient_process_linked_binding_forbidden",
-    {optional:true},
-  );
-  wrap(
-    process,
-    "dlopen",
-    "reviewed_ambient_process_dlopen_forbidden",
-    {optional:true},
-  );
-  wrap(
-    globalThis,
-    "WebSocket",
-    "reviewed_ambient_websocket_forbidden",
-    {optional:true},
-  );
-  wrap(
-    globalThis,
-    "EventSource",
-    "reviewed_ambient_eventsource_forbidden",
-    {optional:true},
-  );
+    Object.defineProperty(target,key,{
+      ...descriptor,
+      value:denied,
+      writable:false,
+      configurable:false,
+    });
+  }
   reviewedAmbientFenceInstalledV1=true;
 }
 
@@ -834,7 +807,7 @@ async function withReviewedAmbientCapabilityGuardV1(operation){
     fail("reviewed_ambient_guard_operation_invalid");
   }
   installReviewedAmbientFenceV1();
-  return await REVIEWED_AMBIENT_CONTEXT_V1.run(true,operation);
+  return await operation();
 }
 
 function materializeReviewedSourcesV1(plan,destinationRoot){
@@ -1182,9 +1155,14 @@ function rpcFactory(rpcUrl){
     });
     return await new Promise((resolve,reject)=>{
       let settled=false;
+      let totalTimer=null;
       const finish=(error,value)=>{
         if(settled) return;
         settled=true;
+        if(totalTimer!==null){
+          clearTimeout(totalTimer);
+          totalTimer=null;
+        }
         if(error) reject(error);
         else resolve(value);
       };
@@ -1245,6 +1223,10 @@ function rpcFactory(rpcUrl){
           finish(null,parsed.result);
         });
       });
+      totalTimer=setTimeout(
+        ()=>req.destroy(new Error("rpc_total_deadline_exceeded")),
+        8000,
+      );
       req.setTimeout(8000);
       req.on("timeout",()=>req.destroy(new Error("rpc_timeout")));
       req.on("error",(error)=>finish(error));
