@@ -301,6 +301,52 @@ assert.equal(rollback.rollback_regression_detected, true);
   assert.equal(forgedPlan.rollback_regression_detected, false);
 }
 
+{
+  const impossiblePendingAhead = rehashWitnessJsonl(
+    witnessA2,
+    (events) => {
+      events[1].pending_challenge_id =
+        "voidwlrc1_" + "f".repeat(64);
+    },
+  );
+  const impossibleClassification =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: impossiblePendingAhead,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(impossibleClassification.ok, false);
+  if (impossibleClassification.ok) {
+    throw new Error("impossible pending witness unexpectedly green");
+  }
+  assert.equal(
+    impossibleClassification.reason,
+    "witness_replay_external_witness_state_invalid",
+  );
+  assert.equal(
+    impossibleClassification.rollback_regression_detected,
+    false,
+  );
+
+  const impossiblePlan =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: impossiblePendingAhead,
+      current_journal_jsonl: journal0,
+      current_high_water_json: high0.high_water_json,
+      identity,
+    });
+  assert.equal(impossiblePlan.ok, false);
+  if (impossiblePlan.ok) {
+    throw new Error("impossible pending witness plan unexpectedly green");
+  }
+  assert.equal(
+    impossiblePlan.reason,
+    "witness_replay_external_witness_state_invalid",
+  );
+  assert.equal(impossiblePlan.rollback_regression_detected, false);
+}
+
 const idempotent =
   planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
     witness_jsonl: witnessA2,
@@ -511,6 +557,8 @@ console.log("mixed_history_conflict_rejected=true");
 console.log("local_rollback_detected=true");
 console.log("rollback_requires_canonical_common_prefix=true");
 console.log("forged_ahead_witness_not_labeled_rollback=true");
+console.log("pending_challenge_id_digest_binding=true");
+console.log("impossible_pending_witness_not_labeled_rollback=true");
 console.log("identity_drift_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("external_transport_authenticated=false");
