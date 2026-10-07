@@ -63,11 +63,9 @@ snapshot_compare_public_key_v1() {
     cat -- "$replacement_source" > "$source" || return 1
   fi
 
-  [[ "$(stat -c '%u:%g:%a:%h:%F' "$compare_pub_snapshot")" ==
-      "$uid:$gid:400:1:regular file" ]] || return 1
+  [[ "$(stat -c '%u:%g:%a:%h:%F' "$compare_pub_snapshot")" == "$uid:$gid:400:1:regular file" ]] || return 1
   [[ "$(awk 'END {print NR}' "$compare_pub_snapshot")" == 1 ]] || return 1
-  [[ "$(ssh-keygen -lf "$compare_pub_snapshot" | awk 'NR==1 {print $2}')" ==
-      "$expected_fpr" ]] || return 1
+  [[ "$(ssh-keygen -lf "$compare_pub_snapshot" | awk 'NR==1 {print $2}')" == "$expected_fpr" ]] || return 1
   read -r algorithm public comment < "$compare_pub_snapshot"
   [[ "$algorithm" == ssh-ed25519 &&
      "$public" =~ ^[A-Za-z0-9+/]+={0,2}$ &&
@@ -87,10 +85,8 @@ attempt_authorized_keys_restore_v1() {
   uid="$(id -u)"
   gid="$(id -g)"
   [[ -f "$source_backup" && ! -L "$source_backup" ]] || return 1
-  [[ "$(head -n 2 "$source_backup" | sha256sum | awk '{print $1}')" ==
-      "$expected_two_sha" ]] || return 1
-  [[ "$(sha256sum "$source_backup" | awk '{print $1}')" ==
-      "$expected_full_sha" ]] || return 1
+  [[ "$(head -n 2 "$source_backup" | sha256sum | awk '{print $1}')" == "$expected_two_sha" ]] || return 1
+  [[ "$(sha256sum "$source_backup" | awk '{print $1}')" == "$expected_full_sha" ]] || return 1
 
   restore_tmp="$(mktemp "$target_dir/.voidwitness.compare.restore.XXXXXXXX")" ||
     return 1
@@ -117,8 +113,7 @@ attempt_authorized_keys_restore_v1() {
     rm -f -- "$restore_tmp"
     return 1
   fi
-  [[ "$(sha256sum "$target_auth" | awk '{print $1}')" ==
-      "$expected_full_sha" ]] || return 1
+  [[ "$(sha256sum "$target_auth" | awk '{print $1}')" == "$expected_full_sha" ]] || return 1
 }
 
 cleanup() {
