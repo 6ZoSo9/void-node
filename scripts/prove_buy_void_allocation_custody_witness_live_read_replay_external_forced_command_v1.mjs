@@ -670,9 +670,24 @@ for (const token of [
   "fs.ftruncateSync",
   "SSH_ORIGINAL_COMMAND",
   "VOID_BUY_VOID_REPLAY_EXTERNAL_WITNESS_FORCED_COMMAND_V1",
+  "openPinnedRootOwnedDirectory",
+  "assertRootOwnedDirectoryVisible",
+  "config_parent_invalid",
+  "config_path_not_bound",
+  "config_changed_during_read",
 ]) {
   assert.equal(source.includes(token), true, token);
 }
+assert.match(
+  source,
+  /function openPinnedRootOwnedDirectory\(rawPath, reason\)[\s\S]*O_DIRECTORY \| O_NOFOLLOW[\s\S]*_ancestor_changed/u,
+  "config parent must be descriptor-walked from filesystem root",
+);
+assert.match(
+  source,
+  /function readRootOwnedConfig\(configPath\)[\s\S]*openPinnedRootOwnedDirectory\([\s\S]*visibleBefore[\s\S]*sameFile\(visibleBefore, opened\)[\s\S]*assertRootOwnedDirectoryVisible/u,
+  "config file must remain bound to the pinned root-owned parent",
+);
 assert.doesNotMatch(source, /child_process\.exec/u);
 assert.doesNotMatch(source, /\beval\s*\(/u);
 assert.doesNotMatch(source, /process\.env\[[^\]]+\]\s*=/u);
@@ -714,6 +729,8 @@ console.log("max_request_intent_capacity_bound=true");
 console.log("retired_8mib_intent_ceiling=false");
 console.log("host_identity_drift_rejected=true");
 console.log("caller_path_injection_rejected=true");
+console.log("config_parent_descriptor_walk=true");
+console.log("config_file_descriptor_binding=true");
 console.log("live_nimo_installed=false");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
