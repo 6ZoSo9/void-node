@@ -17,6 +17,12 @@ on:
       - "scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts"
       - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs"
       - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
   workflow_dispatch:
@@ -78,6 +84,15 @@ jobs:
 
       - name: Preserve transport contract
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
+
+      - name: Preserve runtime-bundle qualification
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
+
+      - name: Preserve external witness contract
+        run: npx tsx scripts/prove_buy_void_allocation_custody_external_witness_v1.ts
+
+      - name: Preserve filesystem bakery lock
+        run: npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
 
       - name: Diff hygiene
         env:
