@@ -183,6 +183,59 @@ function socketExchange(socketPath, firstPart, lastPart = "", expectNoEarlyReply
   });
 }
 
+
+function slowDripRequest(socketPath) {
+  return new Promise((resolve, reject) => {
+    // Keep the write half open and deliver bytes often enough that the
+    // inactivity timeout alone could never terminate this connection.
+    const socket = new net.Socket({ allowHalfOpen: true });
+    socket.setEncoding("utf8");
+    let response = "";
+    let settled = false;
+    const startMs = Date.now();
+    const drip = setInterval(() => {
+      if (!socket.destroyed && socket.writable) socket.write(" ");
+    }, 250);
+    const watchdog = setTimeout(() => {
+      finish(new Error("allocation_custody_slow_drip_watchdog"));
+    }, 11_000);
+    function finish(error, value) {
+      if (settled) return;
+      settled = true;
+      clearInterval(drip);
+      clearTimeout(watchdog);
+      socket.destroy();
+      if (error) reject(error);
+      else resolve(value);
+    }
+    socket.on("error", (error) => finish(error));
+    socket.on("data", (chunk) => { response += chunk; });
+    socket.on("end", () => {
+      try {
+        assert.equal(response.endsWith("\n"), true);
+        assert.equal(response.split("\n").length, 2);
+        const envelope = JSON.parse(response.slice(0, -1));
+        assert.equal(envelope.decision.ok, false);
+        assert.equal(
+          envelope.decision.reason,
+          "allocation_custody_service_request_deadline_exceeded",
+        );
+        assert.ok(
+          Date.now() - startMs < 10_000,
+          "slow drip must not extend the five-second framing deadline",
+        );
+        finish(null, envelope);
+      } catch (error) {
+        finish(error);
+      }
+    });
+    socket.on("close", () => {
+      if (!settled) finish(new Error("allocation_custody_slow_drip_closed_without_response"));
+    });
+    socket.connect({ path: socketPath }, () => socket.write(" "));
+  });
+}
+
 function fixture() {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-allocation-custody-service-v1-"),
@@ -428,6 +481,15 @@ async function decision(f, method, request) {
       "allocation_custody_service_request_unterminated",
     );
 
+    // The client sends bytes every 250ms but never ends its write side.
+    // The absolute deadline, not the idle timeout, must reject it.
+    await slowDripRequest(f.options.socket_path);
+    assert.equal(
+      fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      "",
+      "slow-drip framing timeout must not reserve inventory",
+    );
+
     const inspected = await socketExchange(
       f.options.socket_path, inspectLine,
     );
@@ -510,6 +572,8 @@ console.log("service_started_by_import=false");
 console.log("socket_parent_mode_0750_proven=true");
 console.log("socket_mode_0660_proven=true");
 console.log("socket_request_write_eof_required=true");
+console.log("absolute_request_framing_deadline=true");
+console.log("slow_drip_without_eof_hold=true");
 console.log("split_second_frame_rejected_before_reserve=true");
 console.log("duplicate_json_members_rejected_before_reserve=true");
 console.log("runtime_integration=false");

@@ -594,8 +594,9 @@ export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
   }
 }
 
-function writeResponse(socket, response) {
+function writeResponse(socket, response, forceClose = false) {
   const line = JSON.stringify(response) + "\n";
+  const afterFlush = forceClose ? () => socket.destroy() : undefined;
   if (Buffer.byteLength(line, "utf8") > MAX_RESPONSE_BYTES) {
     socket.end(
       JSON.stringify(
@@ -604,10 +605,11 @@ function writeResponse(socket, response) {
           held("allocation_custody_service_response_too_large"),
         ),
       ) + "\n",
+      afterFlush,
     );
     return;
   }
-  socket.end(line);
+  socket.end(line, afterFlush);
 }
 
 export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
@@ -670,14 +672,26 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
       const finishHeld = (reason) => {
         if (handled || socket.destroyed) return;
         handled = true;
+        clearTimeout(totalFramingDeadline);
         writeResponse(
           socket,
           responseEnvelope(
             sha256Id(Buffer.from("invalid", "utf8")),
             held(reason),
           ),
+          // A client that has not sent EOF must not retain a half-open
+          // server connection indefinitely after receiving a HOLD.
+          !socket.readableEnded,
         );
       };
+      // Socket#setTimeout is inactivity-only. A peer can otherwise drip
+      // bytes forever without finishing a request or triggering it.
+      const totalFramingDeadline = setTimeout(
+        () => finishHeld("allocation_custody_service_request_deadline_exceeded"),
+        RESPONSE_TIMEOUT_MS,
+      );
+      totalFramingDeadline.unref?.();
+      socket.once("close", () => clearTimeout(totalFramingDeadline));
       socket.on("timeout", () => {
         finishHeld("allocation_custody_service_request_timeout");
       });
@@ -691,6 +705,7 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
       });
       socket.on("end", () => {
         if (handled) return;
+        clearTimeout(totalFramingDeadline);
         const newline = input.indexOf("\n");
         if (newline < 0) {
           finishHeld("allocation_custody_service_request_unterminated");
