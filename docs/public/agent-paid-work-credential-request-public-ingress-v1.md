@@ -102,6 +102,12 @@ The gateway requires `2 * N <= M`. The reviewed example is `N=4`,
 wall while preventing one verified signing identity from consuming that entire
 bucket. This does not prevent one actor using multiple self-issued keys from
 consuming the global budget.
+
+Accordingly, the readiness payload reports
+`two_signing_key_buckets_fit_under_global_wall=true` but
+`two_applicant_capacity_reserved=false` and
+`rotation_resistant_fairness_proven=false`. The signing-key budget must not be
+presented as participant/applicant isolation.
 The public edge also mirrors `M` as its own bounded global rolling window
 before proxying. This keeps verified-but-rejected traffic from growing
 per-key/replay state without bound, while the loopback gateway remains the
