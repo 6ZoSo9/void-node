@@ -90,6 +90,21 @@ This preserves the replay state's generation increment, single-pending-
 challenge, one-terminal-transition, expiry, request-ID, response-SHA, and
 canonical JSONL rules.
 
+## Terminal packet observability
+
+A successful `persisted_consumed` result exposes the exact
+`terminal_request_id` and `terminal_response_sha256` persisted in that
+terminal replay event.
+
+Those fields are null for inspect/recovery, issue, and abandoned results.
+
+This is an observability/binding surface for the next composition gate only.
+The replay writer still does not decide whether a request/response packet is a
+valid authenticated witness read, so `validated_packet_binding_proven=false`
+remains authoritative. The later live-read composition contract must require
+exact equality between these persisted terminal fields and the already-qualified
+live-read packet.
+
 ## Serialization
 
 Both pinned roots are locked before inspection or mutation using the existing
@@ -215,6 +230,8 @@ The proof uses temporary local directories only. It covers:
   `voidwlrhw1_` identity;
 - explicit preprovisioned genesis;
 - issue and consume persistence;
+- exact consumed terminal request-ID/response-SHA exposure;
+- null terminal packet fields on inspect/issue/abandon;
 - duplicate consume rejection;
 - crash recovery after journal intent only;
 - crash recovery after both intents;
