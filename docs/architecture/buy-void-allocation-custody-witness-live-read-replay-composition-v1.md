@@ -45,7 +45,15 @@ The parent replay-storage evidence must be a live
 - canonical journal/high-water binding;
 - no pending publication intent;
 - stable double census;
-- idle `ready_for_issue=true` state.
+- idle `ready_for_issue=true` state;
+- `sequence == event_count`;
+- even `event_count` with `generation == event_count / 2`; and
+- `last_terminal_state == null` if and only if `generation == 0`.
+
+The ready-state counter relation is canonical replay structure, not merely
+cross-artifact equality. A caller cannot pair a well-formed generation with a
+different even/odd event count, recompute the storage qualification ID, and
+still reach storage→issue lineage.
 
 The storage qualification ID is recomputed from its normalized body.
 
@@ -294,6 +302,8 @@ Covered adversaries include:
 - live-read transport host/port drift despite a recomputed qualification ID;
 - replay issue time drift from qualified packet;
 - stale/wrong storage generation;
+- impossible ready-state generation/event-count relationship;
+- post-genesis null retained terminal state;
 - a same-counter storage artifact with a different journal digest;
 - a consumed transition whose prestate digest does not equal the exact issue
   poststate;
