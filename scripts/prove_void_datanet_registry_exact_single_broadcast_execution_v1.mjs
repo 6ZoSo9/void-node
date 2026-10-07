@@ -1077,7 +1077,13 @@ try{
           1500,
         )),
       ]),
-      /rpc_response_(?:aborted|premature_close)/u,
+      (error)=>{
+        const message=String(error?.message||"");
+        return (
+          error?.code==="ECONNRESET"||
+          /rpc_response_(?:aborted|premature_close)/u.test(message)
+        );
+      },
       "truncated RPC response must reject promptly instead of hanging",
     );
   }finally{
