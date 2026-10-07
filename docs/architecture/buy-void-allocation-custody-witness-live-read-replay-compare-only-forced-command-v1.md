@@ -61,7 +61,11 @@ SSH_ORIGINAL_COMMAND=
 \`\`\`
 
 It uses \`spawnSync\`, no shell, a 10-second child timeout and a 64-KiB output
-cap. Nonzero exit, signal, error, unexpected stderr, malformed response,
+cap. A **separate 20-second total SSH-stdin read deadline** begins before the
+child can start. If the peer supplies no EOF or drip-feeds an incomplete
+request past that bound, the wrapper aborts the stream and HOLDs without
+spawning the child. The incoming 12-MiB size bound remains independent of
+this time bound. Nonzero exit, signal, error, unexpected stderr, malformed response,
 request ID mismatch, attempted recovery/write, or any authority overclaim
 HOLDS. Matched, local-ahead and witness-ahead responses are returned to the
 client with their exact canonical status; only the **client guarded writer**
@@ -125,6 +129,9 @@ git diff --check
 \`\`\`
 
 The proof uses a mock child process with no SSH/network access. It tests
+silent and continuous drip-feed inputs without EOF against a short injected
+test deadline, with zero child executions on timeout and one exact child
+execution for a complete valid request. It also tests
 exact fixed child args/environment, canonical request/response, compare
 matched/local-ahead/witness-ahead, attempts to append/read, command and
 identity injection, parser bypass, child failure, signal, timeout, stderr,
