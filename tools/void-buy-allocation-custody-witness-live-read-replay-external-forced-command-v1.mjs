@@ -39,6 +39,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_
     durable_append_intent: true,
     exact_idempotence: true,
     torn_append_recovery: true,
+    request_bound_orphan_torn_recovery: true,
     witness_file_fsync: true,
     authority_directory_fsync: true,
     post_mutation_path_rebind: true,
@@ -427,6 +428,27 @@ function createPrivateFile(directory, name, bytes, maxBytes, reason) {
     fs.closeSync(fd);
   }
   fs.fsyncSync(directory.fd);
+  assertPrivateDirectoryVisible(directory, reason + "_directory");
+}
+
+function assertExactPrivateFile(
+  directory,
+  name,
+  expected,
+  maxBytes,
+  reason,
+) {
+  const current = readPinnedPrivateFile(
+    directory,
+    name,
+    maxBytes,
+    false,
+    reason,
+  );
+  if (!current.equals(expected)) {
+    fail(reason + "_content_mismatch");
+  }
+  assertPrivateDirectoryVisible(directory, reason + "_directory");
 }
 
 function unlinkPrivateFile(directory, name, maxBytes, reason) {
@@ -440,6 +462,7 @@ function unlinkPrivateFile(directory, name, maxBytes, reason) {
   if (!sameFile(before, pinnedStat)) fail(reason + "_path_not_bound");
   fs.unlinkSync(pinned);
   fs.fsyncSync(directory.fd);
+  assertPrivateDirectoryVisible(directory, reason + "_directory");
 }
 
 function openWitnessForUpdate(directory) {
@@ -988,7 +1011,22 @@ function parseIntent(bytes) {
   });
 }
 
-function appendWithHooks(directory, prior, nextBytes, hooks) {
+function appendWithHooks(
+  directory,
+  prior,
+  nextBytes,
+  hooks,
+  intentBytes = null,
+) {
+  if (intentBytes !== null) {
+    assertExactPrivateFile(
+      directory,
+      INTENT_NAME,
+      intentBytes,
+      MAX_INTENT_BYTES,
+      "witness_replay_external_forced_command_intent_invalid",
+    );
+  }
   const witness = openWitnessForUpdate(directory);
   try {
     const opened = readExactFd(
@@ -1001,6 +1039,15 @@ function appendWithHooks(directory, prior, nextBytes, hooks) {
     if (!opened.equals(prior)) {
       fail("witness_replay_external_forced_command_witness_changed_before_append");
     }
+    if (intentBytes !== null) {
+      assertExactPrivateFile(
+        directory,
+        INTENT_NAME,
+        intentBytes,
+        MAX_INTENT_BYTES,
+        "witness_replay_external_forced_command_intent_invalid",
+      );
+    }
     const delta = nextBytes.subarray(prior.length);
     if (delta.length < 2) {
       fail("witness_replay_external_forced_command_append_delta_invalid");
@@ -1010,6 +1057,15 @@ function appendWithHooks(directory, prior, nextBytes, hooks) {
       writeAll(witness.fd, delta.subarray(0, partial), prior.length);
       fs.fsyncSync(witness.fd);
       assertWitnessStillBound(directory, witness);
+      if (intentBytes !== null) {
+        assertExactPrivateFile(
+          directory,
+          INTENT_NAME,
+          intentBytes,
+          MAX_INTENT_BYTES,
+          "witness_replay_external_forced_command_intent_invalid",
+        );
+      }
       throw new Error(
         "witness_replay_external_forced_command_test_interrupt_after_partial_append",
       );
@@ -1017,6 +1073,15 @@ function appendWithHooks(directory, prior, nextBytes, hooks) {
     writeAll(witness.fd, delta, prior.length);
     fs.fsyncSync(witness.fd);
     assertWitnessStillBound(directory, witness);
+    if (intentBytes !== null) {
+      assertExactPrivateFile(
+        directory,
+        INTENT_NAME,
+        intentBytes,
+        MAX_INTENT_BYTES,
+        "witness_replay_external_forced_command_intent_invalid",
+      );
+    }
     if (hooks?.interrupt_after_full_append === true) {
       throw new Error(
         "witness_replay_external_forced_command_test_interrupt_after_full_append",
@@ -1079,6 +1144,149 @@ function validateIntentAgainstPlanner(
   return next;
 }
 
+function recoverOrphanTornAppend(
+  directory,
+  request,
+  identity,
+) {
+  if (request.value.operation !== "append") return null;
+
+  const current = readPinnedPrivateFile(
+    directory,
+    WITNESS_NAME,
+    MAX_WITNESS_BYTES,
+    true,
+    "witness_replay_external_forced_command_witness_invalid",
+  );
+
+  let currentIsCanonical = false;
+  try {
+    witnessState(current);
+    currentIsCanonical = true;
+  } catch {
+    currentIsCanonical = false;
+  }
+  if (currentIsCanonical) {
+    requireWitnessIdentity(current, identity);
+    return null;
+  }
+
+  const lastNewline = current.lastIndexOf(0x0a);
+  const priorBytes = lastNewline < 0 ? 0 : lastNewline + 1;
+  if (priorBytes >= current.length) {
+    fail("witness_replay_external_forced_command_orphan_torn_conflict");
+  }
+  const prior = current.subarray(0, priorBytes);
+  const tail = current.subarray(priorBytes);
+  requireWitnessIdentity(prior, identity);
+
+  const planned =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: prior,
+      current_journal_jsonl: request.journal,
+      current_high_water_json: request.high_water,
+      identity,
+    });
+  if (
+    planned.ok !== true ||
+    (planned.status !== "planned" &&
+      planned.status !== "planned_genesis") ||
+    typeof planned.event_jsonl_line !== "string" ||
+    typeof planned.next_witness_jsonl !== "string"
+  ) {
+    fail("witness_replay_external_forced_command_orphan_torn_plan_mismatch");
+  }
+
+  const line = Buffer.from(planned.event_jsonl_line, "utf8");
+  const nextBytes = Buffer.from(planned.next_witness_jsonl, "utf8");
+  if (
+    tail.length < 1 ||
+    tail.length >= line.length ||
+    !line.subarray(0, tail.length).equals(tail) ||
+    !nextBytes.subarray(0, prior.length).equals(prior) ||
+    !nextBytes.subarray(prior.length).equals(line)
+  ) {
+    fail("witness_replay_external_forced_command_orphan_torn_conflict");
+  }
+
+  const intent = intentFromPlan(
+    request,
+    prior,
+    nextBytes,
+    planned.event_jsonl_line,
+  );
+  createPrivateFile(
+    directory,
+    INTENT_NAME,
+    intent.bytes,
+    MAX_INTENT_BYTES,
+    "witness_replay_external_forced_command_intent_invalid",
+  );
+  assertExactPrivateFile(
+    directory,
+    INTENT_NAME,
+    intent.bytes,
+    MAX_INTENT_BYTES,
+    "witness_replay_external_forced_command_intent_invalid",
+  );
+
+  const witness = openWitnessForUpdate(directory);
+  try {
+    const opened = readExactFd(
+      witness.fd,
+      Number(witness.opened.size),
+      MAX_WITNESS_BYTES,
+      true,
+      "witness_replay_external_forced_command_witness_invalid",
+    );
+    if (!opened.equals(current)) {
+      fail("witness_replay_external_forced_command_orphan_torn_changed");
+    }
+    fs.ftruncateSync(witness.fd, prior.length);
+    fs.fsyncSync(witness.fd);
+    assertWitnessStillBound(directory, witness);
+  } finally {
+    fs.closeSync(witness.fd);
+  }
+
+  appendWithHooks(
+    directory,
+    prior,
+    nextBytes,
+    null,
+    intent.bytes,
+  );
+  const finalBytes = readPinnedPrivateFile(
+    directory,
+    WITNESS_NAME,
+    MAX_WITNESS_BYTES,
+    true,
+    "witness_replay_external_forced_command_witness_invalid",
+  );
+  requireWitnessIdentity(finalBytes, identity);
+  const finalState = witnessState(finalBytes);
+  if (
+    !finalBytes.equals(nextBytes) ||
+    finalState.witness_sha256 !== intent.value.expected_next_witness_sha256 ||
+    finalState.event_count !== intent.value.next_event_count ||
+    finalState.tip_event_sha256 !== intent.value.next_tip_event_sha256 ||
+    finalState.witnessed_replay_sequence !==
+      intent.value.next_witnessed_replay_sequence
+  ) {
+    fail("witness_replay_external_forced_command_orphan_torn_postcheck_failed");
+  }
+  unlinkPrivateFile(
+    directory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    "witness_replay_external_forced_command_intent_invalid",
+  );
+  return Object.freeze({
+    recovered: true,
+    operation_performed: true,
+  });
+}
+
 function recoverIntent(directory, config, request, identity) {
   const bytes = readOptionalPrivateFile(
     directory,
@@ -1087,6 +1295,9 @@ function recoverIntent(directory, config, request, identity) {
     "witness_replay_external_forced_command_intent_invalid",
   );
   if (bytes === null) {
+    const orphanRecovery =
+      recoverOrphanTornAppend(directory, request, identity);
+    if (orphanRecovery !== null) return orphanRecovery;
     return Object.freeze({
       recovered: false,
       operation_performed: false,
@@ -1198,7 +1409,13 @@ function recoverIntent(directory, config, request, identity) {
     }
   }
 
-  appendWithHooks(directory, prior, nextBytes, null);
+  appendWithHooks(
+    directory,
+    prior,
+    nextBytes,
+    null,
+    bytes,
+  );
   current = readPinnedPrivateFile(
     directory,
     WITNESS_NAME,
@@ -1311,6 +1528,17 @@ function handleUnderLock(directory, config, request, dependencies) {
     MAX_INTENT_BYTES,
     "witness_replay_external_forced_command_intent_invalid",
   );
+  if (dependencies?.hooks?.unlink_intent_after_create === true) {
+    fs.unlinkSync(path.join(directory.proc_path, INTENT_NAME));
+    fs.fsyncSync(directory.fd);
+  }
+  assertExactPrivateFile(
+    directory,
+    INTENT_NAME,
+    intent.bytes,
+    MAX_INTENT_BYTES,
+    "witness_replay_external_forced_command_intent_invalid",
+  );
   if (dependencies?.hooks?.interrupt_after_intent === true) {
     throw new Error(
       "witness_replay_external_forced_command_test_interrupt_after_intent",
@@ -1321,6 +1549,7 @@ function handleUnderLock(directory, config, request, dependencies) {
     current,
     nextBytes,
     dependencies?.hooks,
+    intent.bytes,
   );
   current = readPinnedPrivateFile(
     directory,
