@@ -499,7 +499,7 @@ const validateEarnHistoryItemV1 = (item, kind, index) => {
   }
 };
 
-const validateEarnHistoryV1 = (value, kind) => {
+export const validateEarnHistoryV1 = (value, kind) => {
   exactKeys(value, EARN_HISTORY_KEYS, `earn ${kind} history`);
   requireBoolean(value.available, `earn ${kind}.available`);
   if (
@@ -518,6 +518,12 @@ const validateEarnHistoryV1 = (value, kind) => {
     value.count !== value.items.length
   ) {
     throw new Error(`earn ${kind} history count mismatch`);
+  }
+  if (
+    value.available === false &&
+    (value.count !== 0 || value.items.length !== 0)
+  ) {
+    throw new Error(`earn ${kind} unavailable history must be empty`);
   }
   value.items.forEach((item, index) =>
     validateEarnHistoryItemV1(item, kind, index)
@@ -1038,7 +1044,12 @@ const toneForStatus = (status) => {
   return 'info';
 };
 
-const renderHistory = (selector, emptySelector, items, kind) => {
+export const renderEarnHistoryV1 = (
+  selector,
+  emptySelector,
+  history,
+  kind,
+) => {
   const list = document.querySelector(selector);
   const empty = document.querySelector(emptySelector);
 
@@ -1046,9 +1057,23 @@ const renderHistory = (selector, emptySelector, items, kind) => {
 
   list.replaceChildren();
 
-  const rows = Array.isArray(items) ? items : [];
+  const available = history?.available === true;
+  const rows =
+    available && Array.isArray(history?.items)
+      ? history.items
+      : [];
 
-  if (empty) empty.hidden = rows.length > 0;
+  if (empty) {
+    empty.hidden = rows.length > 0;
+    empty.textContent =
+      kind === 'receipt'
+        ? available
+          ? 'No verification receipts loaded.'
+          : 'Verification receipt history unavailable.'
+        : available
+          ? 'No recent jobs loaded.'
+          : 'Recent job history unavailable.';
+  }
 
   for (const item of rows) {
     const row = document.createElement('article');
@@ -1138,8 +1163,14 @@ const renderEarn = (
   const networkNeedScore = finiteNumber(
     availableWork.network_need_score
   );
-  const jobsCount = nonNegativeSafeInteger(jobs.count);
-  const receiptsCount = nonNegativeSafeInteger(receipts.count);
+  const jobsCount =
+    jobs.available === true
+      ? nonNegativeSafeInteger(jobs.count)
+      : 0;
+  const receiptsCount =
+    receipts.available === true
+      ? nonNegativeSafeInteger(receipts.count)
+      : 0;
 
   const statusTone =
     earning.status === 'active'
@@ -1242,17 +1273,17 @@ const renderEarn = (
   setText('[data-earn-jobs-count]', jobsCount);
   setText('[data-earn-receipts-count]', receiptsCount);
 
-  renderHistory(
+  renderEarnHistoryV1(
     '[data-earn-jobs-list]',
     '[data-earn-jobs-empty]',
-    jobs.items,
+    jobs,
     'job'
   );
 
-  renderHistory(
+  renderEarnHistoryV1(
     '[data-earn-receipts-list]',
     '[data-earn-receipts-empty]',
-    receipts.items,
+    receipts,
     'receipt'
   );
 
