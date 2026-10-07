@@ -1573,7 +1573,7 @@ export function testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceF
   return Buffer.from(observed.bytes);
 }
 
-export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceDetailedV2(
   rawConfig,
   injectedIo = null,
 ) {
@@ -1671,11 +1671,35 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
   });
 
-  return Object.freeze({
+  const receipt = Object.freeze({
     ...body,
     collector_receipt_sha256:
       sha256Id(Buffer.from(canonicalJson(body), "utf8")),
   });
+  return Object.freeze({
+    receipt,
+    normalized_qualification: second.qualification.normalized,
+  });
+}
+
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+  rawConfig,
+  injectedIo = null,
+) {
+  return collectBuyVoidAllocationCustodyWitnessInstallationEvidenceDetailedV2(
+    rawConfig,
+    injectedIo,
+  ).receipt;
+}
+
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+  rawConfig,
+  injectedIo = null,
+) {
+  return collectBuyVoidAllocationCustodyWitnessInstallationEvidenceDetailedV2(
+    rawConfig,
+    injectedIo,
+  );
 }
 
 function main() {
