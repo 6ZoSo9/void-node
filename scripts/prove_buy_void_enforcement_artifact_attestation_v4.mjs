@@ -119,6 +119,7 @@ function workflowEventPaths(source, eventName) {
 }
 
 function globMatchesPath(pattern, candidate) {
+  assertModeledGitHubPathPattern(pattern);
   let regex = "^";
   for (let index = 0; index < pattern.length; index += 1) {
     const char = pattern[index];
@@ -129,10 +130,6 @@ function globMatchesPath(pattern, candidate) {
       } else {
         regex += "[^/]*";
       }
-      continue;
-    }
-    if (char === "?") {
-      regex += "[^/]";
       continue;
     }
     if ("\\.^$+()[]{}|".includes(char)) {
@@ -150,7 +147,7 @@ function assertModeledGitHubPathPattern(pattern) {
   assert.ok(pattern.length > 0, "path filter pattern must not be empty");
   assert.doesNotMatch(
     pattern,
-    /[\[\]+\\]/u,
+    /[\[\]+\\?]/u,
     "unsupported GitHub path-filter syntax must fail closed",
   );
 }
@@ -232,6 +229,15 @@ function assertV4ConsumerTriggerClosure() {
       ),
     /unsupported GitHub path-filter syntax/u,
     "unmodeled plus filters must HOLD instead of being interpreted literally",
+  );
+  assert.throws(
+    () =>
+      orderedPathFilterIncludes(
+        ["scripts/prove_buy_void_enforcement_artifact_attestation_v?.mjs"],
+        v2ProofPath,
+      ),
+    /unsupported GitHub path-filter syntax/u,
+    "unmodeled question filters must HOLD instead of using non-GitHub semantics",
   );
   for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
     const source = read(ROOT, workflowPath).toString("utf8");
