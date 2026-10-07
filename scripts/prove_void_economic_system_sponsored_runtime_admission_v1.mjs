@@ -376,7 +376,7 @@ function replayMetadata(request) {
   const intent = request.signed_intent;
   return Object.freeze({
     chain_id: 2050,
-    execution_epoch: intent.execution_epoch,
+    execution_epoch: 2,
     gateway_id: intent.gateway_id,
     signer: intent.signer,
     nonce: intent.nonce,
