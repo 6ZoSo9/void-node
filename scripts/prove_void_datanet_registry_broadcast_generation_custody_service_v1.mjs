@@ -269,6 +269,28 @@ try{
   await new Promise((resolve)=>hungServer.close(()=>resolve()));
 }
 
+const accessorOptions={
+  socket_path:socketPath,
+  connect_timeout_ms:500,
+  response_timeout_ms:500,
+  max_response_bytes:64*1024,
+};
+let accessorReads=0;
+Object.defineProperty(accessorOptions,"socket_path",{
+  enumerable:true,
+  get(){
+    accessorReads+=1;
+    return socketPath;
+  },
+});
+assert.throws(
+  ()=>createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1(
+    accessorOptions,
+  ),
+  /client_options_invalid/u,
+);
+assert.equal(accessorReads,0);
+
 const serviceSource=fs.readFileSync(
   "tools/void-datanet-registry-broadcast-generation-custody-service-v1.mjs",
   "utf8",

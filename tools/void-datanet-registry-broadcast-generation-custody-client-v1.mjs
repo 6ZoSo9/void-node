@@ -22,6 +22,36 @@ function fail(code){
   throw new Error(code);
 }
 
+function directObject(value,keys,code){
+  if(!value||typeof value!=="object"||Array.isArray(value)) fail(code);
+  const proto=Object.getPrototypeOf(value);
+  if(proto!==Object.prototype&&proto!==null) fail(code);
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  const own=Reflect.ownKeys(descriptors);
+  if(own.some((key)=>typeof key!=="string")) fail(code);
+  const actual=[...own].sort();
+  const expected=[...keys].sort();
+  if(
+    actual.length!==expected.length||
+    actual.some((key,index)=>key!==expected[index])
+  ){
+    fail(code);
+  }
+  const out=Object.create(null);
+  for(const key of keys){
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||
+      descriptor.enumerable!==true||
+      !Object.hasOwn(descriptor,"value")
+    ){
+      fail(code);
+    }
+    out[key]=descriptor.value;
+  }
+  return Object.freeze(out);
+}
+
 function canonical(value){
   if(value===null||typeof value==="string"||typeof value==="boolean") return value;
   if(typeof value==="number"&&Number.isSafeInteger(value)) return value;
@@ -69,41 +99,35 @@ function assertNoSymlinkAncestors(target,code){
 }
 
 function normalizeOptions(raw){
-  if(!raw||typeof raw!=="object"||Array.isArray(raw)){
-    fail("datanet_broadcast_generation_custody_client_options_invalid");
-  }
-  const keys=Object.keys(raw).sort();
-  const expected=[
-    "socket_path",
-    "connect_timeout_ms",
-    "response_timeout_ms",
-    "max_response_bytes",
-  ].sort();
-  if(
-    keys.length!==expected.length||
-    keys.some((key,index)=>key!==expected[index])
-  ){
-    fail("datanet_broadcast_generation_custody_client_options_invalid");
-  }
+  const value=directObject(
+    raw,
+    [
+      "socket_path",
+      "connect_timeout_ms",
+      "response_timeout_ms",
+      "max_response_bytes",
+    ],
+    "datanet_broadcast_generation_custody_client_options_invalid",
+  );
   return Object.freeze({
     socket_path:absolutePath(
-      raw.socket_path,
+      value.socket_path,
       "datanet_broadcast_generation_custody_client_socket_path_invalid",
     ),
     connect_timeout_ms:boundedInteger(
-      raw.connect_timeout_ms,
+      value.connect_timeout_ms,
       1,
       MAX_TIMEOUT_MS,
       "datanet_broadcast_generation_custody_client_connect_timeout_invalid",
     ),
     response_timeout_ms:boundedInteger(
-      raw.response_timeout_ms,
+      value.response_timeout_ms,
       1,
       MAX_TIMEOUT_MS,
       "datanet_broadcast_generation_custody_client_response_timeout_invalid",
     ),
     max_response_bytes:boundedInteger(
-      raw.max_response_bytes,
+      value.max_response_bytes,
       1024,
       MAX_RESPONSE_BYTES,
       "datanet_broadcast_generation_custody_client_response_bound_invalid",
