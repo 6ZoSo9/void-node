@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_QUALIFICATION_V1,
+  classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1,
 } from "./buy_void_allocation_custody_witness_live_read_qualification_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
@@ -27,6 +28,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITI
   Object.freeze({
     source_contract: true,
     pure_composition: true,
+    installation_evidence_package_required: true,
+    canonical_live_read_reclassification_required: true,
+    exact_installation_artifact_binding: true,
+    client_known_hosts_content_required: true,
     live_replay_storage_parent_required: true,
     canonical_replay_writer_parent_required: true,
     qualified_live_read_parent_required: true,
@@ -136,6 +141,27 @@ const LOCAL_REPLAY_STORAGE_FS_TYPES = new Set(["ext4", "xfs", "btrfs"]);
 const SAFE_REPLAY_DEVICE_PATH = /^\/dev\/[A-Za-z0-9._:+/-]{1,300}$/u;
 const SAFE_REPLAY_DISK_TOKEN = /^[A-Za-z0-9._:+-]{1,300}$/u;
 const SAFE_REPLAY_HOSTNAME = /^[A-Za-z0-9._-]{1,255}$/u;
+const INSTALLATION_PACKAGE_SCHEMA =
+  "void_buy_void_allocation_custody_witness_installation_evidence_package_v1";
+const INSTALLATION_PACKAGE_MARKER =
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1";
+const INSTALLATION_PACKAGE_KEYS = Object.freeze([
+  "schema",
+  "marker",
+  "version",
+  "installation_receipt",
+  "installation_normalized_qualification",
+  "installation_normalized_qualification_sha256",
+  "installation_qualification_id",
+  "operation_performed",
+  "live_evidence_origin_proven",
+  "external_transport_authenticated",
+  "external_witness_storage_proven",
+  "runtime_integration",
+  "production_gate_ready",
+  "funds_movement",
+  "package_sha256",
+]);
 
 const STORAGE_KEYS = Object.freeze([
   "ok",
@@ -707,6 +733,81 @@ function storageParent(input: unknown) {
   });
 }
 
+function installationPackage(input: unknown) {
+  const value = exactObject(
+    input,
+    INSTALLATION_PACKAGE_KEYS,
+    "witness_live_read_replay_composition_installation_package_shape_invalid",
+  );
+  if (
+    value.schema !== INSTALLATION_PACKAGE_SCHEMA ||
+    value.marker !== INSTALLATION_PACKAGE_MARKER ||
+    value.version !== 1 ||
+    value.operation_performed !== false ||
+    value.live_evidence_origin_proven !== false ||
+    value.external_transport_authenticated !== false ||
+    value.external_witness_storage_proven !== false ||
+    value.runtime_integration !== false ||
+    value.production_gate_ready !== false ||
+    value.funds_movement !== false ||
+    typeof value.installation_normalized_qualification_sha256 !== "string" ||
+    !SHA256_ID.test(value.installation_normalized_qualification_sha256) ||
+    typeof value.installation_qualification_id !== "string" ||
+    !LIVE_INSTALLATION_ID.test(value.installation_qualification_id) ||
+    typeof value.package_sha256 !== "string" ||
+    !SHA256_ID.test(value.package_sha256) ||
+    !value.installation_receipt ||
+    typeof value.installation_receipt !== "object" ||
+    Array.isArray(value.installation_receipt) ||
+    !value.installation_normalized_qualification ||
+    typeof value.installation_normalized_qualification !== "object" ||
+    Array.isArray(value.installation_normalized_qualification)
+  ) {
+    fail("witness_live_read_replay_composition_installation_package_invalid");
+  }
+
+  const normalizedSha256 = sha256Id(
+    Buffer.from(
+      canonicalJson(value.installation_normalized_qualification),
+      "utf8",
+    ),
+  );
+  const qualificationId =
+    "voidwiq2_" + normalizedSha256.slice("sha256:".length);
+  const receipt = value.installation_receipt as Record<string, any>;
+  if (
+    normalizedSha256 !==
+      value.installation_normalized_qualification_sha256 ||
+    qualificationId !== value.installation_qualification_id ||
+    receipt.normalized_qualification_sha256 !== normalizedSha256 ||
+    receipt.installation_qualification_id !== qualificationId
+  ) {
+    fail(
+      "witness_live_read_replay_composition_installation_package_commitment_mismatch",
+    );
+  }
+
+  const body = { ...value };
+  delete body.package_sha256;
+  const expectedPackageSha256 = sha256Id(
+    Buffer.from(canonicalJson(body), "utf8"),
+  );
+  if (expectedPackageSha256 !== value.package_sha256) {
+    fail(
+      "witness_live_read_replay_composition_installation_package_digest_mismatch",
+    );
+  }
+
+  return Object.freeze({
+    value,
+    receipt,
+    normalized: value.installation_normalized_qualification,
+    normalized_sha256: normalizedSha256,
+    qualification_id: qualificationId,
+    package_sha256: value.package_sha256 as string,
+  });
+}
+
 function writerResult(
   input: unknown,
   expectedStatus: "persisted_issue" | "persisted_consumed",
@@ -768,7 +869,10 @@ function writerResult(
     typeof value.transition_challenge_sha256 !== "string" ||
     !SHA256_ID.test(value.transition_challenge_sha256) ||
     typeof value.transition_challenge_id !== "string" ||
-    !CHALLENGE_ID.test(value.transition_challenge_id)
+    !CHALLENGE_ID.test(value.transition_challenge_id) ||
+    value.transition_challenge_id !==
+      "voidwlrc1_" +
+        value.transition_challenge_sha256.slice("sha256:".length)
   ) {
     fail("witness_live_read_replay_composition_writer_transition_invalid");
   }
@@ -1057,6 +1161,8 @@ function liveReadParent(input: unknown) {
 
 export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1(
   input: {
+    installation_evidence_package: unknown;
+    client_known_hosts_base64: unknown;
     replay_storage_evidence: unknown;
     issue_result: unknown;
     live_read_qualification: unknown;
@@ -1067,6 +1173,9 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
   },
 ) {
   try {
+    const installation = installationPackage(
+      input?.installation_evidence_package,
+    );
     const storage = storageParent(input?.replay_storage_evidence);
     const issue = writerResult(input?.issue_result, "persisted_issue");
     const liveRead = liveReadParent(input?.live_read_qualification);
@@ -1130,6 +1239,42 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
           String(policyDecision.reason || "invalid"),
       );
     }
+    const reclassifiedLiveRead =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+        installation_receipt: installation.receipt,
+        installation_normalized_qualification:
+          installation.normalized,
+        transport_policy: policyDecision.policy,
+        client_known_hosts_base64:
+          input?.client_known_hosts_base64,
+        challenge_sha256: issue.challenge_sha256,
+        challenge_issued_at_ms:
+          liveRead.normalized.challenge_issued_at_ms,
+        response_observed_at_ms:
+          liveRead.normalized.response_observed_at_ms,
+        prior_evidence_generation:
+          liveRead.normalized.prior_evidence_generation,
+        evidence_generation:
+          liveRead.normalized.evidence_generation,
+        observed_client_address:
+          liveRead.normalized.observed_client_address,
+        observed_remote_address:
+          liveRead.normalized.observed_remote_address,
+        read_request_json: input?.read_request_json,
+        read_response_json: input?.read_response_json,
+      });
+    if (
+      reclassifiedLiveRead.ok !== true ||
+      reclassifiedLiveRead.qualification_id !==
+        liveRead.value.qualification_id ||
+      canonicalJson(reclassifiedLiveRead.normalized) !==
+        canonicalJson(liveRead.normalized)
+    ) {
+      fail(
+        "witness_live_read_replay_composition_installation_binding_invalid",
+      );
+    }
+
     if (
       liveRead.normalized.transport_policy_sha256 !==
         policyDecision.policy_sha256 ||
@@ -1210,6 +1355,12 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       marker:
         VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_V1,
       version: 1,
+      installation_package_sha256:
+        installation.package_sha256,
+      installation_collector_receipt_sha256:
+        installation.receipt.collector_receipt_sha256,
+      installation_qualification_id:
+        installation.qualification_id,
       replay_storage_qualification_id:
         storage.receipt.qualification_id,
       replay_storage_high_water_sha256:
@@ -1272,6 +1423,8 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       qualification_id: qualificationId,
       normalized,
       operation_performed: false as const,
+      installation_artifacts_bound: true as const,
+      canonical_live_read_reclassified: true as const,
       storage_prestate_bound: true as const,
       storage_issue_digest_lineage_bound: true as const,
       issue_consume_digest_lineage_bound: true as const,
