@@ -247,9 +247,21 @@ function classify(
   });
 }
 
-const green = classify();
+function requireQualified(
+  value: ReturnType<typeof classify>,
+): Extract<ReturnType<typeof classify>, { ok: true }> {
+  const runtime = value as ReturnType<typeof classify> & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== true) {
+    throw new Error("qualification held: " + (runtime.reason ?? "unknown"));
+  }
+  return value as Extract<ReturnType<typeof classify>, { ok: true }>;
+}
+
+const green = requireQualified(classify());
 assert.equal(green.ok, true);
-if (!green.ok) throw new Error("baseline held: " + green.reason);
 assert.equal(green.status, "source_policy_qualified");
 assert.match(green.qualification_id, /^voidwlrrq1_[0-9a-f]{64}$/u);
 assert.match(green.policy_fingerprint_sha256, /^sha256:[0-9a-f]{64}$/u);
@@ -282,11 +294,11 @@ const shuffled = classify(
   reverseObjectKeys(installationEvidence()),
   reverseObjectKeys(policy()),
 );
-assert.equal(shuffled.ok, true);
-if (!shuffled.ok) throw new Error("shuffled held");
-assert.equal(shuffled.qualification_id, green.qualification_id);
+const shuffledQualified = requireQualified(shuffled);
+assert.equal(shuffledQualified.ok, true);
+assert.equal(shuffledQualified.qualification_id, green.qualification_id);
 assert.equal(
-  shuffled.policy_fingerprint_sha256,
+  shuffledQualified.policy_fingerprint_sha256,
   green.policy_fingerprint_sha256,
 );
 
