@@ -615,12 +615,12 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     automatic_retry_authorized:false,
     replacement_transaction_authorized:false,
     created_at_utc:new Date(dependencies.now()).toISOString(),
-  });
+  };
   const generationFence=Object.freeze({
     ...fenceMaterial,
     broadcast_generation_fence_id:
       "voiddrbgf1_"+sha256(Buffer.from(canonicalJson(fenceMaterial))),
-  };
+  });
   if(!GENERATION_FENCE_ID.test(generationFence.broadcast_generation_fence_id)){
     return held("registry_broadcast_execution_generation_fence_id_invalid",{
       broadcast_operation_id:operationId,
