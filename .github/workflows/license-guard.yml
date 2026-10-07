@@ -1,9 +1,16 @@
 name: license-guard
 on:
-  push:
-    branches: [ main ]
   pull_request:
-
+    paths:
+      - '.github/workflows/license-guard.yml'
+      - 'LICENSE'
+      - '.ci/VCL_LICENSE.txt'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/license-guard.yml'
+      - 'LICENSE'
+      - '.ci/VCL_LICENSE.txt'
 permissions:
   contents: read
 
