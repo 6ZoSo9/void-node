@@ -82,6 +82,18 @@ function count(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+function registrationAttempts(app: FakeApp): {
+  readonly use: number;
+  readonly get: number;
+  readonly post: number;
+} {
+  return {
+    use: app.useAttempts,
+    get: app.getAttempts,
+    post: app.postAttempts,
+  };
+}
+
 function tokenSha256(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
@@ -346,6 +358,22 @@ need(
   "malformed expected token hash authorized",
 );
 
+let rawCredentialReads = 0;
+const retryEnv = new Proxy<NodeJS.ProcessEnv>(
+  {
+    [VOID_STEAM_READONLY_BRIDGE_OPERATOR_TOKEN_SHA256_ENV]: tokenHash,
+    VOID_STEAM_WEB_API_KEY: "proof-only-credential-never-read",
+  },
+  {
+    get(target, property, receiver) {
+      if (property === "VOID_STEAM_WEB_API_KEY") {
+        rawCredentialReads += 1;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  },
+);
+
 const parser = ((_request, _response, next) => next()) as RequestHandler;
 const replacementParser = (
   (_request, _response, next) => next()
@@ -356,7 +384,7 @@ try {
   registerSteamReadonlyBridgeBootstrapV3(
     failOnceApp as unknown as Express,
     {
-      env,
+      env: retryEnv,
       json_body_parser: parser,
     },
   );
@@ -366,10 +394,11 @@ try {
     error.message === "synthetic request-route registration failure";
 }
 need(partialRegistrationFailed, "bootstrap partial registration did not fail");
+const partialAttempts = registrationAttempts(failOnceApp);
 need(
-  failOnceApp.useAttempts === 1 &&
-    failOnceApp.getAttempts === 1 &&
-    failOnceApp.postAttempts === 1,
+  partialAttempts.use === 1 &&
+    partialAttempts.get === 1 &&
+    partialAttempts.post === 1,
   "bootstrap partial failure registration attempt counts mismatch",
 );
 need(
@@ -391,11 +420,16 @@ need(
   resumed.operator_authentication.token_hash_valid === true,
   "bootstrap retry did not preserve the first configuration generation",
 );
+const resumedAttempts = registrationAttempts(failOnceApp);
 need(
-  failOnceApp.useAttempts === 1 &&
-    failOnceApp.getAttempts === 1 &&
-    failOnceApp.postAttempts === 2,
+  resumedAttempts.use === 1 &&
+    resumedAttempts.get === 1 &&
+    resumedAttempts.post === 2,
   "bootstrap retry duplicated a completed registration step",
+);
+need(
+  rawCredentialReads === 0,
+  "bootstrap registration or retry read the raw credential",
 );
 need(
   failOnceApp.useHandlers[0]?.handler === parser,
@@ -431,10 +465,11 @@ need(
   resumedDuplicate.registered === false,
   "completed bootstrap retry was not idempotent",
 );
+const completedAttempts = registrationAttempts(failOnceApp);
 need(
-  failOnceApp.useAttempts === 1 &&
-    failOnceApp.getAttempts === 1 &&
-    failOnceApp.postAttempts === 2,
+  completedAttempts.use === 1 &&
+    completedAttempts.get === 1 &&
+    completedAttempts.post === 2,
   "completed bootstrap retry changed registration call counts",
 );
 
@@ -480,11 +515,12 @@ const duplicate = registerSteamReadonlyBridgeBootstrapV3(
   },
 );
 need(duplicate.registered === false, "duplicate bootstrap registration allowed");
+const duplicateAttempts = registrationAttempts(app);
 need(
   app.useHandlers.length === 1 &&
-    app.useAttempts === 1 &&
-    app.getAttempts === 1 &&
-    app.postAttempts === 1,
+    duplicateAttempts.use === 1 &&
+    duplicateAttempts.get === 1 &&
+    duplicateAttempts.post === 1,
   "duplicate bootstrap changed parser or route registration counts",
 );
 
