@@ -32,6 +32,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITI
     canonical_transport_request_rebuilt: true,
     canonical_transport_response_revalidated: true,
     exact_replay_generation_sequence_binding: true,
+    exact_storage_issue_prestate_digest_binding: true,
+    exact_issue_consume_prestate_digest_binding: true,
     exact_replay_challenge_binding: true,
     exact_replay_challenge_time_binding: true,
     exact_terminal_request_binding: true,
@@ -177,6 +179,22 @@ const STORAGE_NORMALIZED_KEYS = Object.freeze([
   "ready_for_issue",
 ]);
 
+const STORAGE_FILE_KEYS = Object.freeze([
+  "path",
+  "dev",
+  "ino",
+  "mtime_ns",
+  "ctime_ns",
+  "sha256",
+  "bytes",
+  "uid",
+  "gid",
+  "mode",
+  "nlink",
+  "regular_file",
+  "symlink",
+]);
+
 const WRITER_SUCCESS_KEYS = Object.freeze([
   "ok",
   "status",
@@ -203,6 +221,9 @@ const WRITER_SUCCESS_KEYS = Object.freeze([
   "transition_expires_at_ms",
   "terminal_request_id",
   "terminal_response_sha256",
+  "transition_before_journal_sha256",
+  "transition_before_journal_bytes",
+  "transition_before_high_water_sha256",
   "durable_journal_publication_semantics",
   "durable_high_water_publication_semantics",
   "cross_root_rollback_detection_semantics",
@@ -456,6 +477,72 @@ function storageParent(input: unknown) {
   if (sequence !== eventCount) {
     fail("witness_live_read_replay_composition_storage_sequence_invalid");
   }
+  const journalFile = exactObject(
+    normalized.journal_file,
+    STORAGE_FILE_KEYS,
+    "witness_live_read_replay_composition_storage_journal_file_invalid",
+  );
+  const highWaterFile = exactObject(
+    normalized.high_water_file,
+    STORAGE_FILE_KEYS,
+    "witness_live_read_replay_composition_storage_high_water_file_invalid",
+  );
+  const validateStorageFile = (
+    file: Record<string, any>,
+    allowEmpty: boolean,
+    reason: string,
+  ) => {
+    if (
+      typeof file.path !== "string" ||
+      file.path.length < 1 ||
+      typeof file.dev !== "string" ||
+      !/^[0-9]+$/u.test(file.dev) ||
+      typeof file.ino !== "string" ||
+      !/^[0-9]+$/u.test(file.ino) ||
+      typeof file.mtime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.mtime_ns) ||
+      typeof file.ctime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.ctime_ns) ||
+      typeof file.sha256 !== "string" ||
+      !SHA256_ID.test(file.sha256) ||
+      !Number.isSafeInteger(file.bytes) ||
+      file.bytes < (allowEmpty ? 0 : 1) ||
+      !Number.isSafeInteger(file.uid) ||
+      file.uid < 0 ||
+      !Number.isSafeInteger(file.gid) ||
+      file.gid < 0 ||
+      file.mode !== 0o600 ||
+      file.nlink !== 1 ||
+      file.regular_file !== true ||
+      file.symlink !== false
+    ) {
+      fail(reason);
+    }
+    return Object.freeze({
+      sha256: file.sha256 as string,
+      bytes: file.bytes as number,
+    });
+  };
+  const journalIdentity = validateStorageFile(
+    journalFile,
+    true,
+    "witness_live_read_replay_composition_storage_journal_file_invalid",
+  );
+  const highWaterIdentity = validateStorageFile(
+    highWaterFile,
+    false,
+    "witness_live_read_replay_composition_storage_high_water_file_invalid",
+  );
+  if (
+    typeof normalized.high_water_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.high_water_sha256) ||
+    highWaterIdentity.sha256 !== normalized.high_water_sha256
+  ) {
+    fail(
+      "witness_live_read_replay_composition_storage_high_water_digest_invalid",
+    );
+  }
+
   const expectedId =
     "voidwlrie1_" +
     crypto
@@ -471,6 +558,9 @@ function storageParent(input: unknown) {
     generation,
     sequence,
     event_count: eventCount,
+    journal_sha256: journalIdentity.sha256,
+    journal_bytes: journalIdentity.bytes,
+    high_water_sha256: normalized.high_water_sha256 as string,
   });
 }
 
@@ -554,6 +644,20 @@ function writerResult(
   if (expiresAt - issuedAt > 38_000) {
     fail("witness_live_read_replay_composition_writer_ttl_invalid");
   }
+  const transitionBeforeJournalSha256 = sha(
+    value.transition_before_journal_sha256,
+    "witness_live_read_replay_composition_writer_prestate_invalid",
+  );
+  const transitionBeforeJournalBytes = safeInt(
+    value.transition_before_journal_bytes,
+    0,
+    8 * 1024 * 1024,
+    "witness_live_read_replay_composition_writer_prestate_invalid",
+  );
+  const transitionBeforeHighWaterSha256 = sha(
+    value.transition_before_high_water_sha256,
+    "witness_live_read_replay_composition_writer_prestate_invalid",
+  );
   if (expectedStatus === "persisted_issue") {
     if (
       value.pending !== true ||
@@ -592,6 +696,9 @@ function writerResult(
     challenge_id: value.transition_challenge_id as string,
     issued_at_ms: issuedAt,
     expires_at_ms: expiresAt,
+    transition_before_journal_sha256: transitionBeforeJournalSha256,
+    transition_before_journal_bytes: transitionBeforeJournalBytes,
+    transition_before_high_water_sha256: transitionBeforeHighWaterSha256,
   });
 }
 
@@ -692,11 +799,33 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       fail("witness_live_read_replay_composition_issue_progression_invalid");
     }
     if (
+      issue.transition_before_journal_sha256 !== storage.journal_sha256 ||
+      issue.transition_before_journal_bytes !== storage.journal_bytes ||
+      issue.transition_before_high_water_sha256 !==
+        storage.high_water_sha256
+    ) {
+      fail(
+        "witness_live_read_replay_composition_storage_prestate_digest_mismatch",
+      );
+    }
+    if (
       consume.generation !== issue.generation ||
       consume.sequence !== issue.sequence + 1 ||
       consume.event_count !== issue.event_count + 1
     ) {
       fail("witness_live_read_replay_composition_consume_progression_invalid");
+    }
+    if (
+      consume.transition_before_journal_sha256 !==
+        issue.value.journal_sha256 ||
+      consume.transition_before_journal_bytes !==
+        issue.value.journal_bytes ||
+      consume.transition_before_high_water_sha256 !==
+        issue.value.high_water_sha256
+    ) {
+      fail(
+        "witness_live_read_replay_composition_consume_prestate_digest_mismatch",
+      );
     }
     if (
       consume.challenge_sha256 !== issue.challenge_sha256 ||
@@ -788,7 +917,17 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       replay_storage_qualification_id:
         storage.receipt.qualification_id,
       replay_storage_high_water_sha256:
-        storage.normalized.high_water_sha256,
+        storage.high_water_sha256,
+      replay_storage_journal_sha256:
+        storage.journal_sha256,
+      replay_storage_journal_bytes:
+        storage.journal_bytes,
+      issue_before_journal_sha256:
+        issue.transition_before_journal_sha256,
+      issue_before_journal_bytes:
+        issue.transition_before_journal_bytes,
+      issue_before_high_water_sha256:
+        issue.transition_before_high_water_sha256,
       prior_generation: storage.generation,
       prior_sequence: storage.sequence,
       issue_generation: issue.generation,
@@ -810,6 +949,12 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       witness_tip_event_sha256: validated.tip_event_sha256,
       consume_generation: consume.generation,
       consume_sequence: consume.sequence,
+      consume_before_journal_sha256:
+        consume.transition_before_journal_sha256,
+      consume_before_journal_bytes:
+        consume.transition_before_journal_bytes,
+      consume_before_high_water_sha256:
+        consume.transition_before_high_water_sha256,
       consume_high_water_sha256:
         consume.value.high_water_sha256,
       consume_journal_sha256:
@@ -832,6 +977,8 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       normalized,
       operation_performed: false as const,
       storage_prestate_bound: true as const,
+      storage_issue_digest_lineage_bound: true as const,
+      issue_consume_digest_lineage_bound: true as const,
       issue_transition_bound: true as const,
       live_read_parent_bound: true as const,
       canonical_request_rebuilt: true as const,
