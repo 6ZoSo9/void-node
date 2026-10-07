@@ -562,7 +562,12 @@ function normalizeOptions(raw){
     value.fence_root,
     "datanet_broadcast_generation_custody_fence_root_invalid",
   );
-  if(path.dirname(socketPath)===fenceRoot){
+  const socketParent=path.dirname(socketPath);
+  if(
+    socketParent===fenceRoot||
+    socketParent.startsWith(fenceRoot+path.sep)||
+    fenceRoot.startsWith(socketParent+path.sep)
+  ){
     fail("datanet_broadcast_generation_custody_paths_not_separated");
   }
   return Object.freeze({
@@ -716,10 +721,12 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
       socket.setEncoding("utf8");
       socket.setTimeout(RESPONSE_TIMEOUT_MS);
       let input="";
-      let handled=false;
+      let requestAccepted=false;
+      let responded=false;
+      let totalTimer=null;
       const finishHeld=(reason)=>{
-        if(handled||socket.destroyed) return;
-        handled=true;
+        if(responded||socket.destroyed) return;
+        responded=true;
         writeResponse(
           socket,
           responseEnvelope(
@@ -728,13 +735,22 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
           ),
         );
       };
-      socket.on("close",()=>sockets.delete(socket));
+      totalTimer=setTimeout(
+        ()=>finishHeld(
+          "datanet_broadcast_generation_custody_request_total_timeout",
+        ),
+        RESPONSE_TIMEOUT_MS,
+      );
+      socket.on("close",()=>{
+        if(totalTimer!==null) clearTimeout(totalTimer);
+        sockets.delete(socket);
+      });
       socket.on("error",(error)=>{void error;});
       socket.on("timeout",()=>{
         finishHeld("datanet_broadcast_generation_custody_request_timeout");
       });
       socket.on("data",(chunk)=>{
-        if(handled) return;
+        if(requestAccepted||responded) return;
         input+=chunk;
         if(Buffer.byteLength(input,"utf8")>MAX_REQUEST_BYTES){
           finishHeld("datanet_broadcast_generation_custody_request_too_large");
@@ -748,8 +764,9 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
           finishHeld("datanet_broadcast_generation_custody_request_invalid");
           return;
         }
-        handled=true;
+        requestAccepted=true;
         void enqueue(async()=>{
+          if(responded) return;
           let requestSha256=sha256Id(Buffer.from("invalid","utf8"));
           try{
             const raw=JSON.parse(first);
@@ -757,6 +774,7 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
             requestSha256=sha256Id(
               Buffer.from(canonicalJson(envelope),"utf8"),
             );
+            responded=true;
             writeResponse(
               socket,
               responseEnvelope(
@@ -765,6 +783,8 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
               ),
             );
           }catch(error){
+            if(responded) return;
+            responded=true;
             writeResponse(
               socket,
               responseEnvelope(
@@ -789,7 +809,7 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
     if(typeof process.getuid==="function"){
       fs.chownSync(
         options.socket_path,
-        process.getuid(),
+        -1,
         options.socket_group_gid,
       );
     }

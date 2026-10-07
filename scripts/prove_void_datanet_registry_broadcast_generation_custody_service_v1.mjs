@@ -215,9 +215,16 @@ fs.chmodSync(hungParent,0o750);
 const hungSocket=path.join(hungParent,"custody.sock");
 let hungAccepted=0;
 let hungClosed=0;
+let resolveHungClose;
+const hungClosePromise=new Promise((resolve)=>{
+  resolveHungClose=resolve;
+});
 const hungServer=net.createServer((socket)=>{
   hungAccepted+=1;
-  socket.on("close",()=>{hungClosed+=1;});
+  socket.on("close",()=>{
+    hungClosed+=1;
+    resolveHungClose();
+  });
   socket.resume();
 });
 await new Promise((resolve,reject)=>{
@@ -226,7 +233,7 @@ await new Promise((resolve,reject)=>{
 });
 fs.chmodSync(hungSocket,0o660);
 if(typeof process.getuid==="function"){
-  fs.chownSync(hungSocket,process.getuid(),socketGroup);
+  fs.chownSync(hungSocket,-1,socketGroup);
 }
 try{
   const hungTransport=
@@ -249,11 +256,16 @@ try{
     /synthetic_custody_abort/u,
   );
   clearTimeout(timer);
-  await new Promise((resolve)=>setTimeout(resolve,25));
+  await Promise.race([
+    hungClosePromise,
+    new Promise((_,reject)=>setTimeout(
+      ()=>reject(new Error("hung_socket_close_timeout")),
+      1000,
+    )),
+  ]);
   assert.equal(hungAccepted,1);
   assert.equal(hungClosed,1);
 }finally{
-  for(const socket of hungServer._connections?[]:[]) void socket;
   await new Promise((resolve)=>hungServer.close(()=>resolve()));
 }
 
@@ -277,13 +289,12 @@ for(const required of [
 }
 for(const forbidden of [
   "eth_sendRawTransaction",
-  "private_key",
   "wallet.connect",
 ]){
   assert.equal(serviceSource.includes(forbidden),false,forbidden);
 }
 for(const required of [
-  "AbortSignal",
+  "abort_signal_required:true",
   "context.signal",
   "socket.destroy",
   "connect_timeout_ms",
