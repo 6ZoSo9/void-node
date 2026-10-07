@@ -92,11 +92,19 @@ canonical JSONL rules.
 
 ## Terminal packet observability
 
-A successful `persisted_consumed` result exposes the exact
+Every successful persisted transition exposes the exact replay event identity:
+
+- `transition_challenge_sha256`;
+- `transition_challenge_id`;
+- `transition_issued_at_ms`; and
+- `transition_expires_at_ms`.
+
+A successful `persisted_consumed` result additionally exposes the exact
 `terminal_request_id` and `terminal_response_sha256` persisted in that
 terminal replay event.
 
-Those fields are null for inspect/recovery, issue, and abandoned results.
+The transition fields are null for plain inspect/recovery results.
+The terminal request/response fields are null for issue and abandoned results.
 
 This is an observability/binding surface for the next composition gate only.
 The replay writer still does not decide whether a request/response packet is a
@@ -230,7 +238,9 @@ The proof uses temporary local directories only. It covers:
   `voidwlrhw1_` identity;
 - explicit preprovisioned genesis;
 - issue and consume persistence;
+- exact persisted transition challenge/timing exposure;
 - exact consumed terminal request-ID/response-SHA exposure;
+- null transition fields on plain inspect/recovery;
 - null terminal packet fields on inspect/issue/abandon;
 - duplicate consume rejection;
 - crash recovery after journal intent only;
