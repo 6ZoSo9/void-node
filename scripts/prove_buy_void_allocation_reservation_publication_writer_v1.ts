@@ -45,32 +45,52 @@ function requireOkProof<T extends { ok: boolean }>(
 }
 
 if (process.argv[2] === "--dual-root-lock-child") {
-  const [ledgerRoot, highWaterRoot, startedPath, enteredPath, releasePath] =
-    process.argv.slice(3);
+  const [
+    ledgerRoot,
+    highWaterRoot,
+    startedPath,
+    enteredPath,
+    releasePath,
+    expectedHold,
+  ] = process.argv.slice(3);
   assert.ok(ledgerRoot);
   assert.ok(highWaterRoot);
   assert.ok(startedPath);
   assert.ok(enteredPath);
   assert.ok(releasePath);
+  assert.ok(expectedHold);
   fs.writeFileSync(startedPath, "started\n", { mode: 0o600 });
-  const result =
-    testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1(
-      { ledger_root: ledgerRoot, high_water_root: highWaterRoot },
-      () => {
-        fs.writeFileSync(enteredPath, "entered\n", { mode: 0o600 });
-        if (releasePath !== "-") {
-          const deadline = Date.now() + 10_000;
-          while (!fs.existsSync(releasePath)) {
-            if (Date.now() >= deadline) {
-              throw new Error("dual_root_lock_child_release_timeout");
+  try {
+    const result =
+      testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1(
+        { ledger_root: ledgerRoot, high_water_root: highWaterRoot },
+        () => {
+          fs.writeFileSync(enteredPath, "entered\n", { mode: 0o600 });
+          if (releasePath !== "-") {
+            const deadline = Date.now() + 10_000;
+            while (!fs.existsSync(releasePath)) {
+              if (Date.now() >= deadline) {
+                throw new Error("dual_root_lock_child_release_timeout");
+              }
+              sleepSync(10);
             }
-            sleepSync(10);
           }
-        }
-        return "done";
-      },
+          return "done";
+        },
+      );
+    assert.equal(
+      expectedHold,
+      "-",
+      "replaced lock holder must not return success",
     );
-  assert.equal(result, "done");
+    assert.equal(result, "done");
+  } catch (error) {
+    if (expectedHold === "-") throw error;
+    assert.equal(
+      error instanceof Error ? error.message : String(error),
+      expectedHold,
+    );
+  }
   process.exit(0);
 }
 
@@ -114,6 +134,7 @@ function spawnLockChild(
   startedPath: string,
   enteredPath: string,
   releasePath: string,
+  expectedHold: string,
 ): LockChildV1 {
   assert.equal(
     fs.existsSync(TSX_BIN),
@@ -132,6 +153,7 @@ function spawnLockChild(
       startedPath,
       enteredPath,
       releasePath,
+      expectedHold,
     ],
     { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -1400,7 +1422,14 @@ async function proveSingleRootReplacementLock(
   try {
     fs.writeFileSync(nextLedgerPath, ledger1, { mode: 0o600 });
     first = spawnLockChild(
-      f.ledgerRoot, f.highWaterRoot, aStarted, aEntered, aRelease,
+      f.ledgerRoot,
+      f.highWaterRoot,
+      aStarted,
+      aEntered,
+      aRelease,
+      replaceRoot === "ledger"
+        ? "allocation_reservation_writer_ledger_directory_changed"
+        : "allocation_reservation_writer_high_water_directory_changed",
     );
     await waitForPath(aStarted, first, replaceRoot + "_first_started");
     await waitForPath(aEntered, first, replaceRoot + "_first_entered");
@@ -1522,6 +1551,7 @@ console.log("dual_root_serialization_lock=true");
 console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
+console.log("replaced_lock_holder_holds_after_release=true");
 console.log("redundant_publication_intent=true");
 console.log("single_root_mid_publication_recovery=true");
 console.log("terminal_visible_root_revalidation=true");
