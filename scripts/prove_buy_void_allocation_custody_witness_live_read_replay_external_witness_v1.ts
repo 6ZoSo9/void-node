@@ -4,15 +4,19 @@ import crypto from "node:crypto";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_WITNESS_AUTHORITY_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_WITNESS_EVENT_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_WITNESS_V1,
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1,
   parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessJournalV1,
   planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_external_witness_v1.js";
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_SCHEMA_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
   deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EVENT_V1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
@@ -49,10 +53,10 @@ function canonicalJson(value: unknown): string {
   throw new Error("noncanonical_fixture_value");
 }
 
-function sha256Id(value: string): string {
+function sha256Id(value: string | Buffer): string {
   return (
     "sha256:" +
-    crypto.createHash("sha256").update(value, "utf8").digest("hex")
+    crypto.createHash("sha256").update(value).digest("hex")
   );
 }
 
@@ -96,6 +100,232 @@ const identity = Object.freeze({
   witness_root_disk_wwn:
     "eui.00000000000000000026b76873b25ab5",
 });
+
+function replayHighWaterJsonFixture(value: {
+  sequence: number;
+  generation: number;
+  event_count: number;
+  tip_event_sha256: string | null;
+  journal_sha256: string;
+  journal_bytes: number;
+  pending: boolean;
+  pending_challenge_sha256: string | null;
+  pending_challenge_id: string | null;
+  pending_expires_at_ms: number | null;
+  last_terminal_state: "consumed" | "abandoned" | null;
+  ready_for_issue: boolean;
+}): string {
+  return (
+    JSON.stringify({
+      schema:
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_SCHEMA_V1,
+      marker:
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
+      version: 1,
+      sequence: value.sequence,
+      generation: value.generation,
+      event_count: value.event_count,
+      tip_event_sha256: value.tip_event_sha256,
+      journal_sha256: value.journal_sha256,
+      journal_bytes: value.journal_bytes,
+      pending: value.pending,
+      pending_challenge_sha256: value.pending_challenge_sha256,
+      pending_challenge_id: value.pending_challenge_id,
+      pending_expires_at_ms: value.pending_expires_at_ms,
+      last_terminal_state: value.last_terminal_state,
+      ready_for_issue: value.ready_for_issue,
+    }) + "\n"
+  );
+}
+
+function buildStressReplayAndWitness(eventCount: number) {
+  const replayLines: string[] = [];
+  const witnessLines: string[] = [];
+  const replayHash = crypto.createHash("sha256");
+  let replayBytes = 0;
+  let previousReplaySha: string | null = null;
+  let previousWitnessSha: string | null = null;
+  let lastTerminalState: "consumed" | "abandoned" | null = null;
+  let pending:
+    | {
+        generation: number;
+        entropy_sha256: string;
+        challenge_sha256: string;
+        challenge_id: string;
+        issued_at_ms: number;
+        expires_at_ms: number;
+      }
+    | null = null;
+
+  const appendWitness = (
+    replaySequence: number,
+    generation: number,
+    tipEventSha256: string | null,
+    journalSha256: string,
+    journalBytes: number,
+    pendingState: boolean,
+    pendingChallengeSha256: string | null,
+    pendingChallengeId: string | null,
+    pendingExpiresAtMs: number | null,
+    lastTerminal: "consumed" | "abandoned" | null,
+  ) => {
+    const highWater = {
+      sequence: replaySequence,
+      generation,
+      event_count: replaySequence,
+      tip_event_sha256: tipEventSha256,
+      journal_sha256: journalSha256,
+      journal_bytes: journalBytes,
+      pending: pendingState,
+      pending_challenge_sha256: pendingChallengeSha256,
+      pending_challenge_id: pendingChallengeId,
+      pending_expires_at_ms: pendingExpiresAtMs,
+      last_terminal_state: lastTerminal,
+      ready_for_issue: !pendingState,
+    };
+    const body = {
+      marker:
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_WITNESS_EVENT_V1,
+      version: 1,
+      sequence: replaySequence + 1,
+      previous_event_sha256: previousWitnessSha,
+      replay_sequence: replaySequence,
+      generation,
+      event_count: replaySequence,
+      tip_event_sha256: tipEventSha256,
+      journal_sha256: journalSha256,
+      journal_bytes: journalBytes,
+      high_water_sha256: sha256Id(
+        Buffer.from(replayHighWaterJsonFixture(highWater), "utf8"),
+      ),
+      pending: pendingState,
+      pending_challenge_sha256: pendingChallengeSha256,
+      pending_challenge_id: pendingChallengeId,
+      pending_expires_at_ms: pendingExpiresAtMs,
+      last_terminal_state: lastTerminal,
+      ready_for_issue: !pendingState,
+      ...identity,
+    };
+    const event = {
+      ...body,
+      event_sha256: sha256Id(canonicalJson(body)),
+    };
+    const line = canonicalJson(event) + "\n";
+    witnessLines.push(line);
+    previousWitnessSha = event.event_sha256;
+  };
+
+  appendWitness(
+    0,
+    0,
+    null,
+    sha256Id(Buffer.alloc(0)),
+    0,
+    false,
+    null,
+    null,
+    null,
+    null,
+  );
+
+  for (let sequence = 1; sequence <= eventCount; sequence += 1) {
+    const issued = sequence % 2 === 1;
+    let body: Record<string, unknown>;
+    if (issued) {
+      const generation = (sequence + 1) / 2;
+      const issuedAt = 1_800_000_000_000 + generation * 100;
+      const expiresAt = issuedAt + 30_000;
+      const entropySha = sha256Id("stress-entropy-" + String(generation));
+      const challengeDigest = sha256Id(
+        canonicalJson({
+          domain:
+            "void:mainnet-0:buy-void-allocation-custody-witness-live-read-challenge-v1",
+          generation,
+          previous_event_sha256: previousReplaySha,
+          entropy_sha256: entropySha,
+          issued_at_ms: issuedAt,
+          expires_at_ms: expiresAt,
+        }),
+      ).slice("sha256:".length);
+      pending = {
+        generation,
+        entropy_sha256: entropySha,
+        challenge_sha256: "sha256:" + challengeDigest,
+        challenge_id: "voidwlrc1_" + challengeDigest,
+        issued_at_ms: issuedAt,
+        expires_at_ms: expiresAt,
+      };
+      body = {
+        marker:
+          VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EVENT_V1,
+        version: 1,
+        sequence,
+        previous_event_sha256: previousReplaySha,
+        generation,
+        state: "issued",
+        entropy_sha256: pending.entropy_sha256,
+        challenge_sha256: pending.challenge_sha256,
+        challenge_id: pending.challenge_id,
+        issued_at_ms: pending.issued_at_ms,
+        expires_at_ms: pending.expires_at_ms,
+        request_id: null,
+        response_sha256: null,
+        terminal_at_ms: null,
+      };
+    } else {
+      if (!pending) throw new Error("stress pending state missing");
+      body = {
+        marker:
+          VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EVENT_V1,
+        version: 1,
+        sequence,
+        previous_event_sha256: previousReplaySha,
+        generation: pending.generation,
+        state: "abandoned",
+        entropy_sha256: pending.entropy_sha256,
+        challenge_sha256: pending.challenge_sha256,
+        challenge_id: pending.challenge_id,
+        issued_at_ms: pending.issued_at_ms,
+        expires_at_ms: pending.expires_at_ms,
+        request_id: null,
+        response_sha256: null,
+        terminal_at_ms: pending.issued_at_ms + 1,
+      };
+      lastTerminalState = "abandoned";
+    }
+
+    const replayEvent = {
+      ...body,
+      event_sha256: sha256Id(canonicalJson(body)),
+    };
+    const replayLine = canonicalJson(replayEvent) + "\n";
+    replayLines.push(replayLine);
+    replayHash.update(replayLine, "utf8");
+    replayBytes += Buffer.byteLength(replayLine, "utf8");
+    previousReplaySha = replayEvent.event_sha256;
+
+    const pendingState = issued;
+    appendWitness(
+      sequence,
+      Number(body.generation),
+      replayEvent.event_sha256,
+      "sha256:" + replayHash.copy().digest("hex"),
+      replayBytes,
+      pendingState,
+      pendingState ? pending!.challenge_sha256 : null,
+      pendingState ? pending!.challenge_id : null,
+      pendingState ? pending!.expires_at_ms : null,
+      lastTerminalState,
+    );
+    if (!issued) pending = null;
+  }
+
+  return Object.freeze({
+    replay_journal: replayLines.join(""),
+    witness_jsonl: witnessLines.join(""),
+    witness_without_tip: witnessLines.slice(0, -1).join(""),
+  });
+}
 
 function highWater(journal: string) {
   const result =
@@ -558,6 +788,73 @@ assert.equal(
   );
 }
 
+{
+  const sourceText = await import("node:fs").then((fs) =>
+    fs.readFileSync(
+      new URL(
+        "../src/economic/buy_void_allocation_custody_witness_live_read_replay_external_witness_v1.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    sourceText.includes("function splitJournalPrefixes("),
+    false,
+    "cumulative replay-prefix retention must stay retired",
+  );
+  assert.equal(
+    sourceText.includes("const prefixes: Buffer[]"),
+    false,
+    "near-capacity replay verification must not retain cumulative buffers",
+  );
+  assert.match(sourceText, /journalHash\.copy\(\)\.digest/u);
+
+  const stress = buildStressReplayAndWitness(8192);
+  assert.ok(
+    Buffer.byteLength(stress.replay_journal, "utf8") <= 8 * 1024 * 1024,
+  );
+  assert.ok(
+    Buffer.byteLength(stress.witness_jsonl, "utf8") <= 24 * 1024 * 1024,
+  );
+  const stressHighWater =
+    deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
+      stress.replay_journal,
+    );
+  assert.equal(stressHighWater.ok, true);
+  if (!stressHighWater.ok) {
+    throw new Error("near-capacity replay high-water held");
+  }
+
+  const stressMatched =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: stress.witness_jsonl,
+      current_journal_jsonl: stress.replay_journal,
+      current_high_water_json: stressHighWater.high_water_json,
+      identity,
+    });
+  assert.equal(stressMatched.ok, true);
+  if (!stressMatched.ok) {
+    throw new Error("near-capacity witness match held");
+  }
+  assert.equal(stressMatched.status, "matched");
+  assert.equal(stressMatched.witness_event_count, 8193);
+
+  const stressPlan =
+    planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1({
+      witness_jsonl: stress.witness_without_tip,
+      current_journal_jsonl: stress.replay_journal,
+      current_high_water_json: stressHighWater.high_water_json,
+      identity,
+    });
+  assert.equal(stressPlan.ok, true);
+  if (!stressPlan.ok) {
+    throw new Error("near-capacity witness catch-up held");
+  }
+  assert.equal(stressPlan.status, "planned");
+  assert.equal(stressPlan.next_event?.replay_sequence, 8192);
+}
+
 for (const key of [
   "rollback_regression_detection",
   "external_transport_authenticated",
@@ -635,6 +932,8 @@ console.log("forged_shared_prefix_not_labeled_rollback=true");
 console.log("pending_challenge_id_digest_binding=true");
 console.log("impossible_pending_witness_not_labeled_rollback=true");
 console.log("identity_drift_rejected=true");
+console.log("near_capacity_prefix_scan_linear_memory=true");
+console.log("cumulative_prefix_buffers_retired=true");
 console.log("tampered_witness_rejected=true");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
