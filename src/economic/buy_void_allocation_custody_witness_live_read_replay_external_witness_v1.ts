@@ -403,7 +403,7 @@ function parseEvent(
           Number.MAX_SAFE_INTEGER,
           "witness_replay_external_witness_pending_invalid",
         );
-  const lastTerminal =
+  const lastTerminal: "consumed" | "abandoned" | null =
     raw.last_terminal_state === null ||
     raw.last_terminal_state === "consumed" ||
     raw.last_terminal_state === "abandoned"
