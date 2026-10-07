@@ -133,8 +133,8 @@ try{
     'for(const stream of streams){let p=stream;while(p){const C=p.constructor;'+
     'if(typeof C==="function"){try{const s=new C();if(s&&typeof s.connect==="function"){'+
     'await new Promise(resolve=>{let done=false;const finish=()=>{if(done)return;done=true;'+
-    'try{s.destroy();}catch{}resolve();};s.once?.("connect",finish);s.once?.("error",finish);'+
-    'setTimeout(finish,150);s.connect(port,"127.0.0.1");});}}catch{}}p=Object.getPrototypeOf(p);}}'+
+    'try{s.destroy();}catch(error){void error;}resolve();};s.once?.("connect",finish);s.once?.("error",finish);'+
+    'setTimeout(finish,150);s.connect(port,"127.0.0.1");});}}catch(error){void error;}}p=Object.getPrototypeOf(p);}}'+
     'export default true;';
   const escaped=await testOnlyRunSyntheticReviewedChildV1(
     'const port='+String(port)+';'+stdioEscape,
