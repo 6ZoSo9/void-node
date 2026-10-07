@@ -36,6 +36,7 @@ RESPONSE_MARKER = (
 )
 SCOPE = "agent_paid_work_submit"
 REQUEST_ID_PREFIX = "voidapwcrq1_"
+MAX_RESPONSE_BYTES = 1024 * 1024
 
 AGENT_ID_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
@@ -619,8 +620,10 @@ def submit_request(
         )
         response = connection.getresponse()
         response_body = response.read(
-            1024 * 1024
+            MAX_RESPONSE_BYTES + 1
         )
+        if len(response_body) > MAX_RESPONSE_BYTES:
+            fail("gateway response exceeds maximum bytes")
         response_headers = {
             key.lower(): value
             for key, value in response.getheaders()
