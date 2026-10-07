@@ -183,19 +183,29 @@ dynamic-import syntax cannot turn an uncensused built-in into runtime
 authority.
 
 Resolver control alone is not treated as sufficient because reviewed code runs
-in the same Node realm as the launcher. During reviewed module evaluation and
-during the reviewed submission call, the launcher therefore also replaces
-ambient `globalThis.fetch` and, where Node exposes it,
-`process.getBuiltinModule` with fail-closed stubs and restores them in a
-`finally` boundary. The launcher-owned RPC client itself uses explicit
-`node:http`, so the guard does not need to reopen a global network primitive.
+in the same Node realm as the launcher. The launcher therefore installs
+process-lifetime wrappers around ambient network/builtin escape hatches and
+uses `AsyncLocalStorage` to deny them only inside the reviewed execution
+context. The denial context propagates into promises, timers, and other async
+work spawned by reviewed evaluation/submission, so a reviewed module cannot
+schedule work and wait for the parent call to restore ambient authority.
+
+The guarded ambient routes are `globalThis.fetch`,
+`process.getBuiltinModule`, `process.binding`,
+`process._linkedBinding`, `process.dlopen`, and the global
+`WebSocket` / `EventSource` constructors when present. Outside the reviewed
+async context the wrappers delegate to the original host functions. The
+launcher-owned RPC client itself uses explicit `node:http`, so reviewed
+execution never needs to reopen a global network primitive.
 
 The focused proof executes comment-separated `node:net` imports, an
 uncensused-parent `node:http` import, direct
 `process.getBuiltinModule("node:net")`, computed
-`globalThis["fetch"]`, `fetch.call(...)`, and aliased `fetch`, and
-requires each uncensused route to HOLD. Positive controls retain approved
-`node:crypto` and censused-parent `node:http`.
+`globalThis["fetch"]`, `fetch.call(...)`, aliased `fetch`, a delayed
+timer/promise fetch, direct `process.binding("tcp_wrap")`, and ambient
+WebSocket construction when the runtime exposes it, and requires each
+uncensused route to HOLD. Positive controls retain approved `node:crypto`
+and censused-parent `node:http`.
 
 This remains a bounded capability fence rather than a claim that the process is
 a fully isolated JavaScript sandbox. This lane intentionally reports:
