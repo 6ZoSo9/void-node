@@ -16,6 +16,7 @@ import {
   normalizeVoidRealmsSelectorValueV1,
   occupancyRootForPlacementsV1,
   placementOriginIsAlignedV1,
+  placementFitsRegionV1,
   planVoidRealmsTriScaleBreakV1,
   planVoidRealmsTriScalePlacementV1,
   simulateVoidRealmsTriScaleBreakV1,
@@ -101,6 +102,48 @@ async function main(): Promise<void> {
       microcellToNodeCoordinateV1(-4) === -1 &&
       microcellToNodeCoordinateV1(-5) === -2,
     "node/microcell conversion mismatch",
+  );
+  const maximumNodeCoordinate = Math.floor(
+    Number.MAX_SAFE_INTEGER / MICROCELLS_PER_STANDARD_EDGE,
+  );
+  const minimumNodeCoordinate = Math.ceil(
+    Number.MIN_SAFE_INTEGER / MICROCELLS_PER_STANDARD_EDGE,
+  );
+  assertCondition(
+    Number.isSafeInteger(
+      nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate),
+    ) &&
+      Number.isSafeInteger(
+        nodeCoordinateToMicrocellOriginV1(minimumNodeCoordinate),
+      ),
+    "bounded node coordinates did not map to exact microcells",
+  );
+  await expectReject("positive node-to-microcell overflow", () =>
+    nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate + 1),
+  );
+  await expectReject("negative node-to-microcell overflow", () =>
+    nodeCoordinateToMicrocellOriginV1(minimumNodeCoordinate - 1),
+  );
+  const maximumEnumeratedOrigin = Number.MAX_SAFE_INTEGER - 3;
+  assertCondition(
+    enumeratePlacementMicrocellKeysV1(
+      { x: maximumEnumeratedOrigin, y: 0, z: 0 },
+      4,
+    ).some((key) => key.startsWith(`${Number.MAX_SAFE_INTEGER}:`)),
+    "maximum safe microcell key was not enumerated exactly",
+  );
+  await expectReject("placement-key coordinate overflow", () =>
+    enumeratePlacementMicrocellKeysV1(
+      { x: maximumEnumeratedOrigin + 1, y: 0, z: 0 },
+      4,
+    ),
+  );
+  await expectReject("region boundary coordinate overflow", () =>
+    placementFitsRegionV1(
+      { ...region, maximum_x: Number.MAX_SAFE_INTEGER },
+      { x: 0, y: 0, z: 0 },
+      1,
+    ),
   );
   assertCondition(
     placementOriginIsAlignedV1({ x: -4, y: 0, z: 4 }, 4) &&
