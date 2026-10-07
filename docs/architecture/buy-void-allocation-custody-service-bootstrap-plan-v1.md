@@ -37,6 +37,31 @@ not claim either remains current. Callers can supply arbitrary booleans to the
 pure classifier for testing; the result is always `HOLD_SOURCE_ONLY`, even if
 all supplied booleans are `true`.
 
+### Digest boundary: integrity label, not attestation
+
+The emitted `plan_sha256` is only a SHA-256 over the classifier's canonical
+plan body. It is **not authenticated or signed** and does not prove that the
+reported source heads were checked out, that any designated host was observed,
+that a particular operator produced the plan, or that the observation is fresh.
+The machine-readable output therefore fixes
+`plan_digest_scope=canonical_plan_body_only` and keeps
+`plan_digest_authenticated`, `plan_digest_signed`,
+`plan_digest_is_attestation`, source-provenance verification, designated-host
+binding, operator-identity binding, and freshness binding all `false`.
+A matching digest can detect accidental byte drift in one exported plan; it
+cannot be promoted into provenance, identity, freshness, or launch authority.
+
+### Explicit denied authorities
+
+The authority object enumerates the escalation/economic capabilities that this
+plan does **not** grant. In addition to no host/service/runtime/funds mutation,
+it explicitly keeps private-key and credential access, transaction signing and
+broadcast, Chain-2050 and Work Credit writes, inventory funding, presale
+activation, treasury/liquidity movement, systemd daemon-reload/enablement, and
+data-root mutation `false`. Broad fields such as
+`wallet_or_signer_access=false` or `host_write_performed=false` are not used
+as substitutes for those explicit denials.
+
 ## Existing reviewed contracts: do not recreate them
 
 The canonical source contracts already exist:
