@@ -96,7 +96,7 @@ const COUPLED_REL =
 const SUCCESSOR_REL =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const CURRENT_LAUNCH =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidwcbccp1_[0-9a-f]{64}$/u;

@@ -21,9 +21,9 @@ const CONTROL_CHALLENGE_MARKER_V1 =
   "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_CHALLENGE_V1";
 const ROLE_LABEL_V1 = "VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1";
 const COUPLED_LAUNCH_ID_V1 =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const COUPLED_LAUNCH_BYTES32_V1 =
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const COMPILED_IDENTITY_ID_V1 =
   "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
 const VOID_TOKEN_V1 =
@@ -35,12 +35,12 @@ const PRODUCTION_NODE_V1 = "/usr/bin/node";
 const COUPLED_REL_V1 =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY_REL_V1 =
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
 const CONTROL_REL_V1 =
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const EXPECTED_SOURCE_BLOBS_V1 = Object.freeze({
-  [COUPLED_REL_V1]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
-  [IDENTITY_REL_V1]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
+  [COUPLED_REL_V1]: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
+  [IDENTITY_REL_V1]: "1009c41250a40bb793c88057a7187cec01c8704b",
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   "package-lock.json": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
 });

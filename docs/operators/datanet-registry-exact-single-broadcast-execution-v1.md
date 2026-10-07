@@ -1,9 +1,9 @@
 # DataNet registry exact single broadcast execution v1
 
-Marker: `VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1`
+Marker: `VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_ISOLATED_EXECUTION_V1`
 
-Status: final exact single-attempt Chain-2050 submission gate for the DataNet
-content-commitment registry deployment.
+Status: final isolated exact single-attempt Chain-2050 submission gate for the
+DataNet content-commitment registry deployment.
 
 ## Purpose
 
@@ -39,6 +39,194 @@ The runner rejects a generic authorization or any confirmation that does not
 exactly match the authorization artifact. The transaction-submitting API repeats
 that exact comparison internally; library callers cannot bypass the
 operation-bound confirmation by skipping the Precision CLI.
+
+### Exact Git-object launcher bootstrap
+
+Direct mutable-worktree execution is forbidden. This form must HOLD before any
+broadcast input is read:
+
+```bash
+node ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs ...
+```
+
+The supported operator bootstrap streams the exact launcher Git blob into a
+sanitized Node module process. The following is the shape; substitute only the
+reviewed artifact/state/output arguments and exact confirmation:
+
+```bash
+(
+  set -Eeuo pipefail
+
+  repo="$HOME/dev/void-node"
+  rel="ops/precision/void-datanet-registry-exact-single-broadcast-isolated-execution-v1.mjs"
+  cd "$repo"
+
+  git_cmd=(
+    /usr/bin/env -i
+    PATH=/usr/bin:/bin HOME=/nonexistent XDG_CONFIG_HOME=/nonexistent
+    LANG=C LC_ALL=C
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+    GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1
+    GIT_NO_REPLACE_OBJECTS=1 GIT_OPTIONAL_LOCKS=0
+    GIT_TERMINAL_PROMPT=0
+    /usr/bin/git --no-replace-objects
+    -c core.hooksPath=/dev/null
+    -c core.attributesFile=/dev/null
+    -c core.fsmonitor=false
+    -c core.untrackedCache=false
+    -c core.preloadIndex=false
+    -c submodule.recurse=false
+    -C "$repo"
+  )
+
+  head="$("${git_cmd[@]}" rev-parse HEAD)"
+  blob="$("${git_cmd[@]}" rev-parse "$head:$rel")"
+
+  "${git_cmd[@]}" cat-file blob "$blob" |
+    /usr/bin/env -i \
+      PATH=/usr/bin:/bin LANG=C LC_ALL=C \
+      VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1="$blob" \
+      /usr/bin/node --input-type=module - \
+        --broadcast-request /absolute/request.json \
+        --broadcast-authorization /absolute/authorization.json \
+        --prebroadcast-observation /absolute/observation.json \
+        --signed-transaction /absolute/signed-transaction.json \
+        --state-dir /absolute/private-state-root \
+        --confirmation 'authorizeDatanetRegistryDeploymentBroadcastV1:...' \
+        --output /absolute/private/execution-receipt.json
+)
+```
+
+The streamed launcher independently requires canonical `main`, clean state,
+reviewed origin and exact local/remote-main equality before it reads the signed
+transaction artifact. It also requires exactly
+`node --input-type=module -`, the launcher blob SHA-1 supplied by the bootstrap,
+and absence of ambient Node loader/preload/proxy environment.
+
+The shell snippet is an operator shape, not authorization to execute a real
+broadcast. A real ceremony remains separately confirmed.
+
+## Reviewed execution provenance
+
+The streamed Precision launcher has built-in imports only before provenance.
+Before it reads the signed transaction artifact or exposes the RPC capability,
+it must establish one exact source authority:
+
+1. use absolute `/usr/bin/git` with replacement objects, global/system config,
+   hooks, attributes, fsmonitor, untracked cache, preload index and recursive
+   submodules disabled;
+2. require canonical `main`, a clean checkout including untracked files, the
+   reviewed origin, and exact local `HEAD == GitHub refs/heads/main`;
+3. recursively derive the broadcaster authority's complete relative import
+   closure from exact captured HEAD Git objects;
+4. require that closure to contain exactly 27 reviewed relative modules, with
+   only the bare package `ethers`;
+5. record both network-capable dependency modules explicitly instead of
+   claiming a network-free closure:
+   - `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`;
+   - `tools/void-datanet-registry-prebroadcast-observer-v1.mjs`;
+   both use the exact approved `node:http` capability against the reviewed
+   loopback RPC. Ambient/global `fetch` is not part of reviewed network
+   authority. The reviewed closure also carries an exact closed Node built-in
+   census:
+   - non-network built-ins: `node:crypto`, `node:fs`, `node:path`;
+   - approved network built-in: `node:http`;
+   - any other `node:` import (including `node:http2`, `node:https`,
+     `node:net`, `node:tls`, `node:dns`, or `node:dgram`) HOLDS
+     reviewed-source planning instead of becoming uncensused network authority;
+   - import/export traversal accepts legal comment-separated ESM token gaps and
+     rejects dynamic `import(...)` even when comments separate `import` from
+     the opening parenthesis;
+   - the in-memory module resolver independently enforces the same built-in
+     allowlist at actual module resolution time, and an approved network
+     built-in is accepted only when the importing reviewed module is itself in
+     the exact network-capable module census;
+6. materialize those exact Git-object bytes into a private temporary tree
+   as an independently reverified evidence copy;
+7. verify and privately materialize the reviewed `ethers` package closure using
+   `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`, while passing the already captured
+   reviewed 40-hex HEAD through profile read, installed-runtime verification,
+   and materialization. Package/lock metadata must therefore match that exact
+   reviewed commit even if the checkout's moving `HEAD` is transiently changed.
+   The exact `node_modules/ethers` inventory is then recomputed from the same
+   bounded reads used to capture `dist/ethers.min.js`;
+8. register the exact reviewed source map and exact reviewed standalone
+   `ethers` bundle through built-in in-memory module hooks; and
+9. load the broadcaster authority from that in-memory graph rather than from a
+   mutable pathname.
+
+The launcher itself is streamed from its exact Git object. The launcher blob
+SHA-1 pinned by bootstrap is carried through the entire preparation boundary:
+after reviewed source/package preparation, the launcher repeats canonical
+repository/remote-main authority using that same exact launcher blob before any
+broadcast input is parsed or RPC submission capability is exposed.
+
+The 27 relative
+module bodies executed by the broadcaster are the exact captured Git-object
+bytes supplied from memory. The reviewed-runtime helper is likewise supplied
+from exact Git-object bytes through an in-memory hook. The private source tree
+and reviewed package runtime remain reverified evidence copies, but are not the
+execution path.
+
+This distinction closes same-UID ABA replacement of a temporary module between
+pre-import and post-import verification: temporary tree mutation cannot change
+the already selected in-memory module source. Hidden worktree drift such as
+`assume-unchanged`, private-tree replacement, and ancestor/worktree package
+resolution therefore cannot become the selected launcher/core/package bytes.
+
+The reviewed closure contains two modules that can perform live network
+observation in other workflows, and both obtain that capability only through
+the approved `node:http` built-in from explicitly censused parent modules.
+Unknown Node built-ins fail reviewed-source planning and are rejected again by
+the execution resolver, so comment-separated static imports and
+dynamic-import syntax cannot turn an uncensused built-in into runtime
+authority.
+
+Resolver control alone is not treated as sufficient because reviewed code runs
+in the same Node realm as the launcher. This command is a dedicated one-shot
+broadcaster process, so once reviewed execution is prepared the launcher
+permanently replaces the ambient escape hatches for the remainder of that
+process. It does not restore them after module import or after `submit()`.
+
+The reviewed graph no longer executes in the operator/parent process. The
+supported launcher verifies exact Git source and package evidence first, then
+executes the reviewed graph in a dedicated child whose stdin/stdout/stderr are
+`/dev/null`, which has no IPC channel, and which exchanges bounded canonical
+input/result bytes only through parent-opened regular-file descriptors.
+
+The child rejects socket/FIFO-backed stdio and ambient socket handles before
+reviewed import. It then permanently fences `globalThis.fetch`,
+`process.getBuiltinModule`, `process.binding`,
+`process._linkedBinding`, `process.dlopen`, `process.execve`,
+`process._getActiveHandles`, `process._getActiveRequests`, and the global
+`WebSocket` / `EventSource` constructors when present. This prevents a
+reviewed module from recovering an uncensused socket constructor through
+inherited stdio or harvesting a later approved RPC handle. Approved network
+authority remains explicit `node:http` and is still limited by the reviewed
+module/parent census.
+
+The isolated focused proof requires zero loopback connections from stdio
+constructor/prototype traversal, rejects direct builtin/execve/active-handle
+escape routes, and separately proves that a censused reviewed `node:http`
+module can reach its explicit loopback control. It also proves abnormal child
+exit is fail-closed and that output-path replacement cannot redirect the
+descriptor-bound result.
+
+This is network-capability isolation for the exact reviewed graph, not a general
+VM/container sandbox claim. The isolated lane reports the following only after
+the child envelope and parent validations succeed:
+
+```text
+execution_network_isolation_provided=true
+```
+
+The legacy same-process
+`ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs`
+remains a reviewed source/planning component and proof surface, but it is not the
+supported operator transaction-submission entrypoint.
+
+This is execution provenance, not broadcast authorization. A source-green PR or
+private reviewed tree does not authorize a real registry transaction.
 
 ## Replay and crash boundary
 
@@ -76,13 +264,17 @@ returns an explicit HOLD/error result with zero broadcaster/RPC-send access.
 It does not continue through reconciliation as a successful broadcast attempt,
 and the durable intent still prevents later replay.
 
-The only mutating RPC method available to this gate is:
+The only mutating RPC method available to the launcher-injected RPC capability
+is:
 
 `eth_sendRawTransaction`
 
 and it may be invoked at most once. The Precision HTTP client uses the pinned
-loopback successor RPC with fetch redirects disabled; a 3xx redirect is an error
-and signed raw bytes are never forwarded to a redirected authority.
+loopback successor RPC through explicit `node:http`; it does not follow HTTP
+redirects or expose an alternate host/path. Every reviewed HTTP RPC client has
+both an inactivity timeout and an independent total wall-clock deadline, so a
+peer cannot keep a request alive indefinitely by slowly dripping response
+bytes. Signed raw bytes are sent only to the exact reviewed loopback RPC.
 
 No `eth_sendTransaction`, replacement transaction, automatic retry, signer,
 wallet, credential, or private-key path exists in this gate.
@@ -108,9 +300,46 @@ Immediate classifications include:
 - ambiguous/rejected send error, no retry; or
 - submission returned without immediate confirmation, no retry.
 
+## Proof-only adversaries
+
+The focused repository proof does not invoke a live RPC. In addition to the
+existing dependency-injected single-attempt semantics, it permanently checks:
+
+- exact 27-module relative closure, exact `ethers` bare-package set and exact
+  two-module network-capable set;
+- hostile PATH/Git environment values cannot replace the absolute isolated Git
+  authority;
+- an `assume-unchanged` mutation of the dangerous worktree broadcaster is not
+  present in the exact HEAD bytes selected for reviewed execution;
+- mutation of the private reviewed source copy is detected by its Git
+  blob/SHA-256 revalidation;
+- a proof-only same-UID-style ABA replacement of the private broadcaster file
+  during the first import window cannot execute sentinel code because execution
+  is sourced from the in-memory reviewed graph;
+- the reviewed `ethers` profile, package/lock metadata, installed inventory,
+  and private materialization are all bound to the captured reviewed commit
+  rather than a moving `HEAD`; the exact package aggregate binds the standalone
+  in-memory bundle; neither source preparation nor module import performs an
+  HTTP request, global fetch, RPC call, or transaction submission;
+- the post-preparation repository authority check reuses the exact launcher
+  Git-blob identity pinned before preparation, reaches that second check with
+  external effects trapped, and performs zero RPC sends or transaction
+  submission;
+- ambient process-event callbacks cannot regain fetch/builtin authority after
+  reviewed import returns; and
+- launcher, prebroadcast, and fee-funding HTTP transports each retain an
+  independent total wall-clock deadline in addition to socket-inactivity
+  timeouts.
+
+The proof restores its temporary worktree mutation and CI requires a clean
+checkout afterwards.
+
 ## Authority boundary
 
-A green execution proves one submission attempt occurred. It does not itself
+A real green execution proves one submission attempt occurred. A repository
+proof green proves only that the reviewed execution boundary and inert
+dependency-injected semantics are coherent; it does **not** prove that a live
+broadcast occurred. It does not itself
 prove contract deployment finality or runtime bytecode correctness.
 
 The expected transaction is the exact signed DataNet registry deployment:

@@ -29,7 +29,7 @@ The bundle is bound to the canonical coupled-launch identity currently recorded
 by `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`:
 
 ```text
-sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
+sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d
 ```
 
 A policy bundle for any other launch ID fails closed. The canonical candidate

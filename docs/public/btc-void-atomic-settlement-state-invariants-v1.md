@@ -27,9 +27,9 @@ shared-market policy. Historical
 authority and is not imported by this evaluator.
 
 The V2 binding is anchored to the exact reviewed shared-market V2 source Git
-blob `bcfff9c2981e713a7053ff51a39145eb06b7238b`, canonical coupled-candidate
-Git blob `d78bc88dd26c47921a54c081a79ceefc0d5abcee`, and reconciliation ID
-`sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba`.
+blob `bcfff9c2981e713a7053ff51a39145eb06b7238b`, corrected canonical coupled-candidate
+Git blob `fbbc3174406f76077c8cb2fc11df9545938c0c8f`, and reconciliation ID
+`sha256:9b74e695f3988b4bcaa7abcdbdb767ea927fc294440a1ff2ecfbcd4db9bf7f04`.
 It requires:
 
 - Chain 2050 / `mainnet0` / execution epoch 2;

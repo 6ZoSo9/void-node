@@ -23,22 +23,22 @@ const COUPLED =
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const REVIEWED_SOURCE_COMMIT =
-  "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
+  "dd9a1c45067176f2b841b57aff527333059a18b2";
 const EXPECTED_BLOBS = Object.freeze({
-  semantic_promotion_tool: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
-  semantic_promotion_proof: "992b6ca4fc53ff4c3d903750640cd0271248f544",
-  production_candidate: "a3e07c0731b1e771a699f4c91f07206705b99efb",
-  coupled_candidate: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  semantic_promotion_tool: "38fc89f07b1e328504aff60dc2d357cb1072cdb3",
+  semantic_promotion_proof: "55cb03312c2242d57e5a3db4a1d36a12f513f588",
+  production_candidate: "43467c6cf03723ab8eb8e688d7b24c10bd681bad",
+  coupled_candidate: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
   successor_candidate: "1457b8a0b060c4c515bf2232320af19f4e70dd35",
-  production_classifier: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
-  coupled_classifier: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+  production_classifier: "34e84c1f16452361e0e8d2c867e3bd4d63047061",
+  coupled_classifier: "b565f3d8174d20e5e15c18085b97bc776e645efa",
   successor_classifier: "9f51b193da687669700c898ed587edf9040f6264",
   package_json: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   package_lock: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
 });
 
 const LAUNCH =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -238,10 +238,10 @@ assert.equal(
 );
 assert.equal(result.package_json_git_blob_sha1, EXPECTED_BLOBS.package_json);
 assert.equal(result.package_lock_git_blob_sha1, EXPECTED_BLOBS.package_lock);
-assert.equal(result.reviewed_binding_count, 38);
+assert.equal(result.reviewed_binding_count, 40);
 assert.equal(
   result.reviewed_binding_manifest_sha256,
-  "2db30501c890863a6edffab564ddb873c4d2029ceff48a0d9071a573250f5aa9",
+  "ca014788702440abf66aef1b0e615463faa8d0cefd1340c6896dcf6be2f81a65",
 );
 assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
@@ -523,6 +523,10 @@ for (const required of [
   "reviewed_binding_manifest_sha256",
   "semantic_market_vault_runtime_attestation",
   "participant_production_runtime_binding",
+  "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+  "4129e0dc5e34e08b9402169fcabfe4fba9a14973",
+  "tools/void-wc-void-opening-claim-binding-publication-v1.mjs",
+  "98294560fbc601e5e2035a9caf0408480b7422ce",
   "contracts/mainnet/WCVoidMarketVaultV2.sol",
   "package-lock.json",
   'const GIT_EXECUTABLE = "/usr/bin/git"',
@@ -543,7 +547,7 @@ console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_reviewed_head_blobs=true");
 console.log("semantic_source_contract_generation_bound=true");
 console.log("reviewed_source_generation_blob_pins_required=true");
-console.log("reviewed_dependency_closure_count=38");
+console.log("reviewed_dependency_closure_count=40");
 console.log("reviewed_dependency_closure_bound=true");
 console.log("package_dependency_state_bound=true");
 console.log("reviewed_git_executable_required=true");

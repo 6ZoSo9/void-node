@@ -11,6 +11,12 @@ on:
       - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - ".github/workflows/void-wc-void-market-vault-runtime-attestation-import-v1.yml"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
   push:
     branches: [main]
     paths:
@@ -23,6 +29,12 @@ on:
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - ".github/workflows/void-wc-void-market-vault-runtime-attestation-import-v1.yml"
 
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
 permissions:
   contents: read
 
