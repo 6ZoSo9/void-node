@@ -393,6 +393,30 @@ async function main() {
       now: issuedAt,
       allowNotYetValidWithinSkew: true,
     };
+
+    const ancestorSourceDirectory = join(temp, "binding-ancestor-source");
+    const ancestorLinkDirectory = join(temp, "binding-ancestor-link");
+    mkdirSync(ancestorSourceDirectory, { mode: 0o700 });
+    const ancestorSourcePath = join(
+      ancestorSourceDirectory,
+      "binding.json",
+    );
+    writeFileSync(ancestorSourcePath, bindingBytes, { mode: 0o600 });
+    fs.symlinkSync(
+      ancestorSourceDirectory,
+      ancestorLinkDirectory,
+      "dir",
+    );
+    assertThrowsOneOf(
+      () => readAndVerifyVoidNodeOnionBindingV1(
+        join(ancestorLinkDirectory, "binding.json"),
+        consumerVerification,
+      ),
+      [
+        "binding file path is not descriptor-openable",
+        "binding file path changed during read",
+      ],
+    );
     const fileSystemWithReadHook = (hook) => {
       let fired = false;
       return {
