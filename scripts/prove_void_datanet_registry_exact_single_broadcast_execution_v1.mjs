@@ -10,6 +10,7 @@ import {spawnSync} from "node:child_process";
 
 import {
   testOnlyClassifyReviewedNodeBuiltinV1,
+  testOnlyImportSyntheticReviewedModuleV1,
   testOnlyMaterializeReviewedSourcesV1,
   testOnlyPrepareAndRecheckReviewedAuthorityV1,
   testOnlyPrepareReviewedExecutionPrivateTreeAbaV1,
@@ -17,6 +18,7 @@ import {
   testOnlyReadExactHeadSourceV1,
   testOnlyReviewedGitHeadV1,
   testOnlyReviewedSourcePlanV1,
+  testOnlyStaticImportSpecifiersV1,
   testOnlyVerifyReviewedSourcesV1,
 } from "../ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 
@@ -84,6 +86,65 @@ for(const forbidden of [
     "uncensused reviewed built-in must HOLD: "+forbidden,
   );
 }
+
+assert.deepEqual(
+  testOnlyStaticImportSpecifiersV1(
+    'import/**/ net from/* reviewed-gap */"node:net";',
+  ),
+  ["node:net"],
+  "comment-separated static import must be traversed",
+);
+assert.deepEqual(
+  testOnlyStaticImportSpecifiersV1(
+    'export/**/ {default as net} from/* reviewed-gap */"node:net";',
+  ),
+  ["node:net"],
+  "comment-separated export-from must be traversed",
+);
+assert.throws(
+  ()=>testOnlyStaticImportSpecifiersV1(
+    'const net=await import/**/("node:net"); void net;',
+  ),
+  /reviewed_source_dynamic_import_forbidden/u,
+  "comment-separated dynamic import must fail reviewed planning",
+);
+
+await assert.rejects(
+  ()=>testOnlyImportSyntheticReviewedModuleV1(
+    'import/**/ * as net from/* gap */"node:net"; export default net;',
+  ),
+  /reviewed_graph_builtin_import_unapproved:node:net/u,
+  "runtime resolver must independently reject uncensused static built-in",
+);
+await assert.rejects(
+  ()=>testOnlyImportSyntheticReviewedModuleV1(
+    'const net=await import/**/("node:net"); export default net;',
+  ),
+  /reviewed_graph_builtin_import_unapproved:node:net/u,
+  "runtime resolver must independently reject uncensused dynamic built-in",
+);
+await assert.rejects(
+  ()=>testOnlyImportSyntheticReviewedModuleV1(
+    'import/**/ * as http from "node:http"; export default http;',
+  ),
+  /reviewed_graph_network_builtin_parent_uncensused/u,
+  "approved network builtin still requires exact parent census",
+);
+
+const syntheticSafeBuiltin=
+  await testOnlyImportSyntheticReviewedModuleV1(
+    'import/**/ * as crypto from/* gap */"node:crypto"; '+
+    'export default typeof crypto.createHash==="function";',
+  );
+assert.equal(syntheticSafeBuiltin.default,true);
+
+const syntheticCensusedNetworkBuiltin=
+  await testOnlyImportSyntheticReviewedModuleV1(
+    'import/**/ * as http from/* gap */"node:http"; '+
+    'export default typeof http.request==="function";',
+    {networkCapable:true},
+  );
+assert.equal(syntheticCensusedNetworkBuiltin.default,true);
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
