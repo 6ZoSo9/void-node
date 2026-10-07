@@ -145,6 +145,16 @@ function globMatchesPath(pattern, candidate) {
   return new RegExp(regex, "u").test(candidate);
 }
 
+function assertModeledGitHubPathPattern(pattern) {
+  assert.equal(typeof pattern, "string", "path filter pattern must be text");
+  assert.ok(pattern.length > 0, "path filter pattern must not be empty");
+  assert.doesNotMatch(
+    pattern,
+    /[\[\]+\\]/u,
+    "unsupported GitHub path-filter syntax must fail closed",
+  );
+}
+
 function orderedPathFilterIncludes(patterns, candidate) {
   assert.ok(Array.isArray(patterns), "path filter must be an array");
   let included = false;
@@ -154,6 +164,7 @@ function orderedPathFilterIncludes(patterns, candidate) {
     const excluded = rawPattern.startsWith("!");
     const pattern = excluded ? rawPattern.slice(1) : rawPattern;
     assert.ok(pattern.length > 0, "negated path filter must name a pattern");
+    assertModeledGitHubPathPattern(pattern);
     if (globMatchesPath(pattern, candidate)) {
       included = !excluded;
     }
@@ -200,6 +211,27 @@ function assertV4ConsumerTriggerClosure() {
     ),
     true,
     "later positive trigger pattern must re-include a dependency",
+  );
+  assert.throws(
+    () =>
+      orderedPathFilterIncludes(
+        [
+          "scripts/**",
+          "!scripts/prove_buy_void_enforcement_artifact_attestation_v[1-3].mjs",
+        ],
+        v2ProofPath,
+      ),
+    /unsupported GitHub path-filter syntax/u,
+    "character-class filters must HOLD instead of being interpreted literally",
+  );
+  assert.throws(
+    () =>
+      orderedPathFilterIncludes(
+        ["scripts/prove_buy_void_enforcement_artifact_attestation_v+.mjs"],
+        v2ProofPath,
+      ),
+    /unsupported GitHub path-filter syntax/u,
+    "unmodeled plus filters must HOLD instead of being interpreted literally",
   );
   for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
     const source = read(ROOT, workflowPath).toString("utf8");
@@ -513,7 +545,8 @@ if (
           .enforcement_artifact_set_sha256,
     );
     console.log("predecessor_v3_manifest_bound=true");
-    console.log("v4_consumer_trigger_ordered_negation_semantics_bound=true");
+    console.log("v4_consumer_trigger_unmodeled_globs_fail_closed=true");
+console.log("v4_consumer_trigger_ordered_negation_semantics_bound=true");
 console.log("v4_consumer_trigger_closure_bound=true");
     console.log("predecessor_v2_manifest_bytes_bound=true");
     console.log("dockerfile_only_delta_exact=true");
