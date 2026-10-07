@@ -125,6 +125,13 @@ function observedCompiledImports(sourceText) {
     /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*\{/u,
     "import attributes are outside the reviewed custody service closure",
   );
+  // Node 22.x may expose moduleRequests without its newer phase metadata.
+  // Reject alternate import phases lexically before using that reduced API.
+  assert.doesNotMatch(
+    sourceText,
+    /\bimport\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*(?:source|defer)\b/u,
+    "non-evaluation import phases are outside the reviewed closure",
+  );
 
   // Use Node's parser rather than formatting-sensitive regexes so valid static
   // ESM forms such as semicolonless imports and export ... from declarations
@@ -135,16 +142,25 @@ let source = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) source += chunk;
 const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
+const legacyNode22Metadata =
+  Number(process.versions.node.split(".")[0]) === 22;
 const requests = Array.isArray(module.moduleRequests)
   ? module.moduleRequests.map((entry) => {
-      // Modern Node retains import attributes and phase per module request.
-      // An allowed specifier with changed metadata is a different dependency.
+      // Node 22.20+ may expose moduleRequests with incomplete metadata;
+      // only Node 22 may omit either field, and lexical attribute/phase
+      // rejection above still applies. Node 24/26 must report both fields.
       if (
         !entry ||
         typeof entry.specifier !== "string" ||
-        entry.phase !== "evaluation" ||
-        !entry.attributes ||
-        Object.keys(entry.attributes).length !== 0
+        (entry.phase === undefined
+          ? !legacyNode22Metadata
+          : entry.phase !== "evaluation") ||
+        (entry.attributes === undefined
+          ? !legacyNode22Metadata
+          : !entry.attributes ||
+            typeof entry.attributes !== "object" ||
+            Array.isArray(entry.attributes) ||
+            Object.keys(entry.attributes).length !== 0)
       ) {
         throw new Error("unreviewed_custody_module_request_metadata");
       }
