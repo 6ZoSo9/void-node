@@ -17,8 +17,10 @@ Script: tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-
 ## Pinned prerequisites
 
 Nimo must already have the compare-capable replay handler installed through
-the previously merged, bounded handler-upgrade procedure. The installer HOLDS
-if that upgrade has not happened.
+the separately reviewed bounded handler-upgrade procedure. This authorization
+branch does not perform or authorize that upgrade. The installer HOLDS on the
+exact handler SHA until the prerequisite handler upgrade has been separately
+merged, installed, and verified.
 
 ~~~text
 Nimo hostname: Nimo
