@@ -1374,45 +1374,178 @@ export function handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForce
   }
 }
 
-function readRootOwnedConfig(configPath) {
-  const resolved = path.resolve(String(configPath ?? ""));
-  const parentPath = path.dirname(resolved);
-  const parentVisible = fs.lstatSync(parentPath, { bigint: true });
-  validateRootOwnedDirectory(
-    parentVisible,
-    "witness_replay_external_forced_command_config_parent_invalid",
-  );
-  const parent = fs.openSync(
-    parentPath,
+function openPinnedRootOwnedDirectory(rawPath, reason) {
+  const raw = String(rawPath ?? "").trim();
+  if (
+    !raw ||
+    !path.isAbsolute(raw) ||
+    raw.includes("\0")
+  ) {
+    fail(reason);
+  }
+  const resolved = path.resolve(raw);
+  if (resolved === path.parse(resolved).root) {
+    fail(reason);
+  }
+
+  const visible = fs.lstatSync(resolved, { bigint: true });
+  validateRootOwnedDirectory(visible, reason);
+
+  const parsed = path.parse(resolved);
+  const parts = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+
+  let fd = fs.openSync(
+    parsed.root,
     fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
   );
+  let current = parsed.root;
   try {
-    const parentOpened = fs.fstatSync(parent, { bigint: true });
-    validateRootOwnedDirectory(
-      parentOpened,
-      "witness_replay_external_forced_command_config_parent_invalid",
-    );
-    if (!sameDirectory(parentVisible, parentOpened)) {
-      fail("witness_replay_external_forced_command_config_parent_changed");
+    for (const part of parts) {
+      const openedCurrent = fs.fstatSync(fd, { bigint: true });
+      const visibleCurrent = fs.lstatSync(current, { bigint: true });
+      validateRootOwnedDirectory(
+        openedCurrent,
+        reason + "_ancestor_invalid",
+      );
+      validateRootOwnedDirectory(
+        visibleCurrent,
+        reason + "_ancestor_invalid",
+      );
+      if (!sameDirectory(openedCurrent, visibleCurrent)) {
+        fail(reason + "_ancestor_changed");
+      }
+      if (!part || part === "." || part === "..") {
+        fail(reason + "_ancestor_component_invalid");
+      }
+
+      const next = fs.openSync(
+        path.join("/proc/self/fd", String(fd), part),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      fs.closeSync(fd);
+      fd = next;
+      current = path.join(current, part);
     }
+
+    const opened = fs.fstatSync(fd, { bigint: true });
+    const visibleFinal = fs.lstatSync(resolved, { bigint: true });
+    validateRootOwnedDirectory(opened, reason);
+    validateRootOwnedDirectory(visibleFinal, reason);
+    if (
+      !sameDirectory(visible, opened) ||
+      !sameDirectory(opened, visibleFinal)
+    ) {
+      fail(reason + "_changed");
+    }
+
+    const result = Object.freeze({
+      path: resolved,
+      fd,
+      stat: opened,
+      proc_path: "/proc/self/fd/" + String(fd),
+    });
+    fd = -1;
+    return result;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+function assertRootOwnedDirectoryVisible(directory, reason) {
+  const opened = fs.fstatSync(directory.fd, { bigint: true });
+  const visible = fs.lstatSync(directory.path, { bigint: true });
+  validateRootOwnedDirectory(opened, reason);
+  validateRootOwnedDirectory(visible, reason);
+  if (
+    !sameDirectory(directory.stat, opened) ||
+    !sameDirectory(opened, visible)
+  ) {
+    fail(reason + "_changed");
+  }
+}
+
+function readRootOwnedConfig(configPath) {
+  const raw = String(configPath ?? "").trim();
+  if (
+    !raw ||
+    !path.isAbsolute(raw) ||
+    raw.includes("\0")
+  ) {
+    fail("witness_replay_external_forced_command_config_invalid");
+  }
+  const resolved = path.resolve(raw);
+  if (resolved === path.parse(resolved).root) {
+    fail("witness_replay_external_forced_command_config_invalid");
+  }
+
+  const parent = openPinnedRootOwnedDirectory(
+    path.dirname(resolved),
+    "witness_replay_external_forced_command_config_parent_invalid",
+  );
+  try {
+    const name = path.basename(resolved);
+    const visiblePath = path.join(parent.path, name);
+    const pinnedPath = path.join(parent.proc_path, name);
+    const visibleBefore = fs.lstatSync(visiblePath, { bigint: true });
+    validateRootOwnedReadOnlyFile(
+      visibleBefore,
+      MAX_CONFIG_BYTES,
+      "witness_replay_external_forced_command_config_invalid",
+    );
+
     const fd = fs.openSync(
-      path.join("/proc/self/fd", String(parent), path.basename(resolved)),
+      pinnedPath,
       fs.constants.O_RDONLY | O_NOFOLLOW,
     );
     try {
-      const stat = fs.fstatSync(fd, { bigint: true });
+      const opened = fs.fstatSync(fd, { bigint: true });
       validateRootOwnedReadOnlyFile(
-        stat,
+        opened,
         MAX_CONFIG_BYTES,
         "witness_replay_external_forced_command_config_invalid",
       );
+      if (!sameFile(visibleBefore, opened)) {
+        fail(
+          "witness_replay_external_forced_command_config_path_not_bound",
+        );
+      }
+
       const bytes = readExactFd(
         fd,
-        Number(stat.size),
+        Number(opened.size),
         MAX_CONFIG_BYTES,
         false,
         "witness_replay_external_forced_command_config_invalid",
       );
+
+      const after = fs.fstatSync(fd, { bigint: true });
+      const visibleAfter = fs.lstatSync(visiblePath, { bigint: true });
+      validateRootOwnedReadOnlyFile(
+        after,
+        MAX_CONFIG_BYTES,
+        "witness_replay_external_forced_command_config_invalid",
+      );
+      validateRootOwnedReadOnlyFile(
+        visibleAfter,
+        MAX_CONFIG_BYTES,
+        "witness_replay_external_forced_command_config_invalid",
+      );
+      assertRootOwnedDirectoryVisible(
+        parent,
+        "witness_replay_external_forced_command_config_parent_invalid",
+      );
+      if (
+        !sameFile(opened, after) ||
+        !sameFile(after, visibleAfter)
+      ) {
+        fail(
+          "witness_replay_external_forced_command_config_changed_during_read",
+        );
+      }
+
       let parsed;
       try {
         parsed = JSON.parse(bytes.toString("utf8"));
@@ -1428,10 +1561,9 @@ function readRootOwnedConfig(configPath) {
       fs.closeSync(fd);
     }
   } finally {
-    fs.closeSync(parent);
+    fs.closeSync(parent.fd);
   }
 }
-
 async function readOneRequest() {
   const chunks = [];
   let total = 0;
