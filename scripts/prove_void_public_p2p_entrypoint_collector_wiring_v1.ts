@@ -419,6 +419,14 @@ try {
   );
 
   let zeroProgressCancelled=false;
+  let releaseZeroProgressCancel:(()=>void)|undefined;
+  let signalZeroProgressCancel:(()=>void)|undefined;
+  const zeroProgressCancelCalled=new Promise<void>((resolve)=>{
+    signalZeroProgressCancel=resolve;
+  });
+  const zeroProgressCancelPending=new Promise<void>((resolve)=>{
+    releaseZeroProgressCancel=resolve;
+  });
   globalThis.fetch=(async ()=>
     new Response(
       new ReadableStream<Uint8Array>({
@@ -427,12 +435,14 @@ try {
         },
         cancel(){
           zeroProgressCancelled=true;
+          signalZeroProgressCancel?.();
+          return zeroProgressCancelPending;
         },
       }),
       {status:200,headers:{"content-type":"application/json"}},
     )
   ) as typeof fetch;
-  await assert.rejects(
+  const zeroProgressOperation=
     fetchVoidPublicP2pBootstrapContentBytesV1({
       mirror:{
         transport:"https",
@@ -440,10 +450,27 @@ try {
         failure_domain:"mirror-a",
       },
       url:"https://mirror.example/void/bootstrap/v2/records/voidpbr2_"+"c".repeat(64)+".json",
-    }),
+    });
+  let zeroProgressSettled=false;
+  void zeroProgressOperation.then(
+    ()=>{zeroProgressSettled=true;},
+    ()=>{zeroProgressSettled=true;},
+  );
+  await zeroProgressCancelCalled;
+  await Promise.resolve();
+  await Promise.resolve();
+  const zeroProgressSettledBeforeCancelRelease=zeroProgressSettled;
+  releaseZeroProgressCancel?.();
+  await assert.rejects(
+    zeroProgressOperation,
     /stream made no progress/u,
   );
   assert.equal(zeroProgressCancelled,true);
+  assert.equal(
+    zeroProgressSettledBeforeCancelRelease,
+    true,
+    "bootstrap no-progress rejection waited for cancel settlement",
+  );
 } finally {
   globalThis.fetch=originalFetch;
 }
