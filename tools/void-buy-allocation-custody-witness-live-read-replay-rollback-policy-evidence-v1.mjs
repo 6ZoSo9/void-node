@@ -612,6 +612,37 @@ function samePolicyObservation(left, right) {
   );
 }
 
+function assertPolicyObservationWindowFresh(
+  observedAtMs,
+  expiresAtMs,
+  terminalNowMs,
+) {
+  if (
+    !Number.isSafeInteger(observedAtMs) ||
+    !Number.isSafeInteger(expiresAtMs) ||
+    !Number.isSafeInteger(terminalNowMs) ||
+    observedAtMs < 1 ||
+    expiresAtMs <= observedAtMs ||
+    terminalNowMs < observedAtMs ||
+    terminalNowMs > expiresAtMs
+  ) {
+    fail(
+      "witness_replay_rollback_policy_evidence_observation_window_expired",
+    );
+  }
+}
+
+export function testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationWindowV1(
+  input,
+) {
+  assertPolicyObservationWindowFresh(
+    input?.observed_at_ms,
+    input?.expires_at_ms,
+    input?.terminal_now_ms,
+  );
+  return true;
+}
+
 function installationCommitment(value) {
   if (!value || value.ok !== true) {
     fail("witness_replay_rollback_policy_evidence_installation_invalid");
@@ -821,6 +852,12 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPoli
         "witness_replay_rollback_policy_evidence_changed_during_observation",
       );
     }
+
+    assertPolicyObservationWindowFresh(
+      nowMs,
+      classified.parent_qualification.policy_expires_at_ms,
+      Date.now(),
+    );
 
     return classified;
   } catch (error) {
