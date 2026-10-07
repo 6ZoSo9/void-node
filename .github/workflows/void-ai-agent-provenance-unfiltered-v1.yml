@@ -2,9 +2,39 @@ name: void-ai-agent-provenance-unfiltered-v1
 
 on:
   pull_request:
+    paths:
+      - '.github/workflows/void-ai-agent-provenance-unfiltered-v1.yml'
+      - '.github/workflows/void-ai-agent-first-contact-v1.yml'
+      - '.github/workflows/void-ai-agent-public-utility-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_v1.mjs'
+      - 'scripts/prove_void_ai_agent_public_utility_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'scripts/prove_ci_diff_hygiene_v1.mjs'
+      - 'scripts/ci_diff_hygiene_v1.sh'
+      - 'tools/void-ai-agent-first-contact-v1.mjs'
+      - 'docs/public/ai-agent-*.md'
+      - 'config/void-tor-agent-discovery-parity-v1.json'
+      - 'fixtures/external-opportunity/agent-intake-capability-v1.example.json'
+      - 'public/**'
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/void-ai-agent-provenance-unfiltered-v1.yml'
+      - '.github/workflows/void-ai-agent-first-contact-v1.yml'
+      - '.github/workflows/void-ai-agent-public-utility-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_v1.mjs'
+      - 'scripts/prove_void_ai_agent_public_utility_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'scripts/prove_ci_diff_hygiene_v1.mjs'
+      - 'scripts/ci_diff_hygiene_v1.sh'
+      - 'tools/void-ai-agent-first-contact-v1.mjs'
+      - 'docs/public/ai-agent-*.md'
+      - 'config/void-tor-agent-discovery-parity-v1.json'
+      - 'fixtures/external-opportunity/agent-intake-capability-v1.example.json'
+      - 'public/**'
 
 permissions:
   contents: read
