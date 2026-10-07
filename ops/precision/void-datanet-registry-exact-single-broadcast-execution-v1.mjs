@@ -1484,5 +1484,5 @@ if(directPathExecution){
   fail("reviewed_git_object_bootstrap_required");
 }
 if(process.argv[1]==="-"){
-  await main();
+  fail("legacy_same_process_execution_retired_use_isolated_launcher");
 }

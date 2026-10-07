@@ -375,8 +375,8 @@ assert.match(
   assert.notEqual(streamed.status,0);
   assert.match(
     streamed.stderr,
-    /precision_host_required|missing_argument:/u,
-    "exact Git-object stdin bootstrap must pass bootstrap validation before ordinary host/argument HOLD",
+    /legacy_same_process_execution_retired_use_isolated_launcher/u,
+    "legacy same-process exact-Git-object execution must be retired in favor of the isolated launcher",
   );
 
   const contaminated=spawnSync(
