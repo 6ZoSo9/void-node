@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const file =
@@ -27,6 +29,11 @@ for (const token of [
   "994:981:600:regular file",
   "known_hosts_pin_mismatch",
   "existing_host_pin_reused=true",
+  "zoso-Precision-Tower-7810",
+  "sha256:11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2",
+  "precision_hostname_mismatch",
+  "precision_machine_id_mismatch",
+  "precision_host_identity_bound=true",
   "source_binding_green=true",
   "nimo_authorization_mutation=false",
   "live_policy_enforcement_proven=false",
@@ -60,9 +67,87 @@ assert.match(help.stdout, /VOID_REPLAY_COMPARE_ONLY_CREDENTIAL_PREP_V1/u);
 assert.match(help.stdout, /Precision-only/u);
 assert.equal(help.stderr, "");
 
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-replay-compare-prep-wrong-host-"),
+  );
+  try {
+    const home = path.join(root, "home");
+    const bin = path.join(root, "bin");
+    const dev = path.join(home, "dev");
+    const sentinel = path.join(root, "unexpected-command");
+    fs.mkdirSync(bin, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(dev, { recursive: true, mode: 0o700 });
+    fs.symlinkSync(process.cwd(), path.join(dev, "void-node"), "dir");
+
+    const writeCommand = (name, body) => {
+      const target = path.join(bin, name);
+      fs.writeFileSync(
+        target,
+        "#!/usr/bin/env bash\nset -euo pipefail\n" + body,
+        { mode: 0o700 },
+      );
+      fs.chmodSync(target, 0o700);
+    };
+
+    writeCommand(
+      "id",
+      `if [ "${1:-}" = "-u" ] && [ "${2:-}" = "" ]; then echo 1000; exit 0; fi
+if [ "${1:-}" = "-u" ] && [ "${2:-}" = "void-buy-custody" ]; then echo 994; exit 0; fi
+if [ "${1:-}" = "-g" ] && [ "${2:-}" = "void-buy-custody" ]; then echo 981; exit 0; fi
+exit 64
+`,
+    );
+    writeCommand(
+      "getent",
+      `if [ "${1:-}" = "passwd" ] && [ "${2:-}" = "994" ]; then
+  printf '%s\\n' 'void-buy-custody:x:994:981::/nonexistent:/usr/sbin/nologin'
+  exit 0
+fi
+exit 64
+`,
+    );
+    writeCommand("hostname", "printf '%s\\n' 'not-precision'\n");
+    for (const name of ["git", "ssh-keyscan", "ssh-keygen", "sudo"]) {
+      writeCommand(
+        name,
+        `printf '%s\\n' "${0##*/}" >> ${JSON.stringify(sentinel)}
+exit 97
+`,
+      );
+    }
+
+    const result = spawnSync("/usr/bin/bash", [file], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 5_000,
+      env: {
+        ...process.env,
+        HOME: home,
+        PATH: bin + ":/usr/bin:/bin",
+      },
+    });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /hold_reason=precision_hostname_mismatch/u);
+    assert.match(
+      result.stderr,
+      /VOID_REPLAY_COMPARE_ONLY_CREDENTIAL_PREP_V1_HOLD/u,
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "wrong host must HOLD before git/network/sudo/key generation",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 console.log("VOID_REPLAY_COMPARE_ONLY_CREDENTIAL_PREP_V1_SOURCE_PROOF_GREEN");
 console.log("bash_syntax_green=true");
 console.log("help_side_effect_free=true");
+console.log("precision_host_identity_bound_before_mutation=true");
+console.log("wrong_host_holds_before_git_network_sudo_keygen=true");
 console.log("source_blobs_pinned=true");
 console.log("nimo_host_fingerprint_pinned=true");
 console.log("independent_custody_ssh_key_required=true");
