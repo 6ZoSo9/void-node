@@ -677,6 +677,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
   let pinned=null;
   let started=false;
   let boundSocketIdentity=null;
+  let boundListenPath=null;
   let queue=Promise.resolve();
   const sockets=new Set();
 
@@ -692,6 +693,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     server_listening:Boolean(server?.listening),
     pinned_root_open:pinned!==null,
     bound_socket_identity:boundSocketIdentity!==null,
+    private_listen_path_bound:boundListenPath!==null,
     accepted_socket_count:sockets.size,
   });
 
@@ -700,9 +702,9 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     String(stat.dev)===identity.dev&&
     String(stat.ino)===identity.ino;
 
-  function freshSocketQuarantinePath(){
+  function freshBoundListenPath(){
     const parent=path.dirname(options.socket_path);
-    for(let attempt=0;attempt<32;attempt++){
+    for(let attempt=0;attempt<64;attempt++){
       const candidate=path.join(
         parent,
         ".v"+crypto.randomBytes(2).toString("hex"),
@@ -715,115 +717,51 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
       }
     }
     fail(
-      "datanet_broadcast_generation_custody_socket_quarantine_unavailable",
+      "datanet_broadcast_generation_custody_private_listen_path_unavailable",
     );
-  }
-
-  function isolateAdvertisedSocketPathBeforeClose(){
-    if(boundSocketIdentity===null){
-      return Object.freeze({kind:"none"});
-    }
-    let visible;
-    try{
-      visible=fs.lstatSync(options.socket_path,{bigint:true});
-    }catch(error){
-      if(error?.code==="ENOENT"){
-        return Object.freeze({kind:"absent"});
-      }
-      throw error;
-    }
-    const identity=Object.freeze({
-      dev:String(visible.dev),
-      ino:String(visible.ino),
-    });
-    const kind=
-      visible.isSocket()&&sameSocketIdentity(boundSocketIdentity,visible)
-        ?"bound"
-        :"replacement";
-    const quarantine=freshSocketQuarantinePath();
-    fs.renameSync(options.socket_path,quarantine);
-    const moved=fs.lstatSync(quarantine,{bigint:true});
-    if(!sameSocketIdentity(identity,moved)){
-      fail(
-        "datanet_broadcast_generation_custody_socket_quarantine_identity_mismatch",
-      );
-    }
-    try{
-      fs.lstatSync(options.socket_path);
-      fail(
-        "datanet_broadcast_generation_custody_socket_path_reoccupied_during_isolation",
-      );
-    }catch(error){
-      if(
-        error instanceof Error&&
-        error.message===
-          "datanet_broadcast_generation_custody_socket_path_reoccupied_during_isolation"
-      ){
-        throw error;
-      }
-      if(error?.code!=="ENOENT") throw error;
-    }
-    return Object.freeze({
-      kind,
-      quarantine,
-      identity,
-    });
-  }
-
-  function finalizeIsolatedSocketPathAfterClose(isolated){
-    if(!isolated||["none","absent"].includes(isolated.kind)) return;
-    const moved=fs.lstatSync(isolated.quarantine,{bigint:true});
-    if(!sameSocketIdentity(isolated.identity,moved)){
-      fail(
-        "datanet_broadcast_generation_custody_socket_quarantine_changed",
-      );
-    }
-
-    if(isolated.kind==="bound"){
-      fs.unlinkSync(isolated.quarantine);
-      return;
-    }
-
-    try{
-      fs.lstatSync(options.socket_path);
-      fail(
-        "datanet_broadcast_generation_custody_socket_path_reoccupied_before_restore",
-      );
-    }catch(error){
-      if(
-        error instanceof Error&&
-        error.message===
-          "datanet_broadcast_generation_custody_socket_path_reoccupied_before_restore"
-      ){
-        throw error;
-      }
-      if(error?.code!=="ENOENT") throw error;
-    }
-    fs.renameSync(isolated.quarantine,options.socket_path);
-    const restored=fs.lstatSync(options.socket_path,{bigint:true});
-    if(!sameSocketIdentity(isolated.identity,restored)){
-      fail(
-        "datanet_broadcast_generation_custody_socket_restore_identity_mismatch",
-      );
-    }
   }
 
   async function cleanupResources(){
     for(const socket of sockets) socket.destroy();
 
-    let isolated=null;
     if(server!==null&&server.listening){
-      isolated=isolateAdvertisedSocketPathBeforeClose();
       await new Promise((resolve)=>server.close(()=>resolve()));
-      finalizeIsolatedSocketPathAfterClose(isolated);
-    }else if(boundSocketIdentity!==null){
-      isolated=isolateAdvertisedSocketPathBeforeClose();
-      finalizeIsolatedSocketPathAfterClose(isolated);
     }
 
     await queue.catch(()=>undefined);
     closePinnedRoot(pinned);
     pinned=null;
+
+    if(boundSocketIdentity!==null){
+      try{
+        const visible=fs.lstatSync(options.socket_path,{bigint:true});
+        if(
+          visible.isSocket()&&
+          sameSocketIdentity(boundSocketIdentity,visible)
+        ){
+          fs.unlinkSync(options.socket_path);
+        }
+      }catch(error){
+        if(error?.code!=="ENOENT") throw error;
+      }
+    }
+
+    if(boundListenPath!==null){
+      try{
+        const hidden=fs.lstatSync(boundListenPath,{bigint:true});
+        if(
+          boundSocketIdentity!==null&&
+          hidden.isSocket()&&
+          sameSocketIdentity(boundSocketIdentity,hidden)
+        ){
+          fs.unlinkSync(boundListenPath);
+        }
+      }catch(error){
+        if(error?.code!=="ENOENT") throw error;
+      }
+    }
+
+    boundListenPath=null;
     boundSocketIdentity=null;
     server=null;
     started=false;
@@ -954,19 +892,33 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     });
 
     try{
+      boundListenPath=freshBoundListenPath();
       await new Promise((resolve,reject)=>{
         server.once("error",reject);
-        server.listen(options.socket_path,resolve);
+        server.listen(boundListenPath,resolve);
       });
 
-      const bound=fs.lstatSync(options.socket_path,{bigint:true});
-      if(!bound.isSocket()||bound.isSymbolicLink()){
+      const hidden=fs.lstatSync(boundListenPath,{bigint:true});
+      if(!hidden.isSocket()||hidden.isSymbolicLink()){
         fail("datanet_broadcast_generation_custody_bound_socket_invalid");
       }
       boundSocketIdentity=Object.freeze({
-        dev:String(bound.dev),
-        ino:String(bound.ino),
+        dev:String(hidden.dev),
+        ino:String(hidden.ino),
       });
+
+      fs.linkSync(boundListenPath,options.socket_path);
+      const advertised=fs.lstatSync(options.socket_path,{bigint:true});
+      if(
+        !advertised.isSocket()||
+        advertised.isSymbolicLink()||
+        !sameSocketIdentity(boundSocketIdentity,advertised)||
+        advertised.nlink<2n
+      ){
+        fail(
+          "datanet_broadcast_generation_custody_advertised_socket_binding_invalid",
+        );
+      }
 
       if(testOnlySocketPolicyFailure==="chmod"){
         fail("test_only_datanet_broadcast_generation_custody_chmod_failure");
@@ -1017,6 +969,7 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
       server===null&&
       pinned===null&&
       boundSocketIdentity===null&&
+      boundListenPath===null&&
       sockets.size===0
     ){
       return;

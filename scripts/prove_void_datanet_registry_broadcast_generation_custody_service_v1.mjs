@@ -120,6 +120,7 @@ async function proveStartupRollback(failureKind){
       server_listening:false,
       pinned_root_open:false,
       bound_socket_identity:false,
+      private_listen_path_bound:false,
       accepted_socket_count:0,
     },
   );
@@ -435,8 +436,8 @@ for(const required of [
   "/proc/self/fd/",
   "fs.fsyncSync",
   "server_controlled_fence_root:true",
-  "isolateAdvertisedSocketPathBeforeClose",
-  "finalizeIsolatedSocketPathAfterClose",
+  "freshBoundListenPath",
+  "fs.linkSync(boundListenPath,options.socket_path)",
   "independent_custody_proven:false",
 ]){
   assert.ok(serviceSource.includes(required),required);

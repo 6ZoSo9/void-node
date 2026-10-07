@@ -71,13 +71,17 @@ back to the exact stable fence identity.
 An existing record returns `status=exists`; it is never removed to create a
 retry opportunity.
 
-Service cleanup also isolates the advertised Unix-socket pathname before
-calling Node's `server.close()`. If the pathname still refers to this service's
-bound inode, that inode is quarantined and removed only after close. If a
-successor socket has replaced the advertised pathname, the successor is
-quarantined, the old listener is closed while the advertised pathname is
-absent, and the exact successor inode is restored afterward. This prevents old
-service cleanup from unlinking another live service's endpoint.
+The Node listener is bound to an unadvertised random private pathname inside
+the server-controlled socket directory. The service then creates the advertised
+client pathname as a hard link to that exact Unix-socket inode. This makes
+Node's internal `server.close()` cleanup target the private listen pathname,
+never the advertised client pathname.
+
+On shutdown, the service closes the private listener first. It removes the
+advertised pathname only when its dev/inode still match the service's recorded
+bound socket identity. If another socket has replaced the advertised pathname,
+cleanup leaves that successor untouched. No check-then-rename restoration is
+performed, so cleanup cannot overwrite a newly bound endpoint.
 
 ## Client transport
 
