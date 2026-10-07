@@ -314,7 +314,27 @@ for(const relativePath of REVIEWED_NETWORK_MODULES){
     /rpc_total_deadline_exceeded/u,
     relativePath+" must preserve an independent total RPC deadline",
   );
+  assert.match(
+    reviewedNetworkSource,
+    /rpc_response_aborted/u,
+    relativePath+" must settle an aborted RPC response",
+  );
+  assert.match(
+    reviewedNetworkSource,
+    /rpc_response_premature_close/u,
+    relativePath+" must settle a premature RPC response close",
+  );
 }
+assert.match(
+  reviewedLauncherText,
+  /rpc_response_aborted/u,
+  "launcher RPC must settle an aborted response",
+);
+assert.match(
+  reviewedLauncherText,
+  /rpc_response_premature_close/u,
+  "launcher RPC must settle a premature response close",
+);
 
 {
   const direct=spawnSync(
@@ -1033,6 +1053,35 @@ try{
       new Promise((resolve)=>redirectingRpc.close(()=>resolve())),
       new Promise((resolve)=>redirectTarget.close(()=>resolve())),
     ]);
+  }
+
+  const truncatedRpc=http.createServer((_req,res)=>{
+    res.writeHead(200,{
+      "content-type":"application/json",
+      "content-length":"256",
+    });
+    res.write('{"jsonrpc":"2.0","id":1,"result":"0x');
+    res.socket?.destroy();
+  });
+  try{
+    await new Promise((resolve,reject)=>{
+      truncatedRpc.once("error",reject);
+      truncatedRpc.listen(18553,"127.0.0.1",resolve);
+    });
+    const reviewedRpc=testOnlyRpcFactoryV1();
+    await assert.rejects(
+      Promise.race([
+        reviewedRpc("eth_getCode",["0x"+"22".repeat(20),"latest"]),
+        new Promise((_,reject)=>setTimeout(
+          ()=>reject(new Error("truncated_rpc_test_timeout")),
+          1500,
+        )),
+      ]),
+      /rpc_response_(?:aborted|premature_close)/u,
+      "truncated RPC response must reject promptly instead of hanging",
+    );
+  }finally{
+    await new Promise((resolve)=>truncatedRpc.close(()=>resolve()));
   }
 
   assert.doesNotMatch(

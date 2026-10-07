@@ -37,6 +37,19 @@ for(const rel of[LAUNCHER_REL,CHILD_REL,SUPPORT_REL]){
   assert.ok(source.bytes.length>0);
 }
 
+const childSourceText=
+  testOnlyReadExactHeadSourceV1(CHILD_REL).bytes.toString("utf8");
+assert.match(
+  childSourceText,
+  /rpc_response_aborted/u,
+  "isolated child RPC must settle aborted responses",
+);
+assert.match(
+  childSourceText,
+  /rpc_response_premature_close/u,
+  "isolated child RPC must settle premature response close",
+);
+
 const binding=await testOnlyPrepareIsolatedReviewedExecutionV1();
 assert.equal(binding.repository_head_sha,head);
 assert.equal(binding.reviewed_graph_executes_in_parent,false);

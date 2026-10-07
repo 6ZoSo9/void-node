@@ -475,16 +475,27 @@ function rpcFactory(rpcUrl){
       },(res)=>{
         const chunks=[];
         let total=0;
+        let responseEnded=false;
+        res.on("aborted",()=>finish(new Error("rpc_response_aborted")));
+        res.on("error",(error)=>finish(error));
+        res.on("close",()=>{
+          if(!responseEnded&&!res.complete){
+            finish(new Error("rpc_response_premature_close"));
+          }
+        });
         res.on("data",(chunk)=>{
           const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
           total+=bytes.length;
           if(total>MAX_RPC_RESPONSE){
-            req.destroy(new Error("rpc_response_too_large"));
+            const error=new Error("rpc_response_too_large");
+            finish(error);
+            req.destroy(error);
             return;
           }
           chunks.push(bytes);
         });
         res.on("end",()=>{
+          responseEnded=true;
           const status=Number(res.statusCode);
           if(!Number.isInteger(status)||status<200||status>=300){
             finish(new Error("rpc_http_status_"+String(res.statusCode)));
@@ -513,12 +524,17 @@ function rpcFactory(rpcUrl){
           finish(null,parsed.result);
         });
       });
-      totalTimer=setTimeout(
-        ()=>req.destroy(new Error("rpc_total_deadline_exceeded")),
-        8000,
-      );
+      totalTimer=setTimeout(()=>{
+        const error=new Error("rpc_total_deadline_exceeded");
+        finish(error);
+        req.destroy(error);
+      },8000);
       req.setTimeout(8000);
-      req.on("timeout",()=>req.destroy(new Error("rpc_timeout")));
+      req.on("timeout",()=>{
+        const error=new Error("rpc_timeout");
+        finish(error);
+        req.destroy(error);
+      });
       req.on("error",(error)=>finish(error));
       req.end(body);
     });
