@@ -39,7 +39,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_
     durable_append_intent: true,
     exact_idempotence: true,
     torn_append_recovery: true,
-    request_bound_orphan_torn_recovery: true,
+    planner_bound_orphan_torn_recovery: true,
     witness_file_fsync: true,
     authority_directory_fsync: true,
     post_mutation_path_rebind: true,
