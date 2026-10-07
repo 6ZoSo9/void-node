@@ -1032,8 +1032,14 @@ const resetEarnView = (
   const jobsEmpty = document.querySelector('[data-earn-jobs-empty]');
   const receiptsEmpty = document.querySelector('[data-earn-receipts-empty]');
 
-  if (jobsEmpty) jobsEmpty.hidden = false;
-  if (receiptsEmpty) receiptsEmpty.hidden = false;
+  if (jobsEmpty) {
+    jobsEmpty.hidden = false;
+    jobsEmpty.textContent = 'Recent job history unavailable.';
+  }
+  if (receiptsEmpty) {
+    receiptsEmpty.hidden = false;
+    receiptsEmpty.textContent = 'Verification receipt history unavailable.';
+  }
 };
 
 const toneForStatus = (status) => {
