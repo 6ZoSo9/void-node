@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "./void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   attestWcVoidMarketVaultRuntimeV1,
   reconstructWcVoidMarketVaultRuntimeV1,
@@ -16,9 +16,9 @@ export const VOID_WC_VOID_MARKET_VAULT_AT_USE_REVALIDATION_V1 =
   "VOID_WC_VOID_MARKET_VAULT_AT_USE_REVALIDATION_V1";
 
 export const VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_OPENING_ID_V1 =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 export const VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_VAULT_ID_V1 =
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 
 export const VOID_WC_VOID_MARKET_VAULT_AT_USE_MAX_AGE_SECONDS_V1 = 600;
 export const VOID_WC_VOID_MARKET_VAULT_AT_USE_MAX_COLLECTION_SECONDS_V1 = 30;

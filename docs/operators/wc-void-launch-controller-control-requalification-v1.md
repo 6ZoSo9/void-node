@@ -46,13 +46,13 @@ private key into the repository or online verifier.
 Every challenge is bound to the exact current canonical source inputs:
 
 - coupled candidate Git blob
-  `d78bc88dd26c47921a54c081a79ceefc0d5abcee`;
-- accepted vault identity Git blob
-  `c85b6bc59caac6bc765cb8e969cb980386161d12`;
+  `fbbc3174406f76077c8cb2fc11df9545938c0c8f`;
+- current corrected vault identity binding Git blob
+  `1009c41250a40bb793c88057a7187cec01c8704b`;
 - coupled launch
-  `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`;
+  `sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d`;
 - bytes32 launch identity
-  `0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`;
+  `0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d`;
 - accepted compiled identity
   `voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a`;
 - Epoch-2 VOID token

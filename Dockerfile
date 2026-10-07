@@ -24,6 +24,8 @@ COPY --from=build \
   /app/tools/void-wc-void-coupled-launch-readiness-v1.mjs \
   /app/tools/void-wc-void-production-readiness-v1.mjs \
   /app/tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs \
+  /app/tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs \
+  /app/tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs \
   /app/tools/void-wc-void-market-vault-compiler-identity-v1.mjs \
   /app/tools/void-wc-void-opening-settlement-adapter-review-v1.mjs \
   /app/tools/void-coupled-economic-successor-gate-v1.mjs \
@@ -40,6 +42,10 @@ COPY --from=build \
   /app/tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs \
   ./tools/
 COPY --from=build \
+  /app/ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json \
+  /app/ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json \
+  /app/ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json \
+  /app/ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64 \
   /app/ops/mainnet0/wc-void-production-candidate-v1.json \
   /app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json \
   /app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json \

@@ -50,21 +50,65 @@ const evidence =
   });
 const evidenceBytes = pretty(evidence);
 
-await assert.rejects(
-  () =>
-    qualifyVoidWcVoidMarketVaultRoleDeploymentV1({
-      launchControllerEvidenceBytes: evidenceBytes,
-      launchControllerEvidenceFileSha256: sha256(evidenceBytes),
-      evaluationTimeUnix: String(now + 2),
-    }),
-  /compiled_identity_v1_superseded_by_correction_v2/u,
+const qualification =
+  await qualifyVoidWcVoidMarketVaultRoleDeploymentV1({
+    launchControllerEvidenceBytes: evidenceBytes,
+    launchControllerEvidenceFileSha256: sha256(evidenceBytes),
+    evaluationTimeUnix: String(now + 2),
+  });
+assert.equal(
+  qualification.status,
+  "QUALIFIED_DEPLOYMENT_PREPARATION_READY_NOT_AUTHORIZED",
+);
+assert.equal(
+  qualification.coupled_launch_id,
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+);
+assert.equal(
+  qualification.launch_controller.address,
+  wallet.address.toLowerCase(),
+);
+assert.equal(
+  qualification.vault_identity.creation_bytecode_sha256,
+  "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+);
+assert.equal(
+  qualification.vault_identity.runtime_template_sha256,
+  "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+);
+assert.equal(
+  qualification.vault_identity.creation_bytecode_keccak256,
+  "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
+);
+assert.equal(
+  qualification.vault_identity.runtime_template_keccak256,
+  "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
+);
+assert.equal(
+  qualification.deployment_preparation.exact_creation_payload_ready,
+  true,
+);
+assert.equal(qualification.deployment_preparation.deployer_selected, false);
+assert.equal(qualification.deployment_preparation.nonce_observed, false);
+assert.equal(qualification.deployment_preparation.fee_observed, false);
+assert.equal(
+  qualification.deployment_preparation.transaction_envelope_ready,
+  false,
+);
+assert.equal(
+  qualification.deployment_preparation.deployment_authorized,
+  false,
+);
+assert.equal(
+  qualification.deployment_preparation.inventory_funding_authorized,
+  false,
 );
 
 assert.equal(
   Object.keys(
     VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
   ).length,
-  12,
+  14,
 );
 
 assert.equal(
@@ -94,9 +138,11 @@ assert.equal(
 );
 
 console.log(
-  "VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1_HOLD_GREEN",
+  "VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1_GREEN",
 );
 console.log("compiled_identity_v1_superseded=true");
+console.log("corrected_current_identity_qualified=true");
+console.log("exact_creation_payload_ready=true");
 console.log(
   "corrected_coupled_launch_id=sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );

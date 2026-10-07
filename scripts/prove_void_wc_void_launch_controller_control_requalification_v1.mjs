@@ -32,7 +32,7 @@ const WORKFLOW =
 const COUPLED =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY =
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
 
 function sha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -131,7 +131,7 @@ assert.equal(challenge.challenge.execution_epoch, "2");
 assert.equal(challenge.challenge.candidate_address, fixtureWallet.address.toLowerCase());
 assert.equal(
   challenge.challenge.coupled_launch_id,
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
 assert.equal(
   challenge.challenge.compiled_identity_id,
@@ -147,6 +147,14 @@ assert.equal(challenge.challenge.expires_at_unix, String(now + 300));
 assert.match(
   challenge.source_binding.control_contract_git_blob_sha1,
   /^[0-9a-f]{40}$/u,
+);
+assert.equal(
+  challenge.source_binding.source_blobs[COUPLED],
+  "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
+);
+assert.equal(
+  challenge.source_binding.source_blobs[IDENTITY],
+  "1009c41250a40bb793c88057a7187cec01c8704b",
 );
 assert.equal(
   challenge.source_binding.source_blobs["package.json"],
