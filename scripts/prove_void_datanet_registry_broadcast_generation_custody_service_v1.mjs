@@ -470,7 +470,7 @@ try{
   fs.writeFileSync(recordPath,originalBytes,{mode:0o600});
   fs.chmodSync(recordPath,0o600);
 
-  const fifoFence=fence("f");
+  const fifoFence=fence("b");
   const fifoPath=path.join(
     fenceRoot,
     fifoFence.broadcast_generation_fence_id+".json",
@@ -1020,6 +1020,7 @@ const clientSource=fs.readFileSync(
 for(const required of [
   "O_EXCL",
   "O_NOFOLLOW",
+  "Number(fs.constants.O_NONBLOCK||0)",
   "/proc/self/fd/",
   "RECORD_KEYS",
   "FENCE_IDENTITY_KEYS",
@@ -1045,7 +1046,6 @@ for(const forbidden of [
   assert.equal(serviceSource.includes(forbidden),false,forbidden);
 }
 for(const required of [
-  "Number(fs.constants.O_NONBLOCK||0)",
   "abort_signal_required:true",
   "serializedRequest.fence?.broadcast_generation_fence_id",
   "typeof value.reason!==\"string\"",
