@@ -403,12 +403,17 @@ function parseEvent(
           Number.MAX_SAFE_INTEGER,
           "witness_replay_external_witness_pending_invalid",
         );
-  const lastTerminal: "consumed" | "abandoned" | null =
-    raw.last_terminal_state === null ||
-    raw.last_terminal_state === "consumed" ||
-    raw.last_terminal_state === "abandoned"
-      ? raw.last_terminal_state
-      : fail("witness_replay_external_witness_terminal_invalid");
+  const lastTerminalRaw = raw.last_terminal_state;
+  let lastTerminal: "consumed" | "abandoned" | null;
+  if (lastTerminalRaw === null) {
+    lastTerminal = null;
+  } else if (lastTerminalRaw === "consumed") {
+    lastTerminal = "consumed";
+  } else if (lastTerminalRaw === "abandoned") {
+    lastTerminal = "abandoned";
+  } else {
+    fail("witness_replay_external_witness_terminal_invalid");
+  }
 
   if (
     sequence !== replaySequence + 1 ||
