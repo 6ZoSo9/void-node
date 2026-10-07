@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { PassThrough } from "node:stream";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPARE_ONLY_FORCED_COMMAND_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1,
   testOnlyAssertBuyVoidReplayCompareOnlyForcedCommandContextV1,
   testOnlyHandleBuyVoidReplayCompareOnlyForcedCommandV1,
+  testOnlyHandleBuyVoidReplayCompareOnlyForcedCommandStreamV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs";
 
 import {
@@ -112,6 +114,66 @@ assert.equal(matched.operation_performed,false);
 assert.equal(matched.replay_mutation,false);
 assert.equal(matched.witness_mutation,false);
 assert.equal(matched.funds_movement,false);
+
+// The real entrypoint must finish reading before calling the fixed child.
+// A silent SSH peer or a drip-feed that never closes stdin must HOLD on a
+// total deadline, irrespective of the child process timeout.
+async function expectBoundedInputHold(name, drip) {
+  const stream = new PassThrough();
+  let childExecutions = 0;
+  let trickle = null;
+  const started = Date.now();
+  try {
+    if (drip) {
+      trickle = setInterval(() => {
+        if (!stream.destroyed) stream.write(Buffer.from("x", "utf8"));
+      }, 8);
+    }
+    await assert.rejects(
+      testOnlyHandleBuyVoidReplayCompareOnlyForcedCommandStreamV1(
+        stream,
+        () => {
+          childExecutions += 1;
+          return {
+            status: 0, signal: null,
+            stdout: matchedResponse, stderr: Buffer.alloc(0),
+          };
+        },
+        80,
+      ),
+      /request_read_timeout/u,
+      name,
+    );
+    assert.equal(childExecutions, 0, name + " must never spawn child");
+    assert.equal(stream.destroyed, true, name + " stream must be aborted");
+    assert.ok(Date.now() - started < 5_000, name + " deadline too slow");
+  } finally {
+    if (trickle !== null) clearInterval(trickle);
+    stream.destroy();
+  }
+}
+
+await expectBoundedInputHold("silent_no_eof", false);
+await expectBoundedInputHold("continuous_drip_no_eof", true);
+
+{
+  const stream = new PassThrough();
+  let childExecutions = 0;
+  stream.end(reqBytes);
+  const result = await testOnlyHandleBuyVoidReplayCompareOnlyForcedCommandStreamV1(
+    stream,
+    () => {
+      childExecutions += 1;
+      return {
+        status: 0, signal: null,
+        stdout: matchedResponse, stderr: Buffer.alloc(0),
+      };
+    },
+    1_000,
+  );
+  assert.equal(childExecutions, 1);
+  assert.deepEqual(result.response_json, matchedResponse);
+}
 
 function mustRejectRequest(name, payload, pattern) {
   let executions=0;
@@ -277,6 +339,8 @@ console.log("fixed_child_environment=true");
 console.log("exact_canonical_request_and_response=true");
 console.log("server_response_bounds_checked=true");
 console.log("failure_and_timeout_hold=true");
+console.log("silent_and_drip_feed_stdin_timeout_hold=true");
+console.log("stdin_deadline_rejects_before_child=true");
 console.log("forced_command_identity_restricted=true");
 console.log("key_provisioning=false");
 console.log("server_compare_only_authorization_proven=false");

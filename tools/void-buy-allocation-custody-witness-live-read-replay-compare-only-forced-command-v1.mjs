@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { addAbortSignal } from "node:stream";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
@@ -63,6 +64,8 @@ const MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
 const MAX_HIGH_WATER_BYTES = 16 * 1024;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const CHILD_TIMEOUT_MS = 10_000;
+// Total ingress deadline: the child timeout starts only after SSH stdin closes.
+const MAX_REQUEST_READ_MS = 20_000;
 const NIMO_UID = 997;
 const NIMO_GID = 984;
 const REQUEST_ID = /^voidwlrwreq1_[0-9a-f]{64}$/u;
@@ -327,16 +330,53 @@ export function testOnlyAssertBuyVoidReplayCompareOnlyForcedCommandContextV1(inp
   return true;
 }
 
-async function readOneRequest() {
-  const chunks = [];
-  let total = 0;
-  for await (const chunk of process.stdin) {
-    const bytes = Buffer.from(chunk);
-    total += bytes.length;
-    if (total > MAX_REQUEST_BYTES) fail("request_too_large");
-    chunks.push(bytes);
+async function readOneRequest(stream, readTimeoutMs = MAX_REQUEST_READ_MS) {
+  if (
+    !stream ||
+    typeof stream[Symbol.asyncIterator] !== "function" ||
+    !Number.isSafeInteger(readTimeoutMs) ||
+    readTimeoutMs < 1 ||
+    readTimeoutMs > MAX_REQUEST_READ_MS
+  ) fail("request_reader_invalid");
+
+  // The child execution timeout alone does not constrain a client that
+  // never sends EOF. Abort destroys the Readable and wakes a pending read.
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), readTimeoutMs);
+  try {
+    addAbortSignal(controller.signal, stream);
+    const chunks = [];
+    let total = 0;
+    try {
+      for await (const chunk of stream) {
+        const bytes = Buffer.from(chunk);
+        total += bytes.length;
+        if (total > MAX_REQUEST_BYTES) fail("request_too_large");
+        chunks.push(bytes);
+      }
+    } catch (error) {
+      if (controller.signal.aborted) fail("request_read_timeout");
+      throw error;
+    }
+    if (controller.signal.aborted) fail("request_read_timeout");
+    return Buffer.concat(chunks);
+  } finally {
+    clearTimeout(deadline);
   }
-  return Buffer.concat(chunks);
+}
+
+async function compareOnlyFromStream(
+  stream, runner, readTimeoutMs = MAX_REQUEST_READ_MS,
+) {
+  const input = await readOneRequest(stream, readTimeoutMs);
+  return compareOnlyUnderMockableRunner(input, runner);
+}
+
+/** Source-only stream seam for slow/no-EOF adversarial proofs. */
+export async function testOnlyHandleBuyVoidReplayCompareOnlyForcedCommandStreamV1(
+  stream, runner, readTimeoutMs,
+) {
+  return compareOnlyFromStream(stream, runner, readTimeoutMs);
 }
 
 async function main() {
@@ -347,9 +387,8 @@ async function main() {
     uid: typeof process.geteuid === "function" ? process.geteuid() : -1,
     gid: typeof process.getegid === "function" ? process.getegid() : -1,
   });
-  const input = await readOneRequest();
-  const result = compareOnlyUnderMockableRunner(
-    input,
+  const result = await compareOnlyFromStream(
+    process.stdin,
     (command, args, options) => spawnSync(command, args, options),
   );
   process.stdout.write(result.response_json);
