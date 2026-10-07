@@ -411,7 +411,12 @@ export async function fetchVoidUdpSwarmPublicRelayIntroductionV1(
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!value || value.byteLength === 0) continue;
+        if (!value || value.byteLength === 0) {
+          await reader.cancel().catch(() => undefined);
+          throw new Error(
+            "introduction transport response stream made no progress",
+          );
+        }
         byteCount += value.byteLength;
         if (
           byteCount >
