@@ -640,6 +640,10 @@ assert.equal(
 );
 assert.equal(
   ready.paid_work_credential_request_route.applicant_max_requests_per_minute,
+  null,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.signing_key_max_requests_per_minute,
   2,
 );
 assert.equal(
@@ -689,7 +693,16 @@ assert.equal(
 );
 assert.equal(
   ready.paid_work_credential_request_route.two_applicant_capacity_reserved,
+  false,
+);
+assert.equal(
+  ready.paid_work_credential_request_route
+    .two_signing_key_buckets_fit_under_global_wall,
   true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.rotation_resistant_fairness_proven,
+  false,
 );
 assert.equal(upstreamStatusCalls, 1);
 assert.equal(ready.paid_work_credential_request_route.nonce_replay_protection, true);
@@ -1158,6 +1171,8 @@ console.log("applicant_identity=void-agent:ed25519");
 console.log("applicant_signature_required=true");
 console.log("inner_agent_id_must_equal_signing_identity=true");
 console.log("key_body_identity_mismatch_rejected_before_upstream=true");
+console.log("two_applicant_capacity_reserved=false");
+console.log("two_signing_key_buckets_fit_under_global_wall=true");
 console.log("rotation_resistant_fairness_proven=false");
 console.log("auth_ttl_max_seconds=60");
 console.log("nonce_replay_rejected_before_upstream=true");
