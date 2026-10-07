@@ -75,9 +75,14 @@ function createTransport(policy){
     const body=JSON.stringify({jsonrpc:"2.0",id,method,params});
     return await new Promise((resolve,reject)=>{
       let settled=false;
+      let totalTimer=null;
       const finish=(error,value)=>{
         if(settled) return;
         settled=true;
+        if(totalTimer!==null){
+          clearTimeout(totalTimer);
+          totalTimer=null;
+        }
         if(error) reject(error);
         else resolve(value);
       };
@@ -133,6 +138,10 @@ function createTransport(policy){
           finish(null,payload.result);
         });
       });
+      totalTimer=setTimeout(
+        ()=>req.destroy(new Error("rpc_total_deadline_exceeded")),
+        policy.timeout_ms,
+      );
       req.setTimeout(policy.timeout_ms);
       req.on("timeout",()=>req.destroy(new Error("rpc_timeout")));
       req.on("error",(error)=>finish(error));
