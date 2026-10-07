@@ -313,6 +313,56 @@ def identity_key_descriptor_path(
     )
 
 
+def preflight_identity_key_descriptor_binding_support(
+) -> None:
+    require_identity_key_descriptor_binding_support()
+
+    probe = (
+        b"VOID_AGENT_PAID_WORK_IDENTITY_DESCRIPTOR_PROBE_V1\n"
+    )
+
+    try:
+        with tempfile.TemporaryFile(
+            mode="w+b"
+        ) as handle:
+            handle.write(
+                probe
+            )
+            handle.flush()
+            handle.seek(
+                0
+            )
+
+            descriptor = handle.fileno()
+            observed = run_openssl(
+                [
+                    "dgst",
+                    "-sha256",
+                    "-binary",
+                    identity_key_descriptor_path(
+                        descriptor
+                    ),
+                ],
+                pass_fds=(
+                    descriptor,
+                ),
+            )
+    except Exception as error:
+        raise ValueError(
+            "descriptor-bound identity key access unavailable"
+        ) from error
+
+    if (
+        observed
+        != hashlib.sha256(
+            probe
+        ).digest()
+    ):
+        fail(
+            "descriptor-bound identity key access unavailable"
+        )
+
+
 def revalidate_open_identity_key(
     path: Path,
     descriptor: int,
@@ -404,7 +454,7 @@ def write_private_bytes(
 def generate_identity_key(
     value: str | Path,
 ) -> dict[str, Any]:
-    require_identity_key_descriptor_binding_support()
+    preflight_identity_key_descriptor_binding_support()
 
     path = resolve_identity_key(
         value,
