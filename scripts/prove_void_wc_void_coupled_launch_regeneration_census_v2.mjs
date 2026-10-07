@@ -265,7 +265,8 @@ for (const workflowPath of [
   ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml",
   ".github/workflows/void-wc-void-bounded-canary-canonical-application-v1.yml",
   ".github/workflows/void-wc-void-coupled-launch-regeneration-v2.yml",
-  ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
+  ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml",
+  ".github/workflows/void-wc-void-market-vault-role-deployment-qualification-v1.yml"
 ]) {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   for (const dependency of currentIdentityWorkflowDependencies) {
@@ -433,6 +434,7 @@ console.log(
 );
 console.log("unknown_superseded_compiled_identity_source_paths=0");
 console.log("compiled_identity_dependency_census_exhaustive=true");
+console.log("compiled_identity_consumer_workflow_count=11");
 console.log("canonical_correction_verifier_required=true");
 console.log("old_control_signature_generation_reusable=false");
 console.log("atomic_corrected_generation_rebind_source_green=true");
