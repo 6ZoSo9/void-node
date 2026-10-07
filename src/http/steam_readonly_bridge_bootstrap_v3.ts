@@ -26,9 +26,21 @@ const BEARER = /^Bearer\s+([^\s]{32,512})$/i;
 const BOOTSTRAP_BOUND = Symbol.for(
   "void.steam-readonly-bridge-bootstrap-v3.bound",
 );
+const BOOTSTRAP_STATE = Symbol.for(
+  "void.steam-readonly-bridge-bootstrap-v3.state",
+);
+
+type SteamReadonlyBridgeBootstrapStateV3 = {
+  readonly json_body_parser: RequestHandler;
+  readonly env: NodeJS.ProcessEnv;
+  readonly fetch_impl: typeof fetch | undefined;
+  readonly now: (() => number) | undefined;
+  parser_registered: boolean;
+};
 
 type BootstrapApp = Express & {
   [BOOTSTRAP_BOUND]?: boolean;
+  [BOOTSTRAP_STATE]?: SteamReadonlyBridgeBootstrapStateV3;
 };
 
 export type SteamReadonlyBridgeBootstrapV3Options = {
@@ -186,7 +198,19 @@ export function registerSteamReadonlyBridgeBootstrapV3(
   options: SteamReadonlyBridgeBootstrapV3Options,
 ): SteamReadonlyBridgeBootstrapRegistrationV3 {
   const anyApp = app as BootstrapApp;
-  const status = steamReadonlyBridgeBootstrapStatusV3(options.env);
+  let state = anyApp[BOOTSTRAP_STATE];
+  if (!state) {
+    state = {
+      json_body_parser: options.json_body_parser,
+      env: { ...normalizedEnv(options.env) },
+      fetch_impl: options.fetch_impl,
+      now: options.now,
+      parser_registered: false,
+    };
+    anyApp[BOOTSTRAP_STATE] = state;
+  }
+
+  const status = steamReadonlyBridgeBootstrapStatusV3(state.env);
 
   if (anyApp[BOOTSTRAP_BOUND]) {
     return {
@@ -203,25 +227,29 @@ export function registerSteamReadonlyBridgeBootstrapV3(
     };
   }
 
-  anyApp[BOOTSTRAP_BOUND] = true;
+  let parserRegistered = false;
+  if (!state.parser_registered) {
+    app.use(
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+      state.json_body_parser,
+    );
+    state.parser_registered = true;
+    parserRegistered = true;
+  }
 
-  app.use(
-    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
-    options.json_body_parser,
-  );
-
-  const env = normalizedEnv(options.env);
   const runtime = registerSteamReadonlyBridgeRuntimeV2(app, {
-    env,
-    fetch_impl: options.fetch_impl,
-    now: options.now,
+    env: state.env,
+    fetch_impl: state.fetch_impl,
+    now: state.now,
     authorize_operator: (request) =>
-      authorizeSteamReadonlyBridgeOperatorV3(request, env),
+      authorizeSteamReadonlyBridgeOperatorV3(request, state.env),
   });
+
+  anyApp[BOOTSTRAP_BOUND] = true;
 
   return {
     ...status,
-    registered: runtime.registered,
+    registered: parserRegistered || runtime.registered,
     runtime,
   };
 }
