@@ -162,6 +162,13 @@ function contentId(prefix: string, value: unknown): string {
   );
 }
 
+function sha256Id(value: string | Buffer): string {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value).digest("hex")
+  );
+}
+
 function exactObject(
   value: unknown,
   keys: readonly string[],
@@ -1080,6 +1087,9 @@ function success(
   transitionExpiresAtMs: number | null = null,
   terminalRequestId: string | null = null,
   terminalResponseSha256: string | null = null,
+  transitionBeforeJournalSha256: string | null = null,
+  transitionBeforeJournalBytes: number | null = null,
+  transitionBeforeHighWaterSha256: string | null = null,
 ) {
   return Object.freeze({
     ok: true as const,
@@ -1108,6 +1118,10 @@ function success(
     transition_expires_at_ms: transitionExpiresAtMs,
     terminal_request_id: terminalRequestId,
     terminal_response_sha256: terminalResponseSha256,
+    transition_before_journal_sha256: transitionBeforeJournalSha256,
+    transition_before_journal_bytes: transitionBeforeJournalBytes,
+    transition_before_high_water_sha256:
+      transitionBeforeHighWaterSha256,
     durable_journal_publication_semantics: true as const,
     durable_high_water_publication_semantics: true as const,
     cross_root_rollback_detection_semantics: true as const,
@@ -1241,6 +1255,12 @@ function persistTransition(
           highWaterDirectory,
         );
         const beforeHighWaterJson = recovered.high_water_json;
+        const transitionBeforeJournalSha256 =
+          sha256Id(recovered.journal);
+        const transitionBeforeJournalBytes =
+          recovered.journal.length;
+        const transitionBeforeHighWaterSha256 =
+          recovered.high_water_sha256;
         const journalText = recovered.journal.toString("utf8");
 
         const planned =
@@ -1348,6 +1368,9 @@ function persistTransition(
           operation === "consumed"
             ? String(planned.event.response_sha256)
             : null,
+          transitionBeforeJournalSha256,
+          transitionBeforeJournalBytes,
+          transitionBeforeHighWaterSha256,
         );
       },
     );
