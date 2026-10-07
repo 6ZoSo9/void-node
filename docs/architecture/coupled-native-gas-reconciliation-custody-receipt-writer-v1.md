@@ -233,6 +233,11 @@ The proof covers:
   `J1 + H0` state snapshot HOLDS before high-water rename, leaving high-water
   at the exact prior value;
 - recovery uses the same phase-specific paired-state pre-rename rebinding;
+- recovery peer high-water replacement after the retained recovery `J0 + H0`
+  snapshot HOLDS before journal rename and an exact retry forward-recovers;
+- recovery peer journal replacement after journal publication and the retained
+  recovery `J1 + H0` snapshot HOLDS before high-water rename and an exact
+  retry forward-recovers;
 - one-sided intent survivor binding before redundant-copy recreation;
 - cross-process one-root-replacement serialization for both roots: a valid
   contender must enqueue on the unchanged shared queue, cannot publish while
