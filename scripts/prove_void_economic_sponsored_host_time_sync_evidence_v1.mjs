@@ -7,7 +7,7 @@ import {
   VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_ID_PREFIX_V1,
   VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_SOURCES_V1,
   VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_V1,
-  classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1,
+  testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1,
   collectVoidEconomicSponsoredHostTimeSyncEvidenceV1,
   testOnlyCollectVoidEconomicSponsoredHostTimeSyncEvidenceV1,
 } from "../tools/void-economic-sponsored-host-time-sync-evidence-v1.mjs";
@@ -38,7 +38,7 @@ function capture(overrides = {}) {
   };
 }
 
-const good = classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(capture());
+const good = testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(capture());
 assert.equal(
   good.marker,
   VOID_ECONOMIC_SPONSORED_HOST_TIME_SYNC_EVIDENCE_V1,
@@ -71,6 +71,8 @@ assert.deepEqual(good.time_sync_args, [
   "--value",
 ]);
 assert.equal(good.wall_clock_source, "Date.now");
+assert.equal(good.production_fixed_sources_observed, false);
+assert.equal(good.test_only_injected_dependencies, true);
 assert.equal(good.restart_continuation_authorized, false);
 assert.equal(good.cross_boot_continuity_proven, false);
 assert.equal(good.trusted_clock_runtime_authority, false);
@@ -82,17 +84,17 @@ assert.equal(good.transaction_submission, false);
 assert.equal(good.authoritative_chain2050_write, false);
 assert.equal(good.funds_movement, false);
 
-const same = classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(capture());
+const same = testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(capture());
 assert.equal(same.evidence_id, good.evidence_id);
 const changedWall =
-  classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+  testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
     capture({ wall_time_ms: 1_800_000_000_001 }),
   );
 assert.notEqual(changedWall.evidence_id, good.evidence_id);
 
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1({
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1({
       ...capture(),
       extra: true,
     }),
@@ -100,7 +102,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         boot_id_after_text:
           "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n",
@@ -110,7 +112,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         boot_id_before_text:
           "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\n",
@@ -120,7 +122,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         uptime_after_text: "99.00 20.01\n",
       }),
@@ -129,7 +131,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         uptime_after_text: "106.00 20.01\n",
       }),
@@ -138,7 +140,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         uptime_before_text: "100.00  20.00\n",
       }),
@@ -147,21 +149,21 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({ ntp_before: ntp("no\n") }),
     ),
   /host_time_sync_not_synchronized_before/u,
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({ ntp_after: ntp("no\n") }),
     ),
   /host_time_sync_not_synchronized_after/u,
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         ntp_before: ntp("yes\n", { status: 1 }),
       }),
@@ -170,7 +172,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({
         ntp_after: ntp("yes\n", { stderr: "warning\n" }),
       }),
@@ -179,7 +181,7 @@ assert.throws(
 );
 assert.throws(
   () =>
-    classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
+    testOnlyClassifyVoidEconomicSponsoredHostTimeSyncEvidenceV1(
       capture({ wall_time_ms: 0 }),
     ),
   /host_time_sync_wall_time_invalid/u,
@@ -244,6 +246,8 @@ assert.deepEqual(calls, [
 ]);
 assert.equal(collected.capture_span_ns, "1500000000");
 assert.equal(collected.wall_time_ms, 1_800_000_010_000);
+assert.equal(collected.production_fixed_sources_observed, false);
+assert.equal(collected.test_only_injected_dependencies, true);
 
 assert.throws(
   () =>
@@ -295,6 +299,7 @@ for (const [key, value] of Object.entries(
     "boot_identity_stability_required",
     "boot_relative_monotonic_bracket_required",
     "capture_span_bounded",
+    "production_evidence_requires_fixed_collector",
   ]);
   assert.equal(value, expectedTrue.has(key), key);
 }
@@ -314,6 +319,14 @@ assert.match(
 );
 assert.match(source, /"\/proc\/uptime"/u);
 assert.match(source, /Date\.now\(\)/u);
+assert.match(
+  source,
+  /collectWithDependencies\(\s*productionDependencies\(\),\s*true,?\s*\)/u,
+);
+assert.doesNotMatch(
+  source,
+  /export function classifyVoidEconomicSponsoredHostTimeSyncEvidenceV1/u,
+);
 assert.doesNotMatch(source, /systemctl/u);
 assert.doesNotMatch(source, /set-time/u);
 assert.doesNotMatch(source, /chronyc/u);
@@ -335,6 +348,8 @@ console.log("synchronized_wall_bracket_required=true");
 console.log("boot_identity_stability_required=true");
 console.log("boot_relative_monotonic_bracket_required=true");
 console.log("capture_span_bounded=true");
+console.log("production_evidence_requires_fixed_collector=true");
+console.log("test_evidence_production_fixed_sources_observed=false");
 console.log("max_capture_span_ns=5000000000");
 console.log("caller_timestamp_input=false");
 console.log("caller_path_input=false");
