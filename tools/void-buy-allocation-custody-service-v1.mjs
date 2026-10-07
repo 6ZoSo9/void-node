@@ -10,10 +10,6 @@ import {
 import {
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
 } from "../dist/economic/buy_void_allocation_reservation_high_water_v1.js";
-import {
-  recoverBuyVoidAllocationReservationPublicationWriterV1,
-} from "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js";
-
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1 =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1";
 
@@ -28,11 +24,11 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1 =
     exact_response_schema_required: true,
     canonical_allocation_planner_reused: false,
     canonical_high_water_binding_reused: true,
-    canonical_publication_writer_reused: true,
+    canonical_publication_writer_reused: false,
     one_allocation_transition_per_reserve: false,
     verified_payment_provenance_independently_bound: false,
     reserve_method_enabled: false,
-    recovery_terminal_before_new_transition: true,
+    recovery_terminal_before_new_transition: false,
     caller_selected_path: false,
     caller_selected_generation: false,
     arbitrary_path_write: false,
@@ -456,30 +452,12 @@ function responseEnvelope(requestSha256, decision) {
   });
 }
 
-function writerRoots(options) {
-  return {
-    ledger_root: options.ledger_root,
-    high_water_root: options.custody_root,
-  };
-}
-
-function recoverCore(options) {
-  const recovered =
-    recoverBuyVoidAllocationReservationPublicationWriterV1(
-      writerRoots(options),
-    );
-  if (recovered.ok !== true) {
-    return held(
-      "allocation_custody_service_recovery_" +
-        String(recovered.reason || "held"),
-    );
-  }
-  const state = readAuthorityState(options);
-  return success(
-    recovered.status === "recovered" ? "recovered" : "clean",
-    state,
-    recovered.operation_performed === true,
-  );
+function recoverCore() {
+  // A syntactically valid publication intent does not establish that the
+  // underlying payment_verified event was independently verified and fsynced.
+  // Older intents may originate from caller-asserted green flags.
+  // Block even explicit IPC recovery until that durable lineage is proven.
+  return held("allocation_custody_service_verified_payment_recovery_not_bound");
 }
 
 function reserveCore() {
@@ -518,7 +496,7 @@ export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
     if (envelope.method === "reserve") {
       decision = reserveCore();
     } else if (envelope.method === "recover") {
-      decision = recoverCore(options);
+      decision = recoverCore();
     } else {
       const state = readAuthorityState(options);
       decision = success("inspected", state, false);
