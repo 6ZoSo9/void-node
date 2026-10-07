@@ -72,9 +72,11 @@ class FakeResponse:
         *,
         status: int,
         body: bytes,
+        headers: list[tuple[str, str]],
     ) -> None:
         self.status = status
         self._body = body
+        self._headers = headers
 
     def read(
         self,
@@ -85,19 +87,25 @@ class FakeResponse:
     def getheaders(
         self,
     ) -> list[tuple[str, str]]:
-        return [
-            (
-                "Content-Type",
-                "application/json",
-            )
-        ]
+        return list(
+            self._headers
+        )
 
 
 class FakeConnection:
     requests: list[
         dict[str, Any]
     ] = []
+    response_status: int = 202
     response_body: bytes = b""
+    response_headers: list[
+        tuple[str, str]
+    ] = [
+        (
+            "Content-Type",
+            "application/json",
+        )
+    ]
 
     def __init__(
         self,
@@ -133,8 +141,9 @@ class FakeConnection:
         self,
     ) -> FakeResponse:
         return FakeResponse(
-            status=202,
+            status=self.response_status,
             body=self.response_body,
+            headers=self.response_headers,
         )
 
     def close(self) -> None:
@@ -704,6 +713,235 @@ try:
             padded.encode("ascii")
         ).decode("utf-8")
     )
+    safe_gateway_errors = [
+        (
+            401,
+            "applicant_auth_invalid",
+        ),
+        (
+            412,
+            "gateway_instance_mismatch",
+        ),
+        (
+            429,
+            "rate_limit_exceeded",
+        ),
+        (
+            503,
+            "agent_paid_work_credential_request_gateway_unavailable",
+        ),
+    ]
+
+    original = (
+        module.http.client.HTTPSConnection
+    )
+    module.http.client.HTTPSConnection = (
+        FakeConnection
+    )
+
+    try:
+        for error_status, error_code in safe_gateway_errors:
+            FakeConnection.response_status = (
+                error_status
+            )
+            FakeConnection.response_body = (
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": error_code,
+                    }
+                )
+                + "\n"
+            ).encode("utf-8")
+            FakeConnection.response_headers = [
+                (
+                    "Content-Type",
+                    "application/json",
+                )
+            ]
+            FakeConnection.requests.clear()
+
+            observed_status, observed_error, _ = (
+                module.submit_request(
+                    endpoint=(
+                        "https://zoso-precision-tower-7810."
+                        "taila47fd.ts.net:10000"
+                        "/__void/agents/paid-work/"
+                        "credential-requests/v1"
+                    ),
+                    request=request,
+                    identity_key=identity_key,
+                )
+            )
+
+            if (
+                observed_status
+                != error_status
+                or observed_error
+                != {
+                    "ok": False,
+                    "error": error_code,
+                }
+                or len(
+                    FakeConnection.requests
+                )
+                != 1
+            ):
+                raise RuntimeError(
+                    "safe gateway error mapping mismatch: "
+                    + error_code
+                )
+
+        FakeConnection.response_status = 401
+        FakeConnection.response_body = (
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "applicant_auth_invalid",
+                    "extra": "forbidden",
+                }
+            )
+            + "\n"
+        ).encode("utf-8")
+        try:
+            module.submit_request(
+                endpoint=(
+                    "https://zoso-precision-tower-7810."
+                    "taila47fd.ts.net:10000"
+                    "/__void/agents/paid-work/"
+                    "credential-requests/v1"
+                ),
+                request=request,
+                identity_key=identity_key,
+            )
+        except ValueError as error:
+            if (
+                "gateway error response mismatch"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "gateway error with extra fields was accepted"
+            )
+
+        FakeConnection.response_status = 412
+        FakeConnection.response_body = (
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "applicant_auth_invalid",
+                }
+            )
+            + "\n"
+        ).encode("utf-8")
+        try:
+            module.submit_request(
+                endpoint=(
+                    "https://zoso-precision-tower-7810."
+                    "taila47fd.ts.net:10000"
+                    "/__void/agents/paid-work/"
+                    "credential-requests/v1"
+                ),
+                request=request,
+                identity_key=identity_key,
+            )
+        except ValueError as error:
+            if (
+                "gateway error response mismatch"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "gateway status/code mismatch was accepted"
+            )
+
+        request_path = (
+            temporary
+            / "request-for-held-submit.json"
+        )
+        request_path.write_text(
+            json.dumps(
+                request,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        held_output = (
+            temporary
+            / "held-submit-result.json"
+        )
+        FakeConnection.response_status = 429
+        FakeConnection.response_body = (
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "rate_limit_exceeded",
+                }
+            )
+            + "\n"
+        ).encode("utf-8")
+        FakeConnection.requests.clear()
+
+        held_rc = module.command_submit(
+            module.argparse.Namespace(
+                request=str(
+                    request_path
+                ),
+                identity_key=str(
+                    identity_key
+                ),
+                output=str(
+                    held_output
+                ),
+            )
+        )
+        held_value = json.loads(
+            held_output.read_text(
+                encoding="utf-8"
+            )
+        )
+        if (
+            held_rc != 2
+            or held_value.get(
+                "http_status"
+            )
+            != 429
+            or held_value.get(
+                "response"
+            )
+            != {
+                "ok": False,
+                "error": "rate_limit_exceeded",
+            }
+            or len(
+                FakeConnection.requests
+            )
+            != 1
+        ):
+            raise RuntimeError(
+                "held submission result contract mismatch"
+            )
+    finally:
+        FakeConnection.response_status = 202
+        FakeConnection.response_body = (
+            json.dumps(
+                response,
+            )
+            + "\n"
+        ).encode("utf-8")
+        FakeConnection.response_headers = [
+            (
+                "Content-Type",
+                "application/json",
+            )
+        ]
+        module.http.client.HTTPSConnection = (
+            original
+        )
+
     if (
         auth.get("marker")
         != (
@@ -878,6 +1116,15 @@ try:
     )
     print(
         "applicant_auth_header_required=1"
+    )
+    print(
+        "structured_gateway_errors_preserved=1"
+    )
+    print(
+        "gateway_error_automatic_retry=0"
+    )
+    print(
+        "gateway_error_401_412_429_503_regressions=1"
     )
     print(
         "applicant_identity_private_key_is_wallet_key=0"
