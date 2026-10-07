@@ -176,6 +176,44 @@ for(const [label,source] of [
     label+" must not bypass reviewed network authority",
   );
 }
+
+await assert.rejects(
+  ()=>testOnlyImportSyntheticReviewedModuleV1(
+    'export default await new Promise((resolve,reject)=>'+
+    'setTimeout(()=>Promise.resolve().then(()=>fetch("data:text/plain,late"))'+
+    '.then(resolve,reject),0));',
+  ),
+  /reviewed_ambient_fetch_forbidden/u,
+  "deferred reviewed async work must retain ambient fetch denial",
+);
+
+if(typeof process.binding==="function"){
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(
+      'export default process.binding("tcp_wrap");',
+    ),
+    /reviewed_ambient_process_binding_forbidden/u,
+    "reviewed module must not bypass builtin census through process.binding",
+  );
+}
+if(typeof process._linkedBinding==="function"){
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(
+      'export default process._linkedBinding("void_missing_binding");',
+    ),
+    /reviewed_ambient_process_linked_binding_forbidden/u,
+    "reviewed module must not reach linked bindings directly",
+  );
+}
+if(typeof globalThis.WebSocket==="function"){
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(
+      'export default new WebSocket("ws://127.0.0.1:9");',
+    ),
+    /reviewed_ambient_websocket_forbidden/u,
+    "reviewed module must not use ambient WebSocket network authority",
+  );
+}
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
