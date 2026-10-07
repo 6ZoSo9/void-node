@@ -42,10 +42,14 @@ to the same custody slot.
 An existing claim fails closed before a replacement state root can create a new
 `broadcast-attempts` namespace. A newly created claim is revalidated again
 immediately before the single send admission. Both claim and revalidation are
-bounded by a hard maximum 5,000 ms wait. The final authorization/observation
-runtime window and visible state-root generation are checked again **after**
-custody revalidation returns, so a slow custody response cannot carry an
-expired authorization into `eth_sendRawTransaction`.
+bounded by a hard maximum 5,000 ms wait. Each custody callback receives a
+frozen context containing an `AbortSignal` and the bounded timeout. When the
+deadline fires the core aborts that signal before returning HOLD. A future
+AF_UNIX adapter must destroy/close its socket on that abort; merely ignoring
+the signal does not qualify as production custody integration. The final
+authorization/observation runtime window and visible state-root generation are
+checked again **after** custody revalidation returns, so a slow custody response
+cannot carry an expired authorization into `eth_sendRawTransaction`.
 
 The attempt directory itself remains descriptor-pinned to the original state
 generation so an in-flight root rename cannot redirect intent/result
@@ -87,8 +91,10 @@ and creates no replacement attempt store.
 The proof also requires the normal production wrapper to HOLD with zero
 transaction submission while no live custody service is integrated. Additional
 adversaries prove that a custody revalidation that advances the synthetic clock
-to the authorization expiry boundary performs zero RPC, and that a non-returning
-custody revalidation is cut off by the bounded wait and also performs zero RPC.
+to the authorization expiry boundary performs zero RPC. The timeout adversary
+uses a real local Unix socket whose peer never replies; it requires the core
+deadline to abort the callback signal, the client socket to be destroyed, and
+zero RPC submission.
 
 ## Required next gate
 
@@ -107,8 +113,10 @@ DataNet broadcast runtime UID
 The socket path and fence root must be server-controlled. The public runtime
 must not be able to write, rename, recreate, remount, or service-control the
 custody authority. Ancestors must be root-owned, direct, non-symlink, and
-non-writable by group/other. A designated-host evidence gate must prove those
-facts before live broadcast authority can be restored.
+non-writable by group/other. The client adapter must enforce a total transport
+deadline no greater than the callback context timeout and destroy its AF_UNIX
+socket when the supplied AbortSignal fires. A designated-host evidence gate
+must prove those facts before live broadcast authority can be restored.
 
 A same-UID writable directory, alternate path under the same user-owned
 ancestor, advisory lock, or sibling namespace is not sufficient.

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import net from "node:net";
 
 import {
   submitVoidDatanetRegistryExactSingleBroadcastV1,
@@ -379,48 +380,94 @@ const custodyTimeoutRoot=path.join(parent,"custody-timeout-state");
 fs.mkdirSync(custodyTimeoutRoot,{mode:0o700});
 fs.chmodSync(custodyTimeoutRoot,0o700);
 writeConsumptionForRoot(custodyTimeoutRoot);
+const custodySocketPath=path.join(parent,"custody-timeout.sock");
+let custodyServerConnections=0;
+const custodyServer=net.createServer((socket)=>{
+  custodyServerConnections+=1;
+  socket.resume();
+});
+await new Promise((resolve,reject)=>{
+  custodyServer.once("error",reject);
+  custodyServer.listen(custodySocketPath,resolve);
+});
 let custodyTimeoutRpcCalls=0;
+let custodyAbortObserved=false;
+let custodyClientConnected=false;
+let custodyClient=null;
 const custodyTimeoutStarted=Date.now();
-const custodyTimeout=
-  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
-    {
-      broadcast_request:request,
-      broadcast_authorization:authorization,
-      prebroadcast_observation:observation,
-      signed_transaction:signed,
-      state_dir:custodyTimeoutRoot,
-      confirmation:authorization.required_confirmation,
-    },
-    {
-      ...baseDependencies,
-      generation_custody_timeout_ms:25,
-      claim_generation_fence:async(fence)=>Object.freeze({
-        status:"created",
-        broadcast_generation_fence_id:
-          fence.broadcast_generation_fence_id,
-        custody_receipt_sha256:
-          "sha256:"+
-          sha256(Buffer.from("custody-timeout:"+canonicalJson(fence))),
-        independent_custody_proven:true,
-      }),
-      assert_generation_fence:async()=>await new Promise(()=>{}),
-      rpc:async()=>{
-        custodyTimeoutRpcCalls+=1;
-        throw new Error("custody_timeout_must_not_reach_rpc");
+try{
+  const custodyTimeout=
+    await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+      {
+        broadcast_request:request,
+        broadcast_authorization:authorization,
+        prebroadcast_observation:observation,
+        signed_transaction:signed,
+        state_dir:custodyTimeoutRoot,
+        confirmation:authorization.required_confirmation,
       },
-    },
+      {
+        ...baseDependencies,
+        generation_custody_timeout_ms:500,
+        claim_generation_fence:async(fence)=>Object.freeze({
+          status:"created",
+          broadcast_generation_fence_id:
+            fence.broadcast_generation_fence_id,
+          custody_receipt_sha256:
+            "sha256:"+
+            sha256(Buffer.from("custody-timeout:"+canonicalJson(fence))),
+          independent_custody_proven:true,
+        }),
+        assert_generation_fence:async(_claim,_fence,context)=>
+          await new Promise((resolve,reject)=>{
+            assert.equal(context?.timeout_ms,500);
+            assert(context?.signal instanceof AbortSignal);
+            custodyClient=net.createConnection(custodySocketPath);
+            custodyClient.once("connect",()=>{
+              custodyClientConnected=true;
+            });
+            custodyClient.once("error",(error)=>{
+              if(context.signal.aborted) return;
+              reject(error);
+            });
+            const abort=()=>{
+              custodyAbortObserved=true;
+              const reason=
+                context.signal.reason instanceof Error
+                  ? context.signal.reason
+                  : new Error("custody_abort_signal_received");
+              custodyClient.destroy(reason);
+              reject(reason);
+            };
+            if(context.signal.aborted) abort();
+            else context.signal.addEventListener("abort",abort,{once:true});
+            void resolve;
+          }),
+        rpc:async()=>{
+          custodyTimeoutRpcCalls+=1;
+          throw new Error("custody_timeout_must_not_reach_rpc");
+        },
+      },
+    );
+  assert.equal(custodyTimeout.ok,false);
+  assert.equal(
+    custodyTimeout.reason,
+    "registry_broadcast_execution_final_pre_send_gate_failed",
   );
-assert.equal(custodyTimeout.ok,false);
-assert.equal(
-  custodyTimeout.reason,
-  "registry_broadcast_execution_final_pre_send_gate_failed",
-);
-assert.equal(custodyTimeoutRpcCalls,0);
-assert.equal(custodyTimeout.transaction_submission_performed,false);
-assert.ok(
-  Date.now()-custodyTimeoutStarted<1500,
-  "custody revalidation timeout must be bounded",
-);
+  assert.equal(custodyTimeoutRpcCalls,0);
+  assert.equal(custodyTimeout.transaction_submission_performed,false);
+  assert.equal(custodyAbortObserved,true);
+  assert.equal(custodyClientConnected,true);
+  assert.equal(custodyClient?.destroyed,true);
+  assert.equal(custodyServerConnections,1);
+  assert.ok(
+    Date.now()-custodyTimeoutStarted<2000,
+    "custody revalidation timeout must be bounded",
+  );
+}finally{
+  if(custodyClient) custodyClient.destroy();
+  await new Promise((resolve)=>custodyServer.close(()=>resolve()));
+}
 
 const firstDependencies={
   ...baseDependencies,
@@ -584,6 +631,7 @@ try{
     "claim_generation_fence",
     "assert_generation_fence",
     "awaitBoundedGenerationCustodyV1",
+    "AbortController",
     "MAX_GENERATION_CUSTODY_WAIT_MS",
     "normalizeExternalGenerationFenceClaimV1",
     "broadcast_generation_fence_id",
@@ -623,6 +671,8 @@ try{
   console.log("malformed_external_custody_claim_zero_rpc=true");
   console.log("failed_external_custody_revalidation_zero_rpc=true");
   console.log("external_custody_revalidation_timeout_bounded=true");
+  console.log("external_custody_timeout_abort_signal_delivered=true");
+  console.log("external_custody_timeout_socket_destroyed=true");
   console.log("runtime_window_rechecked_after_custody=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");

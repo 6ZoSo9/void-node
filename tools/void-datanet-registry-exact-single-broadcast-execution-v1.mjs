@@ -121,15 +121,21 @@ async function awaitBoundedGenerationCustodyV1(
   timeoutMs,
   timeoutCode,
 ){
+  const controller=new AbortController();
+  const context=Object.freeze({
+    signal:controller.signal,
+    timeout_ms:timeoutMs,
+  });
   let timer=null;
   try{
     return await Promise.race([
-      Promise.resolve().then(operation),
+      Promise.resolve().then(()=>operation(context)),
       new Promise((_,reject)=>{
-        timer=setTimeout(
-          ()=>reject(new Error(timeoutCode)),
-          timeoutMs,
-        );
+        timer=setTimeout(()=>{
+          const error=new Error(timeoutCode);
+          controller.abort(error);
+          reject(error);
+        },timeoutMs);
       }),
     ]);
   }finally{
@@ -664,7 +670,10 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     try{
       fenceClaim=normalizeExternalGenerationFenceClaimV1(
         await awaitBoundedGenerationCustodyV1(
-          ()=>dependencies.claim_generation_fence(generationFence),
+          (context)=>dependencies.claim_generation_fence(
+            generationFence,
+            context,
+          ),
           generationCustodyTimeoutMs,
           "registry_broadcast_execution_generation_custody_claim_timeout",
         ),
@@ -773,9 +782,10 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
       assertStateGeneration(root);
       if(
         await awaitBoundedGenerationCustodyV1(
-          ()=>dependencies.assert_generation_fence(
+          (context)=>dependencies.assert_generation_fence(
             fenceClaim,
             generationFence,
+            context,
           ),
           generationCustodyTimeoutMs,
           "registry_broadcast_execution_generation_custody_revalidation_timeout",
