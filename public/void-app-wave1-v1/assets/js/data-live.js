@@ -568,7 +568,7 @@ export function dataView() {
 
       <div class="dashboard-grid">
         <section class="surface hero-surface span-12" aria-labelledby="datanet-state-title">
-          <div class="hero-content">
+          <div class="hero-content" role="status" aria-live="polite" aria-atomic="true">
             <span class="status-chip status-chip--info" data-datanet-state-chip>Loading DataNet status</span>
             <h2 id="datanet-state-title" data-datanet-state-title>Reading public evidence</h2>
             <p data-datanet-message>No cached or invented dataset state is shown.</p>
