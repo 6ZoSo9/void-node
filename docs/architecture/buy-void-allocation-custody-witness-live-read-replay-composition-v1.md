@@ -68,7 +68,11 @@ The replay writer result must be `persisted_issue` with:
 - exactly one generation/sequence/event advance over storage prestate;
 - pending challenge state;
 - exact transition challenge SHA-256 and challenge ID;
-- exact persisted issue and expiry times; and
+- exact persisted issue and expiry times;
+- well-formed poststate journal/high-water SHA-256 identities;
+- a non-null poststate tip-event SHA-256;
+- poststate journal bytes strictly advanced beyond transition prestate;
+- `last_terminal_state=null`; and
 - null terminal request/response fields.
 
 The transition time-to-live may not exceed the canonical 38-second replay
@@ -125,6 +129,9 @@ The consumed replay result must:
 - advance sequence/event count by exactly one;
 - repeat the exact issue challenge SHA/ID and issue/expiry timestamps;
 - end with `last_terminal_state=consumed`;
+- carry well-formed final journal/high-water SHA-256 identities and a non-null
+  final tip-event SHA-256;
+- strictly advance final journal byte length beyond the issue poststate;
 - clear pending challenge state; and
 - expose the exact qualified request ID and exact response-byte SHA-256.
 
@@ -139,6 +146,7 @@ A GREEN composition reports:
 - `durable_consume_packet_binding_proven=true`;
 - exact storage snapshot → issue transition prestate digest/byte lineage;
 - exact issue poststate → consume transition prestate digest/byte lineage;
+- validated issue/consume poststate journal/high-water/tip identities;
 - exact storage-prestate → issue generation progression;
 - exact issue challenge/time → qualified packet binding;
 - canonical request reconstruction;
@@ -196,6 +204,9 @@ Covered adversaries include:
 - a same-counter storage artifact with a different journal digest;
 - a consumed transition whose prestate digest does not equal the exact issue
   poststate;
+- forged terminal consume journal/high-water SHA, journal-byte and tip-event
+  poststate fields;
+- issue result carrying a non-null terminal state;
 - consumed terminal request-ID mismatch;
 - consumed terminal response digest mismatch;
 - tampered transport response bytes; and
