@@ -155,6 +155,10 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(inspected.pending, false);
     assert.equal(inspected.operation_performed, false);
     assert.equal(inspected.recovery_performed, false);
+    assert.equal(inspected.transition_challenge_sha256, null);
+    assert.equal(inspected.transition_challenge_id, null);
+    assert.equal(inspected.transition_issued_at_ms, null);
+    assert.equal(inspected.transition_expires_at_ms, null);
     assert.equal(inspected.terminal_request_id, null);
     assert.equal(inspected.terminal_response_sha256, null);
 
@@ -172,6 +176,16 @@ function issue(f: ReturnType<typeof fixture>) {
     );
     assert.equal(issued.operation_performed, true);
     assert.equal(issued.recovery_performed, false);
+    assert.equal(
+      issued.transition_challenge_sha256,
+      issued.pending_challenge_sha256,
+    );
+    assert.equal(
+      issued.transition_challenge_id,
+      issued.pending_challenge_id,
+    );
+    assert.equal(issued.transition_issued_at_ms, 1_000);
+    assert.equal(issued.transition_expires_at_ms, 39_000);
     assert.equal(issued.terminal_request_id, null);
     assert.equal(issued.terminal_response_sha256, null);
     const issuedJournal = fs.readFileSync(
@@ -254,6 +268,16 @@ function issue(f: ReturnType<typeof fixture>) {
     );
     assert.equal(consumed.last_terminal_state, "consumed");
     assert.equal(consumed.ready_for_issue, true);
+    assert.equal(
+      consumed.transition_challenge_sha256,
+      issued.transition_challenge_sha256,
+    );
+    assert.equal(
+      consumed.transition_challenge_id,
+      issued.transition_challenge_id,
+    );
+    assert.equal(consumed.transition_issued_at_ms, 1_000);
+    assert.equal(consumed.transition_expires_at_ms, 39_000);
     assert.equal(consumed.terminal_request_id, requestId("a"));
     assert.equal(consumed.terminal_response_sha256, sha("b"));
 
@@ -286,6 +310,10 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(finalInspect.generation, 1);
     assert.equal(finalInspect.sequence, 2);
     assert.equal(finalInspect.pending, false);
+    assert.equal(finalInspect.transition_challenge_sha256, null);
+    assert.equal(finalInspect.transition_challenge_id, null);
+    assert.equal(finalInspect.transition_issued_at_ms, null);
+    assert.equal(finalInspect.transition_expires_at_ms, null);
     assert.equal(finalInspect.terminal_request_id, null);
     assert.equal(finalInspect.terminal_response_sha256, null);
   } finally {
@@ -313,6 +341,16 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(abandoned.generation, 1);
     assert.equal(abandoned.pending, false);
     assert.equal(abandoned.last_terminal_state, "abandoned");
+    assert.equal(
+      abandoned.transition_challenge_sha256,
+      issued.transition_challenge_sha256,
+    );
+    assert.equal(
+      abandoned.transition_challenge_id,
+      issued.transition_challenge_id,
+    );
+    assert.equal(abandoned.transition_issued_at_ms, 1_000);
+    assert.equal(abandoned.transition_expires_at_ms, 39_000);
     assert.equal(abandoned.terminal_request_id, null);
     assert.equal(abandoned.terminal_response_sha256, null);
   } finally {
@@ -807,6 +845,7 @@ console.log("dual_root_serialization=true");
 console.log("redundant_transaction_intent=true");
 console.log("canonical_replay_planner_composed=true");
 console.log("canonical_replay_high_water_composed=true");
+console.log("persisted_transition_challenge_timing_exposed=true");
 console.log("consumed_terminal_packet_binding_exposed=true");
 console.log("private_high_water_schema_fork=false");
 console.log("journal_first_publication=true");
