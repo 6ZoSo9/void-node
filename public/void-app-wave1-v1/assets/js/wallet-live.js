@@ -56,6 +56,9 @@ const formatAccountingBalance = (value) => new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 9,
 }).format(value);
 
+const NATIVE_GAS_DISPLAY_PATTERN =
+  /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/;
+
 const currentRoute = () => {
   if (typeof window === 'undefined') return '';
   return String(window.location.hash || '')
@@ -259,12 +262,16 @@ export const validateWalletSnapshotV1 = (
     throw new Error('wallet unavailable source exposed wallet evidence');
   }
   if (
+    snapshot.wallet.native_gas_available &&
+    !NATIVE_GAS_DISPLAY_PATTERN.test(snapshot.wallet.native_gas_display)
+  ) {
+    throw new Error('wallet native gas display invalid');
+  }
+  if (
     snapshot.wallet.native_gas_available
       ? (
         !snapshot.wallet.source_available ||
-        !snapshot.wallet.has_wallet ||
-        snapshot.wallet.native_gas_display.length === 0 ||
-        snapshot.wallet.native_gas_display === '—'
+        !snapshot.wallet.has_wallet
       )
       : snapshot.wallet.native_gas_display !== '—'
   ) {
