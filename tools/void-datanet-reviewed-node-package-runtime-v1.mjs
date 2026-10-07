@@ -52,7 +52,9 @@ const SHA40=/^[0-9a-f]{40}$/u;
 const SHA64=/^[0-9a-f]{64}$/u;
 const PACKAGE_NAME=/^(?:@[a-z0-9._~-]+\/[a-z0-9._~-]+|[a-z0-9._~-]+)$/u;
 const PROFILE_ID=/^voidrnpr1_[0-9a-f]{64}$/u;
-const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const ROOT=import.meta.url.startsWith("file:")
+  ?path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..")
+  :null;
 
 function fail(code){throw new Error(code);}
 

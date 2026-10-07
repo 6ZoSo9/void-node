@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 
 const GIT="/usr/bin/git";
 const CORE_REL="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
@@ -123,21 +122,18 @@ async function importCore(repoRoot,head){
     return Object.freeze({module,source});
   }finally{process.argv[1]=previous;}
 }
-async function importRuntime(repoRoot,head,root){
+async function importRuntime(repoRoot,head){
   const source=exactGitFileV1(repoRoot,head,RUNTIME_REL);
-  const file=path.join(root,"runtime-helper.mjs");
-  writeExact(file,source.bytes,0o400);
-  const fd=fs.openSync(file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0));
-  fs.unlinkSync(file);
-  try{
-    const before=fs.fstatSync(fd,{bigint:true});
-    const module=await import(pathToFileURL("/proc/self/fd/"+fd).href+"?b="+source.blob);
-    const after=fs.fstatSync(fd,{bigint:true});
-    for(const k of["dev","ino","size","mtimeNs","ctimeNs"]){
-      if(before[k]!==after[k])fail("isolated_parent_runtime_helper_changed");
-    }
-    return Object.freeze({module,source});
-  }finally{fs.closeSync(fd);}
+  const text=source.bytes.toString("utf8");
+  if(!Buffer.from(text,"utf8").equals(source.bytes)){
+    fail("isolated_parent_runtime_helper_utf8_invalid");
+  }
+  const module=await import(
+    "data:text/javascript;base64,"+
+    source.bytes.toString("base64")+
+    "#"+source.blob
+  );
+  return Object.freeze({module,source});
 }
 export async function prepareIsolatedReviewedExecutionV1({repoRoot,head}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-datanet-isolated-parent-"));
@@ -149,7 +145,7 @@ export async function prepareIsolatedReviewedExecutionV1({repoRoot,head}){
     if(plan.head!==head||!Array.isArray(plan.rows)||!(plan.sources instanceof Map)){
       fail("isolated_parent_plan_invalid");
     }
-    const runtime=await importRuntime(repoRoot,head,root);
+    const runtime=await importRuntime(repoRoot,head);
     const required=[
       "readReviewedNodePackageRuntimeProfileV1","verifyReviewedNodePackageRuntimeV1",
       "materializeReviewedNodePackageRuntimeV1","verifyMaterializedReviewedNodePackageRuntimeV1",

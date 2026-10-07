@@ -152,7 +152,11 @@ try{
   assert.ok(fs.existsSync(detached));
   const detachedValue=JSON.parse(fs.readFileSync(detached,"utf8"));
   assert.equal(detachedValue.ok,true);
-  assert.equal(fs.readFileSync(path.join(path.dirname(detached),path.basename(replacement)),"utf8"),"replacement\n");
+  assert.equal(
+    fs.existsSync(replacement),
+    false,
+    "replacement pathname must have been consumed by the attacker rename",
+  );
 }finally{
   server.kill("SIGTERM");
   sleep(50);
