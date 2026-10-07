@@ -214,6 +214,45 @@ if(typeof globalThis.WebSocket==="function"){
     "reviewed module must not use ambient WebSocket network authority",
   );
 }
+
+const processEventName="__void_reviewed_ambient_process_event_escape_v1";
+delete globalThis.__VOID_REVIEWED_PROCESS_EVENT_ESCAPE_V1;
+await testOnlyImportSyntheticReviewedModuleV1(
+  'process.once("'+processEventName+'",()=>{'+
+  'fetch("data:text/plain,event-escape");'+
+  'globalThis.__VOID_REVIEWED_PROCESS_EVENT_ESCAPE_V1=true;'+
+  '}); export default true;',
+);
+assert.throws(
+  ()=>process.emit(processEventName),
+  /reviewed_ambient_fetch_forbidden/u,
+  "ambient process event callbacks must remain fenced after reviewed import",
+);
+assert.equal(
+  globalThis.__VOID_REVIEWED_PROCESS_EVENT_ESCAPE_V1,
+  undefined,
+);
+delete globalThis.__VOID_REVIEWED_PROCESS_EVENT_ESCAPE_V1;
+
+assert.throws(
+  ()=>globalThis.fetch("data:text/plain,process-lifetime-fence"),
+  /reviewed_ambient_fetch_forbidden/u,
+  "dedicated broadcaster process must keep ambient fetch unavailable",
+);
+if(typeof process.getBuiltinModule==="function"){
+  assert.throws(
+    ()=>process.getBuiltinModule("node:net"),
+    /reviewed_ambient_get_builtin_module_forbidden/u,
+    "dedicated broadcaster process must keep direct builtin access unavailable",
+  );
+}
+if(typeof globalThis.WebSocket==="function"){
+  assert.throws(
+    ()=>new globalThis.WebSocket("ws://127.0.0.1:9"),
+    /reviewed_ambient_websocket_forbidden/u,
+    "ambient WebSocket remains unavailable for the broadcaster process lifetime",
+  );
+}
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
@@ -224,6 +263,22 @@ const reviewedLauncher=
   testOnlyReadExactHeadSourceV1(REVIEWED_LAUNCHER_REL);
 assert.match(reviewedLauncher.blob,/^[0-9a-f]{40}$/u);
 assert.match(reviewedLauncher.sha256,/^[0-9a-f]{64}$/u);
+
+const reviewedLauncherText=reviewedLauncher.bytes.toString("utf8");
+assert.match(
+  reviewedLauncherText,
+  /rpc_total_deadline_exceeded/u,
+  "launcher RPC must preserve an independent total deadline",
+);
+for(const relativePath of REVIEWED_NETWORK_MODULES){
+  const reviewedNetworkSource=
+    testOnlyReadExactHeadSourceV1(relativePath).bytes.toString("utf8");
+  assert.match(
+    reviewedNetworkSource,
+    /rpc_total_deadline_exceeded/u,
+    relativePath+" must preserve an independent total RPC deadline",
+  );
+}
 
 {
   const direct=spawnSync(
@@ -422,20 +477,11 @@ let reviewedAbaExecution;
 let reviewedExecution;
 let reviewedAuthorityRecheck;
 let reviewedPreparationHttpCalls=0;
-let reviewedPreparationFetchCalls=0;
 const originalHttpRequest=http.request;
-const originalFetch=globalThis.fetch;
 http.request=(...args)=>{
   reviewedPreparationHttpCalls+=1;
   throw new Error(
     "reviewed_preparation_unexpected_http_request:"+
-    String(args[0]??""),
-  );
-};
-globalThis.fetch=async (...args)=>{
-  reviewedPreparationFetchCalls+=1;
-  throw new Error(
-    "reviewed_preparation_unexpected_global_fetch:"+
     String(args[0]??""),
   );
 };
@@ -448,18 +494,12 @@ try{
     await testOnlyPrepareAndRecheckReviewedAuthorityV1();
 }finally{
   http.request=originalHttpRequest;
-  globalThis.fetch=originalFetch;
   syncBuiltinESMExports();
 }
 assert.equal(
   reviewedPreparationHttpCalls,
   0,
-  "reviewed source/package preparation and module import must not invoke the live fee-funding observer transport",
-);
-assert.equal(
-  reviewedPreparationFetchCalls,
-  0,
-  "reviewed source/package preparation and module import must not invoke global fetch",
+  "reviewed source/package preparation and module import must not invoke either approved HTTP observer transport",
 );
 assert.equal(
   reviewedAuthorityRecheck.before.launcher_git_blob_sha1,
