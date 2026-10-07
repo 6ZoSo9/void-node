@@ -533,6 +533,99 @@ try {
   }
 
   {
+    const badLive = mutableClone(liveRead);
+    badLive.normalized.installation_machine_id_sha256 = "not-a-sha";
+    badLive.qualification_id =
+      contentId("voidwlrq1_", badLive.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        live_read_qualification: badLive,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("invalid machine digest unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_live_read_invalid",
+    );
+  }
+
+  {
+    const badLive = mutableClone(liveRead);
+    badLive.normalized.observed_client_address = "not-an-ip";
+    badLive.qualification_id =
+      contentId("voidwlrq1_", badLive.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        live_read_qualification: badLive,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("invalid client address unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_live_read_invalid",
+    );
+  }
+
+  {
+    const badLive = mutableClone(liveRead);
+    badLive.normalized.witness_identity_path = "historical_exact";
+    badLive.normalized.continuity_attestation_consumed = true;
+    badLive.qualification_id =
+      contentId("voidwlrq1_", badLive.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        live_read_qualification: badLive,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("invalid identity path unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_live_read_invalid",
+    );
+  }
+
+  {
+    const badLive = mutableClone(liveRead);
+    badLive.normalized.remote_port = 2222;
+    badLive.qualification_id =
+      contentId("voidwlrq1_", badLive.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        live_read_qualification: badLive,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("transport port drift unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_live_read_binding_invalid",
+    );
+  }
+
+  {
+    const badLive = mutableClone(liveRead);
+    badLive.normalized.remote_host = "other-host";
+    badLive.normalized.installation_hostname = "other-host";
+    badLive.normalized.witness_hostname = "other-host";
+    badLive.qualification_id =
+      contentId("voidwlrq1_", badLive.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        live_read_qualification: badLive,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("transport host drift unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_live_read_binding_invalid",
+    );
+  }
+
+  {
     const badStorage = mutableClone(baseInput.replay_storage_evidence);
     badStorage.authority.synthetic_storage_authority = true;
     const held =
