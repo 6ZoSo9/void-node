@@ -157,7 +157,10 @@ is never allowed.
 ## Identity boundary
 
 The source contract binds stable source/witness identity fields but does not
-prove their live origin.
+prove their live origin. Every SAFE_TEXT identity field must arrive as an
+actual string before regex validation; numbers, booleans, objects, and other
+caller values are rejected without string coercion or caller-controlled
+`toString()` execution.
 
 The intended reviewed deployment is:
 
