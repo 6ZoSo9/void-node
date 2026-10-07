@@ -30,6 +30,7 @@ import {
   testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1,
   testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
+  testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs";
 
 const JOURNAL_NAME =
@@ -985,6 +986,52 @@ for (const which of ["journal", "high_water"]) {
   }
 }
 
+for (const which of ["journal", "high_water"]) {
+  const f = fixture();
+  try {
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1(
+        inputFor(f),
+        which,
+      ),
+    );
+    assert.match(
+      held.reason,
+      which === "journal"
+        ? /receipt_writer_journal_intent_snapshot_changed/u
+        : /receipt_writer_high_water_intent_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      true,
+      which + " fresh intent replacement occurs only after redundant intent creation",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      which + " fresh intent replacement must not mutate journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      which + " fresh intent replacement must not mutate high-water",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
 async function proveSingleRootReplacementSerialization(replaceRoot) {
   const f = fixture();
   const detached = path.join(
@@ -1222,6 +1269,8 @@ console.log("journal_file_post_read_replacement_hold=true");
 console.log("high_water_file_post_read_replacement_hold=true");
 console.log("journal_intent_post_read_replacement_hold=true");
 console.log("high_water_intent_post_read_replacement_hold=true");
+console.log("fresh_journal_intent_prepublication_replacement_hold=true");
+console.log("fresh_high_water_intent_prepublication_replacement_hold=true");
 console.log("one_sided_intent_snapshot_bound_before_redundancy=true");
 console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
