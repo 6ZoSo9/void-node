@@ -133,6 +133,13 @@ it must establish one exact source authority:
    - any other `node:` import (including `node:http2`, `node:https`,
      `node:net`, `node:tls`, `node:dns`, or `node:dgram`) HOLDS
      reviewed-source planning instead of becoming uncensused network authority;
+   - import/export traversal accepts legal comment-separated ESM token gaps and
+     rejects dynamic `import(...)` even when comments separate `import` from
+     the opening parenthesis;
+   - the in-memory module resolver independently enforces the same built-in
+     allowlist at actual module resolution time, and an approved network
+     built-in is accepted only when the importing reviewed module is itself in
+     the exact network-capable module census;
 6. materialize those exact Git-object bytes into a private temporary tree
    as an independently reverified evidence copy;
 7. verify and privately materialize the reviewed `ethers` package closure using
@@ -169,9 +176,13 @@ resolution therefore cannot become the selected launcher/core/package bytes.
 The reviewed closure contains two modules that can perform live network
 observation in other workflows (one through the only approved network built-in,
 `node:http`, and one through global `fetch`). Unknown Node built-ins fail
-reviewed-source planning before execution, so the current focused
-`http.request` and `globalThis.fetch` traps cover the complete approved
-network-capable surface. This lane intentionally reports:
+reviewed-source planning and are rejected again by the execution resolver, so
+comment-separated static imports and dynamic-import syntax cannot turn an
+uncensused built-in into runtime authority. The focused proof executes those
+bypass forms against `node:net`, requires an uncensused-parent HOLD for
+`node:http`, and retains the `http.request` and `globalThis.fetch` traps
+for the complete approved network-capable surface. This lane intentionally
+reports:
 
 ```text
 execution_network_isolation_provided=false
