@@ -180,7 +180,8 @@ process.stdout.write(JSON.stringify(requests));
     },
   );
   if (parsed.status !== 0) {
-    throw new Error("custody_bootstrap_plan_service_module_request_hold");
+    const explanation = String(parsed.stderr || "").trim().slice(0, 2000);
+    throw new Error("custody_bootstrap_plan_service_module_request_hold: " + explanation);
   }
   const specifiers = JSON.parse(parsed.stdout);
   assert.ok(Array.isArray(specifiers));
