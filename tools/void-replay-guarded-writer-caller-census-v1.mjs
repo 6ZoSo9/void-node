@@ -43,6 +43,8 @@ const PROOF_RUNTIME_IMPORTS = Object.freeze([
 ]);
 const SOURCE_EXTENSION = /\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts)$/u;
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
+const MAX_STATIC_SPECIFIER_BYTES = 4 * 1024;
+const MAX_STATIC_EXPRESSION_DEPTH = 24;
 
 function sha256(value) {
   return "sha256:" + crypto.createHash("sha256").update(value).digest("hex");
@@ -76,6 +78,77 @@ function staticReference(specifier, node, file, valueNames = null, typeOnly = fa
   return Object.freeze({ kind: "forbidden", classification, names: valueNames || [], specifier });
 }
 
+// Fold only side-effect-free, statically decidable string expressions.
+// Never execute eval, loaders, property getters or arbitrary source code.
+function constInitializerMap(parsed) {
+  const names = new Map();
+  const ambiguous = new Set();
+  function walk(node) {
+    if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const) !== 0) {
+      for (const decl of node.declarations) {
+        if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+        const name = decl.name.text;
+        if (names.has(name)) {
+          names.delete(name);
+          ambiguous.add(name);
+        } else if (!ambiguous.has(name)) {
+          names.set(name, decl.initializer);
+        }
+      }
+    }
+    ts.forEachChild(node, walk);
+  }
+  walk(parsed);
+  return names;
+}
+
+function staticStringValue(node, bindings, depth = 0, active = new Set()) {
+  if (!node || depth >= MAX_STATIC_EXPRESSION_DEPTH) return null;
+  if (ts.isStringLiteralLike(node)) {
+    return Buffer.byteLength(node.text, "utf8") <= MAX_STATIC_SPECIFIER_BYTES
+      ? node.text : null;
+  }
+  const next = expr => staticStringValue(expr, bindings, depth + 1, active);
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
+      ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) ||
+      (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node))) {
+    return next(node.expression);
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = next(node.left);
+    const right = next(node.right);
+    if (left === null || right === null) return null;
+    const value = left + right;
+    return Buffer.byteLength(value, "utf8") <= MAX_STATIC_SPECIFIER_BYTES ? value : null;
+  }
+  if (ts.isTemplateExpression(node)) {
+    let value = node.head.text;
+    for (const span of node.templateSpans) {
+      const middle = next(span.expression);
+      if (middle === null) return null;
+      value += middle + span.literal.text;
+      if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) return null;
+    }
+    return value;
+  }
+  if (ts.isIdentifier(node) && bindings.has(node.text) && !active.has(node.text)) {
+    active.add(node.text);
+    const value = next(bindings.get(node.text));
+    active.delete(node.text);
+    return value;
+  }
+  return null;
+}
+
+function isModuleLoaderExpression(expression) {
+  if (expression.kind === ts.SyntaxKind.ImportKeyword ||
+      (ts.isIdentifier(expression) && expression.text === "require")) return true;
+  if (!ts.isPropertyAccessExpression(expression) ||
+      !ts.isIdentifier(expression.expression)) return false;
+  return (expression.expression.text === "module" && expression.name.text === "require") ||
+    (expression.expression.text === "require" && expression.name.text === "resolve");
+}
+
 /** Static, source-only census; not proof of a protected runtime import graph. */
 export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
   assertPath(file);
@@ -85,6 +158,7 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
   const parsed = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true, scriptKind(file));
   if (parsed.parseDiagnostics.length > 0) throw new Error("guarded_replay_census_source_parse_invalid");
   const refs = [];
+  const constBindings = constInitializerMap(parsed);
   function push(ref) { if (ref) refs.push(ref); }
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
@@ -114,12 +188,15 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
     } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) &&
                node.moduleReference.expression && ts.isStringLiteralLike(node.moduleReference.expression)) {
       push(staticReference(node.moduleReference.expression.text, node, file, null, Boolean(node.isTypeOnly), "import-equals"));
-    } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-               (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+    } else if (ts.isCallExpression(node) && isModuleLoaderExpression(node.expression)) {
       const first = node.arguments[0];
-      if (first && ts.isStringLiteralLike(first)) {
-        push(staticReference(first.text, node, file, null, false, "dynamic-loader"));
+      const resolved = staticStringValue(first, constBindings);
+      if (resolved !== null) {
+        push(staticReference(resolved, node, file, null, false,
+          first && ts.isStringLiteralLike(first) ? "dynamic-loader" : "computed-loader"));
       } else if (first?.getText(parsed).includes(WRITER_BASENAME)) {
+        // Retain a conservative HOLD when the expression cannot be folded but
+        // still visibly contains the complete writer name.
         push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
       }
     }

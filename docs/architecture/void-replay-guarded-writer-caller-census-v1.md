@@ -41,6 +41,12 @@ immutable executable closure and no bypass route.
   a new proof file does not automatically allow it to run the unsafe writer.
 - Treat all other writer-module references, including aliases of legacy
   mutators, as `HOLD_UNREVIEWED_WRITER_CALLER` and fail the source scan.
+- For direct `import()`, `require()`, `module.require()` and `require.resolve()`
+  calls, statically fold bounded string concatenations, template literals and
+  uniquely named `const` string bindings, including common TS wrappers.
+  A runtime reference cannot evade this tripwire merely by splitting the
+  writer basename across two static string fragments. No source expression is
+  evaluated or executed during this source-only analysis.
 - Require the writer itself still exports both legacy entrypoints so an
   intentional future retirement/rename cannot silently inherit this census.
   Its presence is a recorded **remaining risk**, not a GREEN runtime claim.
@@ -48,8 +54,10 @@ immutable executable closure and no bypass route.
 Source records and classifications are content-addressed. This hash isn't a
 trusted Git attestation, a signed receipt or monotonic high-water custody.
 The tool does not enumerate live processes, compiled `dist`, C/C++ extensions,
-indirect dynamically computed imports without a literal writer basename,
-executable packaging or the process's actual import graph. A privileged actor
+indirect loaders with nonconstant arguments, arbitrary expression/alias
+resolution, source import maps, loaders invoked through unrelated functions,
+executable packaging or the process's actual import graph. Static folding is
+bounded and deliberately incomplete; it is not runtime reachability analysis. A privileged actor
 can still bypass these source checks. Runtime exclusivity remains false.
 
 ## Trigger scope and CI cost boundary

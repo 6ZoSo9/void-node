@@ -41,6 +41,29 @@ for(const code of [
 ]) {
   assert.deepEqual(kind(code), ["forbidden"], code);
 }
+// A previous real blind spot: the complete writer basename is split across
+// static literals, so raw getText().includes(WRITER_BASENAME) sees no match.
+for (const computed of [
+  `const writer = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
+  `const writer = require('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
+  `const a = './buy_void_allocation_custody_witness_live_read_replay_'; const b = 'writer_v1.js'; const writer = await import(a + b)`,
+  `const path = './buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js'; const writer = require(path)`,
+  `const path = './buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js'; const copy = path; const writer = await import(copy)`,
+  "const writer = await import(`./buy_void_allocation_custody_witness_live_read_replay_${'writer_v1.js'}`)",
+  `const writer = module.require('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
+  `const writer = require.resolve('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
+  `const path = ('./buy_void_allocation_custody_witness_live_read_replay_' as const) + ('writer_v1.js' as const); const writer = await import(path)`,
+]) {
+  assert.deepEqual(kind(computed), ["forbidden"], computed);
+}
+// An existing proof path remains a fixture-only allowance, not a runtime gate.
+assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
+  "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
+// Unknown dynamic loaders are still outside this bounded source audit; avoid
+// claiming a full ESM execution closure or blanket dynamic-import rejection.
+assert.deepEqual(kind('const arbitrary = process.env.UNKNOWN_MODULE; await import(arbitrary)'), []);
+assert.deepEqual(kind('const first = second; const second = first; await import(first)'), []);
+
 assert.deepEqual(kind(`import type { ${typeName} } from './${target}';`), ["type_only"]);
 assert.deepEqual(kind(`import { type ${typeName} } from './${target}';`), ["type_only"]);
 assert.deepEqual(kind(`export type { ${typeName} } from './${target}';`), ["type_only"]);
@@ -107,6 +130,7 @@ assert.equal(good.marker,VOID_REPLAY_GUARDED_WRITER_CALLER_CENSUS_V1);
 console.log("VOID_REPLAY_GUARDED_WRITER_CALLER_CENSUS_V1_SOURCE_GREEN");
 console.log("direct_unguarded_import_adversaries_rejected=true");
 console.log("namespace_reexport_dynamic_require_adversaries_rejected=true");
+console.log("statically_computed_writer_loader_adversaries_rejected=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");
