@@ -303,9 +303,9 @@ function exactHeadFileV1(head,relativePath){
   });
 }
 const IMPORT_GAP_SOURCE=
-  String.raw`(?:\\s|\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\r\\n]*(?:\\r?\\n|$))*`;
+  String.raw`(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*`;
 const IMPORT_BODY_SOURCE=
-  String.raw`(?:(?:\\/\\*[\\s\\S]*?\\*\\/)|(?:\\/\\/[^\\r\\n]*(?:\\r?\\n|$))|[^;"'])*?`;
+  String.raw`(?:(?:\/\*[\s\S]*?\*\/)|(?:\/\/[^\r\n]*(?:\r?\n|$))|[^;"'])*?`;
 
 function staticImportSpecifiers(source){
   if(typeof source!=="string"){
