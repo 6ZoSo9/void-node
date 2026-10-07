@@ -98,8 +98,9 @@ It also disallows **import attributes and non-evaluation import phases** even
 when the module specifier is already allowed. Node 24/26 expose import-request
 metadata directly; Node 22 checks attributes through an inert vm.Module linker,
 without evaluating the custody service or imported modules. Parser/metadata
-incompatibility HOLDs rather than trusting a reduced specifier list. It rejects new relative
-helpers, third-party packages, built-ins or other specifiers instead of silently
+incompatibility HOLDs rather than trusting a reduced specifier list.
+The census rejects new relative helpers, third-party packages, built-ins or
+other specifiers instead of silently
 discarding imports outside `../dist/`; an independent full service-byte digest
 also detects changes that this parser might not enumerate. The current source
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
