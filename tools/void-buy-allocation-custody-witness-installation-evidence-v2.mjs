@@ -1686,11 +1686,27 @@ function collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
   });
 }
 
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+  rawConfig,
+  injectedIo = null,
+) {
+  const collected =
+    collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+      rawConfig,
+      injectedIo,
+    );
+  return Object.freeze({
+    receipt: collected.receipt,
+    normalized_installation_qualification:
+      collected.normalized_qualification,
+  });
+}
+
 export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
   rawConfig,
   injectedIo = null,
 ) {
-  return collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+  return collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
     rawConfig,
     injectedIo,
   ).receipt;
@@ -1701,11 +1717,12 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackag
   injectedIo = null,
 ) {
   const collected =
-    collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+    collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
       rawConfig,
       injectedIo,
     );
-  const normalized = collected.normalized_qualification;
+  const normalized =
+    collected.normalized_installation_qualification;
   const normalizedSha256 =
     sha256Id(Buffer.from(canonicalJson(normalized), "utf8"));
   const qualificationId =
