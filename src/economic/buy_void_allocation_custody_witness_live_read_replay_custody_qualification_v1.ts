@@ -809,6 +809,27 @@ function parsePlacement(value: unknown) {
   });
 }
 
+function assertReceiptMatchesPlacementPolicy(
+  receipt: BuyVoidAllocationCustodyWitnessLiveReadReplayCustodyReceiptV1,
+  placement: ReturnType<typeof parsePlacement>,
+): void {
+  const journal = placement.policy.journal_root;
+  const highWater = placement.policy.high_water_root;
+  if (
+    receipt.hostname !== placement.policy.hostname ||
+    receipt.journal_root_path !== journal.path ||
+    receipt.journal_parent_device !== journal.parent_device ||
+    receipt.journal_disk_serial !== journal.disk_serial ||
+    receipt.journal_disk_wwn !== journal.disk_wwn ||
+    receipt.high_water_root_path !== highWater.path ||
+    receipt.high_water_parent_device !== highWater.parent_device ||
+    receipt.high_water_disk_serial !== highWater.disk_serial ||
+    receipt.high_water_disk_wwn !== highWater.disk_wwn
+  ) {
+    fail("witness_replay_custody_prior_receipt_policy_projection_mismatch");
+  }
+}
+
 function assertReceiptMatchesHighWater(
   receipt: BuyVoidAllocationCustodyWitnessLiveReadReplayCustodyReceiptV1,
   highWater: any,
@@ -971,6 +992,7 @@ function qualifyOrThrow(input: {
     ) {
       fail("witness_replay_custody_prior_receipt_policy_mismatch");
     }
+    assertReceiptMatchesPlacementPolicy(prior, placement);
     if (
       journal.length === prior.journal_bytes &&
       journalSha === prior.journal_sha256 &&
