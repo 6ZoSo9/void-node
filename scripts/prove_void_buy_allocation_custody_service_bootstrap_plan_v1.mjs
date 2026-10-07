@@ -117,6 +117,14 @@ function observedCompiledImports(sourceText) {
   // must be removed or explicitly reviewed rather than silently ignored.
   assert.doesNotMatch(sourceText, /\bimport\s*\(/u);
   assert.doesNotMatch(sourceText, /\brequire\s*\(/u);
+  // Node 22 exposes only dependencySpecifiers and silently omits import
+  // attributes. Reject their syntax (including interposed comments) before
+  // trusting the legacy specifier-only fallback on any supported Node.
+  assert.doesNotMatch(
+    sourceText,
+    /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*\{/u,
+    "import attributes are outside the reviewed custody service closure",
+  );
 
   // Use Node's parser rather than formatting-sensitive regexes so valid static
   // ESM forms such as semicolonless imports and export ... from declarations
@@ -128,7 +136,20 @@ process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) source += chunk;
 const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
 const requests = Array.isArray(module.moduleRequests)
-  ? module.moduleRequests.map((entry) => entry.specifier)
+  ? module.moduleRequests.map((entry) => {
+      // Modern Node retains import attributes and phase per module request.
+      // An allowed specifier with changed metadata is a different dependency.
+      if (
+        !entry ||
+        typeof entry.specifier !== "string" ||
+        entry.phase !== "evaluation" ||
+        !entry.attributes ||
+        Object.keys(entry.attributes).length !== 0
+      ) {
+        throw new Error("unreviewed_custody_module_request_metadata");
+      }
+      return entry.specifier;
+    })
   : module.dependencySpecifiers;
 process.stdout.write(JSON.stringify(requests));
 `;
@@ -229,6 +250,44 @@ for (const [label, extraSpecifier] of [
     sourceSha256(injectedSource),
     decision.candidate.service_source_sha256,
     label + " must also break the independent exact service digest",
+  );
+}
+
+// Attributes and non-evaluation phases must not silently preserve the old
+// static-specifier census. Node 22 only exposes dependencySpecifiers, so these
+// adversaries must also HOLD under its reduced metadata API.
+for (const [label, injected] of [
+  ["attributed allowed import",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with { type: "json" };',
+    )],
+  ["comment-separated attribute",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with/*review-evasion*/{ type: "json" };',
+    )],
+  ["line-comment-separated attribute",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with // review-evasion\n { type: "json" };',
+    )],
+  ["attributed re-export",
+    serviceSource + '\nexport * from "node:crypto" with { type: "json" };\n'],
+  ["source phase import",
+    serviceSource + '\nimport source externalModule from "node:crypto";\n'],
+  ["deferred phase import",
+    serviceSource + '\nimport defer * as externalModule from "node:crypto";\n'],
+]) {
+  assert.notEqual(injected, serviceSource, label + " fixture must change source");
+  assert.notEqual(
+    sourceSha256(injected),
+    decision.candidate.service_source_sha256,
+    label + " must break the independent full-byte source pin",
+  );
+  assert.throws(
+    () => observedCompiledImports(injected),
+    label + " must HOLD even if its specifier is otherwise allowlisted",
   );
 }
 
