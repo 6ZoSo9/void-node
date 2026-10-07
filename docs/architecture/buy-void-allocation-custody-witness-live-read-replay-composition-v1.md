@@ -47,8 +47,18 @@ The parent replay-storage evidence must be a live
 
 The storage qualification ID is recomputed from its normalized body.
 
-The storage generation/sequence/event-count becomes the exact predecessor of
-the durable issue result.
+The composition also requires exact canonical-file prestate binding:
+
+- `normalized.journal_file.sha256` equals
+  `issue_result.transition_before_journal_sha256`;
+- `normalized.journal_file.bytes` equals
+  `issue_result.transition_before_journal_bytes`; and
+- `normalized.high_water_file.sha256` and `normalized.high_water_sha256` equal
+  `issue_result.transition_before_high_water_sha256`.
+
+The storage generation/sequence/event-count remains the exact counter
+predecessor of the durable issue result, but equal counters alone are not
+accepted as state identity.
 
 ## Durable issue binding
 
@@ -107,6 +117,10 @@ durable consumed terminal response SHA-256.
 The consumed replay result must:
 
 - be `persisted_consumed`;
+- have `transition_before_journal_sha256`,
+  `transition_before_journal_bytes`, and
+  `transition_before_high_water_sha256` exactly equal to the persisted issue
+  result's post-transition journal/high-water identities;
 - remain in the same generation as the issue;
 - advance sequence/event count by exactly one;
 - repeat the exact issue challenge SHA/ID and issue/expiry timestamps;
@@ -123,6 +137,8 @@ A GREEN composition reports:
 
 - `validated_packet_binding_proven=true`;
 - `durable_consume_packet_binding_proven=true`;
+- exact storage snapshot → issue transition prestate digest/byte lineage;
+- exact issue poststate → consume transition prestate digest/byte lineage;
 - exact storage-prestate → issue generation progression;
 - exact issue challenge/time → qualified packet binding;
 - canonical request reconstruction;
@@ -177,6 +193,9 @@ Covered adversaries include:
 
 - replay issue time drift from qualified packet;
 - stale/wrong storage generation;
+- a same-counter storage artifact with a different journal digest;
+- a consumed transition whose prestate digest does not equal the exact issue
+  poststate;
 - consumed terminal request-ID mismatch;
 - consumed terminal response digest mismatch;
 - tampered transport response bytes; and
