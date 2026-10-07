@@ -9,6 +9,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2,
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2,
   testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2,
 } from "../tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs";
 import {
@@ -573,6 +574,26 @@ function collect(io = makeIo()) {
 
 const baselineReadLimits = new Map();
 const baseline = collect(makeIo({ readLimits: baselineReadLimits }));
+const packet =
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+    config,
+    makeIo(),
+  );
+assert.deepEqual(packet.receipt, baseline);
+assert.equal(
+  sha256Id(
+    Buffer.from(canonicalJson(packet.normalized_qualification), "utf8"),
+  ),
+  baseline.normalized_qualification_sha256,
+);
+assert.equal(
+  packet.normalized_qualification.schema,
+  "void_buy_void_allocation_custody_witness_installation_qualification_v2",
+);
+assert.equal(
+  packet.normalized_qualification.marker,
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2",
+);
 assert.equal(baselineReadLimits.get(NODE_PATH), 256 * 1024 * 1024);
 assert.equal(baselineReadLimits.get(ENV_PATH), 256 * 1024 * 1024);
 assert.equal(baselineReadLimits.get(DASH_PATH), 256 * 1024 * 1024);
@@ -1179,6 +1200,10 @@ assert.match(
   source,
   /runtime_bundle_collector_receipt_sha256/u,
 );
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2/u,
+);
 
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2_GREEN",
@@ -1207,6 +1232,8 @@ console.log("runtime_bundle_parent_chain_drift_rejected=true");
 console.log("host_witness_identity_bound=true");
 console.log("double_census_stability_required=true");
 console.log("content_addressed_receipt=true");
+console.log("normalized_qualification_packet_export=true");
+console.log("legacy_receipt_bytes_preserved=true");
 console.log("client_known_hosts_content_observed=false");
 console.log("preexec_runtime_execution_observed=true");
 console.log("descriptor_bound_ancestor_walk=true");
