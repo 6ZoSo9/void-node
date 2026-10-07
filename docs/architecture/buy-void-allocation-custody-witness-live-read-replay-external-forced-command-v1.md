@@ -49,7 +49,9 @@ pending HOLDS.
 ### append
 
 The request carries only canonical Precision replay-journal bytes and canonical
-replay-high-water bytes as base64. The server constructs source/witness identity
+replay-high-water bytes as base64. Canonical replay genesis is represented by an
+empty replay journal and therefore uses the exact empty base64 string `""`;
+the high-water payload remains non-empty. The server constructs source/witness identity
 from the protected config plus live Nimo host observation, then calls:
 
 `planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1`
