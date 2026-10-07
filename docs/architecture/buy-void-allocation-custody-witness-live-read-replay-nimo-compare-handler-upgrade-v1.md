@@ -55,14 +55,30 @@ deleted because its provenance has not been reverified.
 
 ## Operator staging after this PR merges
 
-On Precision, get the latest reviewed source and materialize **only** the
-exact required handler and operator script. Check the handler's Git blob
-before transferring it.
+**Do not execute `upgrade.sh` with sudo from a user-writable staging
+directory.** That script is itself privileged code. Its reviewed Git blob and
+SHA-256 must be checked on Precision; once copied to Nimo it must be installed
+into a root-owned, non-user-writable path and rechecked there **before**
+`sudo /bin/bash` is used. The handler candidate remains a separate
+unprivileged staged input; the trusted script validates its SHA-256 before
+installing the handler.
+
+The reviewed operator-script identity for this generation is:
+
+```text
+Git blob SHA-1: 03c99e0a8c1df6671e5d92f9535ebfa9682f74d2
+SHA-256: 8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f
+```
+
+On Precision, fetch the reviewed source and stage the exact handler and
+operator script:
 
 ```bash
+set -Eeuo pipefail
 cd ~/dev/void-node
 git fetch origin main
 test "$(git rev-parse origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs)" = f066449215cd89522eae1cd251aa10c5594dd210
+test "$(git rev-parse origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v1.sh)" = 03c99e0a8c1df6671e5d92f9535ebfa9682f74d2
 
 stage="$HOME/Downloads/void-replay-nimo-compare-handler-upgrade-v1"
 install -d -m 0700 "$stage"
@@ -71,19 +87,44 @@ git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-
 git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v1.sh > "$stage/upgrade.sh"
 
 test "$(sha256sum "$stage/handler.mjs" | awk '{print $1}')" = 511ffe6ee55e0ef3ac2e8582ffdc94b3d294884408d55c174875fed928a18831
+test "$(sha256sum "$stage/upgrade.sh" | awk '{print $1}')" = 8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f
 bash -n "$stage/upgrade.sh"
 node --check "$stage/handler.mjs"
 
 ssh -tt zoso@nimo 'install -d -m 0700 "$HOME/.local/state/void-replay-compare-handler-upgrade-v1"'
 scp "$stage/handler.mjs" "$stage/upgrade.sh" zoso@nimo:/home/zoso/.local/state/void-replay-compare-handler-upgrade-v1/
-ssh -tt zoso@nimo 'chmod 0600 "$HOME/.local/state/void-replay-compare-handler-upgrade-v1/handler.mjs" && sudo /bin/bash "$HOME/.local/state/void-replay-compare-handler-upgrade-v1/upgrade.sh"'
+
+ssh -tt zoso@nimo '
+set -Eeuo pipefail
+umask 077
+src=/home/zoso/.local/state/void-replay-compare-handler-upgrade-v1/upgrade.sh
+trusted=/root/.void-replay-nimo-compare-handler-upgrade-v1.sh
+expected=8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f
+[[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%F" /root)" == "0:0:700:directory" ]] || exit 2
+if sudo /usr/bin/test -e "$trusted" || sudo /usr/bin/test -L "$trusted"; then
+  sudo /usr/bin/test ! -L "$trusted" || exit 2
+else
+  sudo /usr/bin/install -o 0 -g 0 -m 0500 -- "$src" "$trusted"
+fi
+[[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%h:%F" "$trusted")" == "0:0:500:1:regular file" ]] || exit 2
+echo "$expected  $trusted" | sudo /usr/bin/sha256sum --status -c - || exit 2
+sudo /bin/bash "$trusted"
+'
 ```
 
-The `scp` staging directory is unprivileged and **not** the installed runtime.
-The root script copies candidate bytes to its own protected same-directory
-temporary file and independently verifies their SHA before syntax check and
-replacement. The original installed handler survives all failures before
-the final atomic rename.
+The `scp` staging directory is unprivileged and **never** a trusted
+privileged-script execution location. The fixed trusted copy lives under
+root-owned mode-`0700` `/root`, has exact root/root mode-`0500` metadata,
+and is verified against its reviewed source SHA-256 before invocation.
+An existing trusted copy with unknown bytes or metadata HOLDS rather than being
+silently overwritten. Nimo does not run a shell script directly from
+`/home/zoso` with `sudo`.
+
+Once invoked from the verified root-controlled path, the root script copies
+handler candidate bytes to its own protected same-directory temporary file,
+independently verifies the handler SHA, checks syntax, and then performs the
+reviewed single atomic replacement. The original installed handler survives
+all failures before that final atomic rename.
 
 A successful run ends with:
 

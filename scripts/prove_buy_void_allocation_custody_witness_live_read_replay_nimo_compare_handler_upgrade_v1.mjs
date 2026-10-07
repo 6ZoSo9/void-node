@@ -7,6 +7,32 @@ const file =
   "tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v1.sh";
 const script = fs.readFileSync(file, "utf8");
 
+const operatorGuide =
+  "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v1.md";
+const guide = fs.readFileSync(operatorGuide, "utf8");
+const handoff = guide.match(
+  /## Operator staging after this PR merges[\\s\\S]*?```bash\\n([\\s\\S]*?)\\n```/u,
+);
+assert.ok(handoff, "reviewed operator staging shell block required");
+const operatorShell = handoff[1];
+assert.match(operatorShell, /03c99e0a8c1df6671e5d92f9535ebfa9682f74d2/u);
+assert.match(operatorShell, /8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f/u);
+assert.match(operatorShell, /sudo \\/usr\\/bin\\/install -o 0 -g 0 -m 0500 -- "\\$src" "\\$trusted"/u);
+assert.match(operatorShell, /sudo \\/usr\\/bin\\/sha256sum --status -c -/u);
+assert.match(operatorShell, /sudo \\/bin\\/bash "\\$trusted"/u);
+assert.match(operatorShell, /0:0:700:directory/u);
+assert.match(operatorShell, /0:0:500:1:regular file/u);
+assert.doesNotMatch(
+  operatorShell,
+  /sudo \\/bin\\/bash "\\$HOME\\/\\.local\\/state\\//u,
+  "never execute user-writable staging source as root",
+);
+const handoffSyntax = spawnSync("bash", ["-n"], {
+  input: operatorShell, encoding: "utf8", timeout: 5000,
+});
+assert.equal(handoffSyntax.status, 0, handoffSyntax.stderr);
+
+
 assert.ok(script.startsWith("#!/usr/bin/env bash\n"));
 for (const token of [
   "set -Eeuo pipefail",
@@ -54,6 +80,7 @@ assert.equal(help.stderr,"");
 
 console.log("VOID_REPLAY_NIMO_COMPARE_HANDLER_UPGRADE_V1_SOURCE_GREEN");
 console.log("source_only_test=true");
+console.log("privileged_script_root_copied_and_digest_verified=true");
 console.log("temporary_mjs_suffix_required=true");
 console.log("node_check_before_atomic_rename=true");
 console.log("old_or_exact_new_handler_sha_required=true");
