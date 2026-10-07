@@ -31,6 +31,7 @@ import {
   testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterFreshIntentFileSwapV1,
+  testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs";
 
 const JOURNAL_NAME =
@@ -1032,6 +1033,78 @@ for (const which of ["journal", "high_water"]) {
   }
 }
 
+for (const phase of ["before_journal", "before_high_water"]) {
+  const f = fixture();
+  try {
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+
+    const held = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+        inputFor(f),
+        phase,
+      ),
+    );
+    assert.match(
+      held.reason,
+      phase === "before_journal"
+        ? /receipt_writer_high_water_state_snapshot_changed/u
+        : /receipt_writer_journal_state_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      true,
+      phase + " peer-state replacement occurs after durable intent publication",
+    );
+
+    const journalAfter = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterAfter = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    assert.equal(
+      highWaterAfter.equals(highWaterBefore),
+      true,
+      phase + " peer-state replacement must not publish next high-water",
+    );
+
+    if (phase === "before_journal") {
+      assert.equal(
+        journalAfter.equals(journalBefore),
+        true,
+        "peer high-water replacement must HOLD before journal publication",
+      );
+    } else {
+      const continuity =
+        classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
+          journalAfter,
+        );
+      assert.equal(
+        continuity.ok,
+        true,
+        "journal already published before peer journal replacement must remain canonical",
+      );
+      assert.equal(
+        continuity.record_count,
+        1,
+        "before-high-water adversary must leave exactly the one planned receipt",
+      );
+      assert.equal(
+        journalAfter.equals(journalBefore),
+        false,
+        "journal publication must precede the blocked high-water rename",
+      );
+    }
+  } finally {
+    cleanup(f);
+  }
+}
+
 async function proveSingleRootReplacementSerialization(replaceRoot) {
   const f = fixture();
   const detached = path.join(
@@ -1286,4 +1359,8 @@ console.log("trusted_collector_proven=false");
 console.log("verification_clock_authority_proven=false");
 console.log("runtime_integration=false");
 console.log("production_gate_ready=false");
+console.log("paired_state_snapshot_before_journal_rename=true");
+console.log("paired_state_snapshot_before_high_water_rename=true");
+console.log("peer_high_water_replacement_blocks_journal_rename=true");
+console.log("peer_journal_replacement_blocks_high_water_rename=true");
 console.log("funds_movement=false");
