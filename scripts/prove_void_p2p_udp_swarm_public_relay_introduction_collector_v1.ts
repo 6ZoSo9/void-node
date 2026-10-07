@@ -325,6 +325,60 @@ await assert.rejects(
 assert.equal(oversizedBodyCancelled, true);
 assert.ok(oversizedBodyPulls <= 3);
 
+let zeroProgressBodyCancelled = false;
+let releaseZeroProgressBodyCancel: (() => void) | undefined;
+let signalZeroProgressBodyCancel: (() => void) | undefined;
+const zeroProgressBodyCancelCalled = new Promise<void>((resolve) => {
+  signalZeroProgressBodyCancel = resolve;
+});
+const zeroProgressBodyCancelPending = new Promise<void>((resolve) => {
+  releaseZeroProgressBodyCancel = resolve;
+});
+globalThis.fetch = (async () =>
+  new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(0));
+      },
+      cancel() {
+        zeroProgressBodyCancelled = true;
+        signalZeroProgressBodyCancel?.();
+        return zeroProgressBodyCancelPending;
+      },
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  )) as typeof fetch;
+const zeroProgressBodyOperation =
+  fetchVoidUdpSwarmPublicRelayIntroductionV1({
+    source_node_id: sourceA.nodeId,
+    url: "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
+  });
+let zeroProgressBodySettled = false;
+void zeroProgressBodyOperation.then(
+  () => {
+    zeroProgressBodySettled = true;
+  },
+  () => {
+    zeroProgressBodySettled = true;
+  },
+);
+await zeroProgressBodyCancelCalled;
+await Promise.resolve();
+await Promise.resolve();
+const zeroProgressBodySettledBeforeCancelRelease =
+  zeroProgressBodySettled;
+releaseZeroProgressBodyCancel?.();
+await assert.rejects(
+  zeroProgressBodyOperation,
+  /stream made no progress/u,
+);
+assert.equal(zeroProgressBodyCancelled, true);
+assert.equal(
+  zeroProgressBodySettledBeforeCancelRelease,
+  true,
+  "introduction no-progress rejection waited for cancel settlement",
+);
+
 globalThis.fetch = (async () =>
   new Response(JSON.stringify(envelope()), {
     status: 200,
@@ -872,4 +926,5 @@ console.log("existing_runtime_activation_invoked=true");
 console.log("peer_identity_exposed_in_status=false");
 console.log("deployment=none");
 console.log("service_restart=none");
+console.log("zero_progress_transport_stream_rejected=true");
 console.log(MARKER);

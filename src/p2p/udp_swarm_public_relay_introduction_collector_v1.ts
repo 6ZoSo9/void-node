@@ -411,13 +411,18 @@ export async function fetchVoidUdpSwarmPublicRelayIntroductionV1(
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!value || value.byteLength === 0) continue;
+        if (!value || value.byteLength === 0) {
+          void reader.cancel().catch(() => undefined);
+          throw new Error(
+            "introduction transport response stream made no progress",
+          );
+        }
         byteCount += value.byteLength;
         if (
           byteCount >
           VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_MAX_BYTES_V1
         ) {
-          await reader.cancel().catch(() => undefined);
+          void reader.cancel().catch(() => undefined);
           throw new Error("introduction transport response exceeds its bound");
         }
         chunks.push(value);

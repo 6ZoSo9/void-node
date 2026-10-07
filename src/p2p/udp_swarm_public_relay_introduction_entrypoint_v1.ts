@@ -321,13 +321,16 @@ async function readBoundedResponseBytesV1(
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!value || value.byteLength === 0) continue;
+      if (!value || value.byteLength === 0) {
+        void reader.cancel().catch(() => undefined);
+        throw new Error("bootstrap content response stream made no progress");
+      }
       byteCount += value.byteLength;
       if (
         byteCount >
         VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FETCH_MAX_BYTES_V1
       ) {
-        await reader.cancel().catch(() => undefined);
+        void reader.cancel().catch(() => undefined);
         throw new Error("bootstrap content response exceeds its byte bound");
       }
       chunks.push(value);
