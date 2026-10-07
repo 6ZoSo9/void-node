@@ -324,6 +324,104 @@ assert.equal(
   true,
 );
 
+
+const expiryAfterCustodyRoot=path.join(
+  parent,
+  "expiry-after-custody-state",
+);
+fs.mkdirSync(expiryAfterCustodyRoot,{mode:0o700});
+fs.chmodSync(expiryAfterCustodyRoot,0o700);
+writeConsumptionForRoot(expiryAfterCustodyRoot);
+let expiryAfterCustodyNow=now;
+let expiryAfterCustodyRpcCalls=0;
+const expiryAfterCustody=
+  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+    {
+      broadcast_request:request,
+      broadcast_authorization:authorization,
+      prebroadcast_observation:observation,
+      signed_transaction:signed,
+      state_dir:expiryAfterCustodyRoot,
+      confirmation:authorization.required_confirmation,
+    },
+    {
+      ...baseDependencies,
+      now:()=>expiryAfterCustodyNow,
+      claim_generation_fence:async(fence)=>Object.freeze({
+        status:"created",
+        broadcast_generation_fence_id:
+          fence.broadcast_generation_fence_id,
+        custody_receipt_sha256:
+          "sha256:"+
+          sha256(Buffer.from("expiry-after-custody:"+canonicalJson(fence))),
+        independent_custody_proven:true,
+      }),
+      assert_generation_fence:async()=>{
+        expiryAfterCustodyNow=
+          Date.parse(authorization.valid_until_utc);
+        return true;
+      },
+      rpc:async()=>{
+        expiryAfterCustodyRpcCalls+=1;
+        throw new Error("expired_after_custody_must_not_reach_rpc");
+      },
+    },
+  );
+assert.equal(expiryAfterCustody.ok,false);
+assert.equal(
+  expiryAfterCustody.reason,
+  "registry_broadcast_execution_final_pre_send_gate_failed",
+);
+assert.equal(expiryAfterCustodyRpcCalls,0);
+assert.equal(expiryAfterCustody.transaction_submission_performed,false);
+
+const custodyTimeoutRoot=path.join(parent,"custody-timeout-state");
+fs.mkdirSync(custodyTimeoutRoot,{mode:0o700});
+fs.chmodSync(custodyTimeoutRoot,0o700);
+writeConsumptionForRoot(custodyTimeoutRoot);
+let custodyTimeoutRpcCalls=0;
+const custodyTimeoutStarted=Date.now();
+const custodyTimeout=
+  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+    {
+      broadcast_request:request,
+      broadcast_authorization:authorization,
+      prebroadcast_observation:observation,
+      signed_transaction:signed,
+      state_dir:custodyTimeoutRoot,
+      confirmation:authorization.required_confirmation,
+    },
+    {
+      ...baseDependencies,
+      generation_custody_timeout_ms:25,
+      claim_generation_fence:async(fence)=>Object.freeze({
+        status:"created",
+        broadcast_generation_fence_id:
+          fence.broadcast_generation_fence_id,
+        custody_receipt_sha256:
+          "sha256:"+
+          sha256(Buffer.from("custody-timeout:"+canonicalJson(fence))),
+        independent_custody_proven:true,
+      }),
+      assert_generation_fence:async()=>await new Promise(()=>{}),
+      rpc:async()=>{
+        custodyTimeoutRpcCalls+=1;
+        throw new Error("custody_timeout_must_not_reach_rpc");
+      },
+    },
+  );
+assert.equal(custodyTimeout.ok,false);
+assert.equal(
+  custodyTimeout.reason,
+  "registry_broadcast_execution_final_pre_send_gate_failed",
+);
+assert.equal(custodyTimeoutRpcCalls,0);
+assert.equal(custodyTimeout.transaction_submission_performed,false);
+assert.ok(
+  Date.now()-custodyTimeoutStarted<1500,
+  "custody revalidation timeout must be bounded",
+);
+
 const firstDependencies={
   ...baseDependencies,
   rpc:async (method)=>{
@@ -485,6 +583,8 @@ try{
   for(const required of [
     "claim_generation_fence",
     "assert_generation_fence",
+    "awaitBoundedGenerationCustodyV1",
+    "MAX_GENERATION_CUSTODY_WAIT_MS",
     "normalizeExternalGenerationFenceClaimV1",
     "broadcast_generation_fence_id",
     "generation_fence_custody_receipt_sha256",
@@ -522,6 +622,8 @@ try{
   console.log("production_wrapper_fail_closed_without_custody=true");
   console.log("malformed_external_custody_claim_zero_rpc=true");
   console.log("failed_external_custody_revalidation_zero_rpc=true");
+  console.log("external_custody_revalidation_timeout_bounded=true");
+  console.log("runtime_window_rechecked_after_custody=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");
   console.log("first_simulated_network_send_count=1");

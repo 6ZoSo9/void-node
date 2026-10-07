@@ -41,7 +41,11 @@ to the same custody slot.
 
 An existing claim fails closed before a replacement state root can create a new
 `broadcast-attempts` namespace. A newly created claim is revalidated again
-immediately before the single send admission.
+immediately before the single send admission. Both claim and revalidation are
+bounded by a hard maximum 5,000 ms wait. The final authorization/observation
+runtime window and visible state-root generation are checked again **after**
+custody revalidation returns, so a slow custody response cannot carry an
+expired authorization into `eth_sendRawTransaction`.
 
 The attempt directory itself remains descriptor-pinned to the original state
 generation so an in-flight root rename cannot redirect intent/result
@@ -81,7 +85,10 @@ A second invocation at the replacement state-root pathname receives
 and creates no replacement attempt store.
 
 The proof also requires the normal production wrapper to HOLD with zero
-transaction submission while no live custody service is integrated.
+transaction submission while no live custody service is integrated. Additional
+adversaries prove that a custody revalidation that advances the synthetic clock
+to the authorization expiry boundary performs zero RPC, and that a non-returning
+custody revalidation is cut off by the bounded wait and also performs zero RPC.
 
 ## Required next gate
 

@@ -27,6 +27,7 @@ const OP_ID=/^voiddrbo1_[0-9a-f]{64}$/u;
 const CONSUMPTION_ID=/^voiddrbac1_[0-9a-f]{64}$/u;
 const GENERATION_FENCE_ID=/^voiddrbgf1_[0-9a-f]{64}$/u;
 const CUSTODY_RECEIPT_SHA256=/^sha256:[0-9a-f]{64}$/u;
+const MAX_GENERATION_CUSTODY_WAIT_MS=5000;
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -114,6 +115,26 @@ function normalizeExternalGenerationFenceClaimV1(raw,expectedFence){
     throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
   }
   return Object.freeze(value);
+}
+async function awaitBoundedGenerationCustodyV1(
+  operation,
+  timeoutMs,
+  timeoutCode,
+){
+  let timer=null;
+  try{
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise((_,reject)=>{
+        timer=setTimeout(
+          ()=>reject(new Error(timeoutCode)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  }finally{
+    if(timer!==null) clearTimeout(timer);
+  }
 }
 function assertNoSymlinkAncestors(target){
   const resolved=path.resolve(target);
@@ -512,6 +533,16 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
   ){
     throw new Error("registry_broadcast_execution_dependencies_invalid");
   }
+  const generationCustodyTimeoutMs=
+    dependencies.generation_custody_timeout_ms??
+    MAX_GENERATION_CUSTODY_WAIT_MS;
+  if(
+    !Number.isSafeInteger(generationCustodyTimeoutMs)||
+    generationCustodyTimeoutMs<1||
+    generationCustodyTimeoutMs>MAX_GENERATION_CUSTODY_WAIT_MS
+  ){
+    throw new Error("registry_broadcast_execution_dependencies_invalid");
+  }
 
   let runtime;
   let observation;
@@ -632,7 +663,11 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     let fenceClaim;
     try{
       fenceClaim=normalizeExternalGenerationFenceClaimV1(
-        await dependencies.claim_generation_fence(generationFence),
+        await awaitBoundedGenerationCustodyV1(
+          ()=>dependencies.claim_generation_fence(generationFence),
+          generationCustodyTimeoutMs,
+          "registry_broadcast_execution_generation_custody_claim_timeout",
+        ),
         generationFence,
       );
       if(fenceClaim.status==="exists"){
@@ -737,15 +772,21 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
       assertRuntimeWindow(authorization,observation,dependencies.now());
       assertStateGeneration(root);
       if(
-        await dependencies.assert_generation_fence(
-          fenceClaim,
-          generationFence,
+        await awaitBoundedGenerationCustodyV1(
+          ()=>dependencies.assert_generation_fence(
+            fenceClaim,
+            generationFence,
+          ),
+          generationCustodyTimeoutMs,
+          "registry_broadcast_execution_generation_custody_revalidation_timeout",
         )!==true
       ){
         throw new Error(
           "registry_broadcast_execution_generation_custody_revalidation_failed",
         );
       }
+      assertRuntimeWindow(authorization,observation,dependencies.now());
+      assertStateGeneration(root);
       assertPinnedRecordV1(
         attemptsPinned,
         operationId+".intent.json",
