@@ -102,7 +102,7 @@ The authorized-key quoted command escapes its nested quotes exactly.
 
 
 ~~~text
-restrict,command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1
+restrict,command="/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND=\"${SSH_ORIGINAL_COMMAND-}\" /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1
 ~~~
 
 The script stages the updated authorized_keys in the same directory, checks
