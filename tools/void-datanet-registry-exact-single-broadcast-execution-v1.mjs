@@ -598,27 +598,28 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }
 
-  const fenceMaterial={
+  const fenceIdentityMaterial={
     marker:"VOID_DATANET_REGISTRY_BROADCAST_GENERATION_FENCE_V1",
     version:1,
     broadcast_operation_id:operationId,
-    consumption_record_id:consumption.consumption_record_id,
     broadcast_authorization_id:authorization.broadcast_authorization_id,
     broadcast_authorization_request_id:
       authorization.broadcast_authorization_request_id,
     signed_transaction_id:signed.signed_transaction_id,
     signed_transaction_hash:signed.signed_transaction_hash,
     state_store_realpath_sha256:root.realpath_sha256,
-    state_store_root_dev:root.dev,
-    state_store_root_ino:root.ino,
     one_submission_attempt_only:true,
     automatic_retry_authorized:false,
     replacement_transaction_authorized:false,
   };
   const generationFence=Object.freeze({
-    ...fenceMaterial,
+    ...fenceIdentityMaterial,
     broadcast_generation_fence_id:
-      "voiddrbgf1_"+sha256(Buffer.from(canonicalJson(fenceMaterial))),
+      "voiddrbgf1_"+
+      sha256(Buffer.from(canonicalJson(fenceIdentityMaterial))),
+    observed_consumption_record_id:consumption.consumption_record_id,
+    observed_state_store_root_dev:root.dev,
+    observed_state_store_root_ino:root.ino,
   });
   if(!GENERATION_FENCE_ID.test(generationFence.broadcast_generation_fence_id)){
     return held("registry_broadcast_execution_generation_fence_id_invalid",{

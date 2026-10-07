@@ -380,6 +380,10 @@ try{
     second.broadcast_generation_fence_id,
     first.broadcast_generation_fence_id,
   );
+  assert.notEqual(
+    replacementConsumption.consumption_record_id,
+    consumption.consumption_record_id,
+  );
   assert.equal(secondRpcCalls,0);
   assert.equal(simulatedNetworkSends,1);
   assert.equal(
@@ -428,6 +432,7 @@ try{
   console.log("operation_fence_durable_before_attempt_intent=true");
   console.log("legacy_sibling_fence_rename_does_not_reopen_operation=true");
   console.log("generation_fence_identity_stable_across_retry_time=true");
+  console.log("generation_fence_identity_stable_across_root_generation=true");
   console.log("production_wrapper_fail_closed_without_custody=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");
