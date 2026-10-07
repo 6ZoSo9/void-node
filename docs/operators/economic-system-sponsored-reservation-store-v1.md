@@ -168,6 +168,16 @@ descriptor. A post-publication path swap after a durable write HOLDS with
 `mutation_performed=true`; a duplicate-path swap with no store mutation HOLDS
 with `mutation_performed=false`.
 
+Successful persistence or exact duplicate replay also performs a terminal
+descriptor/visible-path revalidation of the root, records directory, and
+pre-provisioned bakery-lock queue **after** the bakery release/final queue fsync
+has completed and before a public success decision returns. The focused
+fault-injection proof replaces each of those directories at that specific
+release boundary and requires HOLD, preserving `mutation_performed=true`
+when the reservation record had already been published. This does not
+guarantee path immutability after the function returns or independently
+qualified host custody; `root_path_stability_proven=false` remains unchanged.
+
 This is filesystem integrity hardening, not independent custody. The authority
 therefore keeps `root_path_stability_proven=false`.
 
