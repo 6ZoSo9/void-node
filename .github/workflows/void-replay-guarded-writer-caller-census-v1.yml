@@ -3,14 +3,12 @@ name: VOID replay guarded writer caller census v1
 on:
   pull_request:
     paths:
-      - "**/*.ts"
-      - "**/*.tsx"
-      - "**/*.js"
-      - "**/*.jsx"
-      - "**/*.mjs"
-      - "**/*.cjs"
-      - "**/*.mts"
-      - "**/*.cts"
+      - "src/economic/**"
+      - "src/index.ts"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-*.mjs"
+      - "tools/void-replay-guarded-writer-caller-census-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_*.ts"
+      - "scripts/prove_void_replay_guarded_writer_caller_census_v1.mjs"
       - "docs/architecture/void-replay-guarded-writer-caller-census-v1.md"
       - ".github/workflows/void-replay-guarded-writer-caller-census-v1.yml"
   workflow_dispatch:

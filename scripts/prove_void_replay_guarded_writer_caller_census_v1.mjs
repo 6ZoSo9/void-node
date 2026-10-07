@@ -81,6 +81,24 @@ for(const key of [
   "authenticated_ssh_transport_performed","runtime_service_installed",
   "witness_or_replay_mutation","wallet_signer_or_funds_access","chain_or_market_mutation","production_gate_ready"
 ]) assert.equal(VOID_REPLAY_GUARDED_WRITER_CALLER_CENSUS_AUTHORITY_V1[key], false, key);
+// A broad PR trigger would violate the merged repository CI cost boundary.
+const workflowPath = path.join(root, ".github/workflows/void-replay-guarded-writer-caller-census-v1.yml");
+const workflow = readFileSync(workflowPath, "utf8");
+const triggerBegin = workflow.indexOf("  pull_request:\n    paths:\n");
+const triggerEnd = workflow.indexOf("  workflow_dispatch:\n", triggerBegin);
+assert.ok(triggerBegin >= 0 && triggerEnd > triggerBegin, "focused_pr_paths_required");
+const prPaths = workflow.slice(triggerBegin, triggerEnd);
+assert.doesNotMatch(prPaths, /^\s+-\s+["']?\*/mu, "repository_wide_pr_glob_forbidden");
+for (const required of [
+  "src/economic/**",
+  "src/index.ts",
+  "tools/void-replay-guarded-writer-caller-census-v1.mjs",
+  "scripts/prove_void_replay_guarded_writer_caller_census_v1.mjs",
+  ".github/workflows/void-replay-guarded-writer-caller-census-v1.yml",
+]) {
+  assert.ok(prPaths.includes(`- "${required}"`), `missing_reviewed_pr_scope:${required}`);
+}
+
 const refused=spawnSync(process.execPath,[tool,"--apply"],{encoding:"utf8",timeout:5000});
 assert.equal(refused.status,2);
 assert.match(refused.stderr,/HOLD/u);
@@ -92,5 +110,6 @@ console.log("namespace_reexport_dynamic_require_adversaries_rejected=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");
+console.log("ci_cost_scope_is_path_limited=true");
 console.log("runtime_guard_exclusivity_proven=false");
 console.log("production_gate_ready=false");

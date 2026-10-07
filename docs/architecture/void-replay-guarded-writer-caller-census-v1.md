@@ -52,6 +52,27 @@ indirect dynamically computed imports without a literal writer basename,
 executable packaging or the process's actual import graph. A privileged actor
 can still bypass these source checks. Runtime exclusivity remains false.
 
+## Trigger scope and CI cost boundary
+
+The existing `VOID_CI_COST_BOUNDARY_V1` repository policy rejects a newly
+introduced repository-wide `pull_request` trigger. The original candidate
+used `**/*.ts` and related root-wide globs; its dedicated Node 22/24/26
+census jobs passed, but the CI cost gate correctly HOLDed.
+
+The automatic PR trigger is now deliberately limited to the reviewed replay
+economic source subtree, the public runtime entrypoint, the directly relevant
+replay tool/proof filenames, this census tool/proof, and its doc/workflow.
+**This is not automatic coverage of every Git-tracked source edit.** A new
+writer import in another directory will not necessarily trigger this workflow.
+Use `workflow_dispatch` or run `--scan` manually on a reviewed checkout
+when auditing other code areas or before independently admitting an executable
+closure. The scan itself still examines **all** Git-tracked TS/JS files each
+time it runs.
+
+The reduced trigger is intentional CI-cost containment, not a new security
+guarantee. Runtime exclusivity, build closure and protected deployment all
+remain **HOLD**.
+
 ## Running the census
 
 After `npm ci --ignore-scripts --no-audit --no-fund` (TypeScript is used for its
