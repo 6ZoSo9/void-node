@@ -153,7 +153,13 @@ assert.equal(
   census.authoritative_path_count,
   VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.length,
 );
-assert.equal(census.authoritative_path_count, 14);
+assert.equal(census.authoritative_path_count, 15);
+assert.ok(
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.includes(
+    "src/index.ts",
+  ),
+  "runtime loader must be part of the authoritative rebind census",
+);
 assert.equal(census.remaining_superseded_authoritative_path_count, 0);
 assert.equal(census.all_authoritative_old_generation_pins_present, false);
 assert.equal(
