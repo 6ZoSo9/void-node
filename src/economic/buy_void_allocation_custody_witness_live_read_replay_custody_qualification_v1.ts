@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
@@ -65,6 +66,9 @@ const QUALIFICATION_DOMAIN =
   "void-buy-void-allocation-custody-witness-live-read-replay-custody-qualification-v1";
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const QUALIFICATION_ID = /^voidwlrie1_[0-9a-f]{64}$/u;
+const LOCAL_FS_TYPES = new Set(["ext4", "xfs", "btrfs"]);
+const SAFE_DEVICE_PATH = /^\\/dev\\/[A-Za-z0-9._:+/-]{1,300}$/u;
+const SAFE_TOKEN = /^[A-Za-z0-9._:+-]{1,300}$/u;
 const RECEIPT_KEYS = Object.freeze([
   "schema",
   "marker",
@@ -581,6 +585,132 @@ function parsePlacement(value: unknown) {
     FILE_KEYS,
     "witness_replay_custody_placement_file_invalid",
   );
+
+  const validateRoot = (
+    root: Record<string, unknown>,
+    label: string,
+  ) => {
+    if (
+      typeof root.path !== "string" ||
+      !path.isAbsolute(root.path) ||
+      typeof root.dev !== "string" ||
+      !/^[0-9]+$/u.test(root.dev) ||
+      typeof root.ino !== "string" ||
+      !/^[1-9][0-9]*$/u.test(root.ino) ||
+      !Number.isSafeInteger(root.uid) ||
+      (root.uid as number) < 0 ||
+      !Number.isSafeInteger(root.gid) ||
+      (root.gid as number) < 0 ||
+      root.mode !== 0o700 ||
+      !Number.isSafeInteger(root.mount_id) ||
+      (root.mount_id as number) < 1 ||
+      typeof root.major_minor !== "string" ||
+      !/^[0-9]+:[0-9]+$/u.test(root.major_minor) ||
+      typeof root.fs_type !== "string" ||
+      !LOCAL_FS_TYPES.has(root.fs_type) ||
+      typeof root.mount_source !== "string" ||
+      !SAFE_DEVICE_PATH.test(root.mount_source) ||
+      typeof root.mount_source_resolved !== "string" ||
+      !SAFE_DEVICE_PATH.test(root.mount_source_resolved) ||
+      typeof root.mount_point !== "string" ||
+      !path.isAbsolute(root.mount_point) ||
+      typeof root.parent_device !== "string" ||
+      !SAFE_DEVICE_PATH.test(root.parent_device) ||
+      typeof root.disk_serial !== "string" ||
+      !SAFE_TOKEN.test(root.disk_serial) ||
+      typeof root.disk_wwn !== "string" ||
+      !SAFE_TOKEN.test(root.disk_wwn)
+    ) {
+      fail("witness_replay_custody_placement_" + label + "_root_invalid");
+    }
+  };
+  validateRoot(journalRoot, "journal");
+  validateRoot(highWaterRoot, "high_water");
+
+  const nestedUnder = (parent: string, child: string): boolean => {
+    const relative = path.relative(parent, child);
+    return (
+      relative !== "" &&
+      relative !== ".." &&
+      !relative.startsWith(".." + path.sep) &&
+      !path.isAbsolute(relative)
+    );
+  };
+  if (
+    journalRoot.uid !== highWaterRoot.uid ||
+    journalRoot.gid !== highWaterRoot.gid ||
+    journalRoot.path === highWaterRoot.path ||
+    nestedUnder(journalRoot.path as string, highWaterRoot.path as string) ||
+    nestedUnder(highWaterRoot.path as string, journalRoot.path as string)
+  ) {
+    fail("witness_replay_custody_placement_roots_invalid");
+  }
+  if (
+    journalRoot.dev === highWaterRoot.dev ||
+    journalRoot.mount_id === highWaterRoot.mount_id ||
+    journalRoot.major_minor === highWaterRoot.major_minor ||
+    journalRoot.mount_source === highWaterRoot.mount_source ||
+    journalRoot.mount_source_resolved === highWaterRoot.mount_source_resolved ||
+    journalRoot.parent_device === highWaterRoot.parent_device ||
+    journalRoot.disk_serial === highWaterRoot.disk_serial ||
+    journalRoot.disk_wwn === highWaterRoot.disk_wwn
+  ) {
+    fail("witness_replay_custody_placement_storage_not_distinct");
+  }
+
+  const validateFile = (
+    file: Record<string, unknown>,
+    root: Record<string, unknown>,
+    expectedName: string,
+    allowEmpty: boolean,
+    label: string,
+  ) => {
+    if (
+      file.path !== path.join(root.path as string, expectedName) ||
+      file.dev !== root.dev ||
+      typeof file.ino !== "string" ||
+      !/^[1-9][0-9]*$/u.test(file.ino) ||
+      typeof file.mtime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.mtime_ns) ||
+      typeof file.ctime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.ctime_ns) ||
+      typeof file.sha256 !== "string" ||
+      !SHA256_ID.test(file.sha256) ||
+      !Number.isSafeInteger(file.bytes) ||
+      (file.bytes as number) < (allowEmpty ? 0 : 1) ||
+      (file.bytes as number) > (allowEmpty ? 8 * 1024 * 1024 : 16 * 1024) ||
+      file.uid !== root.uid ||
+      file.gid !== root.gid ||
+      file.mode !== 0o600 ||
+      file.nlink !== 1 ||
+      file.regular_file !== true ||
+      file.symlink !== false
+    ) {
+      fail("witness_replay_custody_placement_" + label + "_file_invalid");
+    }
+  };
+  validateFile(
+    journalFile,
+    journalRoot,
+    "live-read-replay-v1.jsonl",
+    true,
+    "journal",
+  );
+  validateFile(
+    highWaterFile,
+    highWaterRoot,
+    "live-read-replay-high-water-v1.json",
+    false,
+    "high_water",
+  );
+
+  if (
+    typeof normalized.high_water_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.high_water_sha256)
+  ) {
+    fail("witness_replay_custody_placement_high_water_invalid");
+  }
+
   const expectedId =
     "voidwlrie1_" +
     crypto
