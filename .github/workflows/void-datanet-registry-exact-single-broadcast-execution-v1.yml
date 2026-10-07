@@ -3,7 +3,11 @@ name: VOID DataNet registry exact single broadcast execution v1
 on:
   pull_request:
     paths:
-      - "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
+      - "tools/void-datanet-registry-*.mjs"
+      - "tools/datanet-content-commitment-*.mjs"
+      - "tools/void-economic-epoch2-*.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
       - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"
       - ".github/workflows/void-datanet-registry-exact-single-broadcast-execution-v1.yml"
@@ -41,5 +45,9 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs
-      - name: Diff hygiene
-        run: git diff --check
+      - name: Diff and cleanup hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
