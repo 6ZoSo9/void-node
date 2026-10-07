@@ -10,28 +10,36 @@ const script = fs.readFileSync(file, "utf8");
 const operatorGuide =
   "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v1.md";
 const guide = fs.readFileSync(operatorGuide, "utf8");
-const handoff = guide.match(
-  /## Operator staging after this PR merges[\\s\\S]*?```bash\\n([\\s\\S]*?)\\n```/u,
-);
-assert.ok(handoff, "reviewed operator staging shell block required");
-const operatorShell = handoff[1];
-assert.match(operatorShell, /03c99e0a8c1df6671e5d92f9535ebfa9682f74d2/u);
-assert.match(operatorShell, /8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f/u);
-assert.match(operatorShell, /sudo \\/usr\\/bin\\/install -o 0 -g 0 -m 0500 -- "\\$src" "\\$trusted"/u);
-assert.match(operatorShell, /sudo \\/usr\\/bin\\/sha256sum --status -c -/u);
-assert.match(operatorShell, /sudo \\/bin\\/bash "\\$trusted"/u);
-assert.match(operatorShell, /0:0:700:directory/u);
-assert.match(operatorShell, /0:0:500:1:regular file/u);
-assert.doesNotMatch(
-  operatorShell,
-  /sudo \\/bin\\/bash "\\$HOME\\/\\.local\\/state\\//u,
+const stagingHeading = "## Operator staging after this PR merges";
+const headingAt = guide.indexOf(stagingHeading);
+assert.ok(headingAt >= 0, "operator staging section required");
+const fenceOpen = "```bash\n";
+const fenceAt = guide.indexOf(fenceOpen, headingAt);
+assert.ok(fenceAt >= headingAt, "operator staging shell block required");
+const blockAt = fenceAt + fenceOpen.length;
+const closeAt = guide.indexOf("\n```", blockAt);
+assert.ok(closeAt > blockAt, "operator staging shell must close");
+const operatorShell = guide.slice(blockAt, closeAt);
+for (const required of [
+  "03c99e0a8c1df6671e5d92f9535ebfa9682f74d2",
+  "8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f",
+  'sudo /usr/bin/install -o 0 -g 0 -m 0500 -- "$src" "$trusted"',
+  "sudo /usr/bin/sha256sum --status -c -",
+  'sudo /bin/bash "$trusted"',
+  "0:0:700:directory",
+  "0:0:500:1:regular file",
+]) {
+  assert.equal(operatorShell.includes(required), true, "missing operator trust check: " + required);
+}
+assert.equal(
+  operatorShell.includes('sudo /bin/bash "$HOME/.local/state/void-replay-compare-handler-upgrade-v1/upgrade.sh"'),
+  false,
   "never execute user-writable staging source as root",
 );
 const handoffSyntax = spawnSync("bash", ["-n"], {
   input: operatorShell, encoding: "utf8", timeout: 5000,
 });
 assert.equal(handoffSyntax.status, 0, handoffSyntax.stderr);
-
 
 assert.ok(script.startsWith("#!/usr/bin/env bash\n"));
 for (const token of [
