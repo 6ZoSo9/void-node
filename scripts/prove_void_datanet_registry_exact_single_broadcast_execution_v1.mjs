@@ -400,7 +400,8 @@ assert.match(
   assert.notEqual(contaminated.status,0);
   assert.match(
     contaminated.stderr,
-    /reviewed_bootstrap_environment_not_sanitized/u,
+    /legacy_same_process_execution_retired_use_isolated_launcher/u,
+    "legacy same-process launcher must remain retired even under a contaminated environment",
   );
 }
 
