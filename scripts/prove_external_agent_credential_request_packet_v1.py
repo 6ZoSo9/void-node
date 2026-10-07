@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
@@ -288,6 +289,148 @@ try:
         raise RuntimeError(
             "public applicant identity generation mismatch"
         )
+
+    auth_module = sys.modules.get(
+        "applicant_auth_v1"
+    )
+
+    if auth_module is None:
+        raise RuntimeError(
+            "applicant auth module not loaded"
+        )
+
+    def exercise_identity_key_rebind(
+        label: str,
+        operation: Any,
+    ) -> None:
+        displaced = (
+            temporary
+            / f"{label}-original.pem"
+        )
+        original_run_openssl = (
+            auth_module.run_openssl
+        )
+        observed: dict[str, Any] = {
+            "mutated": False,
+        }
+
+        def raced_run_openssl(
+            arguments: list[str],
+            **kwargs: Any,
+        ) -> bytes:
+            descriptor_paths = [
+                argument
+                for argument in arguments
+                if (
+                    isinstance(
+                        argument,
+                        str,
+                    )
+                    and argument.startswith(
+                        "/proc/self/fd/"
+                    )
+                )
+            ]
+
+            if not observed["mutated"]:
+                if len(descriptor_paths) != 1:
+                    raise RuntimeError(
+                        "OpenSSL key descriptor path missing"
+                    )
+
+                pass_fds = kwargs.get(
+                    "pass_fds"
+                )
+
+                if (
+                    not isinstance(
+                        pass_fds,
+                        tuple,
+                    )
+                    or len(pass_fds) != 1
+                    or descriptor_paths[0]
+                    != (
+                        "/proc/self/fd/"
+                        + str(
+                            pass_fds[0]
+                        )
+                    )
+                ):
+                    raise RuntimeError(
+                        "OpenSSL key descriptor inheritance mismatch"
+                    )
+
+                identity_key.rename(
+                    displaced
+                )
+                os.mkfifo(
+                    identity_key,
+                    0o600,
+                )
+                observed[
+                    "mutated"
+                ] = True
+
+            return original_run_openssl(
+                arguments,
+                **kwargs,
+            )
+
+        auth_module.run_openssl = (
+            raced_run_openssl
+        )
+        started = time.monotonic()
+
+        try:
+            try:
+                operation()
+            except ValueError as error:
+                if (
+                    "identity key changed after open"
+                    not in str(error)
+                ):
+                    raise
+            else:
+                raise RuntimeError(
+                    "post-validation key replacement was accepted"
+                )
+        finally:
+            auth_module.run_openssl = (
+                original_run_openssl
+            )
+
+            try:
+                if identity_key.exists():
+                    identity_key.unlink()
+            finally:
+                if displaced.exists():
+                    displaced.rename(
+                        identity_key
+                    )
+
+        if (
+            not observed["mutated"]
+            or time.monotonic()
+            - started
+            > 5.0
+        ):
+            raise RuntimeError(
+                "post-validation key replacement did not fail boundedly"
+            )
+
+    exercise_identity_key_rebind(
+        "public-key-rebind",
+        lambda: auth_module.public_jwk_from_key(
+            identity_key
+        ),
+    )
+    exercise_identity_key_rebind(
+        "signing-key-rebind",
+        lambda: auth_module.sign_ed25519(
+            identity_key,
+            b"void-descriptor-bound-key-proof",
+        ),
+    )
 
     request = module.materialize_request(
         agent_id=identity[
