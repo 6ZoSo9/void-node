@@ -9,11 +9,16 @@ on:
       - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-composition-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_state_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_live_read_qualification_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_live_read_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts"
       - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs"
+      - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
   workflow_dispatch:
 
 permissions:
