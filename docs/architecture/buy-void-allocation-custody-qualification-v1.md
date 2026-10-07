@@ -6,15 +6,15 @@ Status: **source-only host/storage evidence classifier; no host I/O and no produ
 
 Reviewed writer provenance head:
 
-`bee1a8228e8352c62e10ec8410b49e1278f0893f`
+`65a87dba3f4a480a970f01804beb1fffec543350`
 
 Reviewed writer source blob (Git SHA-1):
 
-`8079881e45ca050b48712377431789bfbef6c47c`
+`59b336eb82222bf0f5bcfe37060ec520c54e9b62`
 
 Reviewed writer source SHA-256:
 
-`sha256:5bbbee3ca309936ea3f7199a8cdd81f794a5dadfde69fc378535177ae6ecb4a6`
+`sha256:84ba3aa4fd77fdcf6cc12b8707014a9698a4f2b04808e3179a4d016435c9fd4b`
 
 The source SHA-256 is the primary authority-bearing implementation binding.
 Git blob SHA-1 and commit head remain provenance/cross-check evidence.
