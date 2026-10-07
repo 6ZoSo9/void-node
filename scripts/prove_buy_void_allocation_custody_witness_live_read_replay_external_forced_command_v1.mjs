@@ -52,6 +52,13 @@ function canonicalLine(value) {
   return canonicalJson(value) + "\n";
 }
 
+function sha256Id(value) {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value).digest("hex")
+  );
+}
+
 function requestId(label) {
   return (
     "voidwlrwreq1_" +
@@ -327,6 +334,62 @@ for (const phase of [
         fs.readFileSync(f.witness),
       );
     assert.equal(parsed.event_count, 1, phase);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const journal0 = Buffer.alloc(0);
+    const append = buildRequest({
+      operation: "append",
+      id: requestId("tampered-intent"),
+      journal: journal0,
+      high_water: highWater(journal0),
+    });
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          append,
+          {
+            ...deps,
+            hooks: { interrupt_after_intent: true },
+          },
+        ),
+      /test_interrupt_after_intent/u,
+    );
+    const forgedLine = Buffer.from(canonicalLine({ forged: true }), "utf8");
+    const intent = JSON.parse(fs.readFileSync(f.intent, "utf8"));
+    intent.next_line_base64 = forgedLine.toString("base64");
+    intent.expected_next_witness_sha256 = sha256Id(forgedLine);
+    intent.expected_next_witness_bytes = forgedLine.length;
+    intent.next_event_count = 1;
+    intent.next_tip_event_sha256 = sha256Id("forged-tip");
+    intent.next_witnessed_replay_sequence = 0;
+    fs.writeFileSync(f.intent, canonicalLine(intent), { mode: 0o600 });
+
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessLiveReadReplayExternalForcedCommandRequestV1(
+          f.config,
+          append,
+          deps,
+        ),
+      /intent_plan_mismatch/u,
+    );
+    assert.equal(
+      fs.readFileSync(f.witness).length,
+      0,
+      "tampered intent must HOLD before witness mutation",
+    );
+    assert.equal(
+      fs.existsSync(f.intent),
+      true,
+      "tampered intent must remain for operator inspection",
+    );
   } finally {
     cleanup(f);
   }
@@ -621,6 +684,7 @@ console.log("torn_append_crash_recovered=true");
 console.log("full_append_precleanup_crash_recovered=true");
 console.log("read_pending_intent_holds=true");
 console.log("mismatched_recovery_request_holds=true");
+console.log("tampered_intent_revalidated_before_write=true");
 console.log("max_request_intent_capacity_bound=true");
 console.log("retired_8mib_intent_ceiling=false");
 console.log("host_identity_drift_rejected=true");
