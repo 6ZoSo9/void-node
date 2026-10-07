@@ -111,7 +111,12 @@ Each receipt contains:
 
 For V1:
 
-`custody_epoch == event_count`.
+- `custody_epoch == event_count`;
+- custody epoch/event count `0` requires `previous_receipt_sha256=null`;
+- every non-genesis receipt requires a non-null predecessor receipt SHA-256.
+
+These are receipt-intrinsic chain invariants. A self-hashed receipt that
+violates them HOLDS even before any later external-custody trust decision.
 
 ## Genesis
 
@@ -200,7 +205,9 @@ The proof covers:
 - forged prior prefix rejection;
 - storage-policy drift rejection;
 - placement qualification-ID recomputation; and
-- receipt self-hash validation.
+- receipt self-hash validation;
+- forged genesis receipt with a predecessor rejection; and
+- forged non-genesis receipt with no predecessor rejection.
 
 ## Next gate
 
