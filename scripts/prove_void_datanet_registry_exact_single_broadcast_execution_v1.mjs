@@ -292,6 +292,14 @@ assert.equal(
   reviewedLauncher.blob,
 );
 assert.equal(
+  reviewedAuthorityRecheck.before.test_only_current_checkout,
+  true,
+);
+assert.equal(
+  reviewedAuthorityRecheck.after.test_only_current_checkout,
+  true,
+);
+assert.equal(
   reviewedAuthorityRecheck.after.launcher_git_blob_sha1,
   reviewedLauncher.blob,
 );
@@ -312,6 +320,22 @@ assert.equal(
   false,
 );
 assert.equal(reviewedAuthorityRecheck.rpc_send_invocation_count,0);
+
+const launcherSource=fs.readFileSync(
+  REVIEWED_LAUNCHER_REL,
+  "utf8",
+);
+assert.match(
+  launcherSource,
+  /const authority=reviewedGitAuthorityV1\(\s*bootstrap\.launcher_git_blob_sha1,\s*\);/u,
+  "production bootstrap must still require canonical reviewed Git authority",
+);
+assert.match(
+  launcherSource,
+  /const authorityAfterPreparation=reviewedGitAuthorityV1\(\s*authority\.launcher_git_blob_sha1,\s*\);/u,
+  "production post-preparation check must still use canonical reviewed Git authority and the pinned launcher blob",
+);
+
 assert.equal(reviewedExecution.repository_head_sha,reviewedHead);
 assert.equal(reviewedExecution.closure_count,27);
 assert.deepEqual(reviewedExecution.bare_packages,["ethers"]);
