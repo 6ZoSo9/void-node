@@ -467,6 +467,30 @@ try{
       tamperCase.label,
     );
   }
+
+  const originalText=originalBytes.toString("utf8");
+  assert.match(
+    originalText,
+    /^\{\n  "schema":/u,
+    "canonical record must begin with schema",
+  );
+  const duplicateSchemaBytes=Buffer.from(
+    originalText.replace(
+      "{\n",
+      '{\n  "schema": "forbidden-duplicate-value",\n',
+    ),
+    "utf8",
+  );
+  fs.writeFileSync(recordPath,duplicateSchemaBytes,{mode:0o600});
+  fs.chmodSync(recordPath,0o600);
+  const duplicateSchema=await transport.assert(first,firstFence,{
+    signal:new AbortController().signal,
+    timeout_ms:1000,
+  });
+  assert.equal(duplicateSchema.ok,false);
+  assert.equal(duplicateSchema.status,"held");
+  assert.equal(duplicateSchema.independent_custody_proven,false);
+
   fs.writeFileSync(recordPath,originalBytes,{mode:0o600});
   fs.chmodSync(recordPath,0o600);
 
@@ -1130,6 +1154,8 @@ console.log("stable_fence_identity_rederived=true");
 console.log("create_only_record=true");
 console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
+console.log("record_duplicate_keys_rejected=true");
+console.log("record_exact_canonical_bytes_required=true");
 console.log("record_exact_schema_required=true");
 console.log("nested_record_exact_schema_required=true");
 console.log("caller_selected_path=false");
