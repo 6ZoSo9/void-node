@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isIP } from "node:net";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_AUTHORITY_V1,
@@ -123,9 +124,11 @@ const REPLAY_INSTALLATION_AUTHORITY = Object.freeze({
 });
 const REPLAY_INSTALLATION_ID = /^voidwlrie1_[0-9a-f]{64}$/u;
 const LIVE_READ_ID = /^voidwlrq1_[0-9a-f]{64}$/u;
+const LIVE_INSTALLATION_ID = /^voidwiq2_[0-9a-f]{64}$/u;
 const REQUEST_ID = /^voidwreq1_[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const CHALLENGE_ID = /^voidwlrc1_[0-9a-f]{64}$/u;
+const MAX_LIVE_READ_CHALLENGE_AGE_MS = 38_000;
 
 const STORAGE_KEYS = Object.freeze([
   "ok",
@@ -785,6 +788,121 @@ function liveReadParent(input: unknown) {
   ) {
     fail("witness_live_read_replay_composition_live_read_invalid");
   }
+
+  for (const key of [
+    "installation_collector_receipt_sha256",
+    "installation_normalized_qualification_sha256",
+    "runtime_bundle_collector_receipt_sha256",
+    "transport_policy_sha256",
+    "installation_machine_id_sha256",
+    "witness_machine_id_sha256",
+    "known_hosts_sha256",
+    "host_key_sha256",
+    "client_public_key_sha256",
+    "witness_sha256",
+    "tip_event_sha256",
+  ]) {
+    sha(
+      normalized[key],
+      "witness_live_read_replay_composition_live_read_invalid",
+    );
+  }
+  if (
+    typeof normalized.installation_qualification_id !== "string" ||
+    !LIVE_INSTALLATION_ID.test(normalized.installation_qualification_id) ||
+    typeof normalized.remote_host !== "string" ||
+    normalized.remote_host.length < 1 ||
+    normalized.remote_host.length > 255 ||
+    normalized.remote_host !== normalized.remote_host.trim().toLowerCase() ||
+    typeof normalized.installation_hostname !== "string" ||
+    normalized.installation_hostname.length < 1 ||
+    normalized.installation_hostname.length > 255 ||
+    normalized.installation_hostname !== normalized.installation_hostname.trim() ||
+    typeof normalized.witness_hostname !== "string" ||
+    normalized.witness_hostname.length < 1 ||
+    normalized.witness_hostname.length > 255 ||
+    normalized.witness_hostname !== normalized.witness_hostname.trim() ||
+    normalized.installation_hostname.toLowerCase() !== normalized.remote_host ||
+    normalized.witness_hostname.toLowerCase() !== normalized.remote_host ||
+    typeof normalized.remote_user !== "string" ||
+    normalized.remote_user.length < 1 ||
+    normalized.remote_user.length > 255 ||
+    normalized.remote_user !== normalized.remote_user.trim() ||
+    safeInt(
+      normalized.remote_port,
+      1,
+      65_535,
+      "witness_live_read_replay_composition_live_read_invalid",
+    ) !== normalized.remote_port ||
+    typeof normalized.continuity_attestation_consumed !== "boolean" ||
+    !(
+      (
+        normalized.witness_identity_path === "historical_exact" &&
+        normalized.continuity_attestation_consumed === false &&
+        normalized.installation_machine_id_sha256 ===
+          normalized.witness_machine_id_sha256
+      ) ||
+      (
+        normalized.witness_identity_path ===
+          "reviewed_machine_id_continuity" &&
+        normalized.continuity_attestation_consumed === true &&
+        normalized.installation_machine_id_sha256 !==
+          normalized.witness_machine_id_sha256
+      )
+    ) ||
+    typeof normalized.observed_client_address !== "string" ||
+    typeof normalized.observed_remote_address !== "string" ||
+    isIP(normalized.observed_client_address) === 0 ||
+    isIP(normalized.observed_remote_address) === 0 ||
+    normalized.observed_client_address === normalized.observed_remote_address
+  ) {
+    fail("witness_live_read_replay_composition_live_read_invalid");
+  }
+
+  const issuedAt = safeInt(
+    normalized.challenge_issued_at_ms,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  const observedAt = safeInt(
+    normalized.response_observed_at_ms,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  const challengeAge = safeInt(
+    normalized.challenge_age_ms,
+    0,
+    MAX_LIVE_READ_CHALLENGE_AGE_MS,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  const priorGeneration = safeInt(
+    normalized.prior_evidence_generation,
+    0,
+    Number.MAX_SAFE_INTEGER - 1,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  const evidenceGeneration = safeInt(
+    normalized.evidence_generation,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  safeInt(
+    normalized.event_count,
+    1,
+    100_001,
+    "witness_live_read_replay_composition_live_read_invalid",
+  );
+  if (
+    observedAt < issuedAt ||
+    challengeAge !== observedAt - issuedAt ||
+    evidenceGeneration !== priorGeneration + 1
+  ) {
+    fail("witness_live_read_replay_composition_live_read_invalid");
+  }
+
   const expectedId =
     "voidwlrq1_" +
     crypto
@@ -875,6 +993,18 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
     if (
       liveRead.normalized.transport_policy_sha256 !==
         policyDecision.policy_sha256 ||
+      liveRead.normalized.remote_host !==
+        policyDecision.policy.remote_host ||
+      liveRead.normalized.remote_port !==
+        policyDecision.policy.remote_port ||
+      liveRead.normalized.remote_user !==
+        policyDecision.policy.remote_user ||
+      liveRead.normalized.known_hosts_sha256 !==
+        policyDecision.policy.known_hosts_sha256 ||
+      liveRead.normalized.host_key_sha256 !==
+        policyDecision.policy.host_key_sha256 ||
+      liveRead.normalized.client_public_key_sha256 !==
+        policyDecision.policy.client_public_key_sha256 ||
       liveRead.normalized.challenge_sha256 !== issue.challenge_sha256 ||
       liveRead.normalized.challenge_issued_at_ms !== issue.issued_at_ms ||
       liveRead.normalized.prior_evidence_generation !== storage.generation ||
