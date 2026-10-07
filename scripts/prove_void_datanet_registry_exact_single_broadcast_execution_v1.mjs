@@ -45,15 +45,17 @@ const REVIEWED_LAUNCHER_REL =
   "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const REVIEWED_TOOL_REL =
   "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
-const REVIEWED_NETWORK_MODULE =
-  "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs";
+const REVIEWED_NETWORK_MODULES = Object.freeze([
+  "tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs",
+  "tools/void-datanet-registry-prebroadcast-observer-v1.mjs",
+]);
 
 const reviewedPlan=testOnlyReviewedSourcePlanV1();
 assert.equal(reviewedPlan.closure.length,27);
 assert.deepEqual(reviewedPlan.bare_packages,["ethers"]);
 assert.deepEqual(
   reviewedPlan.network_capable_modules,
-  [REVIEWED_NETWORK_MODULE],
+  REVIEWED_NETWORK_MODULES,
 );
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
@@ -263,11 +265,20 @@ let reviewedAbaExecution;
 let reviewedExecution;
 let reviewedAuthorityRecheck;
 let reviewedPreparationHttpCalls=0;
+let reviewedPreparationFetchCalls=0;
 const originalHttpRequest=http.request;
+const originalFetch=globalThis.fetch;
 http.request=(...args)=>{
   reviewedPreparationHttpCalls+=1;
   throw new Error(
     "reviewed_preparation_unexpected_http_request:"+
+    String(args[0]??""),
+  );
+};
+globalThis.fetch=async (...args)=>{
+  reviewedPreparationFetchCalls+=1;
+  throw new Error(
+    "reviewed_preparation_unexpected_global_fetch:"+
     String(args[0]??""),
   );
 };
@@ -280,12 +291,18 @@ try{
     await testOnlyPrepareAndRecheckReviewedAuthorityV1();
 }finally{
   http.request=originalHttpRequest;
+  globalThis.fetch=originalFetch;
   syncBuiltinESMExports();
 }
 assert.equal(
   reviewedPreparationHttpCalls,
   0,
   "reviewed source/package preparation and module import must not invoke the live fee-funding observer transport",
+);
+assert.equal(
+  reviewedPreparationFetchCalls,
+  0,
+  "reviewed source/package preparation and module import must not invoke global fetch",
 );
 assert.equal(
   reviewedAuthorityRecheck.before.launcher_git_blob_sha1,
@@ -341,7 +358,7 @@ assert.equal(reviewedExecution.closure_count,27);
 assert.deepEqual(reviewedExecution.bare_packages,["ethers"]);
 assert.deepEqual(
   reviewedExecution.network_capable_modules,
-  [REVIEWED_NETWORK_MODULE],
+  REVIEWED_NETWORK_MODULES,
 );
 assert.match(
   reviewedExecution.reviewed_runtime_profile_id,
@@ -692,6 +709,20 @@ try{
     "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs",
     "utf8",
   );
+  const packageRuntimeSource=fs.readFileSync(
+    "tools/void-reviewed-node-package-runtime-v1.mjs",
+    "utf8",
+  );
+  assert.match(
+    packageRuntimeSource,
+    /reviewedHead="HEAD"/u,
+    "reviewed package-runtime APIs must accept an explicit reviewed head",
+  );
+  assert.match(
+    packageRuntimeSource,
+    /collectInternal\(repoRoot,profile\.root_packages,reviewedHead\)/u,
+    "reviewed package verification/materialization must bind collection to the explicit reviewed head",
+  );
   const runnerSource=fs.readFileSync(
     "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs",
     "utf8",
@@ -743,6 +774,8 @@ try{
     "testOnlyPrepareAndRecheckReviewedAuthorityV1",
     "VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1",
     "reviewed_source_closure_mismatch",
+    "reviewedHead:head",
+    "globalThis\\.fetch",
     "registerReviewedModuleGraphV1",
     "registerExactReviewedFileModuleV1",
     "reviewedEthersStandaloneBundleV1",
@@ -796,8 +829,9 @@ try{
   console.log("reviewed_source_graph_in_memory=true");
   console.log("reviewed_ethers_standalone_in_memory=true");
   console.log("reviewed_ethers_runtime_verified=true");
-  console.log("reviewed_network_capable_module_count=1");
+  console.log("reviewed_network_capable_module_count=2");
   console.log("reviewed_preparation_http_calls=0");
+  console.log("reviewed_preparation_global_fetch_calls=0");
   console.log("reviewed_post_preparation_authority_recheck=true");
   console.log("reviewed_post_preparation_launcher_blob_bound=true");
   console.log("execution_network_isolation_provided=false");
