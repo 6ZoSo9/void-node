@@ -29,8 +29,6 @@ const CONSUMPTION_ID=/^voiddrbac1_[0-9a-f]{64}$/u;
 const SEND_GUARD_ID=/^voiddrbsg1_[0-9a-f]{64}$/u;
 const SEND_GUARD_MARKER=
   "VOID_DATANET_REGISTRY_BROADCAST_SEND_GUARD_V1";
-const SEND_GUARD_RELATIVE_ROOT=
-  ".config/void/datanet-registry-broadcast-send-guards-v1";
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -132,7 +130,10 @@ function validateDirectOwnedDirectory(directory,{exactMode=null}={}){
   });
 }
 
-function ensureAuthorityGuardRoot(stateRoot,testOnlyRoot=null){
+function ensureAuthorityGuardRoot(
+  stateRoot,
+  {testOnlyRoot=null,production=false}={},
+){
   if(testOnlyRoot!==null){
     const resolved=path.resolve(String(testOnlyRoot||""));
     if(
@@ -152,6 +153,18 @@ function ensureAuthorityGuardRoot(stateRoot,testOnlyRoot=null){
       throw new Error("registry_broadcast_execution_send_guard_inside_state_root");
     }
     return checked;
+  }
+
+  if(production!==true){
+    const proofRoot=stateRoot.realpath+"-send-guards-v1";
+    try{
+      fs.mkdirSync(proofRoot,{mode:0o700});
+      fs.chmodSync(proofRoot,0o700);
+      fsyncDir(path.dirname(proofRoot));
+    }catch(error){
+      if(error?.code!=="EEXIST") throw error;
+    }
+    return validateDirectOwnedDirectory(proofRoot,{exactMode:0o700});
   }
 
   const home=path.resolve(os.homedir());
@@ -458,6 +471,10 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     !(
       dependencies.test_only_after_send_guard_before_rpc===undefined||
       typeof dependencies.test_only_after_send_guard_before_rpc==="function"
+    )||
+    !(
+      dependencies.production_guard_root===undefined||
+      typeof dependencies.production_guard_root==="boolean"
     )
   ){
     throw new Error("registry_broadcast_execution_dependencies_invalid");
@@ -632,7 +649,10 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
   try{
     const guardRoot=ensureAuthorityGuardRoot(
       root,
-      dependencies.test_only_guard_root??null,
+      {
+        testOnlyRoot:dependencies.test_only_guard_root??null,
+        production:dependencies.production_guard_root===true,
+      },
     );
     sendGuardFile=path.join(guardRoot.realpath,operationId+".json");
     const sendGuardMaterial={
@@ -797,6 +817,7 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastV1(input){
       validate_signed_transaction:validateVoidDatanetRegistrySignedTransactionV1,
       rpc:input?.rpc,
       now:input?.now??(()=>Date.now()),
+      production_guard_root:true,
     },
   );
 }
