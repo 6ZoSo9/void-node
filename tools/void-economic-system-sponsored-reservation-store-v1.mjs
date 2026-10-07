@@ -855,7 +855,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
     lockQueue = openLockQueueDirectory(root);
     const withLock = await canonicalLock();
 
-    return await withLock(lockQueue.proc_path, async () => {
+    const decision = await withLock(lockQueue.proc_path, async () => {
       assertPinnedDirectoryVisible(
         root,
         "SPONSORED_RESERVATION_STORE_ROOT",
@@ -1007,6 +1007,25 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         admission,
       );
     });
+
+    // The bakery lock's final queue cleanup/fsync runs after its callback.
+    // Keep pinned descriptors open and refuse a success if any visible root
+    // was replaced during that terminal lock-release boundary.
+    if (decision?.ok === true) {
+      assertPinnedDirectoryVisible(
+        root,
+        "SPONSORED_RESERVATION_STORE_ROOT",
+      );
+      assertPinnedDirectoryVisible(
+        records,
+        "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+      );
+      assertPinnedDirectoryVisible(
+        lockQueue,
+        "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
+      );
+    }
+    return decision;
   } catch (error) {
     return held(
       error instanceof Error ? error.message : String(error),
