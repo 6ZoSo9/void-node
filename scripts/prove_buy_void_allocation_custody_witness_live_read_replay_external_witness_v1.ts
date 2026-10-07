@@ -138,7 +138,10 @@ function replayHighWaterJsonFixture(value: {
   );
 }
 
-function buildStressReplayAndWitness(eventCount: number) {
+function buildStressReplayAndWitness(
+  eventCount: number,
+  witnessIdentity: typeof identity = identity,
+) {
   const replayLines: string[] = [];
   const witnessLines: string[] = [];
   const replayHash = crypto.createHash("sha256");
@@ -204,7 +207,7 @@ function buildStressReplayAndWitness(eventCount: number) {
       pending_expires_at_ms: pendingExpiresAtMs,
       last_terminal_state: lastTerminal,
       ready_for_issue: !pendingState,
-      ...identity,
+      ...witnessIdentity,
     };
     const event = {
       ...body,
@@ -810,13 +813,35 @@ assert.equal(
   );
   assert.match(sourceText, /journalHash\.copy\(\)\.digest/u);
 
-  const stress = buildStressReplayAndWitness(8192);
+  const maximalIdentity = Object.freeze({
+    source_hostname: "a".repeat(300),
+    source_journal_root: "b".repeat(300),
+    source_high_water_root: "c".repeat(300),
+    source_journal_disk_wwn: "d".repeat(300),
+    source_high_water_disk_wwn: "e".repeat(300),
+    witness_hostname: "f".repeat(300),
+    witness_machine_id_sha256: sha("a"),
+    witness_root_disk_serial: "g".repeat(300),
+    witness_root_disk_wwn: "h".repeat(300),
+  });
+  const stress = buildStressReplayAndWitness(
+    8192,
+    maximalIdentity,
+  );
   assert.ok(
     Buffer.byteLength(stress.replay_journal, "utf8") <= 8 * 1024 * 1024,
   );
   assert.ok(
-    Buffer.byteLength(stress.witness_jsonl, "utf8") <= 24 * 1024 * 1024,
+    Buffer.byteLength(stress.witness_jsonl, "utf8") <=
+      8193 * 4 * 1024,
+    "full witness history must fit derived 4 KiB/event capacity",
   );
+  for (const line of stress.witness_jsonl.trimEnd().split("\n")) {
+    assert.ok(
+      Buffer.byteLength(line, "utf8") + 1 <= 4 * 1024,
+      "maximal valid identity witness event must fit 4 KiB",
+    );
+  }
   const stressHighWater =
     deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
       stress.replay_journal,
@@ -831,7 +856,7 @@ assert.equal(
       witness_jsonl: stress.witness_jsonl,
       current_journal_jsonl: stress.replay_journal,
       current_high_water_json: stressHighWater.high_water_json,
-      identity,
+      identity: maximalIdentity,
     });
   assert.equal(stressMatched.ok, true);
   if (!stressMatched.ok) {
@@ -845,7 +870,7 @@ assert.equal(
       witness_jsonl: stress.witness_without_tip,
       current_journal_jsonl: stress.replay_journal,
       current_high_water_json: stressHighWater.high_water_json,
-      identity,
+      identity: maximalIdentity,
     });
   assert.equal(stressPlan.ok, true);
   if (!stressPlan.ok) {
@@ -934,6 +959,9 @@ console.log("impossible_pending_witness_not_labeled_rollback=true");
 console.log("identity_drift_rejected=true");
 console.log("near_capacity_prefix_scan_linear_memory=true");
 console.log("cumulative_prefix_buffers_retired=true");
+console.log("witness_event_max_bytes=4096");
+console.log("witness_max_events=8193");
+console.log("maximal_identity_full_history_fits=true");
 console.log("tampered_witness_rejected=true");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
