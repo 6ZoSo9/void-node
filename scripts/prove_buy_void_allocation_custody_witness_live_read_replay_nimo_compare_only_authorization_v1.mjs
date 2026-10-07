@@ -18,6 +18,15 @@ const help = spawnSync("/usr/bin/bash", [script, "--help"], {
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /VOID_REPLAY_NIMO_COMPARE_ONLY_AUTHORIZATION_V1/u);
 
+const selfTest = spawnSync("/usr/bin/bash", [script, "--self-test-cleanup"], {
+  encoding: "utf8",
+  timeout: 10_000,
+});
+assert.equal(selfTest.status, 0, selfTest.stderr);
+assert.match(selfTest.stdout, /staged_key_swap_bound_to_root_snapshot=true/u);
+assert.match(selfTest.stdout, /mismatched_recovery_backup_preserved=true/u);
+assert.match(selfTest.stdout, /failed_restore_rename_backup_preserved=true/u);
+
 for (const token of [
   "root_nimo_required",
   "getent passwd 997",
@@ -44,6 +53,12 @@ for (const token of [
   "SHA256:8NrrP3xxlMTcJEDYgNE+8DWMm1Z6zxFW5FpHWdk0EGI",
   "authorized_key_count_postchange",
   "old_keys_changed",
+  "installer_not_root_trusted_path",
+  "installer_trusted_metadata_changed",
+  "compare_public_snapshot_or_fingerprint_invalid",
+  "AUTHORIZED_KEYS_RECOVERY_BACKUP=",
+  "snapshot_compare_public_key_v1",
+  "attempt_authorized_keys_restore_v1",
 ]) {
   assert.equal(s.includes(token), true, token);
 }
@@ -52,6 +67,16 @@ assert.match(
   s,
   /git hash-object "\$wrapper_source"[\s\S]*wrapper_source_changed/u,
   "wrapper source blob must be pinned",
+);
+assert.match(
+  s,
+  /snapshot_compare_public_key_v1[\s\S]*ssh-keygen -lf "\$compare_pub_snapshot"[\s\S]*read -r algorithm public comment < "\$compare_pub_snapshot"/u,
+  "fingerprint and consumed key bytes must come from the same root-controlled snapshot",
+);
+assert.doesNotMatch(
+  s,
+  /ssh-keygen -lf "\$compare_pub"/u,
+  "staged public-key pathname must not be independently fingerprinted then reopened",
 );
 assert.match(
   s,
@@ -75,8 +100,13 @@ assert.match(
 );
 assert.match(
   s,
-  /if \[\[ "\$finished" != true && "\$committed" == true[\s\S]*mv -T -- "\$backup" "\$auth"/u,
-  "post-commit failure must attempt rollback",
+  /if \[\[ "\$finished" != true && "\$committed" == true[\s\S]*attempt_authorized_keys_restore_v1/u,
+  "post-commit failure must attempt verified rollback",
+);
+assert.match(
+  s,
+  /URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true[\s\S]*AUTHORIZED_KEYS_RECOVERY_BACKUP=%s/u,
+  "manual recovery path must preserve and report the backup",
 );
 assert.match(
   s,
@@ -87,11 +117,39 @@ assert.doesNotMatch(s, /(?:ssh|sshd)\s+-[A-Za-z]*R\b/u);
 assert.doesNotMatch(s, /\brm\s+-rf\b/u);
 assert.doesNotMatch(s, /\beval\s/u);
 
+const operatorGuide =
+  "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.md";
+const guide = fs.readFileSync(operatorGuide, "utf8");
+assert.match(
+  guide,
+  /installer_blob=1e8f7683f30a160d1df7992e624d613c93274998/u,
+);
+assert.match(
+  guide,
+  /trusted=\/root\/\.void-replay-compare-only-nimo-authorization-v1\.sh/u,
+);
+assert.match(
+  guide,
+  /sudo \/usr\/bin\/git hash-object "\$trusted"/u,
+);
+assert.match(
+  guide,
+  /sudo \/bin\/bash "\$trusted"/u,
+);
+assert.doesNotMatch(
+  guide,
+  /sudo \/bin\/bash \/home\/zoso\/\.local\/state\/void-replay-compare-only-nimo-auth-v1\/authorize\.sh/u,
+  "operator handoff must never execute the user-writable staged installer as root",
+);
+
 console.log("VOID_REPLAY_NIMO_COMPARE_ONLY_AUTHORIZATION_SOURCE_PROOF_V1_GREEN");
 console.log("source_only=true");
 console.log("nimo_install_executed=false");
 console.log("new_wrapper_content_pinned=true");
 console.log("new_credential_fingerprint_pinned=true");
+console.log("credential_consumed_from_root_snapshot=true");
+console.log("privileged_installer_root_copy_blob_pinned=true");
+console.log("manual_recovery_backup_preserved_on_restore_failure=true");
 console.log("first_two_keys_preserved_by_contract=true");
 console.log("forced_command_restricted_by_contract=true");
 console.log("root_auth_atomic_publish=true");
