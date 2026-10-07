@@ -182,6 +182,10 @@ function installReviewedAmbientFenceV1(){
       "reviewed_ambient_process_linked_binding_forbidden",true],
     [process,"dlopen","reviewed_ambient_process_dlopen_forbidden",true],
     [process,"execve","reviewed_ambient_process_execve_forbidden",true],
+    [process,"_getActiveHandles",
+      "reviewed_ambient_active_handles_forbidden",true],
+    [process,"_getActiveRequests",
+      "reviewed_ambient_active_requests_forbidden",true],
     [globalThis,"WebSocket","reviewed_ambient_websocket_forbidden",true],
     [globalThis,"EventSource","reviewed_ambient_eventsource_forbidden",true],
   ];
