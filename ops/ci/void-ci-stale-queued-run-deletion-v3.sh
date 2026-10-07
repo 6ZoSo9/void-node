@@ -160,11 +160,15 @@ echo
 echo "=== POSTCHECK ==="
 bad=0
 while IFS=$'\t' read -r id _branch _created _age_days _name; do
-  if gh api "repos/$REPO/actions/runs/$id" >/dev/null 2>&1; then
+  response=""
+  if response="$(gh api --include -H 'Accept: application/vnd.github+json' "repos/$REPO/actions/runs/$id" 2>&1)"; then
     echo "HOLD: deleted run still resolves: $id" >&2
     bad=1
+  elif printf '%s\n' "$response" | grep -Eq '^HTTP/[0-9.]+[[:space:]]+404([[:space:]]|$)'; then
+    echo "run_id=$id deleted=true http_status=404"
   else
-    echo "run_id=$id deleted=true"
+    echo "HOLD: run lookup failed without verified HTTP 404: $id" >&2
+    bad=1
   fi
 done < "$eligible"
 
