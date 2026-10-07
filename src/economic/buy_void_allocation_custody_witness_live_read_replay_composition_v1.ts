@@ -532,6 +532,14 @@ function storageParent(input: unknown) {
     fail("witness_live_read_replay_composition_storage_sequence_invalid");
   }
   if (
+    eventCount % 2 !== 0 ||
+    generation !== eventCount / 2
+  ) {
+    fail(
+      "witness_live_read_replay_composition_storage_generation_count_invalid",
+    );
+  }
+  if (
     typeof normalized.hostname !== "string" ||
     !SAFE_REPLAY_HOSTNAME.test(normalized.hostname) ||
     !(
@@ -539,7 +547,8 @@ function storageParent(input: unknown) {
       normalized.last_terminal_state === "consumed" ||
       normalized.last_terminal_state === "abandoned"
     ) ||
-    (generation === 0 && normalized.last_terminal_state !== null)
+    (generation === 0 && normalized.last_terminal_state !== null) ||
+    (generation > 0 && normalized.last_terminal_state === null)
   ) {
     fail("witness_live_read_replay_composition_storage_invalid");
   }
