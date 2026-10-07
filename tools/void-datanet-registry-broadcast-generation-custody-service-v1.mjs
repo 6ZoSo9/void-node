@@ -663,13 +663,20 @@ function writeResponse(socket,response){
   socket.end(line);
 }
 
-export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
   rawOptions,
+  testOnlySocketPolicyFailure=null,
 ){
   const options=normalizeOptions(rawOptions);
+  if(
+    ![null,"chmod","chown"].includes(testOnlySocketPolicyFailure)
+  ){
+    fail("datanet_broadcast_generation_custody_test_hook_invalid");
+  }
   let server=null;
   let pinned=null;
   let started=false;
+  let boundSocketIdentity=null;
   let queue=Promise.resolve();
   const sockets=new Set();
 
@@ -678,6 +685,47 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
     queue=run.then(()=>undefined,()=>undefined);
     return run;
   };
+
+  const resourceState=()=>Object.freeze({
+    started,
+    server_present:server!==null,
+    server_listening:Boolean(server?.listening),
+    pinned_root_open:pinned!==null,
+    bound_socket_identity:boundSocketIdentity!==null,
+    accepted_socket_count:sockets.size,
+  });
+
+  async function cleanupResources(){
+    for(const socket of sockets) socket.destroy();
+    if(server!==null&&server.listening){
+      await new Promise((resolve)=>server.close(()=>resolve()));
+    }
+    await queue.catch(()=>undefined);
+    closePinnedRoot(pinned);
+    pinned=null;
+
+    if(boundSocketIdentity!==null){
+      try{
+        const stat=fs.lstatSync(options.socket_path,{bigint:true});
+        if(
+          !stat.isSocket()||
+          String(stat.dev)!==boundSocketIdentity.dev||
+          String(stat.ino)!==boundSocketIdentity.ino
+        ){
+          fail(
+            "datanet_broadcast_generation_custody_socket_path_replaced_during_cleanup",
+          );
+        }
+        fs.unlinkSync(options.socket_path);
+      }catch(error){
+        if(error?.code!=="ENOENT") throw error;
+      }
+    }
+
+    boundSocketIdentity=null;
+    server=null;
+    started=false;
+  }
 
   async function start(){
     if(started) fail("datanet_broadcast_generation_custody_service_already_started");
@@ -803,47 +851,101 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
       });
     });
 
-    await new Promise((resolve,reject)=>{
-      server.once("error",reject);
-      server.listen(options.socket_path,resolve);
-    });
-    fs.chmodSync(options.socket_path,0o660);
-    if(typeof process.getuid==="function"){
-      fs.chownSync(
-        options.socket_path,
-        -1,
-        options.socket_group_gid,
-      );
+    try{
+      await new Promise((resolve,reject)=>{
+        server.once("error",reject);
+        server.listen(options.socket_path,resolve);
+      });
+
+      const bound=fs.lstatSync(options.socket_path,{bigint:true});
+      if(!bound.isSocket()||bound.isSymbolicLink()){
+        fail("datanet_broadcast_generation_custody_bound_socket_invalid");
+      }
+      boundSocketIdentity=Object.freeze({
+        dev:String(bound.dev),
+        ino:String(bound.ino),
+      });
+
+      if(testOnlySocketPolicyFailure==="chmod"){
+        fail("test_only_datanet_broadcast_generation_custody_chmod_failure");
+      }
+      fs.chmodSync(options.socket_path,0o660);
+
+      if(testOnlySocketPolicyFailure==="chown"){
+        fail("test_only_datanet_broadcast_generation_custody_chown_failure");
+      }
+      if(typeof process.getuid==="function"){
+        fs.chownSync(
+          options.socket_path,
+          -1,
+          options.socket_group_gid,
+        );
+      }
+
+      started=true;
+      return Object.freeze({
+        ok:true,
+        status:"started_source_service",
+        live_host_qualification_performed:false,
+        independent_custody_proven:false,
+        runtime_integration:false,
+        transaction_broadcast:false,
+        funds_movement:false,
+      });
+    }catch(primary){
+      let cleanupError=null;
+      try{
+        await cleanupResources();
+      }catch(error){
+        cleanupError=error;
+      }
+      if(cleanupError!==null){
+        throw new AggregateError(
+          [primary,cleanupError],
+          "datanet_broadcast_generation_custody_startup_cleanup_failed",
+        );
+      }
+      throw primary;
     }
-    started=true;
-    return Object.freeze({
-      ok:true,
-      status:"started_source_service",
-      live_host_qualification_performed:false,
-      independent_custody_proven:false,
-      runtime_integration:false,
-      transaction_broadcast:false,
-      funds_movement:false,
-    });
   }
 
   async function stop(){
-    if(!started) return;
-    for(const socket of sockets) socket.destroy();
-    await new Promise((resolve)=>server.close(()=>resolve()));
-    closePinnedRoot(pinned);
-    pinned=null;
-    try{
-      const stat=fs.lstatSync(options.socket_path);
-      if(stat.isSocket()) fs.unlinkSync(options.socket_path);
-    }catch(error){
-      if(error?.code!=="ENOENT") throw error;
+    if(
+      !started&&
+      server===null&&
+      pinned===null&&
+      boundSocketIdentity===null&&
+      sockets.size===0
+    ){
+      return;
     }
-    server=null;
-    started=false;
+    await cleanupResources();
   }
 
-  return Object.freeze({start,stop,options});
+  const api={start,stop,options};
+  if(testOnlySocketPolicyFailure!==null){
+    api.testOnlyResourceState=resourceState;
+  }
+  return Object.freeze(api);
+}
+
+export function createVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+  rawOptions,
+){
+  return createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
+    rawOptions,
+    null,
+  );
+}
+
+export function testOnlyCreateVoidDatanetRegistryBroadcastGenerationCustodyServiceV1(
+  rawOptions,
+  socketPolicyFailure,
+){
+  return createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
+    rawOptions,
+    socketPolicyFailure,
+  );
 }
 
 export const VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_CONTRACT_V1 =
