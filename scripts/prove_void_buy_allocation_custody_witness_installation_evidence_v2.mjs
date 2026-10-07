@@ -7,7 +7,10 @@ import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2,
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2,
   testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2,
 } from "../tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs";
@@ -572,7 +575,94 @@ function collect(io = makeIo()) {
 }
 
 const baselineReadLimits = new Map();
-const baseline = collect(makeIo({ readLimits: baselineReadLimits }));
+const baselineIo = makeIo({ readLimits: baselineReadLimits });
+const packet =
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+    config,
+    baselineIo,
+  );
+const baseline = packet.receipt;
+const legacyBaseline = collect(makeIo());
+assert.deepEqual(
+  baseline,
+  legacyBaseline,
+  "packet receipt must preserve the legacy collector result exactly",
+);
+assert.equal(
+  sha256Id(
+    Buffer.from(
+      canonicalJson(packet.normalized_installation_qualification),
+      "utf8",
+    ),
+  ),
+  baseline.normalized_qualification_sha256,
+);
+assert.equal(
+  "voidwiq2_" +
+    baseline.normalized_qualification_sha256.slice("sha256:".length),
+  baseline.installation_qualification_id,
+);
+assert.equal(
+  packet.normalized_installation_qualification.schema,
+  "void_buy_void_allocation_custody_witness_installation_qualification_v2",
+);
+assert.equal(
+  packet.normalized_installation_qualification.marker,
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2",
+);
+assert.equal(
+  packet.normalized_installation_qualification.version,
+  2,
+);
+const installationPackage =
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1(
+    config,
+    makeIo(),
+  );
+assert.equal(
+  installationPackage.marker,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1,
+);
+assert.equal(
+  installationPackage.schema,
+  "void_buy_void_allocation_custody_witness_installation_evidence_package_v1",
+);
+assert.equal(installationPackage.version, 1);
+assert.deepEqual(installationPackage.installation_receipt, baseline);
+assert.equal(
+  installationPackage.installation_normalized_qualification_sha256,
+  baseline.normalized_qualification_sha256,
+);
+assert.equal(
+  installationPackage.installation_qualification_id,
+  baseline.installation_qualification_id,
+);
+const installationNormalizedCanonical =
+  canonicalJson(
+    installationPackage.installation_normalized_qualification,
+  );
+const installationNormalizedSha256 =
+  sha256Id(Buffer.from(installationNormalizedCanonical, "utf8"));
+assert.equal(
+  installationNormalizedSha256,
+  installationPackage.installation_normalized_qualification_sha256,
+);
+assert.equal(
+  "voidwiq2_" +
+    installationNormalizedSha256.slice("sha256:".length),
+  installationPackage.installation_qualification_id,
+);
+assert.match(
+  installationPackage.package_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(installationPackage.operation_performed, false);
+assert.equal(installationPackage.live_evidence_origin_proven, false);
+assert.equal(installationPackage.external_transport_authenticated, false);
+assert.equal(installationPackage.external_witness_storage_proven, false);
+assert.equal(installationPackage.runtime_integration, false);
+assert.equal(installationPackage.production_gate_ready, false);
+assert.equal(installationPackage.funds_movement, false);
 assert.equal(baselineReadLimits.get(NODE_PATH), 256 * 1024 * 1024);
 assert.equal(baselineReadLimits.get(ENV_PATH), 256 * 1024 * 1024);
 assert.equal(baselineReadLimits.get(DASH_PATH), 256 * 1024 * 1024);
@@ -1179,6 +1269,27 @@ assert.match(
   source,
   /runtime_bundle_collector_receipt_sha256/u,
 );
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2/u,
+);
+assert.match(
+  source,
+  /normalized_installation_qualification:\s*collected\.normalized_qualification/u,
+);
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2\(\s*rawConfig,[\s\S]*\.receipt;/u,
+);
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1/u,
+);
+assert.match(
+  source,
+  /VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1/u,
+);
+assert.match(source, /process\.argv\.includes\("--package"\)/u);
 
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2_GREEN",
@@ -1207,6 +1318,11 @@ console.log("runtime_bundle_parent_chain_drift_rejected=true");
 console.log("host_witness_identity_bound=true");
 console.log("double_census_stability_required=true");
 console.log("content_addressed_receipt=true");
+console.log("normalized_installation_qualification_exported=true");
+console.log("legacy_receipt_api_preserved=true");
+console.log("normalized_qualification_package_materialized=true");
+console.log("normalized_qualification_package_commitment_recomputed=true");
+console.log("default_receipt_shape_preserved=true");
 console.log("client_known_hosts_content_observed=false");
 console.log("preexec_runtime_execution_observed=true");
 console.log("descriptor_bound_ancestor_walk=true");
