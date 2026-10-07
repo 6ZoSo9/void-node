@@ -101,7 +101,7 @@ const replayInstallationEvidenceSource = fs.readFileSync(
 );
 const replayInstallationAuthorityBlock = sourceSlice(
   replayInstallationEvidenceSource,
-  "export const replayInstallationAuthority =\n  Object.freeze({",
+  "export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1 =\n  Object.freeze({",
   "  });\n\nconst JOURNAL_NAME",
 );
 const replayInstallationAuthority = Object.freeze(
