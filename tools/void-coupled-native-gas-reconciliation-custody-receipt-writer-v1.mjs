@@ -873,7 +873,6 @@ function atomicReplaceFile(
   allowEmpty,
   code,
   beforeReplace = null,
-  retainPublishedSnapshot = false,
 ) {
   if (
     !Buffer.isBuffer(nextBytes) ||
@@ -896,7 +895,6 @@ function atomicReplaceFile(
   const tempPath = path.join(directory.proc_path, tempName);
   const finalPath = path.join(directory.proc_path, name);
   let fd = -1;
-  let publishedSnapshot = null;
   try {
     fd = fs.openSync(
       tempPath,
@@ -914,26 +912,15 @@ function atomicReplaceFile(
     if (typeof beforeReplace === "function") beforeReplace();
     fs.renameSync(tempPath, finalPath);
     fsyncDirectory(directory, code + "_directory");
-    publishedSnapshot = openPinnedNamedFileSnapshot(
+    const published = readPinnedNamedFile(
       directory,
       name,
       maxBytes,
       allowEmpty,
       code,
     );
-    if (!publishedSnapshot.bytes.equals(nextBytes)) {
-      fail(code + "_postcheck_failed");
-    }
-    if (retainPublishedSnapshot) {
-      const retained = publishedSnapshot;
-      publishedSnapshot = null;
-      return retained;
-    }
-    return null;
+    if (!published.equals(nextBytes)) fail(code + "_postcheck_failed");
   } finally {
-    if (publishedSnapshot !== null) {
-      closePinnedNamedFileSnapshot(publishedSnapshot);
-    }
     if (fd >= 0) {
       try { fs.closeSync(fd); } catch (error) { void error; }
     }
@@ -1299,69 +1286,6 @@ function openStatePairSnapshot(
     }
     throw error;
   }
-}
-
-
-function openCanonicalStatePairSnapshot(
-  roots,
-  expectedJournal,
-  expectedHighWater,
-  code,
-) {
-  let journalSnapshot = null;
-  let highWaterSnapshot = null;
-  try {
-    journalSnapshot = openPinnedNamedFileSnapshot(
-      roots.journal,
-      JOURNAL_NAME,
-      MAX_JOURNAL_BYTES,
-      true,
-      code + "_journal",
-    );
-    highWaterSnapshot = openPinnedNamedFileSnapshot(
-      roots.high_water,
-      HIGH_WATER_NAME,
-      MAX_HIGH_WATER_BYTES,
-      false,
-      code + "_high_water",
-    );
-    if (
-      !journalSnapshot.bytes.equals(expectedJournal) ||
-      !highWaterSnapshot.bytes.equals(expectedHighWater)
-    ) {
-      fail(code + "_bytes_changed");
-    }
-    assertRootsVisible(roots);
-    assertPinnedNamedFileSnapshotVisible(journalSnapshot);
-    assertPinnedNamedFileSnapshotVisible(highWaterSnapshot);
-    assertRootsVisible(roots);
-    return {
-      journal_snapshot: journalSnapshot,
-      high_water_snapshot: highWaterSnapshot,
-    };
-  } catch (error) {
-    if (highWaterSnapshot !== null) {
-      closePinnedNamedFileSnapshot(highWaterSnapshot);
-    }
-    if (journalSnapshot !== null) {
-      closePinnedNamedFileSnapshot(journalSnapshot);
-    }
-    throw error;
-  }
-}
-
-function assertCanonicalStatePairSnapshotVisible(roots, pair) {
-  if (!pair) fail("receipt_writer_state_pair_snapshot_missing");
-  assertRootsVisible(roots);
-  assertPinnedNamedFileSnapshotVisible(pair.journal_snapshot);
-  assertPinnedNamedFileSnapshotVisible(pair.high_water_snapshot);
-  assertRootsVisible(roots);
-}
-
-function closeCanonicalStatePairSnapshot(pair) {
-  if (!pair) return;
-  closePinnedNamedFileSnapshot(pair.high_water_snapshot);
-  closePinnedNamedFileSnapshot(pair.journal_snapshot);
 }
 
 async function canonicalLock() {
