@@ -21,7 +21,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_
     append_only_hash_chain: true,
     one_witness_event_per_replay_sequence: true,
     exact_next_sequence_planning: true,
-    rollback_regression_detection: true,
+    rollback_regression_detection: false,
     mixed_history_conflict_rejection: true,
     source_storage_identity_invariant: true,
     witness_host_identity_invariant: true,
@@ -834,8 +834,8 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWit
 
     if (current.high_water.sequence < witness.tip.replay_sequence) {
       return held(
-        "witness_replay_external_witness_local_rollback_detected",
-        true,
+        "witness_replay_external_witness_ahead_unverified",
+        false,
       );
     }
 
@@ -967,8 +967,8 @@ export function planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitness
     rebindWitnessHistory(witness, prefixes);
     if (current.high_water.sequence < witness.tip.replay_sequence) {
       return held(
-        "witness_replay_external_witness_local_rollback_detected",
-        true,
+        "witness_replay_external_witness_ahead_unverified",
+        false,
       );
     }
 
