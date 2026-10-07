@@ -87,6 +87,10 @@ const CONFIG_MARKER =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_CONFIG_V2";
 const RECEIPT_SCHEMA =
   "void_buy_void_allocation_custody_witness_installation_evidence_receipt_v2";
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1 =
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1";
+const PACKAGE_SCHEMA =
+  "void_buy_void_allocation_custody_witness_installation_evidence_package_v1";
 
 const HANDLER_PATH =
   "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs";
@@ -1573,7 +1577,7 @@ export function testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceF
   return Buffer.from(observed.bytes);
 }
 
-export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+function collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
   rawConfig,
   injectedIo = null,
 ) {
@@ -1671,9 +1675,87 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
   });
 
-  return Object.freeze({
+  const receipt = Object.freeze({
     ...body,
     collector_receipt_sha256:
+      sha256Id(Buffer.from(canonicalJson(body), "utf8")),
+  });
+  return Object.freeze({
+    receipt,
+    normalized_qualification: second.qualification.normalized,
+  });
+}
+
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+  rawConfig,
+  injectedIo = null,
+) {
+  const collected =
+    collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+      rawConfig,
+      injectedIo,
+    );
+  return Object.freeze({
+    receipt: collected.receipt,
+    normalized_installation_qualification:
+      collected.normalized_qualification,
+  });
+}
+
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+  rawConfig,
+  injectedIo = null,
+) {
+  return collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+    rawConfig,
+    injectedIo,
+  ).receipt;
+}
+
+export function collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1(
+  rawConfig,
+  injectedIo = null,
+) {
+  const collected =
+    collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+      rawConfig,
+      injectedIo,
+    );
+  const normalized =
+    collected.normalized_installation_qualification;
+  const normalizedSha256 =
+    sha256Id(Buffer.from(canonicalJson(normalized), "utf8"));
+  const qualificationId =
+    "voidwiq2_" + normalizedSha256.slice("sha256:".length);
+  if (
+    normalizedSha256 !==
+      collected.receipt.normalized_qualification_sha256 ||
+    qualificationId !==
+      collected.receipt.installation_qualification_id
+  ) {
+    fail("witness_installation_evidence_package_commitment_mismatch");
+  }
+  const body = Object.freeze({
+    schema: PACKAGE_SCHEMA,
+    marker:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1,
+    version: 1,
+    installation_receipt: collected.receipt,
+    installation_normalized_qualification: normalized,
+    installation_normalized_qualification_sha256:
+      normalizedSha256,
+    installation_qualification_id: qualificationId,
+    operation_performed: false,
+    live_evidence_origin_proven: false,
+    external_transport_authenticated: false,
+    external_witness_storage_proven: false,
+    runtime_integration: false,
+    production_gate_ready: false,
+    funds_movement: false,
+  });
+  return Object.freeze({
+    ...body,
+    package_sha256:
       sha256Id(Buffer.from(canonicalJson(body), "utf8")),
   });
 }
@@ -1690,8 +1772,13 @@ function main() {
   } catch {
     fail("witness_installation_evidence_config_json_invalid");
   }
-  const result =
-    collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(config);
+  const result = process.argv.includes("--package")
+    ? collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1(
+        config,
+      )
+    : collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+        config,
+      );
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 

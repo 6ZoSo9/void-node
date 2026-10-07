@@ -238,7 +238,7 @@ for (const [key, value] of Object.entries(installationAuthority)) {
 const mergedReceiptBody = sourceSlice(
   mergedInstallationCollectorSource,
   "  const body = Object.freeze({",
-  "  });\n\n  return Object.freeze({",
+  "  });\n\n  const receipt = Object.freeze({",
 );
 const mergedReceiptKeys = new Set(
   [...mergedReceiptBody.matchAll(/^\s{4}([A-Za-z0-9_]+):/gmu)]
