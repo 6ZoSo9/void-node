@@ -849,7 +849,10 @@ try {
         response_json: responseBytes2,
       });
     assert.equal(validated2.ok, true);
-    if (!validated2.ok) {
+    if (
+      !validated2.ok ||
+      validated2.status !== "read_response_verified"
+    ) {
       throw new Error("second response fixture held");
     }
 
@@ -895,6 +898,29 @@ try {
     }
     assert.equal(secondCycle.normalized.prior_generation, 1);
     assert.equal(secondCycle.normalized.issue_generation, 2);
+
+    {
+      const heldProgression =
+        classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+          ...baseInput,
+          replay_storage_evidence: laterStorage,
+          issue_result: issue,
+          live_read_qualification: liveRead,
+          consume_result: consume,
+          read_request_json: built.request_json,
+          read_response_json: responseBytes,
+        });
+      assert.equal(heldProgression.ok, false);
+      if (heldProgression.ok) {
+        throw new Error(
+          "valid later storage with stale issue unexpectedly green",
+        );
+      }
+      assert.equal(
+        heldProgression.reason,
+        "witness_live_read_replay_composition_issue_progression_invalid",
+      );
+    }
 
     {
       const impossibleCountStorage = mutableClone(laterStorage);
@@ -1281,24 +1307,6 @@ try {
     assert.equal(
       held.reason,
       "witness_live_read_replay_composition_storage_invalid",
-    );
-  }
-
-  {
-    const badStorage = mutableClone(baseInput.replay_storage_evidence);
-    badStorage.normalized.generation = 1;
-    badStorage.qualification_id =
-      contentId("voidwlrie1_", badStorage.normalized);
-    const held =
-      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
-        ...baseInput,
-        replay_storage_evidence: badStorage,
-      });
-    assert.equal(held.ok, false);
-    if (held.ok) throw new Error("storage generation mismatch green");
-    assert.equal(
-      held.reason,
-      "witness_live_read_replay_composition_issue_progression_invalid",
     );
   }
 
