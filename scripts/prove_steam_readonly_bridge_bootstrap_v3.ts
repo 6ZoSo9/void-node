@@ -37,20 +37,36 @@ class FakeApp {
   }> = [];
   readonly getHandlers = new Map<string, Handler>();
   readonly postHandlers = new Map<string, Handler>();
+  useAttempts = 0;
+  getAttempts = 0;
+  postAttempts = 0;
 
   use(pathname: string, handler: RequestHandler): this {
+    this.useAttempts += 1;
     this.useHandlers.push({ pathname, handler });
     return this;
   }
 
   get(pathname: string, handler: Handler): this {
+    this.getAttempts += 1;
     this.getHandlers.set(pathname, handler);
     return this;
   }
 
   post(pathname: string, handler: Handler): this {
+    this.postAttempts += 1;
     this.postHandlers.set(pathname, handler);
     return this;
+  }
+}
+
+class FailOncePostApp extends FakeApp {
+  post(pathname: string, handler: Handler): this {
+    if (this.postAttempts === 0) {
+      this.postAttempts += 1;
+      throw new Error("synthetic request-route registration failure");
+    }
+    return super.post(pathname, handler);
   }
 }
 
@@ -330,9 +346,100 @@ need(
   "malformed expected token hash authorized",
 );
 
+const parser = ((_request, _response, next) => next()) as RequestHandler;
+const replacementParser = (
+  (_request, _response, next) => next()
+) as RequestHandler;
+const failOnceApp = new FailOncePostApp();
+let partialRegistrationFailed = false;
+try {
+  registerSteamReadonlyBridgeBootstrapV3(
+    failOnceApp as unknown as Express,
+    {
+      env,
+      json_body_parser: parser,
+    },
+  );
+} catch (error) {
+  partialRegistrationFailed =
+    error instanceof Error &&
+    error.message === "synthetic request-route registration failure";
+}
+need(partialRegistrationFailed, "bootstrap partial registration did not fail");
+need(
+  failOnceApp.useAttempts === 1 &&
+    failOnceApp.getAttempts === 1 &&
+    failOnceApp.postAttempts === 1,
+  "bootstrap partial failure registration attempt counts mismatch",
+);
+need(
+  failOnceApp.useHandlers.length === 1 &&
+    failOnceApp.getHandlers.size === 1 &&
+    failOnceApp.postHandlers.size === 0,
+  "bootstrap partial failure retained an invalid route set",
+);
+
+const resumed = registerSteamReadonlyBridgeBootstrapV3(
+  failOnceApp as unknown as Express,
+  {
+    env: {},
+    json_body_parser: replacementParser,
+  },
+);
+need(resumed.registered === true, "bootstrap retry did not resume");
+need(
+  resumed.operator_authentication.token_hash_valid === true,
+  "bootstrap retry did not preserve the first configuration generation",
+);
+need(
+  failOnceApp.useAttempts === 1 &&
+    failOnceApp.getAttempts === 1 &&
+    failOnceApp.postAttempts === 2,
+  "bootstrap retry duplicated a completed registration step",
+);
+need(
+  failOnceApp.useHandlers[0]?.handler === parser,
+  "bootstrap retry replaced the first parser generation",
+);
+const resumedRequest = await invoke(
+  failOnceApp.postHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  requestFixture({
+    authorization: `Bearer ${token}`,
+    remoteAddress: "127.0.0.1",
+    body: {
+      confirmation: "steamReadonlyBridgeRouteFetchV2",
+      operation: "player_summaries",
+      steamids: ["76561198000000000"],
+    },
+  }),
+);
+need(
+  resumedRequest.status === 503,
+  "bootstrap retry did not retain the first authorization generation",
+);
+
+const resumedDuplicate = registerSteamReadonlyBridgeBootstrapV3(
+  failOnceApp as unknown as Express,
+  {
+    env: {},
+    json_body_parser: replacementParser,
+  },
+);
+need(
+  resumedDuplicate.registered === false,
+  "completed bootstrap retry was not idempotent",
+);
+need(
+  failOnceApp.useAttempts === 1 &&
+    failOnceApp.getAttempts === 1 &&
+    failOnceApp.postAttempts === 2,
+  "completed bootstrap retry changed registration call counts",
+);
+
 const app = new FakeApp();
 let fetchCalls = 0;
-const parser = ((_request, _response, next) => next()) as RequestHandler;
 const registration = registerSteamReadonlyBridgeBootstrapV3(
   app as unknown as Express,
   {
@@ -373,7 +480,13 @@ const duplicate = registerSteamReadonlyBridgeBootstrapV3(
   },
 );
 need(duplicate.registered === false, "duplicate bootstrap registration allowed");
-need(app.useHandlers.length === 1, "duplicate JSON parser mounted");
+need(
+  app.useHandlers.length === 1 &&
+    app.useAttempts === 1 &&
+    app.getAttempts === 1 &&
+    app.postAttempts === 1,
+  "duplicate bootstrap changed parser or route registration counts",
+);
 
 const unauthorizedStatus = await invoke(
   app.getHandlers.get(VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH),
