@@ -139,7 +139,34 @@ function fixture() {
   return Object.freeze({ root, journalRoot, highWaterRoot, genesis });
 }
 
-function replayStorageEvidence() {
+function storageFileSnapshot(
+  filePath: string,
+  fileSha256: string,
+  bytes: number,
+  ino: number,
+) {
+  return Object.freeze({
+    path: filePath,
+    dev: "1",
+    ino: String(ino),
+    mtime_ns: "1",
+    ctime_ns: "1",
+    sha256: fileSha256,
+    bytes,
+    uid: 1000,
+    gid: 1000,
+    mode: 0o600,
+    nlink: 1,
+    regular_file: true,
+    symlink: false,
+  });
+}
+
+function replayStorageEvidence(
+  genesis: ReturnType<
+    typeof buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWaterV1
+  >,
+) {
   const normalized = Object.freeze({
     schema:
       "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v1",
@@ -153,11 +180,19 @@ function replayStorageEvidence() {
     hostname: "precision",
     journal_root: Object.freeze({ path: "/journal" }),
     high_water_root: Object.freeze({ path: "/high-water" }),
-    journal_file: Object.freeze({ path: "/journal/live-read-replay-v1.jsonl" }),
-    high_water_file: Object.freeze({
-      path: "/high-water/live-read-replay-high-water-v1.json",
-    }),
-    high_water_sha256: sha("1"),
+    journal_file: storageFileSnapshot(
+      "/journal/live-read-replay-v1.jsonl",
+      sha256Id(genesis.journal_bytes),
+      genesis.journal_bytes.length,
+      11,
+    ),
+    high_water_file: storageFileSnapshot(
+      "/high-water/live-read-replay-high-water-v1.json",
+      genesis.high_water_sha256,
+      genesis.high_water_bytes.length,
+      12,
+    ),
+    high_water_sha256: genesis.high_water_sha256,
     generation: 0,
     sequence: 0,
     event_count: 0,
@@ -435,7 +470,7 @@ try {
   if (!consume.ok) throw new Error("consume fixture held");
 
   const baseInput = {
-    replay_storage_evidence: replayStorageEvidence(),
+    replay_storage_evidence: replayStorageEvidence(f.genesis),
     issue_result: issue,
     live_read_qualification: liveRead,
     consume_result: consume,
@@ -453,6 +488,8 @@ try {
   assert.equal(green.status, "replay_live_read_composed");
   assert.match(green.qualification_id, /^voidwlrcmp1_[0-9a-f]{64}$/u);
   assert.equal(green.storage_prestate_bound, true);
+  assert.equal(green.storage_issue_digest_lineage_bound, true);
+  assert.equal(green.issue_consume_digest_lineage_bound, true);
   assert.equal(green.issue_transition_bound, true);
   assert.equal(green.live_read_parent_bound, true);
   assert.equal(green.canonical_request_rebuilt, true);
@@ -516,6 +553,44 @@ try {
     assert.equal(
       held.reason,
       "witness_live_read_replay_composition_issue_progression_invalid",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.journal_file.sha256 = sha("e");
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("same-counter different storage prestate unexpectedly green");
+    }
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_prestate_digest_mismatch",
+    );
+  }
+
+  {
+    const badConsumePrestate = mutableClone(consume);
+    badConsumePrestate.transition_before_high_water_sha256 = sha("e");
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        consume_result: badConsumePrestate,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("wrong consume transition prestate unexpectedly green");
+    }
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_consume_prestate_digest_mismatch",
     );
   }
 
@@ -630,6 +705,16 @@ for (const key of [
 
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_AUTHORITY_V1
+    .exact_storage_issue_prestate_digest_binding,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_AUTHORITY_V1
+    .exact_issue_consume_prestate_digest_binding,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_AUTHORITY_V1
     .validated_packet_binding_proven,
   true,
 );
@@ -647,6 +732,10 @@ console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_V1_GREEN",
 );
 console.log("live_storage_prestate_bound=true");
+console.log("exact_storage_issue_prestate_digest_binding=true");
+console.log("exact_issue_consume_prestate_digest_binding=true");
+console.log("same_counter_different_storage_prestate_rejected=true");
+console.log("wrong_consume_prestate_digest_rejected=true");
 console.log("exact_replay_storage_authority_bound=true");
 console.log("exact_issue_generation_bound=true");
 console.log("exact_challenge_timing_bound=true");
