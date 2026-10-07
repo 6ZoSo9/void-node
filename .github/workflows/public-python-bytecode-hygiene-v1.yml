@@ -2,10 +2,26 @@ name: public-python-bytecode-hygiene-v1
 
 on:
   pull_request:
+    paths:
+      - '.github/workflows/public-python-bytecode-hygiene-v1.yml'
+      - 'ops/security/public-python-bytecode-hygiene-v1-proof.sh'
+      - 'scripts/prove_public_python_bytecode_hygiene_v1.mjs'
+      - '**/*.py'
+      - '**/*.pyc'
+      - '**/*.pyo'
+      - '**/*.pyd'
+      - '**/__pycache__/**'
   push:
     branches: [main]
-  workflow_dispatch:
-
+    paths:
+      - '.github/workflows/public-python-bytecode-hygiene-v1.yml'
+      - 'ops/security/public-python-bytecode-hygiene-v1-proof.sh'
+      - 'scripts/prove_public_python_bytecode_hygiene_v1.mjs'
+      - '**/*.py'
+      - '**/*.pyc'
+      - '**/*.pyo'
+      - '**/*.pyd'
+      - '**/__pycache__/**'
 permissions:
   contents: read
 
