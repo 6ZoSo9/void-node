@@ -373,12 +373,17 @@ function parseReceipt(
   if (pending === ready) {
     fail("witness_replay_custody_receipt_state_invalid");
   }
-  const terminal =
-    raw.last_terminal_state === null ||
+  let terminal: "consumed" | "abandoned" | null;
+  if (raw.last_terminal_state === null) {
+    terminal = null;
+  } else if (
     raw.last_terminal_state === "consumed" ||
     raw.last_terminal_state === "abandoned"
-      ? raw.last_terminal_state
-      : fail("witness_replay_custody_receipt_state_invalid");
+  ) {
+    terminal = raw.last_terminal_state;
+  } else {
+    fail("witness_replay_custody_receipt_state_invalid");
+  }
   const pendingChallenge =
     raw.pending_challenge_sha256 === null
       ? null
