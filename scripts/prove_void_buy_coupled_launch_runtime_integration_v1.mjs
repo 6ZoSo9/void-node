@@ -35,7 +35,7 @@ const duplicateGuard = read(
 const verifiedPaymentV2 = read(
   "src/economic/buy_void_verified_payment_v2.ts",
 );
-assert.ok(Buffer.byteLength(index, "utf8") <= 3853000, "src/index.ts size ceiling");
+assert.ok(Buffer.byteLength(index, "utf8") <= 3852487, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
