@@ -241,6 +241,66 @@ function sha256Id(value: string | Buffer): string {
   );
 }
 
+function deepDataSnapshot(
+  value: unknown,
+  code: string,
+): unknown {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isSafeInteger(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const expected = [
+      ...Array.from({ length: value.length }, (_unused, index) => String(index)),
+      "length",
+    ].sort();
+    const actual = Reflect.ownKeys(descriptors);
+    if (
+      actual.some((key) => typeof key !== "string") ||
+      (actual as string[]).sort().join("\n") !== expected.join("\n")
+    ) {
+      fail(code);
+    }
+    const out: unknown[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        fail(code);
+      }
+      out.push(deepDataSnapshot(descriptor.value, code));
+    }
+    return Object.freeze(out);
+  }
+  if (!value || typeof value !== "object") fail(code);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) fail(code);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const own = Reflect.ownKeys(descriptors);
+  if (own.some((key) => typeof key !== "string")) fail(code);
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of (own as string[]).sort()) {
+    const descriptor = descriptors[key];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      fail(code);
+    }
+    out[key] = deepDataSnapshot(descriptor.value, code);
+  }
+  return Object.freeze(out);
+}
+
 function exactSnapshot(
   value: unknown,
   keys: readonly string[],
@@ -378,11 +438,14 @@ function normalizeInstallation(
     fail("witness_replay_rollback_installation_result_invalid");
   }
 
-  const normalized = exactSnapshot(
-    result.normalized,
-    INSTALLATION_NORMALIZED_KEYS,
+  const normalized = deepDataSnapshot(
+    exactSnapshot(
+      result.normalized,
+      INSTALLATION_NORMALIZED_KEYS,
+      "witness_replay_rollback_installation_normalized_invalid",
+    ),
     "witness_replay_rollback_installation_normalized_invalid",
-  );
+  ) as Readonly<Record<string, unknown>>;
   if (
     normalized.schema !== INSTALLATION_SCHEMA ||
     normalized.marker !== INSTALLATION_MARKER ||
