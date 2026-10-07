@@ -40,11 +40,77 @@ exactly match the authorization artifact. The transaction-submitting API repeats
 that exact comparison internally; library callers cannot bypass the
 operation-bound confirmation by skipping the Precision CLI.
 
+### Exact Git-object launcher bootstrap
+
+Direct mutable-worktree execution is forbidden. This form must HOLD before any
+broadcast input is read:
+
+```bash
+node ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs ...
+```
+
+The supported operator bootstrap streams the exact launcher Git blob into a
+sanitized Node module process. The following is the shape; substitute only the
+reviewed artifact/state/output arguments and exact confirmation:
+
+```bash
+(
+  set -Eeuo pipefail
+
+  repo="$HOME/dev/void-node"
+  rel="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
+  cd "$repo"
+
+  git_cmd=(
+    /usr/bin/env -i
+    PATH=/usr/bin:/bin HOME=/nonexistent XDG_CONFIG_HOME=/nonexistent
+    LANG=C LC_ALL=C
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+    GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1
+    GIT_NO_REPLACE_OBJECTS=1 GIT_OPTIONAL_LOCKS=0
+    GIT_TERMINAL_PROMPT=0
+    /usr/bin/git --no-replace-objects
+    -c core.hooksPath=/dev/null
+    -c core.attributesFile=/dev/null
+    -c core.fsmonitor=false
+    -c core.untrackedCache=false
+    -c core.preloadIndex=false
+    -c submodule.recurse=false
+    -C "$repo"
+  )
+
+  head="$("${git_cmd[@]}" rev-parse HEAD)"
+  blob="$("${git_cmd[@]}" rev-parse "$head:$rel")"
+
+  "${git_cmd[@]}" cat-file blob "$blob" |
+    /usr/bin/env -i \
+      PATH=/usr/bin:/bin LANG=C LC_ALL=C \
+      VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1="$blob" \
+      /usr/bin/node --input-type=module - \
+        --broadcast-request /absolute/request.json \
+        --broadcast-authorization /absolute/authorization.json \
+        --prebroadcast-observation /absolute/observation.json \
+        --signed-transaction /absolute/signed-transaction.json \
+        --state-dir /absolute/private-state-root \
+        --confirmation 'authorizeDatanetRegistryDeploymentBroadcastV1:...' \
+        --output /absolute/private/execution-receipt.json
+)
+```
+
+The streamed launcher independently requires canonical `main`, clean state,
+reviewed origin and exact local/remote-main equality before it reads the signed
+transaction artifact. It also requires exactly
+`node --input-type=module -`, the launcher blob SHA-1 supplied by the bootstrap,
+and absence of ambient Node loader/preload/proxy environment.
+
+The shell snippet is an operator shape, not authorization to execute a real
+broadcast. A real ceremony remains separately confirmed.
+
 ## Reviewed execution provenance
 
-The Precision launcher is now a built-ins-only bootstrap. Before it reads the
-signed transaction artifact or exposes the RPC capability, it must establish
-one exact source authority:
+The streamed Precision launcher has built-in imports only before provenance.
+Before it reads the signed transaction artifact or exposes the RPC capability,
+it must establish one exact source authority:
 
 1. use absolute `/usr/bin/git` with replacement objects, global/system config,
    hooks, attributes, fsmonitor, untracked cache, preload index and recursive
@@ -63,10 +129,11 @@ one exact source authority:
    `VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1`; and
 8. load the broadcaster authority only from that private exact-HEAD tree.
 
-The private source tree and reviewed package runtime are reverified after module
-loading and again immediately before the signed artifact/RPC boundary. Hidden
-worktree drift such as `assume-unchanged` cannot become execution authority
-because execution bytes come from exact HEAD Git objects.
+The launcher itself and the private source tree are selected from exact Git
+objects rather than mutable worktree bytes. The private source tree and reviewed
+package runtime are reverified after module loading and again immediately before
+the signed artifact/RPC boundary. Hidden worktree drift such as
+`assume-unchanged` therefore cannot become the selected launcher/core bytes.
 
 The reviewed closure contains one module that can perform live HTTP observation
 in other workflows, so this lane intentionally reports:
