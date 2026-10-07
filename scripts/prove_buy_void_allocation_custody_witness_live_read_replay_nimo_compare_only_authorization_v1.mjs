@@ -25,7 +25,7 @@ for (const token of [
   "compare_wrapper_source_changed",
   "compare_public_fingerprint_mismatch",
   "compare_pub_noncanonical",
-  "authorization_rollback_attempted=true",
+  "authorized_keys_rollback_attempted=true",
   "third_key_atomically_installed=true",
   "prior_two_authorized_keys_preserved=true",
   "config_unchanged=true",
