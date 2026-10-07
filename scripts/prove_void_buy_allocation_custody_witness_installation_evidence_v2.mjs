@@ -9,6 +9,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_PACKAGE_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2,
   testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2,
@@ -575,7 +576,44 @@ function collect(io = makeIo()) {
 
 const baselineReadLimits = new Map();
 const baselineIo = makeIo({ readLimits: baselineReadLimits });
-const baseline = collect(baselineIo);
+const packet =
+  collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(
+    config,
+    baselineIo,
+  );
+const baseline = packet.receipt;
+const legacyBaseline = collect(makeIo());
+assert.deepEqual(
+  baseline,
+  legacyBaseline,
+  "packet receipt must preserve the legacy collector result exactly",
+);
+assert.equal(
+  sha256Id(
+    Buffer.from(
+      canonicalJson(packet.normalized_installation_qualification),
+      "utf8",
+    ),
+  ),
+  baseline.normalized_qualification_sha256,
+);
+assert.equal(
+  "voidwiq2_" +
+    baseline.normalized_qualification_sha256.slice("sha256:".length),
+  baseline.installation_qualification_id,
+);
+assert.equal(
+  packet.normalized_installation_qualification.schema,
+  "void_buy_void_allocation_custody_witness_installation_qualification_v2",
+);
+assert.equal(
+  packet.normalized_installation_qualification.marker,
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2",
+);
+assert.equal(
+  packet.normalized_installation_qualification.version,
+  2,
+);
 const installationPackage =
   collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1(
     config,
@@ -1233,6 +1271,18 @@ assert.match(
 );
 assert.match(
   source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2/u,
+);
+assert.match(
+  source,
+  /normalized_installation_qualification:\s*collected\.normalized_qualification/u,
+);
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2\(\s*rawConfig,[\s\S]*\.receipt;/u,
+);
+assert.match(
+  source,
   /collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV1/u,
 );
 assert.match(
@@ -1268,6 +1318,8 @@ console.log("runtime_bundle_parent_chain_drift_rejected=true");
 console.log("host_witness_identity_bound=true");
 console.log("double_census_stability_required=true");
 console.log("content_addressed_receipt=true");
+console.log("normalized_installation_qualification_exported=true");
+console.log("legacy_receipt_api_preserved=true");
 console.log("normalized_qualification_package_materialized=true");
 console.log("normalized_qualification_package_commitment_recomputed=true");
 console.log("default_receipt_shape_preserved=true");
