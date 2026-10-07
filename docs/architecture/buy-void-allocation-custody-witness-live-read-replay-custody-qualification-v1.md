@@ -91,6 +91,13 @@ Changing the disk/policy identity invalidates continuity against the prior
 receipt and requires an explicit migration design rather than silent
 continuation.
 
+For a supplied prior receipt, matching the fingerprint string is necessary but
+not sufficient. The receipt's carried policy projection must also equal the
+fresh placement policy exactly for hostname, both root paths, both parent-device
+paths, both disk serials, and both disk WWNs. A self-hashed receipt that copies
+the current fingerprint while contradicting any of those fields HOLDS before
+idempotence or forward-continuity classification.
+
 ## Custody receipt
 
 Each receipt contains:
@@ -204,6 +211,8 @@ The proof covers:
 - stale placement evidence rejection;
 - forged prior prefix rejection;
 - storage-policy drift rejection;
+- self-consistent prior receipt with copied fingerprint but contradictory
+  hostname/root/device/serial/WWN projection rejection;
 - placement qualification-ID recomputation; and
 - receipt self-hash validation;
 - forged genesis receipt with a predecessor rejection; and
