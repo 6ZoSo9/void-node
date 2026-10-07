@@ -150,6 +150,11 @@ function assertModeledGitHubPathPattern(pattern) {
     /[\[\]+\\?]/u,
     "unsupported GitHub path-filter syntax must fail closed",
   );
+  assert.equal(
+    pattern.includes("**/"),
+    false,
+    "unsupported GitHub path-filter syntax must fail closed",
+  );
 }
 
 function orderedPathFilterIncludes(patterns, candidate) {
@@ -238,6 +243,18 @@ function assertV4ConsumerTriggerClosure() {
       ),
     /unsupported GitHub path-filter syntax/u,
     "unmodeled question filters must HOLD instead of using non-GitHub semantics",
+  );
+  assert.throws(
+    () =>
+      orderedPathFilterIncludes(
+        [
+          "scripts/**",
+          "!scripts/**/prove_buy_void_enforcement_artifact_attestation_v2.mjs",
+        ],
+        v2ProofPath,
+      ),
+    /unsupported GitHub path-filter syntax/u,
+    "unmodeled zero-directory globstar filters must HOLD instead of over-including",
   );
   for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
     const source = read(ROOT, workflowPath).toString("utf8");
