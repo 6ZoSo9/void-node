@@ -96,8 +96,14 @@ if [[ "$current_sha" == "$old_sha" ]]; then
     hold installed_temporary_sha_mismatch
   /usr/bin/node --check "$tmp" || hold staged_mjs_syntax_invalid
   [[ ! -e "$intent" && ! -L "$intent" ]] || hold intent_appeared
+  [[ "$(sha256sum "$target" | awk '{print $1}')" == "$old_sha" ]] ||
+    hold handler_changed_during_preflight
+  [[ "$(sha256sum "$config" | awk '{print $1}')" == "$config_sha" ]] ||
+    hold config_changed_during_preflight
   [[ "$(sha256sum "$witness" | awk '{print $1}')" == "$witness_sha" ]] ||
     hold witness_changed_during_preflight
+  [[ "$(sha256sum "$auth" | awk '{print $1}')" == "$auth_before" ]] ||
+    hold authorized_keys_changed_during_preflight
   mv -T -- "$tmp" "$target"
   tmp=''
   echo "handler_atomically_replaced=true"
