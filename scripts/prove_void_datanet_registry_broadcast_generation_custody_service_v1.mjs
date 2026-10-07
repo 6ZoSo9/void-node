@@ -899,6 +899,19 @@ try{
         custody_receipt_sha256:"sha256:"+"f".repeat(64),
       }),
     },
+    {
+      label:"held_reason_must_be_string",
+      method:"claim",
+      mutate:(decision)=>({
+        ...decision,
+        ok:false,
+        status:"held",
+        reason:["synthetic_hold"],
+        broadcast_generation_fence_id:null,
+        custody_receipt_sha256:null,
+        operation_performed:false,
+      }),
+    },
   ];
   for(const testCase of responseCases){
     responseMutation=testCase.mutate;
@@ -918,6 +931,25 @@ try{
       testCase.label,
     );
   }
+
+  // The peer echoes the digest of the *sent* request but forges success
+  // against a fence ID mutated by its caller after request serialization.
+  const mutableFence={...fence("e")};
+  const forgedFenceId="voiddrbgf1_"+"d".repeat(64);
+  responseMutation=(decision)=>({
+    ...decision,
+    broadcast_generation_fence_id:forgedFenceId,
+  });
+  const inFlight=malformedTransport.claim(mutableFence,{
+    signal:new AbortController().signal,
+    timeout_ms:1000,
+  });
+  mutableFence.broadcast_generation_fence_id=forgedFenceId;
+  await assert.rejects(
+    inFlight,
+    /datanet_broadcast_generation_custody_client_response_invalid/u,
+    "a caller mutation must not change the accepted fence after send",
+  );
 }finally{
   await new Promise((resolve)=>malformedServer.close(()=>resolve()));
 }
@@ -981,6 +1013,8 @@ for(const forbidden of [
 }
 for(const required of [
   "abort_signal_required:true",
+  "serializedRequest.fence?.broadcast_generation_fence_id",
+  "typeof value.reason!==\"string\"",
   "context.signal",
   "socket.destroy",
   "connect_timeout_ms",

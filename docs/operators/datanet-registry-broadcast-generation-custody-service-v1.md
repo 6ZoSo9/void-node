@@ -121,6 +121,12 @@ has:
 - bounded response bytes; and
 - mandatory `AbortSignal` handling that destroys the socket.
 
+The client's response acceptance checks use a snapshot parsed from the exact
+serialized wire request, never a later read of caller-owned fence objects.
+Successful responses must match the requested method, fence ID, and assertion
+receipt. Held responses require a literal string reason (arrays cannot pass by
+coercion).
+
 There is no redirect, URL, network fallback, retry loop, or caller-selected
 socket per operation. After a complete response is validated, the client
 destroys its socket immediately; it does not wait for a possibly malicious peer

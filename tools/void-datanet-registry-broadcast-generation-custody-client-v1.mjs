@@ -256,7 +256,8 @@ function validateDecision(decision,expectedMethod,expectedFenceId,expectedReceip
   if(
     value.ok!==false||
     value.status!=="held"||
-    !/^[a-z][a-z0-9_]{2,179}$/u.test(String(value.reason||""))||
+    typeof value.reason!=="string"||
+    !/^[a-z][a-z0-9_]{2,179}$/u.test(value.reason)||
     value.broadcast_generation_fence_id!==null||
     value.custody_receipt_sha256!==null||
     value.source_service_contract_proven!==true||
@@ -316,10 +317,17 @@ async function request(options,envelope,rawContext){
       ? context.signal.reason
       : new Error("datanet_broadcast_generation_custody_client_aborted");
   }
+  // Use one serialized request as the authority for the wire bytes, digest,
+  // and response expectations. Caller-owned fence objects can mutate later.
+  const requestJson=JSON.stringify(envelope);
+  if(typeof requestJson!=="string"){
+    fail("datanet_broadcast_generation_custody_client_request_invalid");
+  }
+  const serializedRequest=JSON.parse(requestJson);
   const requestSha256=sha256Id(
-    Buffer.from(canonicalJson(envelope),"utf8"),
+    Buffer.from(canonicalJson(serializedRequest),"utf8"),
   );
-  const line=JSON.stringify(envelope)+"\n";
+  const line=requestJson+"\n";
   if(Buffer.byteLength(line,"utf8")>64*1024){
     fail("datanet_broadcast_generation_custody_client_request_too_large");
   }
@@ -439,9 +447,9 @@ async function request(options,envelope,rawContext){
         decision=validateResponse(
           parsed,
           requestSha256,
-          envelope.method,
-          envelope.fence.broadcast_generation_fence_id,
-          envelope.custody_receipt_sha256,
+          serializedRequest.method,
+          serializedRequest.fence?.broadcast_generation_fence_id,
+          serializedRequest.custody_receipt_sha256,
         );
       }catch(error){
         finish(error);
