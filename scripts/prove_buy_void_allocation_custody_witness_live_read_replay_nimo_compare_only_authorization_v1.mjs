@@ -122,7 +122,7 @@ const operatorGuide =
 const guide = fs.readFileSync(operatorGuide, "utf8");
 assert.match(
   guide,
-  /installer_blob=586d61c9d6fbdf9eed791e0a7d3f5ca1d128db6a/u,
+  /installer_blob=d3680d1cb40c29f5656392453e85b34aed5a3739/u,
 );
 assert.match(
   guide,
