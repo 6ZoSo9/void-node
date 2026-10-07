@@ -470,6 +470,27 @@ for (const patch of [
   );
 }
 
+{
+  const installation = installationEvidence();
+  let getterReads = 0;
+  const originalSha = installation.normalized.journal_file.sha256;
+  Object.defineProperty(installation.normalized.journal_file, "sha256", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      return originalSha;
+    },
+  });
+  const held = classify(installation);
+  assert.equal(held.ok, false);
+  assert.equal(getterReads, 0);
+  if (held.ok) throw new Error("nested getter evidence green");
+  assert.equal(
+    held.reason,
+    "witness_replay_rollback_installation_normalized_invalid",
+  );
+}
+
 for (const key of [
   "verification_clock_authority_proven",
   "policy_generation_monotonicity_proven",
