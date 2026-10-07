@@ -9,6 +9,7 @@ import {
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1,
   parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessJournalV1,
   planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1,
+  type BuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessIdentityV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_external_witness_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_SCHEMA_V1,
@@ -140,7 +141,9 @@ function replayHighWaterJsonFixture(value: {
 
 function buildStressReplayAndWitness(
   eventCount: number,
-  witnessIdentity: typeof identity = identity,
+  witnessIdentity:
+    BuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessIdentityV1 =
+      identity,
 ) {
   const replayLines: string[] = [];
   const witnessLines: string[] = [];
