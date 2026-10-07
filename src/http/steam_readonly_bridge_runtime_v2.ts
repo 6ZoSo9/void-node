@@ -503,7 +503,7 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     anyApp[DEPENDENCIES] = Object.freeze({
       authorize_operator: dependencies.authorize_operator,
       env: dependencies.env,
-      fetch_impl: retainedDependencies.fetch_impl,
+      fetch_impl: dependencies.fetch_impl,
       now: dependencies.now,
     });
   }
