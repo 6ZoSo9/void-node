@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import http from "node:http";
+import {syncBuiltinESMExports} from "node:module";
 import {spawnSync} from "node:child_process";
 
 import {
@@ -255,7 +257,28 @@ assert.match(reviewedLauncher.sha256,/^[0-9a-f]{64}$/u);
   }
 }
 
-const reviewedExecution=await testOnlyPrepareReviewedExecutionV1();
+let reviewedExecution;
+let reviewedPreparationHttpCalls=0;
+const originalHttpRequest=http.request;
+http.request=(...args)=>{
+  reviewedPreparationHttpCalls+=1;
+  throw new Error(
+    "reviewed_preparation_unexpected_http_request:"+
+    String(args[0]??""),
+  );
+};
+syncBuiltinESMExports();
+try{
+  reviewedExecution=await testOnlyPrepareReviewedExecutionV1();
+}finally{
+  http.request=originalHttpRequest;
+  syncBuiltinESMExports();
+}
+assert.equal(
+  reviewedPreparationHttpCalls,
+  0,
+  "reviewed source/package preparation and module import must not invoke the live fee-funding observer transport",
+);
 assert.equal(reviewedExecution.repository_head_sha,reviewedHead);
 assert.equal(reviewedExecution.closure_count,27);
 assert.deepEqual(reviewedExecution.bare_packages,["ethers"]);
@@ -686,6 +709,7 @@ try{
   console.log("reviewed_private_source_drift_rejected=true");
   console.log("reviewed_ethers_runtime_verified=true");
   console.log("reviewed_network_capable_module_count=1");
+  console.log("reviewed_preparation_http_calls=0");
   console.log("execution_network_isolation_provided=false");
 }finally{
   fs.rmSync(root,{recursive:true,force:true});
