@@ -7,7 +7,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import http from "node:http";
 import { spawn, spawnSync } from "node:child_process";
-import { boundedRead, canonical, processCensus, sha256, SOURCE_PATHS, PROFILE_PATHS, PREDECESSOR }
+import { boundedRead, canonical, processCensus, sha256, SOURCE_PATHS, PROFILE_PATHS, PREDECESSOR,
+  testOnlyClassifyStatIdentityReadErrorV1 }
   from "./lib/void_nimo_supervisor_loss_census_v1.mjs";
 
 const ROOT = process.cwd(), BASE = "scripts/fixtures/nimo-supervisor-loss-v1/";
@@ -17,6 +18,21 @@ const profile = args[1], cut = Number(args[3]), generation = args[5], output = p
 assert(["predecessor", "successor"].includes(profile)); assert(Number.isInteger(cut) && cut >= 1 && cut <= 6);
 assert(/^[A-Za-z0-9-]{1,80}$/.test(generation)); assert.equal(process.execArgv.length, 0);
 assert.equal(boundedRead("/proc/self/stat", 4096).toString().split(" ")[0], String(process.pid), "matching procfs PID namespace required");
+for (const code of ["ENOENT", "ESRCH"]) {
+  assert.deepEqual(
+    testOnlyClassifyStatIdentityReadErrorV1(code),
+    {
+      threw: false,
+      result: { pid: 424242, alive: false, absent: true },
+    },
+    code + " must classify a vanished procfs task as absent",
+  );
+}
+assert.deepEqual(
+  testOnlyClassifyStatIdentityReadErrorV1("EACCES"),
+  { threw: true, code: "EACCES" },
+  "EACCES must remain distinct from process disappearance",
+);
 const major = Number(process.versions.node.split(".")[0]); assert([22, 24, 26].includes(major));
 function git(...argv) {
   const r = spawnSync("/usr/bin/git", ["--no-replace-objects", ...argv], { cwd: ROOT, timeout: 20000, maxBuffer: 2 * 1024 * 1024,
