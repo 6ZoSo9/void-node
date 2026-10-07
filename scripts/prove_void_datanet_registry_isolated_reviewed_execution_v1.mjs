@@ -87,6 +87,25 @@ if(typeof process.getBuiltinModule==="function"){
   );
 }
 
+if(typeof process._getActiveHandles==="function"){
+  await assert.rejects(
+    ()=>testOnlyRunSyntheticReviewedChildV1(
+      'export default process._getActiveHandles();',
+    ),
+    /reviewed_ambient_active_handles_forbidden/u,
+    "reviewed code must not harvest approved RPC socket handles",
+  );
+}
+if(typeof process._getActiveRequests==="function"){
+  await assert.rejects(
+    ()=>testOnlyRunSyntheticReviewedChildV1(
+      'export default process._getActiveRequests();',
+    ),
+    /reviewed_ambient_active_requests_forbidden/u,
+    "reviewed code must not harvest active request handles",
+  );
+}
+
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-datanet-child-proof-"));
 const portFile=path.join(tmp,"port");
 const hitFile=path.join(tmp,"hits");
