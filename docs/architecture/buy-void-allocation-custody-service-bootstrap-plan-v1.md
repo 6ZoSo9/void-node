@@ -95,8 +95,15 @@ Its other **static** ESM imports are exactly the reviewed built-ins
 The source-only proof uses Node's ESM parser to compare **every static module
 specifier** against that explicit complete allowlist. It rejects new relative
 helpers, third-party packages, built-ins or other specifiers instead of silently
-discarding imports outside `../dist/`; an independent full service-byte digest
-also detects changes that this parser might not enumerate. The current source
+discarding imports outside `../dist/`. For Node versions exposing
+`moduleRequests`, each dependency must also have the ordinary
+`phase=evaluation` and **empty import attributes**. The older Node 22
+`dependencySpecifiers` fallback cannot expose those fields, so the proof
+conservatively rejects import-attribute `with { ... }` syntax even when
+comments/newlines separate the tokens, and rejects non-evaluation import-phase
+forms by syntax or module-request metadata. Synthetic adversaries cover each
+case. An independent full service-byte digest also detects changes that a
+parser might not enumerate. The current source
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
 and contract
 `service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.
