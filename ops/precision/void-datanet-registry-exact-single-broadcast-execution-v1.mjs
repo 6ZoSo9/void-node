@@ -675,12 +675,12 @@ function verifyReviewedSourcesV1(plan,destinationRoot){
 function makeRemovableTree(root){
   if(!fs.existsSync(root)) return;
   const walk=dir=>{
-    try{fs.chmodSync(dir,0o700);}catch{}
+    try{fs.chmodSync(dir,0o700);}catch(cleanupError){void cleanupError;}
     for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
       const file=path.join(dir,entry.name);
       if(entry.isDirectory()) walk(file);
       else{
-        try{fs.chmodSync(file,0o600);}catch{}
+        try{fs.chmodSync(file,0o600);}catch(cleanupError){void cleanupError;}
       }
     }
   };
