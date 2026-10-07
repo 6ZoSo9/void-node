@@ -614,7 +614,6 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     one_submission_attempt_only:true,
     automatic_retry_authorized:false,
     replacement_transaction_authorized:false,
-    created_at_utc:new Date(dependencies.now()).toISOString(),
   };
   const generationFence=Object.freeze({
     ...fenceMaterial,
