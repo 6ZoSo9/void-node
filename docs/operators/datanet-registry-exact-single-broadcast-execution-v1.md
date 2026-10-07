@@ -127,6 +127,12 @@ it must establish one exact source authority:
      through imported Node HTTP capability; and
    - `tools/void-datanet-registry-prebroadcast-observer-v1.mjs` through
      direct/global `fetch()`;
+   the reviewed closure also carries an exact closed Node built-in census:
+   - non-network built-ins: `node:crypto`, `node:fs`, `node:path`;
+   - approved network built-in: `node:http`;
+   - any other `node:` import (including `node:http2`, `node:https`,
+     `node:net`, `node:tls`, `node:dns`, or `node:dgram`) HOLDS
+     reviewed-source planning instead of becoming uncensused network authority;
 6. materialize those exact Git-object bytes into a private temporary tree
    as an independently reverified evidence copy;
 7. verify and privately materialize the reviewed `ethers` package closure using
@@ -161,8 +167,11 @@ the already selected in-memory module source. Hidden worktree drift such as
 resolution therefore cannot become the selected launcher/core/package bytes.
 
 The reviewed closure contains two modules that can perform live network
-observation in other workflows (one through Node HTTP and one through global
-`fetch`), so this lane intentionally reports:
+observation in other workflows (one through the only approved network built-in,
+`node:http`, and one through global `fetch`). Unknown Node built-ins fail
+reviewed-source planning before execution, so the current focused
+`http.request` and `globalThis.fetch` traps cover the complete approved
+network-capable surface. This lane intentionally reports:
 
 ```text
 execution_network_isolation_provided=false
