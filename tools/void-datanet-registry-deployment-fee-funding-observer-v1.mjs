@@ -75,9 +75,14 @@ function createTransport(policy){
     const body=JSON.stringify({jsonrpc:"2.0",id,method,params});
     return await new Promise((resolve,reject)=>{
       let settled=false;
+      let totalTimer=null;
       const finish=(error,value)=>{
         if(settled) return;
         settled=true;
+        if(totalTimer!==null){
+          clearTimeout(totalTimer);
+          totalTimer=null;
+        }
         if(error) reject(error);
         else resolve(value);
       };
@@ -99,16 +104,27 @@ function createTransport(policy){
       },(res)=>{
         const chunks=[];
         let total=0;
+        let responseEnded=false;
+        res.on("aborted",()=>finish(new Error("rpc_response_aborted")));
+        res.on("error",(error)=>finish(error));
+        res.on("close",()=>{
+          if(!responseEnded&&!res.complete){
+            finish(new Error("rpc_response_premature_close"));
+          }
+        });
         res.on("data",(chunk)=>{
           const b=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
           total+=b.length;
           if(total>policy.max_response_bytes){
-            req.destroy(new Error("rpc_response_too_large"));
+            const error=new Error("rpc_response_too_large");
+            finish(error);
+            req.destroy(error);
             return;
           }
           chunks.push(b);
         });
         res.on("end",()=>{
+          responseEnded=true;
           if(Number(res.statusCode)!==200){
             finish(new Error("rpc_http_status_invalid"));
             return;
@@ -133,8 +149,17 @@ function createTransport(policy){
           finish(null,payload.result);
         });
       });
+      totalTimer=setTimeout(()=>{
+        const error=new Error("rpc_total_deadline_exceeded");
+        finish(error);
+        req.destroy(error);
+      },policy.timeout_ms);
       req.setTimeout(policy.timeout_ms);
-      req.on("timeout",()=>req.destroy(new Error("rpc_timeout")));
+      req.on("timeout",()=>{
+        const error=new Error("rpc_timeout");
+        finish(error);
+        req.destroy(error);
+      });
       req.on("error",(error)=>finish(error));
       req.end(body);
     });
