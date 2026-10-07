@@ -682,4 +682,7 @@ need(
 
 console.log("post_install_registration_failure_holds_retry=true");
 console.log("indeterminate_registration_never_retries=true");
+console.log("indeterminate_status_handler_fails_closed=true");
+console.log("indeterminate_request_handler_fails_closed=true");
+console.log("indeterminate_request_fetch_calls=0");
 console.log("VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_GREEN");
