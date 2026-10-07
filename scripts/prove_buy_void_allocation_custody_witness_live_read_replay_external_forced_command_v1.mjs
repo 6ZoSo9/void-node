@@ -346,7 +346,9 @@ const deps = Object.freeze({
     assert.equal(matchedResponse.event_count, 2);
     assert.equal(matchedResponse.exact_live_match, true);
     assert.equal(matchedResponse.external_witness_update_required, false);
+    assert.equal(matchedResponse.rollback_regression_candidate, false);
     assert.equal(matchedResponse.rollback_regression_detected, false);
+    assert.equal(matchedResponse.mutation_admission_allowed, true);
     assert.deepEqual(fs.readFileSync(f.witness), witness2);
 
     const compareWitnessAhead = buildRequest({
@@ -371,7 +373,9 @@ const deps = Object.freeze({
       witnessAheadResponse.external_witness_update_required,
       false,
     );
-    assert.equal(witnessAheadResponse.rollback_regression_detected, true);
+    assert.equal(witnessAheadResponse.rollback_regression_candidate, true);
+    assert.equal(witnessAheadResponse.rollback_regression_detected, false);
+    assert.equal(witnessAheadResponse.mutation_admission_allowed, false);
     assert.deepEqual(fs.readFileSync(f.witness), witness2);
 
     const terminal =
@@ -411,7 +415,9 @@ const deps = Object.freeze({
     assert.equal(localAheadResponse.witnessed_replay_sequence, 1);
     assert.equal(localAheadResponse.exact_live_match, false);
     assert.equal(localAheadResponse.external_witness_update_required, true);
+    assert.equal(localAheadResponse.rollback_regression_candidate, false);
     assert.equal(localAheadResponse.rollback_regression_detected, false);
+    assert.equal(localAheadResponse.mutation_admission_allowed, false);
     assert.deepEqual(fs.readFileSync(f.witness), witness2);
   } finally {
     cleanup(f);
@@ -957,6 +963,8 @@ console.log("read_empty_witness_nonmutating=true");
 console.log("compare_matched_nonmutating=true");
 console.log("compare_local_ahead_nonmutating=true");
 console.log("compare_witness_ahead_rollback_candidate=true");
+console.log("compare_source_rollback_detected=false");
+console.log("compare_exact_match_mutation_admission=true");
 console.log("canonical_genesis_append=true");
 console.log("empty_genesis_journal_base64_admitted=true");
 console.log("empty_high_water_base64_rejected=true");
