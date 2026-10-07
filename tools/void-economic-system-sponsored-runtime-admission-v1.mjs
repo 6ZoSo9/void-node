@@ -74,6 +74,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     durable_observe_required_after_preview_allow: true,
     valid_denied_request_time_growth_bounded: true,
     execution_replay_store_bound: true,
+    execution_replay_store_root_stability_proven: false,
     read_only_execution_replay_inspection: true,
     consumed_execution_replay_rejected_before_time: true,
     execution_replay_negative_freshness_authorized: false,
