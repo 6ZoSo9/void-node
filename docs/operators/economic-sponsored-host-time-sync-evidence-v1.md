@@ -76,9 +76,15 @@ Classification HOLDS on, among other cases:
 - invalid wall-clock sample;
 - extra or missing capture fields.
 
-The production collector is a no-argument API. Tests use a separately named
-`testOnly...` dependency-injected entry point so deterministic proof code does
-not turn caller-selected paths/commands/timestamps into production authority.
+The production collector is a no-argument API. Only that fixed-source entry
+point may emit `production_fixed_sources_observed=true`. Pure/test
+classification and the separately named dependency-injected test collector
+always emit `production_fixed_sources_observed=false` and
+`test_only_injected_dependencies=true`, so synthetic evidence cannot be
+mistaken for a production host capture.
+
+Tests therefore do not turn caller-selected paths/commands/timestamps into
+production authority.
 
 ## Restart boundary
 
