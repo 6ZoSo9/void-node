@@ -25,6 +25,9 @@ import {
   persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
+} from "../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
+import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1,
@@ -159,10 +162,8 @@ function replayStorageEvidence() {
     runtime_integration: false,
     production_gate_ready: false,
     funds_movement: false,
-    authority: Object.freeze({
-      source_only_collector: true,
-      designated_host_read_only_observation: true,
-    }),
+    authority:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
   });
 }
 
@@ -449,6 +450,22 @@ try {
 
   {
     const badStorage = structuredClone(baseInput.replay_storage_evidence);
+    badStorage.authority.synthetic_storage_authority = true;
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("storage authority downgrade green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_invalid",
+    );
+  }
+
+  {
+    const badStorage = structuredClone(baseInput.replay_storage_evidence);
     badStorage.normalized.generation = 1;
     badStorage.qualification_id =
       contentId("voidwlrie1_", badStorage.normalized);
@@ -593,6 +610,7 @@ console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPOSITION_V1_GREEN",
 );
 console.log("live_storage_prestate_bound=true");
+console.log("exact_replay_storage_authority_bound=true");
 console.log("exact_issue_generation_bound=true");
 console.log("exact_challenge_timing_bound=true");
 console.log("canonical_transport_request_rebuilt=true");
