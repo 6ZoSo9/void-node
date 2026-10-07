@@ -303,6 +303,19 @@ function shaField(value: unknown, code: string): string {
   return value;
 }
 
+function highWaterJsonField(value: unknown, code: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length < 2 ||
+    Buffer.byteLength(value, "utf8") > 16 * 1024 ||
+    !value.endsWith("\n") ||
+    value.slice(0, -1).includes("\n")
+  ) {
+    fail(code);
+  }
+  return value;
+}
+
 function nullableSha(value: unknown, code: string): string | null {
   return value === null ? null : shaField(value, code);
 }
@@ -456,7 +469,7 @@ function parseReceipt(
         raw.journal_sha256,
         "witness_replay_custody_receipt_journal_invalid",
       ),
-      high_water_json: safeString(
+      high_water_json: highWaterJsonField(
         raw.high_water_json,
         "witness_replay_custody_receipt_high_water_invalid",
       ),
