@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {AsyncLocalStorage} from "node:async_hooks";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import * as http from "node:http";
@@ -757,12 +758,12 @@ function registerReviewedModuleGraphV1(plan,ethersBundle,head){
   });
 }
 
-async function withReviewedAmbientCapabilityGuardV1(operation){
-  if(typeof operation!=="function"){
-    fail("reviewed_ambient_guard_operation_invalid");
-  }
-  const restorers=[];
-  const install=(target,key,reason,{optional=false}={})=>{
+const REVIEWED_AMBIENT_CONTEXT_V1=new AsyncLocalStorage();
+let reviewedAmbientFenceInstalledV1=false;
+
+function installReviewedAmbientFenceV1(){
+  if(reviewedAmbientFenceInstalledV1) return;
+  const wrap=(target,key,reason,{optional=false}={})=>{
     const descriptor=Object.getOwnPropertyDescriptor(target,key);
     if(!descriptor){
       if(optional) return;
@@ -775,29 +776,65 @@ async function withReviewedAmbientCapabilityGuardV1(operation){
     ){
       fail("reviewed_ambient_guard_unavailable:"+key);
     }
-    const denied=()=>{throw new Error(reason);};
+    const original=descriptor.value;
+    const guarded=function(...args){
+      if(REVIEWED_AMBIENT_CONTEXT_V1.getStore()===true){
+        throw new Error(reason);
+      }
+      return Reflect.apply(original,this,args);
+    };
     if(descriptor.configurable===true){
-      Object.defineProperty(target,key,{...descriptor,value:denied});
-      restorers.push(()=>Object.defineProperty(target,key,descriptor));
+      Object.defineProperty(target,key,{...descriptor,value:guarded});
     }else{
-      target[key]=denied;
-      restorers.push(()=>{target[key]=descriptor.value;});
+      target[key]=guarded;
     }
   };
-  install(globalThis,"fetch","reviewed_ambient_fetch_forbidden");
-  install(
+  wrap(globalThis,"fetch","reviewed_ambient_fetch_forbidden");
+  wrap(
     process,
     "getBuiltinModule",
     "reviewed_ambient_get_builtin_module_forbidden",
     {optional:true},
   );
-  try{
-    return await operation();
-  }finally{
-    for(let index=restorers.length-1;index>=0;index-=1){
-      restorers[index]();
-    }
+  wrap(
+    process,
+    "binding",
+    "reviewed_ambient_process_binding_forbidden",
+    {optional:true},
+  );
+  wrap(
+    process,
+    "_linkedBinding",
+    "reviewed_ambient_process_linked_binding_forbidden",
+    {optional:true},
+  );
+  wrap(
+    process,
+    "dlopen",
+    "reviewed_ambient_process_dlopen_forbidden",
+    {optional:true},
+  );
+  wrap(
+    globalThis,
+    "WebSocket",
+    "reviewed_ambient_websocket_forbidden",
+    {optional:true},
+  );
+  wrap(
+    globalThis,
+    "EventSource",
+    "reviewed_ambient_eventsource_forbidden",
+    {optional:true},
+  );
+  reviewedAmbientFenceInstalledV1=true;
+}
+
+async function withReviewedAmbientCapabilityGuardV1(operation){
+  if(typeof operation!=="function"){
+    fail("reviewed_ambient_guard_operation_invalid");
   }
+  installReviewedAmbientFenceV1();
+  return await REVIEWED_AMBIENT_CONTEXT_V1.run(true,operation);
 }
 
 function materializeReviewedSourcesV1(plan,destinationRoot){
