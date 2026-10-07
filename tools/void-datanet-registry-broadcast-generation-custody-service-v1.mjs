@@ -912,8 +912,14 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
           try{
             const raw=JSON.parse(first);
             const envelope=normalizeEnvelope(raw);
+            const canonicalRequest=canonicalJson(envelope);
+            // JSON.parse collapses duplicate keys. The exact wire bytes
+            // must prove unique canonical members before any fence write.
+            if(first!==canonicalRequest){
+              fail("datanet_broadcast_generation_custody_request_noncanonical");
+            }
             requestSha256=sha256Id(
-              Buffer.from(canonicalJson(envelope),"utf8"),
+              Buffer.from(canonicalRequest,"utf8"),
             );
             const decision=decideWithPinnedRoot(pinned,envelope);
             if(responded) return;

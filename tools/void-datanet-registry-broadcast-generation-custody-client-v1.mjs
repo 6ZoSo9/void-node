@@ -329,10 +329,11 @@ async function request(options,envelope,rawContext){
       : new Error("datanet_broadcast_generation_custody_client_aborted");
   }
   const serializedRequest=JSON.parse(requestJson);
+  const canonicalRequest=canonicalJson(serializedRequest);
   const requestSha256=sha256Id(
-    Buffer.from(canonicalJson(serializedRequest),"utf8"),
+    Buffer.from(canonicalRequest,"utf8"),
   );
-  const line=requestJson+"\n";
+  const line=canonicalRequest+"\n";
   if(Buffer.byteLength(line,"utf8")>64*1024){
     fail("datanet_broadcast_generation_custody_client_request_too_large");
   }

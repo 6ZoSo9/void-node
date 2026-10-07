@@ -43,6 +43,14 @@ The exact request envelope supports only:
 - `method=claim`;
 - `method=assert`.
 
+The AF_UNIX wire request must byte-match its canonical serialized normalized
+envelope, with recursively sorted JSON object keys and no alternate whitespace.
+This rejects duplicated JSON members (including conflicting `method` values)
+that would otherwise collapse during `JSON.parse`. The client first snapshots
+the caller-owned request through `JSON.stringify` (preserving the existing
+abort-during-serialization check), then transmits the canonical bytes of that
+snapshot. Noncanonical requests HOLD before create-only fence publication.
+
 The service independently re-derives
 `broadcast_generation_fence_id` from the stable identity fields already
 defined by merged #2554:

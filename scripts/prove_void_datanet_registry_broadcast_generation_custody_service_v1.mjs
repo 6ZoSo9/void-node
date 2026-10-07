@@ -319,7 +319,7 @@ try{
       socket.setEncoding("utf8");
       socket.once("error",reject);
       socket.once("connect",()=>{
-        socket.write(JSON.stringify(stickyClientEnvelope)+"\n");
+        socket.write(canonicalJson(stickyClientEnvelope)+"\n");
       });
       socket.on("data",(chunk)=>{
         input+=chunk;
@@ -350,6 +350,66 @@ try{
       response_timeout_ms:500,
       max_response_bytes:64*1024,
     });
+
+
+  // An ambiguous raw request must not acquire any create-once fence slot.
+  // The valid last "method" must not override the earlier conflicting one.
+  const duplicateMethodFence=fence("3");
+  const duplicateMethodEnvelope={
+    schema:"void_datanet_registry_broadcast_generation_custody_request_v1",
+    marker:VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
+    version:1,
+    method:"claim",
+    fence:duplicateMethodFence,
+    custody_receipt_sha256:null,
+  };
+  const validWire=canonicalJson(duplicateMethodEnvelope);
+  const duplicateMethodWire=validWire.replace(
+    '"method":"claim"',
+    '"method":"assert","method":"claim"',
+  );
+  assert.notEqual(duplicateMethodWire,validWire);
+  assert.equal(
+    JSON.parse(duplicateMethodWire).method,
+    "claim",
+    "the last duplicate key would previously have authorized a claim",
+  );
+  const duplicateMethodResponse=await new Promise((resolve,reject)=>{
+    const socket=net.createConnection(socketPath);
+    let reply="";
+    socket.setEncoding("utf8");
+    socket.setTimeout(1500);
+    socket.once("timeout",()=>{
+      socket.destroy(new Error("duplicate_method_response_timeout"));
+    });
+    socket.once("error",reject);
+    socket.once("connect",()=>{
+      socket.write(duplicateMethodWire+"\n");
+    });
+    socket.on("data",(chunk)=>{reply+=chunk;});
+    socket.once("close",()=>{
+      try{
+        assert(reply.endsWith("\n"));
+        resolve(JSON.parse(reply.slice(0,-1)));
+      }catch(error){
+        reject(error);
+      }
+    });
+  });
+  assert.equal(duplicateMethodResponse.decision.ok,false);
+  assert.equal(duplicateMethodResponse.decision.status,"held");
+  assert.equal(
+    duplicateMethodResponse.decision.reason,
+    "datanet_broadcast_generation_custody_request_noncanonical",
+  );
+  assert.equal(
+    fs.existsSync(path.join(
+      fenceRoot,
+      duplicateMethodFence.broadcast_generation_fence_id+".json",
+    )),
+    false,
+    "a duplicated raw request member must not create a fence record",
+  );
 
   const firstFence=fence("a");
   const c1=new AbortController();
@@ -1154,6 +1214,7 @@ console.log("stable_fence_identity_rederived=true");
 console.log("create_only_record=true");
 console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
+console.log("duplicate_request_member_holds_without_record=true");
 console.log("record_duplicate_keys_rejected=true");
 console.log("record_exact_canonical_bytes_required=true");
 console.log("record_exact_schema_required=true");
