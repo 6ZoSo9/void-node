@@ -462,7 +462,9 @@ function readRecord(pinned,fence){
   const file=recordPath(pinned,fence);
   const fd=fs.openSync(
     file,
-    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+    fs.constants.O_RDONLY|
+      Number(fs.constants.O_NOFOLLOW||0)|
+      Number(fs.constants.O_NONBLOCK||0),
   );
   try{
     const before=fs.fstatSync(fd,{bigint:true});
