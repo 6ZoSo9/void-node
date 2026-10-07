@@ -191,6 +191,17 @@ if (homeStart < 0 || homeEnd < 0) {
 }
 const homeViewText = views.slice(homeStart, homeEnd);
 
+const coupledOpeningCopy =
+  "Presale intake and WC/VOID market activation are one coupled opening; neither may open alone.";
+if (!homeViewText.includes(coupledOpeningCopy)) {
+  fail("Home launch copy does not preserve the coupled opening");
+}
+if (homeViewText.includes(
+  "Presale activation remains the immediate gate; WC/VOID can follow its bounded activation ceremony."
+)) {
+  fail("Home launch copy still implies a sequential opening");
+}
+
 for (const fake of [
   "Good morning, ZoSo.",
   "0x8c99…bed7",
