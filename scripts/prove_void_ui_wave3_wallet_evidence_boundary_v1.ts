@@ -502,6 +502,41 @@ assert.throws(
   /native gas availability mismatch/,
 );
 
+for (const invalidNativeGasDisplay of [
+  "unlimited",
+  "1 ETH",
+  "+1",
+  "-1",
+  "1e3",
+  "1,000",
+  "01",
+  ".5",
+  "1.",
+  "0." + "1".repeat(19),
+]) {
+  const invalidNativeGas = validSnapshot() as any;
+  invalidNativeGas.wallet.native_gas_display =
+    invalidNativeGasDisplay;
+  assert.throws(
+    () => validateWalletAt(invalidNativeGas),
+    /native gas display invalid/,
+  );
+}
+
+for (const validNativeGasDisplay of [
+  "0",
+  "0.0",
+  "1",
+  "1.0",
+  "0.500000000",
+  "1." + "0".repeat(18),
+]) {
+  const validNativeGas = validSnapshot() as any;
+  validNativeGas.wallet.native_gas_display =
+    validNativeGasDisplay;
+  assert.doesNotThrow(() => validateWalletAt(validNativeGas));
+}
+
 const ledgerWithoutSource = validSnapshot() as any;
 ledgerWithoutSource.sources.ledger_wc.ok = false;
 ledgerWithoutSource.sources.ledger_wc.status = 503;
