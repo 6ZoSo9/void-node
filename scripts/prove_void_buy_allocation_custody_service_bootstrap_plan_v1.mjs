@@ -127,9 +127,46 @@ let source = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) source += chunk;
 const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
-const requests = Array.isArray(module.moduleRequests)
-  ? module.moduleRequests.map((entry) => entry.specifier)
-  : module.dependencySpecifiers;
+let requests;
+if (Array.isArray(module.moduleRequests)) {
+  // Newer Node exposes the full host module-request descriptor.
+  requests = module.moduleRequests.map((request) => {
+    if (typeof request?.specifier !== "string" ||
+        !request.attributes || typeof request.attributes !== "object" ||
+        Reflect.ownKeys(request.attributes).length !== 0 ||
+        request.phase !== "evaluation") {
+      throw new Error("custody_bootstrap_plan_import_metadata_hold");
+    }
+    return request.specifier;
+  });
+} else {
+  // Node 22 exposes only dependencySpecifiers. Its linker still receives
+  // import attributes; link to inert synthetic modules without evaluation.
+  if (!Array.isArray(module.dependencySpecifiers)) {
+    throw new Error("custody_bootstrap_plan_requests_unavailable_hold");
+  }
+  const names = [...new Set(["default",
+    ...(source.match(/[A-Za-z_$][A-Za-z0-9_$]*/gu) || []),
+  ])];
+  const observed = [];
+  await module.link((specifier, _ref, extra) => {
+    if (typeof specifier !== "string" ||
+        !extra?.attributes || typeof extra.attributes !== "object" ||
+        Reflect.ownKeys(extra.attributes).length !== 0 ||
+        (extra.phase !== undefined && extra.phase !== "evaluation")) {
+      throw new Error("custody_bootstrap_plan_import_metadata_hold");
+    }
+    observed.push(specifier);
+    return new vm.SyntheticModule(names, () => {
+      throw new Error("custody_bootstrap_plan_synthetic_module_must_not_evaluate");
+    });
+  });
+  if (JSON.stringify(observed.slice().sort()) !==
+      JSON.stringify([...module.dependencySpecifiers].sort())) {
+    throw new Error("custody_bootstrap_plan_legacy_request_list_hold");
+  }
+  requests = observed;
+}
 process.stdout.write(JSON.stringify(requests));
 `;
   const parsed = spawnSync(
@@ -142,11 +179,9 @@ process.stdout.write(JSON.stringify(requests));
       stdio: ["pipe", "pipe", "pipe"],
     },
   );
-  assert.equal(
-    parsed.status,
-    0,
-    ["custody service module parse failed", parsed.stderr].join("\n"),
-  );
+  if (parsed.status !== 0) {
+    throw new Error("custody_bootstrap_plan_service_module_request_hold");
+  }
   const specifiers = JSON.parse(parsed.stdout);
   assert.ok(Array.isArray(specifiers));
   assert.ok(specifiers.every((value) => typeof value === "string"));
@@ -232,6 +267,39 @@ for (const [label, extraSpecifier] of [
   );
 }
 
+// Attributes on an ALREADY-ALLOWLISTED import leave its specifier unchanged.
+// They must still HOLD. Node 22 uses inert linker metadata; newer Node
+// exposes explicit request.attributes and request.phase.
+const existingImport = 'import crypto from "node:crypto";';
+assert.ok(serviceSource.includes(existingImport));
+for (const [label, altered] of [
+  ["existing import attributes",
+    'import crypto from "node:crypto" with { type: "json" };'],
+  ["comment-separated attributes",
+    'import crypto from "node:crypto" with /* comment */ { type: "json" };'],
+  ["source-phase import",
+    'import source crypto from "node:crypto";'],
+]) {
+  const changed = serviceSource.replace(existingImport, altered);
+  assert.notEqual(changed, serviceSource, label);
+  assert.throws(
+    () => observedCompiledImports(changed),
+    /custody_bootstrap_plan_service_module_request_hold/u,
+    label + " must HOLD even if the specifier is unchanged",
+  );
+  assert.notEqual(sourceSha256(changed), decision.candidate.service_source_sha256);
+}
+const attributedReexport = serviceSource +
+  '\nexport { default as extra } from "node:crypto" with { type: "json" };\n';
+assert.throws(
+  () => observedCompiledImports(attributedReexport),
+  /custody_bootstrap_plan_service_module_request_hold/u,
+  "static re-export with attributes must HOLD",
+);
+assert.notEqual(
+  sourceSha256(attributedReexport),
+  decision.candidate.service_source_sha256,
+);
 const dynamicImport =
   serviceSource + '\nvoid import/*review-evasion*/("./dynamic.mjs");\n';
 assert.notEqual(
@@ -386,6 +454,7 @@ console.log("exact_service_contract_sha256_bound=true");
 console.log("contract_and_service_source_sha256_agree=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("all_static_service_imports_exact_allowlist=true");
+console.log("import_attributes_and_non_evaluation_phases_hold_all_node_majors=true");
 console.log("relative_package_builtin_and_data_imports_rejected=true");
 console.log("module_parser_static_import_census=true");
 console.log("semicolonless_and_export_from_dependencies_bound=true");
