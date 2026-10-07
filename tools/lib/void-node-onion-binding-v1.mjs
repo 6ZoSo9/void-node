@@ -5,9 +5,18 @@ import {
   timingSafeEqual,
   verify as cryptoVerify,
 } from "node:crypto";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readSync,
+  realpathSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
+import { dirname, parse, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { compileFunction } from "node:vm";
 import { validateV3OnionHostname } from "./void-tor-onion-descriptor-v1.mjs";
@@ -380,11 +389,187 @@ export function verifyVoidNodeOnionBindingV1(value, options = {}) {
   };
 }
 
-export function readAndVerifyVoidNodeOnionBindingV1(pathValue, options = {}) {
+const VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1 = Object.freeze({
+  closeSync,
+  constants: fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+});
+
+function sameBindingFileGenerationV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function sameBindingDirectoryIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid
+  );
+}
+
+export function readVoidNodeOnionBindingFileV1(
+  pathValue,
+  fileSystem = VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1,
+) {
   const path = resolve(pathValue);
-  const stat = lstatSync(path);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("binding file must be a regular non-symlink file");
-  if (stat.size < 2 || stat.size > MAX_BINDING_BYTES) fail("binding file size is invalid");
-  const value = JSON.parse(readFileSync(path, "utf8"));
+  const parsed = parse(path);
+  const components = relative(parsed.root, path).split(sep).filter(Boolean);
+  const noFollow = fileSystem.constants?.O_NOFOLLOW;
+  const directoryOnly = fileSystem.constants?.O_DIRECTORY;
+  const nonBlock = fileSystem.constants?.O_NONBLOCK;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number" ||
+    typeof nonBlock !== "number"
+  ) {
+    fail("binding file descriptor safety is unavailable");
+  }
+  if (components.length < 1) {
+    fail("binding file path is invalid");
+  }
+
+  const directoryFlags =
+    fileSystem.constants.O_RDONLY |
+    noFollow |
+    directoryOnly |
+    nonBlock;
+  const fileFlags =
+    fileSystem.constants.O_RDONLY |
+    noFollow |
+    nonBlock;
+  const directoryDescriptors = [];
+  const directoryStates = [];
+  const directoryPaths = [];
+  let descriptor;
+  try {
+    try {
+      let directoryDescriptor = fileSystem.openSync(parsed.root, directoryFlags);
+      directoryDescriptors.push(directoryDescriptor);
+      directoryStates.push(
+        fileSystem.fstatSync(directoryDescriptor, { bigint: true }),
+      );
+      directoryPaths.push(parsed.root);
+
+      let visibleDirectoryPath = parsed.root;
+      for (const component of components.slice(0, -1)) {
+        const nextDescriptor = fileSystem.openSync(
+          `/proc/self/fd/${directoryDescriptor}/${component}`,
+          directoryFlags,
+        );
+        directoryDescriptor = nextDescriptor;
+        directoryDescriptors.push(nextDescriptor);
+        directoryStates.push(
+          fileSystem.fstatSync(nextDescriptor, { bigint: true }),
+        );
+        visibleDirectoryPath = resolve(visibleDirectoryPath, component);
+        directoryPaths.push(visibleDirectoryPath);
+      }
+
+      descriptor = fileSystem.openSync(
+        `/proc/self/fd/${directoryDescriptor}/${components.at(-1)}`,
+        fileFlags,
+      );
+    } catch {
+      fail("binding file path is not descriptor-openable");
+    }
+
+    if (directoryStates.some((state) => !state.isDirectory())) {
+      fail("binding file path must remain directory-rooted");
+    }
+
+    const before = fileSystem.fstatSync(descriptor, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink()) {
+      fail("binding file must be a regular non-symlink file");
+    }
+    if (before.size < 2n || before.size > BigInt(MAX_BINDING_BYTES)) {
+      fail("binding file size is invalid");
+    }
+
+    const length = Number(before.size);
+    const bytes = Buffer.alloc(length);
+    let used = 0;
+    while (used < length) {
+      const count = fileSystem.readSync(
+        descriptor,
+        bytes,
+        used,
+        length - used,
+        used,
+      );
+      if (!Number.isInteger(count) || count < 1 || count > length - used) {
+        fail("binding file ended before its opened size");
+      }
+      used += count;
+    }
+
+    const eofProbe = Buffer.alloc(1);
+    if (fileSystem.readSync(descriptor, eofProbe, 0, 1, length) !== 0) {
+      fail("binding file grew beyond its opened size");
+    }
+
+    const after = fileSystem.fstatSync(descriptor, { bigint: true });
+    if (!sameBindingFileGenerationV1(before, after)) {
+      fail("binding file changed during read");
+    }
+
+    for (let index = 0; index < directoryPaths.length; index += 1) {
+      const visibleDirectory = fileSystem.lstatSync(
+        directoryPaths[index],
+        { bigint: true },
+      );
+      if (
+        visibleDirectory.isSymbolicLink() ||
+        !visibleDirectory.isDirectory() ||
+        !sameBindingDirectoryIdentityV1(
+          directoryStates[index],
+          visibleDirectory,
+        )
+      ) {
+        fail("binding file path changed during read");
+      }
+    }
+
+    const visible = fileSystem.lstatSync(path, { bigint: true });
+    if (
+      !visible.isFile() ||
+      visible.isSymbolicLink() ||
+      !sameBindingFileGenerationV1(after, visible)
+    ) {
+      fail("binding file path changed during read");
+    }
+    return bytes;
+  } finally {
+    if (descriptor !== undefined) fileSystem.closeSync(descriptor);
+    for (
+      let index = directoryDescriptors.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      fileSystem.closeSync(directoryDescriptors[index]);
+    }
+  }
+}
+
+export function readAndVerifyVoidNodeOnionBindingV1(
+  pathValue,
+  options = {},
+  fileSystem = VOID_NODE_ONION_BINDING_FILE_SYSTEM_V1,
+) {
+  const value = JSON.parse(
+    readVoidNodeOnionBindingFileV1(pathValue, fileSystem).toString("utf8"),
+  );
   return verifyVoidNodeOnionBindingV1(value, options);
 }
