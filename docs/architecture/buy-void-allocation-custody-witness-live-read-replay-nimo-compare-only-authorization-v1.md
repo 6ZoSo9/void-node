@@ -56,10 +56,32 @@ non-symlinked files in the unprivileged operator's Nimo staging directory:
     authorize.sh
 ~~~
 
-The installer verifies the complete wrapper against the reviewed Git blob
-and passes its .mjs syntax check. The compare public key must be exactly one
-ED25519 line with the independent fingerprint above. No private key is staged
-or transferred.
+The unprivileged stage is transport only and is never a privileged execution
+location. The installer itself must first be copied to the fixed root-owned path:
+
+~~~text
+/root/.void-replay-compare-only-nimo-authorization-v1.sh
+~~~
+
+and must be root:root mode 0500 with link count 1. The reviewed installer Git
+blob for this generation is:
+
+~~~text
+1e8f7683f30a160d1df7992e624d613c93274998
+~~~
+
+The root-controlled copy is verified against that exact Git blob before Bash
+executes it. The installer additionally HOLDS unless its own resolved path and
+metadata match the fixed root-owned path, so the previous staged sudo-Bash
+invocation cannot pass.
+
+The installer verifies the complete wrapper against the reviewed Git blob and
+passes its .mjs syntax check. The staged compare public key is copied once into
+a root-owned mode-0400 snapshot under /root; fingerprint and canonical-line
+validation are performed on that exact snapshot, and the exact public bytes
+consumed for the third authorized-key line come from the same snapshot. A
+same-UID replacement of the unprivileged staged key after snapshot creation
+cannot change the installed key. No private key is staged or transferred.
 
 ## Atomic apply and postcheck
 
@@ -77,7 +99,19 @@ restrict,command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_
 
 The script stages the updated authorized_keys in the same directory, checks
 the exact two-line prefix, and atomically replaces the file. On a post-commit
-failure it attempts to restore the previously copied original file.
+failure it attempts to restore from a separately preserved backup using a new
+same-directory restore candidate. The backup is deleted only after verified
+successful restore or a completed successful installation. If the backup bytes
+do not match the original authorization, or the restore rename/verification
+cannot complete, the installer HOLDS and prints both:
+
+~~~text
+URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true
+AUTHORIZED_KEYS_RECOVERY_BACKUP=<root-owned backup path>
+~~~
+
+The recovery backup is intentionally preserved on that path for manual
+restoration; cleanup must not delete the only recovery copy.
 
 No sshd configuration change or reload is required. The two previous
 witness keys remain valid and retain their original forced commands.
@@ -100,15 +134,24 @@ only; it has no wallet/signer privilege.
 On Precision, after merge to main and exact Git-object preflight:
 
 ~~~bash
+set -Eeuo pipefail
 cd ~/dev/void-node
 git fetch origin main
+
+wrapper_blob=309b4de7c40c5b8a21bbc956cc445f6600a33215
+installer_blob=1e8f7683f30a160d1df7992e624d613c93274998
+installer_path=tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh
+
+test "$(git rev-parse "origin/main:$installer_path")" = "$installer_blob"
+
 stage="$HOME/Downloads/void-replay-compare-only-nimo-auth-v1"
 install -d -m 0700 "$stage"
 
 git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs > "$stage/wrapper.mjs"
-git show origin/main:tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh > "$stage/authorize.sh"
+git show "origin/main:$installer_path" > "$stage/authorize.sh"
 
-test "$(git hash-object "$stage/wrapper.mjs")" = 309b4de7c40c5b8a21bbc956cc445f6600a33215
+test "$(git hash-object "$stage/wrapper.mjs")" = "$wrapper_blob"
+test "$(git hash-object "$stage/authorize.sh")" = "$installer_blob"
 bash -n "$stage/authorize.sh"
 node --check "$stage/wrapper.mjs"
 sudo cat /var/lib/void-replay-compare-transport-v1/id_ed25519.pub > "$stage/id_ed25519.pub"
@@ -116,8 +159,30 @@ sudo cat /var/lib/void-replay-compare-transport-v1/id_ed25519.pub > "$stage/id_e
 ssh -tt zoso@nimo 'install -d -m 0700 "$HOME/.local/state/void-replay-compare-only-nimo-auth-v1"'
 scp "$stage/wrapper.mjs" "$stage/authorize.sh" "$stage/id_ed25519.pub" \
   zoso@nimo:/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/
-ssh -tt zoso@nimo \
-  'sudo /bin/bash /home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/authorize.sh'
+
+ssh -tt zoso@nimo '
+set -Eeuo pipefail
+src=/home/zoso/.local/state/void-replay-compare-only-nimo-auth-v1/authorize.sh
+trusted=/root/.void-replay-compare-only-nimo-authorization-v1.sh
+expected_blob=1e8f7683f30a160d1df7992e624d613c93274998
+
+[[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%F" /root)" == "0:0:700:directory" ]] || exit 2
+
+if sudo /usr/bin/test -e "$trusted" || sudo /usr/bin/test -L "$trusted"; then
+  sudo /usr/bin/test ! -L "$trusted" || exit 2
+  [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%h:%F" "$trusted")" == "0:0:500:1:regular file" ]] || exit 2
+  [[ "$(sudo /usr/bin/git hash-object "$trusted")" == "$expected_blob" ]] || exit 2
+else
+  sudo /usr/bin/install -o 0 -g 0 -m 0500 -- "$src" "$trusted"
+  if [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%h:%F" "$trusted")" != "0:0:500:1:regular file" ]] ||
+     [[ "$(sudo /usr/bin/git hash-object "$trusted")" != "$expected_blob" ]]; then
+    sudo /usr/bin/rm -f -- "$trusted"
+    exit 2
+  fi
+fi
+
+sudo /bin/bash "$trusted"
+'
 ~~~
 
 The current Nimo handler may still be old because a previous attempt
