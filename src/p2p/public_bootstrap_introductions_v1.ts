@@ -16,6 +16,7 @@ export const VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_SCHEMA_V1 =
   "void_public_p2p_bootstrap_introductions_v1";
 export const VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_PATH_V1 =
   "config/void-public-p2p-bootstrap-introductions-v1.json";
+const MAX_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_BYTES_V1 = 64 * 1024;
 
 const NODE_ID_RE = /^[0-9a-f]{32}$/;
 const LABEL_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -324,8 +325,26 @@ export function validateVoidPublicP2PBootstrapIntroductionsV1(
   });
 }
 
-export function loadVoidPublicP2PBootstrapIntroductionsV1(
-  repoRoot = process.cwd(),
+function sameOpenedFileStateV1(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function loadVoidPublicP2PBootstrapIntroductionsFromOpenedFileV1(
+  repoRoot: string,
+  testOnlyAfterFstat?: (target: string) => void,
 ): VoidPublicP2PBootstrapIntroductionsV1 {
   const root = path.resolve(repoRoot);
   const target = path.resolve(
@@ -340,14 +359,126 @@ export function loadVoidPublicP2PBootstrapIntroductionsV1(
       "public P2P bootstrap introductions path escaped repository root",
     );
   }
-  const stat = fs.lstatSync(target);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
+
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directoryOnly = fs.constants.O_DIRECTORY;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number"
+  ) {
     throw new Error(
-      "public P2P bootstrap introductions must be a non-symlink regular file",
+      "public P2P bootstrap introductions descriptor safety is unavailable",
     );
   }
-  return validateVoidPublicP2PBootstrapIntroductionsV1(
-    JSON.parse(fs.readFileSync(target, "utf8")),
+
+  const directoryFlags =
+    fs.constants.O_RDONLY |
+    noFollow |
+    directoryOnly |
+    fs.constants.O_NONBLOCK;
+  let rootDescriptor = -1;
+  let configDescriptor = -1;
+  let descriptor = -1;
+  try {
+    try {
+      rootDescriptor = fs.openSync(root, directoryFlags);
+      configDescriptor = fs.openSync(
+        `/proc/self/fd/${rootDescriptor}/${path.dirname(
+          VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_PATH_V1,
+        )}`,
+        directoryFlags,
+      );
+      descriptor = fs.openSync(
+        `/proc/self/fd/${configDescriptor}/${path.basename(
+          VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_PATH_V1,
+        )}`,
+        fs.constants.O_RDONLY | noFollow | fs.constants.O_NONBLOCK,
+      );
+    } catch {
+      throw new Error(
+        "public P2P bootstrap introductions path must use descriptor-openable non-symlink directories and file",
+      );
+    }
+
+    if (
+      !fs.fstatSync(rootDescriptor).isDirectory() ||
+      !fs.fstatSync(configDescriptor).isDirectory()
+    ) {
+      throw new Error(
+        "public P2P bootstrap introductions path must remain directory-rooted",
+      );
+    }
+
+    const before = fs.fstatSync(descriptor, { bigint: true });
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.size < 1n ||
+      before.size > BigInt(MAX_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_BYTES_V1)
+    ) {
+      throw new Error(
+        "public P2P bootstrap introductions must be a bounded regular file",
+      );
+    }
+
+    testOnlyAfterFstat?.(target);
+
+    const expectedBytes = Number(before.size);
+    const bytes = Buffer.alloc(expectedBytes);
+    let offset = 0;
+    while (offset < expectedBytes) {
+      const read = fs.readSync(
+        descriptor,
+        bytes,
+        offset,
+        expectedBytes - offset,
+        offset,
+      );
+      if (read <= 0) {
+        throw new Error(
+          "public P2P bootstrap introductions changed during descriptor read",
+        );
+      }
+      offset += read;
+    }
+
+    const eofProbe = Buffer.alloc(1);
+    if (fs.readSync(descriptor, eofProbe, 0, 1, expectedBytes) !== 0) {
+      throw new Error(
+        "public P2P bootstrap introductions changed during descriptor read",
+      );
+    }
+
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    if (!sameOpenedFileStateV1(before, after)) {
+      throw new Error(
+        "public P2P bootstrap introductions changed during descriptor read",
+      );
+    }
+
+    return validateVoidPublicP2PBootstrapIntroductionsV1(
+      JSON.parse(bytes.toString("utf8")),
+    );
+  } finally {
+    if (descriptor >= 0) fs.closeSync(descriptor);
+    if (configDescriptor >= 0) fs.closeSync(configDescriptor);
+    if (rootDescriptor >= 0) fs.closeSync(rootDescriptor);
+  }
+}
+
+export function loadVoidPublicP2PBootstrapIntroductionsV1(
+  repoRoot = process.cwd(),
+): VoidPublicP2PBootstrapIntroductionsV1 {
+  return loadVoidPublicP2PBootstrapIntroductionsFromOpenedFileV1(repoRoot);
+}
+
+export function testOnlyLoadVoidPublicP2PBootstrapIntroductionsAfterFstatV1(
+  repoRoot: string,
+  afterFstat: (target: string) => void,
+): VoidPublicP2PBootstrapIntroductionsV1 {
+  return loadVoidPublicP2PBootstrapIntroductionsFromOpenedFileV1(
+    repoRoot,
+    afterFstat,
   );
 }
 
