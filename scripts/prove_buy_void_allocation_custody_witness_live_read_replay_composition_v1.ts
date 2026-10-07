@@ -1436,7 +1436,7 @@ try {
     if (held.ok) throw new Error("tampered response unexpectedly green");
     assert.equal(
       held.reason,
-      "witness_live_read_replay_composition_response_binding_invalid",
+      "witness_live_read_replay_composition_installation_binding_invalid",
     );
   }
 
