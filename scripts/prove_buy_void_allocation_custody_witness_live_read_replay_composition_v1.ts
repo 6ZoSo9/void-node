@@ -143,11 +143,12 @@ function storageFileSnapshot(
   filePath: string,
   fileSha256: string,
   bytes: number,
+  dev: string,
   ino: number,
 ) {
   return Object.freeze({
     path: filePath,
-    dev: "1",
+    dev,
     ino: String(ino),
     mtime_ns: "1",
     ctime_ns: "1",
@@ -178,18 +179,52 @@ function replayStorageEvidence(
     high_water_marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1,
     hostname: "precision",
-    journal_root: Object.freeze({ path: "/journal" }),
-    high_water_root: Object.freeze({ path: "/high-water" }),
+    journal_root: Object.freeze({
+      path: "/journal",
+      dev: "2049",
+      ino: "10",
+      uid: 1000,
+      gid: 1000,
+      mode: 0o700,
+      mount_id: 36,
+      major_minor: "8:1",
+      fs_type: "ext4",
+      mount_source: "/dev/sda1",
+      mount_source_resolved: "/dev/sda1",
+      mount_point: "/journal",
+      parent_device: "/dev/sda",
+      disk_serial: "DISK-A-001",
+      disk_wwn: "wwn-disk-a-001",
+    }),
+    high_water_root: Object.freeze({
+      path: "/high-water",
+      dev: "2065",
+      ino: "20",
+      uid: 1000,
+      gid: 1000,
+      mode: 0o700,
+      mount_id: 37,
+      major_minor: "8:17",
+      fs_type: "xfs",
+      mount_source: "/dev/sdb1",
+      mount_source_resolved: "/dev/sdb1",
+      mount_point: "/high-water",
+      parent_device: "/dev/sdb",
+      disk_serial: "DISK-B-002",
+      disk_wwn: "wwn-disk-b-002",
+    }),
     journal_file: storageFileSnapshot(
       "/journal/live-read-replay-v1.jsonl",
       sha256Id(genesis.journal_bytes),
       genesis.journal_bytes.length,
+      "2049",
       11,
     ),
     high_water_file: storageFileSnapshot(
       "/high-water/live-read-replay-high-water-v1.json",
       genesis.high_water_sha256,
       genesis.high_water_bytes.length,
+      "2065",
       12,
     ),
     high_water_sha256: genesis.high_water_sha256,
@@ -622,6 +657,99 @@ try {
     assert.equal(
       held.reason,
       "witness_live_read_replay_composition_live_read_binding_invalid",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.high_water_root.disk_serial =
+      badStorage.normalized.journal_root.disk_serial;
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("shared parent disk unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_parent_disks_not_distinct",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.journal_file.path =
+      "/forged/live-read-replay-v1.jsonl";
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("forged journal path unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_journal_file_invalid",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.journal_file.dev =
+      badStorage.normalized.high_water_root.dev;
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("journal device mismatch unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_journal_file_invalid",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.high_water_root.mode = 0o755;
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("public root mode unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_high_water_root_invalid",
+    );
+  }
+
+  {
+    const badStorage = mutableClone(baseInput.replay_storage_evidence);
+    badStorage.normalized.high_water_file.bytes = 16 * 1024 + 1;
+    badStorage.qualification_id =
+      contentId("voidwlrie1_", badStorage.normalized);
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: badStorage,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("oversized high-water unexpectedly green");
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_storage_high_water_file_invalid",
     );
   }
 
