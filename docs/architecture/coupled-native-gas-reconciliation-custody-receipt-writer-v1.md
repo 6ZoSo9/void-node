@@ -102,9 +102,17 @@ both intent copies, both files are immediately opened as retained no-follow
 snapshots and remain pinned through journal publication, high-water publication,
 the coherent postcheck, and exact intent cleanup. Both visible intent pathnames
 are rebound to those retained snapshots inside the exact pre-rename callback for
-each authoritative state publication. Replacing either freshly created intent
-after snapshot capture therefore HOLDS before the first canonical journal/high-
-water mutation.
+each authoritative state publication.
+
+The canonical state pair is rebound phase-by-phase as well. Before journal
+rename, the writer retains exact no-follow snapshots of prior journal + prior
+high-water (`J0 + H0`) and revalidates both inside the pre-rename callback.
+After journal publication it captures exact next journal + prior high-water
+(`J1 + H0`) and revalidates that pair immediately before high-water rename.
+Recovery uses the same phase-specific pair binding, including the exact
+intent-bound high-water-first recovery state. Replacing the peer state file
+inside either admitted publication interval therefore HOLDS before the next
+authoritative rename.
 
 Recovery never invents a receipt or accepts caller-selected journal bytes.
 
@@ -137,6 +145,13 @@ rechecked before redundancy completion and before authoritative state
 publication. This is present-tense intent snapshot binding, not a claim that a
 same-UID or privileged actor cannot alter storage outside the admitted
 publication interval.
+
+Authoritative mutation now applies the same present-tense rule to the **other
+canonical state file**. Journal publication requires retained snapshots that
+still bind exact current journal + current high-water. High-water publication
+requires retained snapshots that still bind exact already-published journal +
+prior high-water. Root/queue and intent checks are additional requirements;
+none substitutes for this paired-state binding.
 
 The journal and high-water authority renames also revalidate **both** visible
 roots immediately before each authoritative rename. Replacing only one visible
@@ -212,6 +227,12 @@ The proof covers:
   HOLD before canonical journal/high-water publication;
 - freshly created high-water-intent replacement after retained snapshot capture
   HOLD before canonical journal/high-water publication;
+- peer high-water replacement after the retained `J0 + H0` state snapshot
+  HOLDS before journal rename with canonical journal/high-water bytes unchanged;
+- peer journal replacement after journal publication and the retained
+  `J1 + H0` state snapshot HOLDS before high-water rename, leaving high-water
+  at the exact prior value;
+- recovery uses the same phase-specific paired-state pre-rename rebinding;
 - one-sided intent survivor binding before redundant-copy recreation;
 - cross-process one-root-replacement serialization for both roots: a valid
   contender must enqueue on the unchanged shared queue, cannot publish while
