@@ -60,21 +60,31 @@ def openssl_binary() -> str:
     return value
 
 
+OPENSSL_TIMEOUT_SECONDS = 10
+IDENTITY_KEY_MAX_BYTES = 4096
+
+
 def run_openssl(
     arguments: list[str],
     *,
     input_bytes: bytes | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> bytes:
-    completed = subprocess.run(
-        [
-            openssl_binary(),
-            *arguments,
-        ],
-        input=input_bytes,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                openssl_binary(),
+                *arguments,
+            ],
+            input=input_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=OPENSSL_TIMEOUT_SECONDS,
+            pass_fds=pass_fds,
+        )
+    except subprocess.TimeoutExpired:
+        fail("OpenSSL Ed25519 operation timed out")
 
     if completed.returncode != 0:
         diagnostic = completed.stderr.decode(
@@ -167,6 +177,176 @@ def resolve_identity_key(
     return target
 
 
+def _identity_key_stat_identity(
+    metadata: os.stat_result,
+) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_gid,
+        metadata.st_nlink,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def open_validated_identity_key(
+    value: str | Path,
+) -> tuple[Path, int, os.stat_result]:
+    raw = Path(value).expanduser()
+
+    if not raw.is_absolute():
+        fail("identity key path must be absolute")
+
+    try:
+        canonical_parent = raw.parent.resolve(
+            strict=True
+        )
+        listed = raw.lstat()
+    except FileNotFoundError:
+        fail("identity key does not exist")
+
+    if canonical_parent != raw.parent:
+        fail("identity key parent must not traverse symlinks")
+
+    if (
+        raw.is_symlink()
+        or not stat.S_ISREG(
+            listed.st_mode
+        )
+        or listed.st_uid
+        != os.geteuid()
+        or listed.st_nlink != 1
+        or listed.st_size < 1
+        or listed.st_size
+        > IDENTITY_KEY_MAX_BYTES
+        or stat.S_IMODE(
+            listed.st_mode
+        )
+        & 0o077
+    ):
+        fail(
+            "identity key must be an owner-only regular file"
+        )
+
+    descriptor = os.open(
+        raw,
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NONBLOCK", 0),
+    )
+
+    try:
+        opened = os.fstat(
+            descriptor
+        )
+        visible = raw.lstat()
+
+        if (
+            not stat.S_ISREG(
+                opened.st_mode
+            )
+            or opened.st_uid
+            != os.geteuid()
+            or opened.st_nlink != 1
+            or opened.st_size < 1
+            or opened.st_size
+            > IDENTITY_KEY_MAX_BYTES
+            or stat.S_IMODE(
+                opened.st_mode
+            )
+            & 0o077
+            or _identity_key_stat_identity(
+                listed
+            )
+            != _identity_key_stat_identity(
+                opened
+            )
+            or _identity_key_stat_identity(
+                opened
+            )
+            != _identity_key_stat_identity(
+                visible
+            )
+        ):
+            fail(
+                "identity key changed before descriptor binding"
+            )
+
+        return (
+            raw,
+            descriptor,
+            opened,
+        )
+    except Exception:
+        os.close(
+            descriptor
+        )
+        raise
+
+
+def identity_key_descriptor_path(
+    descriptor: int,
+) -> str:
+    root = Path(
+        "/proc/self/fd"
+    )
+
+    if not root.is_dir():
+        fail(
+            "descriptor-bound identity key access unavailable"
+        )
+
+    return str(
+        root
+        / str(
+            descriptor
+        )
+    )
+
+
+def revalidate_open_identity_key(
+    path: Path,
+    descriptor: int,
+    opened: os.stat_result,
+) -> None:
+    after = os.fstat(
+        descriptor
+    )
+
+    try:
+        visible = path.lstat()
+    except FileNotFoundError:
+        fail(
+            "identity key changed after open"
+        )
+
+    if (
+        not stat.S_ISREG(
+            after.st_mode
+        )
+        or _identity_key_stat_identity(
+            after
+        )
+        != _identity_key_stat_identity(
+            opened
+        )
+        or _identity_key_stat_identity(
+            visible
+        )
+        != _identity_key_stat_identity(
+            opened
+        )
+    ):
+        fail(
+            "identity key changed after open"
+        )
+
+
 def write_private_bytes(
     path: Path,
     value: bytes,
@@ -256,19 +436,42 @@ def generate_identity_key(
 def public_jwk_from_key(
     value: str | Path,
 ) -> dict[str, str]:
-    path = resolve_identity_key(
-        value
+    path, descriptor, opened = (
+        open_validated_identity_key(
+            value
+        )
     )
-    der = run_openssl(
-        [
-            "pkey",
-            "-in",
-            str(path),
-            "-pubout",
-            "-outform",
-            "DER",
-        ]
-    )
+
+    try:
+        os.lseek(
+            descriptor,
+            0,
+            os.SEEK_SET,
+        )
+        der = run_openssl(
+            [
+                "pkey",
+                "-in",
+                identity_key_descriptor_path(
+                    descriptor
+                ),
+                "-pubout",
+                "-outform",
+                "DER",
+            ],
+            pass_fds=(
+                descriptor,
+            ),
+        )
+        revalidate_open_identity_key(
+            path,
+            descriptor,
+            opened,
+        )
+    finally:
+        os.close(
+            descriptor
+        )
 
     if (
         len(der) != 44
@@ -377,10 +580,6 @@ def sign_ed25519(
     value: str | Path,
     message: bytes,
 ) -> bytes:
-    path = resolve_identity_key(
-        value
-    )
-
     if (
         not isinstance(message, bytes)
         or len(message) < 1
@@ -388,6 +587,11 @@ def sign_ed25519(
     ):
         fail("Ed25519 signing message size invalid")
 
+    path, key_descriptor, key_opened = (
+        open_validated_identity_key(
+            value
+        )
+    )
     temporary = Path(
         tempfile.mkdtemp(
             prefix=(
@@ -438,18 +642,36 @@ def sign_ed25519(
         message_path.chmod(
             0o600
         )
+        os.lseek(
+            key_descriptor,
+            0,
+            os.SEEK_SET,
+        )
         signature = run_openssl(
             [
                 "pkeyutl",
                 "-sign",
                 "-rawin",
                 "-inkey",
-                str(path),
+                identity_key_descriptor_path(
+                    key_descriptor
+                ),
                 "-in",
                 str(message_path),
             ],
+            pass_fds=(
+                key_descriptor,
+            ),
+        )
+        revalidate_open_identity_key(
+            path,
+            key_descriptor,
+            key_opened,
         )
     finally:
+        os.close(
+            key_descriptor
+        )
         try:
             message_path.unlink(
                 missing_ok=True
