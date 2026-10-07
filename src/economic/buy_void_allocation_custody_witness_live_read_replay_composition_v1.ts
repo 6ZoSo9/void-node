@@ -658,6 +658,27 @@ function writerResult(
     value.transition_before_high_water_sha256,
     "witness_live_read_replay_composition_writer_prestate_invalid",
   );
+  const journalSha256 = sha(
+    value.journal_sha256,
+    "witness_live_read_replay_composition_writer_poststate_invalid",
+  );
+  const journalBytes = safeInt(
+    value.journal_bytes,
+    1,
+    8 * 1024 * 1024,
+    "witness_live_read_replay_composition_writer_poststate_invalid",
+  );
+  const highWaterSha256 = sha(
+    value.high_water_sha256,
+    "witness_live_read_replay_composition_writer_poststate_invalid",
+  );
+  const tipEventSha256 = sha(
+    value.tip_event_sha256,
+    "witness_live_read_replay_composition_writer_poststate_invalid",
+  );
+  if (journalBytes <= transitionBeforeJournalBytes) {
+    fail("witness_live_read_replay_composition_writer_poststate_invalid");
+  }
   if (expectedStatus === "persisted_issue") {
     if (
       value.pending !== true ||
@@ -666,6 +687,7 @@ function writerResult(
         value.transition_challenge_sha256 ||
       value.pending_challenge_id !== value.transition_challenge_id ||
       value.pending_expires_at_ms !== expiresAt ||
+      value.last_terminal_state !== null ||
       value.terminal_request_id !== null ||
       value.terminal_response_sha256 !== null
     ) {
@@ -699,6 +721,10 @@ function writerResult(
     transition_before_journal_sha256: transitionBeforeJournalSha256,
     transition_before_journal_bytes: transitionBeforeJournalBytes,
     transition_before_high_water_sha256: transitionBeforeHighWaterSha256,
+    journal_sha256: journalSha256,
+    journal_bytes: journalBytes,
+    high_water_sha256: highWaterSha256,
+    tip_event_sha256: tipEventSha256,
   });
 }
 
@@ -817,11 +843,11 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
     }
     if (
       consume.transition_before_journal_sha256 !==
-        issue.value.journal_sha256 ||
+        issue.journal_sha256 ||
       consume.transition_before_journal_bytes !==
-        issue.value.journal_bytes ||
+        issue.journal_bytes ||
       consume.transition_before_high_water_sha256 !==
-        issue.value.high_water_sha256
+        issue.high_water_sha256
     ) {
       fail(
         "witness_live_read_replay_composition_consume_prestate_digest_mismatch",
@@ -956,9 +982,9 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadReplayComposition
       consume_before_high_water_sha256:
         consume.transition_before_high_water_sha256,
       consume_high_water_sha256:
-        consume.value.high_water_sha256,
+        consume.high_water_sha256,
       consume_journal_sha256:
-        consume.value.journal_sha256,
+        consume.journal_sha256,
     });
     const qualificationId =
       "voidwlrcmp1_" +
