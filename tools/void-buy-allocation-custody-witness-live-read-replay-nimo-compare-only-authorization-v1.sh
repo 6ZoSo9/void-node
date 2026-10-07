@@ -50,8 +50,13 @@ snapshot_compare_public_key_v1() {
   gid="$(id -g)"
   compare_pub_snapshot="$(mktemp "$snapshot_dir/.void-replay-compare-key.XXXXXXXX.pub")" ||
     return 1
-  install -o "$uid" -g "$gid" -m 0400 -- "$source" "$compare_pub_snapshot" ||
-    return 1
+  if [[ "$uid" == 0 ]]; then
+    install -o 0 -g 0 -m 0400 -- "$source" "$compare_pub_snapshot" ||
+      return 1
+  else
+    install -m 0400 -- "$source" "$compare_pub_snapshot" ||
+      return 1
+  fi
 
   if [[ "$force_source_swap" == true ]]; then
     [[ -n "$replacement_source" ]] || return 1
@@ -89,9 +94,16 @@ attempt_authorized_keys_restore_v1() {
 
   restore_tmp="$(mktemp "$target_dir/.voidwitness.compare.restore.XXXXXXXX")" ||
     return 1
-  if ! install -o "$uid" -g "$gid" -m 0444 -- "$source_backup" "$restore_tmp"; then
-    rm -f -- "$restore_tmp"
-    return 1
+  if [[ "$uid" == 0 ]]; then
+    install -o 0 -g 0 -m 0444 -- "$source_backup" "$restore_tmp" || {
+      rm -f -- "$restore_tmp"
+      return 1
+    }
+  else
+    install -m 0444 -- "$source_backup" "$restore_tmp" || {
+      rm -f -- "$restore_tmp"
+      return 1
+    }
   fi
   if [[ "$(sha256sum "$restore_tmp" | awk '{print $1}')" != "$expected_full_sha" ]]; then
     rm -f -- "$restore_tmp"
