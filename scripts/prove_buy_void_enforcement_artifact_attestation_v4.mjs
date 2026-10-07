@@ -30,6 +30,39 @@ const CURRENT_ENFORCEMENT_SET_SHA256 =
   "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b";
 const CHANGED_INPUT = "Dockerfile";
 
+const DIRECT_V4_CONSUMER_WORKFLOWS = Object.freeze([
+  ".github/workflows/buy-void-enforcement-artifact-attestation-v1.yml",
+  ".github/workflows/buy-void-coupled-launch-gate-v1.yml",
+  ".github/workflows/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.yml",
+]);
+
+const V4_TRIGGER_DEPENDENCIES = Object.freeze([
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs",
+  "scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
+  "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
+]);
+
+function assertV4ConsumerTriggerClosure() {
+  for (const workflowPath of DIRECT_V4_CONSUMER_WORKFLOWS) {
+    const source = read(ROOT, workflowPath).toString("utf8");
+    for (const dependency of V4_TRIGGER_DEPENDENCIES) {
+      const enforcementWildcard =
+        dependency.startsWith(
+          "scripts/prove_buy_void_enforcement_artifact_attestation_",
+        ) &&
+        source.includes("scripts/prove_buy_void_enforcement_*");
+      assert.equal(
+        source.includes(dependency) || enforcementWildcard,
+        true,
+        workflowPath + " missing V4 trigger dependency: " + dependency,
+      );
+    }
+  }
+}
+
 function parseBoundJson(relativePath, expectedBlob) {
   const bytes = read(ROOT, relativePath);
   assert.equal(
@@ -190,6 +223,7 @@ function reconstructV3Candidate(predecessor) {
 export function deriveBuyVoidEnforcementArtifactAttestationV4(
   root = ROOT,
 ) {
+  assertV4ConsumerTriggerClosure();
   const predecessor = parseBoundJson(
     PREDECESSOR_MANIFEST,
     PREDECESSOR_MANIFEST_GIT_BLOB_SHA1,
@@ -317,6 +351,7 @@ if (
           .enforcement_artifact_set_sha256,
     );
     console.log("predecessor_v3_manifest_bound=true");
+    console.log("v4_consumer_trigger_closure_bound=true");
     console.log("predecessor_v2_manifest_bytes_bound=true");
     console.log("dockerfile_only_delta_exact=true");
     console.log("compiled_artifacts_unchanged=true");
