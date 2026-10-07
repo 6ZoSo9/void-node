@@ -83,14 +83,44 @@ const serviceSource = readFileSync(path.resolve(
   here, "../tools/void-buy-allocation-custody-service-v1.mjs",
 ), "utf8");
 function observedCompiledImports(sourceText) {
+  // Dynamic loaders are outside the reviewed closure and HOLD outright.
+  // This is deliberately lexical/fail-closed: even a commented future loader
+  // must be removed or explicitly reviewed rather than silently ignored.
   assert.doesNotMatch(sourceText, /\bimport\s*\(/u);
   assert.doesNotMatch(sourceText, /\brequire\s*\(/u);
-  const declarations = [...sourceText.matchAll(/^import\b[\s\S]*?;[ \t]*$/gmu)];
-  const specifiers = declarations.map(([declaration]) => {
-    const found = /(?:\bfrom\s+)?["']([^"'\n]+)["']\s*;[ \t]*$/u.exec(declaration);
-    assert.ok(found, "unrecognized static import syntax must HOLD");
-    return found[1];
-  });
+
+  // Use Node's parser rather than formatting-sensitive regexes so valid static
+  // ESM forms such as semicolonless imports and export ... from declarations
+  // are included in the dependency census without executing the service.
+  const parser = String.raw`
+import vm from "node:vm";
+let source = "";
+process.stdin.setEncoding("utf8");
+for await (const chunk of process.stdin) source += chunk;
+const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
+const requests = Array.isArray(module.moduleRequests)
+  ? module.moduleRequests.map((entry) => entry.specifier)
+  : module.dependencySpecifiers;
+process.stdout.write(JSON.stringify(requests));
+`;
+  const parsed = spawnSync(
+    process.execPath,
+    ["--experimental-vm-modules", "--input-type=module", "-e", parser],
+    {
+      input: sourceText,
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
+  assert.equal(
+    parsed.status,
+    0,
+    ["custody service module parse failed", parsed.stderr].join("\n"),
+  );
+  const specifiers = JSON.parse(parsed.stdout);
+  assert.ok(Array.isArray(specifiers));
+  assert.ok(specifiers.every((value) => typeof value === "string"));
   return specifiers.filter(specifier => specifier.startsWith("../dist/")).sort();
 }
 const expectedCompiledImports = [...decision.candidate.top_level_source_imports].sort();
@@ -107,6 +137,28 @@ const droppedImport = serviceSource.replace(
 );
 assert.notEqual(droppedImport, serviceSource);
 assert.notDeepEqual(observedCompiledImports(droppedImport), expectedCompiledImports);
+
+const semicolonlessImport =
+  serviceSource + '\nimport "../dist/economic/unreviewed_semicolonless_v1.js"\n';
+assert.notDeepEqual(
+  observedCompiledImports(semicolonlessImport),
+  expectedCompiledImports,
+  "semicolonless static import must alter the compiled dependency census",
+);
+
+const exportFromDependency =
+  serviceSource +
+  '\nexport { default as unreviewed } from "../dist/economic/unreviewed_export_v1.js"\n';
+assert.notDeepEqual(
+  observedCompiledImports(exportFromDependency),
+  expectedCompiledImports,
+  "export-from dependency must alter the compiled dependency census",
+);
+
+assert.throws(
+  () => observedCompiledImports(serviceSource + '\nvoid import("./dynamic.mjs");\n'),
+  /Expected values to be strictly non-matching regular expression/u,
+);
 assert.equal(decision.candidate.reviewed_compiled_transitive_closure_proven, false);
 assert.equal(decision.candidate.production_gate_ready, false);
 
@@ -237,6 +289,8 @@ console.log("mutable_repo_execstart_not_emitted=true");
 console.log("systemd_socket_unit_not_claimed=true");
 console.log("protected_executable_import_closure_required=true");
 console.log("current_service_compiled_imports_match_candidate=true");
+console.log("module_parser_static_import_census=true");
+console.log("semicolonless_and_export_from_dependencies_bound=true");
 console.log("forged_all_green_observations_still_hold=true");
 console.log("apply_or_install_modes_rejected=true");
 console.log("service_or_funds_mutation=false");
