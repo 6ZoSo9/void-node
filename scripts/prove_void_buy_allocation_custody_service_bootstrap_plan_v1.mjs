@@ -75,8 +75,8 @@ const serviceSource = readFileSync(path.resolve(
   here, "../tools/void-buy-allocation-custody-service-v1.mjs",
 ), "utf8");
 function observedCompiledImports(sourceText) {
-  assert.doesNotMatch(sourceText, /\bimport\s*\\(/u);
-  assert.doesNotMatch(sourceText, /\brequire\s*\\(/u);
+  assert.doesNotMatch(sourceText, /\bimport\s*\(/u);
+  assert.doesNotMatch(sourceText, /\brequire\s*\(/u);
   const declarations = [...sourceText.matchAll(/^import\b[\s\S]*?;[ \t]*$/gmu)];
   const specifiers = declarations.map(([declaration]) => {
     const found = /(?:\bfrom\s+)?["']([^"'\n]+)["']\s*;[ \t]*$/u.exec(declaration);
@@ -94,7 +94,7 @@ const changedImport = serviceSource.replace(
 assert.notEqual(changedImport, serviceSource);
 assert.notDeepEqual(observedCompiledImports(changedImport), expectedCompiledImports);
 const droppedImport = serviceSource.replace(
-  /import \{[\s\S]*?\} from ["']\.\.\/dist\/economic\/buy_void_allocation_reservation_publication_writer_v1\.js["'];/u,
+  /^import\s*\{[^;]*\}\s*from\s*["']\.\.\/dist\/economic\/buy_void_allocation_reservation_publication_writer_v1\.js["'];/mu,
   "",
 );
 assert.notEqual(droppedImport, serviceSource);
