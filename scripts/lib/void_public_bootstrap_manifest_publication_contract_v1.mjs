@@ -144,20 +144,95 @@ export function assertOutsideRepository(repoRoot, candidatePath, label) {
   return candidate;
 }
 
-function assertRegularFile(filePath, label, maxBytes) {
-  const absolute = path.resolve(String(filePath));
-  const stat = fs.lstatSync(absolute);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error(`${label} must be one regular non-symlink file`);
-  }
-  if (stat.size <= 0 || stat.size > maxBytes) {
-    throw new Error(`${label} size must be from 1 through ${maxBytes} bytes`);
-  }
-  return absolute;
+// This publication authority path requires Linux directory-descriptor traversal.
+// lstat(path) followed by readFile(path) permits symlink swaps and unbounded reads.
+function samePinnedReadStat(a, b) {
+  return a.dev === b.dev && a.ino === b.ino && a.mode === b.mode &&
+    a.nlink === b.nlink && a.size === b.size &&
+    a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 }
 
 export function readBytes(filePath, label, maxBytes = MAX_JSON_BYTES) {
-  return fs.readFileSync(assertRegularFile(filePath, label, maxBytes));
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_JSON_BYTES) {
+    throw new Error(`${label} has an invalid maximum byte count`);
+  }
+  const nofollow = fs.constants.O_NOFOLLOW;
+  const directoryFlag = fs.constants.O_DIRECTORY;
+  const nonblock = fs.constants.O_NONBLOCK;
+  if (!Number.isInteger(nofollow) || !Number.isInteger(directoryFlag) ||
+      !Number.isInteger(nonblock) || !fs.existsSync("/proc/self/fd")) {
+    throw new Error(`${label} requires Linux descriptor-bound filesystem reads`);
+  }
+  const absolute = path.resolve(String(filePath));
+  const root = path.parse(absolute).root;
+  const components = absolute.slice(root.length).split(path.sep).filter(Boolean);
+  if (components.length === 0 || components.some((s) => s === "." || s === "..")) {
+    throw new Error(`${label} must be a regular file path`);
+  }
+  const dirFlags = fs.constants.O_RDONLY | directoryFlag | nofollow;
+  // O_NONBLOCK prevents an attacker-controlled FIFO from hanging before fstat.
+  const fileFlags = fs.constants.O_RDONLY | nofollow | nonblock;
+  let directory;
+  let file;
+  try {
+    directory = fs.openSync(root, dirFlags);
+    for (const component of components.slice(0, -1)) {
+      // Every lookup is anchored in an already-open parent directory.
+      // O_NOFOLLOW on each child rejects even swapped intermediate symlinks.
+      const next = fs.openSync(`/proc/self/fd/${directory}/${component}`, dirFlags);
+      if (!fs.fstatSync(next).isDirectory()) {
+        fs.closeSync(next);
+        throw new Error(`${label} ancestor is not a directory`);
+      }
+      fs.closeSync(directory);
+      directory = next;
+    }
+    const anchored = `/proc/self/fd/${directory}/${components.at(-1)}`;
+    const visible = fs.lstatSync(anchored, { bigint: true });
+    if (!visible.isFile() || visible.isSymbolicLink() || visible.nlink !== 1n ||
+        visible.size < 1n || visible.size > BigInt(maxBytes)) {
+      throw new Error(`${label} must be a bounded single-link regular file`);
+    }
+    file = fs.openSync(anchored, fileFlags);
+    const before = fs.fstatSync(file, { bigint: true });
+    if (!before.isFile() || before.nlink !== 1n ||
+        !samePinnedReadStat(before, visible)) {
+      throw new Error(`${label} descriptor changed before reading`);
+    }
+    const count = Number(before.size);
+    const buffer = Buffer.alloc(count + 1);
+    let got = 0;
+    while (got < buffer.length) {
+      const n = fs.readSync(file, buffer, got, buffer.length - got, got);
+      if (n === 0) break;
+      got += n;
+    }
+    if (got !== count) throw new Error(`${label} changed size during bounded read`);
+    const after = fs.fstatSync(file, { bigint: true });
+    const anchoredAfter = fs.lstatSync(anchored, { bigint: true });
+    const pathAfter = fs.lstatSync(absolute, { bigint: true });
+    if (!anchoredAfter.isFile() || anchoredAfter.isSymbolicLink() ||
+        !pathAfter.isFile() || pathAfter.isSymbolicLink() ||
+        !samePinnedReadStat(before, after) ||
+        !samePinnedReadStat(after, anchoredAfter) ||
+        !samePinnedReadStat(after, pathAfter)) {
+      throw new Error(`${label} changed file/path identity during read`);
+    }
+    // Reject a parent replaced by a visible symlink even if it points back
+    // to the same inode. Content authentication still occurs independently.
+    let current = root;
+    for (const component of components.slice(0, -1)) {
+      current = path.join(current, component);
+      const stat = fs.lstatSync(current);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        throw new Error(`${label} visible ancestor changed during read`);
+      }
+    }
+    return buffer.subarray(0, count);
+  } finally {
+    if (file !== undefined) fs.closeSync(file);
+    if (directory !== undefined) fs.closeSync(directory);
+  }
 }
 
 export function readJson(filePath, label) {
@@ -173,9 +248,30 @@ export function fileSha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
+// Do not inherit GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_CONFIG_COUNT,
+// replacement-object selection, global config, or an ambient Git executable.
+// Publication source/custody checks must inspect exactly repoRoot.
+const PUBLICATION_GIT_ENV = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  HOME: "/nonexistent",
+  LC_ALL: "C",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_NO_REPLACE_OBJECTS: "1",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+});
+
 export function git(repoRoot, args, label) {
-  const result = childProcess.spawnSync("git", ["-C", repoRoot, ...args], {
+  const result = childProcess.spawnSync("/usr/bin/git", [
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-C", repoRoot, ...args,
+  ], {
     encoding: "utf8",
+    env: PUBLICATION_GIT_ENV,
+    maxBuffer: 16 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.status !== 0) {
@@ -203,5 +299,18 @@ export function assertCleanExactRepository(repoRoot, expectedSourceSha) {
     "inspect repository status",
   );
   if (status !== "") throw new Error("repository must be completely clean");
+  // Git status can falsely claim CLEAN for a modified file whose index entry
+  // is assume-unchanged (h) or skip-worktree (S). Reject those trust-degrading
+  // index flags rather than treating status as an exact-source certificate.
+  const indexFlags = git(root, ["ls-files", "-v", "-z"], "inspect tracked Git index flags");
+  let trackedCount = 0;
+  for (const entry of indexFlags.split("\0")) {
+    if (!entry) continue;
+    trackedCount += 1;
+    if (!entry.startsWith("H ")) {
+      throw new Error("repository contains concealed or noncanonical Git index flags");
+    }
+  }
+  if (trackedCount < 1) throw new Error("repository must contain tracked source files");
   return { root, sourceSha };
 }

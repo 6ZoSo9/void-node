@@ -6,7 +6,7 @@ on:
     paths:
       - ".github/workflows/void-public-seed-live-qualification-v1.yml"
   schedule:
-    - cron: "17 5 * * *"
+    - cron: "17 0,6,12,18 * * *"
   workflow_dispatch:
     inputs:
       endpoint:
