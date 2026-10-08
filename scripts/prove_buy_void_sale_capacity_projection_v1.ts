@@ -71,49 +71,130 @@ const ledgerStat = (ledger: any) => Object.freeze({
   ctimeNs: BigInt(ledger.name === "requests.jsonl" ? rows.length : events.length),
 });
 
-// Only sidecar bytes/inodes live in this Map. These filesystem methods never
-// touch disk; sync/link/custody/locking durability is explicitly not proven.
-const sidecars = new Map<string, { bytes: Buffer; ino: number }>();
-const descriptors = new Map<number, string>();
+// Only sidecar bytes/inodes live in this Map. Unlike the historical mock,
+// retained read descriptors must continue to reference the opened inode even
+// if a pathname changes; link counts and numeric/BigInt stat modes are real
+// behavior under test, not caller-declared custody or durability.
+type SyntheticSidecarFileV1 = {
+  bytes: Buffer;
+  ino: number;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+};
+type SyntheticSidecarDescriptorV1 = {
+  path: string;
+  file: SyntheticSidecarFileV1 | null;
+};
+const sidecars = new Map<string, SyntheticSidecarFileV1>();
+const descriptors = new Map<number, SyntheticSidecarDescriptorV1>();
 let nextDescriptor = 10;
+let fakeTime = 1n;
 let failSidecarPublication = false;
+const syntheticFileStat = (
+  entry: SyntheticSidecarFileV1,
+  options?: { bigint?: boolean },
+) => {
+  const asBigInt = options?.bigint === true;
+  const value = (n: bigint): bigint | number =>
+    asBigInt ? n : Number(n);
+  return {
+    dev: value(1n),
+    ino: value(BigInt(entry.ino)),
+    uid: value(1n),
+    gid: value(1n),
+    mode: value(0o100600n),
+    nlink: value(BigInt(
+      [...sidecars.values()].filter((candidate) => candidate === entry).length,
+    )),
+    size: value(BigInt(entry.bytes.length)),
+    mtimeNs: entry.mtimeNs,
+    ctimeNs: entry.ctimeNs,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+  };
+};
 const syntheticFs = {
-  constants: { O_RDONLY: 1, O_DIRECTORY: 2, O_WRONLY: 4, O_CREAT: 8, O_EXCL: 16, O_NOFOLLOW: 32 },
+  constants: {
+    O_RDONLY: 1, O_DIRECTORY: 2, O_WRONLY: 4, O_CREAT: 8,
+    O_EXCL: 16, O_NOFOLLOW: 32, O_NONBLOCK: 64,
+  },
   mkdirSync: (directory: string) => { assert.equal(directory, requestDir); },
   existsSync: (file: string) => sidecars.has(file),
-  openSync: (file: string) => {
-    if (file !== requestDir) {
-      assert.equal(path.dirname(file), requestDir);
-      assert.equal(sidecars.has(file), false);
-      sidecars.set(file, { bytes: Buffer.alloc(0), ino: nextDescriptor });
-    }
+  openSync: (file: string, flags = 0) => {
     const descriptor = nextDescriptor++;
-    descriptors.set(descriptor, file);
+    if (file === requestDir) {
+      assert.ok((flags & syntheticFs.constants.O_DIRECTORY) !== 0);
+      descriptors.set(descriptor, { path: file, file: null });
+      return descriptor;
+    }
+    assert.equal(path.dirname(file), requestDir);
+    if ((flags & syntheticFs.constants.O_CREAT) !== 0) {
+      assert.equal(sidecars.has(file), false, "exclusive sidecar creation");
+      sidecars.set(file, {
+        bytes: Buffer.alloc(0), ino: descriptor,
+        mtimeNs: fakeTime++, ctimeNs: fakeTime++,
+      });
+    } else {
+      assert.equal(sidecars.has(file), true, "open existing sidecar");
+    }
+    descriptors.set(descriptor, { path: file, file: sidecars.get(file)! });
     return descriptor;
   },
   writeSync: (descriptor: number, input: Buffer, offset: number, length: number) => {
-    const entry = sidecars.get(descriptors.get(descriptor)!)!;
+    const entry = descriptors.get(descriptor)?.file;
+    assert.ok(entry, "write requires pinned sidecar descriptor");
     entry.bytes = Buffer.from(input.subarray(offset, offset + length));
+    entry.mtimeNs = fakeTime++;
+    entry.ctimeNs = fakeTime++;
     return length;
+  },
+  readSync: (
+    descriptor: number, output: Buffer, offset: number,
+    length: number, position: number | null,
+  ) => {
+    const entry = descriptors.get(descriptor)?.file;
+    assert.ok(entry, "read requires pinned sidecar descriptor");
+    const start = position === null ? 0 : position;
+    const count = Math.max(0, Math.min(length, entry.bytes.length - start));
+    entry.bytes.copy(output, offset, start, start + count);
+    return count;
   },
   fsyncSync() {},
   closeSync: (descriptor: number) => { descriptors.delete(descriptor); },
+  fstatSync: (descriptor: number, options?: { bigint?: boolean }) => {
+    const entry = descriptors.get(descriptor)?.file;
+    assert.ok(entry, "fstat requires held sidecar inode");
+    return syntheticFileStat(entry, options);
+  },
   linkSync: (from: string, to: string) => {
     if (failSidecarPublication) throw new Error("synthetic_sidecar_publication_failed");
     assert.equal(sidecars.has(to), false);
-    sidecars.set(to, sidecars.get(from)!);
+    const entry = sidecars.get(from);
+    assert.ok(entry, "hardlink source must exist");
+    sidecars.set(to, entry);
+    entry.ctimeNs = fakeTime++;
   },
-  unlinkSync: (file: string) => { sidecars.delete(file); },
+  unlinkSync: (file: string) => {
+    const entry = sidecars.get(file);
+    assert.ok(entry, "unlink requires existing path");
+    sidecars.delete(file);
+    entry.ctimeNs = fakeTime++;
+  },
   readdirSync: () => [...sidecars.keys()].map((file) => path.basename(file)),
-  lstatSync: (file: string) => {
-    const entry = sidecars.get(file)!;
-    return { dev: 1, ino: entry.ino, size: entry.bytes.length, isFile: () => true, isSymbolicLink: () => false };
+  lstatSync: (file: string, options?: { bigint?: boolean }) => {
+    const entry = sidecars.get(file);
+    assert.ok(entry, "lstat requires visible sidecar path");
+    return syntheticFileStat(entry, options);
   },
-  readFileSync: (file: string) => Buffer.from(sidecars.get(file)!.bytes),
+  readFileSync: (file: string) => {
+    const entry = sidecars.get(file);
+    assert.ok(entry, "legacy pathname read requires sidecar");
+    return Buffer.from(entry.bytes);
+  },
 };
 const context = vm.createContext({
   exports: {},
-  process: { pid: 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
+  process: { pid: 1, getuid: () => 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
   path,
   Buffer,
   TextDecoder,
@@ -176,7 +257,7 @@ evaluate(declarations(admissionPath, [
   "classifyBuyVoidVerifiedPaymentCapacityAdmissionV1",
   "canonicalRequestSourceChainV1", "canonicalRequestTxHashV1",
   "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
-  "sameFileIdentityV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
+  "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   "withBuyVoidVerifiedPaymentCapacityAdmissionV1",
