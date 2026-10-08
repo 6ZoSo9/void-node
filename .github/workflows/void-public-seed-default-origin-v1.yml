@@ -38,7 +38,7 @@ on:
       - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
 
   schedule:
-    - cron: "47 5 * * *"
+    - cron: "47 0,6,12,18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -111,7 +111,7 @@ jobs:
           assert "bootstrap authority still requires a fresh qualification" in current_status
 
           qualifier = Path(".github/workflows/void-public-seed-live-qualification-v1.yml").read_text()
-          assert 'cron: "17 5 * * *"' in qualifier
+          assert 'cron: "17 0,6,12,18 * * *"' in qualifier
           assert 'endpoint="https://seed.nullfeed.org"' in qualifier
           assert "manifest_published=false" in qualifier
           assert "contents: read" in qualifier
@@ -137,7 +137,7 @@ jobs:
           assert "rollback is deliberately conservative" in publication_doc
 
           seed_guard = Path(".github/workflows/void-public-seed-default-origin-v1.yml").read_text()
-          assert 'cron: "47 5 * * *"' in seed_guard
+          assert 'cron: "47 0,6,12,18 * * *"' in seed_guard
           assert "void-public-bootstrap-committed-freshness-v1.mjs" in seed_guard
           assert "--min-remaining-seconds 86400" in seed_guard
 
