@@ -130,3 +130,26 @@ Building a file under `/tmp` is not publication. Committing or replacing `public
 ## Acceptance boundary
 
 This source lane proves the qualification contract; it does not claim that a stable seed currently exists. A qualified raw-IP HTTPS endpoint may satisfy the first stable-seed gate without a domain, but certificate automation, VPS deployment, manifest publication, and outside-machine acceptance remain separate reviewed actions. Issue #1005 still requires an ordinary machine outside the operator Tailnet to use exact merged source and the normal clone/run path, advance above head zero, reach `gap=0` with `txroot_live=1`, and demonstrate that no private or economic authority is exposed.
+
+## Non-JSON live qualification failure diagnostics
+
+A stable HTTPS seed may serve a proxy-generated HTML page or a malformed JSON
+payload instead of readiness JSON. The bounded, address-pinned qualifier must
+continue to reject both. On an invalid nonempty JSON response, it now reports
+only HTTP status, a fixed content-type class (`json`, `html`, `text`,
+`other` or `missing`), and response byte count. Neither the returned body
+nor a raw untrusted Content-Type value is printed. A delivered malformed JSON
+response is terminal: it cannot be ignored by trying a different pinned DNS
+address. DNS pinning, TLS, response
+bounds, redirect rejection and every readiness/route assertion are unchanged.
+
+The October 8 scheduled
+[qualification 37773892667](https://github.com/6ZoSo9/void-node/actions/runs/37773892667)
+failed at `GET https://seed.nullfeed.org/__void/ready.json` on invalid JSON.
+Separately, [freshness run 37775553257](https://github.com/6ZoSo9/void-node/actions/runs/37775553257)
+classified the committed manifest as expired at 2026-10-08T05:06:16.460Z.
+An earlier successful three-sample qualification is real evidence of prior
+health, not proof of current continuous reachability. The new error class
+narrows triage but does not identify a root cause, qualify an endpoint, refresh
+the manifest or authorize publication. Hold bootstrap discovery until a fresh
+external multi-sample run, reviewed candidate, and served-copy verification.
