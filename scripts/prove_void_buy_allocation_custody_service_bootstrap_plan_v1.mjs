@@ -111,8 +111,21 @@ assert.equal(
   "machine contract must bind the exact same custody service source bytes",
 );
 
-function observedCompiledImports(sourceText, simulateLegacyNode24Requests = false) {
+function observedCompiledImports(
+  sourceText,
+  simulateLegacyNode24Requests = false,
+  testOnlyBypassAttributeLexicalGuard = false,
+) {
   assert.equal(typeof simulateLegacyNode24Requests, "boolean");
+  assert.equal(typeof testOnlyBypassAttributeLexicalGuard, "boolean");
+  // The lexical guard is production/default behavior. This test-only escape
+  // exists solely to falsify the linker fallback on early Node 24, where
+  // otherwise a regex could mask a broken import-attribute metadata callback.
+  assert.equal(
+    testOnlyBypassAttributeLexicalGuard && !simulateLegacyNode24Requests,
+    false,
+    "test_only_attribute_guard_bypass_requires_simulated_early_node24",
+  );
   // Dynamic loaders are outside the reviewed closure and HOLD outright.
   // This is deliberately lexical/fail-closed: even a commented future loader
   // must be removed or explicitly reviewed rather than silently ignored.
@@ -121,11 +134,13 @@ function observedCompiledImports(sourceText, simulateLegacyNode24Requests = fals
   // Node 22 exposes only dependencySpecifiers and silently omits import
   // attributes. Reject their syntax (including interposed comments) before
   // trusting the legacy specifier-only fallback on any supported Node.
-  assert.doesNotMatch(
-    sourceText,
-    /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n\u2028\u2029]*(?:\r\n|[\r\n\u2028\u2029]|$))*\{/u,
-    "import attributes are outside the reviewed custody service closure",
-  );
+  if (!testOnlyBypassAttributeLexicalGuard) {
+    assert.doesNotMatch(
+      sourceText,
+      /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n\u2028\u2029]*(?:\r\n|[\r\n\u2028\u2029]|$))*\{/u,
+      "import attributes are outside the reviewed custody service closure",
+    );
+  }
   // Node 22.x may expose moduleRequests without its newer phase metadata.
   // Reject alternate import phases lexically before using that reduced API.
   assert.doesNotMatch(
@@ -368,6 +383,7 @@ for (const [label, terminator] of [
 // Node 24.0-24.3 lack SourceTextModule.moduleRequests. A newer Node 24
 // binary simulates that absent API here and still requires linker metadata.
 // This does not claim that a genuine Node 24.0 binary was executed.
+let earlyNode24LinkerTested = false;
 if (Number(process.versions.node.split(".")[0]) === 24) {
   assert.deepEqual(
     observedCompiledImports(serviceSource, true),
@@ -379,9 +395,11 @@ if (Number(process.versions.node.split(".")[0]) === 24) {
     'import crypto from "node:crypto" with { type: "json" };',
   );
   assert.throws(
-    () => observedCompiledImports(attributed, true),
-    "simulated early Node24 linker must reject nonempty import attributes",
+    () => observedCompiledImports(attributed, true, true),
+    /custody_bootstrap_plan_import_metadata_hold/u,
+    "simulated early Node24 must reject nonempty linker extra.attributes",
   );
+  earlyNode24LinkerTested = true;
 }
 
 const dynamicImport =
@@ -538,7 +556,9 @@ console.log("exact_service_contract_sha256_bound=true");
 console.log("contract_and_service_source_sha256_agree=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("all_static_service_imports_exact_allowlist=true");
-console.log("early_node24_inert_linker_abi_fallback_proven=true");
+// Never claim the early-Node24 branch ran on a Node22 or Node26 job.
+console.log("early_node24_inert_linker_abi_fallback_proven=" +
+  earlyNode24LinkerTested);
 console.log("ecmascript_line_terminators_attributes_and_phases_hold=true");
 console.log("relative_package_builtin_and_data_imports_rejected=true");
 console.log("module_parser_static_import_census=true");

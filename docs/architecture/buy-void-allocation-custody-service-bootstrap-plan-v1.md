@@ -104,7 +104,13 @@ inspect `extra.attributes` without evaluating the service or dependencies.
 Node 26 without modern metadata still HOLDs, and present-but-incomplete
 modern metadata never silently downgrades to the legacy path. The proof
 simulates early Node 24 API absence on a later Node 24 runner; this is not
-a claim that an actual 24.0 binary was run. It also rejects `with { ... }`
+a claim that an actual 24.0 binary was run. The **negative** test bypasses
+only the proof's lexical attribute precheck to reach the inert `vm.Module.link`
+callback, and specifically requires its `custody_bootstrap_plan_import_metadata_hold`
+error on nonempty `extra.attributes`. The ordinary production/default proof
+continues to enforce the lexical guard. The per-run receipt reports this
+simulated ABI test as `true` **only on Node 24**; Node22/26 explicitly report
+`false` instead of claiming unexecuted evidence. It also rejects `with { ... }`
 attributes and `import source`/`import defer` phases through comments
 across all ECMAScript line terminators (LF, CR, U+2028 and U+2029).
 The legacy linker census must agree with the parser's static dependency
