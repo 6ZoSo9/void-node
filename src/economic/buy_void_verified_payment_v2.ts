@@ -275,9 +275,13 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   // Legacy V2 fixtures without any checkout/coupled evidence keep their
   // previous behavior, but are NOT production payment-admission authority.
   const original = request;
-  const hasCheckoutEvidence =
-    Object.prototype.hasOwnProperty.call(original, "usdc_contract") ||
-    Object.prototype.hasOwnProperty.call(original, "launch_authority");
+  const hasCheckoutEvidence = [
+    "payment_chain",
+    "payment_chain_id",
+    "usdc_contract",
+    "payment_instructions",
+    "launch_authority",
+  ].some((key) => Object.prototype.hasOwnProperty.call(original, key));
   if (hasCheckoutEvidence) {
     const originalToken = normalizeAddress(original.usdc_contract);
     if (!originalToken) {
