@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -141,6 +142,116 @@ for (const invalid of [
   assert.equal(loadVoidPublicBootstrapV2StaticV1(invalid), null, invalid);
 }
 
+// Read-only production handler proof: all hostile writes stay under OS temp.
+const staticFixtureRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-bootstrap-v2-static-reader-"),
+);
+const fixtureDir = path.join(staticFixtureRoot, "manifests");
+const fixtureFile = path.join(fixtureDir, currentManifestId + ".json");
+const readFixture = () => loadVoidPublicBootstrapV2StaticV1(
+  "/void/bootstrap/v2/manifests/" + currentManifestId + ".json",
+  { rootDir: staticFixtureRoot },
+);
+try {
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  fs.writeFileSync(fixtureFile, sourceManifest, { mode: 0o600 });
+  assert.equal(readFixture().body.equals(sourceManifest), true);
+
+  const moved = fixtureFile + ".held";
+  fs.renameSync(fixtureFile, moved);
+  fs.symlinkSync(moved, fixtureFile);
+  assert.throws(readFixture, /bootstrap_v2_static_not_regular/);
+  fs.unlinkSync(fixtureFile);
+  fs.renameSync(moved, fixtureFile);
+
+  const linked = fixtureFile + ".linked";
+  fs.linkSync(fixtureFile, linked);
+  assert.throws(readFixture, /bootstrap_v2_static_not_regular/);
+  fs.unlinkSync(linked);
+
+  fs.writeFileSync(fixtureFile, Buffer.alloc(1024 * 1024 + 1, 0x61));
+  assert.throws(readFixture, /bootstrap_v2_static_size_invalid/);
+  fs.writeFileSync(fixtureFile, sourceManifest);
+
+  // A same-size replacement inode during open must never be consumed.
+  const originalOpen = fs.openSync;
+  let replaced = false;
+  try {
+    fs.openSync = function (name, ...args) {
+      if (!replaced && typeof name === "string" &&
+          name.startsWith("/proc/self/fd/") &&
+          name.endsWith("/" + currentManifestId + ".json")) {
+        replaced = true;
+        fs.renameSync(fixtureFile, moved);
+        fs.writeFileSync(fixtureFile, sourceManifest);
+      }
+      return originalOpen.call(this, name, ...args);
+    };
+    assert.throws(readFixture, /bootstrap_v2_static_descriptor_replaced/);
+    assert.equal(replaced, true);
+  } finally {
+    fs.openSync = originalOpen;
+    fs.rmSync(fixtureFile, { force: true });
+    if (fs.existsSync(moved)) fs.renameSync(moved, fixtureFile);
+  }
+
+  // A concurrent append is detected after at most preflight bytes + 1.
+  const originalRead = fs.readSync;
+  let consumed = 0;
+  let largestBuffer = 0;
+  let appended = false;
+  try {
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      if (!appended) {
+        appended = true;
+        fs.appendFileSync(fixtureFile, Buffer.alloc(2 * 1024 * 1024));
+      }
+      largestBuffer = Math.max(largestBuffer, buffer.length);
+      const n = originalRead.call(this, fd, buffer, offset, length, position);
+      consumed += n;
+      return n;
+    };
+    assert.throws(readFixture, /bootstrap_v2_static_size_changed_during_read/);
+    assert.equal(appended, true);
+    assert.equal(largestBuffer, sourceManifest.length + 1);
+    assert.equal(consumed, sourceManifest.length + 1);
+  } finally {
+    fs.readSync = originalRead;
+    fs.writeFileSync(fixtureFile, sourceManifest);
+  }
+
+  // A symlinked parent, including a swap after descriptor pinning, holds.
+  const parentMoved = fixtureDir + ".held";
+  fs.renameSync(fixtureDir, parentMoved);
+  fs.symlinkSync(parentMoved, fixtureDir);
+  assert.throws(readFixture);
+  fs.unlinkSync(fixtureDir);
+  fs.renameSync(parentMoved, fixtureDir);
+
+  let swappedParent = false;
+  try {
+    fs.readSync = function (fd, buffer, offset, length, position) {
+      if (!swappedParent) {
+        swappedParent = true;
+        fs.renameSync(fixtureDir, parentMoved);
+        fs.symlinkSync(parentMoved, fixtureDir);
+      }
+      return originalRead.call(this, fd, buffer, offset, length, position);
+    };
+    assert.throws(readFixture, /bootstrap_v2_static_file_or_path_changed/);
+    assert.equal(swappedParent, true);
+  } finally {
+    fs.readSync = originalRead;
+    if (swappedParent) {
+      fs.unlinkSync(fixtureDir);
+      fs.renameSync(parentMoved, fixtureDir);
+    }
+  }
+  assert.equal(readFixture().body.equals(sourceManifest), true);
+} finally {
+  fs.rmSync(staticFixtureRoot, { recursive: true, force: true });
+}
+
 const seedSource = fs.readFileSync(
   "ops/public/public-seed-adapter-v1.mjs",
   "utf8",
@@ -174,6 +285,11 @@ console.log("mirror_count=3");
 console.log("https_mirror_count=2");
 console.log("tor_mirror_count=1");
 console.log("mutable_latest_alias_allowed=false");
+console.log("static_reader_descriptor_bound=true");
+console.log("static_reader_leaf_symlink_and_hardlink_rejected=true");
+console.log("static_reader_same_size_inode_replacement_rejected=true");
+console.log("static_reader_growth_read_at_most_initial_size_plus_one=true");
+console.log("static_reader_parent_swap_rejected=true");
 console.log("seed_adapter_static_wiring_required=true");
 console.log("frontdoor_static_wiring_required=true");
 console.log("tor_public_tree_static_wiring_present=true");
