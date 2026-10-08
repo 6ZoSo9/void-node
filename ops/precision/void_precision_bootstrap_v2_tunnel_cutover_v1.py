@@ -11,6 +11,7 @@ import os
 import pwd
 from pathlib import Path
 import re
+import selectors
 import shlex
 import signal
 import socket
@@ -60,6 +61,13 @@ ADDITION = (
     b"    service: http://127.0.0.1:8080\n"
 )
 
+MAX_HTTP_BODY_BYTES = 2 * 1024 * 1024
+MAX_MANIFEST_BYTES = 1024 * 1024
+MAX_CONFIG_BYTES = 64 * 1024
+MAX_UNIT_BYTES = 64 * 1024
+MAX_CHILD_STDOUT_BYTES = 256 * 1024
+MAX_CHILD_STDERR_BYTES = 64 * 1024
+
 class Hold(Exception):
     pass
 
@@ -69,6 +77,66 @@ def ensure(test, reason):
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+def _same_file_snapshot(left, right):
+    return (
+        stat.S_ISREG(left.st_mode)
+        and stat.S_ISREG(right.st_mode)
+        and left.st_dev == right.st_dev
+        and left.st_ino == right.st_ino
+        and left.st_size == right.st_size
+        and left.st_mtime_ns == right.st_mtime_ns
+        and left.st_ctime_ns == right.st_ctime_ns
+    )
+
+def read_bounded_regular_file(path, maximum, size_reason):
+    """Read one regular file without following symlinks or allocating past maximum."""
+    ensure(type(maximum) is int and maximum > 0, "invalid_file_read_bound")
+    ensure(hasattr(os, "O_NOFOLLOW"), "file_nofollow_unavailable")
+    try:
+        visible_before = path.lstat()
+    except OSError as exc:
+        raise Hold(size_reason) from exc
+    ensure(
+        stat.S_ISREG(visible_before.st_mode)
+        and not stat.S_ISLNK(visible_before.st_mode)
+        and 0 < visible_before.st_size <= maximum,
+        size_reason,
+    )
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise Hold(size_reason) from exc
+    try:
+        opened = os.fstat(fd)
+        ensure(
+            _same_file_snapshot(visible_before, opened)
+            and 0 < opened.st_size <= maximum,
+            size_reason,
+        )
+        chunks = []
+        total = 0
+        while True:
+            remaining = maximum - total
+            chunk = os.read(fd, min(64 * 1024, remaining + 1))
+            if not chunk:
+                break
+            total += len(chunk)
+            ensure(total <= maximum, size_reason)
+            chunks.append(chunk)
+        after = os.fstat(fd)
+        try:
+            visible_after = path.lstat()
+        except OSError as exc:
+            raise Hold(size_reason + "_changed") from exc
+        ensure(
+            _same_file_snapshot(opened, after)
+            and _same_file_snapshot(after, visible_after),
+            size_reason + "_changed",
+        )
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 def build_candidate_config(original):
     # Add the V2 manifest route WITHOUT removing the existing seed fallback.
@@ -132,21 +200,115 @@ def trusted_subprocess_binary(command):
            "unreviewed_subprocess_command")
     return str(path)
 
-def cmd(args, label, timeout=20):
+def _stop_child(process):
+    try:
+        if process.poll() is None:
+            process.kill()
+    except OSError:
+        pass
+    for stream in (process.stdout, process.stderr):
+        if stream is not None:
+            try:
+                stream.close()
+            except OSError:
+                pass
+    try:
+        process.wait(timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+def cmd(
+    args,
+    label,
+    timeout=20,
+    max_stdout_bytes=MAX_CHILD_STDOUT_BYTES,
+    max_stderr_bytes=MAX_CHILD_STDERR_BYTES,
+    stdout_overflow_reason=None,
+):
     ensure(isinstance(args, (list, tuple)) and bool(args),
            "unreviewed_subprocess_arguments")
+    ensure(
+        type(max_stdout_bytes) is int and max_stdout_bytes > 0
+        and type(max_stderr_bytes) is int and max_stderr_bytes > 0,
+        "invalid_subprocess_output_bound",
+    )
     trusted = [trusted_subprocess_binary(args[0]), *args[1:]]
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             trusted, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            timeout=timeout, check=False, env=trusted_subprocess_env(),
+            bufsize=0, env=trusted_subprocess_env(),
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except OSError as exc:
         raise Hold(label + "_unavailable_or_timeout") from exc
-    if result.returncode != 0:
-        raise Hold(label + "_exit_" + str(result.returncode))
-    return result.stdout
+
+    selector = selectors.DefaultSelector()
+    stdout = bytearray()
+    stderr = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        ensure(process.stdout is not None and process.stderr is not None,
+               label + "_pipe_unavailable")
+        selector.register(process.stdout, selectors.EVENT_READ,
+                          (stdout, max_stdout_bytes, "stdout"))
+        selector.register(process.stderr, selectors.EVENT_READ,
+                          (stderr, max_stderr_bytes, "stderr"))
+
+        while selector.get_map():
+            remaining_time = deadline - time.monotonic()
+            if remaining_time <= 0:
+                raise subprocess.TimeoutExpired(trusted, timeout)
+            ready = selector.select(timeout=min(0.25, remaining_time))
+            if not ready:
+                continue
+            for key, _mask in ready:
+                buffer, maximum, stream_name = key.data
+                remaining = maximum - len(buffer)
+                try:
+                    chunk = os.read(
+                        key.fileobj.fileno(),
+                        min(64 * 1024, remaining + 1),
+                    )
+                except OSError as exc:
+                    raise Hold(label + "_" + stream_name + "_read_failed") from exc
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                if len(chunk) > remaining:
+                    reason = (
+                        stdout_overflow_reason
+                        if stream_name == "stdout" and stdout_overflow_reason
+                        else label + "_" + stream_name + "_too_large"
+                    )
+                    raise Hold(reason)
+                buffer.extend(chunk)
+
+        remaining_time = deadline - time.monotonic()
+        if remaining_time <= 0:
+            raise subprocess.TimeoutExpired(trusted, timeout)
+        returncode = process.wait(timeout=remaining_time)
+    except subprocess.TimeoutExpired as exc:
+        _stop_child(process)
+        raise Hold(label + "_unavailable_or_timeout") from exc
+    except BaseException:
+        _stop_child(process)
+        raise
+    finally:
+        selector.close()
+        for stream in (process.stdout, process.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
+
+    if returncode != 0:
+        raise Hold(label + "_exit_" + str(returncode))
+    return bytes(stdout)
 
 def system_value(unit, key):
     return cmd(
@@ -176,7 +338,7 @@ def verify_dropin():
     ensure(metadata.st_uid == os.geteuid() and metadata.st_nlink == 1, "dropin_owner_or_links")
     ensure(metadata.st_size > 0 and metadata.st_size <= 4096, "dropin_size")
     ensure(stat.S_IMODE(metadata.st_mode) & 0o022 == 0, "dropin_group_or_world_writable")
-    raw = expected.read_bytes()
+    raw = read_bounded_regular_file(expected, 4096, "dropin_size")
     ensure(digest(raw) == EXPECTED_DROPIN_SHA, "dropin_digest_changed")
     try:
         decoded = raw.decode("utf-8")
@@ -202,8 +364,9 @@ def fetch(url, label):
     data = cmd([
         "curl", "-q", "-4", "--noproxy", "*", "-fsS",
         "--connect-timeout", "3", "--max-time", "8", url,
-    ], label, timeout=12)
-    ensure(len(data) <= 2 * 1024 * 1024, "body_too_large_" + label)
+    ], label, timeout=12, max_stdout_bytes=MAX_HTTP_BODY_BYTES,
+       stdout_overflow_reason="body_too_large_" + label)
+    ensure(len(data) <= MAX_HTTP_BODY_BYTES, "body_too_large_" + label)
     return data
 
 def checked_json(url, label):
@@ -247,8 +410,9 @@ def check_mirrors():
     ):
         local = ROOT / "public/void/bootstrap/v2/manifests" / (identity + ".json")
         ensure(local.is_file() and not local.is_symlink(), label + "_local_file_missing")
-        local_body = local.read_bytes()
-        ensure(0 < len(local_body) <= 1024 * 1024, label + "_local_size")
+        local_body = read_bounded_regular_file(
+            local, MAX_MANIFEST_BYTES, label + "_local_size",
+        )
         if expected is not None:
             ensure(digest(local_body) == expected, label + "_local_sha")
         external_body = fetch(
@@ -317,7 +481,12 @@ def preflight():
     active(UNIT)
     ensure(system_value(UNIT, "FragmentPath") == str(unitfile), "unit_fragment_changed")
     verify_dropin()
-    lines = unitfile.read_text().splitlines()
+    try:
+        lines = read_bounded_regular_file(
+            unitfile, MAX_UNIT_BYTES, "tunnel_unit_file_size",
+        ).decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise Hold("tunnel_unit_file_utf8") from exc
     rows = [line for line in lines if line.startswith("ExecStart=")]
     ensure(len(rows) == 1, "service_exec_count")
     try:
@@ -341,7 +510,9 @@ def preflight():
         raise Hold("tunnel_process_inspection") from exc
     ensure(str(cfg).encode() in argv, "tunnel_process_config_differs")
 
-    original = cfg.read_bytes()
+    original = read_bounded_regular_file(
+        cfg, MAX_CONFIG_BYTES, "source_config_size",
+    )
     ensure(digest(original) == EXPECTED_OLD_SHA, "source_config_hash_changed")
     candidate = build_candidate_config(original)
     ensure(digest(candidate) == EXPECTED_CANDIDATE_SHA, "candidate_config_hash_changed")
@@ -356,11 +527,17 @@ def preflight():
     # Independent immutable data and external public-health checks before any write.
     local = ROOT / "public/void/bootstrap/v2/manifests" / (NEW_ID + ".json")
     ensure(local.is_file() and not local.is_symlink(), "renewed_file_absent")
-    ensure(digest(local.read_bytes()) == EXPECTED_MANIFEST_SHA, "renewed_file_hash")
+    local_body = read_bounded_regular_file(
+        local, MAX_MANIFEST_BYTES, "renewed_local_size",
+    )
+    ensure(digest(local_body) == EXPECTED_MANIFEST_SHA, "renewed_file_hash")
     old = ROOT / "public/void/bootstrap/v2/manifests" / (OLD_ID + ".json")
     ensure(old.is_file() and not old.is_symlink(), "historical_file_absent")
-    ensure(fetch("http://127.0.0.1:8080" + NEW_PATH, "local_adapter_mirror") == local.read_bytes(), "local_adapter_mirror_bytes")
-    ensure(fetch("http://127.0.0.1:8080" + OLD_PATH, "local_adapter_historical") == old.read_bytes(), "local_historical_bytes")
+    old_body = read_bounded_regular_file(
+        old, MAX_MANIFEST_BYTES, "historical_local_size",
+    )
+    ensure(fetch("http://127.0.0.1:8080" + NEW_PATH, "local_adapter_mirror") == local_body, "local_adapter_mirror_bytes")
+    ensure(fetch("http://127.0.0.1:8080" + OLD_PATH, "local_adapter_historical") == old_body, "local_historical_bytes")
     check_shared_routes()
 
     with tempfile.TemporaryDirectory(prefix="void-bootstrap-route-plan-") as td:
@@ -373,7 +550,12 @@ def preflight():
 def verify_publication(cf, cfg, pids):
     verify_dropin()
     active(UNIT)
-    ensure(digest(cfg.read_bytes()) == EXPECTED_CANDIDATE_SHA, "active_config_not_candidate")
+    ensure(
+        digest(read_bounded_regular_file(
+            cfg, MAX_CONFIG_BYTES, "active_config_size",
+        )) == EXPECTED_CANDIDATE_SHA,
+        "active_config_not_candidate",
+    )
     verify_routes(cf, cfg)
     check_shared_routes()
     check_mirrors()
@@ -382,11 +564,18 @@ def verify_publication(cf, cfg, pids):
 def rollback(cfg, original, mode, pids):
     print("rollback_attempted=true", flush=True)
     try:
-        current = digest(cfg.read_bytes())
+        current = digest(read_bounded_regular_file(
+            cfg, MAX_CONFIG_BYTES, "rollback_config_size",
+        ))
         ensure(current in (EXPECTED_CANDIDATE_SHA, EXPECTED_OLD_SHA), "live_config_unknown_drift")
         if current != EXPECTED_OLD_SHA:
             atomic_replace(cfg, original, mode)
-        ensure(digest(cfg.read_bytes()) == EXPECTED_OLD_SHA, "rollback_config_hash")
+        ensure(
+            digest(read_bounded_regular_file(
+                cfg, MAX_CONFIG_BYTES, "rollback_config_size",
+            )) == EXPECTED_OLD_SHA,
+            "rollback_config_hash",
+        )
         cmd(["systemctl", "--user", "restart", UNIT], "rollback_connector_restart", timeout=40)
         # Verify critical public entrypoints return after the old connector resumes.
         for attempt in range(12):
@@ -452,7 +641,12 @@ def main():
         # exceptions occurring immediately after the rename.
         modified = True
         atomic_replace(cfg, candidate, permissions)
-        ensure(digest(cfg.read_bytes()) == EXPECTED_CANDIDATE_SHA, "applied_config_hash")
+        ensure(
+            digest(read_bounded_regular_file(
+                cfg, MAX_CONFIG_BYTES, "applied_config_size",
+            )) == EXPECTED_CANDIDATE_SHA,
+            "applied_config_hash",
+        )
         print("active_config_replaced=true")
         cmd(["systemctl", "--user", "restart", UNIT], "connector_restart", timeout=40)
         print("connector_restart_count=1", flush=True)
