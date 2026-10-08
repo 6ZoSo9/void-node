@@ -1,0 +1,134 @@
+name: VOID Buy VOID hypothetical preappend original lineage v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_preappend_lineage_hypothetical_v1.mjs"
+      - "docs/architecture/buy-void-preappend-lineage-hypothetical-v1.md"
+      - ".github/workflows/buy-void-preappend-lineage-hypothetical-v1.yml"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-preappend-reference-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact head checkout, no write credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent source identity
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor b2571e8ee9c352bd9b78ce8f0c87f2487e3f8ded "$HEAD_SHA"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "feb1f0e3fea1ff07406cd3b8fcd315c48338596f"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "3e16948a1f98bc42ccfa6c688780ef6ce8620800"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies and compile only
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+
+      - name: Run pure hypothetical original-lineage qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_preappend_lineage_hypothetical_v1.mjs > hypothetical-preappend-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(x.marker,"VOID_BUY_VOID_PREAPPEND_IN_MEMORY_LINEAGE_PROOF_V1");
+            assert.equal(x.source_parent,"b2571e8ee9c352bd9b78ce8f0c87f2487e3f8ded");
+            assert.equal(x.positive_cases,1);
+            assert.equal(x.negative_cases,10);
+            assert.equal(x.scenarios.length,11);
+            assert.equal(x.scenarios[0].name,"original_event_valid_before_append");
+            assert.equal(x.scenarios[0].ready,true);
+            assert.ok(x.scenarios.slice(1).every(k=>k.ready===false));
+            for (const flag of ["actual_handoff_modified","actual_append_invoked",
+              "customer_history_read","runtime_mounted","filesystem_mutation",
+              "production_preappend_guard_integrated","production_gate_ready",
+              "public_presale_activation","funds_moved"]) assert.equal(x[flag],false);
+            assert.equal(x.proof_is_reference_only,true);
+            console.log("VOID_PREAPPEND_HYPOTHETICAL_11_CASES_GREEN");
+            console.log("accepted_live_payment=false");
+          ' hypothetical-preappend-${{ matrix.node }}.json
+
+      - name: Preserve exact generated proof evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-preappend-hypothetical-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: hypothetical-preappend-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exactly three source-only receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-preappend-hypothetical-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./inert-proof
+
+      - name: Require byte-for-byte Node 22/24/26 report equality
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "inert-proof/hypothetical-preappend-$v.json"; done
+          cmp inert-proof/hypothetical-preappend-22.json inert-proof/hypothetical-preappend-24.json
+          cmp inert-proof/hypothetical-preappend-22.json inert-proof/hypothetical-preappend-26.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("inert-proof/hypothetical-preappend-22.json");
+            const proof=JSON.parse(bytes);
+            if(proof.production_preappend_guard_integrated!==false)process.exit(1);
+            console.log("VOID_PREAPPEND_REFERENCE_THREE_NODE_EQUAL_GREEN");
+            console.log("report_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("source_only_hypothetical_no_payment_fsync=true");
+          '
