@@ -1,0 +1,55 @@
+name: VOID Nimo replay compare handler three-key upgrade v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.sh"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_nimo_compare_handler_upgrade_v2.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.yml"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nimo-replay-compare-three-key-upgrade-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    name: Nimo compare upgrade v2 source guards / Node 22
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+      - name: Check script and source proof
+        run: |
+          set -euo pipefail
+          bash -n tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.sh
+          node --check scripts/prove_buy_void_allocation_custody_witness_live_read_replay_nimo_compare_handler_upgrade_v2.mjs
+          node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_nimo_compare_handler_upgrade_v2.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then git diff --check "$BASE_SHA" "$HEAD_SHA"; else git diff --check; fi
