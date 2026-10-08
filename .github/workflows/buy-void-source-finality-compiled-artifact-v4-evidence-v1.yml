@@ -1,0 +1,117 @@
+name: VOID Buy VOID V4 compiled candidate independent evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_v4_evidence_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v4-evidence-v1.md"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-v4-evidence-v1.yml"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact checked-out SHA
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED"
+
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build exact compiled artifacts
+        run: npm run build
+
+      - name: Compare unaccepted candidate to independent source derivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --derive \
+            > "$RUNNER_TEMP/v4-rederived.json"
+          cmp "$RUNNER_TEMP/v4-rederived.json" \
+            docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json
+
+      - name: Independently audit six exact compiled artifacts and adverse evidence
+        run: node scripts/prove_buy_void_source_finality_compiled_artifact_v4_evidence_v1.mjs
+
+      - name: Require V4 candidate and authority all remain unaccepted
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const p = "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json";
+            const m = JSON.parse(fs.readFileSync(p, "utf8"));
+            for (const key of ["compiled_artifact_generation_verified",
+                              "deployed_artifact_generation_verified",
+                              "runtime_mount_authority",
+                              "production_source_finality_authority_ready"]) {
+              assert.equal(m[key], false, key);
+            }
+            console.log("V4_CANDIDATE_NOT_ACCEPTED_OR_DEPLOYED_GREEN");
+          '
+
+      - name: Inspect six artifacts in a STOPPED production image
+        if: matrix.node == 24
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t void-v4-candidate-stopped-image-evidence .
+          cid="$(docker create --entrypoint node void-v4-candidate-stopped-image-evidence --version)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          evidence="$RUNNER_TEMP/v4-stopped-image-evidence"
+          mkdir -p "$evidence/dist/economic"
+          for f in \
+            buy_void_source_finality_generation_provenance_v6.js \
+            buy_void_source_finality_authenticated_composition_v3.js \
+            buy_void_source_finality_authority_v2.js \
+            buy_void_source_chain_finality_rpc_adapter_v1.js \
+            buy_void_payment_rpc_observer_v1.js \
+            buy_void_verified_payment_v2.js
+          do
+            docker cp "$cid:/app/dist/economic/$f" "$evidence/dist/economic/$f"
+          done
+          node scripts/prove_buy_void_source_finality_compiled_artifact_v4_evidence_v1.mjs \
+            "--artifact-root=$evidence"
+
+      - name: Committed-range diff hygiene
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
