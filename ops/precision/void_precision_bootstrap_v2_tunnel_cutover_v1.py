@@ -24,6 +24,8 @@ UNIT = "void-public-seed-named-tunnel-v1.service"
 EXPECTED_OLD_SHA = "2f32e965e000d756e2706fbf05bc1488e9f4b6e820c43a18877cd8d58c402c52"
 EXPECTED_CANDIDATE_SHA = "38d5a4055c4e5b5ccb0fbc1bf199e3d732d0025754063dacb11a4718fd579ea5"
 EXPECTED_MANIFEST_SHA = "b72071b42e0fbce7fa4079ce8000b6521377e4e55cdfba05ca610015c9e3ddd4"
+EXPECTED_DROPIN_SHA = "4a03777846ab539b1de0885f99ebf9fcd32813516fbd767f174e54e4c239425d"
+EXPECTED_DROPIN_NAME = "90-void-nullfeed-clean-environment.conf"
 OLD_ID = "voidpbm1_a17d192b4542e2e59abfeef227a8beabb3a98169c14764ddca5dde908a4f6f5c"
 NEW_ID = "voidpbm1_99ea562ea42bd3e833df7996066fffbd4e061ad7916a7d8f86431df11891e5f8"
 ROOT = Path.home() / "dev/void-web-recovery-049b703d216b"
@@ -87,6 +89,47 @@ def system_value(unit, key):
 
 def active(unit):
     ensure(system_value(unit, "ActiveState") == "active", "inactive_" + unit)
+
+def verify_dropin():
+    """Accept only the previously observed environment-cleanup override.
+
+    Never print its raw values. Any unexpected file, directive or changed
+    byte blocks the service action, rather than weakening the unit.
+    """
+    expected = Path.home() / ".config/systemd/user" / (UNIT + ".d") / EXPECTED_DROPIN_NAME
+    try:
+        observed = shlex.split(system_value(UNIT, "DropInPaths"))
+    except ValueError as exc:
+        raise Hold("dropin_paths_parse") from exc
+    ensure(observed == [str(expected)], "unexpected_service_dropins")
+    ensure(expected.parent.is_dir() and not expected.parent.is_symlink(), "dropin_parent_symlink")
+    ensure(expected.resolve() == expected, "dropin_path_noncanonical")
+    ensure(expected.is_file() and not expected.is_symlink(), "dropin_nonregular")
+    metadata = expected.stat()
+    ensure(metadata.st_uid == os.geteuid() and metadata.st_nlink == 1, "dropin_owner_or_links")
+    ensure(metadata.st_size > 0 and metadata.st_size <= 4096, "dropin_size")
+    ensure(stat.S_IMODE(metadata.st_mode) & 0o022 == 0, "dropin_group_or_world_writable")
+    raw = expected.read_bytes()
+    ensure(digest(raw) == EXPECTED_DROPIN_SHA, "dropin_digest_changed")
+    try:
+        decoded = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Hold("dropin_utf8_invalid") from exc
+    sections = []
+    directives = []
+    for line in decoded.splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith(("#", ";")):
+            continue
+        if entry.startswith("[") and entry.endswith("]"):
+            sections.append(entry)
+            continue
+        ensure("=" in entry, "dropin_syntax_unexpected")
+        name, value = entry.split("=", 1)
+        ensure(name.strip() == "UnsetEnvironment" and bool(value.strip()), "dropin_directive_unexpected")
+        directives.append(name.strip())
+    ensure(sections == ["[Service]"] and directives == ["UnsetEnvironment"], "dropin_structure_unexpected")
+
 
 def fetch(url, label):
     data = cmd([
@@ -201,7 +244,7 @@ def preflight():
     ensure(unitfile.is_file() and not unitfile.is_symlink(), "tunnel_unit_file")
     active(UNIT)
     ensure(system_value(UNIT, "FragmentPath") == str(unitfile), "unit_fragment_changed")
-    ensure(not system_value(UNIT, "DropInPaths"), "unexpected_service_dropins")
+    verify_dropin()
     lines = unitfile.read_text().splitlines()
     rows = [line for line in lines if line.startswith("ExecStart=")]
     ensure(len(rows) == 1, "service_exec_count")
@@ -257,6 +300,7 @@ def preflight():
     return cf, cfg, original, candidate, stat.S_IMODE(cfg.stat().st_mode), pids
 
 def verify_publication(cf, cfg, pids):
+    verify_dropin()
     active(UNIT)
     ensure(digest(cfg.read_bytes()) == EXPECTED_CANDIDATE_SHA, "active_config_not_candidate")
     verify_routes(cf, cfg)
