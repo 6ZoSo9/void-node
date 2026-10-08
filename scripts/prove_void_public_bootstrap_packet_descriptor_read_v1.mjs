@@ -164,6 +164,22 @@ try {
   assert.equal(assertCleanExactRepository(genuine, expectedSourceSha).sourceSha,
     expectedSourceSha);
   fs.appendFileSync(tracked, "uncommitted\\n");
+  // The original git-status-only admission accepted a modified worktree
+  // hidden by assume-unchanged/skip-worktree index flags as CLEAN.
+  for (const [kind, enable, disable] of [
+    ["assume-unchanged", "--assume-unchanged", "--no-assume-unchanged"],
+    ["skip-worktree", "--skip-worktree", "--no-skip-worktree"],
+  ]) {
+    gitFixture(["update-index", enable, "manifest.txt"]);
+    try {
+      assert.equal(gitFixture(["status", "--porcelain=v1", "--untracked-files=all"]), "",
+        `${kind} fixture must hide modified worktree from git status`);
+      assert.throws(() => assertCleanExactRepository(genuine, expectedSourceSha),
+        /concealed or noncanonical Git index flags/, `${kind} must HOLD`);
+    } finally {
+      gitFixture(["update-index", disable, "manifest.txt"]);
+    }
+  }
   const injected = {
     GIT_DIR: path.join(decoy, ".git"),
     GIT_WORK_TREE: decoy,
@@ -210,6 +226,9 @@ try {
   console.log("growth_read_bounded_to_initial_size_plus_one=true");
   console.log("ambient_git_dir_and_worktree_cannot_hide_dirty_repository=true");
   console.log("ambient_git_config_and_index_cannot_override_source_identity=true");
+  console.log("assume_unchanged_flag_cannot_hide_dirty_source=true");
+  console.log("skip_worktree_flag_cannot_hide_dirty_source=true");
+  console.log("git_fsmonitor_shortcuts_disabled=true");
   console.log("source_repository_mutation=false");
   console.log("live_service_or_network_access=false");
   console.log("funds_movement=false");

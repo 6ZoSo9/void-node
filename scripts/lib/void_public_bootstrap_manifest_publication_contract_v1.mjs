@@ -264,9 +264,14 @@ const PUBLICATION_GIT_ENV = Object.freeze({
 });
 
 export function git(repoRoot, args, label) {
-  const result = childProcess.spawnSync("/usr/bin/git", ["-C", repoRoot, ...args], {
+  const result = childProcess.spawnSync("/usr/bin/git", [
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-C", repoRoot, ...args,
+  ], {
     encoding: "utf8",
     env: PUBLICATION_GIT_ENV,
+    maxBuffer: 16 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.status !== 0) {
@@ -294,5 +299,18 @@ export function assertCleanExactRepository(repoRoot, expectedSourceSha) {
     "inspect repository status",
   );
   if (status !== "") throw new Error("repository must be completely clean");
+  // Git status can falsely claim CLEAN for a modified file whose index entry
+  // is assume-unchanged (h) or skip-worktree (S). Reject those trust-degrading
+  // index flags rather than treating status as an exact-source certificate.
+  const indexFlags = git(root, ["ls-files", "-v", "-z"], "inspect tracked Git index flags");
+  let trackedCount = 0;
+  for (const entry of indexFlags.split("\0")) {
+    if (!entry) continue;
+    trackedCount += 1;
+    if (!entry.startsWith("H ")) {
+      throw new Error("repository contains concealed or noncanonical Git index flags");
+    }
+  }
+  if (trackedCount < 1) throw new Error("repository must contain tracked source files");
   return { root, sourceSha };
 }
