@@ -7,9 +7,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import {
+  runReviewedGitV1,
+  proveReviewedGitV1Synthetic,
+} from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "320ab95af3998a9dcfddd44d62c394c19ba7ea2c";
+const SOURCE_HEAD = "3123b3054896beb39e8991441187a83ac07dc1f7";
 const PACKAGE_LOCK_BLOB = "b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const TARGETS = Object.freeze([
   Object.freeze({path:"tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",blob:"d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",external:["node:crypto","node:fs","node:path"]}),
@@ -167,10 +171,10 @@ function derive() {
   assert.equal(ts.version,"5.9.3");
   const lock=read(ROOT,"package-lock.json");
   assert.equal(gitBlob(lock),PACKAGE_LOCK_BLOB);
-  execFileSync("git",["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],{cwd:ROOT,stdio:"ignore"});
+  runReviewedGitV1(["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],ROOT);
   const inputs=[...TARGETS.map(x=>x.path),...CALLERS.map(x=>"src/economic/"+x[0])];
-  execFileSync("git",["diff","--quiet",SOURCE_HEAD,"HEAD","--",...inputs,"package-lock.json"],
-    {cwd:ROOT,stdio:"ignore"});
+  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",
+    SOURCE_HEAD,"HEAD","--",...inputs,"package-lock.json"],ROOT);
   const verifiedTools=TARGETS.map(target=>{
     const bytes=read(ROOT,target.path),got=gitBlob(bytes);
     assert.equal(got,target.blob,"reviewed tool source Git blob drift: "+target.path);
@@ -228,6 +232,7 @@ function derive() {
   };
 }
 function selfTest() {
+  proveReviewedGitV1Synthetic();
   assert.throws(()=>inspectCaller("fixture.ts",Buffer.from(
     'const dynamicImport=new Function("specifier","return import(specifier)");\n'+
     'dynamicImport(process.env.INJECTED);\n')),undefined,"nonliteral target must HOLD");

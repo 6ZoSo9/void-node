@@ -5,6 +5,7 @@ on:
     paths:
       - "src/index.ts"
       - "src/diag/patch_latest_number2_shim_v3.cjs"
+      - "scripts/prove_latest_number2_shim_v3_head_bounds_v1.mjs"
       - "scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs"
       - ".github/workflows/storage-readiness-route-stack-boundary-v1.yml"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - "src/index.ts"
       - "src/diag/patch_latest_number2_shim_v3.cjs"
+      - "scripts/prove_latest_number2_shim_v3_head_bounds_v1.mjs"
       - "scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs"
       - ".github/workflows/storage-readiness-route-stack-boundary-v1.yml"
   workflow_dispatch:
@@ -50,7 +52,9 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Check proof syntax
-        run: node --check scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+        run: |
+          node --check scripts/prove_latest_number2_shim_v3_head_bounds_v1.mjs
+          node --check scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
 
       - name: Typecheck repository
         run: npm run typecheck
@@ -60,6 +64,9 @@ jobs:
 
       - name: Prove storage-readiness route stack boundary
         run: node scripts/prove_void_storage_readiness_route_stack_boundary_v1.mjs
+
+      - name: Prove latest-number2 head bounds
+        run: node scripts/prove_latest_number2_shim_v3_head_bounds_v1.mjs
 
       - name: Diff hygiene across committed change range
         shell: bash

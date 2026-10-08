@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
 const SOURCE_STACK_HEAD =
-  "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e";
+  "47cbb1d4c7fb667a7accdf1089edb11072f3e631";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH =
   "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
@@ -20,12 +20,12 @@ const PREDECESSOR_MANIFEST_GIT_BLOB_SHA1 =
 const PREDECESSOR_COMPILED_ARTIFACT_GENERATION_SHA256 =
   "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add";
 const EXPECTED_VERIFIER_SOURCE_GIT_BLOB_SHA1 =
-  "32133e441ccb02bb4786d29e36932fb31399ec87";
+  "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 // Derive-only evidence. Verifier artifact SHA-256/byte count cannot be
 // declared accepted until cross-Node review and a locked successor manifest.
 const COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V4 = false;
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "d642723385136e9f0382bd77efdb34948221f380";
+  "7266c03d8874207ed3fda0f814d0a7a53d429c25";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
 const EXPECTED_INPUT_BLOBS = Object.freeze({
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",

@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
@@ -12,24 +12,24 @@ const MANIFEST_PATH =
 const CANDIDATE_SCRIPT =
   "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs";
 const EXPECTED_CANDIDATE_SCRIPT_GIT_BLOB_SHA1 =
-  "7eb20ac84a134044df32a1ad4dc4582c9259d388";
+  "7cd1a31d9fb02ebdf4ceb96b38d890bb66474f8c";
 const EXPECTED_CANDIDATE_JSON_SHA256 =
-  "d03761f2c4cae8388fcee50bb953c85062d5d58d653c79451f0bf097069a28e8";
+  "27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128";
 const EXPECTED_COMPILED_GENERATION_SHA256 =
-  "b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d";
+  "45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87";
 const EXPECTED_REVIEWED_SOURCE_SHA256 =
-  "6a2493b269919be87273eb9bcfc959ab601aab9c16689c54a813db619d1b980f";
+  "95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426";
 const EXPECTED_SOURCE_STACK_HEAD =
-  "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e";
+  "47cbb1d4c7fb667a7accdf1089edb11072f3e631";
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "d642723385136e9f0382bd77efdb34948221f380";
+  "7266c03d8874207ed3fda0f814d0a7a53d429c25";
 const EXPECTED_V2_SOURCE_GIT_BLOB_SHA1 =
-  "32133e441ccb02bb4786d29e36932fb31399ec87";
+  "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 const EXPECTED_ARTIFACTS = Object.freeze([
   Object.freeze({
     path: "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
     bytes: 15937,
-    sha256: "1a80772df43a5a39ac041faf093dd3da58d0bd587499237dd51fb18a4b0915db",
+    sha256: "2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a",
   }),
   Object.freeze({
     path: "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -53,8 +53,8 @@ const EXPECTED_ARTIFACTS = Object.freeze([
   }),
   Object.freeze({
     path: "dist/economic/buy_void_verified_payment_v2.js",
-    bytes: 10023,
-    sha256: "e2cc47627e1aa2d1094145745f86cd928a72ebd1103c8ca82f66f5f515112efc",
+    bytes: 12161,
+    sha256: "7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2",
   }),
 ]);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -123,6 +123,47 @@ function readPinned(relativePath, maxBytes = MAX_FILE_BYTES) {
     if (fd !== null) fs.closeSync(fd);
   }
 }
+// These bytes have already been bound by the pinned fd and Git blob check.
+// NEVER use the candidate path as the child process entrypoint: a new inode
+// could replace it after verification, execute side effects, and still print
+// the expected candidate JSON. The evaluated entry IS the captured bytes.
+function executeReviewedCandidateBytesV4(candidateScriptBytes, candidatePath) {
+  const exactPath = path.resolve(candidatePath);
+  const prelude =
+    "import.meta.url = " + JSON.stringify(pathToFileURL(exactPath).href) + ";\n" +
+    "process.argv = [process.execPath, " + JSON.stringify(exactPath) +
+    ', "--derive"];\n';
+  // Node [eval1] resolves relative ESM imports from cwd, not from an
+  // overwritten import.meta.url. The verified candidate's only static
+  // imports are Node builtins. Its relative V6 dynamic import is resolved
+  // from the scripts directory, not from an arbitrary caller directory.
+  return execFileSync(
+    process.execPath,
+    ["--input-type=module", "--eval",
+      prelude + candidateScriptBytes.toString("utf8")],
+    {
+      cwd: path.dirname(exactPath),
+      // Allowlist every child setting: ambient NODE_OPTIONS, NODE_PATH,
+      // preload hooks and user-supplied Git or shell configuration must not
+      // get propagated into a new source-attestation execution context.
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+        TZ: "UTC",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 120_000,
+      maxBuffer: 64 * 1024,
+    },
+  );
+}
+
 function deriveLockedManifest() {
   const candidateScriptBytes = readPinned(CANDIDATE_SCRIPT, 256 * 1024);
   if (gitBlobSha1(candidateScriptBytes) !==
@@ -130,16 +171,9 @@ function deriveLockedManifest() {
     fail("locked_v4_candidate_script_blob_mismatch");
   }
 
-  const stdout = execFileSync(
-    process.execPath,
-    [path.join(ROOT, CANDIDATE_SCRIPT), "--derive"],
-    {
-      cwd: ROOT,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 120_000,
-      maxBuffer: 64 * 1024,
-    },
+  const stdout = executeReviewedCandidateBytesV4(
+    candidateScriptBytes,
+    path.join(ROOT, CANDIDATE_SCRIPT),
   );
   const candidateBytes = Buffer.from(stdout, "utf8");
   if (sha256(candidateBytes) !== EXPECTED_CANDIDATE_JSON_SHA256) {

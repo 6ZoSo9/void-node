@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import process from "node:process";
 import {
@@ -52,6 +53,52 @@ assert.doesNotMatch(
   source,
   /servername:\s*target\.hostname/,
   "runtime still sends raw URL hostname as TLS SNI",
+);
+
+// This is the production request path in an isolated process so a late,
+// unhandled TLSSocket error makes the proof fail rather than crashing CI.
+// Documentation-only IPv6 must fail cleanly and must never be accepted as a seed.
+assert.match(
+  source,
+  /lookup\(_hostname, _options, callback\)\s*\{[\s\S]*?process\.nextTick\(callback, null, address, family\);/,
+  "pinned DNS callback must be asynchronous before TLS socket initialization",
+);
+const unreachableIpv6Probe = `
+import { requestPublicSeedRouteV1 } from "./scripts/lib/void_public_seed_client_transport_v1.mjs";
+let failure = null;
+try {
+  await requestPublicSeedRouteV1(
+    { base: "https://seed.example.invalid", hostname: "seed.example.invalid" },
+    "/__void/ready.json",
+    {
+      timeoutMs: 1000,
+      allowLoopbackFixture: true,
+      resolvePublicDnsImpl: async () => ["2001:db8::40"],
+    },
+  );
+} catch (error) {
+  failure = error;
+}
+if (!failure || !/seed request failed on every pinned address|seed logical request deadline/.test(failure.message)) {
+  throw new Error("unreachable IPv6 seed did not fail closed");
+}
+console.log("VOID_PUBLIC_SEED_PINNED_IPV6_SOCKET_ERROR_HANDLED_V1_GREEN");
+`;
+const probe = spawnSync(process.execPath, ["--input-type=module", "--eval", unreachableIpv6Probe], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  timeout: 6_000,
+  maxBuffer: 64 * 1024,
+});
+assert.equal(
+  probe.status,
+  0,
+  `unreachable IPv6 pinned TLS request crashed: ${probe.error?.message || probe.stderr || String(probe.status)}`,
+);
+assert.match(
+  probe.stdout,
+  /VOID_PUBLIC_SEED_PINNED_IPV6_SOCKET_ERROR_HANDLED_V1_GREEN/,
+  "pinned TLS lookup error proof did not complete",
 );
 
 console.log(MARKER);

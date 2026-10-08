@@ -5,7 +5,7 @@
 This separate source-only Draft is stacked on exact [#2641](https://github.com/6ZoSo9/void-node/pull/2641)
 head `ad5192933e2f8c538bab041bb6d9a164fd67e880`, which in turn
 is based on the [#2638](https://github.com/6ZoSo9/void-node/pull/2638)
-V6 runtime bridge at `320ab95af3998a9dcfddd44d62c394c19ba7ea2c`.
+V6 runtime bridge at `3123b3054896beb39e8991441187a83ac07dc1f7`.
 
 PR #2641's initial enforced AST-closed import scanner correctly HELD
 because it discovered real code-generated ESM imports:
@@ -29,6 +29,42 @@ and one the custodian service. The exact caller module Git blobs are also
 pinned. This larger source census does **not** claim every caller is reachable
 from the current static enforcement runtime entrypoint; that must be
 established in a separate dynamic closure acceptance.
+
+## Git evidence execution boundary
+
+The independent [P2 Git executable trust review](https://github.com/6ZoSo9/void-node/pull/2642#pullrequestreview-5460686963)
+found that the original ancestry and changed-input assertions used
+`execFileSync("git", ...)`, accepting an arbitrary `git` shim through the
+caller-controlled `PATH` and arbitrary inherited `GIT_*` / `LD_*` process
+configuration. A fake executable returning status zero can falsify ancestry
+assertions even though independently SHA-1-pinned source bytes still HOLD.
+
+This scoped successor adds a separate
+`scripts/prove_buy_void_reviewed_git_invocation_v1.mjs` module. The source
+verifier now calls the **same imported helper** for both ancestry and Git
+diff; it never resolves Git through ambient `PATH`. The helper requires a
+root-owned, non-symlink, non-group/other-writable and executable Linux
+`/usr/bin/git` file, and starts it with a fixed minimal child environment.
+It excludes all inherited `GIT_*`, `NODE_OPTIONS`, `LD_*` and arbitrary
+preloads; disables system/global Git configuration, replace objects,
+fsmonitor and hooks, and invokes diff with `--no-ext-diff --no-textconv`.
+The exact Git executable bytes are **not independently digest-pinned**.
+This is a declared trusted **GitHub Ubuntu Linux runner operating-system
+boundary**, not a general operator-host/compromised-root proof.
+
+The identical production helper's disposable temp-repository self-test
+creates a fake `git` executable at the front of ambient `PATH`, hostile
+Git config and an `LD_PRELOAD` path. It proves the shim is **never executed**,
+qualifies a valid ancestry, rejects reversed/invalid ancestry and detects a
+real committed source change, while an unrelated source path still passes.
+It restores the parent environment and deletes every disposable fixture
+without touching any VOID repository/ref or Git configuration.
+
+The existing exact-head Node 22/24/26 workflow runs that negative test
+both directly and from the candidate scanner's `--self-test`, before
+deriving the same source-only JSON. It explicitly watches changes to the
+new Git helper. The source report's three tool identities, 13 callers,
+byte format and all production/acceptance FALSE flags are unchanged.
 
 ## What this proof does
 
@@ -79,7 +115,7 @@ A later independent reviewer must authenticate actual emitted caller byte
 identities, Node's code-generated import resolution in the packaged image,
 immutable target bytes, imported external modules, all transitive dependencies
 and side-effect controls *before* qualifying a locked V5 enforcement
-successor. The checked-entry locked V4 sibling [#2639](https://github.com/6ZoSo9/void-node/pull/2639)
+successor. The checked-entry locked V4 sibling [#2636](https://github.com/6ZoSo9/void-node/pull/2639)
 also requires lineage reconciliation. Historical attestations stay immutable.
 
 No runtime service, signer, keys, customer ledger, RPC, payment, transaction,

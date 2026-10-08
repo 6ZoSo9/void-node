@@ -1,112 +1,144 @@
 # Buy VOID enforcement V5 source-only derivation candidate
 
-## Purpose and lineage
+## Purpose and current lineage
 
-This branch is an **unaccepted V5 static enforcement-graph evidence candidate**,
-stacked on [Draft #2638](https://github.com/6ZoSo9/void-node/pull/2638)
-at exact runtime-bridge source commit
-`320ab95af3998a9dcfddd44d62c394c19ba7ea2c`.
+This Draft derives an **unaccepted enforcement V5 candidate** from current
+runtime V6 bridge #2638 at exact source parent
+`3123b3054896beb39e8991441187a83ac07dc1f7`.
 
-The runtime preflight now imports reviewed source-finality **V6**, not
-historical V4 or V5. Therefore the old enforcement V4 manifest's
-23-module source/compiled identity cannot attest the changed dependency
-graph. It must remain immutable. A new reviewed STATIC runtime graph and a
-separately qualified DYNAMIC saga/tool execution boundary, enforcement/package
-successors and accepted host runtime are required before any live authority.
+Historical enforcement V1/V4 and source-finality V3/V5 attestations remain
+immutable. They are predecessor evidence, not values to repin.
 
-The candidate pins these exact Git blob identities:
-- V6 runtime preflight source: `b61615c8b928a95c33100878ca70aa147abad103`.
-- V6 generation source: `d642723385136e9f0382bd77efdb34948221f380`.
-- Native-USDC V2 verifier source: `32133e441ccb02bb4786d29e36932fb31399ec87`.
-- Historical enforcement V1 source-closure JSON: `b9d8a57f8a67f2e9180b15a608c178bc95bf84b5`.
-- Immutable historical enforcement V4 envelope: `d9e391bb058132b83a4eeaec00797e41dab9fa26`, closed enforcement set `854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`.
-- Reviewed source-finality compiled V4 source/build manifest: `dda86b558fe98f7647ca8b126da4a3c868c5231d`, generation `b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d`.
+Current source identities bound by the candidate:
 
-The script independently builds the **closed static ESM relative-import graph**
-from the delivery runtime `dist/economic/buy_void_delivery_runtime_integration_v1.js`
-using TypeScript AST. It rejects unrecognized nonliteral, external or escaping
-static imports, require/eval and unmodeled `Function` constructors. Crucially,
-it DOES NOT claim to close the entire executable graph: the runtime uses
-`new Function("specifier","return import(specifier)")` as a dynamic saga/tool
-loader. The initial strict verifier therefore correctly HELD on this REAL
-code-generated import mechanism (Node 22/24/26 exact-head run 37813497872),
-rather than on a build flake. That failure is preserved as provenance.
+- execution preflight:
+  `b61615c8b928a95c33100878ca70aa147abad103`;
+- V6 source-finality:
+  `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
+- finalized V2 verifier:
+  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
+- current locked compiled V4 manifest:
+  `c621c1361e9db1bcda32af1dd25e7a2515e793d7`;
+- locked compiled generation:
+  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`.
 
-This revised candidate recognizes ONLY the exact, literal constructor and an
-independently literal `dynamicImport("../../tools/buy-void-...-vN.mjs")`
-call as **unqualified diagnostic evidence**, requiring paired constructor/call
-counts. All modified constructors, nonliteral specifiers, other paths and
-alternate execution loader forms still HOLD. Its new evidence records each
-static module's dynamic tool specifier and explicitly reports
-`dynamic_tool_execution_identity_verified=false`,
-`dynamic_tool_transitive_closure_verified=false`,
-`complete_executable_closure_verified=false` and
+The old enforcement V4 set
+`854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`
+remains historical and is expected to reject the changed runtime closure.
+
+## Static closure and dynamic tool boundary
+
+The candidate walks the statically reachable compiled
+`dist/economic` graph from
+`buy_void_delivery_runtime_integration_v1.js` using TypeScript AST.
+
+Static relative imports must stay inside the reviewed economic graph; package
+externals are allowlisted. Historical source-finality V4/V5 compiled modules
+must not remain reachable and V6 must be reachable.
+
+The actual runtime also contains the reviewed code-generated form:
+
+`new Function("specifier", "return import(specifier)")`
+
+paired with a literal Buy VOID tool target. This edge is recorded only as
+**unqualified dynamic-tool census evidence**. It does not make the executable
+closure complete. Therefore the candidate requires:
+
+`dynamic_tool_execution_identity_verified=false`
+`dynamic_tool_transitive_closure_verified=false`
+`complete_executable_closure_verified=false`
 `no_dynamic_unknown_imports=false`.
 
-The observed `../../tools/...` names are only source expressions, NOT an
-authenticated runtime `new Function` resolver base or a reviewed transitive
-`.mjs` dependency closure. Even a GREEN diagnostic derivation cannot confer
-a production/locked enforcement identity. An independent source and compiled
-tool resolver/target/dependency review is required first.
-It records every reachable module byte length, SHA-256, import edge and limited
-package external boundary. It independently fingerprints all mapped source
-files, the build scripts, TypeScript/compiler input modules, lockfile,
-tsconfig files and Dockerfile. Every read uses a retained O_NOFOLLOW
-descriptor, last-component+ancestor path checks, stable inode metadata,
-at most the preflight size+one sentinel byte, and postread identity checks.
+## Dynamic-loader alias repair
 
-## Synthetic proofs and three-node identity check
+The scanner fails closed on direct, assigned, destructured, computed and
+aliased references to `require`, `createRequire`, `eval` and
+`Function`, except for the one exact reviewed Function-constructor form
+above.
 
-The `--self-test` rejects nonliteral dynamic import, escaping imports,
-unexpected builtins and `require/eval`, plus tests the exact recognized
-code-generated import census and rejects altered/missing/unpaired
-`new Function` sites. It then uses **only disposable OS temporary files** to prove a same-sized filename replacement and a 3 MiB file
-growth after preflight cannot yield accepted bytes or exceed the fixed bound.
-The source files/compiled repo artifacts are never edited by the adversary.
+The reviewed runtime root legitimately uses only two direct global-state
+entry shapes:
 
-The workflow rebuilds Node 22, 24, and 26 independently from the exact
-unmerged PR head and outputs three separate derive-only JSON receipts.
-The final job requires complete byte equality, not merely equal parsed hashes.
-The V6 preflight's own synthetic signer/broadcast fail-closed proof runs on
-each node.
+- `globalThis[GLOBAL_DEPENDENCIES]`;
+- `const globalState = globalThis`, followed only by
+  `globalState.__void_http_app` or `globalState.app`.
 
-The candidate includes a delta from the **historical V1 full compiled
-enforcement closure**, verifying that V4 leaves the active STATIC import graph
-and V6 enters it, with exact additions/removals/changed SHA-256 records. This V1
-comparison is a *partial static-graph review aid*. It is not proof of all
-runtime-loadable tools and not permission to modify predecessor manifests.
+Those shapes are admitted only in the exact reviewed entry artifact. Other
+direct or aliased `globalThis/global/window/self` references remain HOLD.
+Synthetic negatives cover computed eval/Function aliases, direct aliases,
+assignment aliases, `.bind`, destructuring and misuse of the reviewed
+`globalState` alias.
 
-## What has NOT been authorized
+## Ancestor-safe source reads
 
-**Only** `--derive` and `--self-test` are supported. No V5 locked manifest is
-accepted or minted here. JSON explicitly sets all of the following false:
+The earlier reader checked ancestor pathnames and later reopened a full path;
+leaf-only `O_NOFOLLOW` could not stop a swapped symlink ancestor.
 
-```text
-candidate_identity_accepted=false
-complete_executable_closure_verified=false
-dynamic_tool_execution_identity_verified=false
-dynamic_tool_transitive_closure_verified=false
-no_dynamic_unknown_imports=false
-deployed_artifact_generation_verified=false
-runtime_mount_authority=false
-production_source_finality_authority_ready=false
-presale_activation=false
-funds_movement=false
-```
+The candidate now uses the separately qualified Linux descriptor-relative
+reader from #2643. It:
 
-The separate locked-V4 checked-entry fix [Draft #2639](https://github.com/6ZoSo9/void-node/pull/2639)
-remains a required sibling source-ancestry dependency. This derive-only
-candidate is **not** a replacement for integrating #2639 before any locked V5
-acceptance. Current runtime V6 source authority and provider quorum are
-still unqualified; the original historical buyer request and real payment
-source/finality, duplicate/capacity serialization, protected custody
-high-water, exactly-once allocation, and coupled WC/VOID presale/market remain
-independently HOLD.
+- opens the trusted root using `O_DIRECTORY|O_NOFOLLOW`;
+- retains each directory fd;
+- opens every child through
+  `/proc/self/fd/<retained-parent-fd>/<component>`;
+- opens the leaf relative to the retained final directory fd;
+- binds visible path and fd identity before/after;
+- reads at most preflight size + one sentinel byte.
 
-This branch will not edit V3/V4/V5 historical source/compiled manifests,
-production routes, Dockerfile, app server, wallet/signing code, treasury
-ledger or services. No Ready/merge, production RPC, customer record, keys,
-signing, transaction, Chain-2050, Work Credit, inventory/liquidity,
-presale/market activation or funds movement occurs.
+Disposable tests cover ancestor replacement before directory open, ancestor
+replacement before leaf open, concurrent multi-megabyte growth and restored
+positive reads. This is a Linux/procfs CI trust model, not authority for an
+arbitrary hostile operator host.
+
+## Reviewed Git execution
+
+Source ancestry/diff checks no longer invoke ambient `git` through caller
+`PATH`. The candidate uses the reviewed helper from #2648:
+
+- absolute `/usr/bin/git`;
+- root-owned, executable, nonsymlink, non-group/world-writable binary check;
+- fixed child environment excluding caller Git/loader configuration;
+- disabled hooks, fsmonitor and external diff.
+
+Synthetic tests install a hostile PATH Git shim and hostile Git/loader
+variables and require the real Git binary, valid ancestry, invalid ancestry
+HOLD and changed-source diff HOLD.
+
+## Three-node evidence contract
+
+Node 22, 24 and 26 each:
+
+1. syntax-check the candidate and trust helpers;
+2. run descriptor-relative reader adversaries;
+3. run reviewed-Git adversaries;
+4. install locked dependencies and build;
+5. run the enforcement candidate self-test;
+6. prove the V6 signer/broadcast preflight remains fail-closed;
+7. derive an authority-false JSON candidate.
+
+The cross-node job requires complete byte equality.
+
+## Authority boundary
+
+This is still a diagnostic/derive-only candidate. It must keep:
+
+`candidate_identity_accepted=false`
+`dynamic_tool_execution_identity_verified=false`
+`dynamic_tool_transitive_closure_verified=false`
+`complete_executable_closure_verified=false`
+`deployed_artifact_generation_verified=false`
+`runtime_mount_authority=false`
+`production_source_finality_authority_ready=false`
+`presale_activation=false`
+`funds_movement=false`.
+
+The actually reachable dynamic saga tool, its transitive execution graph,
+final-image packaging, deployment identity, authenticated original buyer and
+payment, protected custody high-water and exactly-once allocation recovery
+remain later gates.
+
+No live RPC, customer record, credential, wallet/signer, service deployment,
+transaction, Chain-2050/WC mutation, inventory/treasury/liquidity, presale
+activation or funds movement is performed here.
 
 **PROTECT THE CORE.**

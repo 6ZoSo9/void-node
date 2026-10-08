@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import {
+  readDescriptorRelativeLinuxV1,
+} from "./prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs";
+import {
+  runReviewedGitV1,
+  proveReviewedGitV1Synthetic,
+} from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "320ab95af3998a9dcfddd44d62c394c19ba7ea2c";
+const SOURCE_HEAD = "3123b3054896beb39e8991441187a83ac07dc1f7";
 const SOURCE_PREFLIGHT_GIT_BLOB = "b61615c8b928a95c33100878ca70aa147abad103";
-const SOURCE_V6_GIT_BLOB = "d642723385136e9f0382bd77efdb34948221f380";
-const SOURCE_V2_GIT_BLOB = "32133e441ccb02bb4786d29e36932fb31399ec87";
+const SOURCE_V6_GIT_BLOB = "7266c03d8874207ed3fda0f814d0a7a53d429c25";
+const SOURCE_V2_GIT_BLOB = "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 const OLD_ENFORCEMENT_V1_MANIFEST_BLOB = "b9d8a57f8a67f2e9180b15a608c178bc95bf84b5";
 const OLD_ENFORCEMENT_V4_MANIFEST_BLOB = "d9e391bb058132b83a4eeaec00797e41dab9fa26";
 const OLD_ENFORCEMENT_V4_SET_SHA = "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b";
-const LOCKED_V4_MANIFEST_BLOB = "dda86b558fe98f7647ca8b126da4a3c868c5231d";
-const LOCKED_V4_GENERATION = "b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d";
+const LOCKED_V4_MANIFEST_BLOB = "c621c1361e9db1bcda32af1dd25e7a2515e793d7";
+const LOCKED_V4_GENERATION = "45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87";
 const EXPECTED_PACKAGE_LOCK_BLOB = "b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const ENTRY = "dist/economic/buy_void_delivery_runtime_integration_v1.js";
 const PREFLIGHT = "dist/economic/buy_void_source_finality_execution_preflight_v1.js";
@@ -48,49 +53,8 @@ function canonical(value) {
   assert.ok(value && typeof value === "object","noncanonical object");
   return "{"+Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+canonical(value[k])).join(",")+"}";
 }
-function sameStat(a,b) {
-  return a.dev===b.dev && a.ino===b.ino && a.mode===b.mode &&
-    a.nlink===b.nlink && a.size===b.size &&
-    a.mtimeMs===b.mtimeMs && a.ctimeMs===b.ctimeMs;
-}
 function readPinned(root,relative,max=MAX_BYTES) {
-  assert.match(relative,/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/u);
-  assert.ok(!relative.split("/").some(x=>x==="."||x===".."),"path traversal");
-  assert.ok(Number.isSafeInteger(max)&&max>=1&&max<=MAX_BYTES,"unbounded reader");
-  const resolvedRoot=path.resolve(root);
-  assert.equal(fs.realpathSync(resolvedRoot),resolvedRoot,"aliased reader root");
-  let directory=resolvedRoot;
-  const segments=relative.split("/");
-  for(const part of segments.slice(0,-1)) {
-    directory=path.join(directory,part);
-    const stat=fs.lstatSync(directory);
-    assert.ok(stat.isDirectory()&&!stat.isSymbolicLink(),"symlink/non-directory ancestor");
-  }
-  const target=path.join(directory,segments.at(-1));
-  const nofollow=fs.constants.O_NOFOLLOW;
-  assert.ok(typeof nofollow==="number"&&nofollow>0,"O_NOFOLLOW unavailable");
-  let fd;
-  try {
-    const visible=fs.lstatSync(target);
-    assert.ok(visible.isFile()&&!visible.isSymbolicLink()&&visible.nlink===1 &&
-      visible.size>0 && visible.size<=max,"bad visible source");
-    fd=fs.openSync(target,fs.constants.O_RDONLY|nofollow);
-    const before=fs.fstatSync(fd);
-    assert.ok(before.isFile()&&before.nlink===1&&before.size>0&&
-      before.size<=max&&sameStat(before,visible),"source fd/path mismatch");
-    const cap=before.size+1,buffer=Buffer.alloc(cap);
-    let consumed=0;
-    while(consumed<cap) {
-      const n=fs.readSync(fd,buffer,consumed,cap-consumed,consumed);
-      if(n===0)break;
-      consumed+=n;
-    }
-    assert.equal(consumed,before.size,"file grown/truncated during bounded read");
-    const after=fs.fstatSync(fd),recheck=fs.lstatSync(target);
-    assert.ok(sameStat(before,after)&&recheck.isFile()&&!recheck.isSymbolicLink()&&
-      sameStat(after,recheck),"file changed after read");
-    return buffer.subarray(0,consumed);
-  } finally { if(fd!==undefined) fs.closeSync(fd); }
+  return readDescriptorRelativeLinuxV1(root,relative,max);
 }
 function record(rel) {
   const bytes=readPinned(ROOT,rel);
@@ -104,6 +68,48 @@ function scan(p,bytes) {
   assert.equal(ast.parseDiagnostics.length,0,"invalid compiled JS: "+p);
   const relatives=new Set(), externals=new Set();
   const dynamicFactories=[],dynamicTargets=[];
+  const forbiddenLoaderNames=new Set(["require","createRequire","eval","Function"]);
+  const dynamicGlobalNames=new Set(["globalThis","global","window","self"]);
+  function dynamicGlobal(node) {
+    return ts.isIdentifier(node)&&dynamicGlobalNames.has(node.text);
+  }
+  function allowedRootGlobalReference(node) {
+    if(p!==ENTRY||!ts.isIdentifier(node)||node.text!=="globalThis") return false;
+    const parent=node.parent;
+    if(ts.isElementAccessExpression(parent)&&parent.expression===node&&
+       ts.isIdentifier(parent.argumentExpression)&&
+       parent.argumentExpression.text==="GLOBAL_DEPENDENCIES") return true;
+    if(ts.isVariableDeclaration(parent)&&parent.initializer===node&&
+       ts.isIdentifier(parent.name)&&parent.name.text==="globalState") return true;
+    return false;
+  }
+  function allowedRootGlobalStateReference(node) {
+    if(p!==ENTRY||!ts.isIdentifier(node)||node.text!=="globalState") return false;
+    const parent=node.parent;
+    if(ts.isVariableDeclaration(parent)&&parent.name===node&&
+       parent.initializer&&dynamicGlobal(parent.initializer)) return true;
+    return ts.isPropertyAccessExpression(parent)&&parent.expression===node&&
+      (parent.name.text==="__void_http_app"||parent.name.text==="app");
+  }
+  function forbiddenLoaderReference(node) {
+    if(ts.isIdentifier(node)) return forbiddenLoaderNames.has(node.text);
+    if(ts.isPropertyAccessExpression(node)) {
+      if(dynamicGlobal(node.expression)) return true;
+      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&p===ENTRY) {
+        return node.name.text!=="__void_http_app"&&node.name.text!=="app";
+      }
+    }
+    if(ts.isElementAccessExpression(node)) {
+      if(dynamicGlobal(node.expression)) {
+        return !(p===ENTRY&&ts.isIdentifier(node.argumentExpression)&&
+          node.argumentExpression.text==="GLOBAL_DEPENDENCIES");
+      }
+      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&p===ENTRY) {
+        return true;
+      }
+    }
+    return false;
+  }
   function add(value) {
     assert.ok(value&&ts.isStringLiteral(value),"nonliteral dynamic import:"+p);
     const spec=value.text;
@@ -116,13 +122,60 @@ function scan(p,bytes) {
     }
   }
   function visit(node) {
+    if(ts.isIdentifier(node)&&dynamicGlobal(node)) {
+      assert.equal(allowedRootGlobalReference(node),true,
+        "unreviewed dynamic global reference:"+p);
+    }
+    if(ts.isIdentifier(node)&&node.text==="globalState"&&p===ENTRY) {
+      assert.equal(allowedRootGlobalStateReference(node),true,
+        "unreviewed runtime globalState reference:"+p);
+    }
+    if(ts.isPropertyAccessExpression(node)||ts.isElementAccessExpression(node)) {
+      assert.equal(forbiddenLoaderReference(node),false,
+        "dynamic global loader access:"+p);
+    }
+    if(ts.isIdentifier(node)&&forbiddenLoaderNames.has(node.text)) {
+      const canonicalFunctionConstructor=
+        node.text==="Function"&&ts.isNewExpression(node.parent)&&
+        node.parent.expression===node;
+      assert.equal(canonicalFunctionConstructor,true,
+        "dynamic loader identifier reference:"+p);
+    }
     if((ts.isImportDeclaration(node)||ts.isExportDeclaration(node))&&node.moduleSpecifier) add(node.moduleSpecifier);
+    if(ts.isVariableDeclaration(node)&&node.initializer&&
+       forbiddenLoaderReference(node.initializer)) {
+      assert.fail("aliased dynamic loader:"+p);
+    }
+    if(ts.isVariableDeclaration(node)&&node.initializer&&dynamicGlobal(node.initializer)) {
+      const reviewedGlobalState =
+        p===ENTRY&&ts.isIdentifier(node.name)&&node.name.text==="globalState";
+      assert.equal(reviewedGlobalState,true,"unreviewed dynamic global alias:"+p);
+    }
+    if(ts.isVariableDeclaration(node)&&node.initializer&&
+       dynamicGlobal(node.initializer)&&ts.isObjectBindingPattern(node.name)) {
+      for(const element of node.name.elements) {
+        const property=element.propertyName||element.name;
+        assert.ok(!ts.isComputedPropertyName(property),
+          "computed dynamic-global destructuring:"+p);
+        const propertyText=ts.isIdentifier(property)||ts.isStringLiteral(property)
+          ?property.text:"";
+        assert.equal(forbiddenLoaderNames.has(propertyText),false,
+          "destructured dynamic loader:"+p);
+      }
+    }
+    if(ts.isBinaryExpression(node)&&
+       node.operatorToken.kind===ts.SyntaxKind.EqualsToken&&
+       (forbiddenLoaderReference(node.right)||dynamicGlobal(node.right))) {
+      assert.fail("assigned dynamic loader/global:"+p);
+    }
     if(ts.isCallExpression(node)){
       if(node.expression.kind===ts.SyntaxKind.ImportKeyword) {
         assert.equal(node.arguments.length,1,"noncanonical import");
         add(node.arguments[0]);
       }
       const expression=node.expression.getText(ast);
+      assert.equal(forbiddenLoaderReference(node.expression),false,
+        "alternate dynamic loader reference:"+p);
       assert.doesNotMatch(expression,/\b(require|createRequire|eval|Function)\b/u,
         "alternate dynamic loader:"+p);
       if(ts.isIdentifier(node.expression)&&node.expression.text==="dynamicImport"){
@@ -137,6 +190,9 @@ function scan(p,bytes) {
     }
     if(ts.isNewExpression(node)){
       const expression=node.expression.getText(ast);
+      if(forbiddenLoaderReference(node.expression)&&expression!=="Function") {
+        assert.fail("alternate dynamic constructor:"+p);
+      }
       if(/\bFunction\b/u.test(expression)){
         assert.equal(expression,"Function","unreviewed Function constructor expression:"+p);
         const args=node.arguments||[];
@@ -183,12 +239,32 @@ function closedArtifacts() {
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
+  const reviewedGlobals=scan(ENTRY,Buffer.from(
+    'const GLOBAL_DEPENDENCIES="__void_buy_void_delivery_runtime_dependencies_v1";\n'+
+    'const value=globalThis[GLOBAL_DEPENDENCIES];\n'+
+    'const globalState=globalThis;\n'+
+    'const app=globalState.__void_http_app||globalState.app;\n'
+  ));
+  assert.deepEqual(reviewedGlobals.imports,[]);
+  for(const bad of [
+    'const g=globalThis; const runner=g.eval; runner("2+2");',
+    'const globalState=globalThis; const runner=globalState.eval; runner("2+2");',
+    'const globalState=globalThis; const runner=globalState["eval"]; runner("2+2");',
+    'let g; g=globalThis;'
+  ]) assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
   for(const bad of [
     'await import(process.env.UNKNOWN);',
     'import("../outside.js");',
     'import("node:child_process");',
     'require("./other.js");',
     'eval("2+2");',
+    'const runner=eval; runner("2+2");',
+    'const runner=globalThis["ev"+"al"]; runner("2+2");',
+    'const runner=globalThis.eval.bind(globalThis); runner("2+2");',
+    'const {eval:runner}=globalThis; runner("2+2");',
+    'const {["ev"+"al"]:runner}=globalThis; runner("2+2");',
+    'const F=Function; new F("return 3");',
+    'const F=globalThis["Fun"+"ction"]; F("return 2")();',
     'new Function("return 3");',
   ]) assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
   // The observed constructor shape may be CENSUSED, never authorized as a
@@ -207,44 +283,15 @@ function runSelfTest() {
     'const dynamicImport = new Function("specifier","return import(specifier)");',
     'dynamicImport("../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs");',
   ])assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
-  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-enforcement-v5-candidate-"));
-  const name="fixture.txt",full=path.join(temp,name),moved=path.join(temp,"moved.txt");
-  const originalOpen=fs.openSync,originalRead=fs.readSync;
-  try{
-    fs.writeFileSync(full,"SAFE!!",{mode:0o600});
-    assert.equal(readPinned(temp,name,32).toString(),"SAFE!!");
-    let swapped=false;
-    fs.openSync=(...args)=>{
-      if(args[0]===full&&!swapped){
-        swapped=true;fs.renameSync(full,moved);
-        fs.writeFileSync(full,"EVIL!!",{mode:0o600});
-      }
-      return originalOpen(...args);
-    };
-    assert.throws(()=>readPinned(temp,name,32),/source fd\/path mismatch/u);
-    assert.equal(swapped,true);
-    fs.openSync=originalOpen;
-    fs.rmSync(full,{force:true});fs.rmSync(moved,{force:true});
-    fs.writeFileSync(full,"SAFE!!",{mode:0o600});
-    let grew=false,total=0,maxBuffer=0;
-    fs.readSync=(...args)=>{
-      if(!grew){grew=true;fs.appendFileSync(full,Buffer.alloc(3*1024*1024,0x61));}
-      maxBuffer=Math.max(maxBuffer,args[1].length);
-      const consumed=originalRead(...args);total+=consumed;return consumed;
-    };
-    assert.throws(()=>readPinned(temp,name,32),/file grown\/truncated during bounded read/u);
-    assert.equal(grew,true);assert.equal(total,7);assert.equal(maxBuffer,7);
-    fs.readSync=originalRead;
-    fs.rmSync(full,{force:true});fs.writeFileSync(full,"SAFE!!",{mode:0o600});
-    assert.equal(readPinned(temp,name,32).toString(),"SAFE!!");
-  } finally {
-    fs.openSync=originalOpen;fs.readSync=originalRead;
-    fs.rmSync(temp,{recursive:true,force:true});
-  }
+  proveReviewedGitV1Synthetic();
+  console.log("descriptor_relative_linux_reader_integrated=true");
+  console.log("reviewed_absolute_git_invocation_integrated=true");
   console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_SELF_TEST_GREEN");
   console.log("nonliteral_and_external_imports_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
+  console.log("computed_global_dynamic_loader_aliases_rejected=true");
+  console.log("assigned_dynamic_loader_aliases_rejected=true");
   console.log("dynamic_tool_execution_identity_verified=false");
   console.log("same_size_source_inode_substitution_rejected=true");
   console.log("growth_buffer_bounded_to_pinned_size_plus_one=true");
@@ -273,12 +320,13 @@ function derive() {
   assert.equal(compiledV4.compiled_artifact_generation_verified,true);
   assert.equal(compiledV4.deployed_artifact_generation_verified,false);
   assert.equal(compiledV4.production_source_finality_authority_ready,false);
-  execFileSync("git",["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],{cwd:ROOT,stdio:"ignore"});
-  execFileSync("git",["diff","--quiet",SOURCE_HEAD,"HEAD","--",
+  runReviewedGitV1(["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],ROOT);
+  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",
+    SOURCE_HEAD,"HEAD","--",
     "src/economic","package.json","package-lock.json","tsconfig.json","tsconfig.build.json",
     "scripts/copy_void_runtime_js_v1.mjs",
     "scripts/retire_saveblock_periodic_rewriters_v1.mjs","Dockerfile",
-  ],{cwd:ROOT,stdio:"ignore"});
+  ],ROOT);
   const artifacts=closedArtifacts();
   const dynamicTools=artifacts.flatMap(module=>
     module.dynamic_tool_import_specifiers.map(specifier=>({

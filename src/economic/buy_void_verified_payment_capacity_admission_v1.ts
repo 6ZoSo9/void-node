@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 
 import {
   withBuyVoidFilesystemBakeryLockAsyncV1,
@@ -45,12 +46,24 @@ const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX_HASH = /^0x[0-9a-f]{64}$/u;
 
 function canonicalRequestSourceChainV1(value: any): string {
-  const raw = String(
-    value?.source_chain || value?.payment_chain || value?.chain || "base",
-  ).trim().toLowerCase();
-  const chain = raw === "eth" ? "ethereum" : raw;
-  if (chain !== "base" && chain !== "ethereum") {
+  // An unbound original chain must never silently become Base, nor may an
+  // alternate alias override a contradictory source_chain. Exact payment
+  // replay/recovery requires this same explicit lineage.
+  const normalize = (raw: unknown): string => {
+    if (typeof raw !== "string") return "";
+    const label = raw.trim().toLowerCase();
+    const chain = label === "eth" ? "ethereum" : label;
+    return chain === "base" || chain === "ethereum" ? chain : "";
+  };
+  const chain = normalize(value?.source_chain);
+  if (!chain) {
     fail("buy_void_verified_payment_capacity_request_source_chain_invalid");
+  }
+  for (const alias of ["payment_chain", "chain"] as const) {
+    if (Object.prototype.hasOwnProperty.call(value, alias) &&
+        normalize(value[alias]) !== chain) {
+      fail("buy_void_verified_payment_capacity_request_source_chain_alias_mismatch");
+    }
   }
   return chain;
 }
@@ -376,17 +389,32 @@ function readPinnedLedgerBytesV1(
   });
 }
 
+// The append writer commits exact JSON.stringify(row) + LF bytes. Never accept
+// a truncated final line, normalized UTF-8, duplicate member, or reformatted
+// history as authoritative paid-capacity evidence.
+const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
-  const text = bytes.toString("utf8");
-  if (text.length === 0) return [];
-  const lines = text.endsWith("\n")
-    ? text.slice(0, -1).split("\n")
-    : text.split("\n");
+  if (bytes.length === 0) return [];
+  if (bytes.length >= 3 && bytes[0] === 0xef &&
+      bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    fail(code + "_utf8_bom_not_canonical");
+  }
+  let text: string;
+  try {
+    text = CAPACITY_HISTORY_UTF8.decode(bytes);
+  } catch {
+    fail(code + "_utf8_invalid");
+  }
+  if (!text.endsWith("\n") || text.includes("\r") ||
+      text.charCodeAt(0) === 0xfeff) {
+    fail(code + "_truncated_or_noncanonical");
+  }
+  const lines = text.slice(0, -1).split("\n");
   if (lines.some((line) => line.length === 0)) {
     fail(code + "_empty_row");
   }
   return lines.map((line) => {
-    let value: any;
+    let value: unknown;
     try {
       value = JSON.parse(line);
     } catch {
@@ -394,6 +422,9 @@ function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       fail(code + "_row_invalid");
+    }
+    if (JSON.stringify(value) !== line) {
+      fail(code + "_row_noncanonical");
     }
     return value;
   });
