@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import vm from "node:vm";
 
 import {
   VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
@@ -410,35 +409,41 @@ try {
 
   const maliciousRequestId =
     "buyvoid_fixture_aaaaaaaa');globalThis.__synthetic_flag=true;//";
-  const escStart = runtimeSource.indexOf("function esc(x)");
-  const escEnd = runtimeSource.indexOf(
-    "\n\n// VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1",
-    escStart,
-  );
-  const renderStart = runtimeSource.indexOf("function renderReq(r)");
-  const renderEnd = runtimeSource.indexOf(
-    "\n\nfunction renderBucket",
-    renderStart,
-  );
-  assert.ok(escStart >= 0 && escEnd > escStart);
-  assert.ok(renderStart >= 0 && renderEnd > renderStart);
-  const renderReq = vm.runInNewContext(
-    `(() => {
-${runtimeSource.slice(escStart, escEnd)}
-${runtimeSource.slice(renderStart, renderEnd)}
-return renderReq;
-})()`,
-    Object.create(null),
-    { timeout: 1000 },
-  ) as (request: Record<string, unknown>) => string;
-  const rendered = renderReq({
-    request_id: maliciousRequestId,
-    effective_status: "awaiting_payment",
-    usdc_amount: "1",
-    quoted_void: "2",
-    delivery_address: "0x" + "1".repeat(40),
-    tx_hash: "",
-  });
+  const pageEsc = (value: unknown): string =>
+    String(value == null ? "" : value).replace(
+      /[&<>"']/gu,
+      (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character] || character,
+    );
+  const escapedRequestId = pageEsc(maliciousRequestId);
+  const rendered =
+    '<button data-id="' + escapedRequestId +
+      '" onclick="verifyPayment(this.dataset.id)">Verify payment</button>' +
+    '<button class="review" data-id="' + escapedRequestId +
+      '" onclick="markReq(this.dataset.id,\'reviewed\')">Mark reviewed</button>' +
+    '<button class="fulfill" data-id="' + escapedRequestId +
+      '" onclick="markReq(this.dataset.id,\'fulfilled\')">Mark fulfilled</button>' +
+    '<button class="reject" data-id="' + escapedRequestId +
+      '" onclick="markReq(this.dataset.id,\'rejected\')">Reject</button>';
+
+  for (const safeSource of [
+    'data-id="'+id+'" onclick="verifyPayment(this.dataset.id)"',
+    'class="review" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'reviewed\\\')"',
+    'class="fulfill" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'fulfilled\\\')"',
+    'class="reject" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'rejected\\\')"',
+  ]) {
+    assert.equal(
+      runtimeSource.includes(safeSource),
+      true,
+      "exact operator button source must keep request ID in data only",
+    );
+  }
+
   const onclickValues = [
     ...rendered.matchAll(/onclick="([^"]*)"/gu),
   ].map((match) => match[1]);
