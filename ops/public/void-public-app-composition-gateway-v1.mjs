@@ -809,6 +809,7 @@ const blockedPrefixes = [
   "/rpc",
   "/admin",
   "/operator",
+  "/__void/buy-void/operator",
   "/validator/admin",
   "/debug",
   "/.env",
@@ -1973,7 +1974,15 @@ async function proxyAgentPaidWorkEdge(req, res, url, method) {
 }
 
 function isBlocked(pathname) {
-  return blockedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
+  // Normalize before any generic upstream fallback. Express route matching may
+  // be case-insensitive; percent-encoded path segments cannot bypass the wall.
+  let canonical;
+  try {
+    canonical = decodeURIComponent(pathname).toLowerCase();
+  } catch {
+    return true;
+  }
+  return blockedPrefixes.some((prefix) => canonical === prefix || canonical.startsWith(prefix + "/"));
 }
 
 function copyHeaders(response) {

@@ -791,11 +791,55 @@ try {
     "/rpc",
     "/admin",
     "/upgrade/apply",
+    "/__void/buy-void/operator",
+    "/__void/buy-void/operator/",
+    "/__void/buy-void/operator/verify-payment.json?id=synthetic",
+    "/__void/buy-void/operator/mark.json?id=synthetic&status=fulfilled",
+    "/__void/buy-void/operator/request.json?id=synthetic",
+    "/__void/buy-void/operator/request/tx-hash.json",
+    "/__VOID/BUY-VOID/OPERATOR/verify-payment.json?id=synthetic",
+    "/__void/buy-void/%6fperator/mark.json?id=synthetic",
+    "/__void/buy-void%2foperator/request.json?id=synthetic",
   ]) {
     const { response, text } = await get(pathname);
     assert.equal(response.status, 404, pathname);
     assert.equal(text.trim(), "not_public", pathname);
     assert.equal(text.includes(secretWallet), false, pathname);
+  }
+
+  // A forged loopback-looking Host and untrusted browser Origin must not
+  // forward protected operator GETs to either mocked upstream.
+  {
+    const denied = await new Promise((resolve, reject) => {
+      const req = http.get({
+        hostname: "127.0.0.1",
+        port: compositionPort,
+        path: "/__void/buy-void/operator/verify-payment.json?id=synthetic",
+        headers: { host: "localhost:4100", origin: "https://untrusted.invalid" },
+      }, (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        res.once("end", () => resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString("utf8") }));
+        res.once("error", reject);
+      });
+      req.setTimeout(5000, () => req.destroy(new Error("operator deny response timed out")));
+      req.once("error", reject);
+    });
+    assert.equal(denied.status, 404);
+    assert.equal(denied.text.trim(), "not_public");
+  }
+
+  {
+    const { response: head } = await get(
+      "/__void/buy-void/operator/mark.json?id=synthetic&status=fulfilled",
+      { method: "HEAD" },
+    );
+    assert.equal(head.status, 404);
+    const { response: post } = await get(
+      "/__void/buy-void/operator/request/tx-hash.json",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    );
+    assert.equal(post.status, 405);
   }
 
   {
