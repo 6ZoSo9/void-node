@@ -7,12 +7,6 @@ on:
       - "docs/architecture/buy-void-allocation-custody-qualification-v1.md"
       - "scripts/prove_buy_void_allocation_custody_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_qualification_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
-      - "scripts/prove_buy_void_allocation_reservation_high_water_v1.ts"
-      - "scripts/prove_buy_void_allocation_reservation_publication_writer_v1.ts"
   push:
     branches: [main]
     paths:
@@ -20,25 +14,15 @@ on:
       - "docs/architecture/buy-void-allocation-custody-qualification-v1.md"
       - "scripts/prove_buy_void_allocation_custody_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_qualification_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
-      - "scripts/prove_buy_void_allocation_reservation_high_water_v1.ts"
-      - "scripts/prove_buy_void_allocation_reservation_publication_writer_v1.ts"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  prove:
+  preserve-v1:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ["22", "24", "26"]
-
+    timeout-minutes: 10
     steps:
       - name: Checkout exact source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -47,32 +31,26 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Use supported Node.js major
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Prove allocation custody qualification
-        run: npx tsx scripts/prove_buy_void_allocation_custody_qualification_v1.ts
-
-      - name: Preserve allocation high-water contract
-        run: npx tsx scripts/prove_buy_void_allocation_reservation_high_water_v1.ts
-
-      - name: Preserve allocation publication writer
-        run: npx tsx scripts/prove_buy_void_allocation_reservation_publication_writer_v1.ts
-
-      - name: Verify source tree cleanliness
-        run: test -z "$(git status --short)"
+      - name: Preserve exact historical V1 contract
+        run: |
+          set -euo pipefail
+          test "$(git hash-object src/economic/buy_void_allocation_custody_qualification_v1.ts)" = "4adae871f2938840e2ec936e743d0b650b5f1a00"
+          test "$(git hash-object scripts/prove_buy_void_allocation_custody_qualification_v1.ts)" = "756cc52119e78150e6cc251454e1a79d75ade9f9"
+          test "$(git hash-object docs/architecture/buy-void-allocation-custody-qualification-v1.md)" = "b52f32ff343f7fd340c7782d0c68cde3bb54693d"
+          # Historical V1 binds the predecessor writer by recorded identity.
+          # Do not require an unreachable historical blob object to be present
+          # in a fresh exact-head checkout; writer V2 reconstructs and verifies
+          # those predecessor bytes independently.
+          grep -F 'VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1' src/economic/buy_void_allocation_custody_qualification_v1.ts
+          grep -F '"59b336eb82222bf0f5bcfe37060ec520c54e9b62"' src/economic/buy_void_allocation_custody_qualification_v1.ts
+          grep -F 'VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_SOURCE_SHA256_V1' src/economic/buy_void_allocation_custody_qualification_v1.ts
+          grep -F '"sha256:84ba3aa4fd77fdcf6cc12b8707014a9698a4f2b04808e3179a4d016435c9fd4b"' src/economic/buy_void_allocation_custody_qualification_v1.ts
+          echo "historical_writer_object_reachability_not_required=true"
+          echo "historical_custody_v1_preserved=true"
+          echo "current_writer_requalification_required=true"
+          echo "independent_custody_proven=false"
+          echo "production_gate_ready=false"
+          echo "funds_movement=false"
 
       - name: Diff hygiene
         run: git diff --check

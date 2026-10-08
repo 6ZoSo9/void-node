@@ -1,0 +1,99 @@
+name: VOID Buy VOID verified payment allocation handoff v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_allocation_reservation_publication_writer_v1.ts"
+      - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - "docs/architecture/buy-void-verified-payment-allocation-handoff-v1.md"
+      - ".github/workflows/buy-void-verified-payment-allocation-handoff-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-verified-payment-allocation-handoff-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: payment allocation handoff / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Prove durable payment to allocation handoff
+        run: npx tsx scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts
+
+      - name: Preserve serialized payment capacity admission
+        run: npx tsx scripts/prove_buy_void_verified_payment_capacity_admission_v1.ts
+
+      - name: Preserve descriptor-bound allocation publication
+        run: npx tsx scripts/prove_buy_void_allocation_reservation_publication_writer_v1.ts
+
+      - name: Preserve verified allocation replay lineage
+        run: node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
+
+      - name: Preserve hypothetical crash specification
+        run: node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs
+
+      - name: Verify source tree cleanliness
+        run: test -z "$(git status --porcelain=v1)"
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi

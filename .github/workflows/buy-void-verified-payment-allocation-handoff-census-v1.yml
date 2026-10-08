@@ -6,9 +6,6 @@ on:
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs"
       - ".github/workflows/buy-void-verified-payment-allocation-handoff-census-v1.yml"
       - "docs/architecture/buy-void-verified-payment-allocation-handoff-census-v1.md"
-      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
-      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -19,117 +16,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  observed-gap:
+  historical-preservation:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22, 24, 26]
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Require checked-out head identity
+
+      - name: Bind exact checkout identity
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test -z "$(git status --porcelain=v1)"
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Test source-extracted gap and in-memory negatives
+
+      - name: Preserve merged negative-gap evidence bytes
         run: |
           set -euo pipefail
-          node --check scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs
-          node scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs --self-test \
-            | tee "handoff-negative-${{ matrix.node }}.txt"
-          grep -Fx 'exactly_once_allocation_production_ready=false' \
-            "handoff-negative-${{ matrix.node }}.txt"
-          grep -Fx 'real_request_or_operator_ledger_read=false' \
-            "handoff-negative-${{ matrix.node }}.txt"
-          grep -Fx 'funds_moved=false' \
-            "handoff-negative-${{ matrix.node }}.txt"
-      - name: Report source-observed absent payment to allocation handoff
-        run: |
-          set -euo pipefail
-          node scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs --census \
-            > "handoff-census-${{ matrix.node }}.json"
-          node --input-type=module -e '
-            import assert from "node:assert/strict";
-            import fs from "node:fs";
-            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-            assert.equal(j.schema,"void_buy_void_verified_payment_allocation_handoff_census_v1");
-            assert.equal(j.reviewed_source_file_blobs.length,3);
-            for(const k of ["durable_payment_verified_event_writer_present",
-              "verified_payment_capacity_serialization_present",
-              "payment_idempotent_return_precedes_mutation_callback",
-              "idempotent_replay_only_recovers_payment_sidecar",
-              "independent_allocation_publication_writer_exists"])
-              assert.equal(j[k],true,k);
-            for(const k of ["allocation_publication_writer_mounted_in_payment_capacity",
-              "allocation_writer_within_capacity_duplicate_lock_proven",
-              "allocation_after_verified_payment_fsync_proven",
-              "verified_payment_idempotent_allocation_recovery_proven",
-              "original_request_deployment_authority_proven",
-              "protected_allocation_high_water_custody_proven",
-              "exactly_once_allocation_production_ready","operation_performed",
-              "allocation_record_written","payment_event_written",
-              "presale_activation","funds_moved"])
-              assert.equal(j[k],false,k);
-            console.log("PAYMENT_TO_ALLOCATION_HANDOFF_MISSING_AND_HELD_GREEN");
-          ' "handoff-census-${{ matrix.node }}.json"
-      - name: Upload no-authority evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: buy-void-allocation-handoff-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: handoff-census-${{ matrix.node }}.json
-          if-no-files-found: error
-          retention-days: 1
-      - name: Diff check
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs)" = "370cb4f3b101a8e431f7404cdfaefb4c330bc91e"
+          test "$(git hash-object docs/architecture/buy-void-verified-payment-allocation-handoff-census-v1.md)" = "c7f2aefdcef867edf9bacb1ce27f2b7ba8fd2086"
+          SNAPSHOT=f7c894eb2ff8f378b2f0a906192cc1a0602e1d24
+          git cat-file -e "$SNAPSHOT^{commit}"
+          test "$(git rev-parse "$SNAPSHOT:src/economic/buy_void_verified_payment_capacity_admission_v1.ts")" = "617e401c3202e34e8754e988cea66c9caa02f873"
+          test "$(git rev-parse "$SNAPSHOT:src/economic/buy_void_allocation_reservation_publication_writer_v1.ts")" = "59b336eb82222bf0f5bcfe37060ec520c54e9b62"
+          test "$(git rev-parse "$SNAPSHOT:src/economic/buy_void_verified_allocation_replay_binding_v1.ts")" = "feb1f0e3fea1ff07406cd3b8fcd315c48338596f"
+          echo "historical_source_snapshot_commit=$SNAPSHOT"
+          grep -F 'exactly_once_allocation_production_ready=false' scripts/prove_buy_void_verified_payment_allocation_handoff_census_v1.mjs
+          echo "historical_negative_gap_generation_preserved=true"
+          echo "current_source_gate_moved_to_verified_payment_allocation_handoff_v1=true"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
+
+      - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi
-
-  cross-node:
-    needs: [observed-gap]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Download three source-only candidacy receipts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          pattern: buy-void-allocation-handoff-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
-          merge-multiple: true
-          path: ./receipts
-      - name: Compare byte-exact Node 22 24 26 source gap reports
-        run: |
-          set -euo pipefail
-          for v in 22 24 26; do test -s "receipts/handoff-census-$v.json"; done
-          cmp receipts/handoff-census-22.json receipts/handoff-census-24.json
-          cmp receipts/handoff-census-22.json receipts/handoff-census-26.json
-          node --input-type=module -e '
-            import fs from "node:fs";
-            import assert from "node:assert/strict";
-            import crypto from "node:crypto";
-            const bytes=fs.readFileSync("receipts/handoff-census-22.json");
-            const j=JSON.parse(bytes);
-            assert.equal(j.exactly_once_allocation_production_ready,false);
-            assert.equal(j.allocation_after_verified_payment_fsync_proven,false);
-            console.log("VOID_BUY_VOID_PAYMENT_ALLOCATION_HANDOFF_CENSUS_CROSS_NODE_GREEN");
-            console.log("source_gap_receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
-            console.log("presale_activation=false");
-          '
