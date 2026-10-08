@@ -538,8 +538,11 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
       fail("preappend_lineage_input_shape_invalid");
     }
 
+    const candidateRequest = input.request;
+    const candidateEvent = input.event;
+
     const requestId = field(
-      input.event.request_id,
+      candidateEvent.request_id,
       "preappend_lineage_request_id_invalid",
     );
     if (!REQUEST_ID.test(requestId)) {
@@ -547,7 +550,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     }
 
     const eventLine = Buffer.from(
-      JSON.stringify(input.event) + "\n",
+      JSON.stringify(candidateEvent) + "\n",
       "utf8",
     );
     const proposedOperatorEvents = Buffer.concat([
@@ -596,31 +599,31 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
 
     if (
       field(
-        input.request.request_id,
+        candidateRequest.request_id,
         "preappend_caller_request_id_invalid",
       ) !== requestId
     ) {
       fail("preappend_caller_request_id_mismatch");
     }
-    const callerChain = chain(input.request.source_chain);
+    const callerChain = chain(candidateRequest.source_chain);
     if (
       callerChain !== original.chain ||
       (["payment_chain", "chain"] as const).some(
         (alias) =>
-          Object.prototype.hasOwnProperty.call(input.request, alias) &&
-          !sourceAliasMatches(input.request[alias], callerChain),
+          Object.prototype.hasOwnProperty.call(candidateRequest, alias) &&
+          !sourceAliasMatches(candidateRequest[alias], callerChain),
       )
     ) {
       fail("preappend_caller_source_chain_mismatch");
     }
     if (
-      txHash(input.request.tx_hash, true) !== original.tx
+      txHash(candidateRequest.tx_hash, true) !== original.tx
     ) {
       fail("preappend_caller_transaction_mismatch");
     }
     if (
       address(
-        input.request.delivery_address,
+        candidateRequest.delivery_address,
         "preappend_caller_delivery_invalid",
       ) !== original.delivery
     ) {
@@ -628,7 +631,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     }
     if (
       address(
-        input.request.receive_address,
+        candidateRequest.receive_address,
         "preappend_caller_receive_invalid",
       ) !== original.receive
     ) {
@@ -636,7 +639,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     }
     if (
       address(
-        input.request.usdc_contract,
+        candidateRequest.usdc_contract,
         "preappend_caller_usdc_contract_invalid",
       ) !== original.usdcContract
     ) {
@@ -644,7 +647,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     }
     if (
       amount(
-        input.request.quoted_void,
+        candidateRequest.quoted_void,
         "preappend_caller_quote_invalid",
       ) !== original.voidMicro
     ) {
@@ -652,14 +655,14 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     }
     if (
       amount(
-        input.request.usdc_amount,
+        candidateRequest.usdc_amount,
         "preappend_caller_usdc_invalid",
       ) !== original.usdcMicro
     ) {
       fail("preappend_caller_usdc_amount_mismatch");
     }
     const callerLaunch =
-      canonicalLaunchAuthority(input.request.launch_authority);
+      canonicalLaunchAuthority(candidateRequest.launch_authority);
     if (
       !callerLaunch ||
       !sameCanonicalLaunchAuthority(
