@@ -84,6 +84,96 @@ for (const key of [
   assert.equal(plan.kind, "nonpayment_legacy_writer");
 }
 
+{
+  const reads = {
+    event: 0,
+    request: 0,
+    request_dir: 0,
+    allocation_ledger_root: 0,
+    allocation_high_water_root: 0,
+    with_launch_authority_mutation: 0,
+    read_sale_state: 0,
+  };
+  const launchA = async () => ({ marker: "launch-a" });
+  const launchB = async () => ({ marker: "launch-b" });
+  const saleA = async () => ({ marker: "sale-a" });
+  const saleB = async () => ({ marker: "sale-b" });
+  const stateful:any = {};
+  Object.defineProperties(stateful, {
+    event: {
+      get() {
+        reads.event++;
+        return {
+          request_id: "synthetic-r1",
+          operator_status: "payment_verified",
+          payment_verifier: { from_address: "0x" + "1".repeat(40) },
+        };
+      },
+    },
+    request: {
+      get() {
+        reads.request++;
+        return {
+          request_id: "synthetic-r1",
+          delivery_address: "0x" + "1".repeat(40),
+          quoted_void: "2",
+        };
+      },
+    },
+    request_dir: {
+      get() {
+        reads.request_dir++;
+        return reads.request_dir === 1
+          ? "/tmp/void-synthetic-request-root"
+          : "/tmp/void-mutated-request-root";
+      },
+    },
+    allocation_ledger_root: {
+      get() {
+        reads.allocation_ledger_root++;
+        return reads.allocation_ledger_root === 1
+          ? "/var/lib/void-synthetic-ledger"
+          : "/var/lib/void-mutated-ledger";
+      },
+    },
+    allocation_high_water_root: {
+      get() {
+        reads.allocation_high_water_root++;
+        return reads.allocation_high_water_root === 1
+          ? "/var/lib/void-synthetic-custody"
+          : "/var/lib/void-mutated-custody";
+      },
+    },
+    with_launch_authority_mutation: {
+      get() {
+        reads.with_launch_authority_mutation++;
+        return reads.with_launch_authority_mutation === 1 ? launchA : launchB;
+      },
+    },
+    read_sale_state: {
+      get() {
+        reads.read_sale_state++;
+        return reads.read_sale_state === 1 ? saleA : saleB;
+      },
+    },
+  });
+  const plan = planBuyVoidOperatorAllocationDispatchV1(stateful);
+  assert.deepEqual(reads, {
+    event: 1,
+    request: 1,
+    request_dir: 1,
+    allocation_ledger_root: 1,
+    allocation_high_water_root: 1,
+    with_launch_authority_mutation: 1,
+    read_sale_state: 1,
+  });
+  assert.equal(plan.request_dir, "/tmp/void-synthetic-request-root");
+  assert.equal(plan.allocation_ledger_root, "/var/lib/void-synthetic-ledger");
+  assert.equal(plan.allocation_high_water_root, "/var/lib/void-synthetic-custody");
+  assert.equal(plan.with_launch_authority_mutation, launchA);
+  assert.equal(plan.read_sale_state, saleA);
+}
+
 let serializeCount = 0;
 {
   const event = {
@@ -147,6 +237,10 @@ assert.match(branch.thenStatement.getText(tree),
 assert.doesNotMatch(branch.thenStatement.getText(tree),
   /writeBuyVoidOperatorEventWithCapacityAdmissionV1/u);
 const full = handler.getText(tree);
+assert.match(full, /with_launch_authority_mutation: plan\.with_launch_authority_mutation/u);
+assert.match(full, /read_sale_state: plan\.read_sale_state/u);
+assert.doesNotMatch(full, /with_launch_authority_mutation: input\.with_launch_authority_mutation/u);
+assert.doesNotMatch(full, /read_sale_state: input\.read_sale_state/u);
 assert.equal(
   (full.match(/writeBuyVoidVerifiedPaymentAllocationHandoffV1/g)||[]).length, 1);
 assert.equal(
@@ -183,6 +277,7 @@ console.log("nonpayment_plan_preserves_status_writer=true");
 console.log("missing_invalid_or_aliased_private_roots_fail_closed=true");
 console.log("immutable_event_and_request_snapshots=true");
 console.log("stateful_event_toJSON_read_once=true");
+console.log("server_control_properties_read_once=true");
 console.log("dispatch_calls_allocation_writer_only_on_verified_branch=true");
 console.log("mounted_operator_legacy_payment_only_producer_observed=true");
 console.log("mounted_verified_allocation_dispatch=false");
