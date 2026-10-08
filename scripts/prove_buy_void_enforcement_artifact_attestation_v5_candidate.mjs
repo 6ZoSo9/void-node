@@ -134,10 +134,33 @@ function scan(p,bytes) {
     }
   }
   function visit(node) {
+    if(ts.isPropertyAccessExpression(node)||ts.isElementAccessExpression(node)) {
+      assert.equal(forbiddenLoaderReference(node),false,
+        "dynamic global loader access:"+p);
+    }
+    if(ts.isIdentifier(node)&&forbiddenLoaderNames.has(node.text)) {
+      const canonicalFunctionConstructor=
+        node.text==="Function"&&ts.isNewExpression(node.parent)&&
+        node.parent.expression===node;
+      assert.equal(canonicalFunctionConstructor,true,
+        "dynamic loader identifier reference:"+p);
+    }
     if((ts.isImportDeclaration(node)||ts.isExportDeclaration(node))&&node.moduleSpecifier) add(node.moduleSpecifier);
     if(ts.isVariableDeclaration(node)&&node.initializer&&
        forbiddenLoaderReference(node.initializer)) {
       assert.fail("aliased dynamic loader:"+p);
+    }
+    if(ts.isVariableDeclaration(node)&&node.initializer&&
+       dynamicGlobal(node.initializer)&&ts.isObjectBindingPattern(node.name)) {
+      for(const element of node.name.elements) {
+        const property=element.propertyName||element.name;
+        assert.ok(!ts.isComputedPropertyName(property),
+          "computed dynamic-global destructuring:"+p);
+        const propertyText=ts.isIdentifier(property)||ts.isStringLiteral(property)
+          ?property.text:"";
+        assert.equal(forbiddenLoaderNames.has(propertyText),false,
+          "destructured dynamic loader:"+p);
+      }
     }
     if(ts.isBinaryExpression(node)&&
        node.operatorToken.kind===ts.SyntaxKind.EqualsToken&&
@@ -223,6 +246,9 @@ function runSelfTest() {
     'eval("2+2");',
     'const runner=eval; runner("2+2");',
     'const runner=globalThis["ev"+"al"]; runner("import(\\'node:child_process\\')");',
+    'const runner=globalThis.eval.bind(globalThis); runner("2+2");',
+    'const {eval:runner}=globalThis; runner("2+2");',
+    'const {["ev"+"al"]:runner}=globalThis; runner("2+2");',
     'const F=Function; new F("return 3");',
     'const F=globalThis["Fun"+"ction"]; F("return import(\\'node:child_process\\')")();',
     'new Function("return 3");',
