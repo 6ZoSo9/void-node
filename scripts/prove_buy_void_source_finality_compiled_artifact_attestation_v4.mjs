@@ -1,0 +1,196 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const MARKER =
+  "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
+const MANIFEST_PATH =
+  "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
+const CANDIDATE_SCRIPT =
+  "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs";
+const EXPECTED_CANDIDATE_SCRIPT_GIT_BLOB_SHA1 =
+  "7eb20ac84a134044df32a1ad4dc4582c9259d388";
+const EXPECTED_CANDIDATE_JSON_SHA256 =
+  "d03761f2c4cae8388fcee50bb953c85062d5d58d653c79451f0bf097069a28e8";
+const EXPECTED_COMPILED_GENERATION_SHA256 =
+  "b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d";
+const EXPECTED_REVIEWED_SOURCE_SHA256 =
+  "6a2493b269919be87273eb9bcfc959ab601aab9c16689c54a813db619d1b980f";
+const EXPECTED_SOURCE_STACK_HEAD =
+  "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e";
+const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
+  "d642723385136e9f0382bd77efdb34948221f380";
+const EXPECTED_V2_SOURCE_GIT_BLOB_SHA1 =
+  "32133e441ccb02bb4786d29e36932fb31399ec87";
+const EXPECTED_ARTIFACTS = Object.freeze([
+  Object.freeze({
+    path: "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+    bytes: 15937,
+    sha256: "1a80772df43a5a39ac041faf093dd3da58d0bd587499237dd51fb18a4b0915db",
+  }),
+  Object.freeze({
+    path: "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
+    bytes: 18892,
+    sha256: "0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42",
+  }),
+  Object.freeze({
+    path: "dist/economic/buy_void_source_finality_authority_v2.js",
+    bytes: 19002,
+    sha256: "239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b",
+  }),
+  Object.freeze({
+    path: "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+    bytes: 19804,
+    sha256: "3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2",
+  }),
+  Object.freeze({
+    path: "dist/economic/buy_void_payment_rpc_observer_v1.js",
+    bytes: 12270,
+    sha256: "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89",
+  }),
+  Object.freeze({
+    path: "dist/economic/buy_void_verified_payment_v2.js",
+    bytes: 10023,
+    sha256: "e2cc47627e1aa2d1094145745f86cd928a72ebd1103c8ca82f66f5f515112efc",
+  }),
+]);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const MAX_FILE_BYTES = 64 * 1024;
+
+function fail(message) {
+  throw new Error(message);
+}
+function sha256(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+function gitBlobSha1(bytes) {
+  return crypto.createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+function sameFileIdentity(a, b) {
+  return a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs;
+}
+function readPinned(relativePath, maxBytes = MAX_FILE_BYTES) {
+  const absolute = path.join(ROOT, relativePath);
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    fail("locked_v4_nofollow_unavailable:" + relativePath);
+  }
+  let fd = null;
+  try {
+    const visibleBefore = fs.lstatSync(absolute);
+    if (!visibleBefore.isFile() || visibleBefore.isSymbolicLink() ||
+        visibleBefore.nlink !== 1 || visibleBefore.size <= 0 ||
+        visibleBefore.size > maxBytes) {
+      fail("locked_v4_file_invalid:" + relativePath);
+    }
+    fd = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow);
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 ||
+        before.size <= 0 || before.size > maxBytes ||
+        !sameFileIdentity(visibleBefore, before)) {
+      fail("locked_v4_path_fd_mismatch:" + relativePath);
+    }
+    const buffer = Buffer.alloc(before.size + 1);
+    let total = 0;
+    while (total < buffer.length) {
+      const n = fs.readSync(fd, buffer, total, buffer.length - total, total);
+      if (n === 0) break;
+      total += n;
+    }
+    if (total > before.size) fail("locked_v4_growth_detected:" + relativePath);
+    if (total !== before.size) fail("locked_v4_short_read:" + relativePath);
+    const after = fs.fstatSync(fd);
+    const visibleAfter = fs.lstatSync(absolute);
+    if (!sameFileIdentity(before, after) ||
+        !visibleAfter.isFile() || visibleAfter.isSymbolicLink() ||
+        !sameFileIdentity(visibleAfter, after)) {
+      fail("locked_v4_file_changed:" + relativePath);
+    }
+    return buffer.subarray(0, total);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+function deriveLockedManifest() {
+  const candidateScriptBytes = readPinned(CANDIDATE_SCRIPT, 256 * 1024);
+  if (gitBlobSha1(candidateScriptBytes) !==
+      EXPECTED_CANDIDATE_SCRIPT_GIT_BLOB_SHA1) {
+    fail("locked_v4_candidate_script_blob_mismatch");
+  }
+
+  const stdout = execFileSync(
+    process.execPath,
+    [path.join(ROOT, CANDIDATE_SCRIPT), "--derive"],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 120_000,
+      maxBuffer: 64 * 1024,
+    },
+  );
+  const candidateBytes = Buffer.from(stdout, "utf8");
+  if (sha256(candidateBytes) !== EXPECTED_CANDIDATE_JSON_SHA256) {
+    fail("locked_v4_candidate_json_mismatch");
+  }
+
+  const candidate = JSON.parse(stdout);
+  assert.equal(candidate.schema,
+    "void_buy_void_source_finality_compiled_artifact_attestation_v4");
+  assert.equal(candidate.marker, MARKER);
+  assert.equal(candidate.version, 4);
+  assert.equal(candidate.source_stack_head, EXPECTED_SOURCE_STACK_HEAD);
+  assert.equal(candidate.compiled_artifact_generation_sha256,
+    EXPECTED_COMPILED_GENERATION_SHA256);
+  assert.equal(candidate.reviewed_source_generation?.reviewed_source_files_sha256,
+    EXPECTED_REVIEWED_SOURCE_SHA256);
+  assert.equal(candidate.reviewed_source_finality_v6_source_git_blob_sha1,
+    EXPECTED_V6_SOURCE_GIT_BLOB_SHA1);
+  assert.equal(candidate.verified_payment_v2_source_git_blob_sha1,
+    EXPECTED_V2_SOURCE_GIT_BLOB_SHA1);
+  assert.deepEqual(candidate.artifacts, EXPECTED_ARTIFACTS);
+  assert.equal(candidate.compiled_artifact_generation_verified, false);
+  assert.equal(candidate.deployed_artifact_generation_verified, false);
+  assert.equal(candidate.runtime_mount_authority, false);
+  assert.equal(candidate.production_source_finality_authority_ready, false);
+
+  return Object.freeze({
+    ...candidate,
+    compiled_artifact_generation_verified: true,
+  });
+}
+
+const args = process.argv.slice(2);
+const expected = deriveLockedManifest();
+if (args.length === 1 && args[0] === "--derive") {
+  process.stdout.write(JSON.stringify(expected, null, 2) + "\n");
+} else {
+  assert.equal(args.length, 0, "invalid arguments");
+  const committed = readPinned(MANIFEST_PATH);
+  const expectedBytes = Buffer.from(JSON.stringify(expected, null, 2) + "\n");
+  if (!committed.equals(expectedBytes)) {
+    console.log(MARKER + "_DERIVATION_ONLY");
+    fail("compiled_artifact_attestation_v4_manifest_mismatch");
+  }
+  console.log(MARKER + "_LOCKED_GREEN");
+  console.log("candidate_evidence_sha256=" + EXPECTED_CANDIDATE_JSON_SHA256);
+  console.log("compiled_artifact_generation_sha256=" +
+    EXPECTED_COMPILED_GENERATION_SHA256);
+  console.log("reviewed_source_files_sha256_v6=" +
+    EXPECTED_REVIEWED_SOURCE_SHA256);
+  console.log("compiled_artifact_generation_verified=true");
+  console.log("deployed_artifact_generation_verified=false");
+  console.log("production_source_finality_authority_ready=false");
+}
