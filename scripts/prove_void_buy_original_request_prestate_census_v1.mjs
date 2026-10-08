@@ -34,10 +34,12 @@ const fake = { marker: 'VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1', version: 1,
   activation_receipt_sha256: 'f'.repeat(64),
   expires_at_ms: 1810000000000,
 };
+const BASE_NATIVE_USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+const ETHEREUM_NATIVE_USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 const qualified = {
   request_id:'buyvoid_new_aaaaaaaa', source_chain:'base', payment_chain:'base',
   tx_hash:'0x'+'1'.repeat(64), quoted_void:'2', usdc_amount:'1',
-  usdc_contract:'0x'+'2'.repeat(40), launch_authority:fake,
+  usdc_contract:BASE_NATIVE_USDC, launch_authority:fake,
   receive_address:'0x'+'3'.repeat(40), delivery_address:'0x'+'4'.repeat(40),
 };
 const legacy = {
@@ -79,6 +81,30 @@ try {
   assert.equal(report.first_rows_missing_or_invalid_usdc_contract,1);
   assert.equal(report.first_rows_missing_or_invalid_launch_authority,1);
   assert.match(report.source_history_file_sha256,/^sha256:[0-9a-f]{64}$/u);
+  // P2: original token must be the chain's native USDC, not arbitrary ERC-20.
+  const arbitraryToken = {...qualified, request_id:'buyvoid_token_cccccccc',
+    usdc_contract:'0x'+'2'.repeat(40)};
+  write([qualified, arbitraryToken]);
+  report=expectObserved();
+  assert.equal(report.first_rows_fully_shape_qualified,1);
+  assert.equal(report.first_rows_missing_or_invalid_usdc_contract,1);
+  const ethereumWithBaseToken = {...qualified,
+    request_id:'buyvoid_eth_eeeeeeee', source_chain:'ethereum',
+    payment_chain:'ethereum'};
+  write([ethereumWithBaseToken]);
+  report=expectObserved();
+  assert.equal(report.first_rows_fully_shape_qualified,0);
+  assert.equal(report.first_rows_missing_or_invalid_usdc_contract,1);
+  write([{...ethereumWithBaseToken,usdc_contract:ETHEREUM_NATIVE_USDC}]);
+  report=expectObserved();
+  assert.equal(report.first_rows_fully_shape_qualified,1);
+  write([arbitraryToken,{...arbitraryToken,usdc_contract:BASE_NATIVE_USDC,
+    status:'later-policy-backfill'}]);
+  report=expectObserved();
+  assert.equal(report.first_rows_fully_shape_qualified,0,
+    'later correction cannot establish a qualified original');
+  assert.equal(report.later_contract_backfill_rows_for_unqualified_first_rows,1);
+
   const after={...legacy,usdc_contract:qualified.usdc_contract,
     launch_authority:fake,status:'late-backfill'};
   write([qualified,legacy,after]);
@@ -94,6 +120,20 @@ try {
   report=expectObserved();
   assert.equal(report.rows_with_missing_or_conflicting_chain_evidence,1);
   assert.equal(report.first_rows_fully_shape_qualified,1);
+  // P2: launch authority object insertion order is not immutable lineage drift.
+  const reorderedLaunch = Object.fromEntries(Object.entries(fake).reverse());
+  write([qualified, {...qualified, launch_authority:reorderedLaunch,
+    status:'order-only'}]);
+  report=expectObserved();
+  assert.equal(report.later_launch_change_rows_after_qualified_first_row,0);
+  write([qualified, {...qualified, launch_authority:{...fake,
+    activation_receipt_sha256:'0'.repeat(64)}, status:'changed-generation-evidence'}]);
+  report=expectObserved();
+  assert.equal(report.later_launch_change_rows_after_qualified_first_row,1);
+  write([qualified, {...qualified, launch_authority:undefined,
+    status:'erased-generation-evidence'}]);
+  report=expectObserved();
+  assert.equal(report.later_launch_change_rows_after_qualified_first_row,1);
   // Review P2: each later row may be internally canonical while changing
   // immutable first-row source-chain and token policy evidence.
   write([qualified, {...qualified, source_chain:'ethereum',
@@ -201,6 +241,8 @@ try {
   console.log('VOID_BUY_ORIGINAL_REQUEST_PRESTATE_CENSUS_V1_SOURCE_GREEN');
   console.log('read_only_pinned_file_census=true');
   console.log('original_token_and_launch_qualification_counted=true');
+  console.log('first_row_chain_native_usdc_policy_required=true');
+  console.log('launch_authority_key_order_does_not_create_false_drift=true');
   console.log('legacy_backfill_does_not_become_qualified=true');
   console.log('cross_request_legacy_does_not_globally_block_census=true');
   console.log('nonconsecutive_repeat_and_chain_alias_conflicts_counted=true');

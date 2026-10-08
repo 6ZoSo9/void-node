@@ -15,6 +15,11 @@ const BYTES32 = /^0x[0-9a-f]{64}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const RECEIPT = /^voidbclive1_[0-9a-f]{64}$/u;
+// Fixed native-USDC identities. A syntactically valid arbitrary ERC-20 is not USDC.
+const NATIVE_USDC_BY_CHAIN = Object.freeze({
+  base: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+  ethereum: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+});
 const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false });
 const AUTHORITY = Object.freeze({
   source_only_read_only_census: true,
@@ -57,6 +62,16 @@ function canonicalAddress(value) {
   return typeof value === 'string' &&
     ADDRESS.test(value.toLowerCase()) &&
     value.toLowerCase() !== '0x' + '0'.repeat(40);
+}
+function canonicalNativeUsdc(row, chainOk) {
+  return chainOk && canonicalAddress(row.usdc_contract) &&
+    row.usdc_contract.toLowerCase() === NATIVE_USDC_BY_CHAIN[normalizedChain(row.source_chain)];
+}
+// Compare names and values, not an object's insertion/JSON serialization order.
+// The original exact JSONL line is still hashed separately and never rewritten.
+function launchValueSignature(value) {
+  if (!isRecord(value)) return JSON.stringify(value ?? null);
+  return JSON.stringify(Object.keys(value).sort().map(key => [key, value[key]]));
 }
 function canonicalLaunch(value) {
   if (!isRecord(value)) return false;
@@ -203,18 +218,18 @@ function counts(bytes) {
     const prev = byId.get(row.request_id);
     if (!prev) {
       byId.set(row.request_id, {
-        firstChain: chainOk, firstToken: canonicalAddress(row.usdc_contract),
+        firstChain: chainOk, firstToken: canonicalNativeUsdc(row, chainOk),
         firstLaunch: canonicalLaunch(row.launch_authority),
         tokenText: typeof row.usdc_contract === 'string' ? row.usdc_contract.toLowerCase() : '',
         chainText: chainOk ? normalizedChain(row.source_chain) : '',
-        launchText: JSON.stringify(row.launch_authority ?? null),
+        launchText: launchValueSignature(row.launch_authority),
         seen: new Set([exactLine]),
       });
       continue;
     }
     if (prev.seen.has(exactLine)) repeatedExactRows++;
     prev.seen.add(exactLine);
-    if (!prev.firstToken && canonicalAddress(row.usdc_contract)) laterContractBackfills++;
+    if (!prev.firstToken && canonicalNativeUsdc(row, chainOk)) laterContractBackfills++;
     if (!prev.firstLaunch && canonicalLaunch(row.launch_authority)) laterLaunchBackfills++;
     if (!prev.firstChain && chainOk) laterSourceBackfills++;
     // An originally qualified source-chain/token identity is immutable.
@@ -229,7 +244,7 @@ function counts(bytes) {
          row.usdc_contract.toLowerCase() !== prev.tokenText)) {
       laterTokenDrift++;
     }
-    if (prev.firstLaunch && JSON.stringify(row.launch_authority ?? null) !== prev.launchText) {
+    if (prev.firstLaunch && launchValueSignature(row.launch_authority) !== prev.launchText) {
       laterLaunchDrift++;
     }
   }

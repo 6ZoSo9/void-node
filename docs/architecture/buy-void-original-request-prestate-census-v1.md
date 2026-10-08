@@ -61,18 +61,26 @@ one content SHA-256 digest of the complete observed file. It never writes or
 prints buyer details, individual request IDs, wallet addresses, payment
 transaction hashes, USDC addresses or activation receipts.
 
-Counts include: first-row explicit chain/alias consistency, canonical
-USDC contract and schema-closed coupled launch tuple, how many distinct
-requests satisfy all three shape checks, later retroactive token/launch/chain
+Counts include: first-row explicit chain/alias consistency, the chain's
+**native USDC contract** and schema-closed coupled launch tuple, how many
+distinct requests satisfy all three shape checks, later retroactive token/launch/chain
 backfills (which **never** qualify an originally missing field), **separate
 post-original drift counters** for source-chain and USDC contract changes even
 when each later row has internally consistent aliases, repeated exact snapshot
 lines including A→B→A, conflicting chain aliases, and changed launch lineage
-after an initially complete row. Missing/invalid late fields also count as
+**by field values** after an initially complete row. Object-member insertion
+order alone is not launch lineage drift; a changed/erased tuple value still is. Missing/invalid late fields also count as
 drift after an initially qualified original; the first-row qualification
 count stays independent of the later anomaly counters. It scans **all request IDs**, without
 using an unrelated unverified legacy row as a global blocker. However malformed
 JSONL or request IDs cannot be safely localized and HOLD the entire census.
+
+Original token policy checks are fixed to Base mainnet (8453)
+`0x833589fcd6edb6e08f4c7c32d4f71b54bda02913` and Ethereum mainnet (1)
+`0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48`, case-insensitively. An arbitrary well-formed ERC-20
+cannot count as original native USDC, and correcting a first-row mismatch in
+a later snapshot cannot retroactively qualify the original. A missing or
+contradictory source chain likewise prevents native-token qualification.
 
 These checks are deliberately only **shape / consistency observations**. The
 presence of an apparent valid launch tuple does not authenticate the original
