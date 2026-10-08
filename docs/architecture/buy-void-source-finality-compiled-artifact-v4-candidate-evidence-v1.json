@@ -84,7 +84,7 @@
     24,
     26
   ],
-  "compiled_artifact_generation_verified": true,
+  "compiled_artifact_generation_verified": false,
   "deployed_artifact_generation_verified": false,
   "runtime_mount_authority": false,
   "production_source_finality_authority_ready": false
