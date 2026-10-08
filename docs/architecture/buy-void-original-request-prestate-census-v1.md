@@ -38,7 +38,12 @@ and final target, and retains a `O_RDONLY | O_NOFOLLOW` descriptor. It strictly
 bounds reads to 64 MiB and 100,000 lines, verifies a regular single-link file,
 checks the descriptor and visible path's identity and size/timestamps before
 and after the read, and revalidates ancestor identity. Concurrent mutation,
-truncated/noncanonical JSONL, unexpected request IDs and short reads HOLD. A
+truncated/noncanonical JSONL, unexpected request IDs and short reads HOLD.
+A **zero-byte requests.jsonl also HOLDs** with
+`empty_history_unqualified_without_external_anchor`: without independent
+high-water/genesis evidence, an empty regular file is indistinguishable from a
+rolled-back once-populated request history. The tool never reports zero
+requests as a verified historical absence. A
 stable observation **cannot** establish external rollback prevention or the
 identity of the original accepted history. A replace-and-restore attack or a
 forged self-consistent file is outside this observation's trust boundary.

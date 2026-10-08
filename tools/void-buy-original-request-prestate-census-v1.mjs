@@ -153,6 +153,9 @@ function parseCanonicalLines(bytes) {
   });
 }
 function counts(bytes) {
+  // An empty readable file is not proof of a never-used genesis ledger.
+  // Without independent high-water, it may be a rolled-back valid prefix.
+  if (bytes.length === 0) fail('empty_history_unqualified_without_external_anchor');
   const lines = parseCanonicalLines(bytes);
   const byId = new Map();
   let laterContractBackfills = 0;

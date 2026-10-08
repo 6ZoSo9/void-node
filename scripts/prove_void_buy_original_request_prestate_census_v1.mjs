@@ -116,6 +116,8 @@ try {
   report=expectObserved();
   assert.equal(report.first_rows_missing_or_invalid_chain,1);
   assert.equal(report.later_chain_backfill_rows_for_unqualified_first_rows,1);
+  fs.writeFileSync(p,Buffer.alloc(0),{mode:0o600});
+  expectHold(/empty_history_unqualified_without_external_anchor/u);
   fs.writeFileSync(p,JSON.stringify(qualified),{mode:0o600});
   expectHold(/jsonl_noncanonical_or_truncated/u);
   fs.writeFileSync(p,Buffer.concat([Buffer.from([0xef,0xbb,0xbf]),Buffer.from(JSON.stringify(qualified)+'\n')]),{mode:0o600});
@@ -150,6 +152,7 @@ try {
   console.log('originally_qualified_later_chain_and_contract_drift_counted=true');
   console.log('sensitive_request_id_address_tx_output=false');
   console.log('symlink_and_malformed_ledger_refused=true');
+  console.log('empty_history_requires_independent_genesis_evidence=true');
   console.log('host_custody_or_payment_authority=false');
   console.log('production_gate_ready=false');
 } finally {
