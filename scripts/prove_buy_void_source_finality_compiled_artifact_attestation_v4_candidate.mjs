@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
 const SOURCE_STACK_HEAD =
-  "5806d994d5c45bac31d49ea8edff343d02ad99cb";
+  "47cbb1d4c7fb667a7accdf1089edb11072f3e631";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH =
   "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
