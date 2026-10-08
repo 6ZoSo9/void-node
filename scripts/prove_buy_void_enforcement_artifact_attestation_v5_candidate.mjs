@@ -96,10 +96,14 @@ function record(rel) {
   const bytes=readPinned(ROOT,rel);
   return {path:rel,bytes:bytes.length,sha256:sha256(bytes),git_blob_sha1:gitBlob(bytes)};
 }
+// Inventory the statically reachable compiled closure. Code-generated imports
+// are observed only as separate UNQUALIFIED candidate dependency boundaries:
+// seeing a literal new Function importer is NOT proof of its executed target.
 function scan(p,bytes) {
   const ast=ts.createSourceFile(p,bytes.toString("utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
   assert.equal(ast.parseDiagnostics.length,0,"invalid compiled JS: "+p);
   const relatives=new Set(), externals=new Set();
+  const dynamicFactories=[],dynamicTargets=[];
   function add(value) {
     assert.ok(value&&ts.isStringLiteral(value),"nonliteral dynamic import:"+p);
     const spec=value.text;
@@ -119,16 +123,45 @@ function scan(p,bytes) {
         add(node.arguments[0]);
       }
       const expression=node.expression.getText(ast);
-      assert.doesNotMatch(expression,/\b(require|createRequire|eval|Function)\b/u,"alternate dynamic loader");
+      assert.doesNotMatch(expression,/\b(require|createRequire|eval|Function)\b/u,
+        "alternate dynamic loader:"+p);
+      if(ts.isIdentifier(node.expression)&&node.expression.text==="dynamicImport"){
+        assert.equal(node.arguments.length,1,"unmodeled indirect importer cardinality:"+p);
+        const specifier=node.arguments[0];
+        assert.ok(ts.isStringLiteral(specifier),"unmodeled indirect import argument:"+p);
+        assert.match(specifier.text,
+          /^\.\.\/\.\.\/tools\/buy-void-[a-z0-9-]+-v[0-9]+\.mjs$/u,
+          "unreviewed dynamically imported tool path:"+p);
+        dynamicTargets.push(specifier.text);
+      }
     }
-    if(ts.isNewExpression(node)) {
-      assert.doesNotMatch(node.expression.getText(ast),/\b(Function)\b/u,
-        "alternate dynamic Function constructor");
+    if(ts.isNewExpression(node)){
+      const expression=node.expression.getText(ast);
+      if(/\bFunction\b/u.test(expression)){
+        assert.equal(expression,"Function","unreviewed Function constructor expression:"+p);
+        const args=node.arguments||[];
+        assert.ok(args.length===2&&args.every(a=>ts.isStringLiteral(a)),
+          "unreviewed Function constructor arguments:"+p);
+        assert.equal(args[0].text,"specifier","unreviewed Function constructor parameter:"+p);
+        assert.equal(args[1].text,"return import(specifier)",
+          "unreviewed Function constructor code:"+p);
+        dynamicFactories.push("new Function(specifier, return import(specifier))");
+      }
     }
     ts.forEachChild(node,visit);
   }
   visit(ast);
-  return {imports:[...relatives].sort(),externals:[...externals].sort()};
+  // Census shape is strict, but the executable target/dependency closure is
+  // NOT authenticated. Never promote this census to production authority.
+  assert.equal(dynamicFactories.length,dynamicTargets.length,
+    "unpaired code-generated dynamic import:"+p);
+  assert.ok(dynamicFactories.length<=1,"multiple code-generated importers:"+p);
+  return {
+    imports:[...relatives].sort(),
+    externals:[...externals].sort(),
+    dynamic_tool_import_specifiers:[...new Set(dynamicTargets)].sort(),
+    dynamic_function_importer_present:dynamicFactories.length!==0
+  };
 }
 function closedArtifacts() {
   const pending=[ENTRY],found=new Map();
@@ -158,6 +191,22 @@ function runSelfTest() {
     'eval("2+2");',
     'new Function("return 3");',
   ]) assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
+  // The observed constructor shape may be CENSUSED, never authorized as a
+  // closed runtime dependency. A different constructor/target still HOLDs.
+  const observedDynamic=scan(ENTRY,Buffer.from(
+    'const dynamicImport = new Function("specifier","return import(specifier)");\n' +
+    'dynamicImport("../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs");\n'
+  ));
+  assert.equal(observedDynamic.dynamic_function_importer_present,true);
+  assert.deepEqual(observedDynamic.dynamic_tool_import_specifiers,
+    ["../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"]);
+  for(const bad of [
+    'const dynamicImport = new Function("specifier","return import(specifier)"); dynamicImport(process.env.UNTRUSTED);',
+    'const dynamicImport = new Function("specifier","return import(specifier)"); dynamicImport("../../outside.mjs");',
+    'const dynamicImport = new Function("specifier","return eval(specifier)"); dynamicImport("../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs");',
+    'const dynamicImport = new Function("specifier","return import(specifier)");',
+    'dynamicImport("../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs");',
+  ])assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-enforcement-v5-candidate-"));
   const name="fixture.txt",full=path.join(temp,name),moved=path.join(temp,"moved.txt");
   const originalOpen=fs.openSync,originalRead=fs.readSync;
@@ -194,6 +243,9 @@ function runSelfTest() {
   }
   console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_SELF_TEST_GREEN");
   console.log("nonliteral_and_external_imports_rejected=true");
+  console.log("recognized_dynamic_constructor_census_only=true");
+  console.log("unrecognized_dynamic_loaders_rejected=true");
+  console.log("dynamic_tool_execution_identity_verified=false");
   console.log("same_size_source_inode_substitution_rejected=true");
   console.log("growth_buffer_bounded_to_pinned_size_plus_one=true");
   console.log("source_runtime_unchanged=true");
@@ -228,6 +280,19 @@ function derive() {
     "scripts/retire_saveblock_periodic_rewriters_v1.mjs","Dockerfile",
   ],{cwd:ROOT,stdio:"ignore"});
   const artifacts=closedArtifacts();
+  const dynamicTools=artifacts.flatMap(module=>
+    module.dynamic_tool_import_specifiers.map(specifier=>({
+      importer_artifact:module.path,
+      tool_specifier:specifier,
+      code_generation_form:"new Function(specifier, return import(specifier))",
+      executed_target_verified:false,
+      dynamic_tool_transitive_closure_verified:false
+    }))
+  ).sort((a,b)=>
+    (a.importer_artifact+"|"+a.tool_specifier).localeCompare(
+      b.importer_artifact+"|"+b.tool_specifier,"en")
+  );
+  assert.ok(dynamicTools.length>=1,"expected hidden dynamic import boundary not identified");
   const inputs=[...new Set([...artifacts.map(a=>a.path.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts")),...INPUTS])]
     .sort().map(record);
   const old=new Map(previousV1.artifacts.map(a=>[a.path,a]));
@@ -265,13 +330,22 @@ function derive() {
     },
     closed_entry_artifact:ENTRY,
     closed_runtime_artifacts:artifacts,
+    // The above is only the fully enumerated STATIC relative-import graph.
+    // The Function-created dynamic tool edges below are an UNQUALIFIED
+    // executable extension, not a fully closed/approved runtime boundary.
+    static_relative_import_graph_bound:true,
+    dynamic_tool_import_candidates:dynamicTools,
+    dynamic_tool_candidate_count:dynamicTools.length,
+    dynamic_tool_execution_identity_verified:false,
+    dynamic_tool_transitive_closure_verified:false,
+    complete_executable_closure_verified:false,
     source_and_build_inputs:inputs,
     delta_from_historical_v1:{
       removed_paths:removed,added_paths:added,changed_paths:changed,
       unchanged_path_count:unchanged.length
     },
     reviewed_node_majors:[22,24,26],
-    no_dynamic_unknown_imports:true,
+    no_dynamic_unknown_imports:false,
     no_unbounded_reader:true,
     candidate_identity_accepted:false,
     deployed_artifact_generation_verified:false,

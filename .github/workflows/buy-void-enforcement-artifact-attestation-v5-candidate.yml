@@ -70,10 +70,24 @@ jobs:
               entry => entry.path === "dist/economic/buy_void_source_finality_generation_provenance_v6.js"));
             assert.ok(!candidate.closed_runtime_artifacts.some(
               entry => /generation_provenance_v[45][.]js$/.test(entry.path)));
+            assert.equal(candidate.static_relative_import_graph_bound,true);
+            assert.equal(candidate.no_dynamic_unknown_imports,false);
+            assert.ok(candidate.dynamic_tool_candidate_count >= 1);
+            assert.equal(candidate.dynamic_tool_import_candidates.length,
+              candidate.dynamic_tool_candidate_count);
+            assert.equal(candidate.complete_executable_closure_verified,false);
+            assert.equal(candidate.dynamic_tool_execution_identity_verified,false);
+            assert.equal(candidate.dynamic_tool_transitive_closure_verified,false);
+            for(const edge of candidate.dynamic_tool_import_candidates) {
+              assert.match(edge.importer_artifact,/^dist\/economic\/buy_void_[a-z0-9_]+[.]js$/);
+              assert.match(edge.tool_specifier,/^[.][.]\/[.][.]\/tools\/buy-void-[a-z0-9-]+-v[0-9]+[.]mjs$/);
+              assert.equal(edge.executed_target_verified,false);
+              assert.equal(edge.dynamic_tool_transitive_closure_verified,false);
+            }
             for(const key of ["candidate_identity_accepted","deployed_artifact_generation_verified",
               "runtime_mount_authority","production_source_finality_authority_ready",
               "presale_activation","funds_movement"]) assert.equal(candidate[key],false,key);
-            console.log("ENFORCEMENT_V5_DERIVE_ONLY_CLOSED_V6_CANDIDATE_GREEN");
+            console.log("ENFORCEMENT_V5_STATIC_GRAPH_AND_DYNAMIC_TOOL_HOLD_EVIDENCE_GREEN");
           ' enforcement-v5-candidate-${{ matrix.node }}.json
       - name: Require rejection of missing derivation authorization
         run: |
@@ -127,6 +141,11 @@ jobs:
             const bytes=fs.readFileSync("v5-enforcement-evidence/enforcement-v5-candidate-22.json");
             const j=JSON.parse(bytes);
             assert.equal(j.candidate_identity_accepted,false);
+            assert.equal(j.complete_executable_closure_verified,false);
+            assert.equal(j.dynamic_tool_execution_identity_verified,false);
+            assert.equal(j.dynamic_tool_transitive_closure_verified,false);
+            assert.equal(j.no_dynamic_unknown_imports,false);
+            assert.ok(j.dynamic_tool_candidate_count >= 1);
             assert.equal(j.production_source_finality_authority_ready,false);
             assert.equal(j.deployed_artifact_generation_verified,false);
             console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_CROSS_NODE_GREEN");

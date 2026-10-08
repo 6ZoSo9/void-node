@@ -2,7 +2,7 @@
 
 ## Purpose and lineage
 
-This branch is an **unaccepted V5 enforcement compiled-closure candidate**,
+This branch is an **unaccepted V5 static enforcement-graph evidence candidate**,
 stacked on [Draft #2638](https://github.com/6ZoSo9/void-node/pull/2638)
 at exact runtime-bridge source commit
 `320ab95af3998a9dcfddd44d62c394c19ba7ea2c`.
@@ -10,9 +10,9 @@ at exact runtime-bridge source commit
 The runtime preflight now imports reviewed source-finality **V6**, not
 historical V4 or V5. Therefore the old enforcement V4 manifest's
 23-module source/compiled identity cannot attest the changed dependency
-graph. It must remain immutable. A new closed-runtime graph, separately
-reviewed compiled generation, enforcement/packaged successors and accepted
-host runtime are required before any live authority.
+graph. It must remain immutable. A new reviewed STATIC runtime graph and a
+separately qualified DYNAMIC saga/tool execution boundary, enforcement/package
+successors and accepted host runtime are required before any live authority.
 
 The candidate pins these exact Git blob identities:
 - V6 runtime preflight source: `b61615c8b928a95c33100878ca70aa147abad103`.
@@ -22,10 +22,32 @@ The candidate pins these exact Git blob identities:
 - Immutable historical enforcement V4 envelope: `d9e391bb058132b83a4eeaec00797e41dab9fa26`, closed enforcement set `854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`.
 - Reviewed source-finality compiled V4 source/build manifest: `dda86b558fe98f7647ca8b126da4a3c868c5231d`, generation `b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d`.
 
-The script independently builds a **closed execution import graph** from the
-delivery runtime `dist/economic/buy_void_delivery_runtime_integration_v1.js`
+The script independently builds the **closed static ESM relative-import graph**
+from the delivery runtime `dist/economic/buy_void_delivery_runtime_integration_v1.js`
 using TypeScript AST. It rejects unrecognized nonliteral, external or escaping
-imports, require/eval/Function execution and missing canonical V6 preflight.
+static imports, require/eval and unmodeled `Function` constructors. Crucially,
+it DOES NOT claim to close the entire executable graph: the runtime uses
+`new Function("specifier","return import(specifier)")` as a dynamic saga/tool
+loader. The initial strict verifier therefore correctly HELD on this REAL
+code-generated import mechanism (Node 22/24/26 exact-head run 37813497872),
+rather than on a build flake. That failure is preserved as provenance.
+
+This revised candidate recognizes ONLY the exact, literal constructor and an
+independently literal `dynamicImport("../../tools/buy-void-...-vN.mjs")`
+call as **unqualified diagnostic evidence**, requiring paired constructor/call
+counts. All modified constructors, nonliteral specifiers, other paths and
+alternate execution loader forms still HOLD. Its new evidence records each
+static module's dynamic tool specifier and explicitly reports
+`dynamic_tool_execution_identity_verified=false`,
+`dynamic_tool_transitive_closure_verified=false`,
+`complete_executable_closure_verified=false` and
+`no_dynamic_unknown_imports=false`.
+
+The observed `../../tools/...` names are only source expressions, NOT an
+authenticated runtime `new Function` resolver base or a reviewed transitive
+`.mjs` dependency closure. Even a GREEN diagnostic derivation cannot confer
+a production/locked enforcement identity. An independent source and compiled
+tool resolver/target/dependency review is required first.
 It records every reachable module byte length, SHA-256, import edge and limited
 package external boundary. It independently fingerprints all mapped source
 files, the build scripts, TypeScript/compiler input modules, lockfile,
@@ -35,9 +57,10 @@ at most the preflight size+one sentinel byte, and postread identity checks.
 
 ## Synthetic proofs and three-node identity check
 
-The `--self-test` first rejects nonliteral dynamic import, escaping import,
-unexpected builtin, require/eval/Function, then uses **only disposable OS
-temporary files** to prove a same-sized filename replacement and a 3 MiB file
+The `--self-test` rejects nonliteral dynamic import, escaping imports,
+unexpected builtins and `require/eval`, plus tests the exact recognized
+code-generated import census and rejects altered/missing/unpaired
+`new Function` sites. It then uses **only disposable OS temporary files** to prove a same-sized filename replacement and a 3 MiB file
 growth after preflight cannot yield accepted bytes or exceed the fixed bound.
 The source files/compiled repo artifacts are never edited by the adversary.
 
@@ -48,9 +71,10 @@ The V6 preflight's own synthetic signer/broadcast fail-closed proof runs on
 each node.
 
 The candidate includes a delta from the **historical V1 full compiled
-enforcement closure**, verifying that V4 leaves the active import graph and V6
-enters it, with exact additions/removals/changed SHA-256 records. This V1
-comparison is a *review aid*, not permission to modify predecessor manifests.
+enforcement closure**, verifying that V4 leaves the active STATIC import graph
+and V6 enters it, with exact additions/removals/changed SHA-256 records. This V1
+comparison is a *partial static-graph review aid*. It is not proof of all
+runtime-loadable tools and not permission to modify predecessor manifests.
 
 ## What has NOT been authorized
 
@@ -59,6 +83,10 @@ accepted or minted here. JSON explicitly sets all of the following false:
 
 ```text
 candidate_identity_accepted=false
+complete_executable_closure_verified=false
+dynamic_tool_execution_identity_verified=false
+dynamic_tool_transitive_closure_verified=false
+no_dynamic_unknown_imports=false
 deployed_artifact_generation_verified=false
 runtime_mount_authority=false
 production_source_finality_authority_ready=false
