@@ -46,7 +46,7 @@ echo "funds_moved=false"
 [[ "$(hostname)" == "Nimo" ]] || hold expected_nimo_hostname
 [[ "$(realpath -e -- "$0")" == "$trusted_self" ]] ||
   hold trusted_root_script_path_required
-[[ "$(stat -c '%u:%g:%a:%h:%F' /root)" == "0:0:700:directory" ]] ||
+[[ "$(stat -c '%u:%g:%a:%F' /root)" == "0:0:700:directory" ]] ||
   hold trusted_root_directory_changed
 [[ "$(stat -c '%u:%g:%a:%h:%F' "$trusted_self")" == "0:0:500:1:regular file" ]] ||
   hold trusted_root_script_metadata_changed
