@@ -186,6 +186,66 @@ for (const [label, code, expected] of [
 ]) {
   assert.deepEqual(kind(code), expected, label);
 }
+// Review P2: reaching the 24-binding alias limit must never mean that a
+// genuine node:module createRequire loader has been disproven.
+const deepLoaderAlias = (count, source) => {
+  const lines = [source];
+  for (let i = 1; i <= count; i += 1) {
+    lines.push(`const loader${i}=loader${i - 1};`);
+  }
+  return lines.join("\n");
+};
+const deepFactoryAlias = (count) => {
+  const lines = ["import {createRequire} from 'node:module';", "const factory0=createRequire;"];
+  for (let i = 1; i <= count; i += 1) {
+    lines.push(`const factory${i}=factory${i - 1};`);
+  }
+  return lines.join("\n");
+};
+for (const depth of [23, 24, 25, 27, 40]) {
+  const realLoader = deepLoaderAlias(depth,
+    "import {createRequire} from 'node:module';const loader0=createRequire(import.meta.url);");
+  const realFactory = deepFactoryAlias(depth);
+  assert.deepEqual(kind(`${realLoader}\nconst target=${splitTarget};loader${depth}(target)`),
+    ["forbidden"], `deep direct loader alias must HOLD: ${depth}`);
+  assert.deepEqual(kind(`${realFactory}\nconst loader=factory${depth}(import.meta.url);const target=${splitTarget};loader(target)`),
+    ["forbidden"], `deep imported factory alias must HOLD: ${depth}`);
+  assert.deepEqual(kind(`${realLoader}\nconst target='./unrelated.mjs';loader${depth}(target)`),
+    [], `deep non-writer request remains out of scope: ${depth}`);
+}
+// Deep *path* aliases must not become silently safe because folding reached
+// the bound. A benign dynamic import past this cap conservatively HOLDS too;
+// this is documented as a source-review tripwire, not runtime proof.
+const deepPath = ["const target0=" + splitTarget + ";"];
+const deepBenignPath = ["const target0='./unrelated.mjs';"];
+for (let i = 1; i <= 35; i += 1) {
+  deepPath.push(`const target${i}=target${i - 1};`);
+  deepBenignPath.push(`const target${i}=target${i - 1};`);
+}
+assert.deepEqual(kind(`${deepPath.join("\n")}\nawait import(target35)`),
+  ["forbidden"], "depth cap on module path must HOLD");
+assert.deepEqual(kind(`${deepBenignPath.join("\n")}\nawait import(target35)`),
+  ["forbidden"], "inconclusive path depth is a conservative HOLD");
+assert.deepEqual(kind("const ref=process.env.UNREVIEWED;await import(ref)"),
+  [], "unknown runtime path without bound exhaustion remains out of scope");
+
+// Named function-expression name environment is shadowed by a parameter of
+// the same name. This is one binding, not an ambiguous lexical collision.
+for (const [label, code, expected] of [
+  ["named function expr with colliding ordinary parameter",
+    `const f=function ref(ref){require(ref)}`, []],
+  ["named require function expr with colliding require parameter",
+    `const f=function require(require){const target=${splitTarget};require(target)}`, []],
+  ["named require function expr without colliding parameter stays local",
+    `const f=function require(other){const target=${splitTarget};require(target)}`, []],
+  ["named ref expression parameter does not hide actual global require",
+    `const f=function ref(ref){const target=${splitTarget};require(target)}`, ["forbidden"]],
+  ["unshadowed outer require remains a real loader",
+    `const f=function require(require){const target=${splitTarget};require(target)};const target=${splitTarget};require(target)`,
+    ["forbidden"]],
+]) {
+  assert.deepEqual(kind(code), expected, label);
+}
 // An existing proof path remains a fixture-only allowance, not a runtime gate.
 assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
   "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
@@ -264,6 +324,8 @@ console.log("statically_computed_writer_loader_adversaries_rejected=true");
 console.log("sibling_shadow_lexical_recovery_and_duplicate_binding_hold=true");
 console.log("shadowed_loader_hoistable_bindings_class_static_scope_qualified=true");
 console.log("imported_factory_alias_chain_and_named_expression_shadowing_proven=true");
+console.log("bounded_loader_and_path_alias_depths_fail_closed=true");
+console.log("named_function_expression_parameter_shadowing_proven=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");

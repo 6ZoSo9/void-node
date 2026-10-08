@@ -167,9 +167,11 @@ function lexicalBindings(parsed) {
         recordUnknown(node, parameter.name, parameter, "hoistable");
       }
     }
-    // A named function expression binds its name inside *only that function*.
-    // It is not the ambient CommonJS require, even if its spelling matches.
-    if (ts.isFunctionExpression(node) && node.name) {
+    // A named function expression has an inner name environment. Function
+    // parameters shadow that name in the body; a same-spelled parameter is
+    // NOT a duplicate/conflicting lexical declaration.
+    if (ts.isFunctionExpression(node) && node.name &&
+        !byScope.get(node)?.has(node.name.text)) {
       add(node, node.name.text, node);
     }
     // Similarly, a named class expression creates a local binding for its
@@ -218,13 +220,18 @@ function lexicalBindings(parsed) {
   };
 }
 
-function staticStringValue(node, resolveBinding, depth = 0, active = new Set()) {
-  if (!node || depth >= MAX_STATIC_EXPRESSION_DEPTH) return null;
+function staticStringValue(node, resolveBinding, depth = 0, active = new Set(), limit = { hit: false }) {
+  if (!node) return null;
+  if (depth >= MAX_STATIC_EXPRESSION_DEPTH) {
+    // This is inconclusive, not a proof the import path is safe.
+    limit.hit = true;
+    return null;
+  }
   if (ts.isStringLiteralLike(node)) {
     return Buffer.byteLength(node.text, "utf8") <= MAX_STATIC_SPECIFIER_BYTES
       ? node.text : null;
   }
-  const next = expr => staticStringValue(expr, resolveBinding, depth + 1, active);
+  const next = expr => staticStringValue(expr, resolveBinding, depth + 1, active, limit);
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
       ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) ||
       (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node))) {
@@ -290,7 +297,11 @@ function isImportedCreateRequireFactory(binding, resolveBinding, active = new Se
   if (!binding) return false;
   if (binding.form === "node-create-require-import") return true;
   if (binding.kind !== "const" || !binding.initializer ||
-      active.has(binding.declaration) || active.size >= MAX_STATIC_EXPRESSION_DEPTH) return false;
+      active.has(binding.declaration)) return false;
+  // Exhaustion is inconclusive, never a proof that an imported factory is
+  // absent. Null propagates to the loader caller, which HOLDS if the module
+  // argument statically resolves to this protected writer.
+  if (active.size >= MAX_STATIC_EXPRESSION_DEPTH) return null;
   active.add(binding.declaration);
   const initializer = unwrapStaticExpression(binding.initializer);
   const recognized = ts.isIdentifier(initializer) &&
@@ -301,7 +312,11 @@ function isImportedCreateRequireFactory(binding, resolveBinding, active = new Se
 
 function isRecognizedCreateRequire(binding, resolveBinding, active = new Set()) {
   if (binding?.kind !== "const" || !binding.initializer ||
-      active.has(binding.declaration) || active.size >= MAX_STATIC_EXPRESSION_DEPTH) return false;
+      active.has(binding.declaration)) return false;
+  // A bounded alias traversal cannot infer "not a loader" at its cap.
+  // Null means INDETERMINATE and is treated as a possible loader only when
+  // the argument resolves to the protected writer.
+  if (active.size >= MAX_STATIC_EXPRESSION_DEPTH) return null;
   active.add(binding.declaration);
   const initializer = unwrapStaticExpression(binding.initializer);
   let recognized = false;
@@ -382,18 +397,25 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
     } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) &&
                node.moduleReference.expression && ts.isStringLiteralLike(node.moduleReference.expression)) {
       push(staticReference(node.moduleReference.expression.text, node, file, null, Boolean(node.isTypeOnly), "import-equals"));
-    } else if (ts.isCallExpression(node) && isModuleLoaderExpression(node.expression, resolveBinding)) {
-      const first = node.arguments[0];
-      const resolved = staticStringValue(first, resolveBinding);
-      if (resolved !== null) {
-        push(staticReference(resolved, node, file, null, false,
-          first && ts.isStringLiteralLike(first) ? "dynamic-loader" : "computed-loader"));
-      } else if (first?.getText(parsed).includes(WRITER_BASENAME) ||
-                 hasAmbiguousLexicalBinding(first, resolveBinding)) {
-        // Retain a conservative HOLD when the source visibly contains the
-        // writer name OR duplicate same-scope bindings prevent trustworthy
-        // alias resolution. Sibling lexical scopes remain independent.
-        push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
+    } else if (ts.isCallExpression(node)) {
+      const loader = isModuleLoaderExpression(node.expression, resolveBinding);
+      // true = recognized loader; null = bounded resolution exhausted,
+      // potentially a loader. Only false is sufficient to skip this call.
+      if (loader !== false) {
+        const first = node.arguments[0];
+        const limit = { hit: false };
+        const resolved = staticStringValue(first, resolveBinding, 0, new Set(), limit);
+        if (resolved !== null) {
+          push(staticReference(resolved, node, file, null, false,
+            first && ts.isStringLiteralLike(first) ? "dynamic-loader" : "computed-loader"));
+        } else if (limit.hit ||
+                   first?.getText(parsed).includes(WRITER_BASENAME) ||
+                   hasAmbiguousLexicalBinding(first, resolveBinding)) {
+          // An expression that exceeds the static folding bound cannot be
+          // silently accepted. This can conservatively HOLD deep benign
+          // imports; it is preferable to missing a statically aliased writer.
+          push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
+        }
       }
     }
     ts.forEachChild(node, visit);

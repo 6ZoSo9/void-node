@@ -65,6 +65,16 @@ immutable executable closure and no bypass route.
   chains back to the exact named `createRequire` import from `node:module`,
   including aliases of the factory *before* it creates a loader. This does not
   grant a local same-name helper or a shadowed parameter loader authority.
+  On hitting the 24-level alias bound, the scanner marks loader identity
+  **inconclusive**, not disproven, and returns a conservative HOLD if the
+  bounded request path resolves to this protected writer. If the request
+  string expression itself exceeds the folding limit, the audit also HOLDS
+  rather than treating a deep, statically aliased path as harmless; benign
+  overlong imports can require manual review. Cycles and unresolved runtime
+  environment variables are separate from bound exhaustion. For named
+  function expressions, a same-name parameter shadows the internal name;
+  those two bindings are not classified as ambiguous. A named function's
+  unshadowed internal `require` still differs from CommonJS require.
   No source expression is evaluated or executed during this source-only
   analysis.
 - Require the writer itself still exports both legacy entrypoints so an
