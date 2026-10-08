@@ -23,6 +23,7 @@ const sourceRequired = [
   'require("./economic/buy_void_request_tx_hash_binding_v1")',
   ".installBuyVoidRequestTxHashBindingV1({",
   "localOnly:__voidBuyVoidOperatorLocalOnlyV1",
+  "mutationIntent:__voidBuyVoidOperatorMutationIntentV1",
   "readRequests:__voidReadBuyVoidRequestsV1",
   "persistRequest:__voidPersistBuyVoidRequestV1",
   "requestLaunchAuthorityReady:__blo",
@@ -31,6 +32,8 @@ const sourceRequired = [
 const moduleRequired = [
   "VOID_BUY_VOID_REQUEST_TX_HASH_BINDING_V1",
   "export function installBuyVoidRequestTxHashBindingV1",
+  "mutationIntent: MutationIntent",
+  "if (!mutationIntent(req, res)) return;",
   '"/__void/buy-void/operator/request.json"',
   '"/__void/buy-void/operator/request/tx-hash.json"',
   'error: "method_not_allowed"',
@@ -185,6 +188,7 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
     installBuyVoidRequestTxHashBindingV1({
       app,
       localOnly: () => true,
+      mutationIntent: () => true,
       readRequests: async () => [structuredClone(baseRequest)],
       persistRequest: async (request) => {
         if (persistenceLeaseConflict) {
@@ -314,6 +318,7 @@ async function exerciseDuplicateHashConcurrencyGuard(): Promise<void> {
     installBuyVoidRequestTxHashBindingV1({
       app,
       localOnly: () => true,
+      mutationIntent: () => true,
       readRequests: async () => structuredClone(requests),
       persistRequest: async (request) => {
         await new Promise<void>((resolve) => setTimeout(resolve, 25));

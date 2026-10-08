@@ -918,7 +918,7 @@ const verifierStart = runtimeIndex.indexOf(
   "// VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1",
 );
 const verifierEnd = runtimeIndex.indexOf(
-  'app.get("/__void/buy-void/operator/mark.json"',
+  'app.post("/__void/buy-void/operator/mark.json"',
   verifierStart,
 );
 assert.ok(verifierStart >= 0 && verifierEnd > verifierStart);
