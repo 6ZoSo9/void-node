@@ -163,8 +163,8 @@ held(observedGap, "verified_allocation_missing");
 assert.equal(observedGap.reason, "verified_allocation_requires_protected_recovery");
 assert.equal(observedGap.canonical_payment_identity,
   paymentId("base", firstRequest.tx_hash, "7"));
-const exactEventSha = receipt(crypto.createHash("sha256")
-  .update(verifiedEvents).digest("hex"));
+const exactEventSha = "sha256:" + crypto.createHash("sha256")
+  .update(verifiedEvents).digest("hex");
 assert.equal(observedGap.payment_verified_event_sha256, exactEventSha);
 assert.equal(observedGap.unallocated_verified_void_micro, "6000000");
 assert.equal(observedGap.authority.independently_proven_event_fsync, false);
