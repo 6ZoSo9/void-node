@@ -18,9 +18,9 @@ Current source identities bound by the candidate:
 - finalized V2 verifier:
   `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
 - current locked compiled V4 manifest:
-  `c621c1361e9db1bcda32af1dd25e7a2515e793d7`;
+  `a07f2e9b03958a58280c4d940fe49097a9413af5`;
 - locked compiled generation:
-  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`.
+  `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`.
 
 The old enforcement V4 set
 `854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`

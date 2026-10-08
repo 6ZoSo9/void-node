@@ -3,7 +3,7 @@
   "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4",
   "version": 4,
   "repository": "6ZoSo9/void-node",
-  "source_stack_head": "47cbb1d4c7fb667a7accdf1089edb11072f3e631",
+  "source_stack_head": "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c",
   "predecessor": {
     "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
     "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
@@ -78,7 +78,7 @@
   "verified_payment_v2_source_git_blob_sha1": "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac",
   "verified_payment_v2_artifact_sha256": "7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2",
   "reviewed_source_finality_v6_source_git_blob_sha1": "7266c03d8874207ed3fda0f814d0a7a53d429c25",
-  "compiled_artifact_generation_sha256": "45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87",
+  "compiled_artifact_generation_sha256": "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06",
   "derivation_node_majors": [
     22,
     24,

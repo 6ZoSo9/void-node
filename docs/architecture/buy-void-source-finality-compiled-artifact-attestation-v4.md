@@ -10,11 +10,11 @@ The independently audited current candidate is the exact 4,032-byte JSON
 archived from #2633 run 37820150421 and rechecked in #2637:
 
 - candidate SHA-256:
-  `27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128`;
+  `43808d0c1d304fa8ccd34490725a46b760541e0e20c33eb9dae6ac219f7f6dc2`;
 - candidate Git blob:
   `4c95426572e6b019822f3ae6422aacad6287e562`;
 - compiled generation:
-  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`;
+  `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`;
 - reviewed-source digest:
   `95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426`.
 
@@ -39,7 +39,7 @@ Reviewed source identities:
 - V6 blob `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
 - V2 blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
 - source-generation anchor
-  `47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
+  `4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c`.
 
 ## Checked-entry execution
 
