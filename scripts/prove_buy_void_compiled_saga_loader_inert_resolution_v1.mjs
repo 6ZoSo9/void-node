@@ -13,7 +13,7 @@ import { readDescriptorRelativeLinuxV1 } from "./prove_buy_void_enforcement_desc
 import { runReviewedGitV1, proveReviewedGitV1Synthetic } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const PARENT="f4dc0e78d7e94ef43f68ff7819ce07cc61ca369f";
+const PARENT="a5409d50bbff85aab84e6d0eea962589fc1ff3e6";
 const SOURCE="src/economic/buy_void_erc20_execution_composition_v1.ts";
 const SOURCE_BLOB="acf2f88b513bbe50e192531f9fc8d261b69bd0f1";
 const COMPILED="dist/economic/buy_void_erc20_execution_composition_v1.js";
