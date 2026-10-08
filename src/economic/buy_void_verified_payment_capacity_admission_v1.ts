@@ -2248,7 +2248,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   const event = input?.event;
   const request = input?.request;
   const requestDirRaw = String(input?.request_dir || "").trim();
-  const requestId = String(event?.request_id || "").trim();
   if (
     !event ||
     typeof event !== "object" ||
@@ -2256,20 +2255,35 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     !request ||
     typeof request !== "object" ||
     Array.isArray(request) ||
-    !REQUEST_ID.test(requestId) ||
-    requestId !== String(request?.request_id || "").trim() ||
     !requestDirRaw ||
     typeof input?.with_launch_authority_mutation !== "function" ||
     typeof input?.read_sale_state !== "function"
   ) {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
+
+  // Serialize exactly once before choosing the payment/nonpayment path.
+  // This snapshot is the bytes that may be appended. Never inspect a mutable
+  // caller object and then stringify it later: a stateful getter/toJSON could
+  // otherwise change "reviewed" into "payment_verified" between admission
+  // and persistence.
+  const canonicalOperatorEvent =
+    canonicalVerifiedPaymentEventV1(event);
+  const operatorEvent = canonicalOperatorEvent.event;
+  const operatorEventLine = canonicalOperatorEvent.line;
+  const requestId = String(operatorEvent.request_id || "").trim();
+  if (
+    !REQUEST_ID.test(requestId) ||
+    requestId !== String(request?.request_id || "").trim()
+  ) {
+    fail("buy_void_operator_event_capacity_writer_input_invalid");
+  }
+
   // The public router and future verified-allocation dispatcher emit an
   // exact closed operator-status vocabulary. Enforce the SAME boundary in
-  // this exported legacy source API, before mkdir, sidecar or ledger append:
-  // no padded / case-folded / object-toJSON alias can be written as a
-  // nonpayment event then reclassified by a separate capacity recount.
-  const operatorStatus = event.operator_status;
+  // this exported legacy source API against the detached persisted snapshot,
+  // before mkdir, sidecar or ledger append.
+  const operatorStatus = operatorEvent.operator_status;
   if (typeof operatorStatus !== "string" ||
       !["payment_verified", "reviewed", "fulfilled", "rejected"]
         .includes(operatorStatus)) {
@@ -2290,7 +2304,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       () => {
         fs.appendFileSync(
           path.join(requestDir, "operator-events.jsonl"),
-          JSON.stringify(event) + "\n",
+          operatorEventLine,
         );
         fs.writeFileSync(
           path.join(
@@ -2298,20 +2312,18 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
             "operator-event-" +
               requestId +
               "-" +
-              String(event.marked_at_ms || "") +
+              String(operatorEvent.marked_at_ms || "") +
               ".json",
           ),
-          JSON.stringify(event, null, 2),
+          JSON.stringify(operatorEvent, null, 2),
         );
         return { ok: true, dir: requestDir };
       },
     );
   }
 
-  const canonicalPayment =
-    canonicalVerifiedPaymentEventV1(event);
-  const paymentEvent = canonicalPayment.event;
-  const paymentEventLine = canonicalPayment.line;
+  const paymentEvent = operatorEvent;
+  const paymentEventLine = operatorEventLine;
   if (
     String(paymentEvent.request_id || "").trim() !== requestId ||
     String(paymentEvent.operator_status || "") !== "payment_verified"
