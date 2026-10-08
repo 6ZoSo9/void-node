@@ -244,6 +244,30 @@ expectHeld(buildBuyVoidVerifiedPaymentEventV2({
   receipt: canonicalReceipt, policy: canonicalPolicy,
 }), "original_request_usdc_contract_missing_or_invalid");
 
+for (const partialCheckoutEvidence of [
+  { payment_chain: "base" },
+  { payment_chain_id: 8453 },
+  {
+    payment_instructions: {
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: BASE_NATIVE_USDC,
+      token_decimals: 6,
+      send_to: receiver,
+      send_from: delivery,
+    },
+  },
+]) {
+  expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+    request: {
+      ...request,
+      ...partialCheckoutEvidence,
+    },
+    receipt: receipt(),
+    policy: policy(),
+  }), "original_request_usdc_contract_missing_or_invalid");
+}
+
 for (const [patch, reason] of [
   [{ payment_chain: "ethereum" }, "original_request_payment_chain_mismatch"],
   [{ payment_chain: undefined }, "original_request_payment_chain_mismatch"],
@@ -314,7 +338,7 @@ console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PROVENANCE_V1_GREEN");
 console.log("native_usdc_checkout_config_receipt_consistency=true");
 console.log("non_native_config_cannot_verify_native_checkout=true");
 console.log("missing_or_wrong_original_coupled_token_holds=true");
-console.log("original_checkout_payment_instructions_fully_bound=true");
+console.log("original_checkout_payment_instructions_fully_bound=true");\nconsole.log("partial_checkout_evidence_cannot_downgrade_to_legacy=true");
 console.log("checkout_chain_ids_and_token_decimals_type_exact=true");
 console.log("ethereum_payment_log_not_finality=true");
 console.log("removed_log_rejected=true");
