@@ -107,7 +107,7 @@ export type BuyVoidVerifiedPaymentDecisionV2 =
     };
 
 // Checkout-specific fields are optional for old generic V2 callers, but their
-// presence invokes the mandatory native-USDC/launch-consistency guard below.
+// presence invokes the mandatory native-USDC/original-instruction binding guard below.
 export type BuyVoidVerifiedPaymentRequestV2 = BuyVoidRequestV1 & {
   payment_chain?: unknown;
   payment_chain_id?: unknown;
@@ -275,10 +275,10 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   // Legacy V2 fixtures without any checkout/coupled evidence keep their
   // previous behavior, but are NOT production payment-admission authority.
   const original = request;
-  const hasCheckoutTokenEvidence =
+  const hasCheckoutEvidence =
     Object.prototype.hasOwnProperty.call(original, "usdc_contract") ||
     Object.prototype.hasOwnProperty.call(original, "launch_authority");
-  if (hasCheckoutTokenEvidence) {
+  if (hasCheckoutEvidence) {
     const originalToken = normalizeAddress(original.usdc_contract);
     if (!originalToken) {
       return held("original_request_usdc_contract_missing_or_invalid");
@@ -299,7 +299,7 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   }
   if (!deliveryAddress) return held("invalid_delivery_address");
 
-  if (hasCheckoutTokenEvidence) {
+  if (hasCheckoutEvidence) {
     const expectedChainId = NATIVE_CHAIN_ID_BY_CHAIN[chain];
     if (!exactCheckoutChain(original.payment_chain, chain)) {
       return held("original_request_payment_chain_mismatch");
