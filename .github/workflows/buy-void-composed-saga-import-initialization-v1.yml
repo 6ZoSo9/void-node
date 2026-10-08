@@ -59,6 +59,8 @@ jobs:
             const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
             assert.equal(j.schema,"void_buy_void_composed_saga_import_initialization_candidate_v1");
             assert.equal(j.exact_source_parent,"5a38cc34ca497b8b39a299aba09ce012d9d3c181");
+            assert.equal(j.reviewed_parent_tree_identity_verified,true);
+            assert.equal(j.reviewed_parent_ancestor_required,false);
             assert.equal(j.saga_source_bytes,58023);
             assert.deepEqual(j.imports,["node:crypto","node:fs","node:path"]);
             assert.equal(j.top_level_function_declarations,50);
