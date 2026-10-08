@@ -27,6 +27,11 @@ const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
   base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
   ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 });
+const NATIVE_CHAIN_ID_BY_CHAIN: Readonly<Record<string, number>> =
+  Object.freeze({
+    base: 8453,
+    ethereum: 1,
+  });
 
 export type BuyVoidReceiptLogV2 = {
   address?: unknown;
@@ -102,9 +107,12 @@ export type BuyVoidVerifiedPaymentDecisionV2 =
     };
 
 // Checkout-specific fields are optional for old generic V2 callers, but their
-// presence invokes the mandatory native-USDC/launch-consistency guard below.
+// presence invokes the mandatory native-USDC/original-instruction binding guard below.
 export type BuyVoidVerifiedPaymentRequestV2 = BuyVoidRequestV1 & {
+  payment_chain?: unknown;
+  payment_chain_id?: unknown;
   usdc_contract?: unknown;
+  payment_instructions?: unknown;
   launch_authority?: unknown;
 };
 
@@ -136,6 +144,23 @@ function normalizeChain(value: unknown): string {
 function normalizeAddress(value: unknown): string {
   const address = String(value || "").trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
+}
+
+function exactCheckoutChain(value: unknown, expected: string): boolean {
+  return (
+    typeof value === "string" &&
+    value.trim().toLowerCase() === expected
+  );
+}
+
+function exactCheckoutInteger(value: unknown, expected: number): boolean {
+  return typeof value === "number" && value === expected;
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function normalizeHash(value: unknown): string {
@@ -250,10 +275,14 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   // Legacy V2 fixtures without any checkout/coupled evidence keep their
   // previous behavior, but are NOT production payment-admission authority.
   const original = request;
-  const hasCheckoutTokenEvidence =
-    Object.prototype.hasOwnProperty.call(original, "usdc_contract") ||
-    Object.prototype.hasOwnProperty.call(original, "launch_authority");
-  if (hasCheckoutTokenEvidence) {
+  const hasCheckoutEvidence = [
+    "payment_chain",
+    "payment_chain_id",
+    "usdc_contract",
+    "payment_instructions",
+    "launch_authority",
+  ].some((key) => Object.prototype.hasOwnProperty.call(original, key));
+  if (hasCheckoutEvidence) {
     const originalToken = normalizeAddress(original.usdc_contract);
     if (!originalToken) {
       return held("original_request_usdc_contract_missing_or_invalid");
@@ -273,6 +302,38 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     return held("receive_address_binding_mismatch");
   }
   if (!deliveryAddress) return held("invalid_delivery_address");
+
+  if (hasCheckoutEvidence) {
+    const expectedChainId = NATIVE_CHAIN_ID_BY_CHAIN[chain];
+    if (!exactCheckoutChain(original.payment_chain, chain)) {
+      return held("original_request_payment_chain_mismatch");
+    }
+    if (!exactCheckoutInteger(original.payment_chain_id, expectedChainId)) {
+      return held("original_request_payment_chain_id_mismatch");
+    }
+    const instructions = record(original.payment_instructions);
+    if (!instructions) {
+      return held("original_request_payment_instructions_missing_or_invalid");
+    }
+    if (!exactCheckoutChain(instructions.send_chain, chain)) {
+      return held("original_request_payment_instruction_chain_mismatch");
+    }
+    if (!exactCheckoutInteger(instructions.send_chain_id, expectedChainId)) {
+      return held("original_request_payment_instruction_chain_id_mismatch");
+    }
+    if (normalizeAddress(instructions.token_contract) !== usdcContract) {
+      return held("original_request_payment_instruction_token_mismatch");
+    }
+    if (!exactCheckoutInteger(instructions.token_decimals, 6)) {
+      return held("original_request_payment_instruction_decimals_mismatch");
+    }
+    if (normalizeAddress(instructions.send_to) !== requestReceiveAddress) {
+      return held("original_request_payment_instruction_receive_mismatch");
+    }
+    if (normalizeAddress(instructions.send_from) !== deliveryAddress) {
+      return held("original_request_payment_instruction_sender_mismatch");
+    }
+  }
 
   const requestedUnits = decimalToUnits(request.usdc_amount, 6);
   if (requestedUnits === null || requestedUnits <= 0n) {

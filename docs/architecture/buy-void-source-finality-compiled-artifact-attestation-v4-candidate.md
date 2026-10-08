@@ -10,10 +10,10 @@ change requires a newly derived, independently reviewed compiled successor,
 not a V3 hash repin or a skipped failing workflow.
 
 This candidate is stacked directly on PR #2630 source head
-`83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e`.
+`47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
 It requires source-finality V6 source Git blob
-`d642723385136e9f0382bd77efdb34948221f380` and native-USDC V2
-verifier blob `32133e441ccb02bb4786d29e36932fb31399ec87`.
+`7266c03d8874207ed3fda0f814d0a7a53d429c25` and native-USDC V2
+verifier blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
 Build inputs include fixed compiler version TypeScript 5.9.3, the reviewed
 `package.json`, `package-lock.json`, and `tsconfig.build.json` Git blobs.
 
@@ -74,3 +74,11 @@ Chain-2050, Work Credit or service state is accessed by this CI candidate.
 No Ready/merge/deployment or presale/market authority is granted.
 
 **PROTECT THE CORE.**
+
+
+The current reviewed-source parent is exact #2630 head
+`47cbb1d4c7fb667a7accdf1089edb11072f3e631`. It contains both the reviewed V6 source and the final hardened V2
+payment-verifier source blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
+Candidate derivation requires that exact parent to be an ancestor and requires
+zero reviewed-source/build-input drift from that source-stack head through
+current HEAD.
