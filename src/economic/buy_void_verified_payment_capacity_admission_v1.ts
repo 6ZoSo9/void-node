@@ -1226,6 +1226,17 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         });
 
         if (alreadyVerified) {
+          if (typeof input.idempotent_operation !== "function") {
+            return Object.freeze({
+              ok: true as const,
+              idempotent: true,
+              operation_performed: false,
+              decision: before,
+              duplicate_guard: duplicateBefore,
+              result: null,
+            });
+          }
+
           const candidateLine =
             JSON.stringify(input.verified_payment_event);
           const exactHistoricalEvent =
@@ -1240,17 +1251,6 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
             fail(
               "buy_void_verified_payment_capacity_idempotent_event_not_exact_history",
             );
-          }
-
-          if (typeof input.idempotent_operation !== "function") {
-            return Object.freeze({
-              ok: true as const,
-              idempotent: true,
-              operation_performed: false,
-              decision: before,
-              duplicate_guard: duplicateBefore,
-              result: null,
-            });
           }
 
           const result =
