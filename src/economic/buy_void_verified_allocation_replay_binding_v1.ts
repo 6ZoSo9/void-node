@@ -291,7 +291,7 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     if (!event) fail("replay_binding_verified_payment_missing");
 
     const allocation = classifyBuyVoidAllocationReservationLedgerV1(input.allocation_jsonl);
-    if (!allocation.ok) fail("allocation_history_" + allocation.reason);
+    if (allocation.ok === false) fail("allocation_history_" + allocation.reason);
     let allocatedMicro = 0n;
     let matched: (typeof allocation.records)[number] | null = null;
     for (const record of allocation.records) {
