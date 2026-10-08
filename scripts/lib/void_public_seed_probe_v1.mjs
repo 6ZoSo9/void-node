@@ -172,9 +172,13 @@ function requestOneBounded(
               const safeMedia = /^(?:application\/json|text\/html|text\/plain)$/u.test(media)
                 ? media : "other";
               const hash = createHash("sha256").update(bytes).digest("hex");
-              fail(new Error(
+              const invalidJson = new Error(
                 `public_seed_response_invalid_json status=${status} media_type=${safeMedia} bytes=${bytes.length} sha256=${hash}`,
-              ));
+              );
+              // Unlike an ordinary network failure, malformed response
+              // bytes must not retry a different pinned IP address.
+              invalidJson.code = "VOID_PUBLIC_SEED_INVALID_JSON";
+              fail(invalidJson);
               return;
             }
           }
@@ -232,6 +236,9 @@ export async function requestBounded(
         allowLoopbackFixture,
       });
     } catch (error) {
+      // A syntactically invalid seed response is disqualifying evidence.
+      // Never let a second DNS-pinned address erase that observation.
+      if (error?.code === "VOID_PUBLIC_SEED_INVALID_JSON") throw error;
       errors.push(`${address}: ${error?.message || String(error)}`);
     }
   }

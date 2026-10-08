@@ -13,7 +13,9 @@ type (application/json / text/html / text/plain / other), bounded byte count,
 and SHA-256 response hash. No untrusted response body, raw header or
 credential is printed. The digest is diagnostic evidence, **not authentication**.
 
-The failure still HOLDs the **entire** three-sample qualification. No retry,
+The failure still HOLDs the **entire** three-sample qualification. A
+malformed response from any attempted DNS-pinned address **cannot fall through
+to another address** as an ordinary network connection error can. No
 relaxed JSON parsing, source re-pin, fresh receipt, publication or system
 change is performed. TLS checks, DNS/address pins, body size/deadline,
 redirect and private-route checks remain as before.

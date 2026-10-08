@@ -130,13 +130,18 @@ await listen(invalidJsonFixture, 0);
 try {
   const base = `http://127.0.0.1:${invalidJsonFixture.address().port}`;
   const config = {
-    pinnedAddresses: ["127.0.0.1"], allowLoopbackFixture: true,
+    pinnedAddresses: ["127.0.0.1", "127.0.0.2"],
+    allowLoopbackFixture: true,
     timeoutMs: 2000, maxBytes: 1024,
   };
   let broken;
   try { await requestBounded(base + "/non-json", config); }
   catch (error) { broken = error; }
   assert(broken instanceof Error, "non-JSON response did not reject");
+  assert(broken.code === "VOID_PUBLIC_SEED_INVALID_JSON",
+    "invalid JSON must be a terminal rejection, not a retryable address error");
+  assert(!broken.message.includes("failed on every pinned address"),
+    "malformed response was wrongly allowed to retry another DNS address");
   assert(/public_seed_response_invalid_json status=503 media_type=text\/html bytes=\d+ sha256=[0-9a-f]{64}/u.test(broken.message),
     "redacted failure missing bounded status/media/digest");
   assert(broken.message.includes("sha256=" + createHash("sha256").update(secretBody).digest("hex")),
