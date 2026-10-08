@@ -78,12 +78,42 @@ for (const key of [
     "0x" + "1".repeat(40));
 }
 
-{
+for (const status of ["reviewed", "fulfilled", "rejected"] as const) {
   const plan = planBuyVoidOperatorAllocationDispatchV1(input({
-    event: {request_id:"synthetic-r1",operator_status:"reviewed"},
+    event: {request_id:"synthetic-r1",operator_status:status},
     allocation_ledger_root:undefined,allocation_high_water_root:undefined,
   }));
   assert.equal(plan.kind, "nonpayment_legacy_writer");
+  assert.equal(plan.event.operator_status, status);
+}
+
+for (const status of [
+  "payment_verified ",
+  "\tpayment_verified\n",
+  "Payment_verified",
+  "PAYMENT_VERIFIED",
+  " reviewed",
+  "reviewed ",
+  "unknown",
+]) {
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({
+      event: {request_id:"synthetic-r1",operator_status:status},
+      allocation_ledger_root:undefined,
+      allocation_high_water_root:undefined,
+    })),
+    /buy_void_operator_allocation_dispatch_request_event_identity_status_or_server_callbacks_invalid/u,
+    status,
+  );
+  await assert.rejects(
+    () => dispatchBuyVoidOperatorEventWithAllocationRequiredV1(input({
+      event: {request_id:"synthetic-r1",operator_status:status},
+      allocation_ledger_root:undefined,
+      allocation_high_water_root:undefined,
+    })),
+    /buy_void_operator_allocation_dispatch_request_event_identity_status_or_server_callbacks_invalid/u,
+    status,
+  );
 }
 
 {
@@ -202,6 +232,7 @@ for (const [reason, overrides] of [
   ["nested roots", {allocation_high_water_root:"/var/lib/void-synthetic-ledger/child"}],
   ["wrong request id", {request:{request_id:"other"}}],
   ["empty status", {event:{request_id:"synthetic-r1",operator_status:""}}],
+  ["non-string status", {event:{request_id:"synthetic-r1",operator_status:1}}],
   ["invalid server callback", {read_sale_state:null}],
 ] as const) {
   assert.throws(() =>
@@ -276,6 +307,10 @@ assert.match(writerBytes.toString("utf8"),
 console.log("VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_GREEN");
 console.log("verified_payment_plan_selects_allocation_handoff=true");
 console.log("nonpayment_plan_preserves_status_writer=true");
+console.log("canonical_operator_status_closed_enum=true");
+console.log("payment_verified_whitespace_alias_rejected=true");
+console.log("payment_verified_case_alias_rejected=true");
+console.log("invalid_status_cannot_reach_legacy_writer=true");
 console.log("missing_invalid_or_aliased_private_roots_fail_closed=true");
 console.log("immutable_event_and_request_snapshots=true");
 console.log("stateful_event_toJSON_read_once=true");
