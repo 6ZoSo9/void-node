@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1,
@@ -201,6 +202,52 @@ for (const [req, status, error] of [
   }
 }
 
+const runtimeSource = fs.readFileSync("src/index.ts", "utf8");
+const txHashBindingSource = fs.readFileSync(
+  "src/economic/buy_void_request_tx_hash_binding_v1.ts",
+  "utf8",
+);
+
+for (const route of [
+  "/__void/buy-void/operator/verify-payment.json",
+  "/__void/buy-void/operator/mark.json",
+]) {
+  assert.equal(
+    runtimeSource.includes(`app.post("${route}"`),
+    true,
+    `operator mutation route must be POST: ${route}`,
+  );
+  assert.equal(
+    runtimeSource.includes(`app.get("${route}"`),
+    false,
+    `operator mutation route must not remain GET: ${route}`,
+  );
+}
+assert.match(
+  runtimeSource,
+  /const __voidBuyVoidOperatorLocalOnlyV1=__boi\.authorizeBuyVoidOperatorLocalReadV1/u,
+);
+assert.match(
+  runtimeSource,
+  /const __voidBuyVoidOperatorMutationIntentV1=__boi\.authorizeBuyVoidOperatorMutationV1/u,
+);
+assert.match(
+  runtimeSource,
+  /if \(!__voidBuyVoidOperatorMutationIntentV1\(req,res\)\) return;/u,
+);
+assert.match(
+  runtimeSource,
+  /method:"POST",headers:\{"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"\}/u,
+);
+assert.match(
+  runtimeSource,
+  /mutationIntent:__voidBuyVoidOperatorMutationIntentV1/u,
+);
+assert.match(
+  txHashBindingSource,
+  /if \(!mutationIntent\(req, res\)\) return;/u,
+);
+
 console.log("VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_V1_PROOF_GREEN");
 console.log("loopback_host_and_socket_peer_required=true");
 console.log("forged_local_host_remote_peer_rejected=true");
@@ -208,6 +255,8 @@ console.log("public_host_loopback_proxy_rejected=true");
 console.log("operator_mutation_post_required=true");
 console.log("operator_mutation_intent_header_required=true");
 console.log("cross_site_browser_mutation_rejected=true");
+console.log("mounted_operator_mutation_routes_post_only=true");
+console.log("tx_hash_binding_mutation_intent_wired=true");
 console.log("query_secret=false");
 console.log("runtime_mutation=false");
 console.log("funds_movement=false");
