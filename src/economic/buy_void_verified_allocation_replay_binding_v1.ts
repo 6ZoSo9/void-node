@@ -39,6 +39,14 @@ export const VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_AUTHORITY_V1 =
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX = /^0x[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
+const SHA256_REF = /^sha256:[0-9a-f]{64}$/u;
+const HEX_64 = /^[0-9a-f]{64}$/u;
+const ACTIVATION_RECEIPT = /^voidbclive1_[0-9a-f]{64}$/u;
+const LAUNCH_AUTHORITY_KEYS = Object.freeze([
+  "activation_generation", "activation_receipt_id", "activation_receipt_sha256",
+  "coupled_launch_id", "expires_at_ms", "generation_tip_sha256",
+  "marker", "source_composition_id", "version",
+]);
 const UNSIGNED = /^(0|[1-9][0-9]*)$/u;
 const MAX_JSONL_BYTES = 64 * 1024 * 1024;
 const MAX_ROWS = 100_000;
@@ -74,6 +82,7 @@ type RequestState = {
   usdcMicro: bigint | null;
   delivery: string;
   receive: string;
+  usdcContract: string;
   launchAuthority: RecordRow | null;
 };
 type VerifiedState = {
@@ -164,9 +173,36 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
   });
 }
 
+// Mirror the pure canonical allocation planner's exact *shape* contract.
+// It cannot authenticate the launch-generation receipt or its historical origin.
+function canonicalLaunchAuthority(value: unknown): RecordRow | null {
+  if (value === null || value === undefined) return null;
+  if (!isRow(value) || Object.keys(value).sort().join("|") !==
+      [...LAUNCH_AUTHORITY_KEYS].sort().join("|") ||
+      value.marker !== "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1" ||
+      value.version !== 1 ||
+      typeof value.expires_at_ms !== "number" ||
+      !Number.isSafeInteger(value.expires_at_ms) || value.expires_at_ms < 1 ||
+      typeof value.activation_receipt_id !== "string" ||
+      !ACTIVATION_RECEIPT.test(value.activation_receipt_id) ||
+      typeof value.activation_receipt_sha256 !== "string" ||
+      !HEX_64.test(value.activation_receipt_sha256) ||
+      typeof value.activation_generation !== "string" ||
+      !TX.test(value.activation_generation)) {
+    fail("request_launch_authority_invalid");
+  }
+  for (const name of ["coupled_launch_id", "source_composition_id", "generation_tip_sha256"]) {
+    if (typeof value[name] !== "string" || !SHA256_REF.test(value[name])) {
+      fail("request_launch_authority_invalid");
+    }
+  }
+  return value;
+}
+
 function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
   const states = new Map<string, RequestState>();
-  for (const { row } of requestRows) {
+  const previousLines = new Map<string, string>();
+  for (const { row, exactLine } of requestRows) {
     const id = field(row.request_id, "request_id_invalid");
     if (!REQUEST_ID.test(id)) fail("request_id_invalid");
     const sourceChain = chain(row.source_chain ?? row.payment_chain ?? row.chain);
@@ -176,28 +212,38 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       ? null : amount(row.usdc_amount, "request_usdc_invalid");
     const delivery = address(row.delivery_address, "request_delivery_invalid", true);
     const receive = address(row.receive_address, "request_receive_invalid", true);
-    const authority = isRow(row.launch_authority) ? row.launch_authority : null;
+    const usdcContract = address(row.usdc_contract, "request_usdc_contract_invalid", true);
+    const authority = canonicalLaunchAuthority(row.launch_authority);
     const prev = states.get(id);
     if (!prev) {
       states.set(id, {
         id, chain: sourceChain, tx, voidMicro: quoted, usdcMicro: usdc,
-        delivery, receive, launchAuthority: authority,
+        delivery, receive, usdcContract, launchAuthority: authority,
       });
+      previousLines.set(id, exactLine);
       continue;
     }
+    if (previousLines.get(id) === exactLine) fail("request_history_duplicate_snapshot");
+    // Request history is append-only full snapshots. Once a field is populated,
+    // a later snapshot may not erase it and fall back to stale prior bytes.
     if (prev.chain !== sourceChain || prev.voidMicro !== quoted ||
-      (prev.tx && prev.tx !== tx) || (prev.usdcMicro !== null && usdc !== null && prev.usdcMicro !== usdc) ||
-      (prev.delivery && delivery && prev.delivery !== delivery) ||
-      (prev.receive && receive && prev.receive !== receive) ||
-      (prev.launchAuthority && authority && JSON.stringify(prev.launchAuthority) !== JSON.stringify(authority))) {
+      (prev.tx && prev.tx !== tx) ||
+      (prev.usdcMicro !== null && prev.usdcMicro !== usdc) ||
+      (prev.delivery && prev.delivery !== delivery) ||
+      (prev.receive && prev.receive !== receive) ||
+      (prev.usdcContract && prev.usdcContract !== usdcContract) ||
+      (prev.launchAuthority && (!authority ||
+        JSON.stringify(prev.launchAuthority) !== JSON.stringify(authority)))) {
       fail("request_history_lineage_drift");
     }
     states.set(id, {
       id, chain: sourceChain, tx: prev.tx || tx, voidMicro: quoted,
       usdcMicro: prev.usdcMicro ?? usdc,
       delivery: prev.delivery || delivery, receive: prev.receive || receive,
+      usdcContract: prev.usdcContract || usdcContract,
       launchAuthority: prev.launchAuthority || authority,
     });
+    previousLines.set(id, exactLine);
   }
   return states;
 }
@@ -215,6 +261,8 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   if (!request || !request.tx || !request.delivery || !request.receive || request.usdcMicro === null) {
     fail("verified_event_request_lineage_missing");
   }
+  if (!request.launchAuthority) fail("verified_event_request_launch_authority_missing");
+  if (!request.usdcContract) fail("verified_event_request_usdc_contract_missing");
   if (row.quoted_void === undefined || amount(row.quoted_void, "verified_event_quote_invalid") !== request.voidMicro) {
     fail("verified_event_request_quote_mismatch");
   }
@@ -229,6 +277,9 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   if (BigInt(logIndex) > 0xffff_ffffn || sourceChain !== request.chain ||
       txHash(row.tx_hash) !== request.tx || paymentTx !== request.tx) {
     fail("verified_event_transaction_binding_mismatch");
+  }
+  if (address(v.usdc_contract, "verified_event_usdc_contract_invalid") !== request.usdcContract) {
+    fail("verified_event_usdc_contract_mismatch");
   }
   if (address(v.delivery_address, "verified_event_delivery_invalid") !== request.delivery ||
       address(v.from_address, "verified_event_from_invalid") !== request.delivery ||
@@ -325,10 +376,10 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     }
     if (allocatedMicro > verifiedMicro) fail("allocation_history_exceeds_verified_capacity");
     return Object.freeze({
-      ok: true,
+      ok: matched !== null,
       status: matched ? "allocation_present" : "verified_allocation_missing",
       marker: VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1,
-      reason: null,
+      reason: matched ? null : "verified_allocation_requires_protected_recovery",
       request_id: target,
       canonical_payment_identity: event.paymentIdentity,
       payment_verified_event_sha256: event.eventSha,

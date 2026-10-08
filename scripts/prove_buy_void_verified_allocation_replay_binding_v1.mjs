@@ -35,6 +35,7 @@ const request = Object.freeze({
   usdc_amount: "3",
   delivery_address: addr("2"),
   receive_address: addr("3"),
+  usdc_contract: addr("4"),
   launch_authority: LAUNCH_AUTHORITY,
 });
 const event = Object.freeze({
@@ -82,6 +83,16 @@ function good(result, status) {
   assert.equal(result.authority.runtime_integration, false);
   assert.equal(result.authority.descriptor_bound_read, false);
 }
+function gap(result) {
+  assert.equal(result.marker, VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1);
+  assert.equal(result.ok, false, "missing allocation is not an approved outcome");
+  assert.equal(result.status, "verified_allocation_missing");
+  assert.equal(result.reason, "verified_allocation_requires_protected_recovery");
+  assert.equal(result.operation_performed, false);
+  assert.equal(result.authority.production_gate_ready, false);
+  assert.equal(result.authority.allocation_write, false);
+  assert.equal(result.authority.independently_proven_event_fsync, false);
+}
 function hold(result, contains) {
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.status, "held");
@@ -100,7 +111,7 @@ for (const [key, value] of Object.entries(VOID_BUY_VOID_VERIFIED_ALLOCATION_REPL
 // Payment_verified already fsynced is modeled as a complete operator JSONL
 // row. The pure classifier cannot prove that these bytes came from storage.
 const before = scan();
-good(before, "verified_allocation_missing");
+gap(before);
 assert.equal(before.request_id, request.request_id);
 assert.equal(before.verified_void_micro, "6000000");
 assert.equal(before.unallocated_verified_void_micro, "6000000");
@@ -140,10 +151,60 @@ const after = scan([request], [event], allocationBytes);
 good(after, "allocation_present");
 assert.equal(after.allocation_record_id, planned.record.record_id);
 assert.equal(after.unallocated_verified_void_micro, "0");
+assert.equal(after.ok, true);
+assert.equal(scan([request], [event], allocationBytes).status, "allocation_present");
 assert.deepEqual(scan([request], [event], allocationBytes), after);
 
 hold(scan([request], []), /verified_payment_missing/u);
 hold(scan([request], [{ ...event, payment_verified: false }]), /verified_payment_v2_identity_incomplete/u);
+// P1: absence or malformed coupled launch authority must HOLD even when the
+// allocation ledger is empty (payment-fsynced / allocation-missing crash gap).
+for (const bad of [
+  undefined,
+  null,
+  {},
+  { ...LAUNCH_AUTHORITY, marker: "FORGED" },
+  { ...LAUNCH_AUTHORITY, version: 2 },
+  { ...LAUNCH_AUTHORITY, activation_receipt_id: undefined },
+  { ...LAUNCH_AUTHORITY, activation_receipt_sha256: undefined },
+  { ...LAUNCH_AUTHORITY, activation_generation: "0xdeadbeef" },
+  { ...LAUNCH_AUTHORITY, expires_at_ms: 0 },
+  { ...LAUNCH_AUTHORITY, arbitrary_extra_key: true },
+]) {
+  const result = scan([{ ...request, launch_authority: bad }], [event]);
+  hold(result, /(?:request_launch_authority_invalid|verified_event_request_launch_authority_missing)/u);
+}
+// A valid but DIFFERENT generation in a later request snapshot conflicts
+// with the original tuple. Independent first-generation authority is still
+// outside this caller-supplied source-only byte classifier.
+hold(scan([request, {
+  ...request,
+  launch_authority: { ...LAUNCH_AUTHORITY, activation_generation: tx("9") },
+}], [event]), /request_history_lineage_drift/u);
+
+// The canonical verified-transfer contract must be present in the retained
+// request, not inferred from a caller's arbitrary ERC-20 event.
+hold(scan([{ ...request, usdc_contract: undefined }], [event]), /verified_event_request_usdc_contract_missing/u);
+hold(scan([{ ...request, usdc_contract: addr("8") }], [event]), /verified_event_usdc_contract_mismatch/u);
+hold(scan([request], [{ ...event, payment_verifier: {
+  ...event.payment_verifier, usdc_contract: addr("8"),
+} }]), /verified_event_usdc_contract_mismatch/u);
+hold(scan([request], [{ ...event, payment_verifier: {
+  ...event.payment_verifier, usdc_contract: undefined,
+} }]), /verified_event_usdc_contract_invalid/u);
+
+// Full snapshots may transition missing -> populated only once. Repeated or
+// regressed historical fields must not resurrect stale prior state.
+hold(scan([request, request]), /request_history_duplicate_snapshot/u);
+for (const key of [
+  "tx_hash", "usdc_amount", "delivery_address", "receive_address",
+  "usdc_contract", "launch_authority",
+]) {
+  hold(scan([request, { ...request, [key]: undefined }], [event]), /request_history_lineage_drift/u);
+}
+const partialOpening = { ...request, tx_hash: "", usdc_contract: undefined,
+  launch_authority: undefined, receive_address: undefined };
+gap(scan([partialOpening, request], [event]));
 hold(scan([{ ...request, quoted_void: "7" }], [event]), /verified_event_request_quote_mismatch/u);
 hold(scan([{ ...request, tx_hash: tx("8") }], [event]), /verified_event_transaction_binding_mismatch/u);
 hold(scan([{ ...request, delivery_address: addr("7") }], [event]), /verified_event_destination_or_amount_mismatch/u);
@@ -187,6 +248,10 @@ console.log("VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1_SOURCE_GREEN");
 console.log("exact_payment_identity_from_existing_primitive=true");
 console.log("exact_verified_event_line_sha256_bound=true");
 console.log("missing_allocation_explicit_not_success=true");
+console.log("verified_missing_allocation_ok_false=true");
+console.log("coupled_launch_authority_required_even_without_allocation=true");
+console.log("usdc_contract_matched_to_request_or_held=true");
+console.log("request_snapshot_duplicates_or_lineage_erasure_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");
 console.log("descriptor_custody_or_payment_fsync_claimed=false");

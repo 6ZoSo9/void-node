@@ -25,13 +25,18 @@ paths, generation selectors, receipt URLs, or mutation callbacks.
 The pure classifier requires canonical UTF-8 JSONL with complete LF-terminated,
 `JSON.stringify`-round-trippable rows, no duplicate JSON members or truncated
 final row, and bounded size/row count. It binds all observed request history
-against exact chain, transaction, quote, USDC, destination and available launch
-lineage and rejects conflicting history. For every accepted verified-payment V2
+against exact chain, transaction, quote, USDC contract, destination and
+canonical coupled launch-authority lineage, rejecting missing or malformed
+launch tuples **even if the allocation ledger is empty**. Later full request
+snapshots may only add missing bindings, not erase or change prior fields;
+byte-identical duplicate request snapshots HOLD. For every accepted verified-payment V2
 row it binds the exact canonical payment identity using the existing
 `canonicalBuyVoidPaymentIdentityV1` primitive, enforces one immutable event per
 request/payment identity, exact request quote and configured 2:1 canonical
-presale economics, transfer amount, source transaction, log index and delivery
-addresses. Aggregate verified obligations must not exceed 10,000,000 VOID.
+presale economics, canonical request-bound USDC token contract, transfer
+amount, source transaction, log index and delivery addresses. A legacy request
+without a recorded USDC contract remains source-HOLD; a later reviewed trusted
+request/policy migration would be required rather than guessing from an event. Aggregate verified obligations must not exceed 10,000,000 VOID.
 
 **Exact committed event hash** is SHA-256 of the existing serialized
 `payment_verified` operator-event JSONL row **including its terminating LF**.
@@ -46,9 +51,10 @@ payment's identity, event-line hash, amount, delivery address, transaction and
 request launch authority. It reports one of two *observations*:
 
 - `verified_allocation_missing`: the verified-payment event is present but its
-  canonical allocation record is absent. **This is a HOLD on fulfillment**, not
-  successful allocation, not capacity recovery and not permission to retry a
-  write outside the admission lock.
+  canonical allocation record is absent. **`ok=false`**, with reason
+  `verified_allocation_requires_protected_recovery`; this is a HOLD on
+  fulfillment, not successful allocation, capacity recovery or permission to
+  retry a write outside the admission lock.
 - `allocation_present`: the canonical row matches the same event and launch
   tuple, without any new write. It is **still not** a production custody or
   rollback-resistance attestation.
@@ -56,6 +62,10 @@ request launch authority. It reports one of two *observations*:
 Missing/duplicate/conflicting verified events, orphan or drifting allocation
 rows, quote or payment identity drift, stale request launch lineage, malformed
 history and over-capacity schedules return `held` without any data mutation.
+Exact launch-authority **shape** is bound to supplied request bytes, but the
+classifier cannot independently verify that the original generation receipt
+was actually accepted, or that a later request update preceded a verified
+payment; either claim requires separately trusted event/launch chronology.
 
 ## What this proves *and does not prove*
 
@@ -115,8 +125,10 @@ node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
 The Node 22/24/26 focused workflow repeats these commands and requires clean
 source-head/diff hygiene. The proof covers first missing allocation, exact
 matching history, deterministic replay, changed event bytes, duplicate identity,
-request/receipt/amount/quote drift, conflicting/orphan allocations, noncanonical
-and truncated JSONL, near-sellout conservation and the absence of runtime,
-funds and host authority.
+request/receipt/amount/quote drift, malformed or missing launch authority
+at the empty-ledger crash gap, request-token vs event-token mismatch,
+duplicate/regressed request snapshots, conflicting/orphan allocations,
+noncanonical and truncated JSONL, near-sellout conservation and the absence
+of runtime, funds and host authority.
 
 **PROTECT THE CORE.**
