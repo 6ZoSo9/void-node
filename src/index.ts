@@ -18848,6 +18848,8 @@ setInterval(refresh, 10000);
           });
         }
 
+        const nativeUsdc=chainCfg.chain==="base"?"0x833589fcd6edb6e08f4c7c32d4f71b54bda02913":chainCfg.chain==="ethereum"?"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48":"";
+        if(!nativeUsdc||String(found.source_chain||"").trim().toLowerCase()!==chainCfg.chain||String(found.payment_chain||"").trim().toLowerCase()!==chainCfg.chain||String(found.usdc_contract||"").trim().toLowerCase()!==nativeUsdc||String(found.payment_instructions?.token_contract||"").trim().toLowerCase()!==nativeUsdc||String(chainCfg.usdc_contract||"").trim().toLowerCase()!==nativeUsdc)return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_native_usdc_policy_mismatch"});
         let event:any;
         if(chainCfg.chain==="ethereum"){
           const ef:any=await import("./economic/buy_void_ethereum_public_checkout_finality_gate_v1.js");
@@ -18865,6 +18867,7 @@ setInterval(refresh, 10000);
           event={...verified.event,ok:true,note:"USDC receipt/log verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verified.event.payment_verifier,rpc_env:chainCfg.rpc_env,receipt_status:receipt.status},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
         }
 
+        if(String(event?.payment_verifier?.usdc_contract||"").trim().toLowerCase()!==nativeUsdc)return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"verified_native_usdc_contract_mismatch"});
         if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
         await __voidWriteBuyVoidOperatorEventV1(event,found);
 
