@@ -49,6 +49,13 @@
         const req = http.request(
           { method: "GET", host: "127.0.0.1", port: Number(process.env.HTTP_PORT || 4100), path: pathname },
           (res) => {
+            // Canonical head authority is a successful response, not a numeric
+            // body inside a transport/error response.
+            if (res.statusCode !== 200) {
+              res.resume(); // drain the rejected response without parsing its body
+              resolve(-1);
+              return;
+            }
             let buf = "";
             res.setEncoding("utf8");
             res.on("data", (d) => { buf += d; });
