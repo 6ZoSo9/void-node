@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
@@ -159,11 +160,29 @@ function requestOneBounded(
         response.on("end", () => {
           if (settled) return;
           const bytes = Buffer.concat(chunks, total);
+          let json = null;
+          if (bytes.length) {
+            try {
+              json = parseJsonBytes(bytes, `${method} ${url}`);
+            } catch {
+              // Reject through the Promise. Never throw from EventEmitter
+              // callbacks or print untrusted response bodies/raw headers.
+              const media = String(headersView.get("content-type") || "")
+                .split(";")[0].trim().toLowerCase();
+              const safeMedia = /^(?:application\/json|text\/html|text\/plain)$/u.test(media)
+                ? media : "other";
+              const hash = createHash("sha256").update(bytes).digest("hex");
+              fail(new Error(
+                `public_seed_response_invalid_json status=${status} media_type=${safeMedia} bytes=${bytes.length} sha256=${hash}`,
+              ));
+              return;
+            }
+          }
           succeed({
             status,
             headers: headersView,
             bytes,
-            json: bytes.length ? parseJsonBytes(bytes, `${method} ${url}`) : null,
+            json,
             remote_address: connectedAddress,
           });
         });

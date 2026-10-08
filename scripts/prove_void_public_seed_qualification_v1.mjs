@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import process from "node:process";
+import { requestBounded } from "./lib/void_public_seed_probe_v1.mjs";
 import {
   assertSafeInteger,
   buildBootstrapManifest,
@@ -104,6 +106,59 @@ for (const [path, needles] of [
   for (const needle of needles) assert(text.includes(needle), `${path} missing ${needle}`);
 }
 pass("static qualification, publication, and authority markers");
+
+// Synthetic localhost-only adversarial response: a non-JSON public gateway
+// must reject without throwing from an EventEmitter or leaking untrusted
+// body/header content into proof output or actionable logs.
+const secretBody = "<html>SECRET_RESPONSE_BODY_NEVER_PRINT</html>";
+const invalidJsonFixture = http.createServer((request, response) => {
+  if (request.url === "/non-json") {
+    response.statusCode = 503;
+    response.setHeader("content-type", "text/html; charset=utf-8");
+    response.end(secretBody);
+  } else if (request.url === "/bad-media") {
+    response.statusCode = 200;
+    response.setHeader("content-type", "application/x-private-marker");
+    response.end(secretBody);
+  } else {
+    response.statusCode = 200;
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.end('{"ready":true,"gap":0,"txroot_live":1,"head":1951058}');
+  }
+});
+await listen(invalidJsonFixture, 0);
+try {
+  const base = `http://127.0.0.1:${invalidJsonFixture.address().port}`;
+  const config = {
+    pinnedAddresses: ["127.0.0.1"], allowLoopbackFixture: true,
+    timeoutMs: 2000, maxBytes: 1024,
+  };
+  let broken;
+  try { await requestBounded(base + "/non-json", config); }
+  catch (error) { broken = error; }
+  assert(broken instanceof Error, "non-JSON response did not reject");
+  assert(/public_seed_response_invalid_json status=503 media_type=text\/html bytes=\d+ sha256=[0-9a-f]{64}/u.test(broken.message),
+    "redacted failure missing bounded status/media/digest");
+  assert(broken.message.includes("sha256=" + createHash("sha256").update(secretBody).digest("hex")),
+    "wrong non-JSON response fingerprint");
+  assert(!broken.message.includes("SECRET_RESPONSE_BODY_NEVER_PRINT"),
+    "non-JSON body leaked through failure diagnostics");
+
+  let badMedia;
+  try { await requestBounded(base + "/bad-media", config); }
+  catch (error) { badMedia = error; }
+  assert(badMedia instanceof Error && badMedia.message.includes("status=200 media_type=other"),
+    "untrusted media-type was not classified as other");
+  assert(!badMedia.message.includes("application/x-private-marker"),
+    "untrusted header value was echoed in failure");
+
+  const healthy = await requestBounded(base + "/healthy", config);
+  assert(healthy.status === 200 && healthy.json?.ready === true &&
+    healthy.json?.head === 1951058, "valid JSON path regressed");
+} finally {
+  await close(invalidJsonFixture);
+}
+pass("non-JSON response rejects with redacted bounded metadata; valid JSON unchanged");
 
 const publicIpSeed = normalizePublicSeedBase("https://1.1.1.1");
 assert(publicIpSeed.address_source === "ip_literal", "public IPv4 seed source mismatch");

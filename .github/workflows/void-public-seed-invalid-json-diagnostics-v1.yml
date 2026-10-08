@@ -1,0 +1,59 @@
+name: VOID public seed redacted invalid JSON diagnostics v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/prove_void_public_seed_qualification_v1.mjs"
+      - "docs/public/void-public-seed-invalid-json-diagnostics-v1.md"
+      - ".github/workflows/void-public-seed-invalid-json-diagnostics-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-invalid-json-diagnostic-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: bounded invalid JSON / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify source identity
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Use Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove synthetic loopback response bounds
+        run: |
+          node --check scripts/lib/void_public_seed_probe_v1.mjs
+          node scripts/prove_void_public_seed_qualification_v1.mjs
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
