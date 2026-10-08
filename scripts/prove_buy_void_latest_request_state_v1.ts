@@ -20,7 +20,7 @@ const helperStart = source.indexOf(
   "async function __voidReadBuyVoidRequestsV1()",
 );
 const helperEnd = source.indexOf(
-  "function __voidBuyVoidOperatorLocalOnlyV1",
+  'const __boi=require("./economic/buy_void_operator_local_intent_v1")',
   helperStart,
 );
 const helper =
@@ -31,10 +31,10 @@ const helper =
 const verifyRoute =
   "/__void/buy-void/operator/verify-payment.json";
 const verifyStart = source.indexOf(
-  `app.get("${verifyRoute}"`,
+  `app.post("${verifyRoute}"`,
 );
 const verifyEnd = source.indexOf(
-  'app.get("/__void/buy-void/operator/mark.json"',
+  'app.post("/__void/buy-void/operator/mark.json"',
   verifyStart,
 );
 const verifyBlock =
