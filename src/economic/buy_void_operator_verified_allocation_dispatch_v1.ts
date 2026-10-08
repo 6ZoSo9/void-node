@@ -14,6 +14,11 @@ const CANONICAL_OPERATOR_STATUSES_V1 = Object.freeze([
   "rejected",
 ] as const);
 
+export const VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1 =
+  "/var/lib/void-allocation-ledger-v1";
+export const VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1 =
+  "/var/lib/void-allocation-custody-v1";
+
 function canonicalOperatorStatusV1(value: unknown):
   (typeof CANONICAL_OPERATOR_STATUSES_V1)[number] | null {
   if (typeof value !== "string") return null;
@@ -142,10 +147,12 @@ export function planBuyVoidOperatorAllocationDispatchV1(
   const allocationLedgerRoot = absolutePrivateRoot(allocationLedgerRootRaw);
   const allocationHighWaterRoot =
     absolutePrivateRoot(allocationHighWaterRootRaw);
-  if (allocationLedgerRoot === allocationHighWaterRoot ||
-      allocationLedgerRoot.startsWith(allocationHighWaterRoot + path.sep) ||
-      allocationHighWaterRoot.startsWith(allocationLedgerRoot + path.sep)) {
-    hold("allocation_roots_must_be_separate");
+  if (
+    allocationLedgerRoot !== VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1 ||
+    allocationHighWaterRoot !==
+      VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1
+  ) {
+    hold("allocation_roots_not_canonical");
   }
   return Object.freeze({
     kind: "verified_payment_allocation_handoff" as const,
