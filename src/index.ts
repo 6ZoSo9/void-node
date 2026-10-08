@@ -18524,7 +18524,7 @@ small{color:#94a3b8}
       return out;
     }
 
-    const __boi=require("./economic/buy_void_operator_local_intent_v1"),__voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1,__voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
+    const __boi=require("./economic/buy_void_operator_local_intent_v1"),__voidBuyVoidOperatorShellLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalShellV1,__voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1,__voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
 
     // VOID_BUY_VOID_OPERATOR_MARK_V1
     async function __voidReadBuyVoidOperatorEventsV1(){
@@ -18572,7 +18572,7 @@ small{color:#94a3b8}
 
     // VOID_BUY_VOID_OPERATOR_PAGE_V1
     app.get("/__void/buy-void/operator", async (req:any,res:any)=>{
-      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+      if (!__voidBuyVoidOperatorShellLocalOnlyV1(req,res)) return;
 
       res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -18602,7 +18602,7 @@ small{color:#94a3b8}
 <div id="queue"></div>
 </main>
 <script>
-async function j(url){const r=await fetch(url);return await r.json()}async function m(url){const r=await fetch(url,{method:"POST",headers:{"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"}});return await r.json()}
+let ot=prompt("Operator capability:")||"";async function j(url){const r=await fetch(url,{headers:{authorization:"Bearer "+ot}});return await r.json()}async function m(url){const r=await fetch(url,{method:"POST",headers:{authorization:"Bearer "+ot,"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"}});return await r.json()}
 
 function esc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]})}
 
