@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import vm from "node:vm";
 
 import {
   VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
@@ -407,6 +408,74 @@ try {
     "utf8",
   );
 
+  const maliciousRequestId =
+    "buyvoid_fixture_aaaaaaaa');globalThis.__synthetic_flag=true;//";
+  const escStart = runtimeSource.indexOf("function esc(x)");
+  const escEnd = runtimeSource.indexOf(
+    "\n\n// VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1",
+    escStart,
+  );
+  const renderStart = runtimeSource.indexOf("function renderReq(r)");
+  const renderEnd = runtimeSource.indexOf(
+    "\n\nfunction renderBucket",
+    renderStart,
+  );
+  assert.ok(escStart >= 0 && escEnd > escStart);
+  assert.ok(renderStart >= 0 && renderEnd > renderStart);
+  const renderReq = vm.runInNewContext(
+    `(() => {
+${runtimeSource.slice(escStart, escEnd)}
+${runtimeSource.slice(renderStart, renderEnd)}
+return renderReq;
+})()`,
+    Object.create(null),
+    { timeout: 1000 },
+  ) as (request: Record<string, unknown>) => string;
+  const rendered = renderReq({
+    request_id: maliciousRequestId,
+    effective_status: "awaiting_payment",
+    usdc_amount: "1",
+    quoted_void: "2",
+    delivery_address: "0x" + "1".repeat(40),
+    tx_hash: "",
+  });
+  const onclickValues = [
+    ...rendered.matchAll(/onclick="([^"]*)"/gu),
+  ].map((match) => match[1]);
+  assert.deepEqual(onclickValues, [
+    "verifyPayment(this.dataset.id)",
+    "markReq(this.dataset.id,'reviewed')",
+    "markReq(this.dataset.id,'fulfilled')",
+    "markReq(this.dataset.id,'rejected')",
+  ]);
+  for (const value of onclickValues) {
+    assert.equal(value.includes("globalThis"), false);
+    assert.equal(value.includes("buyvoid_fixture_aaaaaaaa"), false);
+  }
+  const dataIds = [
+    ...rendered.matchAll(/data-id="([^"]*)"/gu),
+  ].map((match) => match[1]);
+  assert.equal(dataIds.length, 4);
+  assert.equal(
+    dataIds.every((value) =>
+      value.includes("buyvoid_fixture_aaaaaaaa&#39;") &&
+      value.includes("globalThis.__synthetic_flag=true")
+    ),
+    true,
+  );
+  assert.equal(
+    runtimeSource.includes(
+      `onclick="verifyPayment(\\\\''+id+'\\\\')"`,
+    ),
+    false,
+  );
+  assert.equal(
+    runtimeSource.includes(
+      `onclick="markReq(\\\\''+id+`,
+    ),
+    false,
+  );
+
   for (const route of [
     "/__void/buy-void/operator/verify-payment.json",
     "/__void/buy-void/operator/mark.json",
@@ -471,6 +540,7 @@ try {
   console.log("cross_site_browser_mutation_rejected=true");
   console.log("capability_query_or_cookie_authority=false");
   console.log("mounted_operator_mutation_routes_post_only=true");
+  console.log("operator_request_id_not_javascript_source=true");
   console.log("tx_hash_binding_mutation_intent_wired=true");
   console.log("runtime_mutation=false");
   console.log("funds_movement=false");
