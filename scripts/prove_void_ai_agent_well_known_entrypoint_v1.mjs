@@ -547,6 +547,94 @@ for (const cancelMode of ["settled", "pending", "throw-on-release"]) {
   await proveUncooperativeAcceptedBodyDeadline(cancelMode);
 }
 
+// A completed accepted-200 read has no primary rejection to preserve.
+// The same production code must accept a normal release, but must not accept
+// JSON after a releaseLock() failure. This uses no network or external IO.
+async function proveCompletedBodyReaderReleaseBoundary(releaseThrows) {
+  const begin = client.indexOf("async function settleTeardownBounded(");
+  const end = client.indexOf("\nfunction validateWellKnown(", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const implementation = client.slice(begin, end);
+  const url = new URL("https://voidchain.org/.well-known/void-agent-discovery.json");
+  const body = Uint8Array.from(Buffer.from('{"inert":true}', "utf8"));
+  let reads = 0;
+  let releases = 0;
+  let cancels = 0;
+  const simulatedFetch = async (requestedUrl, options) => {
+    assert.equal(requestedUrl.href, url.href);
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "error");
+    return {
+      ok: true,
+      status: 200,
+      url: url.href,
+      headers: {
+        get(name) {
+          if (name === "content-type") return "application/json; charset=utf-8";
+          if (name === "content-length") return String(body.byteLength);
+          throw new Error("unexpected header");
+        },
+      },
+      body: {
+        getReader() {
+          return {
+            read() {
+              reads += 1;
+              return Promise.resolve(
+                reads === 1
+                  ? { done: false, value: body }
+                  : { done: true, value: undefined },
+              );
+            },
+            cancel() {
+              cancels += 1;
+              return Promise.resolve();
+            },
+            releaseLock() {
+              releases += 1;
+              if (releaseThrows) {
+                throw new Error("fixture_success_path_release_failure");
+              }
+            },
+          };
+        },
+      },
+    };
+  };
+  const context = {
+    fetch: simulatedFetch,
+    AbortController,
+    TextDecoder,
+    Uint8Array,
+    setTimeout,
+    clearTimeout,
+    MAX_RESPONSE_BYTES: 262_144,
+    RESPONSE_TIMEOUT_MS: 250,
+    RESPONSE_TEARDOWN_TIMEOUT_MS: 30,
+  };
+  const { getJson } = vm.runInNewContext(
+    implementation + "\n({ getJson })",
+    context,
+    { filename: "well-known-completed-body-release-proof.mjs", timeout: 1_000 },
+  );
+  if (releaseThrows) {
+    await assert.rejects(
+      () => getJson(url, "well_known"),
+      (error) => error?.message === "well_known_response_read_failed",
+      "completed body must reject when releaseLock fails",
+    );
+  } else {
+    const document = await getJson(url, "well_known");
+    assert.equal(document.inert, true);
+  }
+  assert.equal(reads, 2);
+  assert.equal(releases, 1);
+  assert.equal(cancels, 0);
+}
+
+await proveCompletedBodyReaderReleaseBoundary(false);
+await proveCompletedBodyReaderReleaseBoundary(true);
+
 console.log("VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1_PROOF_GREEN");
 console.log(`pointer=${path.relative(root, pointerPath)}`);
 console.log(`schema=${path.relative(root, schemaPath)}`);
@@ -560,6 +648,8 @@ console.log("admitted_200_body_deadline_owned=true");
 console.log("uncooperative_read_aborted_without_transport_settlement=true");
 console.log("nonsettling_cancel_bounded=true");
 console.log("reader_release_failure_preserves_deadline=true");
+console.log("completed_body_release_failure_rejected=true");
+console.log("completed_body_normal_release_accepted=true");
 console.log("official_network_authenticity_adversaries=3");
 console.log("canonical_authority_safety_adversaries=3");
 console.log("ipv6_loopback_three_get_cold_start=true");
