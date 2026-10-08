@@ -16,7 +16,7 @@ import {
 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "f18d789562d655eec9fde34571ed9b7d050f92bf";
+const SOURCE_HEAD = "32f40899d6b71561bf4bf3a917e51c431cb867de";
 const PACKAGE_LOCK_BLOB = "b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const TARGETS = Object.freeze([
   Object.freeze({path:"tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",blob:"d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",external:["node:crypto","node:fs","node:path"]}),
