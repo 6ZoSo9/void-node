@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 
 import {
   withBuyVoidFilesystemBakeryLockAsyncV1,
@@ -376,17 +377,32 @@ function readPinnedLedgerBytesV1(
   });
 }
 
+// The append writer commits exact JSON.stringify(row) + LF bytes. Never accept
+// a truncated final line, normalized UTF-8, duplicate member, or reformatted
+// history as authoritative paid-capacity evidence.
+const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
-  const text = bytes.toString("utf8");
-  if (text.length === 0) return [];
-  const lines = text.endsWith("\n")
-    ? text.slice(0, -1).split("\n")
-    : text.split("\n");
+  if (bytes.length === 0) return [];
+  if (bytes.length >= 3 && bytes[0] === 0xef &&
+      bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    fail(code + "_utf8_bom_not_canonical");
+  }
+  let text: string;
+  try {
+    text = CAPACITY_HISTORY_UTF8.decode(bytes);
+  } catch {
+    fail(code + "_utf8_invalid");
+  }
+  if (!text.endsWith("\n") || text.includes("\r") ||
+      text.charCodeAt(0) === 0xfeff) {
+    fail(code + "_truncated_or_noncanonical");
+  }
+  const lines = text.slice(0, -1).split("\n");
   if (lines.some((line) => line.length === 0)) {
     fail(code + "_empty_row");
   }
   return lines.map((line) => {
-    let value: any;
+    let value: unknown;
     try {
       value = JSON.parse(line);
     } catch {
@@ -394,6 +410,9 @@ function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       fail(code + "_row_invalid");
+    }
+    if (JSON.stringify(value) !== line) {
+      fail(code + "_row_noncanonical");
     }
     return value;
   });
