@@ -178,10 +178,12 @@ function requestOneBounded(
                       : mediaType
                         ? "other"
                         : "missing";
-              fail(new Error(
+              const invalidJson = new Error(
                 `${method} ${url} did not return valid JSON ` +
                 `(http_status=${status}, content_type_class=${mediaClass}, response_bytes=${bytes.length})`,
-              ));
+              );
+              invalidJson.code = "VOID_PUBLIC_SEED_INVALID_JSON_RESPONSE";
+              fail(invalidJson);
               return;
             }
           }
@@ -239,6 +241,9 @@ export async function requestBounded(
         allowLoopbackFixture,
       });
     } catch (error) {
+      // A delivered malformed response is a terminal qualification failure.
+      // Only transport failures may try the next DNS-pinned address.
+      if (error?.code === "VOID_PUBLIC_SEED_INVALID_JSON_RESPONSE") throw error;
       errors.push(`${address}: ${error?.message || String(error)}`);
     }
   }
