@@ -22,13 +22,16 @@
     }
   }
 
+  function parseHeadNumber(value){
+    const text = String(value || "").trim();
+    if (!/^[0-9]+$/u.test(text)) return -1;
+    const number = Number(text);
+    return Number.isSafeInteger(number) ? number : -1;
+  }
+
   function readIntFile(p){
     try{
-      const s = fs.readFileSync(p, "utf8");
-      const t = String(s || "").trim();
-      const n = Number.parseInt(t, 10);
-      if (!Number.isFinite(n)) return -1;
-      return n;
+      return parseHeadNumber(fs.readFileSync(p, "utf8"));
     }catch{
       return -1;
     }
@@ -46,15 +49,17 @@
         const req = http.request(
           { method: "GET", host: "127.0.0.1", port: Number(process.env.HTTP_PORT || 4100), path: pathname },
           (res) => {
+            // Canonical head authority is a successful response, not a numeric
+            // body inside a transport/error response.
+            if (res.statusCode !== 200) {
+              res.resume(); // drain the rejected response without parsing its body
+              resolve(-1);
+              return;
+            }
             let buf = "";
             res.setEncoding("utf8");
             res.on("data", (d) => { buf += d; });
-            res.on("end", () => {
-              const t = String(buf || "").trim();
-              const n = Number.parseInt(t, 10);
-              if (!Number.isFinite(n)) return resolve(-1);
-              resolve(n);
-            });
+            res.on("end", () => resolve(parseHeadNumber(buf)));
           }
         );
         req.on("error", () => resolve(-1));

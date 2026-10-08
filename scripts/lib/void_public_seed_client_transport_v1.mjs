@@ -397,7 +397,9 @@ function requestPinnedAddress(
           "user-agent": "void-node/public-seed-client-transport-v1",
         },
         lookup(_hostname, _options, callback) {
-          callback(null, address, family);
+          // A synchronous lookup callback can race Node TLS socket initialization
+          // on an unreachable IPv6 route, leaving an unhandled socket error.
+          process.nextTick(callback, null, address, family);
         },
       },
       (response) => {

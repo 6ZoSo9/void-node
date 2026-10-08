@@ -16,6 +16,7 @@ on:
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "scripts/prove_buy_void_locked_v4_checked_entry_v1.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.md"
@@ -67,6 +68,9 @@ jobs:
 
       - name: Reprove candidate descriptor boundary
         run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
+
+      - name: Verify checked candidate bytes execute, not replaced pathname
+        run: node scripts/prove_buy_void_locked_v4_checked_entry_v1.mjs
 
       - name: Derive locked V4 manifest
         run: |
