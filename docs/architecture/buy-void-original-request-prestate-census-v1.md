@@ -53,9 +53,13 @@ transaction hashes, USDC addresses or activation receipts.
 Counts include: first-row explicit chain/alias consistency, canonical
 USDC contract and schema-closed coupled launch tuple, how many distinct
 requests satisfy all three shape checks, later retroactive token/launch/chain
-backfills (which **never** qualify an originally missing field), repeated exact
-snapshot lines including A→B→A, conflicting chain aliases, and changed launch
-lineage after an initially complete row. It scans **all request IDs**, without
+backfills (which **never** qualify an originally missing field), **separate
+post-original drift counters** for source-chain and USDC contract changes even
+when each later row has internally consistent aliases, repeated exact snapshot
+lines including A→B→A, conflicting chain aliases, and changed launch lineage
+after an initially complete row. Missing/invalid late fields also count as
+drift after an initially qualified original; the first-row qualification
+count stays independent of the later anomaly counters. It scans **all request IDs**, without
 using an unrelated unverified legacy row as a global blocker. However malformed
 JSONL or request IDs cannot be safely localized and HOLD the entire census.
 

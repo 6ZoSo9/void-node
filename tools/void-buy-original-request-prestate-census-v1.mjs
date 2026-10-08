@@ -158,6 +158,8 @@ function counts(bytes) {
   let laterContractBackfills = 0;
   let laterLaunchBackfills = 0;
   let laterSourceBackfills = 0;
+  let laterTokenDrift = 0;
+  let laterChainDrift = 0;
   let repeatedExactRows = 0;
   let aliasConflicts = 0;
   let laterLaunchDrift = 0;
@@ -170,6 +172,7 @@ function counts(bytes) {
         firstChain: chainOk, firstToken: canonicalAddress(row.usdc_contract),
         firstLaunch: canonicalLaunch(row.launch_authority),
         tokenText: typeof row.usdc_contract === 'string' ? row.usdc_contract.toLowerCase() : '',
+        chainText: chainOk ? normalizedChain(row.source_chain) : '',
         launchText: JSON.stringify(row.launch_authority ?? null),
         seen: new Set([exactLine]),
       });
@@ -180,6 +183,18 @@ function counts(bytes) {
     if (!prev.firstToken && canonicalAddress(row.usdc_contract)) laterContractBackfills++;
     if (!prev.firstLaunch && canonicalLaunch(row.launch_authority)) laterLaunchBackfills++;
     if (!prev.firstChain && chainOk) laterSourceBackfills++;
+    // An originally qualified source-chain/token identity is immutable.
+    // A later row may have internally consistent aliases and still change
+    // the original policy: count that drift rather than masking it as valid.
+    if (prev.firstChain &&
+        (!chainOk || normalizedChain(row.source_chain) !== prev.chainText)) {
+      laterChainDrift++;
+    }
+    if (prev.firstToken &&
+        (!canonicalAddress(row.usdc_contract) ||
+         row.usdc_contract.toLowerCase() !== prev.tokenText)) {
+      laterTokenDrift++;
+    }
     if (prev.firstLaunch && JSON.stringify(row.launch_authority ?? null) !== prev.launchText) {
       laterLaunchDrift++;
     }
@@ -202,6 +217,8 @@ function counts(bytes) {
     later_contract_backfill_rows_for_unqualified_first_rows: laterContractBackfills,
     later_launch_backfill_rows_for_unqualified_first_rows: laterLaunchBackfills,
     later_chain_backfill_rows_for_unqualified_first_rows: laterSourceBackfills,
+    later_source_chain_drift_rows_after_qualified_first_row: laterChainDrift,
+    later_usdc_contract_drift_rows_after_qualified_first_row: laterTokenDrift,
     later_launch_change_rows_after_qualified_first_row: laterLaunchDrift,
     repeated_exact_request_snapshot_rows: repeatedExactRows,
     rows_with_missing_or_conflicting_chain_evidence: aliasConflicts,

@@ -94,6 +94,24 @@ try {
   report=expectObserved();
   assert.equal(report.rows_with_missing_or_conflicting_chain_evidence,1);
   assert.equal(report.first_rows_fully_shape_qualified,1);
+  // Review P2: each later row may be internally canonical while changing
+  // immutable first-row source-chain and token policy evidence.
+  write([qualified, {...qualified, source_chain:'ethereum',
+    payment_chain:'ethereum',usdc_contract:'0x'+'6'.repeat(40)}]);
+  report=expectObserved();
+  assert.equal(report.first_rows_fully_shape_qualified,1);
+  assert.equal(report.rows_with_missing_or_conflicting_chain_evidence,0);
+  assert.equal(report.later_source_chain_drift_rows_after_qualified_first_row,1);
+  assert.equal(report.later_usdc_contract_drift_rows_after_qualified_first_row,1);
+  write([qualified, {...qualified,usdc_contract:'0x'+'7'.repeat(40)}]);
+  report=expectObserved();
+  assert.equal(report.later_source_chain_drift_rows_after_qualified_first_row,0);
+  assert.equal(report.later_usdc_contract_drift_rows_after_qualified_first_row,1);
+  write([qualified, {...qualified, source_chain:undefined,payment_chain:undefined,
+    usdc_contract:undefined}]);
+  report=expectObserved();
+  assert.equal(report.later_source_chain_drift_rows_after_qualified_first_row,1);
+  assert.equal(report.later_usdc_contract_drift_rows_after_qualified_first_row,1);
   write([{...qualified,source_chain:undefined},qualified]);
   report=expectObserved();
   assert.equal(report.first_rows_missing_or_invalid_chain,1);
@@ -129,6 +147,7 @@ try {
   console.log('legacy_backfill_does_not_become_qualified=true');
   console.log('cross_request_legacy_does_not_globally_block_census=true');
   console.log('nonconsecutive_repeat_and_chain_alias_conflicts_counted=true');
+  console.log('originally_qualified_later_chain_and_contract_drift_counted=true');
   console.log('sensitive_request_id_address_tx_output=false');
   console.log('symlink_and_malformed_ledger_refused=true');
   console.log('host_custody_or_payment_authority=false');
