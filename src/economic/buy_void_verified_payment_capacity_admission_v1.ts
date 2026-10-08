@@ -716,10 +716,17 @@ function fsyncDirectoryV1(directory: string): void {
 function appendPaymentVerifiedEventDurableV1(
   operatorLedger: PinnedLedgerV1,
   expectedBefore: any,
-  event: Record<string, any>,
+  eventLine: Buffer,
 ): void {
   const code = "buy_void_verified_payment_capacity_operator_events";
-  const bytes = Buffer.from(JSON.stringify(event) + "\n", "utf8");
+  const bytes = Buffer.from(eventLine);
+  if (
+    bytes.length < 3 ||
+    bytes.length > LEDGER_MAX_BYTES ||
+    bytes[bytes.length - 1] !== 0x0a
+  ) {
+    fail("buy_void_verified_payment_capacity_event_append_bytes_invalid");
+  }
   const before = assertPinnedLedgerVisibleV1(operatorLedger, code);
   if (!sameFileIdentityV1(expectedBefore, before)) {
     fail("buy_void_verified_payment_capacity_operator_events_changed_since_census");
@@ -1540,6 +1547,58 @@ function microTextV1(units: bigint): string {
   return fraction ? whole + "." + fraction : whole.toString();
 }
 
+function deepFreezeJsonValueV1(value: any): any {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const child of Object.values(value)) {
+    deepFreezeJsonValueV1(child);
+  }
+  return Object.freeze(value);
+}
+
+function canonicalVerifiedPaymentEventV1(value: any): {
+  event: Readonly<Record<string, any>>;
+  line: Buffer;
+} {
+  let json: string;
+  try {
+    const serialized = JSON.stringify(value);
+    if (typeof serialized !== "string") {
+      fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+    }
+    json = serialized;
+  } catch {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  const line = Buffer.from(json + "\n", "utf8");
+  if (line.length < 3 || line.length > LEDGER_MAX_BYTES) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  const event = deepFreezeJsonValueV1(parsed) as Readonly<Record<string, any>>;
+  const rebound = Buffer.from(JSON.stringify(event) + "\n", "utf8");
+  if (!rebound.equals(line)) {
+    fail("buy_void_verified_payment_allocation_event_canonical_roundtrip_mismatch");
+  }
+
+  return Object.freeze({
+    event,
+    line: Buffer.from(line),
+  });
+}
+
 function verifiedPaymentEventLineV1(event: any): Buffer {
   return Buffer.from(JSON.stringify(event) + "\n", "utf8");
 }
@@ -1618,6 +1677,7 @@ function assertPriorVerifiedAllocationsCompleteV1(input: {
 function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
   request: any;
   event: any;
+  event_line: Buffer;
   allocation_ledger_root: string;
   allocation_high_water_root: string;
   authority: {
@@ -1634,7 +1694,10 @@ function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
   payment_event_already_durable: boolean;
 }) {
   const requestId = String(input.request?.request_id || "").trim();
-  const eventLine = verifiedPaymentEventLineV1(input.event);
+  const eventLine = Buffer.from(input.event_line);
+  if (!eventLine.equals(verifiedPaymentEventLineV1(input.event))) {
+    fail("buy_void_verified_payment_allocation_event_bytes_mismatch");
+  }
   const eventSha = sha256RefV1(eventLine);
 
   const snapshot =
@@ -1895,8 +1958,18 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
     test_only_after_allocation_persist?: (() => void) | null;
   },
 ) {
-  const event = input?.event;
+  const rawEvent = input?.event;
   const request = input?.request;
+  if (
+    !rawEvent ||
+    typeof rawEvent !== "object" ||
+    Array.isArray(rawEvent)
+  ) {
+    fail("buy_void_verified_payment_allocation_handoff_input_invalid");
+  }
+  const canonicalEvent = canonicalVerifiedPaymentEventV1(rawEvent);
+  const event = canonicalEvent.event;
+  const eventLine = canonicalEvent.line;
   const requestDirRaw = String(input?.request_dir || "").trim();
   const allocationLedgerRoot = String(
     input?.allocation_ledger_root || "",
@@ -1906,9 +1979,6 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   ).trim();
   const requestId = String(event?.request_id || "").trim();
   if (
-    !event ||
-    typeof event !== "object" ||
-    Array.isArray(event) ||
     String(event.operator_status || "") !== "payment_verified" ||
     !request ||
     typeof request !== "object" ||
@@ -2023,7 +2093,7 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
                 appendPaymentVerifiedEventDurableV1(
                   authority.operator_ledger,
                   authority.operator_ledger_stat,
-                  event,
+                  eventLine,
                 );
                 if (
                   typeof input.test_only_after_payment_fsync ===
@@ -2035,6 +2105,7 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
                   persistVerifiedPaymentAllocationUnderCapacityLockV1({
                     request,
                     event,
+                    event_line: eventLine,
                     allocation_ledger_root:
                       allocationLedgerRoot,
                     allocation_high_water_root:
@@ -2074,6 +2145,7 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
               persistVerifiedPaymentAllocationUnderCapacityLockV1({
                 request,
                 event,
+                event_line: eventLine,
                 allocation_ledger_root:
                   allocationLedgerRoot,
                 allocation_high_water_root:
