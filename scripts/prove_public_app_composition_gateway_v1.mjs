@@ -800,6 +800,8 @@ try {
     "/__VOID/BUY-VOID/OPERATOR/verify-payment.json?id=synthetic",
     "/__void/buy-void/%6fperator/mark.json?id=synthetic",
     "/__void/buy-void%2foperator/request.json?id=synthetic",
+    "/__void/buy-void%252foperator/request.json?id=synthetic",
+    "/__VOID/%2562UY-VOID/operator/mark.json?id=synthetic",
   ]) {
     const { response, text } = await get(pathname);
     assert.equal(response.status, 404, pathname);

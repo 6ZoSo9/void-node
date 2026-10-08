@@ -1982,6 +1982,8 @@ function isBlocked(pathname) {
   } catch {
     return true;
   }
+  // Never forward nested percent escapes: a downstream hop may decode again.
+  if (canonical.includes("%")) return true;
   return blockedPrefixes.some((prefix) => canonical === prefix || canonical.startsWith(prefix + "/"));
 }
 
