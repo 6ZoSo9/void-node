@@ -90,7 +90,7 @@ function lexicalBindings(parsed) {
       ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
       ts.isForStatement(node) || ts.isForInStatement(node) ||
       ts.isForOfStatement(node) || ts.isFunctionLike(node) ||
-      ts.isCatchClause(node) ||
+      ts.isClassExpression(node) || ts.isCatchClause(node) ||
       (typeof ts.isClassStaticBlockDeclaration === "function" &&
        ts.isClassStaticBlockDeclaration(node));
   }
@@ -166,6 +166,16 @@ function lexicalBindings(parsed) {
       for (const parameter of node.parameters || []) {
         recordUnknown(node, parameter.name, parameter, "hoistable");
       }
+    }
+    // A named function expression binds its name inside *only that function*.
+    // It is not the ambient CommonJS require, even if its spelling matches.
+    if (ts.isFunctionExpression(node) && node.name) {
+      add(node, node.name.text, node);
+    }
+    // Similarly, a named class expression creates a local binding for its
+    // own body and static blocks; it does not bind the outer module object.
+    if (ts.isClassExpression(node) && node.name) {
+      add(node, node.name.text, node);
     }
     if (ts.isCatchClause(node) && node.variableDeclaration) {
       recordUnknown(node, node.variableDeclaration.name, node.variableDeclaration);
@@ -263,20 +273,47 @@ function hasAmbiguousLexicalBinding(node, resolveBinding) {
   return ambiguous;
 }
 
-function isRecognizedCreateRequire(binding, resolveBinding, active = new Set()) {
-  if (binding?.kind !== "const" || active.has(binding.declaration)) return false;
+function unwrapStaticExpression(node) {
+  while (node && (ts.isParenthesizedExpression(node) ||
+         ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) ||
+         ts.isNonNullExpression(node) ||
+         (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node)))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+// A const-alias chain leading back to an actual imported node:module
+// createRequire factory is safe to *classify* without calling anything.
+// A locally declared same-name function is never promoted to a loader.
+function isImportedCreateRequireFactory(binding, resolveBinding, active = new Set()) {
+  if (!binding) return false;
+  if (binding.form === "node-create-require-import") return true;
+  if (binding.kind !== "const" || !binding.initializer ||
+      active.has(binding.declaration) || active.size >= MAX_STATIC_EXPRESSION_DEPTH) return false;
   active.add(binding.declaration);
-  const initializer = binding.initializer;
+  const initializer = unwrapStaticExpression(binding.initializer);
+  const recognized = ts.isIdentifier(initializer) &&
+    isImportedCreateRequireFactory(resolveBinding(initializer), resolveBinding, active);
+  active.delete(binding.declaration);
+  return recognized;
+}
+
+function isRecognizedCreateRequire(binding, resolveBinding, active = new Set()) {
+  if (binding?.kind !== "const" || !binding.initializer ||
+      active.has(binding.declaration) || active.size >= MAX_STATIC_EXPRESSION_DEPTH) return false;
+  active.add(binding.declaration);
+  const initializer = unwrapStaticExpression(binding.initializer);
   let recognized = false;
-  if (initializer && ts.isCallExpression(initializer) &&
-      ts.isIdentifier(initializer.expression)) {
-    // Named import may use a local alias: import {createRequire as cr} from
-    // 'node:module'; const load = cr(import.meta.url).
-    recognized = resolveBinding(initializer.expression)?.form ===
-      "node-create-require-import";
+  if (initializer && ts.isCallExpression(initializer)) {
+    // This call returns a require loader only if its callee is the reviewed
+    // node:module factory itself, or a statically resolved const alias of it.
+    const factory = unwrapStaticExpression(initializer.expression);
+    if (ts.isIdentifier(factory)) {
+      recognized = isImportedCreateRequireFactory(resolveBinding(factory), resolveBinding);
+    }
   } else if (initializer && ts.isIdentifier(initializer)) {
-    // A constant alias of the real factory's returned loader retains the
-    // same property without inspecting or executing user source.
+    // Constant aliases of an already recognized loader remain loaders.
     recognized = isRecognizedCreateRequire(resolveBinding(initializer), resolveBinding, active);
   }
   active.delete(binding.declaration);

@@ -145,6 +145,47 @@ for (const [label, code, expected] of [
 ]) {
   assert.deepEqual(kind(code), expected, label);
 }
+// Exact-head independent security review: follow const aliases of the real
+// imported createRequire *factory*, not just aliases of its returned loader.
+// Named function/class expressions bind local names rather than CommonJS
+// require/module globals. Test both negative and positive boundaries.
+for (const [label, code, expected] of [
+  ["genuine createRequire factory const alias remains a loader",
+    `import {createRequire} from 'node:module'; const factory=createRequire; const load=factory(import.meta.url); const target=${splitTarget}; load(target)`,
+    ["forbidden"]],
+  ["double-aliased imported createRequire factory remains a loader",
+    `import {createRequire as cr} from 'node:module'; const factory=cr; const alias=factory; const load=alias(import.meta.url); const target=${splitTarget}; load(target)`,
+    ["forbidden"]],
+  ["parenthesized TypeScript factory alias remains a loader",
+    `import {createRequire as cr} from 'node:module'; const factory=(cr as typeof cr); const load=factory(import.meta.url); const target=${splitTarget}; load(target)`,
+    ["forbidden"]],
+  ["real require loader alias chain from factory alias remains caught",
+    `import {createRequire} from 'node:module'; const factory=createRequire; const real=factory(import.meta.url); const alias=real; const target=${splitTarget}; alias.resolve(target)`,
+    ["forbidden"]],
+  ["unrelated local createRequire factory cannot masquerade as import",
+    `const createRequire=()=>()=>0;const factory=createRequire;const load=factory(); const target=${splitTarget}; load(target)`,
+    []],
+  ["locally shadowed imported createRequire factory is not trusted",
+    `import {createRequire} from 'node:module';function test(createRequire){ const factory=createRequire;const load=factory();const target=${splitTarget};load(target)}`,
+    []],
+  ["factory alias cycle does not resolve to a loader",
+    `import {createRequire} from 'node:module';const first=second;const second=first;const load=first(import.meta.url);const target=${splitTarget};load(target)`,
+    []],
+  ["function expression named require is not CommonJS require",
+    `const f=function require(){const target=${splitTarget};require(target)}`, []],
+  ["function expression named require shadows only its own body",
+    `const f=function require(){const target=${splitTarget};require(target)}; const target=${splitTarget}; require(target)`,
+    ["forbidden"]],
+  ["named function expression module shadows CommonJS module inside body",
+    `const f=function module(){const target=${splitTarget};module.require(target)}`, []],
+  ["class expression named module shadows CommonJS module inside static block",
+    `const f=class module{static{const target=${splitTarget};module.require(target)}}`, []],
+  ["class expression named module does not shadow outer CommonJS module",
+    `const f=class module{static{const target=${splitTarget};module.require(target)}};const target=${splitTarget};module.require(target)`,
+    ["forbidden"]],
+]) {
+  assert.deepEqual(kind(code), expected, label);
+}
 // An existing proof path remains a fixture-only allowance, not a runtime gate.
 assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
   "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
@@ -222,6 +263,7 @@ console.log("namespace_reexport_dynamic_require_adversaries_rejected=true");
 console.log("statically_computed_writer_loader_adversaries_rejected=true");
 console.log("sibling_shadow_lexical_recovery_and_duplicate_binding_hold=true");
 console.log("shadowed_loader_hoistable_bindings_class_static_scope_qualified=true");
+console.log("imported_factory_alias_chain_and_named_expression_shadowing_proven=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");

@@ -59,8 +59,14 @@ immutable executable closure and no bypass route.
   identifier is not lexically shadowed, or when `require` comes from a locally
   bound `createRequire` that is itself a reviewed named `node:module` import.
   A parameter named `require` or `module` is an arbitrary callback/object,
-  not evidence of a Node loader. No source expression is evaluated or executed
-  during this source-only analysis.
+  not evidence of a Node loader. Named function/class expressions similarly
+  bind their own `require`/`module` identifiers only inside their bodies.
+  For genuine loaders, the scanner follows bounded, cyclic-safe `const` alias
+  chains back to the exact named `createRequire` import from `node:module`,
+  including aliases of the factory *before* it creates a loader. This does not
+  grant a local same-name helper or a shadowed parameter loader authority.
+  No source expression is evaluated or executed during this source-only
+  analysis.
 - Require the writer itself still exports both legacy entrypoints so an
   intentional future retirement/rename cannot silently inherit this census.
   Its presence is a recorded **remaining risk**, not a GREEN runtime claim.
