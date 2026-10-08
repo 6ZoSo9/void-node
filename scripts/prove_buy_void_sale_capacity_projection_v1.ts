@@ -77,38 +77,95 @@ const sidecars = new Map<string, { bytes: Buffer; ino: number }>();
 const descriptors = new Map<number, string>();
 let nextDescriptor = 10;
 let failSidecarPublication = false;
+
+function sidecarLinkCount(entry: { bytes: Buffer; ino: number }): bigint {
+  return BigInt(
+    [...sidecars.values()].filter((candidate) => candidate === entry).length,
+  );
+}
+function sidecarStat(file: string) {
+  const entry = sidecars.get(file);
+  assert.ok(entry, "synthetic sidecar stat target missing: " + file);
+  return {
+    dev: 1n,
+    ino: BigInt(entry.ino),
+    uid: 1n,
+    gid: 1n,
+    mode: 0o100600n,
+    nlink: sidecarLinkCount(entry),
+    size: BigInt(entry.bytes.length),
+    mtimeNs: 1n,
+    ctimeNs: 1n,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+  };
+}
 const syntheticFs = {
-  constants: { O_RDONLY: 1, O_DIRECTORY: 2, O_WRONLY: 4, O_CREAT: 8, O_EXCL: 16, O_NOFOLLOW: 32 },
+  constants: {
+    O_RDONLY: 1,
+    O_DIRECTORY: 2,
+    O_WRONLY: 4,
+    O_CREAT: 8,
+    O_EXCL: 16,
+    O_NOFOLLOW: 32,
+    O_NONBLOCK: 64,
+  },
   mkdirSync: (directory: string) => { assert.equal(directory, requestDir); },
   existsSync: (file: string) => sidecars.has(file),
-  openSync: (file: string) => {
+  openSync: (file: string, flags = 0) => {
     if (file !== requestDir) {
       assert.equal(path.dirname(file), requestDir);
-      assert.equal(sidecars.has(file), false);
-      sidecars.set(file, { bytes: Buffer.alloc(0), ino: nextDescriptor });
+      if (!sidecars.has(file)) {
+        assert.ok(
+          (flags & syntheticFs.constants.O_CREAT) !== 0,
+          "synthetic read-open target must already exist",
+        );
+        sidecars.set(file, { bytes: Buffer.alloc(0), ino: nextDescriptor });
+      }
     }
     const descriptor = nextDescriptor++;
     descriptors.set(descriptor, file);
     return descriptor;
   },
-  writeSync: (descriptor: number, input: Buffer, offset: number, length: number) => {
+  writeSync: (
+    descriptor: number,
+    input: Buffer,
+    offset: number,
+    length: number,
+  ) => {
     const entry = sidecars.get(descriptors.get(descriptor)!)!;
     entry.bytes = Buffer.from(input.subarray(offset, offset + length));
     return length;
   },
+  readSync: (
+    descriptor: number,
+    output: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+  ) => {
+    const entry = sidecars.get(descriptors.get(descriptor)!)!;
+    const bytes = entry.bytes.subarray(position, position + length);
+    bytes.copy(output, offset);
+    return bytes.length;
+  },
+  fstatSync: (descriptor: number) => {
+    const file = descriptors.get(descriptor)!;
+    assert.notEqual(file, requestDir);
+    return sidecarStat(file);
+  },
   fsyncSync() {},
   closeSync: (descriptor: number) => { descriptors.delete(descriptor); },
   linkSync: (from: string, to: string) => {
-    if (failSidecarPublication) throw new Error("synthetic_sidecar_publication_failed");
+    if (failSidecarPublication) {
+      throw new Error("synthetic_sidecar_publication_failed");
+    }
     assert.equal(sidecars.has(to), false);
     sidecars.set(to, sidecars.get(from)!);
   },
   unlinkSync: (file: string) => { sidecars.delete(file); },
   readdirSync: () => [...sidecars.keys()].map((file) => path.basename(file)),
-  lstatSync: (file: string) => {
-    const entry = sidecars.get(file)!;
-    return { dev: 1, ino: entry.ino, size: entry.bytes.length, isFile: () => true, isSymbolicLink: () => false };
-  },
+  lstatSync: (file: string) => sidecarStat(file),
   readFileSync: (file: string) => Buffer.from(sidecars.get(file)!.bytes),
 };
 const context = vm.createContext({
