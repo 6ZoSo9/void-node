@@ -25,7 +25,7 @@ for (const required of [
   "8417af2410d1cad31ac5976f0aa49df06b3586f7ddb19613df8dd39d43b06d4f",
   'sudo /usr/bin/install -o 0 -g 0 -m 0500 -- "$src" "$trusted"',
   "sudo /usr/bin/sha256sum --status -c -",
-  'sudo /bin/bash "$trusted"',
+  'sudo /usr/bin/env -i HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"',
   "0:0:700:directory",
   "0:0:500:1:regular file",
 ]) {
@@ -40,6 +40,82 @@ const handoffSyntax = spawnSync("bash", ["-n"], {
   input: operatorShell, encoding: "utf8", timeout: 5000,
 });
 assert.equal(handoffSyntax.status, 0, handoffSyntax.stderr);
+assert.equal(
+  operatorShell.includes('sudo /bin/bash "$trusted"'),
+  false,
+  "privileged installer must not inherit the caller environment",
+);
+
+const bashEnvRoot = fs.mkdtempSync("/tmp/void-nimo-root-bash-env-proof-");
+try {
+  const bashEnv = bashEnvRoot + "/ambient-bash-env.sh";
+  const sentinel = bashEnvRoot + "/ambient-executed";
+  const trustedProbe = bashEnvRoot + "/trusted-probe.sh";
+  fs.writeFileSync(
+    bashEnv,
+    'printf "ambient\\n" > ' + JSON.stringify(sentinel) + "\n",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    trustedProbe,
+    'set -eu\nprintf "trusted-body\\n"\n',
+    { mode: 0o500 },
+  );
+
+  const inherited = spawnSync(
+    "/bin/bash",
+    ["--noprofile", "--norc", trustedProbe],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        BASH_ENV: bashEnv,
+        ENV: bashEnv,
+        CDPATH: bashEnvRoot,
+      },
+    },
+  );
+  assert.equal(inherited.status, 0, inherited.stderr);
+  assert.equal(
+    fs.existsSync(sentinel),
+    true,
+    "proof adversary must execute through inherited BASH_ENV without env isolation",
+  );
+  fs.rmSync(sentinel, { force: true });
+
+  const isolated = spawnSync(
+    "/usr/bin/env",
+    [
+      "-i",
+      "HOME=/root",
+      "PATH=/usr/sbin:/usr/bin:/sbin:/bin",
+      "LANG=C",
+      "LC_ALL=C",
+      "/bin/bash",
+      "--noprofile",
+      "--norc",
+      trustedProbe,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH || "/usr/bin:/bin",
+        BASH_ENV: bashEnv,
+        ENV: bashEnv,
+        CDPATH: bashEnvRoot,
+      },
+    },
+  );
+  assert.equal(isolated.status, 0, isolated.stderr);
+  assert.equal(isolated.stdout, "trusted-body\n");
+  assert.equal(
+    fs.existsSync(sentinel),
+    false,
+    "env-isolated privileged Bash must not source caller BASH_ENV",
+  );
+} finally {
+  fs.rmSync(bashEnvRoot, { recursive: true, force: true });
+}
 
 assert.ok(script.startsWith("#!/usr/bin/env bash\n"));
 for (const token of [
@@ -89,6 +165,7 @@ assert.equal(help.stderr,"");
 console.log("VOID_REPLAY_NIMO_COMPARE_HANDLER_UPGRADE_V1_SOURCE_GREEN");
 console.log("source_only_test=true");
 console.log("privileged_script_root_copied_and_digest_verified=true");
+console.log("privileged_bash_environment_isolated=true");
 console.log("temporary_mjs_suffix_required=true");
 console.log("node_check_before_atomic_rename=true");
 console.log("old_or_exact_new_handler_sha_required=true");

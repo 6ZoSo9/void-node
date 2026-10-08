@@ -57,6 +57,29 @@ for (const token of [
   assert.ok(script.includes(token), "missing guard: " + token);
 }
 
+// The trusted /root directory is checked using four stat fields: UID, GID,
+// mode and file type. Including %h (link count) but comparing four values
+// would cause an unconditional HOLD on a correctly configured Nimo host.
+const rootMetadataGuard = script.match(
+  /\[\[ "\$\(stat -c '([^']+)' \/root\)" == "([^"]+)" \]\] \|\|/u,
+);
+assert.ok(rootMetadataGuard, "trusted /root metadata guard missing");
+assert.deepEqual(
+  rootMetadataGuard[1].split(":"),
+  ["%u", "%g", "%a", "%F"],
+  "trusted /root stat field arity changed",
+);
+assert.deepEqual(
+  rootMetadataGuard[2].split(":"),
+  ["0", "0", "700", "directory"],
+  "trusted /root expectation changed",
+);
+assert.equal(
+  rootMetadataGuard[1].split(":").length,
+  rootMetadataGuard[2].split(":").length,
+  "trusted /root stat field/value arity mismatch",
+);
+
 // Both entry variants must inherit the exact compare-only authorized key
 // formatting from the previously reviewed independent authorization source.
 const force = authSource.match(/^forced_command=".*"$/mu)?.[0];
