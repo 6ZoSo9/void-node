@@ -1469,6 +1469,53 @@ function allocationActivationReceiptRefV1(request: any): string {
   return "sha256:" + raw;
 }
 
+function assertPriorVerifiedAllocationsCompleteV1(input: {
+  current_request_id: string;
+  allocation_ledger_root: string;
+  allocation_high_water_root: string;
+  authority: {
+    request_jsonl: Buffer;
+    operator_jsonl: Buffer;
+    strict_verified_request_ids: readonly string[];
+  };
+}): void {
+  const snapshot =
+    snapshotBuyVoidAllocationReservationPublicationWriterV1({
+      ledger_root: input.allocation_ledger_root,
+      high_water_root: input.allocation_high_water_root,
+    });
+  if (snapshot.ok === false) {
+    fail(
+      "buy_void_verified_payment_allocation_precheck_snapshot_" +
+        snapshot.reason,
+    );
+  }
+  const allocationBytes = Buffer.from(
+    snapshot.ledger_jsonl,
+    "utf8",
+  );
+  for (const priorRequestId of
+    input.authority.strict_verified_request_ids) {
+    if (priorRequestId === input.current_request_id) {
+      continue;
+    }
+    const prior =
+      classifyBuyVoidVerifiedAllocationReplayBindingV1({
+        request_id: priorRequestId,
+        requests_jsonl: Buffer.from(input.authority.request_jsonl),
+        operator_events_jsonl: Buffer.from(
+          input.authority.operator_jsonl,
+        ),
+        allocation_jsonl: allocationBytes,
+      });
+    if (prior.ok !== true || prior.status !== "allocation_present") {
+      fail(
+        "buy_void_verified_payment_allocation_prior_verified_gap",
+      );
+    }
+  }
+}
+
 function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
   request: any;
   event: any;
@@ -1846,6 +1893,13 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
                     "buy_void_verified_payment_capacity_requests_changed_since_census",
                   );
                 }
+                assertPriorVerifiedAllocationsCompleteV1({
+                  current_request_id: requestId,
+                  allocation_ledger_root: allocationLedgerRoot,
+                  allocation_high_water_root:
+                    allocationHighWaterRoot,
+                  authority,
+                });
                 appendPaymentVerifiedEventDurableV1(
                   authority.operator_ledger,
                   authority.operator_ledger_stat,
