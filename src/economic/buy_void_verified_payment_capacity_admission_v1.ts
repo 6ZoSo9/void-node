@@ -2257,13 +2257,24 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     );
   }
 
+  const canonicalPayment =
+    canonicalVerifiedPaymentEventV1(event);
+  const paymentEvent = canonicalPayment.event;
+  const paymentEventLine = canonicalPayment.line;
+  if (
+    String(paymentEvent.request_id || "").trim() !== requestId ||
+    String(paymentEvent.operator_status || "") !== "payment_verified"
+  ) {
+    fail("buy_void_verified_payment_capacity_canonical_event_identity_mismatch");
+  }
+
   const requestQuoted = microVoid(
     request.quoted_void,
     "buy_void_verified_payment_capacity_quote_invalid",
     true,
   );
   const eventQuoted = microVoid(
-    event.quoted_void,
+    paymentEvent.quoted_void,
     "buy_void_verified_payment_capacity_quote_invalid",
     true,
   );
@@ -2276,7 +2287,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request_dir: requestDir,
       request_id: requestId,
       quoted_void: request.quoted_void,
-      verified_payment_event: event,
+      verified_payment_event: paymentEvent,
       request,
       read_sale_state: input.read_sale_state,
       operation: (authority) =>
@@ -2313,7 +2324,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
                 appendPaymentVerifiedEventDurableV1(
                   authority.operator_ledger,
                   authority.operator_ledger_stat,
-                  event,
+                  paymentEventLine,
                 );
                 return { ok: true, dir: requestDir };
               },
@@ -2337,7 +2348,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   }
   const sidecarState = withBuyVoidTerminalCloseoutRequestLockV1(
     { request_dir: requestDir, request_id: requestId },
-    () => ensurePaymentVerifiedSidecarExactV1(requestDir, event),
+    () => ensurePaymentVerifiedSidecarExactV1(requestDir, paymentEvent),
   );
   return {
     ...(admission.result as any),
