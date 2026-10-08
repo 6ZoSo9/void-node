@@ -104,6 +104,24 @@ function scan(p,bytes) {
   assert.equal(ast.parseDiagnostics.length,0,"invalid compiled JS: "+p);
   const relatives=new Set(), externals=new Set();
   const dynamicFactories=[],dynamicTargets=[];
+  const forbiddenLoaderNames=new Set(["require","createRequire","eval","Function"]);
+  const dynamicGlobalNames=new Set(["globalThis","global","window","self"]);
+  function dynamicGlobal(node) {
+    return ts.isIdentifier(node)&&dynamicGlobalNames.has(node.text);
+  }
+  function forbiddenLoaderReference(node) {
+    if(ts.isIdentifier(node)) return forbiddenLoaderNames.has(node.text);
+    if(ts.isPropertyAccessExpression(node)&&dynamicGlobal(node.expression)) {
+      return forbiddenLoaderNames.has(node.name.text);
+    }
+    // Any computed access through a dynamic global is outside the attested
+    // generated-module grammar. This closes obfuscated loader aliases such as
+    // globalThis["ev"+"al"] without trying to evaluate attacker expressions.
+    if(ts.isElementAccessExpression(node)&&dynamicGlobal(node.expression)) {
+      return true;
+    }
+    return false;
+  }
   function add(value) {
     assert.ok(value&&ts.isStringLiteral(value),"nonliteral dynamic import:"+p);
     const spec=value.text;
@@ -117,12 +135,23 @@ function scan(p,bytes) {
   }
   function visit(node) {
     if((ts.isImportDeclaration(node)||ts.isExportDeclaration(node))&&node.moduleSpecifier) add(node.moduleSpecifier);
+    if(ts.isVariableDeclaration(node)&&node.initializer&&
+       forbiddenLoaderReference(node.initializer)) {
+      assert.fail("aliased dynamic loader:"+p);
+    }
+    if(ts.isBinaryExpression(node)&&
+       node.operatorToken.kind===ts.SyntaxKind.EqualsToken&&
+       forbiddenLoaderReference(node.right)) {
+      assert.fail("assigned dynamic loader:"+p);
+    }
     if(ts.isCallExpression(node)){
       if(node.expression.kind===ts.SyntaxKind.ImportKeyword) {
         assert.equal(node.arguments.length,1,"noncanonical import");
         add(node.arguments[0]);
       }
       const expression=node.expression.getText(ast);
+      assert.equal(forbiddenLoaderReference(node.expression),false,
+        "alternate dynamic loader reference:"+p);
       assert.doesNotMatch(expression,/\b(require|createRequire|eval|Function)\b/u,
         "alternate dynamic loader:"+p);
       if(ts.isIdentifier(node.expression)&&node.expression.text==="dynamicImport"){
@@ -137,6 +166,9 @@ function scan(p,bytes) {
     }
     if(ts.isNewExpression(node)){
       const expression=node.expression.getText(ast);
+      if(forbiddenLoaderReference(node.expression)&&expression!=="Function") {
+        assert.fail("alternate dynamic constructor:"+p);
+      }
       if(/\bFunction\b/u.test(expression)){
         assert.equal(expression,"Function","unreviewed Function constructor expression:"+p);
         const args=node.arguments||[];
@@ -189,6 +221,10 @@ function runSelfTest() {
     'import("node:child_process");',
     'require("./other.js");',
     'eval("2+2");',
+    'const runner=eval; runner("2+2");',
+    'const runner=globalThis["ev"+"al"]; runner("import(\\'node:child_process\\')");',
+    'const F=Function; new F("return 3");',
+    'const F=globalThis["Fun"+"ction"]; F("return import(\\'node:child_process\\')")();',
     'new Function("return 3");',
   ]) assert.throws(()=>scan(ENTRY,Buffer.from(bad)),undefined,bad);
   // The observed constructor shape may be CENSUSED, never authorized as a
@@ -245,6 +281,8 @@ function runSelfTest() {
   console.log("nonliteral_and_external_imports_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
+  console.log("computed_global_dynamic_loader_aliases_rejected=true");
+  console.log("assigned_dynamic_loader_aliases_rejected=true");
   console.log("dynamic_tool_execution_identity_verified=false");
   console.log("same_size_source_inode_substitution_rejected=true");
   console.log("growth_buffer_bounded_to_pinned_size_plus_one=true");
