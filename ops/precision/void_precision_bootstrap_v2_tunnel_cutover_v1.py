@@ -8,6 +8,7 @@ Does not modify a VOID node, other public services, wallets, or validators.
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import shlex
@@ -80,11 +81,66 @@ def build_candidate_config(original):
            "candidate_fallback_not_preserved")
     return candidate
 
+# Never resolve an authority-bearing helper through the caller's PATH.
+# The cloudflared executable itself is separately read from the pinned unit.
+TRUSTED_HELPERS = {
+    "systemctl": Path("/usr/bin/systemctl"),
+    "git": Path("/usr/bin/git"),
+    "curl": Path("/usr/bin/curl"),
+}
+
+def trusted_subprocess_env():
+    try:
+        account = pwd.getpwuid(os.geteuid())
+    except KeyError as exc:
+        raise Hold("operator_account_unavailable") from exc
+    runtime = f"/run/user/{os.geteuid()}"
+    return {
+        "PATH": "/usr/bin:/bin",
+        "HOME": account.pw_dir,
+        "LANG": "C",
+        "LC_ALL": "C",
+        "XDG_RUNTIME_DIR": runtime,
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + runtime + "/bus",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+    }
+
+def trusted_subprocess_binary(command):
+    ensure(isinstance(command, str) and bool(command), "unknown_helper")
+    if command in TRUSTED_HELPERS:
+        path = TRUSTED_HELPERS[command]
+        try:
+            info = path.lstat()
+        except OSError as exc:
+            raise Hold("missing_trusted_helper_" + command) from exc
+        ensure(
+            stat.S_ISREG(info.st_mode)
+            and info.st_uid == 0
+            and (stat.S_IMODE(info.st_mode) & 0o022) == 0
+            and bool(info.st_mode & stat.S_IXUSR),
+            "untrusted_helper_" + command,
+        )
+        return str(path)
+    # Cloudflared is never searched by name: preflight extracts its absolute
+    # executable from the reviewed user service and verifies it separately.
+    path = Path(command)
+    ensure(path.is_absolute() and path.name == "cloudflared",
+           "unreviewed_subprocess_command")
+    return str(path)
+
 def cmd(args, label, timeout=20):
+    ensure(isinstance(args, (list, tuple)) and bool(args),
+           "unreviewed_subprocess_arguments")
+    trusted = [trusted_subprocess_binary(args[0]), *args[1:]]
     try:
         result = subprocess.run(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            timeout=timeout, check=False,
+            trusted, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=timeout, check=False, env=trusted_subprocess_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Hold(label + "_unavailable_or_timeout") from exc
@@ -144,7 +200,7 @@ def verify_dropin():
 
 def fetch(url, label):
     data = cmd([
-        "curl", "-4", "--noproxy", "*", "-fsS",
+        "curl", "-q", "-4", "--noproxy", "*", "-fsS",
         "--connect-timeout", "3", "--max-time", "8", url,
     ], label, timeout=12)
     ensure(len(data) <= 2 * 1024 * 1024, "body_too_large_" + label)
@@ -243,6 +299,11 @@ def private_write(path, body):
 
 def preflight():
     ensure(socket.gethostname() == "zoso-Precision-Tower-7810" and os.geteuid() != 0, "host_or_user")
+    try:
+        account = pwd.getpwuid(os.geteuid())
+    except KeyError as exc:
+        raise Hold("host_or_user") from exc
+    ensure(account.pw_name == "zoso" and Path.home() == Path(account.pw_dir), "host_or_user")
     ensure(not STATE.exists() and not STATE.is_symlink(), "earlier_attempt_exists")
     ensure(ROOT.is_dir() and not ROOT.is_symlink(), "recovery_root")
     ensure(

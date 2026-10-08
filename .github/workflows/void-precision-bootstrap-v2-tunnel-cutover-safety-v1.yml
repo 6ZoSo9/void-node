@@ -134,6 +134,87 @@ jobs:
           print("extra_dropin_rejected=true")
           PY
 
+      - name: Reject poisoned PATH and inherited subprocess environment
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          import os
+          from pathlib import Path
+          import subprocess
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("pinned_bootstrap_cutover", src)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          with TemporaryDirectory() as tmp:
+              fake = Path(tmp) / "fake-bin"
+              fake.mkdir()
+              for selector in ("systemctl", "git", "curl"):
+                  bait = fake / selector
+                  bait.write_text("#!/bin/sh\\necho FAKE_COMMAND_SELECTED\\n", encoding="utf8")
+                  bait.chmod(0o755)
+
+              poisoned = {
+                  "PATH": str(fake) + ":/usr/bin:/bin",
+                  "LD_PRELOAD": "/nonexistent/poison-preload.so",
+                  "GIT_DIR": str(fake),
+                  "GIT_WORK_TREE": str(fake),
+                  "GIT_CONFIG_COUNT": "1",
+                  "CURL_HOME": str(fake),
+                  "DBUS_SESSION_BUS_ADDRESS": "tcp:host=untrusted.invalid,port=1",
+                  "XDG_RUNTIME_DIR": str(fake),
+              }
+              with patch.dict(os.environ, poisoned):
+                  child_env = m.trusted_subprocess_env()
+                  assert child_env["PATH"] == "/usr/bin:/bin"
+                  assert child_env["HOME"] != str(fake)
+                  assert child_env["XDG_RUNTIME_DIR"] == "/run/user/" + str(os.geteuid())
+                  assert child_env["DBUS_SESSION_BUS_ADDRESS"] == (
+                      "unix:path=" + child_env["XDG_RUNTIME_DIR"] + "/bus")
+                  for key in ("LD_PRELOAD", "GIT_DIR", "GIT_WORK_TREE",
+                              "GIT_CONFIG_COUNT", "CURL_HOME"):
+                      assert key not in child_env, key
+
+                  for selector, expected in (
+                      ("systemctl", b"systemd"),
+                      ("git", b"git version"),
+                      ("curl", b"curl "),
+                  ):
+                      data = m.cmd([selector, "--version"], selector + "_version", timeout=10)
+                      assert expected in data, selector
+                      assert b"FAKE_COMMAND_SELECTED" not in data
+
+                  selected = []
+                  def recorder(argv, **kw):
+                      selected.append((argv, kw))
+                      return subprocess.CompletedProcess(argv, 0, stdout=b"active", stderr=b"")
+                  with patch.object(m.subprocess, "run", side_effect=recorder):
+                      assert m.cmd(["systemctl", "--user", "show", m.UNIT, "-p", "ActiveState", "--value"],
+                                   "mock_user_systemd") == b"active"
+                  assert len(selected) == 1
+                  argv, kw = selected[0]
+                  assert argv[0] == "/usr/bin/systemctl"
+                  assert kw["env"] == child_env
+                  assert kw["stdin"] is subprocess.DEVNULL
+
+                  for forbidden in ("sh", "/bin/sh", "/usr/bin/env", "python3"):
+                      try:
+                          m.cmd([forbidden, "--version"], "forbidden_command")
+                      except m.Hold as exc:
+                          assert str(exc) == "unreviewed_subprocess_command", str(exc)
+                      else:
+                          raise AssertionError("unreviewed subprocess command accepted")
+
+          print("trusted_system_helpers_absolute=true")
+          print("fake_PATH_commands_not_executed=true")
+          print("inherited_loader_git_curl_environment_stripped=true")
+          print("canonical_user_bus_context_derived=true")
+          print("operator_service_mutation=false")
+          PY
+
       - name: Wrong-host plan and apply fail closed without creating state
         run: |
           set -Eeuo pipefail
