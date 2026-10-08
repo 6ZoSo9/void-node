@@ -40,7 +40,7 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$EXPECTED"
 
       - name: Install Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645dc5ba9c38
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
