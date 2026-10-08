@@ -6,17 +6,18 @@ import {
   observeBuyVoidSourceFinalityGenerationProvenanceV6,
 } from "../src/economic/buy_void_source_finality_generation_provenance_v6.js";
 
-const originalReadFileSync = fs.readFileSync;
+const originalReadSync = fs.readSync;
 let delayedReads = 0;
 
 try {
-  (fs as any).readFileSync = (...args: unknown[]) => {
+  (fs as any).readSync = (...args: unknown[]) => {
     delayedReads += 1;
     const until = performance.now() + 10;
     while (performance.now() < until) {
-      // Deliberately consume the V6 preflight budget without network activity.
+      // Deliberately consume the bounded V6 descriptor-read preflight budget
+      // without network activity or source-file mutation.
     }
-    return (originalReadFileSync as any).apply(fs, args);
+    return (originalReadSync as any).apply(fs, args);
   };
 
   const result = await observeBuyVoidSourceFinalityGenerationProvenanceV6({
@@ -35,7 +36,7 @@ try {
   assert.equal(result.reason, "source_finality_total_deadline_exceeded");
   assert.ok(delayedReads >= 1);
 } finally {
-  (fs as any).readFileSync = originalReadFileSync;
+  (fs as any).readSync = originalReadSync;
 }
 
 console.log(JSON.stringify({
