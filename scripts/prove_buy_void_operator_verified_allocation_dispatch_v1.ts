@@ -50,6 +50,8 @@ for (const key of [
   "mounted_operator_route_verified",
   "operator_principal_authenticated",
   "private_root_independent_custody_proven",
+  "custody_service_composed",
+  "direct_web_process_private_root_write_authority",
   "deployed_artifact_generation_verified",
   "production_gate_ready",
   "signing",
@@ -282,6 +284,8 @@ console.log("dispatch_calls_allocation_writer_only_on_verified_branch=true");
 console.log("mounted_operator_legacy_payment_only_producer_observed=true");
 console.log("mounted_verified_allocation_dispatch=false");
 console.log("installed_private_root_custody_verified=false");
+console.log("custody_service_composed=false");
+console.log("direct_web_process_private_root_write_authority=false");
 console.log("payment_or_allocation_append_performed=false");
 console.log("runtime_service_mutation=false");
 console.log("presale_activation=false");
