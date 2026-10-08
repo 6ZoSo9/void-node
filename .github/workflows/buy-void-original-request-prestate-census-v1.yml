@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/void-buy-original-request-prestate-census-v1.mjs"
-      - "scripts/prove_void_buy_original_request_prestate_census_v1.mjs"
+      - "scripts/prove_void_buy_original_request-prestate-census-v1.mjs"
       - "docs/architecture/buy-void-original-request-prestate-census-v1.md"
       - ".github/workflows/buy-void-original-request-prestate-census-v1.yml"
   workflow_dispatch:
@@ -46,12 +46,17 @@ jobs:
       - name: Syntax and synthetic privacy/safety proof
         run: |
           node --check tools/void-buy-original-request-prestate-census-v1.mjs
-          node --check scripts/prove_void_buy_original_request_prestate_census_v1.mjs
-          node scripts/prove_void_buy_original_request_prestate_census_v1.mjs
+          node --check scripts/prove_void_buy_original_request-prestate-census-v1.mjs
+          node scripts/prove_void_buy_original_request-prestate-census-v1.mjs
       - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          test -n "$HEAD_SHA"
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
