@@ -171,9 +171,23 @@ function derive(){
   assert.equal(process.platform,"linux","Linux-only descriptor helper requires Linux");
   assert.ok([22,24,26].includes(Number(process.versions.node.split(".")[0])),
     "Node version outside reviewed source matrix");
-  runReviewedGitV1(["merge-base","--is-ancestor",PARENT,"HEAD"],ROOT);
-  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",PARENT,"HEAD","--",
-    SAGA,"Dockerfile"],ROOT);
+  // Current-main composition may carry the exact reviewed source bytes
+  // without making the historical component branch an ancestor. Bind the
+  // historical parent tree directly, then bind the current files below.
+  const parentTree=runReviewedGitV1(
+    ["ls-tree",PARENT,"--",SAGA,"Dockerfile"],ROOT,
+  );
+  const parentBlobs=new Map(
+    parentTree.trim().split("\n").filter(Boolean).map(line=>{
+      const match=line.match(/^100644 blob ([0-9a-f]{40})\t(.+)$/u);
+      assert.ok(match,"unexpected reviewed parent tree entry: "+line);
+      return [match[2],match[1]];
+    }),
+  );
+  assert.equal(parentBlobs.get(SAGA),SAGA_BLOB,
+    "reviewed parent saga blob drift");
+  assert.equal(parentBlobs.get("Dockerfile"),DOCKER_BLOB,
+    "reviewed parent Dockerfile blob drift");
   const original=readDescriptorRelativeLinuxV1(ROOT,SAGA,128*1024);
   assert.equal(original.length,SAGA_BYTES,"saga source byte length drift");
   assert.equal(gitBlob(original),SAGA_BLOB,"reviewed saga source Git blob drift");
@@ -184,7 +198,10 @@ function derive(){
     "reviewed saga packaging source line missing");
   const census=auditSource(original);
   return {schema:"void_buy_void_composed_saga_import_initialization_candidate_v1",version:1,
-    exact_source_parent:PARENT,saga_source_path:SAGA,
+    exact_source_parent:PARENT,
+    reviewed_parent_tree_identity_verified:true,
+    reviewed_parent_ancestor_required:false,
+    saga_source_path:SAGA,
     saga_source_git_blob_sha1:SAGA_BLOB,saga_source_bytes:original.length,
     saga_source_sha256:sha256(original),
     dockerfile_git_blob_sha1:DOCKER_BLOB,
