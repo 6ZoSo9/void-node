@@ -75,7 +75,7 @@ immutable executable closure and no bypass route.
   harmless; benign overlong imports can require manual review. Cycles and
   unresolved runtime environment variables remain separate from an explicit
   bound being reached.
-  
+
   For named function expressions, the internal function name has an
   **independent self-name environment** outside the body's parameter and
   `var` bindings. A same-name parameter or body `var` shadows this name
