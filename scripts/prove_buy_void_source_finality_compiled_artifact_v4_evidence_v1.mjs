@@ -7,21 +7,21 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json";
-const EXPECTED_MANIFEST_SHA256 = "d03761f2c4cae8388fcee50bb953c85062d5d58d653c79451f0bf097069a28e8";
-const EXPECTED_MANIFEST_BLOB = "44b7aac6189dbf64ed7a8c3d185995b6fda1a646";
-const EXPECTED_GENERATION = "b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d";
-const SOURCE_STACK_HEAD = "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e";
-const SOURCE_V6_BLOB = "d642723385136e9f0382bd77efdb34948221f380";
-const SOURCE_V2_BLOB = "32133e441ccb02bb4786d29e36932fb31399ec87";
+const EXPECTED_MANIFEST_SHA256 = "27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128";
+const EXPECTED_MANIFEST_BLOB = "4c95426572e6b019822f3ae6422aacad6287e562";
+const EXPECTED_GENERATION = "45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87";
+const SOURCE_STACK_HEAD = "47cbb1d4c7fb667a7accdf1089edb11072f3e631";
+const SOURCE_V6_BLOB = "7266c03d8874207ed3fda0f814d0a7a53d429c25";
+const SOURCE_V2_BLOB = "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 const V3_BLOB = "d6e97784c5d8be93713e733628c7d1ef746bb5c7";
 const V3_GENERATION = "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add";
 const EXPECTED_ARTIFACTS = Object.freeze([
-  {path:"dist/economic/buy_void_source_finality_generation_provenance_v6.js",bytes:15937,sha256:"1a80772df43a5a39ac041faf093dd3da58d0bd587499237dd51fb18a4b0915db"},
+  {path:"dist/economic/buy_void_source_finality_generation_provenance_v6.js",bytes:15937,sha256:"2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a"},
   {path:"dist/economic/buy_void_source_finality_authenticated_composition_v3.js",bytes:18892,sha256:"0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42"},
   {path:"dist/economic/buy_void_source_finality_authority_v2.js",bytes:19002,sha256:"239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b"},
   {path:"dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",bytes:19804,sha256:"3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2"},
   {path:"dist/economic/buy_void_payment_rpc_observer_v1.js",bytes:12270,sha256:"d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89"},
-  {path:"dist/economic/buy_void_verified_payment_v2.js",bytes:10023,sha256:"e2cc47627e1aa2d1094145745f86cd928a72ebd1103c8ca82f66f5f515112efc"}
+  {path:"dist/economic/buy_void_verified_payment_v2.js",bytes:12161,sha256:"7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2"}
 ]);
 const PREDECESSOR_SHARED = EXPECTED_ARTIFACTS.slice(1,5);
 const MAX_READ = 16 * 1024 * 1024;
@@ -97,7 +97,7 @@ function validateCandidate(c) {
     "src/economic/buy_void_verified_payment_v2.ts"
   ]);
   assert.equal(c.reviewed_source_generation.marker,"VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6");
-  assert.equal(c.reviewed_source_generation.reviewed_source_files_sha256,"6a2493b269919be87273eb9bcfc959ab601aab9c16689c54a813db619d1b980f");
+  assert.equal(c.reviewed_source_generation.reviewed_source_files_sha256,"95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426");
   assert.equal(c.reviewed_source_generation.verified_source_file_count,5);
   assert.equal(c.entry_artifact,EXPECTED_ARTIFACTS[0].path);
   assert.equal(c.artifact_count,EXPECTED_ARTIFACTS.length);
