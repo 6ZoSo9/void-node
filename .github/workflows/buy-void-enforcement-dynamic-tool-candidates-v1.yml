@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "docs/architecture/buy-void-enforcement-dynamic-tool-candidates-v1.md"
       - ".github/workflows/buy-void-enforcement-dynamic-tool-candidates-v1.yml"
       - "src/economic/**"
@@ -48,6 +49,22 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Install locked dependency for AST-only proof
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Falsify ambient Git binary and Git configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_reviewed_git_invocation_v1.mjs --self-test \
+            | tee "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "unreviewed_PATH_git_shim_executed=false" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "ambient_GIT_LD_config_excluded=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "invalid_source_ancestry_rejected=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "changed_committed_source_rejected=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "candidate_identity_accepted=false" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
       - name: Prove synthetic generated-loader edge and reject unreviewed inputs
         run: node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
       - name: Derive exact three-target thirteen-caller source census
