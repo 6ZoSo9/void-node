@@ -9,6 +9,7 @@ import {
   createQualificationReceipt,
   objectWithId,
   probePublicSeedSample,
+  requestBounded,
   qualifyPublicSeed,
   normalizePublicSeedBase,
   resolvePublicDns,
@@ -203,6 +204,21 @@ let rangeNumbersAsStrings = false;
 const upstream = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${UPSTREAM_PORT}`);
   res.setHeader("content-type", "application/json; charset=utf-8");
+  if (url.pathname === "/__fixture/nonjson-edge-502") {
+    res.statusCode = 502;
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.end("<html>PRIVATE_FIXTURE_BODY_MUST_NOT_LEAK</html>");
+    return;
+  }
+  if (url.pathname === "/__fixture/nonjson-200") {
+    res.end('{"ready":');
+    return;
+  }
+  if (url.pathname === "/__fixture/nonjson-header") {
+    res.setHeader("content-type", "application/x-PRIVATE_FIXTURE_HEADER_MUST_NOT_LEAK");
+    res.end("PRIVATE_FIXTURE_BODY_MUST_NOT_LEAK");
+    return;
+  }
   if (url.pathname === "/api/health") {
     res.setHeader("content-type", "text/plain; charset=utf-8");
     res.end("ok\n");
@@ -256,6 +272,35 @@ try {
   });
   const gatewayOutput = await waitForGateway(gateway);
   assert(gatewayOutput.includes("private_mutation_routes_exposed=false"), "gateway authority marker missing");
+
+  // Reproduce the October 8 live qualifier's non-JSON failure mode on an
+  // isolated loopback fixture. The diagnostic must not leak the HTML body,
+  // attacker-controlled Content-Type, or create any qualification receipt.
+  const rawFixture = `http://127.0.0.1:${UPSTREAM_PORT}`;
+  for (const [route, status, mediaClass] of [
+    ["/__fixture/nonjson-edge-502", 502, "html"],
+    ["/__fixture/nonjson-200", 200, "json"],
+    ["/__fixture/nonjson-header", 200, "other"],
+  ]) {
+    let observed = "";
+    try {
+      await requestBounded(rawFixture + route, {
+        pinnedAddresses: ["127.0.0.1"],
+        allowLoopbackFixture: true,
+        timeoutMs: 5000,
+        maxBytes: 4096,
+      });
+    } catch (error) {
+      observed = String(error?.message || error);
+    }
+    assert(observed.includes("did not return valid JSON"), `non-JSON escaped: ${route}`);
+    assert(observed.includes(`http_status=${status}`), `lost HTTP status: ${route}`);
+    assert(observed.includes(`content_type_class=${mediaClass}`), `lost media class: ${route}`);
+    assert(/response_bytes=[1-9][0-9]*/.test(observed), `lost bounded byte count: ${route}`);
+    assert(!observed.includes("PRIVATE_FIXTURE_BODY_MUST_NOT_LEAK"), `response body leaked: ${route}`);
+    assert(!observed.includes("PRIVATE_FIXTURE_HEADER_MUST_NOT_LEAK"), `response header leaked: ${route}`);
+  }
+  pass("non-JSON HTTP diagnostics fail closed without reflecting response or header content");
 
   const base = `http://127.0.0.1:${GATEWAY_PORT}`;
   const ready = await jsonResponse(`${base}/__void/ready.json`);
@@ -557,6 +602,7 @@ console.log("private_tailnet_endpoint_accepted=false");
 console.log("ip_literal_https_accepted=true");
 console.log("non_public_ip_literal_accepted=false");
 console.log("ip_literal_connection_binding_exact=true");
+console.log("nonjson_http_diagnostics_status_media_class_bytes_only=true");
 console.log("private_mutation_routes_exposed=false");
 console.log("wallet_authority=false");
 console.log("signer_authority=false");
