@@ -95,6 +95,7 @@ function readOperatorCapabilityV1():
     if (
       !directory.isDirectory() ||
       directory.isSymbolicLink() ||
+      (directory.mode & 0o022) !== 0 ||
       fs.realpathSync(rawDir) !== rawDir
     ) {
       return { ok: false };
@@ -121,7 +122,7 @@ function readOperatorCapabilityV1():
       visibleBefore.nlink !== 1 ||
       visibleBefore.size <= 0 ||
       visibleBefore.size > MAX_CAPABILITY_FILE_BYTES ||
-      (visibleBefore.mode & 0o022) !== 0
+      (visibleBefore.mode & 0o077) !== 0
     ) {
       return { ok: false };
     }
@@ -137,7 +138,7 @@ function readOperatorCapabilityV1():
       before.size !== visibleBefore.size ||
       before.size <= 0 ||
       before.size > MAX_CAPABILITY_FILE_BYTES ||
-      (before.mode & 0o022) !== 0 ||
+      (before.mode & 0o077) !== 0 ||
       !sameIdentity(visibleBefore, before)
     ) {
       return { ok: false };
