@@ -213,10 +213,15 @@ const context = vm.createContext({
       "synthetic-" + String(input.request_id),
     );
   },
-  appendPaymentVerifiedEventDurableV1: (_ledger: any, _stat: any, value: any) => {
+  appendPaymentVerifiedEventDurableV1: (
+    _ledger: any,
+    _stat: any,
+    value: Buffer,
+  ) => {
+    assert.equal(Buffer.isBuffer(value), true);
     trace.push("synthetic_append");
     operations += 1;
-    events.push(JSON.parse(JSON.stringify(value)));
+    events.push(JSON.parse(value.toString("utf8").trimEnd()));
   },
   withBuyVoidFilesystemBakeryLockAsyncV1: async (_lock: string, operation: () => any) => operation(),
   openPinnedRequestDirectoryV1: () => ({ fd: 3 }),
@@ -259,6 +264,7 @@ evaluate(declarations(admissionPath, [
   "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
   "O_NOFOLLOW", "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
+  "deepFreezeJsonValueV1", "canonicalVerifiedPaymentEventV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   "withBuyVoidVerifiedPaymentCapacityAdmissionV1",
 ]), context);
