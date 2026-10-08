@@ -73,4 +73,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          if [[ -n "$BASE_SHA" && -n "$HEAD_SHA" ]]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          elif [[ -z "$BASE_SHA" && -z "$HEAD_SHA" ]]; then
+            # No pull-request payload on workflow_dispatch: check last commit
+            # rather than treating empty revision arguments as valid SHAs.
+            git diff --check HEAD^ HEAD
+          else
+            echo "diff_revision_pair_incomplete_hold" >&2
+            exit 1
+          fi

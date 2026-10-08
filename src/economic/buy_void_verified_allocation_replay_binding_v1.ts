@@ -373,6 +373,12 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     const event = byRequest.get(target);
     if (!event) fail("replay_binding_verified_payment_missing");
 
+    // First validate the ORIGINAL allocation bytes: the older hash-chain
+    // reader parses with Buffer.toString("utf8"), which replaces malformed
+    // UTF-8. No decoded/sanitized history may stand in for supplied bytes.
+    // This also rejects CRLF, duplicate JSON members and noncanonical rows
+    // before canonical #2433 allocation hashes and inventory are checked.
+    rows(input.allocation_jsonl, "allocation");
     const allocation = classifyBuyVoidAllocationReservationLedgerV1(input.allocation_jsonl);
     if (allocation.ok === false) fail("allocation_history_" + allocation.reason);
     let allocatedMicro = 0n;

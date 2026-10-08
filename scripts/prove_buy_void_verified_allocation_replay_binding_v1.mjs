@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import {
   VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_AUTHORITY_V1,
@@ -322,6 +323,35 @@ hold(mutate({ operator_events_jsonl: Buffer.from(JSON.stringify(event)) }), /tru
 hold(mutate({ operator_events_jsonl: Buffer.from(JSON.stringify(event).replace('"request_id":', '"request_id":"attacker","request_id":') + "\n") }), /noncanonical_row/u);
 hold(mutate({ requests_jsonl: Buffer.from("ff", "hex") }), /requests_(?:json_invalid|noncanonical_row)|encoded data|UTF/u);
 hold(mutate({ allocation_jsonl: Buffer.from("{}\n") }), /allocation_history_/u);
+// The canonical hash-chain reader already compares serialized records. The
+// preceding raw-byte check additionally enforces strict UTF-8 on the input
+// and rejects shadowed JSON members or CRLF before the canonical classifier.
+const validAllocationText = allocationBytes.toString("utf8");
+assert.equal(validAllocationText.endsWith("\n"), true);
+hold(scan([request], [event], Buffer.from(validAllocationText.replace(/\n/gu, "\r\n"))),
+  /allocation_truncated_or_noncanonical/u);
+hold(scan([request], [event],
+  Buffer.from(validAllocationText.replace('"request_id":',
+    '"request_id":"shadow","request_id":'))),
+  /allocation_noncanonical_row/u);
+// Invalid byte sequences are never silently normalized through replacement.
+const malformedUtf8Allocation = Buffer.from(allocationBytes);
+const allocationRecordId = Buffer.from(planned.record.record_id, "utf8");
+const allocationIdOffset = malformedUtf8Allocation.indexOf(allocationRecordId);
+assert.notEqual(allocationIdOffset, -1);
+malformedUtf8Allocation[allocationIdOffset] = 0xff;
+hold(scan([request], [event], malformedUtf8Allocation),
+  /encoded data|UTF|(?:allocation_.*invalid)/iu);
+
+// This workflow supports manual dispatch, where pull_request base/head are
+// both absent; the committed last-commit check is explicit, not empty revs.
+const workflowText = readFileSync(
+  new URL("../.github/workflows/buy-void-verified-allocation-replay-binding-v1.yml", import.meta.url),
+  "utf8",
+);
+assert.match(workflowText, /workflow_dispatch:/u);
+assert.match(workflowText, /git diff --check HEAD\^ HEAD/u);
+assert.match(workflowText, /git diff --check "\$BASE_SHA" "\$HEAD_SHA"/u);
 hold(classifyBuyVoidVerifiedAllocationReplayBindingV1({ ...heldInput, verified_payment_gate_green: true }), /input_shape_invalid/u);
 
 console.log("VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1_SOURCE_GREEN");
@@ -339,6 +369,8 @@ console.log("target_and_verified_legacy_initial_qualification_hold=true");
 console.log("nonconsecutive_stale_request_snapshot_replay_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");
+console.log("allocation_raw_utf8_and_canonical_jsonl_checked=true");
+console.log("manual_dispatch_diff_revision_fallback_checked=true");
 console.log("descriptor_custody_or_payment_fsync_claimed=false");
 console.log("allocation_write_or_runtime_activation=false");
 console.log("funds_movement=false");

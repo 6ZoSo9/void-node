@@ -55,8 +55,13 @@ can replace the event identity. A later trusted integration must verify that
 the same exact byte definition is used by the #2433 allocation planner and
 publisher before any production admission.
 
-The classifier validates the entire canonical allocation JSONL with the merged
-#2433 hash-chain classifier. Each existing allocation must match one verified
+The classifier first validates the **original allocation bytes** using the
+same strict UTF-8, LF-terminated and JSON.stringify-roundtrip checks applied
+to request and event histories. The existing #2433 hash-chain parser also
+compares parsed records against canonical serialization, but uses a nonfatal
+UTF-8 decode; the new precheck rejects malformed bytes before accepting a
+canonical allocation identity. It then validates the entire canonical
+allocation JSONL with the merged #2433 hash-chain classifier. Each existing allocation must match one verified
 payment's identity, event-line hash, amount, delivery address, transaction and
 request launch authority. It reports one of two *observations*:
 
@@ -133,7 +138,10 @@ node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
 ```
 
 The Node 22/24/26 focused workflow repeats these commands and requires clean
-source-head/diff hygiene. The proof covers first missing allocation, exact
+source-head/diff hygiene. For pull requests it checks the exact BASE→HEAD
+committed diff. For manually dispatched checks (which have no PR base/head),
+it verifies the last committed HEAD^→HEAD diff only; a manual dispatch does
+not qualify an entire PR range. Both paths reject whitespace errors. The proof covers first missing allocation, exact
 matching history, deterministic replay, changed event bytes, duplicate identity,
 request/receipt/amount/quote drift, malformed or missing launch authority
 at the empty-ledger crash gap, request-token vs event-token mismatch,
