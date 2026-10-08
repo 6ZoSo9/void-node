@@ -1,0 +1,75 @@
+name: VOID Buy allocation custody service bootstrap plan v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-service-bootstrap-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-service-bootstrap-plan-v1.yml"
+      - "tools/void-buy-allocation-custody-service-v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-service-contract-v1.json"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-buy-allocation-custody-service-bootstrap-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-only-plan:
+    name: Source-only bootstrap plan / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax and source-only adversaries
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs
+          node scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs
+
+      - name: Plan remains HOLD
+        run: |
+          set -euo pipefail
+          node tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs --plan > /tmp/void-custody-plan.json
+          node -e 'const p=require("/tmp/void-custody-plan.json");if(p.status!=="HOLD_SOURCE_ONLY"||p.production_gate_ready!==false||p.candidate.requested_exec_start!==null||p.executable_unit_emitted!==false)process.exit(2)'
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
