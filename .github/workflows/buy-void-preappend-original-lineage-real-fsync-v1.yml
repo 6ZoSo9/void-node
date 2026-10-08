@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           node --import tsx scripts/prove_buy_void_preappend_original_lineage_real_fsync_v1.ts \
-            | tee preappend-proof-node-${{ matrix.node }}.txt
+            | tee "$RUNNER_TEMP/preappend-proof-node-${{ matrix.node }}.txt"
           for required in \
             VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN \
             VOID_BUY_VOID_PREAPPEND_ORIGINAL_LINEAGE_REAL_FSYNC_V1_GREEN \
@@ -68,7 +68,7 @@ jobs:
             production_payment_ingress_enabled=false \
             funds_moved=false
           do
-            grep -Fx "$required" preappend-proof-node-${{ matrix.node }}.txt
+            grep -Fx "$required" "$RUNNER_TEMP/preappend-proof-node-${{ matrix.node }}.txt"
           done
       - name: Refuse mutation to source during proof
         run: |
@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-preappend-lineage-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: preappend-proof-node-${{ matrix.node }}.txt
+          path: ${{ runner.temp }}/preappend-proof-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff hygiene
