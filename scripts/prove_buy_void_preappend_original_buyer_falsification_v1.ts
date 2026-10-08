@@ -15,7 +15,7 @@ const RECEIVE = "0x" + "3".repeat(40);
 const WALLET = "0x" + "2".repeat(40);
 const WRONG_WALLET = "0x" + "9".repeat(40);
 const TX = "0x" + "1".repeat(64);
-const REQUEST_ID = "buyvoid_h_" + "h".repeat(8);
+const REQUEST_ID = "buyvoid_h_" + "a".repeat(8);
 const LEDGER = "allocation-reservations-v1.jsonl";
 const HIGH_WATER = "allocation-reservation-high-water-v1.json";
 const POOL = "10000000";
@@ -74,7 +74,7 @@ const correctEvent = Object.freeze({
 });
 function rows(file) {
   const s=fs.readFileSync(file,"utf8");
-  return s ? s.trimEnd().split("\n").map(JSON.parse) : [];
+  return s ? s.trimEnd().split("\n").map((line) => JSON.parse(line)) : [];
 }
 function setup() {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-handoff-original-wallet-boundary-"));
