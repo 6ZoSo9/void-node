@@ -154,7 +154,8 @@ jobs:
               fake.mkdir()
               for selector in ("systemctl", "git", "curl"):
                   bait = fake / selector
-                  bait.write_text("#!/bin/sh\\necho FAKE_COMMAND_SELECTED\\n", encoding="utf8")
+                  bait.write_text("#!/bin/sh\necho FAKE_COMMAND_SELECTED\n", encoding="utf8")
+                  assert bait.read_bytes().startswith(b"#!/bin/sh\n")
                   bait.chmod(0o755)
 
               poisoned = {
