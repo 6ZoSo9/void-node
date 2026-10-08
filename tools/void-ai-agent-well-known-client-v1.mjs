@@ -255,6 +255,7 @@ async function readBoundedJson(response, label, controller) {
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
+  let bodyReadCompleted = false;
   try {
     while (true) {
       let result;
@@ -293,12 +294,18 @@ async function readBoundedJson(response, label, controller) {
       }
       chunks.push(value);
     }
+    bodyReadCompleted = true;
   } finally {
     try {
       reader.releaseLock();
     } catch (releaseError) {
-      // Teardown failure cannot replace the primary deadline/read rejection.
-      void releaseError;
+      // Preserve a primary read/deadline error, but fail closed if an otherwise
+      // complete body cannot release its reader normally.
+      if (bodyReadCompleted && !controller.signal.aborted) {
+        throw new Error(`${label}_response_read_failed`, {
+          cause: releaseError,
+        });
+      }
     }
   }
 
