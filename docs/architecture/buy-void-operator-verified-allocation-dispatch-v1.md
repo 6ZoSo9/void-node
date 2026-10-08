@@ -44,7 +44,13 @@ All nonpayment operator status events remain routed to the existing
 separate review/fulfillment semantics pending independent router tests.
 
 The `AUTHORITY` object truthfully reports mount/authentication/independent
-custody/deployment/production readiness/funds movement as FALSE. Input-path
+custody/deployment/production readiness/funds movement as FALSE. It also states
+`custody_service_composed=false` and
+`direct_web_process_private_root_write_authority=false`. The existing
+allocation-custody Unix-socket service intentionally keeps reserve disabled
+until verified-payment provenance can be bound inside that service boundary.
+Therefore this unmounted helper must not be used as justification to grant the
+web process direct write access to the protected custody roots. Input-path
 syntax checks cannot prove installed custodian identity, root permissions,
 first-original buyer history, provider quorum or external high-water witness.
 
@@ -75,9 +81,12 @@ proof, and requires byte-equal reports from all three versions.
 
 ## Remaining release gates
 
-Future reviewed work must change the **actual authenticated** mounted
-operator route to call this dispatch with server-controlled protected
-ledger/high-water custody roots; test real route crash and replay behavior
+Future reviewed work must first qualify the custody-service reserve path (or
+an equivalently reviewed privilege-separated writer) with independently bound
+verified-payment provenance. Only then may the **actual authenticated** mounted
+operator route delegate verified-payment allocation through that protected
+boundary. Direct web-process write access to the custody roots remains HOLD.
+The composed route must then test real crash and replay behavior
 only on disposable private filesystem fixtures; prove no successful
 operator `payment_verified` acknowledgment without canonical durable
 allocation or explicit crash-repair HOLD. Qualified live high-water
