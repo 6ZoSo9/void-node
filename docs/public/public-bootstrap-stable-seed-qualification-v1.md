@@ -138,7 +138,9 @@ payload instead of readiness JSON. The bounded, address-pinned qualifier must
 continue to reject both. On an invalid nonempty JSON response, it now reports
 only HTTP status, a fixed content-type class (`json`, `html`, `text`,
 `other` or `missing`), and response byte count. Neither the returned body
-nor a raw untrusted Content-Type value is printed. DNS pinning, TLS, response
+nor a raw untrusted Content-Type value is printed. A delivered malformed JSON
+response is terminal: it cannot be ignored by trying a different pinned DNS
+address. DNS pinning, TLS, response
 bounds, redirect rejection and every readiness/route assertion are unchanged.
 
 The October 8 scheduled
