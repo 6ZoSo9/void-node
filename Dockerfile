@@ -41,8 +41,6 @@ COPY --from=build \
   /app/tools/void-economic-intent-ttl-caps-policy-v1.mjs \
   /app/tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs \
   ./tools/
-# V6 enforcement saga tool: exact source identity qualified separately.
-# Source-only staged package candidate; production authority remains HOLD.
 COPY --from=build /app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs ./tools/
 COPY --from=build \
   /app/ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json \

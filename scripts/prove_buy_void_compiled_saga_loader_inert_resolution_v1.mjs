@@ -10,9 +10,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { readDescriptorRelativeLinuxV1 } from "./prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs";
+import { runReviewedGitV1, proveReviewedGitV1Synthetic } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const PARENT="dcefd8d7e8d89ce891aec7f0c3ff893699c761be";
+const PARENT="f4dc0e78d7e94ef43f68ff7819ce07cc61ca369f";
 const SOURCE="src/economic/buy_void_erc20_execution_composition_v1.ts";
 const SOURCE_BLOB="acf2f88b513bbe50e192531f9fc8d261b69bd0f1";
 const COMPILED="dist/economic/buy_void_erc20_execution_composition_v1.js";
@@ -21,8 +22,10 @@ const COMPILED_SHA="b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c
 const SAGA="tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs";
 const SAGA_BLOB="d6a2d1cd82e5e255f435c1e21d1783774a44b2b1";
 const SAGA_BYTES=58023;
-const DOCKER_BLOB="eb078d25a588e6ba46d46a93326fe20572d9b7fa";
+const DOCKER_BLOB="15375dfb34bc457ac57865ae07642b5602f9e958";
 const LOCK_BLOB="b2671f0149f522b2489247016df0a5ec4bb72b8b";
+const DESCRIPTOR_HELPER_BLOB="1458d72e7f6315dc06fb09fe55dc0e6591f9ee94";
+const REVIEWED_GIT_HELPER_BLOB="2df64e31debd4884f2d859d55a87e4ef15925d3d";
 const TOOL_SPEC="../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs";
 
 const sha=b=>crypto.createHash("sha256").update(b).digest("hex");
@@ -151,13 +154,17 @@ function derive() {
   assert.equal(ts.version,"5.9.3","compiler syntax parser drift");
   const recordedLock=exactSource("package-lock.json",LOCK_BLOB);
   assert.ok(recordedLock.length>0);
-  execFileSync("git",["merge-base","--is-ancestor",PARENT,"HEAD"],
-    {cwd:ROOT,stdio:"ignore"});
-  execFileSync("git",["diff","--quiet",PARENT,"HEAD","--",
+  runReviewedGitV1(["merge-base","--is-ancestor",PARENT,"HEAD"],ROOT);
+  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",
+    PARENT,"HEAD","--",
     SOURCE,SAGA,"Dockerfile","package.json","package-lock.json",
     "tsconfig.build.json","scripts/copy_void_runtime_js_v1.mjs",
     "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
-  ],{cwd:ROOT,stdio:"ignore"});
+  ],ROOT);
+  exactSource("scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs",
+    DESCRIPTOR_HELPER_BLOB,128*1024);
+  exactSource("scripts/prove_buy_void_reviewed_git_invocation_v1.mjs",
+    REVIEWED_GIT_HELPER_BLOB,128*1024);
   exactSource(SOURCE,SOURCE_BLOB,2*1024*1024);
   const saga=exactSource(SAGA,SAGA_BLOB,128*1024);
   assert.equal(saga.length,SAGA_BYTES,"saga source bytes drift");
@@ -200,6 +207,7 @@ function derive() {
 }
 const args=process.argv.slice(2);
 if(args.length===1 && args[0]==="--self-test"){
+  proveReviewedGitV1Synthetic();
   inspectCorpus();
   const good=checkedCompiled();
   const fn=extractOnlyCompiledSagaFactory(good);

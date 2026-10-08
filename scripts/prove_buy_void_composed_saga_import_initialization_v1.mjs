@@ -2,18 +2,18 @@
 // Exact source-only import-initialization policy. NEVER import the real saga.
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { readDescriptorRelativeLinuxV1 } from "./prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs";
+import { runReviewedGitV1, proveReviewedGitV1Synthetic } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const PARENT="8b7b05b84fc7a9835064660742e4d3f656ff76a2";
+const PARENT="5a38cc34ca497b8b39a299aba09ce012d9d3c181";
 const SAGA="tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs";
 const SAGA_BLOB="d6a2d1cd82e5e255f435c1e21d1783774a44b2b1";
-const DOCKER_BLOB="eb078d25a588e6ba46d46a93326fe20572d9b7fa";
+const DOCKER_BLOB="15375dfb34bc457ac57865ae07642b5602f9e958";
 const SAGA_BYTES=58023;
 const ALLOWED_IMPORTS=["node:crypto","node:fs","node:path"];
 function sha256(bytes){return crypto.createHash("sha256").update(bytes).digest("hex");}
@@ -130,6 +130,7 @@ function auditSource(bytes) {
     explicitly_reviewed_import_time_initializers:initialized};
 }
 function syntheticNegatives(){
+  proveReviewedGitV1Synthetic();
   // Exercise EACH mutation on the EXACT reviewed source with its original
   // declaration counts/imports, so a negative cannot pass simply because
   // the synthetic test lacks the required three imports and 50 functions.
@@ -170,9 +171,9 @@ function derive(){
   assert.equal(process.platform,"linux","Linux-only descriptor helper requires Linux");
   assert.ok([22,24,26].includes(Number(process.versions.node.split(".")[0])),
     "Node version outside reviewed source matrix");
-  execFileSync("git",["merge-base","--is-ancestor",PARENT,"HEAD"],{cwd:ROOT,stdio:"ignore"});
-  execFileSync("git",["diff","--quiet",PARENT,"HEAD","--",
-    SAGA,"Dockerfile"],{cwd:ROOT,stdio:"ignore"});
+  runReviewedGitV1(["merge-base","--is-ancestor",PARENT,"HEAD"],ROOT);
+  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",PARENT,"HEAD","--",
+    SAGA,"Dockerfile"],ROOT);
   const original=readDescriptorRelativeLinuxV1(ROOT,SAGA,128*1024);
   assert.equal(original.length,SAGA_BYTES,"saga source byte length drift");
   assert.equal(gitBlob(original),SAGA_BLOB,"reviewed saga source Git blob drift");
@@ -182,7 +183,7 @@ function derive(){
     "COPY --from=build /app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs ./tools/"),
     "reviewed saga packaging source line missing");
   const census=auditSource(original);
-  return {schema:"void_buy_void_saga_import_inert_static_candidate_v1",version:1,
+  return {schema:"void_buy_void_composed_saga_import_initialization_candidate_v1",version:1,
     exact_source_parent:PARENT,saga_source_path:SAGA,
     saga_source_git_blob_sha1:SAGA_BLOB,saga_source_bytes:original.length,
     saga_source_sha256:sha256(original),
@@ -204,4 +205,4 @@ const args=process.argv.slice(2);
 if(args.length===1&&args[0]==="--self-test")syntheticNegatives();
 else if(args.length===1&&args[0]==="--derive")
   process.stdout.write(JSON.stringify(derive(),null,2)+"\n");
-else throw Error("saga_source_top_level_census_only_no_runtime_authority");
+else throw Error("composed_saga_source_top_level_census_only_no_runtime_authority");

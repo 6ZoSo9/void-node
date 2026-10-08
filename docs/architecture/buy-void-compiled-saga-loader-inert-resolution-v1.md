@@ -2,11 +2,13 @@
 
 ## Review objective
 
-This disjoint source-only Draft stacks on [#2652](https://github.com/6ZoSo9/void-node/pull/2652)
-at exact source commit `dcefd8d7e8d89ce891aec7f0c3ff893699c761be`.
-The original saga source initialization AST is already reviewed there; the
-parent [#2647](https://github.com/6ZoSo9/void-node/pull/2647) staged the
-exact reviewed saga file into a STOPPED candidate Docker image.
+This source-only Draft is requalified onto the composed enforcement lineage:
+[#2669](https://github.com/6ZoSo9/void-node/pull/2669) merged into parent
+[#2667](https://github.com/6ZoSo9/void-node/pull/2667) at exact source commit
+`f4dc0e78d7e94ef43f68ff7819ce07cc61ca369f`.
+That parent contains the composed V6 runtime/operator-auth source, the reviewed
+saga file staged into a STOPPED candidate Docker image, and the source-only
+saga import-initialization audit. None of those proofs executes the real saga.
 
 Neither prior check establishes what the **real emitted compiled**
 `defaultSagaModule()` function does when it uses:
@@ -25,11 +27,14 @@ factory shape/resolution, never of the actual saga's behavior.
 - Original saga source Git blob: `d6a2d1cd82e5e255f435c1e21d1783774a44b2b1`,
   58,023 bytes. The real saga is ONLY read and hashed, NOT imported.
 - Original positive stopped-image Dockerfile Git blob:
-  `eb078d25a588e6ba46d46a93326fe20572d9b7fa`.
+  `15375dfb34bc457ac57865ae07642b5602f9e958`.
 - TypeScript 5.9.3, locked package inputs and exact parent ancestry required.
 
-The verifier uses the already-reviewed Linux descriptor-relative bounded
-file reader to inspect only these source/compiler/compiled inputs. Its
+The verifier uses the composed lineage's reviewed Linux descriptor-relative
+bounded file reader to inspect only these source/compiler/compiled inputs.
+Committed ancestry/diff checks use the reviewed absolute `/usr/bin/git`
+helper with a closed child environment; caller PATH/GIT/LD configuration is
+not execution authority. Both helper source blobs are pinned by the proof. Its
 TypeScript AST parser extracts precisely ONE async
 `defaultSagaModule()` declaration from the **original compiled output**,
 requiring exactly two statements: the canonical literal `new Function`

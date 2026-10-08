@@ -8,12 +8,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import {
+  readDescriptorRelativeLinuxV1,
+} from "./prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs";
+import {
   runReviewedGitV1,
   proveReviewedGitV1Synthetic,
 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "3123b3054896beb39e8991441187a83ac07dc1f7";
+const SOURCE_HEAD = "f18d789562d655eec9fde34571ed9b7d050f92bf";
 const PACKAGE_LOCK_BLOB = "b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const TARGETS = Object.freeze([
   Object.freeze({path:"tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",blob:"d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",external:["node:crypto","node:fs","node:path"]}),
@@ -45,44 +48,21 @@ function same(a,b) {
     a.nlink===b.nlink && a.size===b.size && a.mtimeMs===b.mtimeMs && a.ctimeMs===b.ctimeMs;
 }
 function read(root,relative,max=MAX_READ) {
-  assert.match(relative,/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/u);
-  assert.ok(relative.split("/").every(x=>x!=="."&&x!==".."),"unsafe path");
-  assert.ok(Number.isSafeInteger(max)&&max>0&&max<=MAX_READ,"invalid bound");
-  const resolved=path.resolve(root);
-  assert.equal(fs.realpathSync(resolved),resolved,"root symlink");
-  const parts=relative.split("/");
-  let parent=resolved;
-  for(const segment of parts.slice(0,-1)) {
-    parent=path.join(parent,segment);
-    const st=fs.lstatSync(parent);
-    assert.ok(st.isDirectory()&&!st.isSymbolicLink(),"ancestor symlink");
-  }
-  const location=path.join(parent,parts.at(-1));
-  const nofollow=fs.constants.O_NOFOLLOW;
-  assert.ok(typeof nofollow==="number"&&nofollow>0,"nofollow unavailable");
-  let fd;
-  try {
-    const visible=fs.lstatSync(location);
-    assert.ok(visible.isFile()&&!visible.isSymbolicLink()&&visible.nlink===1&&visible.size>0&&visible.size<=max,"visible file invalid");
-    fd=fs.openSync(location,fs.constants.O_RDONLY|nofollow);
-    const before=fs.fstatSync(fd);
-    assert.ok(before.isFile()&&before.nlink===1&&same(before,visible),"unbound fd");
-    const bytes=Buffer.alloc(before.size+1);
-    let total=0;
-    while(total<bytes.length) {
-      const count=fs.readSync(fd,bytes,total,bytes.length-total,total);
-      if(count===0)break;
-      total+=count;
-    }
-    assert.equal(total,before.size,"growth or truncation");
-    const after=fs.fstatSync(fd),current=fs.lstatSync(location);
-    assert.ok(current.isFile()&&!current.isSymbolicLink()&&same(before,after)&&same(after,current),"path changed");
-    return bytes.subarray(0,total);
-  } finally {if(fd!==undefined)fs.closeSync(fd);}
+  return readDescriptorRelativeLinuxV1(root,relative,max);
 }
 function ast(file,bytes,kind) {
-  const node=ts.createSourceFile(file,bytes.toString("utf8"),ts.ScriptTarget.Latest,true,kind);
-  assert.equal(node.parseDiagnostics.length,0,"invalid JS/TS source: "+file);
+  const node=ts.createSourceFile(
+    file,
+    bytes.toString("utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    kind,
+  );
+  assert.equal(
+    node.parseDiagnostics.length,
+    0,
+    "invalid JS/TS source: "+file,
+  );
   return node;
 }
 function inspectTool(file,bytes) {

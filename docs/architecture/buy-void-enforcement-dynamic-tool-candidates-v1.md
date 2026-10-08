@@ -4,8 +4,8 @@
 
 This separate source-only Draft is stacked on exact [#2641](https://github.com/6ZoSo9/void-node/pull/2641)
 head `ad5192933e2f8c538bab041bb6d9a164fd67e880`, which in turn
-is based on the [#2638](https://github.com/6ZoSo9/void-node/pull/2638)
-V6 runtime bridge at `3123b3054896beb39e8991441187a83ac07dc1f7`.
+is based on the [#2657](https://github.com/6ZoSo9/void-node/pull/2638)
+V6 runtime bridge at `f18d789562d655eec9fde34571ed9b7d050f92bf`.
 
 PR #2641's initial enforced AST-closed import scanner correctly HELD
 because it discovered real code-generated ESM imports:
@@ -123,3 +123,24 @@ Chain-2050/WC, presale/market, custody, treasury/liquidity or funds action.
 No Ready, merge or deployment.
 
 **PROTECT THE CORE.**
+
+
+## Composed-source read boundary
+
+This successor is rederived from exact composed source head `f18d789562d655eec9fde34571ed9b7d050f92bf`
+and does not inherit the older #2642 source-generation claim.
+
+All reviewed tool/caller source bytes are opened through the parent
+descriptor-relative Linux reader. Each path component is traversed from
+retained `O_DIRECTORY|O_NOFOLLOW` descriptors, the leaf is read through a
+bounded retained descriptor, and visible-path/descriptor identities are
+rechecked. The focused workflow runs the reader's ancestor-substitution and
+growth adversaries before the candidate source census.
+
+Reviewed Git ancestry/diff checks continue through the parent closed
+`/usr/bin/git` helper with a fixed child environment.
+
+This qualifies source identity only. Real tool targets are not executed and
+`executed_target_verified`, `dynamic_tool_transitive_closure_verified`,
+`complete_executable_closure_verified`, `candidate_identity_accepted`,
+deployment, production source-finality, presale and funds flags remain false.

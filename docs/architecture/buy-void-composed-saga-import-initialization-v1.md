@@ -1,7 +1,7 @@
 # Buy VOID saga import-initialization source audit
 
 This source-only unaccepted successor is stacked on Draft #2647,
-exact head 8b7b05b84fc7a9835064660742e4d3f656ff76a2.
+exact head 5a38cc34ca497b8b39a299aba09ce012d9d3c181.
 
 Draft #2647 has a dedicated GREEN stopped-image byte-identity check
 showing that the 58,023-byte reviewed fulfillment saga is now present
@@ -12,7 +12,7 @@ This new proof does NOT import the real saga. It reads the same pinned
 tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs through the
 Linux descriptor-relative reader inherited from the reviewed lineage.
 It requires saga Git blob d6a2d1cd82e5e255f435c1e21d1783774a44b2b1
-and Dockerfile Git blob eb078d25a588e6ba46d46a93326fe20572d9b7fa.
+and Dockerfile Git blob 15375dfb34bc457ac57865ae07642b5602f9e958.
 
 The TypeScript JS AST must identify only three Node builtin imports,
 50 named function declarations, and 32 immutable top-level constants.
@@ -62,3 +62,11 @@ wallet/key/signer, customer ledger, transaction, Chain2050/WC,
 inventory/treasury/liquidity or funds operation.
 
 PROTECT THE CORE.
+
+## Composed-lineage requalification
+
+This successor is derived from #2667 rather than inheriting the historical
+#2652 result. Source reads use the current ancestor-safe descriptor-relative
+helper and Git ancestry/diff checks use the reviewed absolute-`/usr/bin/git`
+helper with its closed environment. The real saga remains unimported and
+unexecuted; this is only import-initialization syntax policy evidence.

@@ -4,7 +4,7 @@
 
 This Draft derives an **unaccepted enforcement V5 candidate** from current
 runtime V6 bridge #2638 at exact source parent
-`3123b3054896beb39e8991441187a83ac07dc1f7`.
+`f18d789562d655eec9fde34571ed9b7d050f92bf`.
 
 Historical enforcement V1/V4 and source-finality V3/V5 attestations remain
 immutable. They are predecessor evidence, not values to repin.
