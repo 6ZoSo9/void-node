@@ -107,6 +107,8 @@ const snapshotExecutable = currentText.slice(
   snapshotStart,
   additionEnd,
 );
+// Reconstruct predecessor identity from exact current source. Do not require
+// an unreachable historical Git object to be advertised into a fresh clone.
 const reconstructedPredecessor = Buffer.from(
   currentText.slice(0, additionStart) +
     currentText.slice(additionEnd),
