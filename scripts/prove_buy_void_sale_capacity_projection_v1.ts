@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 import vm from "node:vm";
 import ts from "typescript";
 
@@ -55,8 +56,13 @@ const requestDir = "/synthetic-buy-capacity";
 const requestLedger = { name: "requests.jsonl", fd: 1 };
 const operatorLedger = { name: "operator-events.jsonl", fd: 2 };
 let pool = "10000000";
-const bytes = (name: string) =>
-  (name === "requests.jsonl" ? rows : events).map((row) => JSON.stringify(row)).join("\n");
+// Mirror the admitted append writer's exact JSON.stringify(row) + LF bytes.
+// A complete final object without LF is NOT committed capacity evidence.
+const bytes = (name: string) => {
+  const ledgerRows = name === "requests.jsonl" ? rows : events;
+  return ledgerRows.map((row) => JSON.stringify(row)).join("\n") +
+    (ledgerRows.length > 0 ? "\n" : "");
+};
 const ledgerStat = (ledger: any) => Object.freeze({
   dev: 1n, ino: BigInt(ledger.fd), uid: 1n, gid: 1n,
   mode: 0o100600n, nlink: 1n,
@@ -110,6 +116,7 @@ const context = vm.createContext({
   process: { pid: 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
   path,
   Buffer,
+  TextDecoder,
   fs: syntheticFs,
   randomBytes: (length: number) => Buffer.alloc(length, 7),
   withBuyVoidTerminalCloseoutRequestLockV1: (_input: any, operation: () => any) => operation(),
@@ -168,7 +175,7 @@ evaluate(declarations(admissionPath, [
   "projectBuyVoidVerifiedPaymentCapacityV1", "freezeDecision",
   "classifyBuyVoidVerifiedPaymentCapacityAdmissionV1",
   "canonicalRequestSourceChainV1", "canonicalRequestTxHashV1",
-  "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
+  "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
   "sameFileIdentityV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",

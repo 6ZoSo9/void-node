@@ -69,8 +69,9 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
       "985ac993f59d9bfc4f0650853f142bfd398b9e18",
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
       "583d2e61115916589e30239d1bf5451a525f2996",
+    // Reviewed gateway successor for private Buy VOID operator ingress (#2631).
     "ops/public/void-public-app-composition-gateway-v1.mjs":
-      "e97ce051405d5b19a363eaf0834838a0ecef3a10",
+      "850419187facd4a90feeb15aa676b03d785e44b5",
     "ops/public/void-public-participant-live-role-authority-v1.mjs":
       "5d39171d7c4145c6200225d18f37b401a8b7e022",
     "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs":
@@ -510,6 +511,8 @@ function inspectGatewayV1(text){
     "sessionHttp: PARTICIPANT_SESSION_HTTP",
     "PARTICIPANT_SESSION_HTTP.handle(request)",
     "PARTICIPANT_ACCOUNT_READ_EDGE.handle(request)",
+    '"/__void/buy-void/operator"',
+    'if (canonical.includes("%")) return true;',
   ],"participant_composition_gateway_contract_invalid");
   requireNone(text,[
     'process.env.VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE || "1"',

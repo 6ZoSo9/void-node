@@ -11,9 +11,9 @@ V5 source identity points to verifier Git blob
 unchanged; no old source manifest or compiled artifact is repinned.
 
 V6 is a **stacked Draft candidate**, based on the exact #2625 commit
-`5cc9022571269bd08176aec8c96cc20884bd4021`, not on current main.
+`52deccca51077d457177e738135dbb0e0536d2f3`, not on current main.
 Its V2 verifier's exact Git blob is
-`32133e441ccb02bb4786d29e36932fb31399ec87`.
+`c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
 If the parent branch advances or the source changes, its pin is no longer
 valid and independent review must start from the new exact bytes.
 
