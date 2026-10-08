@@ -402,7 +402,7 @@ assert.match(
   /observeBuyVoidSourceFinalityGenerationProvenanceV6\(value\)/,
 );
 
-for (const currentV4Hold of [
+for (const currentV6Hold of [
   "source_generation_verified: false",
   "deployed_artifact_generation_verified: false",
   "ancestry_verified: false",
@@ -410,8 +410,8 @@ for (const currentV4Hold of [
   "production_source_finality_authority_ready: false",
 ]) {
   assert.ok(
-    v6Source.includes(currentV4Hold),
-    `V6 truth boundary unexpectedly moved: ${currentV4Hold}`,
+    v6Source.includes(currentV6Hold),
+    `V6 truth boundary unexpectedly moved: ${currentV6Hold}`,
   );
 }
 
