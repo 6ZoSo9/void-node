@@ -1,0 +1,134 @@
+name: VOID Buy VOID payment to allocation synthetic crash matrix v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v1.yml"
+      - "docs/architecture/buy-void-payment-allocation-hypothetical-crash-matrix-v1.md"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-allocation-synthetic-matrix-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact review head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact review commit and clean source
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact source-only artifacts
+        run: npm run build
+      - name: Exercise purely in-memory payment to allocation crash cuts
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs \
+            > allocation-crash-matrix-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V1");
+            assert.equal(j.source_only,true);
+            assert.equal(j.original_source_github_head,"f7c894eb2ff8f378b2f0a906192cc1a0602e1d24");
+            assert.deepEqual(j.observed_publication_phases,["intent_only","ledger_committed","complete"]);
+            assert.equal(j.next_allocation_record_count,1);
+            assert.equal(j.exact_replay_idempotent,true);
+            assert.equal(j.conflicting_identity_rejected,true);
+            assert.equal(j.malformed_or_orphan_history_rejected,true);
+            for(const key of [
+              "proposed_allocation_mutated",
+              "actual_durable_payment_fsync_verified",
+              "verified_capacity_and_request_locks_held",
+              "independently_proven_original_request",
+              "protected_high_water_custody_verified",
+              "allocation_publication_integrated",
+              "exactly_once_allocation_production_ready",
+              "signer_or_wallet_access",
+              "production_source_finality_authority_ready",
+              "presale_activation",
+              "funds_moved"
+            ]) assert.equal(j[key],false,key);
+            console.log("BUY_VOID_PAYMENT_ALLOCATION_PURE_CRASH_MATRIX_GREEN");
+            console.log("durability_or_production_authority_verified=false");
+          ' allocation-crash-matrix-${{ matrix.node }}.json
+      - name: Upload one per-Node hypothetical witness
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-payment-allocation-crash-matrix-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: allocation-crash-matrix-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three independent hypothetical witness reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-payment-allocation-crash-matrix-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./reports
+      - name: Require complete byte-identical Node 22 24 26 reports
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "reports/allocation-crash-matrix-$v.json"; done
+          cmp reports/allocation-crash-matrix-22.json reports/allocation-crash-matrix-24.json
+          cmp reports/allocation-crash-matrix-22.json reports/allocation-crash-matrix-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("reports/allocation-crash-matrix-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.exactly_once_allocation_production_ready,false);
+            assert.equal(j.actual_durable_payment_fsync_verified,false);
+            console.log("BUY_VOID_ALLOCATION_HYPOTHETICAL_CROSS_NODE_BYTES_GREEN");
+            console.log("source_only_report_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("real_payment_or_allocation_performed=false");
+          '
