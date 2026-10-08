@@ -5,6 +5,7 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import vm from "node:vm";
 
 const root = process.cwd();
 const pointerPath = path.join(
@@ -143,6 +144,8 @@ assert.match(client, /MAX_RESPONSE_BYTES = 262_144/);
 assert.match(client, /RESPONSE_TEARDOWN_TIMEOUT_MS = 250/);
 assert.match(client, /rejectWithTeardown/);
 assert.match(client, /response\.body\.getReader\(\)/);
+assert.match(client, /awaitWithinOwnedDeadline\(/);
+assert.match(client, /reader\.read\(\)/);
 assert.match(client, /response\.url !== url\.href/);
 assert.doesNotMatch(client, /response\.json\(\)/);
 
@@ -429,6 +432,121 @@ try {
   await new Promise((resolve) => ipv6Server.close(resolve));
 }
 
+
+// Execute the production admitted-body implementation in an inert VM with
+// proof-only short deadlines. No live endpoint, network socket or private
+// context is used by these cases. An outer test watchdog can only fail the
+// proof, never generate the client's expected primary deadline rejection.
+async function proveUncooperativeAcceptedBodyDeadline(cancelMode) {
+  const begin = client.indexOf("async function settleTeardownBounded(");
+  const end = client.indexOf("\nfunction validateWellKnown(", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const implementation = client.slice(begin, end);
+  let fetches = 0;
+  let admittedReads = 0;
+  let cancels = 0;
+  let releases = 0;
+  let abortObservedAtCancel = false;
+  const url = new URL("https://voidchain.org/.well-known/void-agent-discovery.json");
+  const simulatedFetch = async (receivedUrl, options) => {
+    fetches += 1;
+    assert.equal(receivedUrl.href, url.href);
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.signal.aborted, false);
+    return {
+      ok: true,
+      status: 200,
+      url: url.href,
+      headers: {
+        get(name) {
+          if (name === "content-type") return "application/json; charset=utf-8";
+          if (name === "content-length") return null;
+          throw new Error("unexpected header");
+        },
+      },
+      body: {
+        getReader() {
+          return {
+            read() {
+              admittedReads += 1;
+              return new Promise(() => {});
+            },
+            cancel() {
+              cancels += 1;
+              abortObservedAtCancel = options.signal.aborted;
+              return cancelMode === "pending"
+                ? new Promise(() => {})
+                : Promise.resolve();
+            },
+            releaseLock() {
+              releases += 1;
+              if (cancelMode === "throw-on-release") {
+                throw new Error("fixture_releaseLock_failed");
+              }
+            },
+          };
+        },
+      },
+    };
+  };
+  const context = {
+    fetch: simulatedFetch,
+    AbortController,
+    TextDecoder,
+    Uint8Array,
+    setTimeout,
+    clearTimeout,
+    MAX_RESPONSE_BYTES: 262_144,
+    RESPONSE_TIMEOUT_MS: 40,
+    RESPONSE_TEARDOWN_TIMEOUT_MS: 30,
+  };
+  const { getJson } = vm.runInNewContext(
+    implementation + "\n({ getJson })",
+    context,
+    { filename: "well-known-owned-deadline-proof.mjs", timeout: 1_000 },
+  );
+  let watchdog = null;
+  let watchdogFired = false;
+  const started = Date.now();
+  try {
+    const observed = await Promise.race([
+      getJson(url, "well_known").then(
+        () => ({ outcome: "accepted" }),
+        (error) => ({ outcome: "rejected", detail: error?.message }),
+      ),
+      new Promise((resolve) => {
+        watchdog = setTimeout(() => {
+          watchdogFired = true;
+          resolve({ outcome: "watchdog" });
+        }, 2_000);
+      }),
+    ]);
+    assert.equal(
+      observed.outcome,
+      "rejected",
+      "accepted-200 stalled reader must reject on its own deadline",
+    );
+    assert.equal(observed.detail, "well_known_deadline_exceeded");
+    assert.equal(watchdogFired, false);
+    assert.ok(
+      Date.now() - started < 1_500,
+      "owned deadline plus bounded cancellation exceeded proof bound",
+    );
+    assert.equal(fetches, 1);
+    assert.equal(admittedReads, 1);
+    assert.equal(cancels, 1);
+    assert.equal(releases, 1);
+    assert.equal(abortObservedAtCancel, true);
+  } finally {
+    if (watchdog !== null) clearTimeout(watchdog);
+  }
+}
+
+for (const cancelMode of ["settled", "pending", "throw-on-release"]) {
+  await proveUncooperativeAcceptedBodyDeadline(cancelMode);
+}
+
 console.log("VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1_PROOF_GREEN");
 console.log(`pointer=${path.relative(root, pointerPath)}`);
 console.log(`schema=${path.relative(root, schemaPath)}`);
@@ -438,6 +556,10 @@ console.log(`client=${path.relative(root, clientPath)}`);
 console.log(`documentation=${path.relative(root, docPath)}`);
 console.log("bounded_response_adversaries=3");
 console.log("rejected_response_lifetime_owned=true");
+console.log("admitted_200_body_deadline_owned=true");
+console.log("uncooperative_read_aborted_without_transport_settlement=true");
+console.log("nonsettling_cancel_bounded=true");
+console.log("reader_release_failure_preserves_deadline=true");
 console.log("official_network_authenticity_adversaries=3");
 console.log("canonical_authority_safety_adversaries=3");
 console.log("ipv6_loopback_three_get_cold_start=true");
