@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,17 +48,6 @@ function read(relative: string): Buffer {
 const current = read(WRITER);
 assert.equal(gitBlob(current), CURRENT_WRITER_BLOB);
 assert.equal(sha256(current), CURRENT_WRITER_SHA256);
-
-const predecessor = execFileSync(
-  "/usr/bin/git",
-  ["cat-file", "blob", PREDECESSOR_WRITER_BLOB],
-  {
-    cwd: ROOT,
-    maxBuffer: 512 * 1024,
-  },
-);
-assert.equal(gitBlob(predecessor), PREDECESSOR_WRITER_BLOB);
-assert.equal(sha256(predecessor), PREDECESSOR_WRITER_SHA256);
 
 for (const [relative, expected] of [
   [V1_SOURCE, HISTORICAL_V1.source],
@@ -125,9 +113,14 @@ const reconstructedPredecessor = Buffer.from(
   "utf8",
 );
 assert.equal(
-  reconstructedPredecessor.equals(predecessor),
-  true,
-  "current writer must equal V1 predecessor plus exactly one additive block",
+  gitBlob(reconstructedPredecessor),
+  PREDECESSOR_WRITER_BLOB,
+  "reconstructed predecessor Git blob identity changed",
+);
+assert.equal(
+  sha256(reconstructedPredecessor),
+  PREDECESSOR_WRITER_SHA256,
+  "reconstructed predecessor source SHA-256 changed",
 );
 
 for (const token of [
