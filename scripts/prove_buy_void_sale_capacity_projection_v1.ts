@@ -257,7 +257,7 @@ evaluate(declarations(admissionPath, [
   "classifyBuyVoidVerifiedPaymentCapacityAdmissionV1",
   "canonicalRequestSourceChainV1", "canonicalRequestTxHashV1",
   "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
-  "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
+  "O_NOFOLLOW", "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   "withBuyVoidVerifiedPaymentCapacityAdmissionV1",
