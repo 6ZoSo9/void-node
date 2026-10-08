@@ -57,6 +57,68 @@ jobs:
           print("seed_earn_economic_routes_unchanged=true")
           PY
 
+      - name: Pinned UnsetEnvironment drop-in admission negatives
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          script = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("guarded_cutover", script)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          assert m.EXPECTED_DROPIN_SHA == "4a03777846ab539b1de0885f99ebf9fcd32813516fbd767f174e54e4c239425d"
+          assert m.EXPECTED_DROPIN_NAME == "90-void-nullfeed-clean-environment.conf"
+
+          with TemporaryDirectory() as td:
+              home = Path(td)
+              directory = home / ".config/systemd/user" / (m.UNIT + ".d")
+              directory.mkdir(parents=True)
+              p = directory / m.EXPECTED_DROPIN_NAME
+              original = b"[Service]\nUnsetEnvironment=FOO BAR\n"
+              p.write_bytes(original)
+              p.chmod(0o600)
+
+              def fake_show(_unit, _key):
+                  assert _unit == m.UNIT and _key == "DropInPaths"
+                  return str(p)
+
+              def expect_hold(text):
+                  try:
+                      m.verify_dropin()
+                  except m.Hold as e:
+                      assert str(e) == text, str(e)
+                  else:
+                      raise AssertionError("admission unexpectedly accepted invalid override")
+
+              with patch.object(m.Path, "home", return_value=home), \
+                   patch.object(m, "system_value", side_effect=fake_show), \
+                   patch.object(m, "EXPECTED_DROPIN_SHA", m.digest(original)):
+                  m.verify_dropin()
+
+                  p.write_bytes(b"[Service]\nUnsetEnvironment=DIFFERENT\n")
+                  expect_hold("dropin_digest_changed")
+
+                  malformed = b"[Service]\nExecStart=/bin/false\n"
+                  p.write_bytes(malformed)
+                  with patch.object(m, "EXPECTED_DROPIN_SHA", m.digest(malformed)):
+                      expect_hold("dropin_directive_unexpected")
+
+                  p.write_bytes(original)
+                  p.chmod(0o622)
+                  expect_hold("dropin_group_or_world_writable")
+                  p.chmod(0o600)
+                  with patch.object(m, "system_value", return_value=str(p) + " /additional.conf"):
+                      expect_hold("unexpected_service_dropins")
+          print("pinned_override_admission=GREEN")
+          print("tampered_override_rejected=true")
+          print("unsafe_directive_rejected=true")
+          print("extra_dropin_rejected=true")
+          PY
+
       - name: Wrong-host plan and apply fail closed without creating state
         run: |
           set -Eeuo pipefail
