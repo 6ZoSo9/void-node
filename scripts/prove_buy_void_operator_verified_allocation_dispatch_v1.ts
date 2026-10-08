@@ -4,6 +4,8 @@ import fs from "node:fs";
 import ts from "typescript";
 
 import {
+  VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
+  VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
   VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1,
   planBuyVoidOperatorAllocationDispatchV1,
   dispatchBuyVoidOperatorEventWithAllocationRequiredV1,
@@ -32,8 +34,8 @@ function input(overrides: Record<string, any> = {}): any {
       quoted_void: "2",
     },
     request_dir: "/tmp/void-synthetic-request-root",
-    allocation_ledger_root: "/var/lib/void-synthetic-ledger",
-    allocation_high_water_root: "/var/lib/void-synthetic-custody",
+    allocation_ledger_root: VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
+    allocation_high_water_root: VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
     with_launch_authority_mutation: async () => {
       assert.fail("source-only route classification must not call launch authority");
     },
@@ -64,9 +66,9 @@ for (const key of [
   const plan = planBuyVoidOperatorAllocationDispatchV1(args);
   assert.equal(plan.kind, "verified_payment_allocation_handoff");
   assert.equal(plan.allocation_ledger_root,
-    "/var/lib/void-synthetic-ledger");
+    VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1);
   assert.equal(plan.allocation_high_water_root,
-    "/var/lib/void-synthetic-custody");
+    VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1);
   assert.equal(Object.isFrozen(plan.event), true);
   assert.equal(Object.isFrozen(plan.event.payment_verifier), true);
   assert.equal(Object.isFrozen(plan.request), true);
@@ -164,7 +166,7 @@ for (const status of [
       get() {
         reads.allocation_ledger_root++;
         return reads.allocation_ledger_root === 1
-          ? "/var/lib/void-synthetic-ledger"
+          ? VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1
           : "/var/lib/void-mutated-ledger";
       },
     },
@@ -172,7 +174,7 @@ for (const status of [
       get() {
         reads.allocation_high_water_root++;
         return reads.allocation_high_water_root === 1
-          ? "/var/lib/void-synthetic-custody"
+          ? VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1
           : "/var/lib/void-mutated-custody";
       },
     },
@@ -200,8 +202,8 @@ for (const status of [
     read_sale_state: 1,
   });
   assert.equal(plan.request_dir, "/tmp/void-synthetic-request-root");
-  assert.equal(plan.allocation_ledger_root, "/var/lib/void-synthetic-ledger");
-  assert.equal(plan.allocation_high_water_root, "/var/lib/void-synthetic-custody");
+  assert.equal(plan.allocation_ledger_root, VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1);
+  assert.equal(plan.allocation_high_water_root, VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1);
   assert.equal(plan.with_launch_authority_mutation, launchA);
   assert.equal(plan.read_sale_state, saleA);
 }
@@ -228,7 +230,7 @@ for (const [reason, overrides] of [
   ["relative", {allocation_ledger_root:"./ledger"}],
   ["unnormalized", {allocation_ledger_root:"/var/lib/../ledger"}],
   ["filesystem root", {allocation_high_water_root:"/"}],
-  ["same roots", {allocation_high_water_root:"/var/lib/void-synthetic-ledger"}],
+  ["same roots", {allocation_high_water_root:VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1}],
   ["nested roots", {allocation_high_water_root:"/var/lib/void-synthetic-ledger/child"}],
   ["wrong request id", {request:{request_id:"other"}}],
   ["empty status", {event:{request_id:"synthetic-r1",operator_status:""}}],
@@ -312,6 +314,7 @@ console.log("payment_verified_whitespace_alias_rejected=true");
 console.log("payment_verified_case_alias_rejected=true");
 console.log("invalid_status_cannot_reach_legacy_writer=true");
 console.log("missing_invalid_or_aliased_private_roots_fail_closed=true");
+console.log("exact_canonical_allocation_roots_required=true");
 console.log("immutable_event_and_request_snapshots=true");
 console.log("stateful_event_toJSON_read_once=true");
 console.log("server_control_properties_read_once=true");
