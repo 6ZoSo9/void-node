@@ -1,0 +1,122 @@
+name: VOID Buy VOID saga import initialization source candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "Dockerfile"
+      - "scripts/prove_buy_void_saga_import_initialization_source_v1.mjs"
+      - "docs/architecture/buy-void-saga-import-initialization-source-v1.md"
+      - ".github/workflows/buy-void-saga-import-initialization-source-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact head checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Node matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install reviewed AST parser without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Source syntax (NEVER import real saga)
+        run: |
+          node --check tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs
+          node --check scripts/prove_buy_void_saga_import_initialization_source_v1.mjs
+      - name: Exact original-source positive and eleven targeted negatives
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_saga_import_initialization_source_v1.mjs --self-test | tee source-negative.log
+          grep -Fx "clean_reviewed_source_positive=true" source-negative.log
+          grep -Fx "injected_negative_cases=11" source-negative.log
+          grep -Fx "actual_saga_imported_or_executed=false" source-negative.log
+      - name: Derive unaccepted source-only import-initialization evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_saga_import_initialization_source_v1.mjs --derive > saga-initialization-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_saga_import_inert_static_candidate_v1");
+            assert.equal(j.exact_source_parent,"8b7b05b84fc7a9835064660742e4d3f656ff76a2");
+            assert.equal(j.saga_source_bytes,58023);
+            assert.deepEqual(j.imports,["node:crypto","node:fs","node:path"]);
+            assert.equal(j.top_level_function_declarations,50);
+            assert.equal(j.top_level_const_declarations,32);
+            assert.deepEqual(j.explicitly_reviewed_import_time_initializers,
+              {freeze:3,set:1,int32:1});
+            assert.equal(j.source_module_import_time_policy_verified,true);
+            for(const key of ["packaged_file_identity_verified_by_this_proof",
+              "actual_saga_module_imported","saga_runtime_behaviour_reviewed",
+              "injected_adapters_or_wallet_signer_access_verified",
+              "executed_saga_loader_qualified","accepted_enforcement_generation",
+              "deployed_artifact_generation_verified",
+              "production_source_finality_authority_ready","presale_activation","funds_movement"])
+              assert.equal(j[key],false,key);
+            console.log("SAGA_SOURCE_IMPORT_INITIALIZATION_POLICY_GREEN");
+          ' saga-initialization-${{ matrix.node }}.json
+      - name: Require closed derive-only entry
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_saga_import_initialization_source_v1.mjs > nonaccepted.log 2>&1; then
+            exit 1
+          fi
+          grep -F saga_source_top_level_census_only_no_runtime_authority nonaccepted.log
+      - name: Upload exact unaccepted candidate report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: saga-import-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: saga-initialization-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Git whitespace
+        run: git diff --check HEAD^ HEAD
+
+  cross-node:
+    needs: [review]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Retrieve all three reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: saga-import-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./reports
+      - name: Compare all receipts byte for byte
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "reports/saga-initialization-$v.json"; done
+          cmp reports/saga-initialization-22.json reports/saga-initialization-24.json
+          cmp reports/saga-initialization-22.json reports/saga-initialization-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const bytes=fs.readFileSync("reports/saga-initialization-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.actual_saga_module_imported,false);
+            assert.equal(j.executed_saga_loader_qualified,false);
+            assert.equal(j.production_source_finality_authority_ready,false);
+            console.log("SAGA_SOURCE_INITIALIZATION_NODE_22_24_26_BYTES_IDENTICAL");
+            console.log("source_candidate_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("production_authority=false");
+          '
