@@ -432,10 +432,10 @@ try {
       '" onclick="markReq(this.dataset.id,\'rejected\')">Reject</button>';
 
   for (const safeSource of [
-    'data-id="'+id+'" onclick="verifyPayment(this.dataset.id)"',
-    'class="review" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'reviewed\\\')"',
-    'class="fulfill" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'fulfilled\\\')"',
-    'class="reject" data-id="'+id+'" onclick="markReq(this.dataset.id,\\\'rejected\\\')"',
+    String.raw\`data-id="'+id+'" onclick="verifyPayment(this.dataset.id)"\`,
+    String.raw\`class="review" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'reviewed\\')"\`,
+    String.raw\`class="fulfill" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'fulfilled\\')"\`,
+    String.raw\`class="reject" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'rejected\\')"\`,
   ]) {
     assert.equal(
       runtimeSource.includes(safeSource),
