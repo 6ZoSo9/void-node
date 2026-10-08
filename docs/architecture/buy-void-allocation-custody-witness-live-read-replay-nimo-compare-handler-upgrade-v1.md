@@ -59,7 +59,10 @@ deleted because its provenance has not been reverified.
 directory.** That script is itself privileged code. Its reviewed Git blob and
 SHA-256 must be checked on Precision; once copied to Nimo it must be installed
 into a root-owned, non-user-writable path and rechecked there **before**
-`sudo /bin/bash` is used. The handler candidate remains a separate
+privileged Bash starts from an empty, fixed environment. The root shell is
+invoked only through `/usr/bin/env -i` with fixed HOME/PATH/locale and
+`--noprofile --norc`; caller `BASH_ENV`, `ENV`, shell options/functions and
+other ambient variables are not part of the privileged execution authority. The handler candidate remains a separate
 unprivileged staged input; the trusted script validates its SHA-256 before
 installing the handler.
 
@@ -108,7 +111,7 @@ else
 fi
 [[ "$(sudo /usr/bin/stat -c "%u:%g:%a:%h:%F" "$trusted")" == "0:0:500:1:regular file" ]] || exit 2
 echo "$expected  $trusted" | sudo /usr/bin/sha256sum --status -c - || exit 2
-sudo /bin/bash "$trusted"
+sudo /usr/bin/env -i HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"
 '
 ```
 
@@ -116,6 +119,10 @@ The `scp` staging directory is unprivileged and **never** a trusted
 privileged-script execution location. The fixed trusted copy lives under
 root-owned mode-`0700` `/root`, has exact root/root mode-`0500` metadata,
 and is verified against its reviewed source SHA-256 before invocation.
+The privileged interpreter starts only after `sudo` via an empty `/usr/bin/env -i`
+allowlist (`HOME=/root`, fixed system `PATH`, `LANG=C`, `LC_ALL=C`), so a caller's
+exported `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`, `CDPATH`, shell functions,
+or other ambient startup state cannot execute before the reviewed script body.
 An existing trusted copy with unknown bytes or metadata HOLDS rather than being
 silently overwritten. Nimo does not run a shell script directly from
 `/home/zoso` with `sudo`.

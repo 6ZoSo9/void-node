@@ -172,6 +172,37 @@ async function settleTeardownBounded(startCleanup) {
   }
 }
 
+// A deadline must win even when the transport ignores AbortSignal and keeps
+// an already admitted 200-response reader.read() pending indefinitely.
+function awaitWithinOwnedDeadline(promise, signal, label) {
+  const expired = () => new Error(`${label}_deadline_exceeded`);
+  if (signal.aborted) return Promise.reject(expired());
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(expired());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve(promise).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function rejectWithTeardown(response, controller, error, reader = undefined) {
   controller.abort();
   await settleTeardownBounded(() => {
@@ -224,16 +255,31 @@ async function readBoundedJson(response, label, controller) {
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
+  let bodyReadCompleted = false;
   try {
     while (true) {
       let result;
       try {
-        result = await reader.read();
+        const readPromise = Promise.resolve().then(() => reader.read());
+        result = await awaitWithinOwnedDeadline(
+          readPromise,
+          controller.signal,
+          label,
+        );
       } catch {
         const error = controller.signal.aborted
           ? new Error(`${label}_deadline_exceeded`)
           : new Error(`${label}_response_read_failed`);
         await rejectWithTeardown(response, controller, error, reader);
+      }
+      // A successfully resolved read must not outlive the owned deadline.
+      if (controller.signal.aborted) {
+        await rejectWithTeardown(
+          response,
+          controller,
+          new Error(`${label}_deadline_exceeded`),
+          reader,
+        );
       }
       const { done, value } = result;
       if (done) break;
@@ -248,8 +294,23 @@ async function readBoundedJson(response, label, controller) {
       }
       chunks.push(value);
     }
+    bodyReadCompleted = true;
   } finally {
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } catch (releaseError) {
+      // Preserve a primary read/deadline error, but fail closed if an otherwise
+      // complete body cannot release its reader normally.
+      if (bodyReadCompleted && !controller.signal.aborted) {
+        throw new Error(`${label}_response_read_failed`, {
+          cause: releaseError,
+        });
+      }
+    }
+  }
+
+  if (controller.signal.aborted) {
+    throw new Error(`${label}_deadline_exceeded`);
   }
 
   const bytes = new Uint8Array(total);
