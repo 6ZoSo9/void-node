@@ -67,8 +67,10 @@ const SOURCE_BLOBS=Object.freeze({
     "b1513ea822e32fe5df55c00ab635128b07aaf170",
   "scripts/prove_void_public_frontdoor_v1.mjs":
     "05b04307e8839b0de9aaef3fd0882ec9e298a965",
+  // Reviewed source-generation successor #2631: exact private operator ingress deny.
+  // Historical predecessor gateway: e97ce051405d5b19a363eaf0834838a0ecef3a10.
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "e97ce051405d5b19a363eaf0834838a0ecef3a10",
+    "850419187facd4a90feeb15aa676b03d785e44b5",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
@@ -77,8 +79,9 @@ const SOURCE_BLOBS=Object.freeze({
     "60158fa63c7fafc55738d4b5a021cc021983812a",
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
+  // Precision plan successor retains the exact reviewed-generation guard.
   "tools/void-precision-web-recovery-evidence-v1.mjs":
-    "5c574de80a7b56326aab95510e40cd4aed7de0df",
+    "fca92451258bfd5446cb675530dbdb70b6ecf5df",
   "docs/operators/precision-web-recovery-evidence-v1.md":
     "7cc2a9eac3d6317fb779e8adbd2c62aa1d3bab8f",
   "public/void-public-frontdoor-v1/index.html":
@@ -340,6 +343,12 @@ function validateFrontdoorSourceSemantics(sources){
       "VOIDCHAIN_INGRESS_RUNTIME_TRUTH_MARKER_DRIFT"],
     ["127.0.0.1:4100",
       "VOIDCHAIN_INGRESS_COMPOSITION_NODE_UPSTREAM_DRIFT"],
+    ['"/__void/buy-void/operator"',
+      "VOIDCHAIN_INGRESS_PRIVATE_BUY_OPERATOR_DENY_MISSING"],
+    ['canonical = decodeURIComponent(pathname).toLowerCase();',
+      "VOIDCHAIN_INGRESS_OPERATOR_ALIAS_NORMALIZATION_MISSING"],
+    ['if (canonical.includes("%")) return true;',
+      "VOIDCHAIN_INGRESS_NESTED_ENCODED_PRIVATE_PATH_HOLD_MISSING"],
   ]){
     requireText(composition,needle,code);
   }
