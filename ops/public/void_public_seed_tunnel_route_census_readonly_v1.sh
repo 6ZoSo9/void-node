@@ -12,10 +12,15 @@ EARN_URL=https://seed.nullfeed.org/health
 
 classify() {
   local route="$1" local_http="$2" public_http="$3" owner="$4" delta="$5"
-  if [[ "$route" != EXPECTED_4111 ]]; then
+  local public_exit="$6" stable="$7"
+  if [[ "$stable" != YES ]]; then
+    printf '%s\n' CONNECTOR_CHANGED_HOLD
+  elif [[ "$route" != EXPECTED_4111 ]]; then
     printf '%s\n' LOCAL_INGRESS_ROUTE_HOLD
   elif [[ "$local_http" != 200 ]]; then
     printf '%s\n' LOCAL_SEED_GATEWAY_HOLD
+  elif [[ "$public_exit" != 0 ]]; then
+    printf '%s\n' PUBLIC_PROBE_TRANSPORT_HOLD
   elif [[ "$public_http" == 200 ]]; then
     printf '%s\n' PUBLIC_HTTP_200_STILL_UNQUALIFIED
   elif [[ "$owner" == ACTIVE_TUNNEL_PROCESS && "$delta" == 0 ]]; then
@@ -26,12 +31,15 @@ classify() {
 }
 
 if [[ "$#" -eq 1 && "$1" == --self-test ]]; then
-  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0)" == PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS ]]
-  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1)" == PUBLIC_HTTP_200_STILL_UNQUALIFIED ]]
-  [[ "$(classify OTHER 200 502 ACTIVE_TUNNEL_PROCESS 0)" == LOCAL_INGRESS_ROUTE_HOLD ]]
-  [[ "$(classify EXPECTED_4111 503 502 ACTIVE_TUNNEL_PROCESS 0)" == LOCAL_SEED_GATEWAY_HOLD ]]
-  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 1)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
-  [[ "$(classify EXPECTED_4111 200 502 UNKNOWN UNKNOWN)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS ]]
+  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 0 YES)" == PUBLIC_HTTP_200_STILL_UNQUALIFIED ]]
+  [[ "$(classify OTHER 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == LOCAL_INGRESS_ROUTE_HOLD ]]
+  [[ "$(classify EXPECTED_4111 503 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == LOCAL_SEED_GATEWAY_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 1 0 YES)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
+  [[ "$(classify EXPECTED_4111 200 502 UNKNOWN UNKNOWN 0 YES)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
+  [[ "$(classify EXPECTED_4111 200 000 ACTIVE_TUNNEL_PROCESS 0 6 YES)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 NO)" == CONNECTOR_CHANGED_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 28 YES)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
   printf '%s_SELF_TEST_GREEN\n' "$MARKER"
   printf 'live_network_access=false\nservice_mutation=false\n'
   exit 0
@@ -176,7 +184,15 @@ if [[ "$requests_before" =~ ^[0-9]+$ && "$requests_after" =~ ^[0-9]+$ ]]; then
   fi
 fi
 printf 'tunnel_requests_delta=%s\n' "$delta"
-printf 'classification=%s\n' "$(classify "$seed_route" "$local_seed_http" "$public_seed_http" "$owner" "$delta")"
+# Ignore counter correlation if the managed connector changed during sampling.
+# The old process's metrics cannot qualify a new service generation.
+final_pid="$(systemctl --user show "$UNIT" -p MainPID --value 2>/dev/null || true)"
+process_stable=NO
+if [[ "$final_pid" == "$pid" ]] && [[ "$(cat "/proc/$pid/comm" 2>/dev/null || true)" == cloudflared ]]; then
+  process_stable=YES
+fi
+printf 'process_generation_stable=%s\n' "$process_stable"
+printf 'classification=%s\n' "$(classify "$seed_route" "$local_seed_http" "$public_seed_http" "$owner" "$delta" "$public_seed_rc" "$process_stable")"
 printf '%s\n' \
   'one_request_counter_delta_not_conclusive=true' \
   'public_http_200_not_external_qualification=true' \

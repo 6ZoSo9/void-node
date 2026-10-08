@@ -44,6 +44,12 @@ and bypass proxy and curlrc configuration.
   **not proof** of the exact failing Cloudflare control-plane rule. Counting
   may be incomplete, concurrent traffic can confound an increment, and failures
   before the counter may not be counted.
+- `PUBLIC_PROBE_TRANSPORT_HOLD`: the public curl command failed (even if a
+  numeric HTTP code was observed). A failed DNS/TLS/transport request does
+  **not** justify a misrouting conclusion from a zero counter delta.
+- `CONNECTOR_CHANGED_HOLD`: user-systemd's tunnel MainPID or process identity
+  changed while the measurements ran. The before/after metrics cannot be
+  attributed to one stable connector generation.
 - `PUBLIC_HTTP_200_STILL_UNQUALIFIED`: a single public HTTP 200 is *not*
   a JSON/readiness trust receipt, independent three-sample qualification,
   served-manifest verification, or proof of chain-head advancement.

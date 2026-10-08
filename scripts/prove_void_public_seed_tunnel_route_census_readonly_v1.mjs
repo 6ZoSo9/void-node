@@ -28,6 +28,8 @@ for (const needle of [
   "cloudflared_tunnel_total_requests", "cloudflared_tunnel_ha_connections",
   "metrics_listener=%s", "PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS",
   "PUBLIC_HTTP_200_STILL_UNQUALIFIED", "tunnel_requests_delta=%s",
+  "PUBLIC_PROBE_TRANSPORT_HOLD", "CONNECTOR_CHANGED_HOLD",
+  "process_generation_stable=%s",
   "one_request_counter_delta_not_conclusive=true",
 ]) {
   assert(source.includes(needle), `missing safe operator/proof marker: ${needle}`);
@@ -78,6 +80,8 @@ console.log("source_contract_readonly=true");
 console.log("no_config_or_credential_path_printed=true");
 console.log("one_public_probe_between_metrics_snapshots=true");
 console.log("zero_delta_is_hypothesis_not_identity_proof=true");
+console.log("failed_public_curl_cannot_claim_stale_routing=true");
+console.log("connector_restart_invalidates_counter_comparison=true");
 console.log("self_test_synthetic_only=true");
 console.log("operator_host_access=false");
 console.log("services_changed=false");
