@@ -18841,6 +18841,8 @@ return res.status(400).json({
 const nativeUsdc=chainCfg.chain==="base"?"0x833589fcd6edb6e08f4c7c32d4f71b54bda02913":chainCfg.chain==="ethereum"?"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48":"";
 const nativeEqual=(value,expected)=>typeof value==="string"&&value.trim().toLowerCase()===expected;
 if(!nativeUsdc||!nativeEqual(found.source_chain,chainCfg.chain)||!nativeEqual(found.payment_chain,chainCfg.chain)||![found.usdc_contract,found.payment_instructions?.token_contract,chainCfg.usdc_contract].every(value=>nativeEqual(value,nativeUsdc)))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_native_usdc_policy_mismatch"});
+const nativeChainId=chainCfg.chain==="base"?8453:chainCfg.chain==="ethereum"?1:0,pi=found.payment_instructions;
+if(!nativeChainId||found.payment_chain_id!==nativeChainId||!pi||!nativeEqual(pi.send_chain,chainCfg.chain)||pi.send_chain_id!==nativeChainId||pi.token_decimals!==6||!nativeEqual(pi.send_to,cfg.receive_address)||!nativeEqual(pi.send_to,found.receive_address)||!nativeEqual(pi.send_from,found.delivery_address))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_payment_instructions_policy_mismatch"});
 let event:any;
 if(chainCfg.chain==="ethereum"){
 const ef:any=await import("./economic/buy_void_ethereum_public_checkout_finality_gate_v1.js");
