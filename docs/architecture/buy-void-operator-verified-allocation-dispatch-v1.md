@@ -25,6 +25,12 @@ implements an **unmounted** router-callable dispatch. It JSON-snapshots
 the event and caller request once, bounds each snapshot to 256 KiB,
 deep-freezes nested values, and requires matching nonempty request IDs.
 
+Before validation it also captures the request root, both allocation roots and
+both server callbacks exactly once. The frozen plan retains those exact values,
+and dispatch consumes only the plan; it never re-reads callbacks or roots from
+the original input object after validation. This closes stateful-getter
+substitution between admission and writer selection.
+
 For exact `operator_status="payment_verified"`, it refuses to call
 *either* writer unless distinct absolute normalized private allocation-ledger
 and high-water paths are supplied; neither path may equal the filesystem
@@ -46,6 +52,7 @@ first-original buyer history, provider quorum or external high-water witness.
 
 `scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts`
 uses **inert, in-memory JSON** only: immutable snapshots, stateful `toJSON`,
+stateful root/callback getters that must each be read exactly once,
 nonpayment preservation, invalid/missing/relative/aliased roots, request-ID
 mismatch and invalid callback negatives. A TypeScript AST proof verifies
 the new function invokes the canonical allocation writer only in its
