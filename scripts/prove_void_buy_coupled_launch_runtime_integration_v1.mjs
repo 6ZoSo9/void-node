@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
@@ -9,8 +8,8 @@ import {
   derive as deriveBuyVoidEnforcementArtifactAttestationV1,
 } from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
 import {
-  deriveBuyVoidEnforcementArtifactAttestationV4,
-} from "./prove_buy_void_enforcement_artifact_attestation_v4.mjs";
+  deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
+} from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
@@ -183,17 +182,6 @@ const verifiedPaymentV2 = read(
   "src/economic/buy_void_verified_payment_v2.ts",
 );
 assert.ok(Buffer.byteLength(index, "utf8") <= 3852487, "src/index.ts size ceiling");
-const canonical = value => JSON.stringify(value, (_key, item) =>
-  item && typeof item === "object" && !Array.isArray(item)
-    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
-    : item,
-);
-const sha256 = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
-const gitBlobSha1 = bytes => crypto.createHash("sha1")
-  .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
-  .update(bytes)
-  .digest("hex");
-
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
 assert.ok(
@@ -591,71 +579,65 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  const manifest =
+  const currentRaw =
     deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
-  const expectedSuccessor =
-    deriveBuyVoidEnforcementArtifactAttestationV4(ROOT);
-  const committedSuccessor = JSON.parse(read(
+  const currentCandidate =
+    deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
+  const historicalV4 = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
-  assert.deepEqual(
-    committedSuccessor,
-    expectedSuccessor,
-    "committed enforcement V4 successor must match current closure",
+
+  assert.equal(
+    historicalV4.marker,
+    "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V4",
+  );
+  assert.equal(historicalV4.version, 4);
+  assert.equal(
+    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
+    "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
+  );
+  assert.notEqual(
+    currentRaw.enforcement_artifact_set_sha256,
+    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
+    "new source generation must not be mislabeled as historical enforcement V4",
+  );
+
+  assert.equal(
+    currentCandidate.source_runtime_parent,
+    "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c",
   );
   assert.equal(
-    committedSuccessor.current_enforcement.enforcement_artifact_set_sha256,
-    manifest.enforcement_artifact_set_sha256,
-    "runtime integration must bind the V4-attested current enforcement closure",
-  );
-  const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
-  const lockBytes = fs.readFileSync(
-    path.join(ROOT, "src/economic/buy_void_filesystem_bakery_lock_v1.ts"),
-  );
-  const next = structuredClone(manifest);
-  const dockerInput = next.inputs.find(entry => entry.path === "Dockerfile");
-  assert.ok(dockerInput);
-  dockerInput.bytes = dockerBytes.length;
-  dockerInput.sha256 = sha256(dockerBytes);
-  dockerInput.git_blob_sha1 = gitBlobSha1(dockerBytes);
-  const lockInput = next.inputs.find(
-    entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-  );
-  assert.ok(lockInput);
-  lockInput.bytes = lockBytes.length;
-  lockInput.sha256 = sha256(lockBytes);
-  lockInput.git_blob_sha1 = gitBlobSha1(lockBytes);
-  const body = structuredClone(next);
-  delete body.enforcement_artifact_set_sha256;
-  const nextSetSha256 = sha256(Buffer.from(canonical(body), "utf8"));
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.bytes, dockerInput.bytes);
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.sha256, dockerInput.sha256);
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.git_blob_sha1, dockerInput.git_blob_sha1);
-  assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.bytes,
-    lockInput.bytes,
+    currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,
+    "d9e391bb058132b83a4eeaec00797e41dab9fa26",
   );
   assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.sha256,
-    lockInput.sha256,
+    currentCandidate.predecessor.historical_v4_enforcement_set_sha256,
+    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
   );
+  assert.ok(
+    currentCandidate.closed_runtime_artifacts.some(
+      entry =>
+        entry.path ===
+        "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+    ),
+  );
+  assert.equal(currentCandidate.candidate_identity_accepted, false);
+  assert.equal(currentCandidate.dynamic_tool_execution_identity_verified, false);
+  assert.equal(currentCandidate.dynamic_tool_transitive_closure_verified, false);
+  assert.equal(currentCandidate.complete_executable_closure_verified, false);
+  assert.equal(currentCandidate.deployed_artifact_generation_verified, false);
+  assert.equal(currentCandidate.runtime_mount_authority, false);
   assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.git_blob_sha1,
-    lockInput.git_blob_sha1,
+    currentCandidate.production_source_finality_authority_ready,
+    false,
   );
-  assert.equal(manifest.enforcement_artifact_set_sha256, nextSetSha256);
-  console.log(`attestation_docker_bytes=${dockerInput.bytes}`);
-  console.log(`attestation_docker_sha256=${dockerInput.sha256}`);
-  console.log(`attestation_docker_git_blob_sha1=${dockerInput.git_blob_sha1}`);
-  console.log(`attestation_next_set_sha256=${nextSetSha256}`);
-  console.log("enforcement_v1_predecessor_immutable=true");
-  console.log("current_enforcement_v3_successor_bound=true");
+  assert.equal(currentCandidate.presale_activation, false);
+  assert.equal(currentCandidate.funds_movement, false);
+
+  console.log("historical_enforcement_v4_predecessor_immutable=true");
+  console.log("current_enforcement_v5_candidate_derived=true");
+  console.log("current_enforcement_v5_candidate_acceptance=false");
+  console.log("complete_executable_closure_verified=false");
 }
 console.log("native_usdc_request_and_verified_event_policy_held=true");
 console.log("funds_movement=false");
