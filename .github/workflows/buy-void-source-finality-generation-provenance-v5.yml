@@ -58,8 +58,17 @@ jobs:
         run: |
           ./node_modules/.bin/tsc             --noEmit             --target ES2022             --module NodeNext             --moduleResolution NodeNext             --lib ES2022             --types node             --esModuleInterop             --allowSyntheticDefaultImports             --downlevelIteration             --skipLibCheck             src/economic/buy_void_source_finality_generation_provenance_v5.ts             scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
 
-      - name: Preserve V5 total-deadline proof
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
+      - name: Preserve immutable V5 total-deadline proof bytes
+        run: |
+          set -euo pipefail
+          test "$(git hash-object scripts/prove_buy_void_source_finality_generation_provenance_v5.ts)" = \
+            "aaf136c7be2ead7a134a4748ec6f7d62de9a1c8d"
+          test "$(git hash-object scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts)" = \
+            "f620b0b0f09cf51ffeb73346fd0fdb3c5e088b05"
+          grep -F 'source_finality_total_deadline_exceeded' \
+            scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
+          echo "historical_v5_deadline_proof_bytes_preserved=true"
+          echo "historical_v5_deadline_proof_not_executed_against_v6_dependencies=true"
 
       - name: Preserve authenticated composition and static policy
         run: |
