@@ -95,6 +95,9 @@ type RequestState = {
   // coexist in the shared request history without authorizing an allocation.
   initialUsdcContractQualified: boolean;
   initialLaunchAuthorityQualified: boolean;
+  // Preserve any first or later cross-chain alias conflict as permanent
+  // per-request negative evidence, without poisoning unrelated obligations.
+  sourceAliasesQualified: boolean;
 };
 type VerifiedState = {
   request: RequestState;
@@ -159,6 +162,10 @@ function chain(value: unknown): "base" | "ethereum" {
   if (normalized !== "base" && normalized !== "ethereum") fail("source_chain_invalid");
   return normalized;
 }
+function sourceAliasMatches(value: unknown, expected: "base" | "ethereum"): boolean {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return (raw === "eth" ? "ethereum" : raw) === expected;
+}
 function txHash(value: unknown, optional = false): string {
   if (optional && (value === null || value === undefined || value === "")) return "";
   const tx = field(value, "transaction_hash_invalid").toLowerCase();
@@ -218,15 +225,14 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
   for (const { row, exactLine } of requestRows) {
     const id = field(row.request_id, "request_id_invalid");
     if (!REQUEST_ID.test(id)) fail("request_id_invalid");
-    // Canonical aliases must agree; never select one of conflicting chain
-    // claims using nullish-coalescing precedence.
+    // Explicit source chain is mandatory. A conflicting/invalid alias
+    // permanently disqualifies THIS request, never a separate request that
+    // has no relationship to it through the target or verified history.
     const sourceChain = chain(row.source_chain);
-    for (const alias of ["payment_chain", "chain"] as const) {
-      if (Object.prototype.hasOwnProperty.call(row, alias) &&
-          chain(row[alias]) !== sourceChain) {
-        fail("request_source_chain_alias_mismatch");
-      }
-    }
+    const aliasesQualified = (["payment_chain", "chain"] as const).every(alias =>
+      !Object.prototype.hasOwnProperty.call(row, alias) ||
+        sourceAliasMatches(row[alias], sourceChain)
+    );
     const tx = txHash(row.tx_hash, true);
     const quoted = amount(row.quoted_void, "request_quote_invalid");
     const usdc = row.usdc_amount === undefined || row.usdc_amount === null
@@ -244,6 +250,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
         delivery, receive, usdcContract, launchAuthority: authority,
         initialUsdcContractQualified: Boolean(usdcContract),
         initialLaunchAuthorityQualified: authority !== null,
+        sourceAliasesQualified: aliasesQualified,
       });
       previousLines.set(id, new Set([exactLine]));
       continue;
@@ -270,6 +277,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       launchAuthority: prev.launchAuthority || authority,
       initialUsdcContractQualified: prev.initialUsdcContractQualified,
       initialLaunchAuthorityQualified: prev.initialLaunchAuthorityQualified,
+      sourceAliasesQualified: prev.sourceAliasesQualified && aliasesQualified,
     });
     seen.add(exactLine);
   }
@@ -287,6 +295,7 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   const requestId = field(row.request_id, "verified_event_request_id_missing");
   const request = requests.get(requestId);
   if (!request) fail("verified_event_request_lineage_missing");
+  if (!request.sourceAliasesQualified) fail("request_source_chain_alias_mismatch");
   // Require original first-row token/launch evidence for every verified
   // obligation, not merely the requested ID or an already-allocated row.
   if (!request.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");
@@ -353,6 +362,7 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     const requests = requestState(rows(input.requests_jsonl, "requests"));
     const targetRequest = requests.get(target);
     if (!targetRequest) fail("replay_binding_request_absent");
+    if (!targetRequest.sourceAliasesQualified) fail("request_source_chain_alias_mismatch");
     // Do not describe a legacy target as recoverable even when no verified
     // payment exists. Unrelated unverified legacy rows are not global blockers.
     if (!targetRequest.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");

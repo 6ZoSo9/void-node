@@ -301,6 +301,38 @@ const noLaunchEvent = {
 hold(scan([noInitialLaunch, request], [event, noLaunchEvent]),
   /request_initial_launch_authority_missing/u);
 
+// Conflicting legacy chain aliases are local negative evidence, not a global
+// denial of unrelated qualifying records. A targeted or verified alias-conflict
+// request always HOLDS; later clean snapshots cannot erase the first conflict.
+const legacyAlias = {
+  ...legacy, source_chain: "base", payment_chain: "ethereum",
+};
+gap(scan([legacyAlias, request], [event]));
+good(scan([legacyAlias, request], [event], allocationBytes), "allocation_present");
+hold(scan([legacyAlias, request], [event], Buffer.alloc(0), legacyAlias.request_id),
+  /request_source_chain_alias_mismatch/u);
+const legacyAliasEvent = {
+  ...event, request_id: legacyAlias.request_id, tx_hash: legacyAlias.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier, transaction_hash: legacyAlias.tx_hash,
+  },
+};
+hold(scan([legacyAlias, request], [legacyAliasEvent, event]),
+  /request_source_chain_alias_mismatch/u);
+gap(scan([legacyAlias, { ...legacy, status: "later-corrected" }, request], [event]));
+hold(scan([legacyAlias, { ...legacy, status: "later-corrected" }, request],
+  [event], Buffer.alloc(0), legacyAlias.request_id),
+  /request_source_chain_alias_mismatch/u);
+const alternateAlias = {
+  ...request, request_id: "buyvoid_alias_ffffffff", tx_hash: tx("7"),
+  payment_chain: "ethereum",
+};
+gap(scan([alternateAlias, request], [event]));
+hold(scan([alternateAlias, request], [event], Buffer.alloc(0), alternateAlias.request_id),
+  /request_source_chain_alias_mismatch/u);
+hold(scan([request, { ...request, payment_chain: "ethereum", status: "drift" }],
+  [event]), /request_source_chain_alias_mismatch/u);
+
 // Canonical request aliases may coexist, but ALL present chains must agree.
 gap(scan([{ ...request, payment_chain: "base", chain: "base" }], [event]));
 for (const aliased of [
@@ -379,7 +411,7 @@ const allocationIdOffset = malformedUtf8Allocation.indexOf(allocationRecordId);
 assert.notEqual(allocationIdOffset, -1);
 malformedUtf8Allocation[allocationIdOffset] = 0xff;
 hold(scan([request], [event], malformedUtf8Allocation),
-  /encoded data|UTF|(?:allocation_.*invalid)/iu);
+  /encoded data was not valid for encoding utf-8/iu);
 
 // This workflow supports manual dispatch, where pull_request base/head are
 // both absent; the committed last-commit check is explicit, not empty revs.
@@ -403,6 +435,8 @@ console.log("native_usdc_chain_allowlist_enforced=true");
 console.log("arbitrary_erc20_matching_allocation_history_held=true");
 console.log("request_snapshot_duplicates_or_lineage_erasure_held=true");
 console.log("request_chain_alias_conflicts_held=true");
+console.log("unrelated_legacy_chain_alias_conflict_scoped_without_authority=true");
+console.log("fatal_utf8_decoder_error_required_on_allocation_fixture=true");
 console.log("initial_token_and_launch_backfill_held=true");
 console.log("unrelated_unverified_legacy_request_not_global_hold=true");
 console.log("target_and_verified_legacy_initial_qualification_hold=true");

@@ -36,7 +36,13 @@ self-reported request snapshot. Malformed populated authority still HOLDs. Later
 other missing bindings, not erase or change prior fields. **Any** earlier
 byte-identical snapshot repeated after intervening updates (A→B→A) HOLDs.
 The explicit `source_chain` and every present `payment_chain` / `chain`
-alias must agree; missing or contradictory source-chain evidence HOLDs. For every accepted verified-payment V2
+alias must agree. An inconsistent alias is permanent **per-request** negative
+evidence: it HOLDs whenever that request is targeted or appears in verified
+payment/allocation history, but an unrelated unverified legacy row with
+conflicting aliases does not block an independent qualified request. A
+missing/invalid explicit `source_chain` or structurally malformed history
+still HOLDs the shared snapshot; this exception grants no historical origin
+or independent storage-authentication authority. For every accepted verified-payment V2
 row it binds the exact canonical payment identity using the existing
 `canonicalBuyVoidPaymentIdentityV1` primitive, enforces one immutable event per
 request/payment identity, exact request quote and configured 2:1 canonical
