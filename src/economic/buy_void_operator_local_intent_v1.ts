@@ -21,6 +21,9 @@ export const VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1 =
     host_or_peer_authority_forbidden: true,
     operator_bearer_capability_required: true,
     fixed_credentials_directory_id: true,
+    credentials_directory_descriptor_retained: true,
+    descriptor_relative_credential_open: true,
+    credentials_directory_identity_rechecked_after_read: true,
     capability_query_parameter_forbidden: true,
     capability_cookie_forbidden: true,
     capability_browser_storage_forbidden: true,
@@ -89,32 +92,53 @@ function readOperatorCapabilityV1():
     return { ok: false };
   }
 
-  let directory: fs.Stats;
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directoryFlag = fs.constants.O_DIRECTORY;
+  if (
+    typeof noFollow !== "number" ||
+    noFollow <= 0 ||
+    typeof directoryFlag !== "number" ||
+    directoryFlag <= 0
+  ) {
+    return { ok: false };
+  }
+
+  let directoryFd: number | null = null;
+  let credentialFd: number | null = null;
   try {
-    directory = fs.lstatSync(rawDir);
+    const visibleDirectoryBefore = fs.lstatSync(rawDir);
     if (
-      !directory.isDirectory() ||
-      directory.isSymbolicLink() ||
-      (directory.mode & 0o022) !== 0 ||
+      !visibleDirectoryBefore.isDirectory() ||
+      visibleDirectoryBefore.isSymbolicLink() ||
+      (visibleDirectoryBefore.mode & 0o022) !== 0 ||
       fs.realpathSync(rawDir) !== rawDir
     ) {
       return { ok: false };
     }
-  } catch {
-    return { ok: false };
-  }
 
-  const credentialPath = path.join(
-    rawDir,
-    VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
-  );
-  const noFollow = fs.constants.O_NOFOLLOW;
-  if (typeof noFollow !== "number" || noFollow <= 0) {
-    return { ok: false };
-  }
+    directoryFd = fs.openSync(
+      rawDir,
+      fs.constants.O_RDONLY | noFollow | directoryFlag,
+    );
+    const directoryBefore = fs.fstatSync(directoryFd);
+    if (
+      !directoryBefore.isDirectory() ||
+      (directoryBefore.mode & 0o022) !== 0 ||
+      !sameIdentity(visibleDirectoryBefore, directoryBefore)
+    ) {
+      return { ok: false };
+    }
 
-  let fd: number | null = null;
-  try {
+    const descriptorDirectory =
+      "/proc/self/fd/" + String(directoryFd);
+    if (fs.realpathSync(descriptorDirectory) !== rawDir) {
+      return { ok: false };
+    }
+    const credentialPath = path.join(
+      descriptorDirectory,
+      VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
+    );
+
     const visibleBefore = fs.lstatSync(credentialPath);
     if (
       !visibleBefore.isFile() ||
@@ -127,11 +151,11 @@ function readOperatorCapabilityV1():
       return { ok: false };
     }
 
-    fd = fs.openSync(
+    credentialFd = fs.openSync(
       credentialPath,
       fs.constants.O_RDONLY | noFollow,
     );
-    const before = fs.fstatSync(fd);
+    const before = fs.fstatSync(credentialFd);
     if (
       !before.isFile() ||
       before.nlink !== 1 ||
@@ -148,7 +172,7 @@ function readOperatorCapabilityV1():
     let total = 0;
     while (total < bytes.length) {
       const count = fs.readSync(
-        fd,
+        credentialFd,
         bytes,
         total,
         bytes.length - total,
@@ -159,11 +183,16 @@ function readOperatorCapabilityV1():
     }
     if (total !== before.size) return { ok: false };
 
-    const after = fs.fstatSync(fd);
+    const after = fs.fstatSync(credentialFd);
     const visibleAfter = fs.lstatSync(credentialPath);
+    const directoryAfter = fs.fstatSync(directoryFd);
+    const visibleDirectoryAfter = fs.lstatSync(rawDir);
     if (
       !sameIdentity(before, after) ||
-      !sameIdentity(visibleAfter, after)
+      !sameIdentity(visibleAfter, after) ||
+      !sameIdentity(directoryBefore, directoryAfter) ||
+      !sameIdentity(visibleDirectoryAfter, directoryAfter) ||
+      fs.realpathSync(descriptorDirectory) !== rawDir
     ) {
       return { ok: false };
     }
@@ -180,7 +209,8 @@ function readOperatorCapabilityV1():
   } catch {
     return { ok: false };
   } finally {
-    if (fd !== null) fs.closeSync(fd);
+    if (credentialFd !== null) fs.closeSync(credentialFd);
+    if (directoryFd !== null) fs.closeSync(directoryFd);
   }
 }
 
