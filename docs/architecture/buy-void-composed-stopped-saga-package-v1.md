@@ -5,7 +5,7 @@
 This Draft rederives the positive saga package evidence from the current
 composed enforcement lineage instead of inheriting historical #2647.
 
-Exact parent: `c99063d52caa6f898be879df61b73b7c9df82cd7` (#2660).
+Exact parent: `3fcfc169ffa2e5eee0f9542ea5b761cb32ef7117` (#2660).
 That parent is cross-Node green for the composed dynamic-tool source census
 and still records the saga target as execution-unverified.
 
