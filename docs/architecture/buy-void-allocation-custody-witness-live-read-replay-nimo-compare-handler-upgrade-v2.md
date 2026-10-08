@@ -43,7 +43,7 @@ The V2 operator script is:
 
 \`\`\`text
 tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.sh
-Git blob: f9db17f3489da25865febef2478998e5072168cc
+Git blob: fa10fa9f32f2d4542e7d8cc60935cf4dfb2ef7ae
 \`\`\`
 
 After merging this PR, pin that exact blob when staging it.
@@ -64,6 +64,13 @@ entire third \`restrict,command=...\` line using the same template as the
 reviewed compare-only installer, including the fixed \`/usr/bin/env -i\`
 environment and \`SSH_ORIGINAL_COMMAND\` escape. Fingerprint alone does not
 authorize an extra key.
+
+The trusted /root directory check compares UID, GID, mode, and type
+using the four-field `stat -c '%u:%g:%a:%F'` format. The original v2 source
+incorrectly included `%h` (directory link count) but still compared against
+four fields, forcing `trusted_root_directory_changed` even for an intact
+root directory. The corrected exact source blob above removes that extra
+field; the source proof now rejects such arity drift.
 
 The script itself must run as root on Nimo **only** at:
 
@@ -89,7 +96,7 @@ On Precision:
 set -Eeuo pipefail
 repo="$HOME/dev/void-node"
 rel="tools/void-buy-allocation-custody-witness-live-read-replay-nimo-compare-handler-upgrade-v2.sh"
-expected="f9db17f3489da25865febef2478998e5072168cc"
+expected="fa10fa9f32f2d4542e7d8cc60935cf4dfb2ef7ae"
 
 git -C "$repo" fetch origin main
 test "$(git -C "$repo" rev-parse "origin/main:$rel")" = "$expected"
@@ -114,7 +121,7 @@ set -Eeuo pipefail
 umask 077
 src=/home/zoso/.local/state/void-replay-compare-handler-upgrade-v1/upgrade-v2.sh
 trusted=/root/.void-replay-nimo-compare-handler-upgrade-v2.sh
-expected=f9db17f3489da25865febef2478998e5072168cc
+expected=fa10fa9f32f2d4542e7d8cc60935cf4dfb2ef7ae
 test "$(git hash-object "$src")" = "$expected"
 sudo -v
 test "$(sudo stat -c "%u:%g:%a:%F" /root)" = "0:0:700:directory"
