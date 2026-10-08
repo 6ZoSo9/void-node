@@ -2,77 +2,115 @@
 
 ## Scope and authority
 
-This source-only, unaccepted review package is stacked on Draft PR #2633
-(65b67d1df3b2e8995081f0c2c8f6902c8d737644) and the V6 source
-candidate #2630 (649ebe88f4f1e69731b64756849b8dcd9828f501).
+This source-only, unaccepted review package audits the current Draft PR #2633
+candidate generation for the finalized V2 checkout verifier.
 
-The new V2 source Git blob is 32133e441ccb02bb4786d29e36932fb31399ec87;
-the new V6 source Git blob is d642723385136e9f0382bd77efdb34948221f380.
+The reviewed source identities are:
+
+- V2 verifier Git blob
+  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
+- V6 source Git blob
+  `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
+- V6 source-generation anchor
+  `47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
+
 Historical V5 reviewed-source and V3 compiled manifests are NOT altered.
 
 This review evidence is deliberately NOT a locked, accepted or deployed V4
-compiled attestation. Compiled generation verified, deployed generation verified,
-runtime mount authority, and production source-finality ready all remain FALSE.
+compiled attestation. Compiled generation verified, deployed generation
+verified, runtime mount authority, and production source-finality ready all
+remain FALSE.
 
-## Original CI evidence independently retrieved
+## Exact cross-Node candidate evidence
 
-At exact PR #2633 head 65b67d1df3b2e8995081f0c2c8f6902c8d737644,
-GitHub Actions run 37803316186 finished 15/15 successful workflows,
-including independent Node 22/24/26 derivations and exact three-way comparison:
-https://github.com/6ZoSo9/void-node/actions/runs/37803316186
+At exact PR #2633 head
+`f2cc22051d6408299c82975af78756d147c45647`, GitHub Actions run
+`37820150421` finished SUCCESS, including independent Node 22/24/26 builds
+and the exact downstream cross-Node byte comparison.
 
-Downloaded the THREE workflow artifact archives (IDs 11561369776,
-11560884704 and 11561877820). Each contains an identically serialized
-4,032-byte JSON body. The raw SHA-256 is:
+Archived workflow artifacts:
 
-d03761f2c4cae8388fcee50bb953c85062d5d58d653c79451f0bf097069a28e8
+- Node 22: artifact ID `11569338319`;
+- Node 24: artifact ID `11569881052`;
+- Node 26: artifact ID `11570175883`.
 
-The corresponding exact Git blob SHA-1 is:
+Each contains the same 4,032-byte candidate JSON. The exact raw candidate
+identities are:
 
-44b7aac6189dbf64ed7a8c3d185995b6fda1a646
+- SHA-256
+  `27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128`;
+- Git blob SHA-1
+  `4c95426572e6b019822f3ae6422aacad6287e562`;
+- compiled artifact generation SHA-256
+  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`.
 
-The reviewed-candidate evidence JSON in this branch contains those EXACT
-same original bytes, not a recreated summary. Independently recomputing
-the canonical sorted generation digest gives:
+The reviewed-candidate evidence JSON in this branch is exactly the archived
+Node-22 body. Current #2633 later gained only proof/ancestry reconciliation;
+the candidate helper requires no reviewed runtime source or compiler-input
+drift from the source-generation anchor, so this evidence package re-derives
+the candidate on its own exact head and requires byte equality before passing.
 
-b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d
+## Closed six-artifact identities
 
-The JSON records all six compiled artifact lengths and SHA-256 digests.
-Four predecessor-common compiled artifacts match the immutable historical
-V3 manifest. The new V6 entry and native-USDC V2 verifier are the two
-changed candidate compiled artifacts.
+The independently reviewed set contains exactly six compiled artifacts:
+
+- V6 source-finality generation:
+  15,937 bytes,
+  `sha256:2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a`;
+- authenticated composition V3:
+  18,892 bytes,
+  `sha256:0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42`;
+- source-finality authority V2:
+  19,002 bytes,
+  `sha256:239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b`;
+- source-chain finality RPC adapter V1:
+  19,804 bytes,
+  `sha256:3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2`;
+- payment RPC observer V1:
+  12,270 bytes,
+  `sha256:d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89`;
+- finalized V2 verified-payment verifier:
+  12,161 bytes,
+  `sha256:7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2`.
+
+The reviewed-source generation digest is
+`95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426`.
+
+Four predecessor-common compiled artifacts remain exact against immutable V3.
+The changed compiled artifacts are only V6 and V2.
 
 ## Independent verification
 
-The new proof (scripts/prove_buy_void_source_finality_compiled_artifact_v4_evidence_v1.mjs)
-checks exact raw manifest bytes, SHA-256, Git blob SHA-1, source and compiler
-inputs, Git ancestry, immutable historical V3 provenance, the four unchanged
-compiled artifacts, closed six-file artifact paths, exact compiled byte hashes,
-and an independently recomputed canonical generation SHA-256.
+The evidence proof checks exact raw candidate bytes, SHA-256, Git blob SHA-1,
+source and compiler inputs, Git ancestry, immutable V3 provenance, four
+unchanged predecessor compiled artifacts, the closed six-file artifact set,
+exact compiled lengths/hashes and an independently recomputed canonical
+generation digest.
 
-The source and artifact reader requires O_RDONLY | O_NOFOLLOW, regular
-single-link files, matching visible path and retained descriptor identities
-before/after read, and a fixed pre-size + one-byte read bound. Its negative
-tests mutate each of the six compiled buffers in memory and corrupt eight
-evidence fields/authority claims; all must HOLD.
+Source and artifact reads require `O_RDONLY | O_NOFOLLOW`, regular
+single-link files, visible-path ↔ retained-descriptor identity before and after
+the bounded read, and a pre-size + one-byte cap.
 
-The new exact-head CI independently builds with Node 22/24/26, compares a
-fresh derivation byte-for-byte to the archived manifest, and checks six
-fresh compiled artifact identities on all three Node versions. On Node 24,
-it also inspects the same files from a STOPPED Docker production image
-using docker create and docker cp (without starting any runtime process).
+Negative tests corrupt candidate authority/evidence fields and all six compiled
+buffers; every mutation must HOLD. Exact-head CI rebuilds with Node 22/24/26
+and compares each fresh candidate byte-for-byte to the archived JSON. Node 24
+also inspects the six files from a STOPPED production image via
+`docker create` + `docker cp`; no container runtime is started.
 
 ## Independent acceptance remains separate
 
-Even if this focused review test is GREEN, external/manual independent
-semantic review is still needed before creating an accepted locked V4
-manifest. New enforcement, packaged-image and deployed-artifact identities
-must be separately qualified. The original buyer request, real payment,
-source finality, protected high-water and exactly-once allocation custody
-remain unqualified. The WC/VOID presale launch remains HOLD.
+Even a green evidence audit does not accept the compiled generation. The
+locked V4 successor must separately incorporate the reviewed checked-entry
+repair that executes already authenticated candidate bytes rather than
+reopening the script pathname.
 
-No operator host, service, customer record, wallet, signer, credentials,
+Enforcement, packaged-image and deployed-artifact identities remain separate
+successors. Original buyer/request chronology, real source payment finality,
+protected high-water custody and exactly-once allocation recovery remain
+unqualified. WC/VOID presale launch remains HOLD.
+
+No operator host, service, customer record, wallet, signer, credential,
 transaction, Chain-2050, Work Credit, market, inventory, treasury, liquidity
-or funds movement is authorized here. Leave Draft/unmerged.
+or funds movement is authorized here.
 
-PROTECT THE CORE.
+**PROTECT THE CORE.**
