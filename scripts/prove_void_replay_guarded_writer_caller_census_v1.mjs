@@ -56,6 +56,52 @@ for (const computed of [
 ]) {
   assert.deepEqual(kind(computed), ["forbidden"], computed);
 }
+// Lexical scope is part of the trust boundary. A sibling const declaration
+// must not erase the reviewed alias used by a different function.
+const splitTarget = "'./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js'";
+for (const [label, source, expected] of [
+  ["sibling const cannot erase a writer alias",
+    `function first(){const ref=${splitTarget};require(ref)} function second(){const ref='./other.js'}`,
+    ["forbidden"]],
+  ["sibling writer const cannot taint unrelated loader",
+    `function first(){const ref='./other.js';require(ref)} function second(){const ref=${splitTarget}}`,
+    []],
+  ["nested writer const resolves over outer benign alias",
+    `const ref='./other.js';{const ref=${splitTarget};require(ref)}`,
+    ["forbidden"]],
+  ["nested benign const shadows outer writer alias",
+    `const ref=${splitTarget};{const ref='./other.js';require(ref)}`,
+    []],
+  ["outer writer alias remains visible inside nested block",
+    `const ref=${splitTarget};{require(ref)}`,
+    ["forbidden"]],
+  ["sibling const aliases do not erase transitive writer binding",
+    `function first(){const ref=${splitTarget};const alias=ref;require(alias)} function second(){const ref='./other.js'}`,
+    ["forbidden"]],
+  ["function argument shadows outer constant",
+    `const ref=${splitTarget};function first(ref){require(ref)}`,
+    []],
+  ["arrow argument shadows outer constant",
+    `const ref=${splitTarget};const fn=(ref)=>require(ref)`,
+    []],
+  ["catch argument shadows outer constant",
+    `const ref=${splitTarget};try{}catch(ref){require(ref)}`,
+    []],
+  ["for-scope const shadows outer constant",
+    `const ref=${splitTarget};for(const ref of ['./other.js']){require(ref)}`,
+    []],
+  ["another nested writer binding is not lost",
+    `function a(){const ref=${splitTarget};function b(){const ref='./other.js';require(ref)}require(ref)}`,
+    ["forbidden"]],
+  ["duplicate same-scope declarations do not silently clear a writer alias",
+    `const ref=${splitTarget};const ref='./other.js';require(ref)`,
+    ["forbidden"]],
+  ["constant alias cycles remain unresolved, not executable",
+    `const a=b;const b=a;require(a)`,
+    []],
+]) {
+  assert.deepEqual(kind(source), expected, label);
+}
 // An existing proof path remains a fixture-only allowance, not a runtime gate.
 assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
   "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
@@ -131,6 +177,7 @@ console.log("VOID_REPLAY_GUARDED_WRITER_CALLER_CENSUS_V1_SOURCE_GREEN");
 console.log("direct_unguarded_import_adversaries_rejected=true");
 console.log("namespace_reexport_dynamic_require_adversaries_rejected=true");
 console.log("statically_computed_writer_loader_adversaries_rejected=true");
+console.log("sibling_shadow_lexical_recovery_and_duplicate_binding_hold=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");

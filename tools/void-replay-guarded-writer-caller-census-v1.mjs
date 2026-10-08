@@ -80,35 +80,113 @@ function staticReference(specifier, node, file, valueNames = null, typeOnly = fa
 
 // Fold only side-effect-free, statically decidable string expressions.
 // Never execute eval, loaders, property getters or arbitrary source code.
-function constInitializerMap(parsed) {
-  const names = new Map();
-  const ambiguous = new Set();
-  function walk(node) {
-    if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const) !== 0) {
-      for (const decl of node.declarations) {
-        if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
-        const name = decl.name.text;
-        if (names.has(name)) {
-          names.delete(name);
-          ambiguous.add(name);
-        } else if (!ambiguous.has(name)) {
-          names.set(name, decl.initializer);
+// Build lexical bindings without merging identical identifiers in sibling
+// functions or nested blocks. No code is executed and no type inference is
+// attempted: only const initializers with a unique lexical binding can fold.
+function lexicalBindings(parsed) {
+  const byScope = new Map();
+  function lexicalScope(node) {
+    return ts.isSourceFile(node) || ts.isBlock(node) ||
+      ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
+      ts.isForStatement(node) || ts.isForInStatement(node) ||
+      ts.isForOfStatement(node) || ts.isFunctionLike(node) ||
+      ts.isCatchClause(node);
+  }
+  function parentScope(node, functionScoped = false) {
+    for (let p = node.parent; p; p = p.parent) {
+      if (functionScoped) {
+        if (ts.isFunctionLike(p) || ts.isSourceFile(p) || ts.isModuleBlock(p)) return p;
+      } else if (lexicalScope(p)) return p;
+    }
+    return null;
+  }
+  function add(scope, name, declaration, initializer = null) {
+    if (!scope || !name) return;
+    let entries = byScope.get(scope);
+    if (!entries) {
+      entries = new Map();
+      byScope.set(scope, entries);
+    }
+    // Treat duplicate same-scope declarations as ambiguous rather than
+    // selecting whichever happened to be encountered last in the AST.
+    if (entries.has(name)) {
+      entries.set(name, Object.freeze({ kind: "ambiguous", declarations: null }));
+    } else {
+      entries.set(name, Object.freeze({ kind: initializer ? "const" : "unknown", declaration, initializer }));
+    }
+  }
+  function namesFromBinding(name, result = []) {
+    if (ts.isIdentifier(name)) {
+      result.push(name.text);
+    } else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (ts.isBindingElement(element)) namesFromBinding(element.name, result);
+      }
+    }
+    return result;
+  }
+  function recordUnknown(scope, nameNode, declaration) {
+    if (nameNode) for (const name of namesFromBinding(nameNode)) add(scope, name, declaration);
+  }
+  function visit(node) {
+    if (ts.isVariableDeclarationList(node)) {
+      const isConst = (node.flags & ts.NodeFlags.Const) !== 0;
+      const isVar = (node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)) === 0;
+      const scope = parentScope(node, isVar);
+      for (const declaration of node.declarations) {
+        if (ts.isIdentifier(declaration.name)) {
+          add(scope, declaration.name.text, declaration,
+            isConst ? declaration.initializer : null);
+        } else {
+          recordUnknown(scope, declaration.name, declaration);
         }
       }
     }
-    ts.forEachChild(node, walk);
+    if (ts.isFunctionLike(node)) {
+      for (const parameter of node.parameters || []) recordUnknown(node, parameter.name, parameter);
+    }
+    if (ts.isCatchClause(node) && node.variableDeclaration) {
+      recordUnknown(node, node.variableDeclaration.name, node.variableDeclaration);
+    }
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      add(parentScope(node), node.name.text, node);
+    }
+    if (ts.isClassDeclaration(node) && node.name) {
+      add(parentScope(node), node.name.text, node);
+    }
+    if (ts.isImportDeclaration(node) && node.importClause) {
+      const scope = parentScope(node);
+      const clause = node.importClause;
+      if (clause.name) add(scope, clause.name.text, clause);
+      const bindings = clause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        add(scope, bindings.name.text, bindings);
+      } else if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) add(scope, element.name.text, element);
+      }
+    }
+    if (ts.isImportEqualsDeclaration(node)) add(parentScope(node), node.name.text, node);
+    ts.forEachChild(node, visit);
   }
-  walk(parsed);
-  return names;
+  visit(parsed);
+  return function resolveIdentifier(identifier) {
+    for (let p = identifier.parent; p; p = p.parent) {
+      if (lexicalScope(p)) {
+        const binding = byScope.get(p)?.get(identifier.text);
+        if (binding) return binding;
+      }
+    }
+    return null;
+  };
 }
 
-function staticStringValue(node, bindings, depth = 0, active = new Set()) {
+function staticStringValue(node, resolveBinding, depth = 0, active = new Set()) {
   if (!node || depth >= MAX_STATIC_EXPRESSION_DEPTH) return null;
   if (ts.isStringLiteralLike(node)) {
     return Buffer.byteLength(node.text, "utf8") <= MAX_STATIC_SPECIFIER_BYTES
       ? node.text : null;
   }
-  const next = expr => staticStringValue(expr, bindings, depth + 1, active);
+  const next = expr => staticStringValue(expr, resolveBinding, depth + 1, active);
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
       ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) ||
       (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node))) {
@@ -131,13 +209,30 @@ function staticStringValue(node, bindings, depth = 0, active = new Set()) {
     }
     return value;
   }
-  if (ts.isIdentifier(node) && bindings.has(node.text) && !active.has(node.text)) {
-    active.add(node.text);
-    const value = next(bindings.get(node.text));
-    active.delete(node.text);
+  if (ts.isIdentifier(node)) {
+    const binding = resolveBinding(node);
+    if (binding?.kind !== "const" || active.has(binding.declaration)) return null;
+    active.add(binding.declaration);
+    const value = next(binding.initializer);
+    active.delete(binding.declaration);
     return value;
   }
   return null;
+}
+
+function hasAmbiguousLexicalBinding(node, resolveBinding) {
+  if (!node) return false;
+  let ambiguous = false;
+  const visit = expr => {
+    if (ambiguous) return;
+    if (ts.isIdentifier(expr) && resolveBinding(expr)?.kind === "ambiguous") {
+      ambiguous = true;
+      return;
+    }
+    ts.forEachChild(expr, visit);
+  };
+  visit(node);
+  return ambiguous;
 }
 
 function isModuleLoaderExpression(expression) {
@@ -158,7 +253,7 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
   const parsed = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true, scriptKind(file));
   if (parsed.parseDiagnostics.length > 0) throw new Error("guarded_replay_census_source_parse_invalid");
   const refs = [];
-  const constBindings = constInitializerMap(parsed);
+  const resolveBinding = lexicalBindings(parsed);
   function push(ref) { if (ref) refs.push(ref); }
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
@@ -190,13 +285,15 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
       push(staticReference(node.moduleReference.expression.text, node, file, null, Boolean(node.isTypeOnly), "import-equals"));
     } else if (ts.isCallExpression(node) && isModuleLoaderExpression(node.expression)) {
       const first = node.arguments[0];
-      const resolved = staticStringValue(first, constBindings);
+      const resolved = staticStringValue(first, resolveBinding);
       if (resolved !== null) {
         push(staticReference(resolved, node, file, null, false,
           first && ts.isStringLiteralLike(first) ? "dynamic-loader" : "computed-loader"));
-      } else if (first?.getText(parsed).includes(WRITER_BASENAME)) {
-        // Retain a conservative HOLD when the expression cannot be folded but
-        // still visibly contains the complete writer name.
+      } else if (first?.getText(parsed).includes(WRITER_BASENAME) ||
+                 hasAmbiguousLexicalBinding(first, resolveBinding)) {
+        // Retain a conservative HOLD when the source visibly contains the
+        // writer name OR duplicate same-scope bindings prevent trustworthy
+        // alias resolution. Sibling lexical scopes remain independent.
         push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
       }
     }

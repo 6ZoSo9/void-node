@@ -45,8 +45,15 @@ immutable executable closure and no bypass route.
   calls, statically fold bounded string concatenations, template literals and
   uniquely named `const` string bindings, including common TS wrappers.
   A runtime reference cannot evade this tripwire merely by splitting the
-  writer basename across two static string fragments. No source expression is
-  evaluated or executed during this source-only analysis.
+  writer basename across two static string fragments. Constant aliases are
+  resolved against the nearest **lexical** binding: identical names declared
+  in sibling functions or nested blocks neither erase a dangerous writer
+  reference nor spuriously taint an unrelated loader. A duplicate binding in
+  one lexical scope triggers a conservative computed-loader HOLD rather than
+  silently discarding the identity. The source proof includes sibling/nested
+  scope, function/arrow/catch/for shadow, transitive alias and duplicate
+  declaration adversaries. No source expression is evaluated or executed
+  during this source-only analysis.
 - Require the writer itself still exports both legacy entrypoints so an
   intentional future retirement/rename cannot silently inherit this census.
   Its presence is a recorded **remaining risk**, not a GREEN runtime claim.
