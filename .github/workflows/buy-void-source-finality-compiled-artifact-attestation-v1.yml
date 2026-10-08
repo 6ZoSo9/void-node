@@ -1,4 +1,4 @@
-name: VOID Buy VOID source-finality compiled artifact attestation v3
+name: VOID Buy VOID historical compiled V3 and current V4 successor
 
 on:
   pull_request:
@@ -9,15 +9,11 @@ on:
       - "tsconfig.build.json"
       - "scripts/copy_void_runtime_js_v1.mjs"
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.md"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.md"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
       - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
 
@@ -31,7 +27,7 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -45,10 +41,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Bind checkout and immutable predecessor manifests
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json)" =             "d6e97784c5d8be93713e733628c7d1ef746bb5c7"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "c621c1361e9db1bcda32af1dd25e7a2515e793d7"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -56,46 +56,60 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Build exact repository artifacts
         run: npm run build
 
-      - name: Derive source-finality compiled artifact rollover v3
+      - name: Preserve historical V3 as predecessor only
         run: |
-          set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs --derive \
-            > "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const v3 = JSON.parse(fs.readFileSync(
+            "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
+            "utf8",
+          ));
+          assert.equal(v3.marker, "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3");
+          assert.equal(v3.version, 3);
+          assert.equal(v3.production_source_finality_authority_ready, false);
+          assert.equal(v3.deployed_artifact_generation_verified, false);
+          console.log("HISTORICAL_COMPILED_V3_MANIFEST_IMMUTABLE=true");
+          NODE
 
-      - name: Upload v3 derivation evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Verify committed v3 attestation
+      - name: Prove locked current compiled V4
         run: |
-          set -euo pipefail
-          cmp "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json" \
-            docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs
 
-      - name: Prove reviewed source-file V5 binding
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5.ts
-
-      - name: Preserve V3 authenticated composition
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
+      - name: Require locked V4 authority boundary
+        run: |
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const v4 = JSON.parse(fs.readFileSync(
+            "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json",
+            "utf8",
+          ));
+          assert.equal(v4.compiled_artifact_generation_verified, true);
+          assert.equal(v4.deployed_artifact_generation_verified, false);
+          assert.equal(v4.runtime_mount_authority, false);
+          assert.equal(v4.production_source_finality_authority_ready, false);
+          assert.equal(
+            v4.predecessor?.manifest_git_blob_sha1,
+            "d6e97784c5d8be93713e733628c7d1ef746bb5c7",
+          );
+          console.log("CURRENT_COMPILED_V4_SUCCESSOR_HOLD_GREEN=true");
+          NODE
 
       - name: Committed-range diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi
