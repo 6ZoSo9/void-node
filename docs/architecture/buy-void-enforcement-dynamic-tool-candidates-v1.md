@@ -5,7 +5,7 @@
 This separate source-only Draft is stacked on exact [#2641](https://github.com/6ZoSo9/void-node/pull/2641)
 head `ad5192933e2f8c538bab041bb6d9a164fd67e880`, which in turn
 is based on the [#2657](https://github.com/6ZoSo9/void-node/pull/2638)
-V6 runtime bridge at `f18d789562d655eec9fde34571ed9b7d050f92bf`.
+V6 runtime bridge at `32f40899d6b71561bf4bf3a917e51c431cb867de`.
 
 PR #2641's initial enforced AST-closed import scanner correctly HELD
 because it discovered real code-generated ESM imports:
@@ -127,7 +127,7 @@ No Ready, merge or deployment.
 
 ## Composed-source read boundary
 
-This successor is rederived from exact composed source head `f18d789562d655eec9fde34571ed9b7d050f92bf`
+This successor is rederived from exact composed source head `32f40899d6b71561bf4bf3a917e51c431cb867de`
 and does not inherit the older #2642 source-generation claim.
 
 All reviewed tool/caller source bytes are opened through the parent
