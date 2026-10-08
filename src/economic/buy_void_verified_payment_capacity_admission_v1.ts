@@ -2262,11 +2262,27 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
 
-  // Serialize exactly once before choosing the payment/nonpayment path.
-  // This snapshot is the bytes that may be appended. Never inspect a mutable
-  // caller object and then stringify it later: a stateful getter/toJSON could
-  // otherwise change "reviewed" into "payment_verified" between admission
-  // and persistence.
+  // Status authority must already be a primitive own data property.
+  // Do not invoke an accessor or let an event-level toJSON synthesize a
+  // different status during serialization.
+  const statusDescriptor =
+    Object.getOwnPropertyDescriptor(event, "operator_status");
+  const toJsonDescriptor =
+    Object.getOwnPropertyDescriptor(event, "toJSON");
+  if (
+    !statusDescriptor ||
+    !Object.hasOwn(statusDescriptor, "value") ||
+    typeof statusDescriptor.value !== "string" ||
+    !["payment_verified", "reviewed", "fulfilled", "rejected"]
+      .includes(statusDescriptor.value) ||
+    toJsonDescriptor !== undefined
+  ) {
+    fail("buy_void_operator_event_capacity_status_noncanonical");
+  }
+  const admittedOperatorStatus = statusDescriptor.value;
+
+  // Serialize exactly once before choosing the payment/nonpayment path. The
+  // detached bytes are the only bytes that may be persisted.
   const canonicalOperatorEvent =
     canonicalVerifiedPaymentEventV1(event);
   const operatorEvent = canonicalOperatorEvent.event;
@@ -2279,15 +2295,12 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
 
-  // The public router and future verified-allocation dispatcher emit an
-  // exact closed operator-status vocabulary. Enforce the SAME boundary in
-  // this exported legacy source API against the detached persisted snapshot,
-  // before mkdir, sidecar or ledger append.
+  // Re-bind the serialized snapshot to the exact primitive status admitted
+  // above. A mutation during serialization therefore HOLDs rather than
+  // changing which writer owns the row.
   const operatorStatus = operatorEvent.operator_status;
-  if (typeof operatorStatus !== "string" ||
-      !["payment_verified", "reviewed", "fulfilled", "rejected"]
-        .includes(operatorStatus)) {
-    fail("buy_void_operator_event_capacity_status_noncanonical");
+  if (operatorStatus !== admittedOperatorStatus) {
+    fail("buy_void_operator_event_capacity_status_changed_during_snapshot");
   }
 
   const requestDir = path.resolve(requestDirRaw);
