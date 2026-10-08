@@ -32,9 +32,25 @@ verifier now requires a supplied checkout `usdc_contract` or coupled
 USDC contract, equal to the verifier's configured contract. An environment-
 chosen arbitrary ERC-20 receipt is not payment in the original native USDC.
 
+The guard also binds the buyer-facing checkout instructions for any
+checkout/coupled request. The original request must carry the selected
+`payment_chain`, the exact numeric chain ID (Base `8453` or Ethereum `1`),
+and a payment-instruction object whose `send_chain`, exact numeric
+`send_chain_id`, native-USDC `token_contract`, exact numeric
+`token_decimals=6`, `send_to`, and `send_from` all agree with the
+server-selected rail, canonical request receive address, and request delivery
+wallet. Numeric strings such as `"8453"` or `"6"` are not accepted as the
+original checkout schema's numeric fields.
+
+This prevents a real receipt on the configured rail from being treated as
+proof of the buyer's original obligation when the durable request instructions
+pointed at a different rail, token, receiver, sender, or decimal interpretation.
+
 The proof covers canonical Base and Ethereum Transfer-log shapes, an arbitrary
 configured Base ERC-20 that matches its fake receipt but not the original
-request, absent and wrong original token, and mixed-case address equality.
+request, absent and wrong original token, mixed-case address equality, and
+negative cases for every bound payment-instruction field including wrong-type
+chain IDs and token decimals.
 
 **Not historical authority:** this is an in-memory guard, not proof that the
 caller supplied the first durable accepted request snapshot. Generic legacy/
