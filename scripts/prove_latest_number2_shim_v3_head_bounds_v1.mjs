@@ -10,7 +10,7 @@ import vm from "node:vm";
 const SHIM_PATH = "src/diag/patch_latest_number2_shim_v3.cjs";
 const source = fs.readFileSync(SHIM_PATH, "utf8");
 
-async function exercise({ fileText, httpText }) {
+async function exercise({ fileText, httpText, httpStatusCode = 200, onHttpDrain = null }) {
   let handler = null;
 
   const fakeFs = {
@@ -27,7 +27,11 @@ async function exercise({ fileText, httpText }) {
       request.destroy = () => {};
       request.end = () => {
         const response = new EventEmitter();
+        response.statusCode = httpStatusCode;
         response.setEncoding = () => {};
+        response.resume = () => {
+          if (typeof onHttpDrain === "function") onHttpDrain();
+        };
         callback(response);
         queueMicrotask(() => {
           response.emit("data", httpText);
@@ -99,6 +103,21 @@ assert.deepEqual(
   { statusCode: 200, body: { ok: true, number: 18 } },
 );
 
+for (const httpStatusCode of [201, 302, 401, 429, 503]) {
+  let drained = false;
+  assert.deepEqual(
+    await exercise({
+      fileText: new Error("missing head file"),
+      httpText: "18",
+      httpStatusCode,
+      onHttpDrain: () => { drained = true; },
+    }),
+    { statusCode: 503, body: { ok: false, number: -1, err: "no-head" } },
+    `numeric response body with HTTP ${httpStatusCode} must never become head authority`,
+  );
+  assert.equal(drained, true, `HTTP ${httpStatusCode} rejection must drain the response`);
+}
+
 for (const httpText of ["21junk", "-1", "1.5", "1e3", "9007199254740992"]) {
   assert.deepEqual(
     await exercise({ fileText: new Error("missing head file"), httpText }),
@@ -111,4 +130,6 @@ console.log("file_complete_decimal_required=true");
 console.log("file_safe_integer_required=true");
 console.log("http_complete_decimal_required=true");
 console.log("http_safe_integer_required=true");
+console.log("http_status_200_required=true");
+console.log("http_error_response_drained=true");
 console.log("VOID_LATEST_NUMBER2_SHIM_V3_HEAD_BOUNDS_V1_GREEN");
