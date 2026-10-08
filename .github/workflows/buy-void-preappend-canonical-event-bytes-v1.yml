@@ -1,0 +1,112 @@
+name: VOID Buy VOID immutable preappend event bytes regression v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_preappend_canonical_event_bytes_v1.ts"
+      - ".github/workflows/buy-void-preappend-canonical-event-bytes-v1.yml"
+      - "docs/architecture/buy-void-preappend-canonical-event-bytes-v1.md"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source-only Draft
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source head and fixed writer blob
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = 80eb7a6eb2c1f86cd1c04f59703633246ec4c27e
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = 970e686cd96b43d496c44acb4ff343a5e61e26c5
+      - name: Install reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked package without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck exact focused TS proof and its source imports
+        run: ./node_modules/.bin/tsc --noEmit --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --types node scripts/prove_buy_void_preappend_canonical_event_bytes_v1.ts
+      - name: Build the source-only writer and tests
+        run: npm run build
+      - name: Falsify historical changing-toJSON payment fsync defect
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_preappend_canonical_event_bytes_v1.ts \
+            | tee "canonical-event-${{ matrix.node }}.txt"
+          for assertion in \
+            plain_unchanged_event_still_works=true \
+            historical_negative_fsync_scenario_now_uses_one_snapshot=true \
+            unstable_toJSON_serialized_exactly_once=true \
+            unstable_nested_getter_read_exactly_once=true \
+            first_serialization_wrong_buyer_held_before_fsync=true \
+            no_poisoned_history_clean_original_retry=true \
+            launch_callback_mutation_cannot_change_fsync=true \
+            canonical_verified_event_equals_durable_payment_jsonl=true \
+            allocation_and_sidecar_bind_same_canonical_buyer=true \
+            source_writer_not_mounted=true \
+            real_customer_data_used=false \
+            funds_moved=false
+          do
+            grep -Fx "$assertion" "canonical-event-${{ matrix.node }}.txt"
+          done
+      - name: Upload exact-head observed proof bytes
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-canonical-event-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: canonical-event-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exact-head results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-canonical-event-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require exact byte equality on Node 22 24 26
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "receipts/canonical-event-$n.txt"; done
+          cmp receipts/canonical-event-22.txt receipts/canonical-event-24.txt
+          cmp receipts/canonical-event-22.txt receipts/canonical-event-26.txt
+          echo "VOID_BUY_VOID_PREAPPEND_CANONICAL_EVENT_THREE_NODE_GREEN"
+          echo "production_payment_authority=false"
+          echo "presale_activation=false"
