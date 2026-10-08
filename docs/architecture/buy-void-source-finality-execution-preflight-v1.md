@@ -11,6 +11,7 @@ This lane is intentionally fail-closed. The current V6 source-finality generatio
 ```text
 source_generation_verified=false
 deployed_artifact_generation_verified=false
+remote_provider_identity_verified=false
 ancestry_verified=false
 provider_quorum_verified=false
 production_source_finality_authority_ready=false
@@ -90,17 +91,24 @@ V1 validates the closed identity shape before any source-chain RPC observation. 
 A preflight may return `ready` only if the upstream observation simultaneously proves all of:
 
 ```text
+marker=VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6
 reviewed_source_files_verified=true
 authenticated_transport_identity_verified=true
+observation_generated_in_composition=true
+same_provider_consistency_verified=true
+provider_consistency_verified=true
 total_operation_deadline_verified=true
 source_generation_verified=true
 deployed_artifact_generation_verified=true
+remote_provider_identity_verified=true
 ancestry_verified=true
 provider_quorum_verified=true
 production_source_finality_authority_ready=true
 ```
 
 Current V6 cannot satisfy that set, by design. Its successful candidate result still carries false generation/ancestry/quorum/production-authority flags. #1477 therefore integrates enforcement without activating money movement.
+
+The classifier also binds the observation to the exact V6 marker; an injected object carrying otherwise-ready booleans under another generation marker, outside the reviewed composition, without both provider-consistency facts, or without remote-provider identity remains HOLD. The exported test-only classifier can exercise these adversaries but always reports signer/broadcast/production transition authority false.
 
 A future authority lane must independently close those remaining truth conditions and update the production-default observer before the guard can release signer/broadcaster access.
 
