@@ -185,6 +185,27 @@ hold(scan([request, {
   launch_authority: { ...LAUNCH_AUTHORITY, activation_generation: tx("9") },
 }], [event]), /request_history_lineage_drift/u);
 
+// Valid original/later launch tuples are equal by their closed named values,
+// even when their JSON object member order differs in an exact snapshot.
+const reorderedLaunchAuthority = Object.fromEntries(
+  Object.entries(LAUNCH_AUTHORITY).reverse(),
+);
+const reorderedLaunchRequest = {
+  ...request, launch_authority: reorderedLaunchAuthority,
+};
+assert.notEqual(JSON.stringify(reorderedLaunchAuthority), JSON.stringify(LAUNCH_AUTHORITY));
+gap(scan([request, reorderedLaunchRequest], [event]));
+good(scan([request, reorderedLaunchRequest], [event], allocationBytes), "allocation_present");
+// Byte-exact A -> B -> A replay detection remains a separate, strict rule,
+// even when B only reordered the closed launch-authority member names.
+hold(scan([request, reorderedLaunchRequest, request], [event]),
+  /request_history_duplicate_snapshot/u);
+hold(scan([request, { ...request, launch_authority: undefined }], [event]),
+  /request_history_lineage_drift/u);
+hold(scan([request, { ...request, launch_authority: {
+  ...LAUNCH_AUTHORITY, activation_receipt_sha256: "0".repeat(64),
+} }], [event]), /request_history_lineage_drift/u);
+
 // The canonical verified-transfer contract must be present in the retained
 // request, not inferred from a caller's arbitrary ERC-20 event.
 hold(scan([{ ...request, usdc_contract: undefined }], [event]), /request_initial_usdc_contract_missing/u);

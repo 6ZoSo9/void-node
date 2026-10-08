@@ -217,6 +217,12 @@ function canonicalLaunchAuthority(value: unknown): RecordRow | null {
   return value;
 }
 
+// Canonical launch authority has a fixed, validated nine-member primitive tuple.
+// JSON member ordering is not authority; a changed/erased value still HOLDS.
+function sameCanonicalLaunchAuthority(a: RecordRow, b: RecordRow): boolean {
+  return LAUNCH_AUTHORITY_KEYS.every((key) => a[key] === b[key]);
+}
+
 function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
   const states = new Map<string, RequestState>();
   // Track every exact historical snapshot. A -> B -> A is rollback/replay
@@ -266,7 +272,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       (prev.receive && prev.receive !== receive) ||
       (prev.usdcContract && prev.usdcContract !== usdcContract) ||
       (prev.launchAuthority && (!authority ||
-        JSON.stringify(prev.launchAuthority) !== JSON.stringify(authority)))) {
+        !sameCanonicalLaunchAuthority(prev.launchAuthority, authority)))) {
       fail("request_history_lineage_drift");
     }
     states.set(id, {

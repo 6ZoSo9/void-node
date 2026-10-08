@@ -33,8 +33,12 @@ is empty**. An unrelated *unverified* legacy request lacking those fields
 may coexist without blocking a fully qualified newer request. Such a legacy
 request remains permanently unqualified and cannot be upgraded by a later
 self-reported request snapshot. Malformed populated authority still HOLDs. Later full request snapshots may only add
-other missing bindings, not erase or change prior fields. **Any** earlier
-byte-identical snapshot repeated after intervening updates (A→B→A) HOLDs.
+other missing bindings, not erase or change prior fields. Valid closed launch
+member order alone is not lineage drift: the nine named primitive values are
+compared independently of JSON object insertion order. Changing or erasing any
+existing launch value HOLDs. **Any** earlier byte-identical snapshot repeated
+after intervening updates (A→B→A) HOLDs, including an intervening key-order
+permutation.
 The explicit `source_chain` and every present `payment_chain` / `chain`
 alias must agree. An inconsistent alias is permanent **per-request** negative
 evidence: it HOLDs whenever that request is targeted or appears in verified
@@ -156,7 +160,8 @@ matching history, deterministic replay, changed event bytes, duplicate identity,
 request/receipt/amount/quote drift, wrong native-USDC chain contract,
 self-consistent forged non-USDC ERC-20 claims, malformed or missing launch authority
 at the empty-ledger crash gap, request-token vs event-token mismatch,
-duplicate/regressed/nonconsecutively replayed request snapshots, original
+duplicate/regressed/nonconsecutively replayed request snapshots, semantically
+identical launch member permutations and real launch-value drift, original
 USDC-contract and launch-authority backfill scoped to the target or any
 verified/allocation obligation (without globally rejecting unrelated
 unverified legacy requests), conflicting source-chain aliases,
