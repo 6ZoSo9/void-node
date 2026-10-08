@@ -31,6 +31,14 @@ and dispatch consumes only the plan; it never re-reads callbacks or roots from
 the original input object after validation. This closes stateful-getter
 substitution between admission and writer selection.
 
+Before selecting a writer, the planner requires an exact closed operator-status
+vocabulary: `payment_verified`, `reviewed`, `fulfilled`, or `rejected`.
+It does not trim, lowercase, or canonicalize malformed input. Whitespace-
+padded, case-folded, unknown, empty, and non-string statuses HOLD before
+either writer. This prevents a value such as `"payment_verified "` from
+taking the legacy path and later being reclassified as verified by a
+trim-based ledger reader.
+
 For exact `operator_status="payment_verified"`, it refuses to call
 *either* writer unless distinct absolute normalized private allocation-ledger
 and high-water paths are supplied; neither path may equal the filesystem
@@ -39,8 +47,8 @@ buyer, must supply these roots. On valid planner input, the dispatch calls
 only `writeBuyVoidVerifiedPaymentAllocationHandoffV1`. It has no
 payment-only fallback for a verified payment.
 
-All nonpayment operator status events remain routed to the existing
-`writeBuyVoidOperatorEventWithCapacityAdmissionV1`. This preserves their
+Only exact `reviewed`, `fulfilled`, and `rejected` events remain routed
+to `writeBuyVoidOperatorEventWithCapacityAdmissionV1`. This preserves their
 separate review/fulfillment semantics pending independent router tests.
 
 The `AUTHORITY` object truthfully reports mount/authentication/independent
@@ -59,8 +67,11 @@ first-original buyer history, provider quorum or external high-water witness.
 `scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts`
 uses **inert, in-memory JSON** only: immutable snapshots, stateful `toJSON`,
 stateful root/callback getters that must each be read exactly once,
-nonpayment preservation, invalid/missing/relative/aliased roots, request-ID
-mismatch and invalid callback negatives. A TypeScript AST proof verifies
+exact nonpayment preservation, rejection of
+`payment_verified` whitespace/case aliases and every unknown status,
+invalid/missing/relative/aliased roots, request-ID mismatch and invalid
+callback negatives. The same malformed-status cases are passed through the
+dispatcher entry point and must reject before either writer can be selected. A TypeScript AST proof verifies
 the new function invokes the canonical allocation writer only in its
 verified-payment branch, with the legacy writer separately reachable only
 for nonpayment statuses.
