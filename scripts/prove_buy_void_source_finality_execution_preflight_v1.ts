@@ -11,6 +11,7 @@ import {
   bindBuyVoidSourceFinalityPaymentV1,
   readBuyVoidSourceFinalityExecutionPolicyV1,
   runBuyVoidSourceFinalityExecutionPreflightV1,
+  testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1,
 } from "../src/economic/buy_void_source_finality_execution_preflight_v1.js";
 import {
   VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
@@ -385,9 +386,13 @@ assert.match(
 for (const requiredReadyFlag of [
   "reviewed_source_files_verified === true",
   "authenticated_transport_identity_verified === true",
+  "observation_generated_in_composition === true",
+  "same_provider_consistency_verified === true",
+  "provider_consistency_verified === true",
   "total_operation_deadline_verified === true",
   "source_generation_verified === true",
   "deployed_artifact_generation_verified === true",
+  "remote_provider_identity_verified === true",
   "ancestry_verified === true",
   "provider_quorum_verified === true",
   "production_source_finality_authority_ready === true",
@@ -413,6 +418,51 @@ for (const currentV6Hold of [
     v6Source.includes(currentV6Hold),
     `V6 truth boundary unexpectedly moved: ${currentV6Hold}`,
   );
+}
+
+const futureReadyV6Observation = {
+  ok: true,
+  marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6",
+  reviewed_source_files_verified: true,
+  authenticated_transport_identity_verified: true,
+  observation_generated_in_composition: true,
+  same_provider_consistency_verified: true,
+  provider_consistency_verified: true,
+  total_operation_deadline_verified: true,
+  source_generation_verified: true,
+  deployed_artifact_generation_verified: true,
+  remote_provider_identity_verified: true,
+  ancestry_verified: true,
+  provider_quorum_verified: true,
+  production_source_finality_authority_ready: true,
+};
+const futureReadyClassification =
+  testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1(
+    futureReadyV6Observation,
+  );
+assert.equal(futureReadyClassification.would_be_ready, true);
+assert.equal(futureReadyClassification.production_transition_authority, false);
+assert.equal(futureReadyClassification.signer_access_authorized, false);
+assert.equal(futureReadyClassification.transaction_broadcast_authorized, false);
+for (const mutation of [
+  { marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5" },
+  { observation_generated_in_composition: false },
+  { same_provider_consistency_verified: false },
+  { provider_consistency_verified: false },
+  { remote_provider_identity_verified: false },
+  { source_generation_verified: false },
+  { deployed_artifact_generation_verified: false },
+  { production_source_finality_authority_ready: false },
+]) {
+  const classified =
+    testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1({
+      ...futureReadyV6Observation,
+      ...mutation,
+    });
+  assert.equal(classified.would_be_ready, false, JSON.stringify(mutation));
+  assert.equal(classified.production_transition_authority, false);
+  assert.equal(classified.signer_access_authorized, false);
+  assert.equal(classified.transaction_broadcast_authorized, false);
 }
 
 // Regression for configured capability being misreported as effective authority.
