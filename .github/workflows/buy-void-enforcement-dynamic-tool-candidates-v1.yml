@@ -81,7 +81,7 @@ jobs:
             import fs from "node:fs";
             const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
             assert.equal(j.schema,"void_buy_void_dynamic_tool_candidate_source_identity_v1");
-            assert.equal(j.reviewed_source_generation,"f18d789562d655eec9fde34571ed9b7d050f92bf");
+            assert.equal(j.reviewed_source_generation,"32f40899d6b71561bf4bf3a917e51c431cb867de");
             assert.equal(j.original_dynamic_caller_count,13);
             assert.equal(j.original_unique_tool_count,3);
             assert.equal(j.source_callers.length,13);
