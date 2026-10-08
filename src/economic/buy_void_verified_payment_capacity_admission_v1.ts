@@ -622,8 +622,15 @@ function readStrictCapacityLedgerV1(
   const verifiedIds = new Set<string>();
   for (const row of eventRows) {
     const requestId = String(row.request_id || "").trim();
-    const status = String(row.operator_status || "").trim();
-    if (!REQUEST_ID.test(requestId) || !status) {
+    // Do not silently normalize a ledger row into an accepted payment
+    // obligation. A historical "payment_verified " row previously bypassed
+    // the legacy writer's exact comparison and was counted as verified here.
+    const status = row.operator_status;
+    if (typeof status !== "string" || !status ||
+        status !== status.trim()) {
+      fail("buy_void_verified_payment_capacity_operator_status_noncanonical");
+    }
+    if (!REQUEST_ID.test(requestId)) {
       fail("buy_void_verified_payment_capacity_operator_event_invalid");
     }
     if (status !== "payment_verified") continue;
@@ -1003,7 +1010,7 @@ function recoverPaymentVerifiedSidecarsV1(
       const verified = rows.filter(
         (row) =>
           String(row.request_id || "").trim() === requestId &&
-          String(row.operator_status || "").trim() === "payment_verified",
+          row.operator_status === "payment_verified",
       );
       if (verified.length < 1) {
         fail("buy_void_verified_payment_capacity_verified_event_missing");
@@ -1348,8 +1355,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
             strictBefore.operator_events.some(
               (row) =>
                 String(row.request_id || "").trim() === requestId &&
-                String(row.operator_status || "").trim() ===
-                  "payment_verified" &&
+                row.operator_status === "payment_verified" &&
                 JSON.stringify(row) === candidateLine,
             );
           if (!exactHistoricalEvent) {
@@ -2258,11 +2264,22 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   ) {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
+  // The public router and future verified-allocation dispatcher emit an
+  // exact closed operator-status vocabulary. Enforce the SAME boundary in
+  // this exported legacy source API, before mkdir, sidecar or ledger append:
+  // no padded / case-folded / object-toJSON alias can be written as a
+  // nonpayment event then reclassified by a separate capacity recount.
+  const operatorStatus = event.operator_status;
+  if (typeof operatorStatus !== "string" ||
+      !["payment_verified", "reviewed", "fulfilled", "rejected"]
+        .includes(operatorStatus)) {
+    fail("buy_void_operator_event_capacity_status_noncanonical");
+  }
+
   const requestDir = path.resolve(requestDirRaw);
   fs.mkdirSync(requestDir, { recursive: true });
 
-  const paymentVerified =
-    String(event.operator_status || "") === "payment_verified";
+  const paymentVerified = operatorStatus === "payment_verified";
 
   if (!paymentVerified) {
     return withBuyVoidTerminalCloseoutRequestLockV1(

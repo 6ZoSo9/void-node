@@ -1,0 +1,102 @@
+name: VOID Buy VOID legacy operator status identity v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_legacy_operator_status_exact_identity_v1.ts"
+      - "docs/architecture/buy-void-legacy-operator-status-exact-identity-v1.md"
+      - ".github/workflows/buy-void-legacy-operator-status-exact-identity-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact PR source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify source identity and clean checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install Node from exact matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and compile source, no runtime start
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Prove exact legacy event classification on disposable private ledger
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_legacy_operator_status_exact_identity_v1.ts \
+            | tee "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'malformed_status_rejected_before_any_fs_mutation=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'computed_status_object_toJSON_alias_rejected=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'legacy_recount_rejects_trimmed_verified_alias=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'canonical_verified_capacity_recount_preserved=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'presale_activation=false' "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false' "operator-status-node-${{ matrix.node }}.txt"
+      - name: Publish exact source-only test evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-operator-status-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: operator-status-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+      - name: PR whitespace and merge-diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three source-only negative proof receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-operator-status-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./status-proof
+      - name: Require exact byte equality on Node 22 24 26
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "status-proof/operator-status-node-$node.txt"
+          done
+          cmp status-proof/operator-status-node-22.txt status-proof/operator-status-node-24.txt
+          cmp status-proof/operator-status-node-22.txt status-proof/operator-status-node-26.txt
+          echo "VOID_BUY_VOID_OPERATOR_STATUS_EXACT_IDENTITY_CROSS_NODE_GREEN"
+          echo "presale_activation=false"
+          echo "production_authority=false"
