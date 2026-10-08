@@ -43,6 +43,8 @@ const PROOF_RUNTIME_IMPORTS = Object.freeze([
 ]);
 const SOURCE_EXTENSION = /\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts)$/u;
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
+const MAX_STATIC_SPECIFIER_BYTES = 4 * 1024;
+const MAX_STATIC_EXPRESSION_DEPTH = 24;
 
 function sha256(value) {
   return "sha256:" + crypto.createHash("sha256").update(value).digest("hex");
@@ -76,6 +78,307 @@ function staticReference(specifier, node, file, valueNames = null, typeOnly = fa
   return Object.freeze({ kind: "forbidden", classification, names: valueNames || [], specifier });
 }
 
+// Fold only side-effect-free, statically decidable string expressions.
+// Never execute eval, loaders, property getters or arbitrary source code.
+// Build lexical bindings without merging identical identifiers in sibling
+// functions or nested blocks. No code is executed and no type inference is
+// attempted: only const initializers with a unique lexical binding can fold.
+function lexicalBindings(parsed) {
+  const byScope = new Map();
+  // The optional self-name of a FunctionExpression belongs to an enclosing
+  // name environment, not to the same binding map as its parameters/var
+  // declarations. Body bindings shadow the name without becoming ambiguous.
+  const functionExpressionNames = new Map();
+  function lexicalScope(node) {
+    return ts.isSourceFile(node) || ts.isBlock(node) ||
+      ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
+      ts.isForStatement(node) || ts.isForInStatement(node) ||
+      ts.isForOfStatement(node) || ts.isFunctionLike(node) ||
+      ts.isClassExpression(node) || ts.isCatchClause(node) ||
+      (typeof ts.isClassStaticBlockDeclaration === "function" &&
+       ts.isClassStaticBlockDeclaration(node));
+  }
+  function parentScope(node, functionScoped = false) {
+    for (let p = node.parent; p; p = p.parent) {
+      if (functionScoped) {
+        if (ts.isFunctionLike(p) || ts.isSourceFile(p) || ts.isModuleBlock(p) ||
+            (typeof ts.isClassStaticBlockDeclaration === "function" &&
+             ts.isClassStaticBlockDeclaration(p))) return p;
+      } else if (lexicalScope(p)) return p;
+    }
+    return null;
+  }
+  function add(scope, name, declaration, initializer = null, form = "lexical") {
+    if (!scope || !name) return;
+    let entries = byScope.get(scope);
+    if (!entries) {
+      entries = new Map();
+      byScope.set(scope, entries);
+    }
+    const prior = entries.get(name);
+    if (prior) {
+      // var/function/parameter redeclarations can be multiple declarations
+      // of ONE legal function-scoped binding. None is a foldable const.
+      // Other duplicates remain conservatively ambiguous.
+      if (prior.form === "hoistable" && form === "hoistable") {
+        entries.set(name, Object.freeze({kind: "unknown", form: "hoistable"}));
+      } else {
+        entries.set(name, Object.freeze({kind: "ambiguous", form: "ambiguous"}));
+      }
+      return;
+    }
+    entries.set(name, Object.freeze({
+      kind: form === "const" && initializer ? "const" : "unknown",
+      form,
+      declaration,
+      initializer,
+    }));
+  }
+
+  function namesFromBinding(name, result = []) {
+    if (ts.isIdentifier(name)) {
+      result.push(name.text);
+    } else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (ts.isBindingElement(element)) namesFromBinding(element.name, result);
+      }
+    }
+    return result;
+  }
+  function recordUnknown(scope, nameNode, declaration, form = "lexical") {
+    if (nameNode) for (const name of namesFromBinding(nameNode)) {
+      add(scope, name, declaration, null, form);
+    }
+  }
+  function visit(node) {
+    if (ts.isVariableDeclarationList(node)) {
+      const isConst = (node.flags & ts.NodeFlags.Const) !== 0;
+      const isVar = (node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)) === 0;
+      const scope = parentScope(node, isVar);
+      for (const declaration of node.declarations) {
+        if (ts.isIdentifier(declaration.name)) {
+          add(scope, declaration.name.text, declaration,
+            isConst ? declaration.initializer : null,
+            isConst ? "const" : isVar ? "hoistable" : "lexical");
+        } else {
+          recordUnknown(scope, declaration.name, declaration,
+            isVar ? "hoistable" : "lexical");
+        }
+      }
+    }
+    if (ts.isFunctionLike(node)) {
+      for (const parameter of node.parameters || []) {
+        recordUnknown(node, parameter.name, parameter, "hoistable");
+      }
+    }
+    // A named function-expression self-name is resolved only AFTER the
+    // ordinary function parameter/var scope, not inserted into that scope.
+    if (ts.isFunctionExpression(node) && node.name) {
+      functionExpressionNames.set(node, Object.freeze({
+        kind: "unknown", form: "named-function-expression", declaration: node,
+      }));
+    }
+    // Similarly, a named class expression creates a local binding for its
+    // own body and static blocks; it does not bind the outer module object.
+    if (ts.isClassExpression(node) && node.name) {
+      add(node, node.name.text, node);
+    }
+    if (ts.isCatchClause(node) && node.variableDeclaration) {
+      recordUnknown(node, node.variableDeclaration.name, node.variableDeclaration);
+    }
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      add(parentScope(node), node.name.text, node, null, "hoistable");
+    }
+    if (ts.isClassDeclaration(node) && node.name) {
+      add(parentScope(node), node.name.text, node);
+    }
+    if (ts.isImportDeclaration(node) && node.importClause) {
+      const scope = parentScope(node);
+      const clause = node.importClause;
+      if (clause.name) add(scope, clause.name.text, clause);
+      const bindings = clause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        add(scope, bindings.name.text, bindings);
+      } else if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          const fromNodeModule = ts.isStringLiteralLike(node.moduleSpecifier) &&
+            node.moduleSpecifier.text === "node:module" &&
+            (element.propertyName?.text ?? element.name.text) === "createRequire";
+          add(scope, element.name.text, element, null,
+            fromNodeModule ? "node-create-require-import" : "lexical");
+        }
+      }
+    }
+    if (ts.isImportEqualsDeclaration(node)) add(parentScope(node), node.name.text, node);
+    ts.forEachChild(node, visit);
+  }
+  visit(parsed);
+  return function resolveIdentifier(identifier) {
+    for (let p = identifier.parent; p; p = p.parent) {
+      if (lexicalScope(p)) {
+        const binding = byScope.get(p)?.get(identifier.text);
+        if (binding) return binding;
+      }
+      if (ts.isFunctionExpression(p) && p.name?.text === identifier.text) {
+        return functionExpressionNames.get(p) || null;
+      }
+    }
+    return null;
+  };
+}
+
+function staticStringValue(node, resolveBinding, depth = 0, active = new Set(), limit = { hit: false }) {
+  if (!node) return null;
+  if (depth >= MAX_STATIC_EXPRESSION_DEPTH) {
+    // This is inconclusive, not a proof the import path is safe.
+    limit.hit = true;
+    return null;
+  }
+  if (ts.isStringLiteralLike(node)) {
+    if (Buffer.byteLength(node.text, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
+    return node.text;
+  }
+  const next = expr => staticStringValue(expr, resolveBinding, depth + 1, active, limit);
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
+      ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node) ||
+      (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node))) {
+    return next(node.expression);
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = next(node.left);
+    const right = next(node.right);
+    if (left === null || right === null) return null;
+    const value = left + right;
+    if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
+    return value;
+  }
+  if (ts.isTemplateExpression(node)) {
+    let value = node.head.text;
+    if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
+    for (const span of node.templateSpans) {
+      const middle = next(span.expression);
+      if (middle === null) return null;
+      value += middle + span.literal.text;
+      if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+        limit.hit = true;
+        return null;
+      }
+    }
+    return value;
+  }
+  if (ts.isIdentifier(node)) {
+    const binding = resolveBinding(node);
+    if (binding?.kind !== "const" || active.has(binding.declaration)) return null;
+    active.add(binding.declaration);
+    const value = next(binding.initializer);
+    active.delete(binding.declaration);
+    return value;
+  }
+  return null;
+}
+
+function hasAmbiguousLexicalBinding(node, resolveBinding) {
+  if (!node) return false;
+  let ambiguous = false;
+  const visit = expr => {
+    if (ambiguous) return;
+    if (ts.isIdentifier(expr) && resolveBinding(expr)?.kind === "ambiguous") {
+      ambiguous = true;
+      return;
+    }
+    ts.forEachChild(expr, visit);
+  };
+  visit(node);
+  return ambiguous;
+}
+
+function unwrapStaticExpression(node) {
+  while (node && (ts.isParenthesizedExpression(node) ||
+         ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) ||
+         ts.isNonNullExpression(node) ||
+         (typeof ts.isSatisfiesExpression === "function" && ts.isSatisfiesExpression(node)))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+// A const-alias chain leading back to an actual imported node:module
+// createRequire factory is safe to *classify* without calling anything.
+// A locally declared same-name function is never promoted to a loader.
+function isImportedCreateRequireFactory(binding, resolveBinding, active = new Set()) {
+  if (!binding) return false;
+  if (binding.form === "node-create-require-import") return true;
+  if (binding.kind !== "const" || !binding.initializer ||
+      active.has(binding.declaration)) return false;
+  // Exhaustion is inconclusive, never a proof that an imported factory is
+  // absent. Null propagates to the loader caller, which HOLDS if the module
+  // argument statically resolves to this protected writer.
+  if (active.size >= MAX_STATIC_EXPRESSION_DEPTH) return null;
+  active.add(binding.declaration);
+  const initializer = unwrapStaticExpression(binding.initializer);
+  const recognized = ts.isIdentifier(initializer) &&
+    isImportedCreateRequireFactory(resolveBinding(initializer), resolveBinding, active);
+  active.delete(binding.declaration);
+  return recognized;
+}
+
+function isRecognizedCreateRequire(binding, resolveBinding, active = new Set()) {
+  if (binding?.kind !== "const" || !binding.initializer ||
+      active.has(binding.declaration)) return false;
+  // A bounded alias traversal cannot infer "not a loader" at its cap.
+  // Null means INDETERMINATE and is treated as a possible loader only when
+  // the argument resolves to the protected writer.
+  if (active.size >= MAX_STATIC_EXPRESSION_DEPTH) return null;
+  active.add(binding.declaration);
+  const initializer = unwrapStaticExpression(binding.initializer);
+  let recognized = false;
+  if (initializer && ts.isCallExpression(initializer)) {
+    // This call returns a require loader only if its callee is the reviewed
+    // node:module factory itself, or a statically resolved const alias of it.
+    const factory = unwrapStaticExpression(initializer.expression);
+    if (ts.isIdentifier(factory)) {
+      recognized = isImportedCreateRequireFactory(resolveBinding(factory), resolveBinding);
+    }
+  } else if (initializer && ts.isIdentifier(initializer)) {
+    // Constant aliases of an already recognized loader remain loaders.
+    recognized = isRecognizedCreateRequire(resolveBinding(initializer), resolveBinding, active);
+  }
+  active.delete(binding.declaration);
+  return recognized;
+}
+
+function isModuleLoaderExpression(expression, resolveBinding) {
+  if (expression.kind === ts.SyntaxKind.ImportKeyword) return true;
+  if (ts.isIdentifier(expression)) {
+    const binding = resolveBinding(expression);
+    // Unshadowed require() is CommonJS; a locally bound parameter or
+    // unrelated function is not. The alias to a genuine node:module
+    // createRequire result is the one narrow recognized exception.
+    return (expression.text === "require" && binding === null) ||
+      isRecognizedCreateRequire(binding, resolveBinding);
+  }
+  if (!ts.isPropertyAccessExpression(expression) ||
+      !ts.isIdentifier(expression.expression)) return false;
+  if (expression.expression.text === "module" && expression.name.text === "require") {
+    return resolveBinding(expression.expression) === null;
+  }
+  if (expression.name.text === "resolve") {
+    const binding = resolveBinding(expression.expression);
+    return (expression.expression.text === "require" && binding === null) ||
+      isRecognizedCreateRequire(binding, resolveBinding);
+  }
+  return false;
+}
+
 /** Static, source-only census; not proof of a protected runtime import graph. */
 export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
   assertPath(file);
@@ -85,6 +388,7 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
   const parsed = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true, scriptKind(file));
   if (parsed.parseDiagnostics.length > 0) throw new Error("guarded_replay_census_source_parse_invalid");
   const refs = [];
+  const resolveBinding = lexicalBindings(parsed);
   function push(ref) { if (ref) refs.push(ref); }
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
@@ -114,13 +418,25 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
     } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) &&
                node.moduleReference.expression && ts.isStringLiteralLike(node.moduleReference.expression)) {
       push(staticReference(node.moduleReference.expression.text, node, file, null, Boolean(node.isTypeOnly), "import-equals"));
-    } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-               (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
-      const first = node.arguments[0];
-      if (first && ts.isStringLiteralLike(first)) {
-        push(staticReference(first.text, node, file, null, false, "dynamic-loader"));
-      } else if (first?.getText(parsed).includes(WRITER_BASENAME)) {
-        push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
+    } else if (ts.isCallExpression(node)) {
+      const loader = isModuleLoaderExpression(node.expression, resolveBinding);
+      // true = recognized loader; null = bounded resolution exhausted,
+      // potentially a loader. Only false is sufficient to skip this call.
+      if (loader !== false) {
+        const first = node.arguments[0];
+        const limit = { hit: false };
+        const resolved = staticStringValue(first, resolveBinding, 0, new Set(), limit);
+        if (resolved !== null) {
+          push(staticReference(resolved, node, file, null, false,
+            first && ts.isStringLiteralLike(first) ? "dynamic-loader" : "computed-loader"));
+        } else if (limit.hit ||
+                   first?.getText(parsed).includes(WRITER_BASENAME) ||
+                   hasAmbiguousLexicalBinding(first, resolveBinding)) {
+          // An expression that exceeds the static folding bound cannot be
+          // silently accepted. This can conservatively HOLD deep benign
+          // imports; it is preferable to missing a statically aliased writer.
+          push(Object.freeze({kind: "forbidden", classification: "computed-loader", names: [], specifier: "<computed>"}));
+        }
       }
     }
     ts.forEachChild(node, visit);

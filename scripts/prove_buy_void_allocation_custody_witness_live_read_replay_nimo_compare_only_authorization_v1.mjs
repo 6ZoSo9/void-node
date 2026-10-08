@@ -227,15 +227,96 @@ assert.match(
   guide,
   /sudo \/usr\/bin\/git hash-object "\$trusted"/u,
 );
-assert.match(
-  guide,
-  /sudo \/bin\/bash "\$trusted"/u,
+const trustedRootShell =
+  'sudo /usr/bin/env -i HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"';
+assert.equal(
+  guide.includes(trustedRootShell),
+  true,
+  "trusted root installer must start Bash from the fixed empty environment",
+);
+assert.equal(
+  guide.includes('sudo /bin/bash "$trusted"'),
+  false,
+  "trusted root installer must not inherit the caller environment",
 );
 assert.doesNotMatch(
   guide,
   /sudo \/bin\/bash \/home\/zoso\/\.local\/state\/void-replay-compare-only-nimo-auth-v1\/authorize\.sh/u,
   "operator handoff must never execute the user-writable staged installer as root",
 );
+const bashEnvRoot = fs.mkdtempSync(
+  "/tmp/void-nimo-compare-auth-root-bash-env-proof-",
+);
+try {
+  const bashEnv = bashEnvRoot + "/ambient-bash-env.sh";
+  const sentinel = bashEnvRoot + "/ambient-executed";
+  const trustedProbe = bashEnvRoot + "/trusted-probe.sh";
+  fs.writeFileSync(
+    bashEnv,
+    'printf "ambient\\n" > ' + JSON.stringify(sentinel) + "\n",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    trustedProbe,
+    'set -eu\nprintf "trusted-body\\n"\n',
+    { mode: 0o500 },
+  );
+
+  const inherited = spawnSync(
+    "/bin/bash",
+    ["--noprofile", "--norc", trustedProbe],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        BASH_ENV: bashEnv,
+        ENV: bashEnv,
+        CDPATH: bashEnvRoot,
+      },
+    },
+  );
+  assert.equal(inherited.status, 0, inherited.stderr);
+  assert.equal(
+    fs.existsSync(sentinel),
+    true,
+    "proof adversary must execute through inherited BASH_ENV",
+  );
+  fs.rmSync(sentinel, { force: true });
+
+  const isolatedRootShell = spawnSync(
+    "/usr/bin/env",
+    [
+      "-i",
+      "HOME=/root",
+      "PATH=/usr/sbin:/usr/bin:/sbin:/bin",
+      "LANG=C",
+      "LC_ALL=C",
+      "/bin/bash",
+      "--noprofile",
+      "--norc",
+      trustedProbe,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH || "/usr/bin:/bin",
+        BASH_ENV: bashEnv,
+        ENV: bashEnv,
+        CDPATH: bashEnvRoot,
+      },
+    },
+  );
+  assert.equal(isolatedRootShell.status, 0, isolatedRootShell.stderr);
+  assert.equal(isolatedRootShell.stdout, "trusted-body\n");
+  assert.equal(
+    fs.existsSync(sentinel),
+    false,
+    "env-isolated trusted root Bash must not source caller BASH_ENV",
+  );
+} finally {
+  fs.rmSync(bashEnvRoot, { recursive: true, force: true });
+}
+
 const documentedForcedCommand =
   'restrict,command="/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND=\\\"\${SSH_ORIGINAL_COMMAND-}\\\" /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs" ssh-ed25519 <new-custody-compare-public-key> void-replay-compare-only-v1';
 assert.equal(
@@ -258,6 +339,7 @@ console.log("new_wrapper_content_pinned=true");
 console.log("new_credential_fingerprint_pinned=true");
 console.log("credential_consumed_from_root_snapshot=true");
 console.log("privileged_installer_root_copy_blob_pinned=true");
+console.log("privileged_bash_environment_isolated=true");
 console.log("manual_recovery_backup_preserved_on_restore_failure=true");
 console.log("first_two_keys_preserved_by_contract=true");
 console.log("forced_command_restricted_by_contract=true");
