@@ -172,7 +172,7 @@ for (const bad of [
   { ...LAUNCH_AUTHORITY, arbitrary_extra_key: true },
 ]) {
   const result = scan([{ ...request, launch_authority: bad }], [event]);
-  hold(result, /(?:request_launch_authority_invalid|verified_event_request_launch_authority_missing)/u);
+  hold(result, /(?:request_launch_authority_invalid|request_initial_launch_authority_missing|verified_event_request_launch_authority_missing)/u);
 }
 // A valid but DIFFERENT generation in a later request snapshot conflicts
 // with the original tuple. Independent first-generation authority is still
@@ -184,7 +184,7 @@ hold(scan([request, {
 
 // The canonical verified-transfer contract must be present in the retained
 // request, not inferred from a caller's arbitrary ERC-20 event.
-hold(scan([{ ...request, usdc_contract: undefined }], [event]), /verified_event_request_usdc_contract_missing/u);
+hold(scan([{ ...request, usdc_contract: undefined }], [event]), /request_initial_usdc_contract_missing/u);
 hold(scan([{ ...request, usdc_contract: addr("8") }], [event]), /verified_event_usdc_contract_mismatch/u);
 hold(scan([request], [{ ...event, payment_verifier: {
   ...event.payment_verifier, usdc_contract: addr("8"),
@@ -202,9 +202,36 @@ for (const key of [
 ]) {
   hold(scan([request, { ...request, [key]: undefined }], [event]), /request_history_lineage_drift/u);
 }
-const partialOpening = { ...request, tx_hash: "", usdc_contract: undefined,
-  launch_authority: undefined, receive_address: undefined };
+// First snapshot needs immutable token and launch origin. Mutable transaction
+// and receive fields may be bound later if the original lineage remains.
+const partialOpening = { ...request, tx_hash: "", receive_address: undefined };
 gap(scan([partialOpening, request], [event]));
+
+// Backfilling a legacy token or launch tuple from a later mutable row cannot
+// convert unqualified original history into a recoverable payment allocation.
+hold(scan([{ ...request, usdc_contract: undefined }, request], [event]),
+  /request_initial_usdc_contract_missing/u);
+hold(scan([{ ...request, launch_authority: undefined }, request], [event]),
+  /request_initial_launch_authority_missing/u);
+
+// Canonical request aliases may coexist, but ALL present chains must agree.
+gap(scan([{ ...request, payment_chain: "base", chain: "base" }], [event]));
+for (const aliased of [
+  { ...request, payment_chain: "ethereum" },
+  { ...request, chain: "ethereum" },
+  { ...request, payment_chain: "base", chain: "ethereum" },
+]) {
+  hold(scan([aliased], [event]), /request_source_chain_alias_mismatch/u);
+}
+hold(scan([{ ...request, source_chain: undefined, payment_chain: "base" }], [event]),
+  /source_chain_invalid/u);
+
+// Compare with the full request history, not just the preceding snapshot.
+// B differs only in an untracked status field, so A -> B -> A is a replay.
+const snapshotA = { ...request, status: "quoted" };
+const snapshotB = { ...request, status: "observed" };
+hold(scan([snapshotA, snapshotB, snapshotA], [event]),
+  /request_history_duplicate_snapshot/u);
 hold(scan([{ ...request, quoted_void: "7" }], [event]), /verified_event_request_quote_mismatch/u);
 hold(scan([{ ...request, tx_hash: tx("8") }], [event]), /verified_event_transaction_binding_mismatch/u);
 // Never substitute Base when either the request or verifier chain is absent.
@@ -257,6 +284,9 @@ console.log("verified_missing_allocation_ok_false=true");
 console.log("coupled_launch_authority_required_even_without_allocation=true");
 console.log("usdc_contract_matched_to_request_or_held=true");
 console.log("request_snapshot_duplicates_or_lineage_erasure_held=true");
+console.log("request_chain_alias_conflicts_held=true");
+console.log("initial_token_and_launch_backfill_held=true");
+console.log("nonconsecutive_stale_request_snapshot_replay_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");
 console.log("descriptor_custody_or_payment_fsync_claimed=false");

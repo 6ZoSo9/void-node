@@ -201,11 +201,21 @@ function canonicalLaunchAuthority(value: unknown): RecordRow | null {
 
 function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
   const states = new Map<string, RequestState>();
-  const previousLines = new Map<string, string>();
+  // Track every exact historical snapshot. A -> B -> A is rollback/replay
+  // evidence even if B changed only an untracked field such as status.
+  const previousLines = new Map<string, Set<string>>();
   for (const { row, exactLine } of requestRows) {
     const id = field(row.request_id, "request_id_invalid");
     if (!REQUEST_ID.test(id)) fail("request_id_invalid");
-    const sourceChain = chain(row.source_chain ?? row.payment_chain ?? row.chain);
+    // Canonical aliases must agree; never select one of conflicting chain
+    // claims using nullish-coalescing precedence.
+    const sourceChain = chain(row.source_chain);
+    for (const alias of ["payment_chain", "chain"] as const) {
+      if (Object.prototype.hasOwnProperty.call(row, alias) &&
+          chain(row[alias]) !== sourceChain) {
+        fail("request_source_chain_alias_mismatch");
+      }
+    }
     const tx = txHash(row.tx_hash, true);
     const quoted = amount(row.quoted_void, "request_quote_invalid");
     const usdc = row.usdc_amount === undefined || row.usdc_amount === null
@@ -216,14 +226,19 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
     const authority = canonicalLaunchAuthority(row.launch_authority);
     const prev = states.get(id);
     if (!prev) {
+      // Later mutable rows must not retroactively qualify an original legacy
+      // request whose token identity or coupled launch tuple was absent.
+      if (!usdcContract) fail("request_initial_usdc_contract_missing");
+      if (!authority) fail("request_initial_launch_authority_missing");
       states.set(id, {
         id, chain: sourceChain, tx, voidMicro: quoted, usdcMicro: usdc,
         delivery, receive, usdcContract, launchAuthority: authority,
       });
-      previousLines.set(id, exactLine);
+      previousLines.set(id, new Set([exactLine]));
       continue;
     }
-    if (previousLines.get(id) === exactLine) fail("request_history_duplicate_snapshot");
+    const seen = previousLines.get(id);
+    if (!seen || seen.has(exactLine)) fail("request_history_duplicate_snapshot");
     // Request history is append-only full snapshots. Once a field is populated,
     // a later snapshot may not erase it and fall back to stale prior bytes.
     if (prev.chain !== sourceChain || prev.voidMicro !== quoted ||
@@ -243,7 +258,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       usdcContract: prev.usdcContract || usdcContract,
       launchAuthority: prev.launchAuthority || authority,
     });
-    previousLines.set(id, exactLine);
+    seen.add(exactLine);
   }
   return states;
 }

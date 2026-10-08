@@ -27,17 +27,23 @@ The pure classifier requires canonical UTF-8 JSONL with complete LF-terminated,
 final row, and bounded size/row count. It binds all observed request history
 against exact chain, transaction, quote, USDC contract, destination and
 canonical coupled launch-authority lineage, rejecting missing or malformed
-launch tuples **even if the allocation ledger is empty**. Later full request
-snapshots may only add missing bindings, not erase or change prior fields;
-byte-identical duplicate request snapshots HOLD. For every accepted verified-payment V2
+launch tuples **even if the allocation ledger is empty**. The initial request snapshot must itself bind the canonical USDC contract and
+closed coupled launch tuple. Neither may be retroactively introduced by a
+later unreviewed request update. Later full request snapshots may only add
+other missing bindings, not erase or change prior fields. **Any** earlier
+byte-identical snapshot repeated after intervening updates (A→B→A) HOLDs.
+The explicit `source_chain` and every present `payment_chain` / `chain`
+alias must agree; missing or contradictory source-chain evidence HOLDs. For every accepted verified-payment V2
 row it binds the exact canonical payment identity using the existing
 `canonicalBuyVoidPaymentIdentityV1` primitive, enforces one immutable event per
 request/payment identity, exact request quote and configured 2:1 canonical
 presale economics, canonical request-bound USDC token contract, transfer
 amount, source transaction, explicit nondefaulted source chain, log index and
 delivery addresses. A legacy request
-without a recorded USDC contract remains source-HOLD; a later reviewed trusted
-request/policy migration would be required rather than guessing from an event. Aggregate verified obligations must not exceed 10,000,000 VOID.
+without a recorded original USDC contract remains source-HOLD, even if a
+later request snapshot backfills that field. A separately reviewed trusted
+request/policy migration would be required rather than guessing from later
+request bytes or an event. Aggregate verified obligations must not exceed 10,000,000 VOID.
 
 **Exact committed event hash** is SHA-256 of the existing serialized
 `payment_verified` operator-event JSONL row **including its terminating LF**.
@@ -128,7 +134,9 @@ source-head/diff hygiene. The proof covers first missing allocation, exact
 matching history, deterministic replay, changed event bytes, duplicate identity,
 request/receipt/amount/quote drift, malformed or missing launch authority
 at the empty-ledger crash gap, request-token vs event-token mismatch,
-duplicate/regressed request snapshots, conflicting/orphan allocations,
+duplicate/regressed/nonconsecutively replayed request snapshots, original
+USDC-contract and launch-authority backfill, conflicting source-chain aliases,
+conflicting/orphan allocations,
 noncanonical and truncated JSONL, near-sellout conservation and the absence
 of runtime, funds and host authority.
 
