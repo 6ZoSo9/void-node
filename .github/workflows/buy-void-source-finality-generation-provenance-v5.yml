@@ -1,4 +1,4 @@
-name: VOID Buy VOID reviewed source files v5
+name: VOID Buy VOID historical reviewed source files v5 preservation
 
 on:
   pull_request:
@@ -11,7 +11,6 @@ on:
       - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
       - "src/economic/buy_void_payment_rpc_observer_v1.ts"
       - "src/economic/buy_void_verified_payment_v2.ts"
-      - "Dockerfile"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v5.md"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v5-review-checklist.md"
       - ".github/workflows/buy-void-source-finality-generation-provenance-v5.yml"
@@ -21,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  prove:
+  preserve:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -37,13 +36,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Bind exact checkout and immutable historical V5 source
         shell: bash
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git hash-object src/economic/buy_void_source_finality_generation_provenance_v5.ts)" =             "0804a50b87c089e2d03bbca716641d7211e6a8bc"
+          grep -F 'git_blob_sha1: "c0e4660bb238e1b718b8a471890901bd5a59badf"'             src/economic/buy_void_source_finality_generation_provenance_v5.ts
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -51,68 +52,57 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Focused TypeScript
+      - name: Typecheck immutable V5 and deadline proof
         run: |
-          ./node_modules/.bin/tsc \
-            --noEmit \
-            --target ES2022 \
-            --module NodeNext \
-            --moduleResolution NodeNext \
-            --lib ES2022 \
-            --types node \
-            --esModuleInterop \
-            --allowSyntheticDefaultImports \
-            --downlevelIteration \
-            --skipLibCheck \
-            src/economic/buy_void_source_finality_generation_provenance_v5.ts \
-            scripts/prove_buy_void_source_finality_generation_provenance_v5.ts \
-            scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
+          ./node_modules/.bin/tsc             --noEmit             --target ES2022             --module NodeNext             --moduleResolution NodeNext             --lib ES2022             --types node             --esModuleInterop             --allowSyntheticDefaultImports             --downlevelIteration             --skipLibCheck             src/economic/buy_void_source_finality_generation_provenance_v5.ts             scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
 
-      - name: Prove reviewed source-file binding V5
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5.ts
-
-      - name: Prove V5 preflight shares the total deadline
+      - name: Preserve V5 total-deadline proof
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts
 
-      - name: Preserve V3 authenticated composition
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
+      - name: Preserve authenticated composition and static policy
+        run: |
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3_truncated_response.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authority_v2.ts
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_chain_finality_rpc_adapter_v1.ts
 
-      - name: Preserve V3 truncated-response fail-closed behavior
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3_truncated_response.ts
-
-      - name: Preserve V2 stable-policy authority
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authority_v2.ts
-
-      - name: Preserve finalized-source RPC adapter
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_chain_finality_rpc_adapter_v1.ts
-
-      - name: Repository build
+      - name: Build current repository artifacts
         run: npm run build
 
-      - name: Prove compiled V5 source-file resolution
+      - name: Require historical V5 to reject current V2 source generation
         run: |
-          node --input-type=module -e 'const v5 = await import("./dist/economic/buy_void_source_finality_generation_provenance_v5.js"); const result = v5.verifyBuyVoidSourceFinalityRuntimeSourceFilesV5(); if (result.ok !== true || result.reviewed_source_files_verified !== true || result.verified_source_file_count !== "5") { console.error(JSON.stringify(result)); process.exit(1); } console.log("VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5_COMPILED_SOURCE_RESOLUTION_GREEN");'
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          const v5 = await import("./dist/economic/buy_void_source_finality_generation_provenance_v5.js");
+          const result = v5.verifyBuyVoidSourceFinalityRuntimeSourceFilesV5();
+          assert.equal(result.ok, false);
+          assert.equal(result.reviewed_source_files_verified, false);
+          assert.equal(result.reason, "source_files_git_blob_mismatch");
+          assert.equal(v5.VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5.production_source_finality_authority_ready, false);
+          console.log("VOID_BUY_VOID_HISTORICAL_V5_CURRENT_SOURCE_MISMATCH_PRESERVED");
+          NODE
 
-      - name: Build production runtime image
-        if: matrix.node == 24
-        run: docker build -t void-v5-reviewed-source-runtime-proof .
-
-      - name: Prove packaged runtime contains reviewed source set
-        if: matrix.node == 24
+      - name: Require current V6 source successor to remain production HOLD
         run: |
-          docker run --rm --entrypoint node void-v5-reviewed-source-runtime-proof \
-            --input-type=module \
-            -e 'const v5 = await import("./dist/economic/buy_void_source_finality_generation_provenance_v5.js"); const result = v5.verifyBuyVoidSourceFinalityRuntimeSourceFilesV5(); if (result.ok !== true || result.reviewed_source_files_verified !== true || result.verified_source_file_count !== "5") { console.error(JSON.stringify(result)); process.exit(1); } console.log("VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5_PACKAGED_RUNTIME_SOURCE_RESOLUTION_GREEN");'
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6.ts
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          const v6 = await import("./dist/economic/buy_void_source_finality_generation_provenance_v6.js");
+          assert.equal(v6.VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6.production_source_finality_authority_ready, false);
+          assert.equal(v6.VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6.deployed_artifact_generation_verified, false);
+          console.log("VOID_BUY_VOID_V6_SUCCESSOR_PRODUCTION_HOLD_PRESERVED");
+          NODE
 
       - name: Committed-range diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi
