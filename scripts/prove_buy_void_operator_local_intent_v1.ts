@@ -104,6 +104,21 @@ assert.equal(
     .capability_cookie_forbidden,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+    .credentials_directory_descriptor_retained,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+    .descriptor_relative_credential_open,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+    .credentials_directory_identity_rechecked_after_read,
+  true,
+);
 
 const savedCredentialsDirectory = process.env.CREDENTIALS_DIRECTORY;
 const temp = fs.mkdtempSync(
@@ -204,6 +219,72 @@ try {
     assert.equal(result.status, 503);
     assert.equal(result.body?.error, "operator_capability_unavailable");
     fs.chmodSync(temp, 0o700);
+  }
+
+  {
+    const substituteCapability = "voidbvo1." + "C".repeat(43);
+    const admittedDirectory = temp + ".admitted";
+    const originalLstatSync = fs.lstatSync;
+    let swapped = false;
+    try {
+      (fs as any).lstatSync = (...args: any[]) => {
+        const pathname = String(args[0] ?? "");
+        if (
+          !swapped &&
+          pathname.startsWith("/proc/self/fd/") &&
+          pathname.endsWith(
+            "/" + VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
+          )
+        ) {
+          swapped = true;
+          fs.renameSync(temp, admittedDirectory);
+          fs.mkdirSync(temp, { mode: 0o700 });
+          fs.chmodSync(temp, 0o700);
+          fs.writeFileSync(
+            path.join(
+              temp,
+              VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
+            ),
+            substituteCapability + "\n",
+            { encoding: "utf8", mode: 0o400 },
+          );
+          fs.chmodSync(
+            path.join(
+              temp,
+              VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
+            ),
+            0o400,
+          );
+        }
+        return (originalLstatSync as any)(...args);
+      };
+
+      const { result, res } = response();
+      const substitutedRequest = request({
+        headers: {
+          authorization: "Bearer " + substituteCapability,
+        },
+      });
+      assert.equal(
+        authorizeBuyVoidOperatorLocalReadV1(substitutedRequest, res),
+        false,
+      );
+      assert.equal(swapped, true);
+      assert.equal(result.status, 503);
+      assert.equal(result.body?.error, "operator_capability_unavailable");
+    } finally {
+      (fs as any).lstatSync = originalLstatSync;
+      if (fs.existsSync(temp)) {
+        fs.rmSync(temp, { recursive: true, force: true });
+      }
+      if (fs.existsSync(admittedDirectory)) {
+        fs.renameSync(admittedDirectory, temp);
+      }
+    }
+
+    const { result, res } = response();
+    assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), true);
+    assert.equal(result.body, null);
   }
 
   for (const req of [
@@ -379,6 +460,9 @@ try {
   console.log("operator_bearer_capability_required=true");
   console.log("operator_capability_private_file_mode_required=true");
   console.log("operator_credentials_directory_not_group_world_writable=true");
+  console.log("operator_credentials_directory_descriptor_retained=true");
+  console.log("operator_credential_descriptor_relative_open=true");
+  console.log("operator_credentials_directory_substitution_holds=true");
   console.log("relayed_loopback_without_capability_rejected=true");
   console.log("forged_local_host_remote_peer_rejected=true");
   console.log("public_host_loopback_proxy_rejected=true");
