@@ -1,0 +1,85 @@
+# Buy VOID operator verified-allocation dispatcher — unmounted source contract
+
+## Production wiring HOLD
+
+The payment→allocation source stack merged through [#2674](https://github.com/6ZoSo9/void-node/pull/2674),
+commit `39466f055896d5213f19876a00ede4e54313ac9f`, with 39/39
+source/CI checks successful. However the real operator route still calls
+`writeBuyVoidOperatorEventWithCapacityAdmissionV1`, a legacy payment-only
+path which can durably append `payment_verified` without the new canonical
+`allocation_reserved` publication. The independently reviewed
+`writeBuyVoidVerifiedPaymentAllocationHandoffV1` is not yet mounted;
+see the [P1 source review](https://github.com/6ZoSo9/void-node/pull/2674#issuecomment-6070441315).
+
+This Draft is stacked on the current V6 source-finality and hardened
+bearer-authenticated, POST-only operator integration
+[#2675](https://github.com/6ZoSo9/void-node/pull/2675). Unlike the
+old mainline route, that parent includes the reviewed private operator
+capability and native-USDC payment-instruction guards. The source-only
+helper here changes none of those routes or authentication rules.
+
+## Source-only dispatch contract
+
+`src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts`
+implements an **unmounted** router-callable dispatch. It JSON-snapshots
+the event and caller request once, bounds each snapshot to 256 KiB,
+deep-freezes nested values, and requires matching nonempty request IDs.
+
+For exact `operator_status="payment_verified"`, it refuses to call
+*either* writer unless distinct absolute normalized private allocation-ledger
+and high-water paths are supplied; neither path may equal the filesystem
+root or be nested beneath the other. A qualified server, never an HTTP
+buyer, must supply these roots. On valid planner input, the dispatch calls
+only `writeBuyVoidVerifiedPaymentAllocationHandoffV1`. It has no
+payment-only fallback for a verified payment.
+
+All nonpayment operator status events remain routed to the existing
+`writeBuyVoidOperatorEventWithCapacityAdmissionV1`. This preserves their
+separate review/fulfillment semantics pending independent router tests.
+
+The `AUTHORITY` object truthfully reports mount/authentication/independent
+custody/deployment/production readiness/funds movement as FALSE. Input-path
+syntax checks cannot prove installed custodian identity, root permissions,
+first-original buyer history, provider quorum or external high-water witness.
+
+## Deterministic tests
+
+`scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts`
+uses **inert, in-memory JSON** only: immutable snapshots, stateful `toJSON`,
+nonpayment preservation, invalid/missing/relative/aliased roots, request-ID
+mismatch and invalid callback negatives. A TypeScript AST proof verifies
+the new function invokes the canonical allocation writer only in its
+verified-payment branch, with the legacy writer separately reachable only
+for nonpayment statuses.
+
+The proof also pins the **existing composed operator router's**
+`src/index.ts` exact Git blob
+`f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048`, confirms its
+POST-only verification/mark mutation routes and operator intent helper,
+and explicitly verifies the mounted event writer still calls the old
+payment-only API. Therefore
+`mounted_verified_allocation_dispatch=false` is intentional truth,
+not a failure hidden by CI. The verified-payment allocation source API
+is pinned to Git blob `496715e7ae2941663908976a4a3f4efd7c6199cf`.
+
+The scoped GitHub workflow separately typechecks/builds this composed
+checkout on Node 22/24/26 **without starting a server**, runs the inert
+proof, and requires byte-equal reports from all three versions.
+
+## Remaining release gates
+
+Future reviewed work must change the **actual authenticated** mounted
+operator route to call this dispatch with server-controlled protected
+ledger/high-water custody roots; test real route crash and replay behavior
+only on disposable private filesystem fixtures; prove no successful
+operator `payment_verified` acknowledgment without canonical durable
+allocation or explicit crash-repair HOLD. Qualified live high-water
+witnesses, runtime identity, original buyer provenance, provider finality,
+signer/treasury and coupled WC/VOID presale remain separate gates.
+
+This PR does NOT edit `src/index.ts`, any installed host, real customer
+ledger, wallet/key/signer, transaction, Chain-2050/WC, treasury/liquidity,
+presale/market or funds. No Ready, merge, runtime deployment or sale
+activation is authorized.
+
+**PROTECT THE CORE.**
