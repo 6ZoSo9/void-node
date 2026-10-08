@@ -27,7 +27,7 @@ const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "c3fc204710a9189723651cfeb6ffc52b1aa049db",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "feb1f0e3fea1ff07406cd3b8fcd315c48338596f",
+    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":
     "9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts":
@@ -294,6 +294,9 @@ const report = Object.freeze({
   marker:"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V1",
   source_only:true,
   original_source_github_head:"f7c894eb2ff8f378b2f0a906192cc1a0602e1d24",
+  predecessor_replay_source_blob_sha1:"feb1f0e3fea1ff07406cd3b8fcd315c48338596f",
+  current_replay_source_blob_sha1:
+    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
   original_event_line_sha256:exactEventSha,
   canonical_payment_identity:observedGap.canonical_payment_identity,
   candidate_record_id:allocationCandidate.record.record_id,
