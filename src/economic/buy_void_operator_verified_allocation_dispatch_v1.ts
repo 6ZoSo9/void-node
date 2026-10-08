@@ -7,6 +7,21 @@ import {
 export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_V1 =
   "VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_V1";
 
+const CANONICAL_OPERATOR_STATUSES_V1 = Object.freeze([
+  "payment_verified",
+  "reviewed",
+  "fulfilled",
+  "rejected",
+] as const);
+
+function canonicalOperatorStatusV1(value: unknown):
+  (typeof CANONICAL_OPERATOR_STATUSES_V1)[number] | null {
+  if (typeof value !== "string") return null;
+  return (CANONICAL_OPERATOR_STATUSES_V1 as readonly string[]).includes(value)
+    ? value as (typeof CANONICAL_OPERATOR_STATUSES_V1)[number]
+    : null;
+}
+
 export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1 =
   Object.freeze({
     source_only_contract: true,
@@ -106,14 +121,15 @@ export function planBuyVoidOperatorAllocationDispatchV1(
   const event = frozenJsonSnapshot(rawEvent, "event");
   const request = frozenJsonSnapshot(rawRequest, "request");
   const requestId = String(event.request_id || "");
+  const operatorStatus = canonicalOperatorStatusV1(event.operator_status);
   if (!requestId || requestId !== String(request.request_id || "") ||
-      typeof event.operator_status !== "string" || !event.operator_status ||
+      !operatorStatus ||
       typeof requestDir !== "string" || !requestDir.trim() ||
       typeof withLaunchAuthorityMutation !== "function" ||
       typeof readSaleState !== "function") {
-    hold("request_event_identity_or_server_callbacks_invalid");
+    hold("request_event_identity_status_or_server_callbacks_invalid");
   }
-  if (event.operator_status !== "payment_verified") {
+  if (operatorStatus !== "payment_verified") {
     return Object.freeze({
       kind: "nonpayment_legacy_writer" as const,
       event,
