@@ -18524,19 +18524,9 @@ small{color:#94a3b8}
       return out;
     }
 
-    function __voidBuyVoidOperatorLocalOnlyV1(req:any,res:any){
-      const host = String(req.headers?.host || "");
-      const remote = String(req.socket?.remoteAddress || "");
-      const localHost = host.startsWith("127.0.0.1:") || host.startsWith("localhost:");
-      const localRemote = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
-      if (localHost || localRemote) return true;
-      res.status(403).json({
-        schema: "void_buy_void_operator_auth_v1",
-        ok: false,
-        error: "operator_queue_local_only"
-      });
-      return false;
-    }
+    const __boi=require("./economic/buy_void_operator_local_intent_v1");
+    const __voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1;
+    const __voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
 
     // VOID_BUY_VOID_OPERATOR_MARK_V1
     async function __voidReadBuyVoidOperatorEventsV1(){
@@ -18614,7 +18604,7 @@ small{color:#94a3b8}
 <div id="queue"></div>
 </main>
 <script>
-async function j(url){ const r = await fetch(url); return await r.json(); }
+async function j(url){const r=await fetch(url);return await r.json()}async function m(url){const r=await fetch(url,{method:"POST",headers:{"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"}});return await r.json()}
 
 function esc(x){
   return String(x == null ? "" : x).replace(/[&<>"']/g, function(c){
@@ -18625,7 +18615,7 @@ function esc(x){
 // VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1
 // VOID_BUY_VOID_OPERATOR_PAGE_VERIFY_PAYMENT_BUTTON_V1
 async function verifyPayment(id){
-  const out = await j("/__void/buy-void/operator/verify-payment.json?id=" + encodeURIComponent(id));
+  const out = await m("/__void/buy-void/operator/verify-payment.json?id=" + encodeURIComponent(id));
   alert(out.ok ? "Payment verified" : JSON.stringify(out));
   refresh();
 }
@@ -18649,7 +18639,7 @@ async function markReq(id, status){
     url += "&void_tx_hash=" + encodeURIComponent(voidTx);
   }
 
-  const out = await j(url);
+  const out = await m(url);
   alert(out.ok ? "Marked " + status : JSON.stringify(out));
   refresh();
 }
@@ -18800,8 +18790,8 @@ setInterval(refresh, 10000);
     }
 
     // VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1
-    app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
-if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+    app.post("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
+if (!__voidBuyVoidOperatorMutationIntentV1(req,res)) return;
 
 try {
 const id = String((req.query || {}).id || "").trim();
@@ -18890,8 +18880,8 @@ message: m
 }
 });
 
-app.get("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
-if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+app.post("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
+if (!__voidBuyVoidOperatorMutationIntentV1(req,res)) return;
 
 const q:any = req.query || {};
 const id = String(q.id || "").trim();
@@ -18943,7 +18933,7 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
 }catch(e:any){const x=String(e?.message||"");return res.status(x==="request_launch_authority_expired_or_superseded"?409:500).json({schema:"void_buy_void_operator_mark_v1",ok:false,error:x==="request_launch_authority_expired_or_superseded"?x:"operator_mark_failed",request_id:id})}
 });
 
-    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
+    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,mutationIntent:__voidBuyVoidOperatorMutationIntentV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
