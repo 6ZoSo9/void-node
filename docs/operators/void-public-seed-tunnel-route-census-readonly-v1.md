@@ -44,6 +44,11 @@ and bypass proxy and curlrc configuration.
   **not proof** of the exact failing Cloudflare control-plane rule. Counting
   may be incomplete, concurrent traffic can confound an increment, and failures
   before the counter may not be counted.
+- `TUNNEL_LIVE_CONNECTIONS_UNCONFIRMED_HOLD`: the public seed returned a non-200
+  response and the request counter was flat, but the same connector's
+  HA-connection gauge was zero or unavailable before or after sampling.
+  A disconnected/unsupported tunnel can produce that same pattern; do not
+  attribute it to stale DNS until live HA connections are observed.
 - `PUBLIC_PROBE_TRANSPORT_HOLD`: the public curl command failed (even if a
   numeric HTTP code was observed). A failed DNS/TLS/transport request does
   **not** justify a misrouting conclusion from a zero counter delta.
@@ -54,7 +59,8 @@ and bypass proxy and curlrc configuration.
   a JSON/readiness trust receipt, independent three-sample qualification,
   served-manifest verification, or proof of chain-head advancement.
 - `LOCAL_INGRESS_ROUTE_HOLD` and `LOCAL_SEED_GATEWAY_HOLD`: local evidence is
-  inconsistent with required route or origin health. Do not assume Cloudflare
+  inconsistent with required route or origin health. A local curl transport
+  failure is HOLD even if it emits an HTTP 200 status; do not assume Cloudflare
   is solely at fault.
 - `PUBLIC_ROUTE_FAILURE_UNRESOLVED`: no stronger conclusion is supported.
 - If the systemd process, config reference or metrics ownership is unavailable,

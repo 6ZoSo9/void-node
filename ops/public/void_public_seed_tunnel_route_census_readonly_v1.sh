@@ -12,34 +12,44 @@ EARN_URL=https://seed.nullfeed.org/health
 
 classify() {
   local route="$1" local_http="$2" public_http="$3" owner="$4" delta="$5"
-  local public_exit="$6" stable="$7"
+  local public_exit="$6" stable="$7" local_exit="$8" ha_before="$9" ha_after="${10}"
   if [[ "$stable" != YES ]]; then
     printf '%s\n' CONNECTOR_CHANGED_HOLD
   elif [[ "$route" != EXPECTED_4111 ]]; then
     printf '%s\n' LOCAL_INGRESS_ROUTE_HOLD
-  elif [[ "$local_http" != 200 ]]; then
+  elif [[ "$local_http" != 200 || "$local_exit" != 0 ]]; then
     printf '%s\n' LOCAL_SEED_GATEWAY_HOLD
   elif [[ "$public_exit" != 0 ]]; then
     printf '%s\n' PUBLIC_PROBE_TRANSPORT_HOLD
   elif [[ "$public_http" == 200 ]]; then
     printf '%s\n' PUBLIC_HTTP_200_STILL_UNQUALIFIED
   elif [[ "$owner" == ACTIVE_TUNNEL_PROCESS && "$delta" == 0 ]]; then
-    printf '%s\n' PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS
+    # A disconnected tunnel also has a flat request counter; do not infer
+    # stale DNS/Alienware routing without any observed active edge connection.
+    if [[ "$ha_before" =~ ^[1-9][0-9]*$ && "$ha_after" =~ ^[1-9][0-9]*$ ]]; then
+      printf '%s\n' PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS
+    else
+      printf '%s\n' TUNNEL_LIVE_CONNECTIONS_UNCONFIRMED_HOLD
+    fi
   else
     printf '%s\n' PUBLIC_ROUTE_FAILURE_UNRESOLVED
   fi
 }
 
 if [[ "$#" -eq 1 && "$1" == --self-test ]]; then
-  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS ]]
-  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 0 YES)" == PUBLIC_HTTP_200_STILL_UNQUALIFIED ]]
-  [[ "$(classify OTHER 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == LOCAL_INGRESS_ROUTE_HOLD ]]
-  [[ "$(classify EXPECTED_4111 503 502 ACTIVE_TUNNEL_PROCESS 0 0 YES)" == LOCAL_SEED_GATEWAY_HOLD ]]
-  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 1 0 YES)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
-  [[ "$(classify EXPECTED_4111 200 502 UNKNOWN UNKNOWN 0 YES)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
-  [[ "$(classify EXPECTED_4111 200 000 ACTIVE_TUNNEL_PROCESS 0 6 YES)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
-  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 NO)" == CONNECTOR_CHANGED_HOLD ]]
-  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 28 YES)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 0 4 4)" == PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS ]]
+  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 0 YES 0 4 4)" == PUBLIC_HTTP_200_STILL_UNQUALIFIED ]]
+  [[ "$(classify OTHER 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 0 4 4)" == LOCAL_INGRESS_ROUTE_HOLD ]]
+  [[ "$(classify EXPECTED_4111 503 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 0 4 4)" == LOCAL_SEED_GATEWAY_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 1 0 YES 0 4 4)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
+  [[ "$(classify EXPECTED_4111 200 502 UNKNOWN UNKNOWN 0 YES 0 4 4)" == PUBLIC_ROUTE_FAILURE_UNRESOLVED ]]
+  [[ "$(classify EXPECTED_4111 200 000 ACTIVE_TUNNEL_PROCESS 0 6 YES 0 4 4)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 NO 0 4 4)" == CONNECTOR_CHANGED_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 1 28 YES 0 4 4)" == PUBLIC_PROBE_TRANSPORT_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 0 0 0)" == TUNNEL_LIVE_CONNECTIONS_UNCONFIRMED_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 0 NA 4)" == TUNNEL_LIVE_CONNECTIONS_UNCONFIRMED_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 502 ACTIVE_TUNNEL_PROCESS 0 0 YES 18 4 4)" == LOCAL_SEED_GATEWAY_HOLD ]]
+  [[ "$(classify EXPECTED_4111 200 200 ACTIVE_TUNNEL_PROCESS 0 0 YES 28 4 4)" == LOCAL_SEED_GATEWAY_HOLD ]]
   printf '%s_SELF_TEST_GREEN\n' "$MARKER"
   printf 'live_network_access=false\nservice_mutation=false\n'
   exit 0
@@ -192,7 +202,7 @@ if [[ "$final_pid" == "$pid" ]] && [[ "$(cat "/proc/$pid/comm" 2>/dev/null || tr
   process_stable=YES
 fi
 printf 'process_generation_stable=%s\n' "$process_stable"
-printf 'classification=%s\n' "$(classify "$seed_route" "$local_seed_http" "$public_seed_http" "$owner" "$delta" "$public_seed_rc" "$process_stable")"
+printf 'classification=%s\n' "$(classify "$seed_route" "$local_seed_http" "$public_seed_http" "$owner" "$delta" "$public_seed_rc" "$process_stable" "$local_seed_rc" "$ha_before" "$ha_after")"
 printf '%s\n' \
   'one_request_counter_delta_not_conclusive=true' \
   'public_http_200_not_external_qualification=true' \

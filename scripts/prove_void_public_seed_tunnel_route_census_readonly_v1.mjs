@@ -29,6 +29,7 @@ for (const needle of [
   "metrics_listener=%s", "PUBLIC_REQUEST_NOT_COUNTED_HYPOTHESIS",
   "PUBLIC_HTTP_200_STILL_UNQUALIFIED", "tunnel_requests_delta=%s",
   "PUBLIC_PROBE_TRANSPORT_HOLD", "CONNECTOR_CHANGED_HOLD",
+  "TUNNEL_LIVE_CONNECTIONS_UNCONFIRMED_HOLD",
   "process_generation_stable=%s",
   "one_request_counter_delta_not_conclusive=true",
 ]) {
@@ -82,6 +83,8 @@ console.log("one_public_probe_between_metrics_snapshots=true");
 console.log("zero_delta_is_hypothesis_not_identity_proof=true");
 console.log("failed_public_curl_cannot_claim_stale_routing=true");
 console.log("connector_restart_invalidates_counter_comparison=true");
+console.log("local_curl_transport_failure_holds=true");
+console.log("ha_connection_evidence_required_for_misroute_hint=true");
 console.log("self_test_synthetic_only=true");
 console.log("operator_host_access=false");
 console.log("services_changed=false");
