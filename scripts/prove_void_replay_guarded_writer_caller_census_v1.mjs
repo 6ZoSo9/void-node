@@ -246,6 +246,46 @@ for (const [label, code, expected] of [
 ]) {
   assert.deepEqual(kind(code), expected, label);
 }
+// Review P2: an overlong literal, intermediate concatenation or template
+// expression is INDETERMINATE, not a safe/non-writer conclusion. Even an
+// oversized unrelated dynamic import deliberately HOLDs for manual review.
+const longQuery = "x".repeat(5_000);
+for(const [label, source, expected] of [
+  ["oversized literal with writer prefix/suffix",
+    `await import('./buy_void_allocation_custody_witness_live_read_replay_writer_v1.js?${longQuery}')`,
+    ["forbidden"]],
+  ["oversized computed concatenation with split basename",
+    `const prefix='./buy_void_allocation_custody_witness_live_read_replay_';const suffix='writer_v1.js?'+${JSON.stringify(longQuery)};await import(prefix+suffix)`,
+    ["forbidden"]],
+  ["oversized bare literal followed by computed writer suffix",
+    `const prefix=${JSON.stringify(longQuery)};const suffix='./buy_void_allocation_custody_witness_live_read_replay_'+'writer_v1.js';await import(prefix+suffix)`,
+    ["forbidden"]],
+  ["oversized template value with split basename",
+    `const huge=${JSON.stringify(longQuery)};const target=\`./buy_void_allocation_custody_witness_live_read_replay_\${'writer_v1.js?'}\${huge}\`;await import(target)`,
+    ["forbidden"]],
+  ["oversized unrelated literal is a conservative HOLD",
+    `await import('./other.mjs?${longQuery}')`, ["forbidden"]],
+]) assert.deepEqual(kind(source),expected,label);
+
+// Named FunctionExpression has a separate self-name environment outside
+// its parameter/var scope. Parameters and body var bindings shadow its name
+// and are not conflicting declarations of one lexical name.
+for(const [label, source, expected] of [
+  ["function expression name shadowed by body var",
+    `const f=function ref(){var ref;require(ref)}`, []],
+  ["named require expression name shadowed by body var",
+    `const f=function require(){var require;const target=${splitTarget};require(target)}`, []],
+  ["function expression name shadowed by same-name parameter",
+    `const f=function ref(ref){require(ref)}`, []],
+  ["named require expression parameter shadows self-name",
+    `const f=function require(require){const target=${splitTarget};require(target)}`, []],
+  ["body var cannot hide unrelated genuine writer import",
+    `const f=function ref(){var ref;const target=${splitTarget};require(target)}`,
+    ["forbidden"]],
+  ["expression self-name does not shadow the outer loader",
+    `const f=function require(){var require;const t=${splitTarget};require(t)};const t=${splitTarget};require(t)`,
+    ["forbidden"]],
+]) assert.deepEqual(kind(source),expected,label);
 // An existing proof path remains a fixture-only allowance, not a runtime gate.
 assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
   "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
@@ -326,6 +366,8 @@ console.log("shadowed_loader_hoistable_bindings_class_static_scope_qualified=tru
 console.log("imported_factory_alias_chain_and_named_expression_shadowing_proven=true");
 console.log("bounded_loader_and_path_alias_depths_fail_closed=true");
 console.log("named_function_expression_parameter_shadowing_proven=true");
+console.log("oversized_static_import_specifiers_hold=true");
+console.log("named_expression_var_parameter_name_environments_separated=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");

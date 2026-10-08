@@ -67,14 +67,21 @@ immutable executable closure and no bypass route.
   grant a local same-name helper or a shadowed parameter loader authority.
   On hitting the 24-level alias bound, the scanner marks loader identity
   **inconclusive**, not disproven, and returns a conservative HOLD if the
-  bounded request path resolves to this protected writer. If the request
-  string expression itself exceeds the folding limit, the audit also HOLDS
-  rather than treating a deep, statically aliased path as harmless; benign
-  overlong imports can require manual review. Cycles and unresolved runtime
-  environment variables are separate from bound exhaustion. For named
-  function expressions, a same-name parameter shadows the internal name;
-  those two bindings are not classified as ambiguous. A named function's
-  unshadowed internal `require` still differs from CommonJS require.
+  bounded request path resolves to this protected writer. The same rule
+  applies when the static import specifier exceeds the 4-KiB **byte** limit,
+  whether the limit is reached by a literal, string concatenation or
+  template interpolation. The audit marks either depth or byte exhaustion
+  inconclusive and HOLDS instead of treating a partially folded specifier as
+  harmless; benign overlong imports can require manual review. Cycles and
+  unresolved runtime environment variables remain separate from an explicit
+  bound being reached.
+  
+  For named function expressions, the internal function name has an
+  **independent self-name environment** outside the body's parameter and
+  `var` bindings. A same-name parameter or body `var` shadows this name
+  without becoming an ambiguous duplicate, while the unshadowed internal
+  name (including `require`) remains separate from the ambient CommonJS
+  loader.
   No source expression is evaluated or executed during this source-only
   analysis.
 - Require the writer itself still exports both legacy entrypoints so an

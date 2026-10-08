@@ -85,6 +85,10 @@ function staticReference(specifier, node, file, valueNames = null, typeOnly = fa
 // attempted: only const initializers with a unique lexical binding can fold.
 function lexicalBindings(parsed) {
   const byScope = new Map();
+  // The optional self-name of a FunctionExpression belongs to an enclosing
+  // name environment, not to the same binding map as its parameters/var
+  // declarations. Body bindings shadow the name without becoming ambiguous.
+  const functionExpressionNames = new Map();
   function lexicalScope(node) {
     return ts.isSourceFile(node) || ts.isBlock(node) ||
       ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
@@ -167,12 +171,12 @@ function lexicalBindings(parsed) {
         recordUnknown(node, parameter.name, parameter, "hoistable");
       }
     }
-    // A named function expression has an inner name environment. Function
-    // parameters shadow that name in the body; a same-spelled parameter is
-    // NOT a duplicate/conflicting lexical declaration.
-    if (ts.isFunctionExpression(node) && node.name &&
-        !byScope.get(node)?.has(node.name.text)) {
-      add(node, node.name.text, node);
+    // A named function-expression self-name is resolved only AFTER the
+    // ordinary function parameter/var scope, not inserted into that scope.
+    if (ts.isFunctionExpression(node) && node.name) {
+      functionExpressionNames.set(node, Object.freeze({
+        kind: "unknown", form: "named-function-expression", declaration: node,
+      }));
     }
     // Similarly, a named class expression creates a local binding for its
     // own body and static blocks; it does not bind the outer module object.
@@ -215,6 +219,9 @@ function lexicalBindings(parsed) {
         const binding = byScope.get(p)?.get(identifier.text);
         if (binding) return binding;
       }
+      if (ts.isFunctionExpression(p) && p.name?.text === identifier.text) {
+        return functionExpressionNames.get(p) || null;
+      }
     }
     return null;
   };
@@ -228,8 +235,11 @@ function staticStringValue(node, resolveBinding, depth = 0, active = new Set(), 
     return null;
   }
   if (ts.isStringLiteralLike(node)) {
-    return Buffer.byteLength(node.text, "utf8") <= MAX_STATIC_SPECIFIER_BYTES
-      ? node.text : null;
+    if (Buffer.byteLength(node.text, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
+    return node.text;
   }
   const next = expr => staticStringValue(expr, resolveBinding, depth + 1, active, limit);
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) ||
@@ -242,15 +252,26 @@ function staticStringValue(node, resolveBinding, depth = 0, active = new Set(), 
     const right = next(node.right);
     if (left === null || right === null) return null;
     const value = left + right;
-    return Buffer.byteLength(value, "utf8") <= MAX_STATIC_SPECIFIER_BYTES ? value : null;
+    if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
+    return value;
   }
   if (ts.isTemplateExpression(node)) {
     let value = node.head.text;
+    if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+      limit.hit = true;
+      return null;
+    }
     for (const span of node.templateSpans) {
       const middle = next(span.expression);
       if (middle === null) return null;
       value += middle + span.literal.text;
-      if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) return null;
+      if (Buffer.byteLength(value, "utf8") > MAX_STATIC_SPECIFIER_BYTES) {
+        limit.hit = true;
+        return null;
+      }
     }
     return value;
   }
