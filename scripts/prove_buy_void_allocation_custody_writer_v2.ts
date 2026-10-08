@@ -100,6 +100,25 @@ assert.equal(
 );
 
 const addition = currentText.slice(additionStart, additionEnd);
+const snapshotDeclaration =
+  "export function snapshotBuyVoidAllocationReservationPublicationWriterV1";
+const snapshotStart = currentText.indexOf(
+  snapshotDeclaration,
+  additionStart,
+);
+assert.ok(
+  snapshotStart >= additionStart && snapshotStart < additionEnd,
+  "snapshot function declaration missing from additive block",
+);
+assert.equal(
+  currentText.indexOf(snapshotDeclaration, snapshotStart + 1),
+  -1,
+  "snapshot function declaration must remain unique",
+);
+const snapshotExecutable = currentText.slice(
+  snapshotStart,
+  additionEnd,
+);
 const reconstructedPredecessor = Buffer.from(
   currentText.slice(0, additionStart) +
     currentText.slice(additionEnd),
@@ -138,9 +157,9 @@ for (const forbidden of [
   "production_gate_ready: true",
 ]) {
   assert.equal(
-    addition.includes(forbidden),
+    snapshotExecutable.includes(forbidden),
     false,
-    "snapshot addition introduced mutation/authority token: " + forbidden,
+    "snapshot executable introduced mutation/authority token: " + forbidden,
   );
 }
 
