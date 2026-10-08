@@ -32,9 +32,24 @@ jobs:
           assert module.EXPECTED_CANDIDATE_SHA == "38d5a4055c4e5b5ccb0fbc1bf199e3d732d0025754063dacb11a4718fd579ea5"
           assert module.EXPECTED_MANIFEST_SHA == "b72071b42e0fbce7fa4079ce8000b6521377e4e55cdfba05ca610015c9e3ddd4"
           before = b"tunnel: fixed\ncredentials-file: /no/key\noriginRequest:\n  connectTimeout: 10s\ningress:\n" + module.ANCHOR + b"  - service: http_status:404\n"
-          after = before.replace(module.ANCHOR, module.ADDITION + module.ANCHOR, 1)
+          source_text = src.read_text(encoding="utf-8")
+          assert "candidate = build_candidate_config(original)" in source_text
+          after = module.build_candidate_config(before)
+          assert after == before.replace(module.ANCHOR, module.ADDITION + module.ANCHOR, 1)
           assert after.count(module.ANCHOR) == 1
           assert after.replace(module.ADDITION, b"", 1) == before
+          unsafe = before.replace(module.ANCHOR, module.ADDITION, 1)
+          assert unsafe != after and unsafe.count(module.ANCHOR) == 0
+          for malformed in (
+              before.replace(module.ANCHOR, module.ANCHOR + module.ANCHOR, 1),
+              before + b"void/bootstrap/v2/forbidden",
+          ):
+              try:
+                  module.build_candidate_config(malformed)
+              except module.Hold as exc:
+                  assert str(exc) == "source_config_routes_changed"
+              else:
+                  raise AssertionError("candidate builder accepted mutated source")
           pattern = module.ADDITION.split(b"path: '", 1)[1].split(b"'\n", 1)[0].decode("ascii")
           assert re.fullmatch(pattern, module.NEW_PATH)
           assert re.fullmatch(pattern, module.OLD_PATH)

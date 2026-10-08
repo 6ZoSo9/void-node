@@ -69,6 +69,17 @@ def ensure(test, reason):
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
+def build_candidate_config(original):
+    # Add the V2 manifest route WITHOUT removing the existing seed fallback.
+    # The reviewed 38d5a405... digest binds these exact destination bytes.
+    ensure(original.count(ANCHOR) == 1 and
+           b"void/bootstrap/v2/" not in original, "source_config_routes_changed")
+    candidate = original.replace(ANCHOR, ADDITION + ANCHOR, 1)
+    ensure(candidate.count(ANCHOR) == 1 and
+           candidate.replace(ADDITION, b"", 1) == original,
+           "candidate_fallback_not_preserved")
+    return candidate
+
 def cmd(args, label, timeout=20):
     try:
         result = subprocess.run(
@@ -271,8 +282,7 @@ def preflight():
 
     original = cfg.read_bytes()
     ensure(digest(original) == EXPECTED_OLD_SHA, "source_config_hash_changed")
-    ensure(original.count(ANCHOR) == 1 and b"void/bootstrap/v2/" not in original, "source_config_routes_changed")
-    candidate = original.replace(ANCHOR, ADDITION, 1)
+    candidate = build_candidate_config(original)
     ensure(digest(candidate) == EXPECTED_CANDIDATE_SHA, "candidate_config_hash_changed")
 
     pids = {}
