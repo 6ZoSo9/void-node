@@ -102,6 +102,49 @@ for (const [label, source, expected] of [
 ]) {
   assert.deepEqual(kind(source), expected, label);
 }
+// These exact cases were raised in independent security review after the
+// first lexical-scope repair. A shadowed loader or a legal repeated binding
+// must not be mistaken for direct use of the Node module system.
+for (const [label, code, expected] of [
+  ["injected require callback shadows Node require",
+    `function check(require){const ref=${splitTarget};require(ref)}`, []],
+  ["injected module object shadows CommonJS module",
+    `function check(module){const ref=${splitTarget};module.require(ref)}`, []],
+  ["injected require object shadows require.resolve",
+    `function check(require){const ref=${splitTarget};require.resolve(ref)}`, []],
+  ["local function require shadows Node require",
+    `function require(ref){}const ref=${splitTarget};require(ref)`, []],
+  ["sibling loader identifier does not affect the real require",
+    `function check(require){require('./other.js')}const ref=${splitTarget};require(ref)`, ["forbidden"]],
+  ["var and function declarations share an allowed binding",
+    `function ref(){} var ref; require(ref)`, []],
+  ["function parameter and var redeclaration share a binding",
+    `function check(ref){var ref; require(ref)}`, []],
+  ["duplicate hoisted var declarations are not ambiguous",
+    `var ref; var ref; require(ref)`, []],
+  ["sibling function still binds split writer source",
+    `function check(ref){var ref; require(ref)}function separate(){const ref=${splitTarget};require(ref)}`, ["forbidden"]],
+  ["class static var does not taint source-level const",
+    `const ref='./other.js';class C{static{var ref;}}require(ref)`, []],
+  ["class static var shadows source-level writer alias only inside static block",
+    `const ref=${splitTarget};class C{static{var ref; require(ref)}}`, []],
+  ["class static const writer reference remains a forbidden direct loader",
+    `class C{static{const ref=${splitTarget};require(ref)}}`, ["forbidden"]],
+  ["source-level writer alias remains visible outside class static block",
+    `const ref=${splitTarget};class C{static{var ref;}}require(ref)`, ["forbidden"]],
+  ["real createRequire loader with exact node:module import is still caught",
+    `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);const ref=${splitTarget};require(ref)`, ["forbidden"]],
+  ["aliased real createRequire loader stays caught",
+    `import {createRequire as makeRequire} from 'node:module';const require=makeRequire(import.meta.url);const ref=${splitTarget};require(ref)`, ["forbidden"]],
+  ["named loader from aliased createRequire import is caught",
+    `import {createRequire as makeRequire} from 'node:module';const loader=makeRequire(import.meta.url);const ref=${splitTarget};loader(ref)`, ["forbidden"]],
+  ["transitively aliased createRequire loader is caught",
+    `import {createRequire} from 'node:module';const real=createRequire(import.meta.url);const loader=real;const ref=${splitTarget};loader(ref)`, ["forbidden"]],
+  ["fake locally defined createRequire cannot impersonate imported factory",
+    `const createRequire=()=>x=>x;const load=createRequire();const ref=${splitTarget};load(ref)`, []],
+]) {
+  assert.deepEqual(kind(code), expected, label);
+}
 // An existing proof path remains a fixture-only allowance, not a runtime gate.
 assert.deepEqual(kind(`const x = await import('./buy_void_allocation_custody_witness_live_read_replay_' + 'writer_v1.js')`,
   "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts"), ["proof_fixture_only"]);
@@ -178,6 +221,7 @@ console.log("direct_unguarded_import_adversaries_rejected=true");
 console.log("namespace_reexport_dynamic_require_adversaries_rejected=true");
 console.log("statically_computed_writer_loader_adversaries_rejected=true");
 console.log("sibling_shadow_lexical_recovery_and_duplicate_binding_hold=true");
+console.log("shadowed_loader_hoistable_bindings_class_static_scope_qualified=true");
 console.log("type_only_and_marker_only_imports_recognized=true");
 console.log("test_only_import_does_not_grant_runtime_authority=true");
 console.log("legacy_unguarded_exports_still_present=true");

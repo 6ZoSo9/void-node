@@ -52,7 +52,14 @@ immutable executable closure and no bypass route.
   one lexical scope triggers a conservative computed-loader HOLD rather than
   silently discarding the identity. The source proof includes sibling/nested
   scope, function/arrow/catch/for shadow, transitive alias and duplicate
-  declaration adversaries. No source expression is evaluated or executed
+  declaration adversaries. Legal var/function/parameter redeclarations sharing
+  one function-scoped binding are treated as unresolvable but **not** ambiguous;
+  a class static block forms an independent var scope. Direct `require` and
+  `module.require` (and `require.resolve`) are recognized only when the loader
+  identifier is not lexically shadowed, or when `require` comes from a locally
+  bound `createRequire` that is itself a reviewed named `node:module` import.
+  A parameter named `require` or `module` is an arbitrary callback/object,
+  not evidence of a Node loader. No source expression is evaluated or executed
   during this source-only analysis.
 - Require the writer itself still exports both legacy entrypoints so an
   intentional future retirement/rename cannot silently inherit this census.

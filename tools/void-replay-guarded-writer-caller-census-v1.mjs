@@ -90,31 +90,47 @@ function lexicalBindings(parsed) {
       ts.isModuleBlock(node) || ts.isCaseBlock(node) ||
       ts.isForStatement(node) || ts.isForInStatement(node) ||
       ts.isForOfStatement(node) || ts.isFunctionLike(node) ||
-      ts.isCatchClause(node);
+      ts.isCatchClause(node) ||
+      (typeof ts.isClassStaticBlockDeclaration === "function" &&
+       ts.isClassStaticBlockDeclaration(node));
   }
   function parentScope(node, functionScoped = false) {
     for (let p = node.parent; p; p = p.parent) {
       if (functionScoped) {
-        if (ts.isFunctionLike(p) || ts.isSourceFile(p) || ts.isModuleBlock(p)) return p;
+        if (ts.isFunctionLike(p) || ts.isSourceFile(p) || ts.isModuleBlock(p) ||
+            (typeof ts.isClassStaticBlockDeclaration === "function" &&
+             ts.isClassStaticBlockDeclaration(p))) return p;
       } else if (lexicalScope(p)) return p;
     }
     return null;
   }
-  function add(scope, name, declaration, initializer = null) {
+  function add(scope, name, declaration, initializer = null, form = "lexical") {
     if (!scope || !name) return;
     let entries = byScope.get(scope);
     if (!entries) {
       entries = new Map();
       byScope.set(scope, entries);
     }
-    // Treat duplicate same-scope declarations as ambiguous rather than
-    // selecting whichever happened to be encountered last in the AST.
-    if (entries.has(name)) {
-      entries.set(name, Object.freeze({ kind: "ambiguous", declarations: null }));
-    } else {
-      entries.set(name, Object.freeze({ kind: initializer ? "const" : "unknown", declaration, initializer }));
+    const prior = entries.get(name);
+    if (prior) {
+      // var/function/parameter redeclarations can be multiple declarations
+      // of ONE legal function-scoped binding. None is a foldable const.
+      // Other duplicates remain conservatively ambiguous.
+      if (prior.form === "hoistable" && form === "hoistable") {
+        entries.set(name, Object.freeze({kind: "unknown", form: "hoistable"}));
+      } else {
+        entries.set(name, Object.freeze({kind: "ambiguous", form: "ambiguous"}));
+      }
+      return;
     }
+    entries.set(name, Object.freeze({
+      kind: form === "const" && initializer ? "const" : "unknown",
+      form,
+      declaration,
+      initializer,
+    }));
   }
+
   function namesFromBinding(name, result = []) {
     if (ts.isIdentifier(name)) {
       result.push(name.text);
@@ -125,8 +141,10 @@ function lexicalBindings(parsed) {
     }
     return result;
   }
-  function recordUnknown(scope, nameNode, declaration) {
-    if (nameNode) for (const name of namesFromBinding(nameNode)) add(scope, name, declaration);
+  function recordUnknown(scope, nameNode, declaration, form = "lexical") {
+    if (nameNode) for (const name of namesFromBinding(nameNode)) {
+      add(scope, name, declaration, null, form);
+    }
   }
   function visit(node) {
     if (ts.isVariableDeclarationList(node)) {
@@ -136,20 +154,24 @@ function lexicalBindings(parsed) {
       for (const declaration of node.declarations) {
         if (ts.isIdentifier(declaration.name)) {
           add(scope, declaration.name.text, declaration,
-            isConst ? declaration.initializer : null);
+            isConst ? declaration.initializer : null,
+            isConst ? "const" : isVar ? "hoistable" : "lexical");
         } else {
-          recordUnknown(scope, declaration.name, declaration);
+          recordUnknown(scope, declaration.name, declaration,
+            isVar ? "hoistable" : "lexical");
         }
       }
     }
     if (ts.isFunctionLike(node)) {
-      for (const parameter of node.parameters || []) recordUnknown(node, parameter.name, parameter);
+      for (const parameter of node.parameters || []) {
+        recordUnknown(node, parameter.name, parameter, "hoistable");
+      }
     }
     if (ts.isCatchClause(node) && node.variableDeclaration) {
       recordUnknown(node, node.variableDeclaration.name, node.variableDeclaration);
     }
     if (ts.isFunctionDeclaration(node) && node.name) {
-      add(parentScope(node), node.name.text, node);
+      add(parentScope(node), node.name.text, node, null, "hoistable");
     }
     if (ts.isClassDeclaration(node) && node.name) {
       add(parentScope(node), node.name.text, node);
@@ -162,7 +184,13 @@ function lexicalBindings(parsed) {
       if (bindings && ts.isNamespaceImport(bindings)) {
         add(scope, bindings.name.text, bindings);
       } else if (bindings && ts.isNamedImports(bindings)) {
-        for (const element of bindings.elements) add(scope, element.name.text, element);
+        for (const element of bindings.elements) {
+          const fromNodeModule = ts.isStringLiteralLike(node.moduleSpecifier) &&
+            node.moduleSpecifier.text === "node:module" &&
+            (element.propertyName?.text ?? element.name.text) === "createRequire";
+          add(scope, element.name.text, element, null,
+            fromNodeModule ? "node-create-require-import" : "lexical");
+        }
       }
     }
     if (ts.isImportEqualsDeclaration(node)) add(parentScope(node), node.name.text, node);
@@ -235,13 +263,47 @@ function hasAmbiguousLexicalBinding(node, resolveBinding) {
   return ambiguous;
 }
 
-function isModuleLoaderExpression(expression) {
-  if (expression.kind === ts.SyntaxKind.ImportKeyword ||
-      (ts.isIdentifier(expression) && expression.text === "require")) return true;
+function isRecognizedCreateRequire(binding, resolveBinding, active = new Set()) {
+  if (binding?.kind !== "const" || active.has(binding.declaration)) return false;
+  active.add(binding.declaration);
+  const initializer = binding.initializer;
+  let recognized = false;
+  if (initializer && ts.isCallExpression(initializer) &&
+      ts.isIdentifier(initializer.expression)) {
+    // Named import may use a local alias: import {createRequire as cr} from
+    // 'node:module'; const load = cr(import.meta.url).
+    recognized = resolveBinding(initializer.expression)?.form ===
+      "node-create-require-import";
+  } else if (initializer && ts.isIdentifier(initializer)) {
+    // A constant alias of the real factory's returned loader retains the
+    // same property without inspecting or executing user source.
+    recognized = isRecognizedCreateRequire(resolveBinding(initializer), resolveBinding, active);
+  }
+  active.delete(binding.declaration);
+  return recognized;
+}
+
+function isModuleLoaderExpression(expression, resolveBinding) {
+  if (expression.kind === ts.SyntaxKind.ImportKeyword) return true;
+  if (ts.isIdentifier(expression)) {
+    const binding = resolveBinding(expression);
+    // Unshadowed require() is CommonJS; a locally bound parameter or
+    // unrelated function is not. The alias to a genuine node:module
+    // createRequire result is the one narrow recognized exception.
+    return (expression.text === "require" && binding === null) ||
+      isRecognizedCreateRequire(binding, resolveBinding);
+  }
   if (!ts.isPropertyAccessExpression(expression) ||
       !ts.isIdentifier(expression.expression)) return false;
-  return (expression.expression.text === "module" && expression.name.text === "require") ||
-    (expression.expression.text === "require" && expression.name.text === "resolve");
+  if (expression.expression.text === "module" && expression.name.text === "require") {
+    return resolveBinding(expression.expression) === null;
+  }
+  if (expression.name.text === "resolve") {
+    const binding = resolveBinding(expression.expression);
+    return (expression.expression.text === "require" && binding === null) ||
+      isRecognizedCreateRequire(binding, resolveBinding);
+  }
+  return false;
 }
 
 /** Static, source-only census; not proof of a protected runtime import graph. */
@@ -283,7 +345,7 @@ export function inspectVoidReplayWriterCallerSourceV1(file, contents) {
     } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) &&
                node.moduleReference.expression && ts.isStringLiteralLike(node.moduleReference.expression)) {
       push(staticReference(node.moduleReference.expression.text, node, file, null, Boolean(node.isTypeOnly), "import-equals"));
-    } else if (ts.isCallExpression(node) && isModuleLoaderExpression(node.expression)) {
+    } else if (ts.isCallExpression(node) && isModuleLoaderExpression(node.expression, resolveBinding)) {
       const first = node.arguments[0];
       const resolved = staticStringValue(first, resolveBinding);
       if (resolved !== null) {
