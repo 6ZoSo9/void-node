@@ -41,6 +41,49 @@ immutable executable closure and no bypass route.
   a new proof file does not automatically allow it to run the unsafe writer.
 - Treat all other writer-module references, including aliases of legacy
   mutators, as `HOLD_UNREVIEWED_WRITER_CALLER` and fail the source scan.
+- For direct `import()`, `require()`, `module.require()` and `require.resolve()`
+  calls, statically fold bounded string concatenations, template literals and
+  uniquely named `const` string bindings, including common TS wrappers.
+  A runtime reference cannot evade this tripwire merely by splitting the
+  writer basename across two static string fragments. Constant aliases are
+  resolved against the nearest **lexical** binding: identical names declared
+  in sibling functions or nested blocks neither erase a dangerous writer
+  reference nor spuriously taint an unrelated loader. A duplicate binding in
+  one lexical scope triggers a conservative computed-loader HOLD rather than
+  silently discarding the identity. The source proof includes sibling/nested
+  scope, function/arrow/catch/for shadow, transitive alias and duplicate
+  declaration adversaries. Legal var/function/parameter redeclarations sharing
+  one function-scoped binding are treated as unresolvable but **not** ambiguous;
+  a class static block forms an independent var scope. Direct `require` and
+  `module.require` (and `require.resolve`) are recognized only when the loader
+  identifier is not lexically shadowed, or when `require` comes from a locally
+  bound `createRequire` that is itself a reviewed named `node:module` import.
+  A parameter named `require` or `module` is an arbitrary callback/object,
+  not evidence of a Node loader. Named function/class expressions similarly
+  bind their own `require`/`module` identifiers only inside their bodies.
+  For genuine loaders, the scanner follows bounded, cyclic-safe `const` alias
+  chains back to the exact named `createRequire` import from `node:module`,
+  including aliases of the factory *before* it creates a loader. This does not
+  grant a local same-name helper or a shadowed parameter loader authority.
+  On hitting the 24-level alias bound, the scanner marks loader identity
+  **inconclusive**, not disproven, and returns a conservative HOLD if the
+  bounded request path resolves to this protected writer. The same rule
+  applies when the static import specifier exceeds the 4-KiB **byte** limit,
+  whether the limit is reached by a literal, string concatenation or
+  template interpolation. The audit marks either depth or byte exhaustion
+  inconclusive and HOLDS instead of treating a partially folded specifier as
+  harmless; benign overlong imports can require manual review. Cycles and
+  unresolved runtime environment variables remain separate from an explicit
+  bound being reached.
+
+  For named function expressions, the internal function name has an
+  **independent self-name environment** outside the body's parameter and
+  `var` bindings. A same-name parameter or body `var` shadows this name
+  without becoming an ambiguous duplicate, while the unshadowed internal
+  name (including `require`) remains separate from the ambient CommonJS
+  loader.
+  No source expression is evaluated or executed during this source-only
+  analysis.
 - Require the writer itself still exports both legacy entrypoints so an
   intentional future retirement/rename cannot silently inherit this census.
   Its presence is a recorded **remaining risk**, not a GREEN runtime claim.
@@ -48,8 +91,10 @@ immutable executable closure and no bypass route.
 Source records and classifications are content-addressed. This hash isn't a
 trusted Git attestation, a signed receipt or monotonic high-water custody.
 The tool does not enumerate live processes, compiled `dist`, C/C++ extensions,
-indirect dynamically computed imports without a literal writer basename,
-executable packaging or the process's actual import graph. A privileged actor
+indirect loaders with nonconstant arguments, arbitrary expression/alias
+resolution, source import maps, loaders invoked through unrelated functions,
+executable packaging or the process's actual import graph. Static folding is
+bounded and deliberately incomplete; it is not runtime reachability analysis. A privileged actor
 can still bypass these source checks. Runtime exclusivity remains false.
 
 ## Trigger scope and CI cost boundary
