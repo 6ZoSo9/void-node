@@ -5,7 +5,7 @@
 This source-only Draft is requalified onto the composed enforcement lineage:
 [#2669](https://github.com/6ZoSo9/void-node/pull/2669) merged into parent
 [#2667](https://github.com/6ZoSo9/void-node/pull/2667) at exact source commit
-`f4dc0e78d7e94ef43f68ff7819ce07cc61ca369f`.
+`a5409d50bbff85aab84e6d0eea962589fc1ff3e6`.
 That parent contains the composed V6 runtime/operator-auth source, the reviewed
 saga file staged into a STOPPED candidate Docker image, and the source-only
 saga import-initialization audit. None of those proofs executes the real saga.
