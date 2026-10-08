@@ -1,0 +1,75 @@
+name: VOID Precision bootstrap v2 tunnel cutover safety v1
+
+on:
+  pull_request:
+    paths:
+      - ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py
+      - .github/workflows/void-precision-bootstrap-v2-tunnel-cutover-safety-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax and exact route containment
+        run: |
+          python3 - <<'PY'
+          import ast
+          import importlib.util
+          import re
+          from pathlib import Path
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          ast.parse(src.read_text(encoding="utf-8"), filename=str(src))
+          spec = importlib.util.spec_from_file_location("cutover", src)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          assert module.EXPECTED_OLD_SHA == "2f32e965e000d756e2706fbf05bc1488e9f4b6e820c43a18877cd8d58c402c52"
+          assert module.EXPECTED_CANDIDATE_SHA == "38d5a4055c4e5b5ccb0fbc1bf199e3d732d0025754063dacb11a4718fd579ea5"
+          assert module.EXPECTED_MANIFEST_SHA == "b72071b42e0fbce7fa4079ce8000b6521377e4e55cdfba05ca610015c9e3ddd4"
+          before = b"tunnel: fixed\ncredentials-file: /no/key\noriginRequest:\n  connectTimeout: 10s\ningress:\n" + module.ANCHOR + b"  - service: http_status:404\n"
+          after = before.replace(module.ANCHOR, module.ADDITION + module.ANCHOR, 1)
+          assert after.count(module.ANCHOR) == 1
+          assert after.replace(module.ADDITION, b"", 1) == before
+          pattern = module.ADDITION.split(b"path: '", 1)[1].split(b"'\n", 1)[0].decode("ascii")
+          assert re.fullmatch(pattern, module.NEW_PATH)
+          assert re.fullmatch(pattern, module.OLD_PATH)
+          assert not re.fullmatch(pattern, "/void/bootstrap/v2/records/voidpbr2_" + "0" * 64 + ".json")
+          assert not re.fullmatch(pattern, "/__void/ready.json")
+          assert not re.fullmatch(pattern, "/admin")
+          assert not re.fullmatch(pattern, "/void/bootstrap/v2/manifests/latest.json")
+          expected = {
+              module.NEW_PATH: "http://127.0.0.1:8080",
+              module.OLD_PATH: "http://127.0.0.1:8080",
+              "/__void/ready.json": "http://127.0.0.1:4111",
+              "/__void/public-earn-gateway-v1/status.json": "http://127.0.0.1:4122",
+              "/public-node/economic/epoch2/read-status-v1.json": "http://127.0.0.1:8082",
+          }
+          for route, origin in module.ROUTES:
+              if route in expected:
+                  assert expected[route] == origin
+          print("source_syntax=GREEN")
+          print("bootstrap_v2_route_containment=GREEN")
+          print("seed_earn_economic_routes_unchanged=true")
+          PY
+
+      - name: Wrong-host plan and apply fail closed without creating state
+        run: |
+          set -Eeuo pipefail
+          script="ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py"
+          state="$HOME/.local/state/void/precision-bootstrap-v2-tunnel-cutover-20261008-v1"
+          for mode in --plan --apply; do
+            set +e
+            output="$(python3 "$script" "$mode" 2>&1)"
+            status=$?
+            set -e
+            test "$status" -eq 2
+            printf '%s\n' "$output" | grep -Fq "HOLD_host_or_user"
+            test ! -e "$state"
+          done
+          echo "wrong_host_fails_closed=true"
+          echo "runtime_mutation=false"
