@@ -195,9 +195,15 @@ else
   fi
 fi
 
-sudo /bin/bash "$trusted"
+sudo /usr/bin/env -i HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C LC_ALL=C /bin/bash --noprofile --norc "$trusted"
 '
 ~~~
+
+The verified root-owned installer is executed only through `sudo /usr/bin/env -i`
+with fixed `HOME=/root`, system `PATH`, `LANG=C`, and `LC_ALL=C`, followed by
+`/bin/bash --noprofile --norc`. No caller `BASH_ENV`, `ENV`, `SHELLOPTS`,
+`BASHOPTS`, `CDPATH`, exported shell function, Node option, or other ambient
+startup variable is preserved into privileged Bash.
 
 The current Nimo handler may still be old because a previous attempt
 stopped at a temporary file with an unrecognized extension. If the installer
