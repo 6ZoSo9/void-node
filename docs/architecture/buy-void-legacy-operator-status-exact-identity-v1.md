@@ -21,10 +21,15 @@ mounted operator route, protected custody service or active integration PR.
 Only `src/economic/buy_void_verified_payment_capacity_admission_v1.ts`
 existing code is modified:
 
-- The exported legacy operator writer now accepts only EXACT
-  `payment_verified`, `reviewed`, `fulfilled`, or `rejected` strings.
-  Case, whitespace, objects with custom `toJSON`, and any unknown status
-  fail before request-directory creation, append or sidecar publication.
+- The exported legacy operator writer serializes the caller event exactly once
+  into a detached, deep-frozen snapshot before choosing payment versus
+  nonpayment handling. The exact bytes selected by that snapshot are the bytes
+  later appended, so stateful getters or a top-level `toJSON()` cannot change
+  status between routing and persistence.
+- The detached snapshot accepts only EXACT `payment_verified`, `reviewed`,
+  `fulfilled`, or `rejected` strings. Case, whitespace, status objects and
+  unknown values fail before request-directory creation, append or sidecar
+  publication.
 - The existing strict capacity recount requires operator-event status
   to be a nonempty, unpadded **string**; no row is silently converted
   from a whitespace alias into a verified-capacity obligation.
@@ -42,8 +47,15 @@ operator auth, capacity quote calculation, or allocation writer changes.
 `scripts/prove_buy_void_legacy_operator_status_exact_identity_v1.ts`
 pins the changed writer Git blob and calls the actual exported writer
 with malformed statuses. It asserts no filesystem root is created before
-the invalid input fails, including a synthetic object whose `toString` and
-`toJSON` disagree about whether it is verified.
+the invalid input fails, including a synthetic status object whose `toString`
+and `toJSON` disagree.
+
+It also exercises two mutable-caller adversaries against the actual writer:
+a stateful `operator_status` getter that returns `reviewed` first and
+`payment_verified` later must be read only once and persist `reviewed`;
+and a top-level event `toJSON()` that serializes `payment_verified` after
+presenting a visible `reviewed` property must enter the protected payment path
+and must never succeed through the legacy nonpayment append.
 
 It separately exercises `testOnlyReadStrictCapacityCensusV1` against
 private OS-temp `requests.jsonl` and `operator-events.jsonl`:
