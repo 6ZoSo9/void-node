@@ -92,14 +92,23 @@ function absolutePrivateRoot(value: unknown): string {
 export function planBuyVoidOperatorAllocationDispatchV1(
   input: BuyVoidOperatorAllocationDispatchInputV1,
 ) {
-  const event = frozenJsonSnapshot(input?.event, "event");
-  const request = frozenJsonSnapshot(input?.request, "request");
+  // Capture every caller-controlled property once. The returned frozen plan
+  // is the only authority dispatch() may consume after validation.
+  const rawEvent = input?.event;
+  const rawRequest = input?.request;
+  const requestDir = input?.request_dir;
+  const allocationLedgerRootRaw = input?.allocation_ledger_root;
+  const allocationHighWaterRootRaw = input?.allocation_high_water_root;
+  const withLaunchAuthorityMutation = input?.with_launch_authority_mutation;
+  const readSaleState = input?.read_sale_state;
+  const event = frozenJsonSnapshot(rawEvent, "event");
+  const request = frozenJsonSnapshot(rawRequest, "request");
   const requestId = String(event.request_id || "");
   if (!requestId || requestId !== String(request.request_id || "") ||
       typeof event.operator_status !== "string" || !event.operator_status ||
-      typeof input?.request_dir !== "string" || !input.request_dir.trim() ||
-      typeof input.with_launch_authority_mutation !== "function" ||
-      typeof input.read_sale_state !== "function") {
+      typeof requestDir !== "string" || !requestDir.trim() ||
+      typeof withLaunchAuthorityMutation !== "function" ||
+      typeof readSaleState !== "function") {
     hold("request_event_identity_or_server_callbacks_invalid");
   }
   if (event.operator_status !== "payment_verified") {
@@ -107,12 +116,14 @@ export function planBuyVoidOperatorAllocationDispatchV1(
       kind: "nonpayment_legacy_writer" as const,
       event,
       request,
-      request_dir: input.request_dir,
+      request_dir: requestDir,
+      with_launch_authority_mutation: withLaunchAuthorityMutation,
+      read_sale_state: readSaleState,
     });
   }
-  const allocationLedgerRoot = absolutePrivateRoot(input.allocation_ledger_root);
+  const allocationLedgerRoot = absolutePrivateRoot(allocationLedgerRootRaw);
   const allocationHighWaterRoot =
-    absolutePrivateRoot(input.allocation_high_water_root);
+    absolutePrivateRoot(allocationHighWaterRootRaw);
   if (allocationLedgerRoot === allocationHighWaterRoot ||
       allocationLedgerRoot.startsWith(allocationHighWaterRoot + path.sep) ||
       allocationHighWaterRoot.startsWith(allocationLedgerRoot + path.sep)) {
@@ -122,9 +133,11 @@ export function planBuyVoidOperatorAllocationDispatchV1(
     kind: "verified_payment_allocation_handoff" as const,
     event,
     request,
-    request_dir: input.request_dir,
+    request_dir: requestDir,
     allocation_ledger_root: allocationLedgerRoot,
     allocation_high_water_root: allocationHighWaterRoot,
+    with_launch_authority_mutation: withLaunchAuthorityMutation,
+    read_sale_state: readSaleState,
   });
 }
 
@@ -139,8 +152,8 @@ export async function dispatchBuyVoidOperatorEventWithAllocationRequiredV1(
     event: plan.event,
     request: plan.request,
     request_dir: plan.request_dir,
-    with_launch_authority_mutation: input.with_launch_authority_mutation,
-    read_sale_state: input.read_sale_state,
+    with_launch_authority_mutation: plan.with_launch_authority_mutation,
+    read_sale_state: plan.read_sale_state,
   };
   if (plan.kind === "verified_payment_allocation_handoff") {
     return writeBuyVoidVerifiedPaymentAllocationHandoffV1({
