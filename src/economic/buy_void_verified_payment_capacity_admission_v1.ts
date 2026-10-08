@@ -21,6 +21,7 @@ import {
   snapshotBuyVoidAllocationReservationPublicationWriterV1,
 } from "./buy_void_allocation_reservation_publication_writer_v1.js";
 import {
+  classifyBuyVoidPreappendVerifiedPaymentLineageV1,
   classifyBuyVoidVerifiedAllocationReplayBindingV1,
 } from "./buy_void_verified_allocation_replay_binding_v1.js";
 
@@ -786,40 +787,137 @@ function ensurePaymentVerifiedSidecarExactV1(
   const tempPrefix = "." + path.basename(sidecar) + ".tmp-";
 
   const verifyExisting = () => {
-    const metadata = fs.lstatSync(sidecar);
+    const code =
+      "buy_void_verified_payment_capacity_sidecar_conflict";
+    const visibleBefore = fs.lstatSync(sidecar, { bigint: true });
     if (
-      !metadata.isFile() ||
-      metadata.isSymbolicLink() ||
-      metadata.size !== expected.length
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      visibleBefore.size !== BigInt(expected.length) ||
+      visibleBefore.nlink < 1n ||
+      (
+        typeof process.getuid === "function" &&
+        visibleBefore.uid !== BigInt(process.getuid())
+      ) ||
+      (Number(visibleBefore.mode) & 0o022) !== 0
     ) {
-      fail("buy_void_verified_payment_capacity_sidecar_conflict");
-    }
-    const observed = fs.readFileSync(sidecar);
-    if (!observed.equals(expected)) {
-      fail("buy_void_verified_payment_capacity_sidecar_conflict");
+      fail(code);
     }
 
-    // If a crash happened after create-only hard-link publication but before
-    // temporary-link cleanup, remove only temp names that reference the exact
-    // already-verified final inode.
-    for (const name of fs.readdirSync(requestDir)) {
-      if (!name.startsWith(tempPrefix)) continue;
-      const candidate = path.join(requestDir, name);
-      let candidateMetadata;
-      try {
-        candidateMetadata = fs.lstatSync(candidate);
-      } catch {
-        continue;
-      }
+    const nonblock =
+      typeof fs.constants.O_NONBLOCK === "number"
+        ? fs.constants.O_NONBLOCK
+        : 0;
+    const descriptor = fs.openSync(
+      sidecar,
+      fs.constants.O_RDONLY | O_NOFOLLOW | nonblock,
+    );
+    try {
+      const before = fs.fstatSync(descriptor, { bigint: true });
       if (
-        candidateMetadata.isFile() &&
-        !candidateMetadata.isSymbolicLink() &&
-        candidateMetadata.dev === metadata.dev &&
-        candidateMetadata.ino === metadata.ino
+        !before.isFile() ||
+        before.size !== BigInt(expected.length) ||
+        before.nlink < 1n ||
+        !sameFileIdentityV1(visibleBefore, before)
       ) {
-        fs.unlinkSync(candidate);
+        fail(code);
+      }
+
+      // Read no more than the pinned size plus one sentinel byte. Concurrent
+      // growth HOLDS before excess bytes can be buffered.
+      const buffer = Buffer.alloc(expected.length + 1);
+      let total = 0;
+      while (total < buffer.length) {
+        const read = fs.readSync(
+          descriptor,
+          buffer,
+          total,
+          buffer.length - total,
+          total,
+        );
+        if (read === 0) break;
+        total += read;
+      }
+      if (total !== expected.length) {
+        fail(code);
+      }
+      const observed = buffer.subarray(0, total);
+      if (!observed.equals(expected)) {
+        fail(code);
+      }
+
+      const afterRead = fs.fstatSync(descriptor, { bigint: true });
+      const visibleAfterRead =
+        fs.lstatSync(sidecar, { bigint: true });
+      if (
+        !sameFileIdentityV1(before, afterRead) ||
+        !sameFileIdentityV1(afterRead, visibleAfterRead)
+      ) {
+        fail(code);
+      }
+
+      // Crash recovery may leave the create-only temp hardlink. Every extra
+      // link must be an exact owned temp name to this already verified inode.
+      let ownedTempLinks = 0n;
+      for (const name of fs.readdirSync(requestDir)) {
+        if (!name.startsWith(tempPrefix)) continue;
+        const candidate = path.join(requestDir, name);
+        let candidateMetadata;
+        try {
+          candidateMetadata =
+            fs.lstatSync(candidate, { bigint: true });
+        } catch {
+          continue;
+        }
+        if (
+          candidateMetadata.isFile() &&
+          !candidateMetadata.isSymbolicLink() &&
+          candidateMetadata.dev === afterRead.dev &&
+          candidateMetadata.ino === afterRead.ino
+        ) {
+          ownedTempLinks += 1n;
+        }
+      }
+      if (afterRead.nlink !== 1n + ownedTempLinks) {
+        fail(code);
+      }
+
+      if (ownedTempLinks > 0n) {
+        for (const name of fs.readdirSync(requestDir)) {
+          if (!name.startsWith(tempPrefix)) continue;
+          const candidate = path.join(requestDir, name);
+          let candidateMetadata;
+          try {
+            candidateMetadata =
+              fs.lstatSync(candidate, { bigint: true });
+          } catch {
+            continue;
+          }
+          if (
+            candidateMetadata.isFile() &&
+            !candidateMetadata.isSymbolicLink() &&
+            candidateMetadata.dev === afterRead.dev &&
+            candidateMetadata.ino === afterRead.ino
+          ) {
+            fs.unlinkSync(candidate);
+          }
+        }
         fsyncDirectoryV1(requestDir);
       }
+
+      const finalFd = fs.fstatSync(descriptor, { bigint: true });
+      const finalVisible =
+        fs.lstatSync(sidecar, { bigint: true });
+      if (
+        finalFd.nlink !== 1n ||
+        finalFd.size !== BigInt(expected.length) ||
+        !sameFileInodeCustodyV1(afterRead, finalFd) ||
+        !sameFileIdentityV1(finalFd, finalVisible)
+      ) {
+        fail(code);
+      }
+    } finally {
+      fs.closeSync(descriptor);
     }
   };
 
@@ -1478,7 +1576,7 @@ function assertPriorVerifiedAllocationsCompleteV1(input: {
     operator_jsonl: Buffer;
     strict_verified_request_ids: readonly string[];
   };
-}): void {
+}): Buffer {
   const snapshot =
     snapshotBuyVoidAllocationReservationPublicationWriterV1({
       ledger_root: input.allocation_ledger_root,
@@ -1514,6 +1612,7 @@ function assertPriorVerifiedAllocationsCompleteV1(input: {
       );
     }
   }
+  return allocationBytes;
 }
 
 function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
@@ -1893,13 +1992,34 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
                     "buy_void_verified_payment_capacity_requests_changed_since_census",
                   );
                 }
-                assertPriorVerifiedAllocationsCompleteV1({
-                  current_request_id: requestId,
-                  allocation_ledger_root: allocationLedgerRoot,
-                  allocation_high_water_root:
-                    allocationHighWaterRoot,
-                  authority,
-                });
+                const preappendAllocationBytes =
+                  assertPriorVerifiedAllocationsCompleteV1({
+                    current_request_id: requestId,
+                    allocation_ledger_root: allocationLedgerRoot,
+                    allocation_high_water_root:
+                      allocationHighWaterRoot,
+                    authority,
+                  });
+                const preappend =
+                  classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+                    request,
+                    event,
+                    requests_jsonl: Buffer.from(
+                      authority.request_jsonl,
+                    ),
+                    prior_operator_events_jsonl: Buffer.from(
+                      authority.operator_jsonl,
+                    ),
+                    allocation_jsonl: Buffer.from(
+                      preappendAllocationBytes,
+                    ),
+                  });
+                if (preappend.ok !== true) {
+                  fail(
+                    "buy_void_verified_payment_preappend_lineage_" +
+                      String(preappend.reason || "held"),
+                  );
+                }
                 appendPaymentVerifiedEventDurableV1(
                   authority.operator_ledger,
                   authority.operator_ledger_stat,
