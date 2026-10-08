@@ -13,7 +13,7 @@ in that compiled importer names the omitted
 
 This separate source-only *Draft* is a **sibling** of #2646, stacked on
 [original unaccepted dynamic tool candidate #2642](https://github.com/6ZoSo9/void-node/pull/2642)
-at the exact parent head `e9eb32941b1ca2faf22ca812daba688726843193`.
+at the exact parent head `8e1eed313379fec709f7c86695c57a9d01da2edb`.
 It does not inherit #2646's intentional *missing-file* negative assertion,
 which should naturally fail if used after this proposed positive copy.
 
