@@ -53,6 +53,10 @@ jobs:
             "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'computed_status_object_toJSON_alias_rejected=true' \
             "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'stateful_status_getter_single_snapshot=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'top_level_toJSON_payment_alias_protected=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'legacy_recount_rejects_trimmed_verified_alias=true' \
             "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'canonical_verified_capacity_recount_preserved=true' \
