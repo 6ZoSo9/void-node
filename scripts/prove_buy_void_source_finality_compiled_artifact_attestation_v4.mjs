@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
@@ -123,6 +123,47 @@ function readPinned(relativePath, maxBytes = MAX_FILE_BYTES) {
     if (fd !== null) fs.closeSync(fd);
   }
 }
+// These bytes have already been bound by the pinned fd and Git blob check.
+// NEVER use the candidate path as the child process entrypoint: a new inode
+// could replace it after verification, execute side effects, and still print
+// the expected candidate JSON. The evaluated entry IS the captured bytes.
+function executeReviewedCandidateBytesV4(candidateScriptBytes, candidatePath) {
+  const exactPath = path.resolve(candidatePath);
+  const prelude =
+    "import.meta.url = " + JSON.stringify(pathToFileURL(exactPath).href) + ";\n" +
+    "process.argv = [process.execPath, " + JSON.stringify(exactPath) +
+    ', "--derive"];\n';
+  // Node [eval1] resolves relative ESM imports from cwd, not from an
+  // overwritten import.meta.url. The verified candidate's only static
+  // imports are Node builtins. Its relative V6 dynamic import is resolved
+  // from the scripts directory, not from an arbitrary caller directory.
+  return execFileSync(
+    process.execPath,
+    ["--input-type=module", "--eval",
+      prelude + candidateScriptBytes.toString("utf8")],
+    {
+      cwd: path.dirname(exactPath),
+      // Allowlist every child setting: ambient NODE_OPTIONS, NODE_PATH,
+      // preload hooks and user-supplied Git or shell configuration must not
+      // get propagated into a new source-attestation execution context.
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+        TZ: "UTC",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 120_000,
+      maxBuffer: 64 * 1024,
+    },
+  );
+}
+
 function deriveLockedManifest() {
   const candidateScriptBytes = readPinned(CANDIDATE_SCRIPT, 256 * 1024);
   if (gitBlobSha1(candidateScriptBytes) !==
@@ -130,16 +171,9 @@ function deriveLockedManifest() {
     fail("locked_v4_candidate_script_blob_mismatch");
   }
 
-  const stdout = execFileSync(
-    process.execPath,
-    [path.join(ROOT, CANDIDATE_SCRIPT), "--derive"],
-    {
-      cwd: ROOT,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 120_000,
-      maxBuffer: 64 * 1024,
-    },
+  const stdout = executeReviewedCandidateBytesV4(
+    candidateScriptBytes,
+    path.join(ROOT, CANDIDATE_SCRIPT),
   );
   const candidateBytes = Buffer.from(stdout, "utf8");
   if (sha256(candidateBytes) !== EXPECTED_CANDIDATE_JSON_SHA256) {

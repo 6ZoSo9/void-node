@@ -36,6 +36,34 @@ The reviewed V6 source identity remains Git blob
 digest is
 `6a2493b269919be87273eb9bcfc959ab601aab9c16689c54a813db619d1b980f`.
 
+## Bound candidate execution and hostile-environment exclusion
+
+The original V4 locked proof checked the candidate helper's Git blob from a
+pinned descriptor, then spawned Node with that helper's **pathname**. This
+left a source-verification-to-execution race: a different inode could replace
+the checked file while emitting the same JSON, potentially running unrelated
+code before the stdout digest check.
+
+This guarded successor instead passes the **captured, Git-blob-verified
+script bytes** to a new Node ESM `--eval` process and never opens the
+candidate pathname to execute it. It assigns the reviewed candidate's
+`import.meta.url`/argument vector within that isolated evaluation and
+starts the process with the scripts directory as its cwd so the vetted
+`../dist/economic` dynamic import still resolves correctly. The child uses
+an explicit minimal environment, excluding ambient `NODE_OPTIONS`,
+`NODE_PATH`, user-controlled preload hooks, and injected Git configuration.
+
+An inert synthetic proof extracts the **real helper implementation** from
+the locked-proof source, creates only disposable OS-temp ESM fixtures,
+captures reviewed helper bytes, replaces the pathname with a new malicious
+inode after capture, and verifies the unreviewed source is not executed.
+The proof separately injects hostile `NODE_OPTIONS=--import` and
+`NODE_PATH`, requiring no executed ambient preload. This closes the
+narrow source-checked-entry race in this controlled CI path. It does not
+claim that mutable compiled dependencies are safe to execute on an
+untrusted live host: review the six-artifact compiled closure and deploy
+from an independently qualified immutable packaged generation.
+
 The candidate's descriptor-bound reader is re-run before every locked
 derivation. It retains `O_NOFOLLOW` descriptors, binds visible path identity
 before and after bounded positional reads, and detects one-byte growth beyond
