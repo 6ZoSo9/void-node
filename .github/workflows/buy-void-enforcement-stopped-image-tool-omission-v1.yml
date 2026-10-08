@@ -1,0 +1,144 @@
+name: VOID Buy VOID stopped image dynamic saga omission census v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_enforcement_stopped_image_tool_omission_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-stopped-image-tool-omission-v1.md"
+      - ".github/workflows/buy-void-enforcement-stopped-image-tool-omission-v1.yml"
+      - "Dockerfile"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-stopped-saga-negative-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  source-census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact source revision and clean checkout
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up independent Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove static final-stage source omission (NOT deployed image)
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_stopped_image_tool_omission_v1.mjs
+          node scripts/prove_buy_void_enforcement_stopped_image_tool_omission_v1.mjs --self-test
+          node scripts/prove_buy_void_enforcement_stopped_image_tool_omission_v1.mjs --source > "saga-source-omission-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(d.image_stop_state_verified,false);
+            assert.equal(d.saga_target_missing_in_image,false);
+            assert.equal(d.package_generation_accepted,false);
+            assert.equal(d.production_source_finality_authority_ready,false);
+            console.log("VOID_SAGA_IMAGE_SOURCE_ONLY_NEGATIVE_HOLD_GREEN");
+          ' "saga-source-omission-${{ matrix.node }}.json"
+      - name: Upload three source-only reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-saga-source-omission-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: saga-source-omission-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  stopped-image:
+    needs: [source-census]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node 24 for read-only image evidence
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Build but NEVER start a local production-shaped image
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+          docker build --iidfile "$RUNNER_TEMP/void-saga-negative-image-id" .
+          IMAGE_ID="$(cat "$RUNNER_TEMP/void-saga-negative-image-id")"
+          [[ "$IMAGE_ID" =~ ^sha256:[a-f0-9]{64}$ ]]
+          CID="$(docker create "$IMAGE_ID")"
+          cleanup() { docker rm "$CID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
+          test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
+          test "$(docker inspect --format '{{json .Mounts}}' "$CID")" = "[]"
+          test "$(docker inspect --format '{{.Image}}' "$CID")" = "$IMAGE_ID"
+          docker inspect "$CID" > "$RUNNER_TEMP/void-saga-image-inspect-before.json"
+          ROOT="$RUNNER_TEMP/void-saga-stopped-root"
+          mkdir -p "$ROOT/dist/economic"
+          docker cp "$CID:/app/dist/economic/buy_void_erc20_execution_composition_v1.js" "$ROOT/dist/economic/"
+          docker cp "$CID:/app/tools" "$ROOT/tools"
+          node scripts/prove_buy_void_enforcement_stopped_image_tool_omission_v1.mjs --stopped-extraction "$ROOT" \
+            | tee "$RUNNER_TEMP/void-saga-stopped-omission.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.stopped_image_compiled_importer_verified,true);
+            assert.equal(j.stopped_image_dynamic_tool_absence_verified,true);
+            assert.equal(j.missing_final_tool_paths.length,3);
+            assert.ok(j.missing_final_tool_paths.includes("/app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"));
+            assert.equal(j.executed_saga_loader_qualified,false);
+            assert.equal(j.package_generation_accepted,false);
+            assert.equal(j.deployed_artifact_generation_verified,false);
+            assert.equal(j.production_source_finality_authority_ready,false);
+            console.log("VOID_STOPPED_IMAGE_SAGA_OMISSION_CONFIRMED_NONACCEPTING");
+          ' "$RUNNER_TEMP/void-saga-stopped-omission.json"
+          docker inspect "$CID" > "$RUNNER_TEMP/void-saga-image-inspect-after.json"
+          cmp "$RUNNER_TEMP/void-saga-image-inspect-before.json" "$RUNNER_TEMP/void-saga-image-inspect-after.json"
+          test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
+          test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
+      - name: Upload stopped-image absence evidence (never run)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-saga-stopped-image-omission-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-saga-stopped-omission.json
+          if-no-files-found: error
+          retention-days: 1
