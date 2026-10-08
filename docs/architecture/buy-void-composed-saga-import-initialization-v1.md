@@ -66,7 +66,10 @@ PROTECT THE CORE.
 ## Composed-lineage requalification
 
 This successor is derived from #2667 rather than inheriting the historical
-#2652 result. Source reads use the current ancestor-safe descriptor-relative
-helper and Git ancestry/diff checks use the reviewed absolute-`/usr/bin/git`
-helper with its closed environment. The real saga remains unimported and
-unexecuted; this is only import-initialization syntax policy evidence.
+#2652 result. Current-main composition does not require the historical component
+branch to be an ancestor. Instead, the reviewed absolute-`/usr/bin/git` helper
+reads the exact historical parent tree and requires its saga and Dockerfile
+blobs to match the pinned identities; the current files are then independently
+read through the descriptor-relative helper and required to match those same
+blobs. The real saga remains unimported and unexecuted; this is only
+import-initialization syntax policy evidence.
