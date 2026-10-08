@@ -301,7 +301,7 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV6():
           reason: "source_files_git_blob_mismatch",
         };
       }
-      // Even a valid open descriptor may outlive rename/replacement of its
+      // Even a valid open descriptor may outlive a swap of its
       // visible pathname: rebind the path after the pinned-byte digest.
       const visible = fs.lstatSync(sourcePath);
       if (
