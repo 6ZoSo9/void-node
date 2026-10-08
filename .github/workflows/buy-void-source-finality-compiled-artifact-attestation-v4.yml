@@ -1,0 +1,130 @@
+name: VOID Buy VOID source-finality compiled artifact attestation v4
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.md"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.yml"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v4.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-source-finality-compiled-v4-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build exact repository artifacts
+        run: npm run build
+
+      - name: Reprove candidate descriptor boundary
+        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
+
+      - name: Derive locked V4 manifest
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs --derive             > "locked-v4-${{ matrix.node }}.json"
+          cmp "locked-v4-${{ matrix.node }}.json"             docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs
+
+      - name: Upload locked derivation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-locked-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: locked-v4-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download locked derivations
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-locked-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./locked-v4
+
+      - name: Require exact Node 22/24/26 equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "locked-v4/locked-v4-$v.json"; done
+          cmp locked-v4/locked-v4-22.json locked-v4/locked-v4-24.json
+          cmp locked-v4/locked-v4-22.json locked-v4/locked-v4-26.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes = fs.readFileSync("locked-v4/locked-v4-22.json");
+            const j = JSON.parse(bytes);
+            if (j.compiled_artifact_generation_verified !== true ||
+                j.deployed_artifact_generation_verified !== false ||
+                j.runtime_mount_authority !== false ||
+                j.production_source_finality_authority_ready !== false) process.exit(1);
+            console.log("V4_LOCKED_CROSS_NODE_EXACT_BYTES_GREEN");
+            console.log("locked_v4_sha256=" +
+              crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("compiled_artifact_generation_sha256=" +
+              j.compiled_artifact_generation_sha256);
+          '
