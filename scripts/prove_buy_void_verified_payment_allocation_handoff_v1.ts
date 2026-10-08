@@ -137,7 +137,6 @@ function fixture(requests: readonly unknown[]): Fixture {
   const genesis =
     deriveBuyVoidAllocationReservationHighWaterV1("");
   assert.equal(genesis.ok, true);
-  if (genesis.ok === false) throw new Error(genesis.reason);
   fs.writeFileSync(
     path.join(highWaterRoot, HIGH_WATER_NAME),
     genesis.high_water_json,
@@ -232,7 +231,6 @@ function allocationState(f: Fixture) {
   );
   const classified = classifyBuyVoidAllocationReservationLedgerV1(ledger);
   assert.equal(classified.ok, true);
-  if (classified.ok === false) throw new Error(classified.reason);
   const bound = classifyBuyVoidAllocationReservationHighWaterBindingV1({
     ledger_jsonl: ledger,
     high_water_json: highWater,
