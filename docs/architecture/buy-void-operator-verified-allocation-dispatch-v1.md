@@ -110,3 +110,17 @@ presale/market or funds. No Ready, merge, runtime deployment or sale
 activation is authorized.
 
 **PROTECT THE CORE.**
+
+## Canonical custody roots
+
+The verified-payment branch does not merely require absolute, separated paths.
+It requires the exact reviewed production custody roots:
+
+- `/var/lib/void-allocation-ledger-v1`
+- `/var/lib/void-allocation-custody-v1`
+
+Any other absolute path, swapped root, nested root, relative path, or filesystem
+root remains HOLD. This is a source-level anti-miswiring constraint only; it
+does not prove the installed service owns those roots or grant the web process
+direct write authority.
+
