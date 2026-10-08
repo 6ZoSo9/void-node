@@ -39,6 +39,12 @@ export const VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_AUTHORITY_V1 =
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX = /^0x[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
+// Closed dual-rail native-USDC policy. Matching two caller-provided records
+// about another ERC-20 can never make it a valid USDC payment.
+const NATIVE_USDC_CONTRACT_BY_CHAIN = Object.freeze({
+  base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+});
 const SHA256_REF = /^sha256:[0-9a-f]{64}$/u;
 const HEX_64 = /^[0-9a-f]{64}$/u;
 const ACTIVATION_RECEIPT = /^voidbclive1_[0-9a-f]{64}$/u;
@@ -290,6 +296,9 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   }
   if (!request.launchAuthority) fail("verified_event_request_launch_authority_missing");
   if (!request.usdcContract) fail("verified_event_request_usdc_contract_missing");
+  if (request.usdcContract !== NATIVE_USDC_CONTRACT_BY_CHAIN[request.chain]) {
+    fail("verified_event_request_non_native_usdc_contract");
+  }
   if (row.quoted_void === undefined || amount(row.quoted_void, "verified_event_quote_invalid") !== request.voidMicro) {
     fail("verified_event_request_quote_mismatch");
   }

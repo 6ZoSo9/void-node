@@ -17,6 +17,8 @@ const tx = (x) => "0x" + x.repeat(64);
 const addr = (x) => "0x" + x.repeat(40);
 const digest = (x) => "sha256:" + x.repeat(64);
 const VOID_POOL = "10000000";
+const BASE_NATIVE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const ETHEREUM_NATIVE_USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const LAUNCH_AUTHORITY = Object.freeze({
   marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
   version: 1,
@@ -36,7 +38,7 @@ const request = Object.freeze({
   usdc_amount: "3",
   delivery_address: addr("2"),
   receive_address: addr("3"),
-  usdc_contract: addr("4"),
+  usdc_contract: BASE_NATIVE_USDC,
   launch_authority: LAUNCH_AUTHORITY,
 });
 const event = Object.freeze({
@@ -55,7 +57,7 @@ const event = Object.freeze({
     log_index: "7",
     block_number: "100",
     confirmations: "12",
-    usdc_contract: addr("4"),
+    usdc_contract: BASE_NATIVE_USDC,
     from_address: request.delivery_address,
     receive_address: request.receive_address,
     delivery_address: request.delivery_address,
@@ -186,13 +188,49 @@ hold(scan([request, {
 // The canonical verified-transfer contract must be present in the retained
 // request, not inferred from a caller's arbitrary ERC-20 event.
 hold(scan([{ ...request, usdc_contract: undefined }], [event]), /request_initial_usdc_contract_missing/u);
-hold(scan([{ ...request, usdc_contract: addr("8") }], [event]), /verified_event_usdc_contract_mismatch/u);
+hold(scan([{ ...request, usdc_contract: addr("8") }], [event]),
+  /verified_event_request_non_native_usdc_contract/u);
 hold(scan([request], [{ ...event, payment_verifier: {
   ...event.payment_verifier, usdc_contract: addr("8"),
 } }]), /verified_event_usdc_contract_mismatch/u);
 hold(scan([request], [{ ...event, payment_verifier: {
   ...event.payment_verifier, usdc_contract: undefined,
 } }]), /verified_event_usdc_contract_invalid/u);
+
+// Matching request + verified event are not valid if both name another ERC20,
+// even when the existing canonical allocation row matches their payment ID.
+const arbitraryToken = addr("8");
+const arbitraryRequest = { ...request, usdc_contract: arbitraryToken };
+const arbitraryEvent = {
+  ...event, payment_verifier: { ...event.payment_verifier, usdc_contract: arbitraryToken },
+};
+hold(scan([arbitraryRequest], [arbitraryEvent]),
+  /verified_event_request_non_native_usdc_contract/u);
+hold(scan([arbitraryRequest], [arbitraryEvent], allocationBytes),
+  /verified_event_request_non_native_usdc_contract/u);
+
+// Ethereum-native USDC remains an allowed distinct rail. Base's token cannot
+// be silently substituted for it even in a self-consistent forged history.
+const ethereumRequest = {
+  ...request, request_id: "buyvoid_eth_eeeeeeee", tx_hash: tx("f"),
+  source_chain: "ethereum", usdc_contract: ETHEREUM_NATIVE_USDC,
+};
+const ethereumEvent = {
+  ...event, request_id: ethereumRequest.request_id, tx_hash: ethereumRequest.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier, chain: "ethereum",
+    transaction_hash: ethereumRequest.tx_hash,
+    usdc_contract: ETHEREUM_NATIVE_USDC,
+  },
+};
+gap(scan([ethereumRequest], [ethereumEvent], Buffer.alloc(0), ethereumRequest.request_id));
+const wrongRailRequest = { ...ethereumRequest, usdc_contract: BASE_NATIVE_USDC };
+const wrongRailEvent = {
+  ...ethereumEvent,
+  payment_verifier: { ...ethereumEvent.payment_verifier, usdc_contract: BASE_NATIVE_USDC },
+};
+hold(scan([wrongRailRequest], [wrongRailEvent], Buffer.alloc(0),
+  ethereumRequest.request_id), /verified_event_request_non_native_usdc_contract/u);
 
 // Full snapshots may transition missing -> populated only once. Repeated or
 // regressed historical fields must not resurrect stale prior state.
@@ -361,6 +399,8 @@ console.log("missing_allocation_explicit_not_success=true");
 console.log("verified_missing_allocation_ok_false=true");
 console.log("coupled_launch_authority_required_even_without_allocation=true");
 console.log("usdc_contract_matched_to_request_or_held=true");
+console.log("native_usdc_chain_allowlist_enforced=true");
+console.log("arbitrary_erc20_matching_allocation_history_held=true");
 console.log("request_snapshot_duplicates_or_lineage_erasure_held=true");
 console.log("request_chain_alias_conflicts_held=true");
 console.log("initial_token_and_launch_backfill_held=true");

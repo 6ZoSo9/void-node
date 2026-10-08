@@ -40,9 +40,13 @@ alias must agree; missing or contradictory source-chain evidence HOLDs. For ever
 row it binds the exact canonical payment identity using the existing
 `canonicalBuyVoidPaymentIdentityV1` primitive, enforces one immutable event per
 request/payment identity, exact request quote and configured 2:1 canonical
-presale economics, canonical request-bound USDC token contract, transfer
-amount, source transaction, explicit nondefaulted source chain, log index and
-delivery addresses. A legacy request
+presale economics, canonical request-bound USDC token contract **and**
+the fixed native-USDC allowlist: Base mainnet (8453)
+`0x833589fcd6edb6e08f4c7c32d4f71b54bda02913`, Ethereum mainnet (1)
+`0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48`. Even a self-consistent request/Event/allocation
+history claiming another ERC-20 must HOLD. The source-only classifier also
+binds transfer amount, source transaction, nondefaulted source chain, log index
+and delivery addresses. A legacy request
 without a recorded original USDC contract remains source-HOLD, even if a
 later request snapshot backfills that field. A separately reviewed trusted
 request/policy migration would be required rather than guessing from later
@@ -143,7 +147,8 @@ committed diff. For manually dispatched checks (which have no PR base/head),
 it verifies the last committed HEAD^→HEAD diff only; a manual dispatch does
 not qualify an entire PR range. Both paths reject whitespace errors. The proof covers first missing allocation, exact
 matching history, deterministic replay, changed event bytes, duplicate identity,
-request/receipt/amount/quote drift, malformed or missing launch authority
+request/receipt/amount/quote drift, wrong native-USDC chain contract,
+self-consistent forged non-USDC ERC-20 claims, malformed or missing launch authority
 at the empty-ledger crash gap, request-token vs event-token mismatch,
 duplicate/regressed/nonconsecutively replayed request snapshots, original
 USDC-contract and launch-authority backfill scoped to the target or any
