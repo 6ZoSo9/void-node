@@ -111,7 +111,8 @@ assert.equal(
   "machine contract must bind the exact same custody service source bytes",
 );
 
-function observedCompiledImports(sourceText) {
+function observedCompiledImports(sourceText, simulateLegacyNode24Requests = false) {
+  assert.equal(typeof simulateLegacyNode24Requests, "boolean");
   // Dynamic loaders are outside the reviewed closure and HOLD outright.
   // This is deliberately lexical/fail-closed: even a commented future loader
   // must be removed or explicitly reviewed rather than silently ignored.
@@ -122,14 +123,14 @@ function observedCompiledImports(sourceText) {
   // trusting the legacy specifier-only fallback on any supported Node.
   assert.doesNotMatch(
     sourceText,
-    /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*\{/u,
+    /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n\u2028\u2029]*(?:\r\n|[\r\n\u2028\u2029]|$))*\{/u,
     "import attributes are outside the reviewed custody service closure",
   );
   // Node 22.x may expose moduleRequests without its newer phase metadata.
   // Reject alternate import phases lexically before using that reduced API.
   assert.doesNotMatch(
     sourceText,
-    /\bimport\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*(?:source|defer)\b/u,
+    /\bimport\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n\u2028\u2029]*(?:\r\n|[\r\n\u2028\u2029]|$))*(?:source|defer)\b/u,
     "non-evaluation import phases are outside the reviewed closure",
   );
 
@@ -146,12 +147,16 @@ const major = Number(process.versions.node.split(".")[0]);
 if (![22, 24, 26].includes(major)) {
   throw new Error("custody_bootstrap_plan_unsupported_node_major_hold");
 }
+// The test-only flag forces the pre-24.4 API absence on a newer Node 24
+// runner. Real Node 22 always uses the linker, even with partial metadata.
+const emulateEarly24 = process.argv[1] === "custody-bootstrap-test-early-node24";
+if (emulateEarly24 && major !== 24) {
+  throw new Error("custody_bootstrap_plan_test_major_invalid_hold");
+}
+const modernAvailable = Array.isArray(module.moduleRequests) && !emulateEarly24;
 let requests;
-if (major >= 24) {
-  // Complete moduleRequests metadata is mandatory on Node 24 and 26.
-  if (!Array.isArray(module.moduleRequests)) {
-    throw new Error("custody_bootstrap_plan_modern_requests_unavailable_hold");
-  }
+if (major >= 24 && modernAvailable) {
+  // Complete, available metadata on Node 24/26 must be ordinary and empty.
   requests = module.moduleRequests.map((request) => {
     if (typeof request?.specifier !== "string" ||
         !request.attributes || typeof request.attributes !== "object" ||
@@ -161,9 +166,9 @@ if (major >= 24) {
     }
     return request.specifier;
   });
-} else {
-  // Node 22.23 may expose moduleRequests with no phase: always use the
-  // legacy linker callback to inspect attributes instead of downgrading.
+} else if (major === 22 || (major === 24 && !modernAvailable)) {
+  // Node 22 with partial metadata and early Node 24 without moduleRequests
+  // use the inert linker to enforce empty import attributes/ordinary phase.
   if (!Array.isArray(module.dependencySpecifiers)) {
     throw new Error("custody_bootstrap_plan_requests_unavailable_hold");
   }
@@ -188,12 +193,18 @@ if (major >= 24) {
     throw new Error("custody_bootstrap_plan_legacy_request_list_hold");
   }
   requests = observed;
+} else {
+  // Node 26 cannot silently downgrade when the modern API disappears.
+  throw new Error("custody_bootstrap_plan_modern_requests_unavailable_hold");
 }
 process.stdout.write(JSON.stringify(requests));
 `;
   const parsed = spawnSync(
     process.execPath,
-    ["--experimental-vm-modules", "--input-type=module", "-e", parser],
+    [
+      "--experimental-vm-modules", "--input-type=module", "-e", parser,
+      ...(simulateLegacyNode24Requests ? ["--", "custody-bootstrap-test-early-node24"] : []),
+    ],
     {
       input: sourceText,
       encoding: "utf8",
@@ -326,6 +337,50 @@ for (const [label, injected] of [
   assert.throws(
     () => observedCompiledImports(injected),
     label + " must HOLD even if its specifier is otherwise allowlisted",
+  );
+}
+
+// All ECMAScript line endings terminate // comments, not merely LF or CRLF.
+// On old VM module APIs, no hidden 'with' attribute or 'import source' may
+// preserve an already-allowlisted specifier unnoticed.
+for (const [label, terminator] of [
+  ["LF", "\n"], ["CR", "\r"], ["U+2028", "\u2028"],
+  ["U+2029", "\u2029"], ["CRLF", "\r\n"],
+]) {
+  const attributed = serviceSource.replace(
+    'import crypto from "node:crypto";',
+    'import crypto from "node:crypto" with // comment' + terminator +
+      '{ type: "json" };',
+  );
+  assert.notEqual(attributed, serviceSource, label + " test fixture changed");
+  assert.throws(
+    () => observedCompiledImports(attributed),
+    label + " attributed import must HOLD across a comment line terminator",
+  );
+  const phased = serviceSource +
+    '\nimport // comment' + terminator +
+    'source lateCrypto from "node:crypto";\n';
+  assert.throws(
+    () => observedCompiledImports(phased),
+    label + " source-phase import must HOLD after a comment",
+  );
+}
+// Node 24.0-24.3 lack SourceTextModule.moduleRequests. A newer Node 24
+// binary simulates that absent API here and still requires linker metadata.
+// This does not claim that a genuine Node 24.0 binary was executed.
+if (Number(process.versions.node.split(".")[0]) === 24) {
+  assert.deepEqual(
+    observedCompiledImports(serviceSource, true),
+    expectedCompiledImports,
+    "simulated early Node24 must parse reviewed service without evaluating",
+  );
+  const attributed = serviceSource.replace(
+    'import crypto from "node:crypto";',
+    'import crypto from "node:crypto" with { type: "json" };',
+  );
+  assert.throws(
+    () => observedCompiledImports(attributed, true),
+    "simulated early Node24 linker must reject nonempty import attributes",
   );
 }
 
@@ -483,6 +538,8 @@ console.log("exact_service_contract_sha256_bound=true");
 console.log("contract_and_service_source_sha256_agree=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("all_static_service_imports_exact_allowlist=true");
+console.log("early_node24_inert_linker_abi_fallback_proven=true");
+console.log("ecmascript_line_terminators_attributes_and_phases_hold=true");
 console.log("relative_package_builtin_and_data_imports_rejected=true");
 console.log("module_parser_static_import_census=true");
 console.log("semicolonless_and_export_from_dependencies_bound=true");

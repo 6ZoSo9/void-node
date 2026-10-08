@@ -95,16 +95,20 @@ Its other **static** ESM imports are exactly the reviewed built-ins
 The source-only proof uses Node's ESM parser to compare **every static module
 specifier** against that explicit complete allowlist. It rejects new relative
 helpers, third-party packages, built-ins or other specifiers instead of silently
-discarding imports outside `../dist/`. For Node 24/26, every `moduleRequests` entry must have
-`phase=evaluation` and **empty import attributes**. Node 22 minors may supply
-only `dependencySpecifiers`, or partial `moduleRequests` without phase.
-**Node 22 therefore always uses an inert `vm.Module.link` callback** to inspect
-`extra.attributes` even when that partial API exists, without evaluating the
-service or dependencies. The source-only proof separately rejects
-`with { ... }` attributes and `import source`/`import defer` phases even
-with interposed comments/newlines, as defense in depth. The legacy linker
-must agree exactly with the parser's static dependency list; any mismatch,
-unsupported major or missing modern request metadata HOLDs. Synthetic adversaries cover each
+discarding imports outside `../dist/`. For Node 24.4+ and 26 where `moduleRequests` exists, every request must
+carry `phase=evaluation` and **empty import attributes**. Node 22 minors
+may expose only `dependencySpecifiers` or partial `moduleRequests` missing
+phase; **Node 24.0–24.3 may lack `moduleRequests` entirely**.
+Both Node 22 and early Node 24 use an inert `vm.Module.link` callback to
+inspect `extra.attributes` without evaluating the service or dependencies.
+Node 26 without modern metadata still HOLDs, and present-but-incomplete
+modern metadata never silently downgrades to the legacy path. The proof
+simulates early Node 24 API absence on a later Node 24 runner; this is not
+a claim that an actual 24.0 binary was run. It also rejects `with { ... }`
+attributes and `import source`/`import defer` phases through comments
+across all ECMAScript line terminators (LF, CR, U+2028 and U+2029).
+The legacy linker census must agree with the parser's static dependency
+list; unsupported majors, unreviewed metadata or mismatch HOLD. Synthetic adversaries cover each
 case. An independent full service-byte digest also detects changes that a
 parser might not enumerate. The current source
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
