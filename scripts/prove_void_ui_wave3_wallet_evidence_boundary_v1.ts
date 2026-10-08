@@ -14,6 +14,7 @@ import {
 import {
   WALLET_SNAPSHOT_MAX_AGE_MS,
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
+  bindWalletViewV1,
   clearWalletViewV1,
   loadWalletAccountV1,
   renderWalletErrorV1,
@@ -888,6 +889,143 @@ assert.equal(resetCount, 1);
 assert.equal(clearedLoadControl.disabled, false);
 assert.equal(focusCount, 1);
 
+const originalPrivacyDocument = (globalThis as any).document;
+const originalPrivacyWindow = (globalThis as any).window;
+const originalPrivacyStorageDescriptor =
+  Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+const originalPrivacyFetch = globalThis.fetch;
+const originalPrivacyNow = Date.now;
+
+const privacyNodes = new Map<string, { textContent: string; className: string }>();
+const privacyDenied = { get: 0, set: 0, remove: 0, property: 0 };
+let privacyFocused = 0;
+const privacyInput = {
+  value: "account-A",
+  focus: () => { privacyFocused += 1; },
+};
+const privacyButton = { disabled: false };
+let privacyClearHandler: (() => void) | null = null;
+let privacySubmitBound = false;
+const privacyForm = {
+  dataset: {} as Record<string, string>,
+  querySelector: (selector: string) => {
+    if (selector === "[data-wallet-account-input]") return privacyInput;
+    if (selector === "[data-wallet-load]") return privacyButton;
+    if (selector === "[data-wallet-clear]") return {
+      addEventListener: (name: string, listener: () => void) => {
+        if (name === "click") privacyClearHandler = listener;
+      },
+    };
+    return null;
+  },
+  addEventListener: (name: string) => {
+    if (name === "submit") privacySubmitBound = true;
+  },
+};
+let activePrivacyForm: typeof privacyForm = privacyForm;
+try {
+  (globalThis as any).window = {
+    location: { hash: "#/wallet", origin: "http://localhost" },
+  };
+  (globalThis as any).document = {
+    querySelector: (selector: string) => {
+      if (selector === "[data-wallet-account-form]") return activePrivacyForm;
+      if (!privacyNodes.has(selector)) {
+        privacyNodes.set(selector, { textContent: "", className: "" });
+      }
+      return privacyNodes.get(selector);
+    },
+  };
+  (globalThis as any).sessionStorage = {
+    getItem: () => {
+      privacyDenied.get += 1;
+      throw new DOMException("denied", "SecurityError");
+    },
+    setItem: () => {
+      privacyDenied.set += 1;
+      throw new DOMException("denied", "SecurityError");
+    },
+    removeItem: () => {
+      privacyDenied.remove += 1;
+      throw new DOMException("denied", "SecurityError");
+    },
+  };
+  Date.now = () => PROOF_NOW_MS;
+  let privacyFetches = 0;
+  globalThis.fetch = (async () => {
+    privacyFetches += 1;
+    return responseAt(
+      "http://localhost/__void/ui/wave3/wallet.json?account=account-A",
+      JSON.stringify(validSnapshot("account-A")),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  assert.doesNotThrow(() => bindWalletViewV1());
+  assert.equal(privacySubmitBound, true, "Wallet submit bound despite denied getItem");
+  assert.equal(privacyForm.dataset.walletBound, "true");
+  assert.equal(privacyDenied.get, 1);
+  await loadWalletAccountV1(privacyInput.value, privacyButton);
+  assert.equal(privacyFetches, 1);
+  assert.equal(privacyDenied.set, 1);
+  assert.equal(privacyButton.disabled, false);
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "Local wallet found");
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "account-A");
+  assert.equal(privacyNodes.get("[data-wallet-ledger-wc]")?.textContent, "3");
+  assert.equal(privacyNodes.get("[data-wallet-message]")?.textContent,
+    "Local wallet identity and accounting balances are shown read-only.");
+  assert.notEqual(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "Account unavailable");
+
+  privacyButton.disabled = true;
+  assert.ok(privacyClearHandler, "Wallet clear listener must be bound");
+  privacyClearHandler!();
+  assert.equal(privacyDenied.remove, 1);
+  assert.equal(privacyInput.value, "");
+  assert.equal(privacyButton.disabled, false);
+  assert.equal(privacyFocused, 1);
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "—");
+  assert.equal(privacyNodes.get("[data-wallet-ledger-wc]")?.textContent, "—");
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "No account loaded");
+
+  // Some browsers throw when accessing the sessionStorage property itself,
+  // before any method call. Neither binding nor clear may inherit that throw.
+  const propertyDeniedForm = {
+    ...privacyForm,
+    dataset: {} as Record<string, string>,
+  };
+  activePrivacyForm = propertyDeniedForm;
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    get: () => {
+      privacyDenied.property += 1;
+      throw new DOMException("storage unavailable", "SecurityError");
+    },
+  });
+  assert.doesNotThrow(() => bindWalletViewV1());
+  assert.equal(propertyDeniedForm.dataset.walletBound, "true");
+  const deniedPropertyInput = { value: "account-A", focus: () => {} };
+  const deniedPropertyButton = { disabled: true };
+  assert.doesNotThrow(() => clearWalletViewV1({
+    input: deniedPropertyInput,
+    button: deniedPropertyButton,
+  }));
+  assert.equal(deniedPropertyInput.value, "");
+  assert.equal(deniedPropertyButton.disabled, false);
+  assert.ok(privacyDenied.property >= 2);
+} finally {
+  Date.now = originalPrivacyNow;
+  globalThis.fetch = originalPrivacyFetch;
+  if (originalPrivacyDocument === undefined) delete (globalThis as any).document;
+  else (globalThis as any).document = originalPrivacyDocument;
+  if (originalPrivacyWindow === undefined) delete (globalThis as any).window;
+  else (globalThis as any).window = originalPrivacyWindow;
+  if (originalPrivacyStorageDescriptor) {
+    Object.defineProperty(globalThis, "sessionStorage", originalPrivacyStorageDescriptor);
+  } else {
+    delete (globalThis as any).sessionStorage;
+  }
+}
+
 const adapterSource = fs.readFileSync(path.join(root, sourcePath), "utf8");
 for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
@@ -930,6 +1068,10 @@ for (const marker of [
   "const invalidateWalletRequest = (reason) =>",
   "walletRequestOwner.cancel(reason)",
   "export const loadWalletAccountV1 =",
+  "export const bindWalletViewV1 =",
+  "const readSavedWalletAccountV1 =",
+  "const rememberWalletAccountV1 =",
+  "const forgetWalletAccountV1 =",
   "invalidateWalletRequest('wallet request replaced by invalid account')",
   "restoreWalletLoadControlV1(button)",
   "export const clearWalletViewV1 =",
@@ -981,6 +1123,10 @@ console.log("browser_wallet_subsequent_valid_recovery=true");
 console.log("browser_shared_generation_owner=true");
 console.log("browser_clear_invalidates_generation=true");
 console.log("browser_clear_restores_load_control=true");
+console.log("browser_session_storage_get_denial_nonblocking=true");
+console.log("browser_session_storage_set_denial_preserves_verified_evidence=true");
+console.log("browser_session_storage_remove_denial_clears_evidence=true");
+console.log("browser_session_storage_property_getter_denial_nonblocking=true");
 console.log("browser_route_departure_invalidates_generation=true");
 console.log(`wallet_source_sha256=${sha256File(sourcePath)}`);
 console.log(`wallet_client_sha256=${sha256File(clientPath)}`);
