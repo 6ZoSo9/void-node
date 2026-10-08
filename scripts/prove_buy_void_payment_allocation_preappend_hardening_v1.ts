@@ -119,7 +119,6 @@ function setup(): Fixture {
   );
   const genesis = deriveBuyVoidAllocationReservationHighWaterV1("");
   assert.equal(genesis.ok, true);
-  if (genesis.ok === false) throw new Error(genesis.reason);
   fs.writeFileSync(
     path.join(highWaterRoot, HIGH_WATER),
     genesis.high_water_json,
