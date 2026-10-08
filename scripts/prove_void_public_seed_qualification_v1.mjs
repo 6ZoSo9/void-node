@@ -285,7 +285,9 @@ try {
     let observed = "";
     try {
       await requestBounded(rawFixture + route, {
-        pinnedAddresses: ["127.0.0.1"],
+        // The second address is intentionally unreachable. Delivered HTML
+        // must never be retried across pinned addresses to pass qualification.
+        pinnedAddresses: ["127.0.0.1", "127.0.0.2"],
         allowLoopbackFixture: true,
         timeoutMs: 5000,
         maxBytes: 4096,
@@ -297,6 +299,8 @@ try {
     assert(observed.includes(`http_status=${status}`), `lost HTTP status: ${route}`);
     assert(observed.includes(`content_type_class=${mediaClass}`), `lost media class: ${route}`);
     assert(/response_bytes=[1-9][0-9]*/.test(observed), `lost bounded byte count: ${route}`);
+    assert(!observed.includes("failed on every pinned address"), `non-JSON response was retried: ${route}`);
+    assert(!observed.includes("127.0.0.2"), `second pinned address was contacted: ${route}`);
     assert(!observed.includes("PRIVATE_FIXTURE_BODY_MUST_NOT_LEAK"), `response body leaked: ${route}`);
     assert(!observed.includes("PRIVATE_FIXTURE_HEADER_MUST_NOT_LEAK"), `response header leaked: ${route}`);
   }
