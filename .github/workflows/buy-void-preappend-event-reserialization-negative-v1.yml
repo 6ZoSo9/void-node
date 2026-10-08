@@ -1,0 +1,112 @@
+name: VOID Buy VOID preappend event reserialization negative v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_preappend_event_reserialization_negative_v1.ts"
+      - ".github/workflows/buy-void-preappend-event-reserialization-negative-v1.yml"
+      - "docs/architecture/buy-void-preappend-event-reserialization-negative-v1.md"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  falsify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout and reviewed writer source bytes
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = e1b94ab9a7e33fc15a5615b65808c1e4ea17593a
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = 970e686cd96b43d496c44acb4ff343a5e61e26c5
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked deps with package scripts disabled
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact source-only candidate
+        run: npm run build
+      - name: Prove real temp-payment CHECK to fsync reserialization gap
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_preappend_event_reserialization_negative_v1.ts \
+            | tee "preappend-event-negative-${{ matrix.node }}.txt"
+          for assertion in \
+            plain_unchanged_event_still_works=true \
+            original_buyer_validated_on_first_serialization=true \
+            different_payment_sender_written_after_fsync=true \
+            durable_row_bytes_differ_from_preappend_checked_bytes=true \
+            strict_replay_rejects_after_fsync=true \
+            correct_replay_cannot_repair_poisoned_row=true \
+            mutable_caller_event_no_production_authority=true \
+            source_writer_not_mounted=true \
+            real_customer_data_used=false \
+            funds_moved=false
+          do
+            grep -Fx "$assertion" "preappend-event-negative-${{ matrix.node }}.txt"
+          done
+      - name: Upload non-production negative reproduction receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-reserialization-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: preappend-event-negative-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Exact committed diff hygiene
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [falsify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exact negative receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-reserialization-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./negative-receipts
+      - name: Three-way exact byte equality of negative evidence
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "negative-receipts/preappend-event-negative-$version.txt"
+          done
+          cmp negative-receipts/preappend-event-negative-22.txt negative-receipts/preappend-event-negative-24.txt
+          cmp negative-receipts/preappend-event-negative-22.txt negative-receipts/preappend-event-negative-26.txt
+          echo "VOID_PREAPPEND_EVENT_RESERIALIZATION_NEGATIVE_CROSS_NODE_GREEN"
+          echo "PRODUCTION_PREAPPEND_EVENT_BYTES_BOUND=false"
+          echo "PUBLIC_PRESALE_ACTIVATION=false"
