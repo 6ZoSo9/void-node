@@ -60,10 +60,10 @@ assert.doesNotMatch(
 // Documentation-only IPv6 must fail cleanly and must never be accepted as a seed.
 assert.match(
   source,
-  /lookup\\(_hostname, _options, callback\\)\\s*\\{\\s*process\\.nextTick\\(callback, null, address, family\\);/,
+  /lookup\(_hostname, _options, callback\)\s*\{[\s\S]*?process\.nextTick\(callback, null, address, family\);/,
   "pinned DNS callback must be asynchronous before TLS socket initialization",
 );
-const unreachableIpv6Probe = \`
+const unreachableIpv6Probe = `
 import { requestPublicSeedRouteV1 } from "./scripts/lib/void_public_seed_client_transport_v1.mjs";
 let failure = null;
 try {
@@ -83,7 +83,7 @@ if (!failure || !/seed request failed on every pinned address|seed logical reque
   throw new Error("unreachable IPv6 seed did not fail closed");
 }
 console.log("VOID_PUBLIC_SEED_PINNED_IPV6_SOCKET_ERROR_HANDLED_V1_GREEN");
-\`;
+`;
 const probe = spawnSync(process.execPath, ["--input-type=module", "--eval", unreachableIpv6Probe], {
   cwd: process.cwd(),
   encoding: "utf8",
@@ -93,7 +93,7 @@ const probe = spawnSync(process.execPath, ["--input-type=module", "--eval", unre
 assert.equal(
   probe.status,
   0,
-  \`unreachable IPv6 pinned TLS request crashed: ${probe.error?.message || probe.stderr || String(probe.status)}\`,
+  `unreachable IPv6 pinned TLS request crashed: ${probe.error?.message || probe.stderr || String(probe.status)}`,
 );
 assert.match(
   probe.stdout,
