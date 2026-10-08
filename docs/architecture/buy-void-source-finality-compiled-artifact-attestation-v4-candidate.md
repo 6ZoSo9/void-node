@@ -10,7 +10,7 @@ change requires a newly derived, independently reviewed compiled successor,
 not a V3 hash repin or a skipped failing workflow.
 
 This candidate is stacked directly on PR #2630 source head
-`5806d994d5c45bac31d49ea8edff343d02ad99cb`.
+`47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
 It requires source-finality V6 source Git blob
 `7266c03d8874207ed3fda0f814d0a7a53d429c25` and native-USDC V2
 verifier blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
@@ -76,8 +76,9 @@ No Ready/merge/deployment or presale/market authority is granted.
 **PROTECT THE CORE.**
 
 
-The current V6 parent head is `485d2709b1ce0394f25229625490c2415b3c6785`.
-The candidate intentionally records `5806d994d5c45bac31d49ea8edff343d02ad99cb` because that is the last
-commit that changed the reviewed V6 runtime source; later parent commits update
-only proof/docs. Candidate derivation also requires no reviewed-source/build-input
-drift from that source generation through current HEAD.
+The current reviewed-source parent is exact #2630 head
+`47cbb1d4c7fb667a7accdf1089edb11072f3e631`. It contains both the reviewed V6 source and the final hardened V2
+payment-verifier source blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
+Candidate derivation requires that exact parent to be an ancestor and requires
+zero reviewed-source/build-input drift from that source-stack head through
+current HEAD.
