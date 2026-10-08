@@ -246,6 +246,7 @@ assert.equal(await adversarialGetterRetainsReviewedBytes(),true);
 assert.equal(await firstSerializationWrongBuyerHoldsBeforeFsync(),true);
 assert.equal(await callerMutationDuringLaunchHookCannotAlterFsync(),true);
 console.log("VOID_BUY_VOID_PREAPPEND_CANONICAL_EVENT_BYTES_V1_GREEN");
+console.log("plain_unchanged_event_still_works=true");
 console.log("historical_negative_fsync_scenario_now_uses_one_snapshot=true");
 console.log("unstable_toJSON_serialized_exactly_once=true");
 console.log("unstable_nested_getter_read_exactly_once=true");

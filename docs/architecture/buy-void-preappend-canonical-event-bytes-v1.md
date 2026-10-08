@@ -4,19 +4,22 @@
 
 This **test-only** successor is stacked on
 [Draft #2663](https://github.com/6ZoSo9/void-node/pull/2663) exact head
-`310a0304bfba27ddaceacbaa9a65a7c8af9121e2`. The owner has already
+`06b617e94289c6ef329df68a5b12caa6556e7c84`. The owner has already
 addressed the original buyer CHECK→durable append P1 reported by the
 [real-filesystem negative witness #2665](https://github.com/6ZoSo9/void-node/pull/2665).
 I deliberately make **no production source change** here.
 
 The owner’s revised verified-payment writer source Git blob
-`80eb7a6eb2c1f86cd1c04f59703633246ec4c27e` now calls
+`abbd4cf733d6ba1e9fb6b5fd902f6c59303f0aab` now calls
 `canonicalVerifiedPaymentEventV1(rawEvent)` exactly at API entry. This
 serializes caller input ONCE, parses a detached JSON value, deep-freezes it,
 asserts the first serialized line equals that frozen JSON value, and passes
 the exact captured `eventLine: Buffer` to the retained-FD durable append.
 The same frozen event and byte buffer travel through preappend validation,
-allocation, sidecar and idempotent recovery.
+allocation, sidecar and idempotent recovery. The owner additionally uses
+the same captured canonical event bytes for the legacy verified-payment
+writer path at this new source head; that older route requires separate
+original-buyer security and runtime qualification before deployment.
 
 The prior P1 exploit used a nonenumerable `toJSON()` returning the valid
 original sender the first time but a different sender on the second
