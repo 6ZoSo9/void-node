@@ -456,3 +456,240 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     return held(error instanceof Error ? error.message : "replay_binding_unknown_hold");
   }
 }
+
+
+export const VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_V1 =
+  "VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_V1";
+
+export const VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_AUTHORITY_V1 =
+  Object.freeze({
+    source_only_classifier: true,
+    canonical_replay_classifier_reused: true,
+    original_request_history_reused: true,
+    hypothetical_event_only: true,
+    filesystem_read: false,
+    filesystem_write: false,
+    payment_verified_append: false,
+    allocation_write: false,
+    wallet_or_signer_access: false,
+    transaction_broadcast: false,
+    funds_movement: false,
+    production_gate_ready: false,
+  });
+
+export type BuyVoidPreappendVerifiedPaymentLineageDecisionV1 = Readonly<{
+  ok: boolean;
+  status: "ready" | "held";
+  marker: typeof VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_V1;
+  reason: string | null;
+  request_id: string | null;
+  canonical_payment_identity: string | null;
+  payment_verified_event_sha256: string | null;
+  operation_performed: false;
+  authority:
+    typeof VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_AUTHORITY_V1;
+}>;
+
+function preappendHeld(
+  reason: string,
+): BuyVoidPreappendVerifiedPaymentLineageDecisionV1 {
+  return Object.freeze({
+    ok: false,
+    status: "held",
+    marker: VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_V1,
+    reason,
+    request_id: null,
+    canonical_payment_identity: null,
+    payment_verified_event_sha256: null,
+    operation_performed: false,
+    authority:
+      VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_AUTHORITY_V1,
+  });
+}
+
+// Pure pre-fsync admission over already descriptor-bound snapshots. This reuses
+// the canonical replay classifier on the exact event bytes that would be
+// appended, then binds the separate caller request to the same canonical
+// request-state history. It performs no filesystem or runtime operation.
+export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
+  request: unknown;
+  event: unknown;
+  requests_jsonl: Buffer;
+  prior_operator_events_jsonl: Buffer;
+  allocation_jsonl: Buffer;
+}): BuyVoidPreappendVerifiedPaymentLineageDecisionV1 {
+  try {
+    if (
+      !isRow(input) ||
+      Object.keys(input).sort().join("|") !==
+        [
+          "allocation_jsonl",
+          "event",
+          "prior_operator_events_jsonl",
+          "request",
+          "requests_jsonl",
+        ].sort().join("|") ||
+      !isRow(input.request) ||
+      !isRow(input.event) ||
+      !Buffer.isBuffer(input.requests_jsonl) ||
+      !Buffer.isBuffer(input.prior_operator_events_jsonl) ||
+      !Buffer.isBuffer(input.allocation_jsonl)
+    ) {
+      fail("preappend_lineage_input_shape_invalid");
+    }
+
+    const candidateRequest = input.request;
+    const candidateEvent = input.event;
+
+    const requestId = field(
+      candidateEvent.request_id,
+      "preappend_lineage_request_id_invalid",
+    );
+    if (!REQUEST_ID.test(requestId)) {
+      fail("preappend_lineage_request_id_invalid");
+    }
+
+    const eventLine = Buffer.from(
+      JSON.stringify(candidateEvent) + "\n",
+      "utf8",
+    );
+    const proposedOperatorEvents = Buffer.concat([
+      Buffer.from(input.prior_operator_events_jsonl),
+      eventLine,
+    ]);
+    const replay = classifyBuyVoidVerifiedAllocationReplayBindingV1({
+      request_id: requestId,
+      requests_jsonl: Buffer.from(input.requests_jsonl),
+      operator_events_jsonl: proposedOperatorEvents,
+      allocation_jsonl: Buffer.from(input.allocation_jsonl),
+    });
+    const eventSha = sha(eventLine);
+    if (
+      replay.status !== "verified_allocation_missing" ||
+      replay.request_id !== requestId ||
+      replay.payment_verified_event_sha256 !== eventSha ||
+      !replay.canonical_payment_identity
+    ) {
+      fail(
+        "preappend_strict_replay_" +
+          String(replay.reason || replay.status),
+      );
+    }
+
+    // Reuse the same canonical chronology parser rather than selecting a
+    // caller-chosen or merely latest JSON row.
+    const requests = requestState(
+      rows(input.requests_jsonl, "requests"),
+    );
+    const original = requests.get(requestId);
+    if (
+      !original ||
+      !original.sourceAliasesQualified ||
+      !original.initialUsdcContractQualified ||
+      !original.initialLaunchAuthorityQualified ||
+      !original.tx ||
+      !original.delivery ||
+      !original.receive ||
+      !original.usdcContract ||
+      original.usdcMicro === null ||
+      !original.launchAuthority
+    ) {
+      fail("preappend_original_request_unqualified");
+    }
+
+    if (
+      field(
+        candidateRequest.request_id,
+        "preappend_caller_request_id_invalid",
+      ) !== requestId
+    ) {
+      fail("preappend_caller_request_id_mismatch");
+    }
+    const callerChain = chain(candidateRequest.source_chain);
+    if (
+      callerChain !== original.chain ||
+      (["payment_chain", "chain"] as const).some(
+        (alias) =>
+          Object.prototype.hasOwnProperty.call(candidateRequest, alias) &&
+          !sourceAliasMatches(candidateRequest[alias], callerChain),
+      )
+    ) {
+      fail("preappend_caller_source_chain_mismatch");
+    }
+    if (
+      txHash(candidateRequest.tx_hash, true) !== original.tx
+    ) {
+      fail("preappend_caller_transaction_mismatch");
+    }
+    if (
+      address(
+        candidateRequest.delivery_address,
+        "preappend_caller_delivery_invalid",
+      ) !== original.delivery
+    ) {
+      fail("preappend_caller_delivery_address_mismatch");
+    }
+    if (
+      address(
+        candidateRequest.receive_address,
+        "preappend_caller_receive_invalid",
+      ) !== original.receive
+    ) {
+      fail("preappend_caller_receive_address_mismatch");
+    }
+    if (
+      address(
+        candidateRequest.usdc_contract,
+        "preappend_caller_usdc_contract_invalid",
+      ) !== original.usdcContract
+    ) {
+      fail("preappend_caller_usdc_contract_mismatch");
+    }
+    if (
+      amount(
+        candidateRequest.quoted_void,
+        "preappend_caller_quote_invalid",
+      ) !== original.voidMicro
+    ) {
+      fail("preappend_caller_quoted_void_mismatch");
+    }
+    if (
+      amount(
+        candidateRequest.usdc_amount,
+        "preappend_caller_usdc_invalid",
+      ) !== original.usdcMicro
+    ) {
+      fail("preappend_caller_usdc_amount_mismatch");
+    }
+    const callerLaunch =
+      canonicalLaunchAuthority(candidateRequest.launch_authority);
+    if (
+      !callerLaunch ||
+      !sameCanonicalLaunchAuthority(
+        callerLaunch,
+        original.launchAuthority,
+      )
+    ) {
+      fail("preappend_caller_launch_authority_mismatch");
+    }
+
+    return Object.freeze({
+      ok: true,
+      status: "ready",
+      marker: VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_V1,
+      reason: null,
+      request_id: requestId,
+      canonical_payment_identity: replay.canonical_payment_identity,
+      payment_verified_event_sha256: eventSha,
+      operation_performed: false,
+      authority:
+        VOID_BUY_VOID_PREAPPEND_VERIFIED_PAYMENT_LINEAGE_AUTHORITY_V1,
+    });
+  } catch (error) {
+    return preappendHeld(
+      error instanceof Error
+        ? error.message
+        : "preappend_lineage_unknown_hold",
+    );
+  }
+}

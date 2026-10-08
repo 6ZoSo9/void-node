@@ -1205,6 +1205,84 @@ export function testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1
   );
 }
 
+export type BuyVoidAllocationReservationPublicationSnapshotV1 =
+  | Readonly<{
+      ok: true;
+      status: "clean" | "recovered";
+      marker:
+        typeof VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_V1;
+      version: 1;
+      operation_performed: boolean;
+      ledger_jsonl: string;
+      record_count: number;
+      tip_hash: string;
+      publication_intent_present: false;
+      runtime_integration: false;
+      production_gate_ready: false;
+      funds_movement: false;
+      authority:
+        typeof VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V1;
+    }>
+  | WriterHeldV1;
+
+/**
+ * Recover any already-started dual-root publication, then return the exact
+ * descriptor-bound current allocation ledger bytes while both storage roots
+ * remain under the writer's serialization locks. This does not plan or append
+ * a new allocation. A caller may use the returned bytes to build a candidate,
+ * but persistBuyVoidAllocationReservationPublicationWriterV1() must still
+ * re-admit that candidate under fresh writer locks before any mutation.
+ */
+export function snapshotBuyVoidAllocationReservationPublicationWriterV1(
+  input: {
+    ledger_root: string;
+    high_water_root: string;
+  },
+): BuyVoidAllocationReservationPublicationSnapshotV1 {
+  try {
+    return withWriterRoots(
+      String(input?.ledger_root || "").trim(),
+      String(input?.high_water_root || "").trim(),
+      (ledgerDirectory, highWaterDirectory) => {
+        const recovered = recoverUnderLock(
+          ledgerDirectory,
+          highWaterDirectory,
+        );
+        requireCurrentBinding(
+          recovered.ledger,
+          recovered.high_water,
+        );
+        const summary = currentLedgerSummary(recovered.ledger);
+        assertWriterRootsVisible(
+          ledgerDirectory,
+          highWaterDirectory,
+        );
+        return Object.freeze({
+          ok: true as const,
+          status: recovered.recovered
+            ? "recovered" as const
+            : "clean" as const,
+          marker:
+            VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_V1,
+          version: 1 as const,
+          operation_performed: recovered.recovered,
+          ledger_jsonl: recovered.ledger.toString("utf8"),
+          record_count: summary.record_count,
+          tip_hash: summary.tip_hash,
+          publication_intent_present: false as const,
+          runtime_integration: false as const,
+          production_gate_ready: false as const,
+          funds_movement: false as const,
+          authority:
+            VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V1,
+        });
+      },
+    );
+  } catch (error) {
+    return held(String((error as Error)?.message || error));
+  }
+}
+
 export function recoverBuyVoidAllocationReservationPublicationWriterV1(
   input: {
     ledger_root: string;
