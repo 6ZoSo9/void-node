@@ -34,7 +34,7 @@ assert(nativeReceipt > nativePreEnd && nativeEthereum > nativePreEnd, "policy mu
 assert(nativePostStart > nativePreEnd && nativePostEnd > nativePostStart && nativeWrite > nativePostEnd,
   "verified event token must bind before durable admission");
 const nativePreflight = vm.runInNewContext(
-  `(found,chainCfg,res)=>{\n${index.slice(nativePreStart,nativePreEnd)}\nreturn nativeUsdc;}`,
+  `(found,chainCfg,cfg,res)=>{\n${index.slice(nativePreStart,nativePreEnd)}\nreturn nativeUsdc;}`,
   Object.create(null), { timeout: 1000 },
 );
 const nativeEqualStart = index.indexOf("const nativeEqual=(value,expected)=>", nativePreStart);
@@ -46,34 +46,113 @@ const nativePostflight = vm.runInNewContext(
 );
 const baseNativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const ethereumNativeUsdc = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const nativeReceiver = "0x" + "8".repeat(40);
+const nativeSender = "0x" + "7".repeat(40);
 const nativeResponse = () => ({
   status(code) { return { json(body) { return { http_status: code, body }; } }; },
 });
-const nativeRequest = (chain, token) => ({
-  source_chain: chain, payment_chain: chain,
-  usdc_contract: token,
-  payment_instructions: { token_contract: token },
-});
+const nativeRequest = (chain, token) => {
+  const chainId = chain === "base" ? 8453 : chain === "ethereum" ? 1 : 0;
+  return {
+    source_chain: chain,
+    payment_chain: chain,
+    payment_chain_id: chainId,
+    usdc_contract: token,
+    receive_address: nativeReceiver,
+    delivery_address: nativeSender,
+    payment_instructions: {
+      send_chain: chain,
+      send_chain_id: chainId,
+      token_contract: token,
+      token_decimals: 6,
+      send_to: nativeReceiver,
+      send_from: nativeSender,
+    },
+  };
+};
 const nativePolicy = (chain, token) => ({ ok: true, chain, usdc_contract: token });
+const nativeConfig = { receive_address: nativeReceiver };
 function assertNativePolicyHold(found, chainCfg, reason) {
-  const out = nativePreflight(found, chainCfg, nativeResponse());
+  const out = nativePreflight(found, chainCfg, nativeConfig, nativeResponse());
   assert.equal(out?.http_status, 409, reason);
   assert.equal(out?.body?.ok, false, reason);
   assert.equal(out?.body?.error, "request_native_usdc_policy_mismatch", reason);
 }
+function assertPaymentInstructionHold(found, chainCfg, reason, cfg = nativeConfig) {
+  const out = nativePreflight(found, chainCfg, cfg, nativeResponse());
+  assert.equal(out?.http_status, 409, reason);
+  assert.equal(out?.body?.ok, false, reason);
+  assert.equal(out?.body?.error, "request_payment_instructions_policy_mismatch", reason);
+}
 for (const [chain, canonical] of [["base",baseNativeUsdc],["ethereum",ethereumNativeUsdc]]) {
   const validRequest = nativeRequest(chain, canonical);
   const validPolicy = nativePolicy(chain, canonical);
-  assert.equal(nativePreflight(validRequest, validPolicy, nativeResponse()), canonical);
-  assert.equal(nativePreflight(nativeRequest(chain,canonical.toUpperCase()),validPolicy,nativeResponse()),canonical,
-    "EVM contracts are case-insensitive");
+  assert.equal(nativePreflight(validRequest, validPolicy, nativeConfig, nativeResponse()), canonical);
+  assert.equal(
+    nativePreflight(nativeRequest(chain,canonical.toUpperCase()),validPolicy,nativeConfig,nativeResponse()),
+    canonical,
+    "EVM contracts are case-insensitive",
+  );
   assertNativePolicyHold(nativeRequest(chain, "0x" + "1".repeat(40)), validPolicy, chain + "_arbitrary_erc20_request");
   assertNativePolicyHold(validRequest, nativePolicy(chain, "0x" + "2".repeat(40)), chain + "_arbitrary_erc20_server_policy");
-  assertNativePolicyHold({ ...validRequest, payment_instructions: { token_contract:"0x" + "3".repeat(40) } },
-    validPolicy, chain + "_original_payment_instructions_mismatch");
+  assertNativePolicyHold(
+    { ...validRequest, payment_instructions: { ...validRequest.payment_instructions, token_contract:"0x" + "3".repeat(40) } },
+    validPolicy,
+    chain + "_original_payment_instructions_token_mismatch",
+  );
   assertNativePolicyHold({ ...validRequest, source_chain: undefined }, validPolicy, chain + "_absent_explicit_chain");
-  assertNativePolicyHold({ ...validRequest, payment_chain: chain === "base" ? "ethereum" : "base" },
-    validPolicy, chain + "_conflicting_chain_alias");
+  assertNativePolicyHold(
+    { ...validRequest, payment_chain: chain === "base" ? "ethereum" : "base" },
+    validPolicy,
+    chain + "_conflicting_chain_alias",
+  );
+
+  const otherChainId = chain === "base" ? 1 : 8453;
+  assertPaymentInstructionHold({ ...validRequest, payment_chain_id: otherChainId }, validPolicy, chain + "_payment_chain_id_mismatch");
+  assertPaymentInstructionHold({ ...validRequest, payment_chain_id: String(validRequest.payment_chain_id) }, validPolicy, chain + "_payment_chain_id_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain: chain === "base" ? "ethereum" : "base" },
+  }, validPolicy, chain + "_instruction_chain_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain_id: otherChainId },
+  }, validPolicy, chain + "_instruction_chain_id_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain_id: String(validRequest.payment_chain_id) },
+  }, validPolicy, chain + "_instruction_chain_id_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, token_decimals: 18 },
+  }, validPolicy, chain + "_token_decimals_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, token_decimals: "6" },
+  }, validPolicy, chain + "_token_decimals_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_to: "0x" + "9".repeat(40) },
+  }, validPolicy, chain + "_instruction_receiver_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_from: "0x" + "6".repeat(40) },
+  }, validPolicy, chain + "_instruction_sender_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    receive_address: "0x" + "5".repeat(40),
+  }, validPolicy, chain + "_request_receiver_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    delivery_address: "0x" + "4".repeat(40),
+  }, validPolicy, chain + "_request_sender_mismatch");
+  assertPaymentInstructionHold(
+    validRequest,
+    validPolicy,
+    chain + "_policy_receiver_mismatch",
+    { receive_address: "0x" + "3".repeat(40) },
+  );
+
   assert.equal(nativePostflight({ payment_verifier: { usdc_contract: canonical } },canonical,nativeResponse()),null);
   for (const event of [null, {}, {payment_verifier:{}},
                         {payment_verifier:{usdc_contract:"0x" + "4".repeat(40)}}]) {
