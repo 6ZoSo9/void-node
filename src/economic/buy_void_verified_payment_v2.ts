@@ -101,8 +101,15 @@ export type BuyVoidVerifiedPaymentDecisionV2 =
       detail?: Record<string, unknown>;
     };
 
+// Checkout-specific fields are optional for old generic V2 callers, but their
+// presence invokes the mandatory native-USDC/launch-consistency guard below.
+export type BuyVoidVerifiedPaymentRequestV2 = BuyVoidRequestV1 & {
+  usdc_contract?: unknown;
+  launch_authority?: unknown;
+};
+
 export type BuildBuyVoidVerifiedPaymentInputV2 = {
-  request: BuyVoidRequestV1;
+  request: BuyVoidVerifiedPaymentRequestV2;
   receipt: BuyVoidTransactionReceiptV2;
   policy: BuyVoidVerifiedPaymentPolicyV2;
 };
@@ -242,10 +249,7 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   // must be authenticated separately by the protected runtime/history lane.
   // Legacy V2 fixtures without any checkout/coupled evidence keep their
   // previous behavior, but are NOT production payment-admission authority.
-  const original = request as BuyVoidRequestV1 & {
-    usdc_contract?: unknown;
-    launch_authority?: unknown;
-  };
+  const original = request;
   const hasCheckoutTokenEvidence =
     Object.prototype.hasOwnProperty.call(original, "usdc_contract") ||
     Object.prototype.hasOwnProperty.call(original, "launch_authority");
