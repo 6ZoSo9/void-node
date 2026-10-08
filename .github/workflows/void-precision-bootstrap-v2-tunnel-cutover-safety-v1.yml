@@ -189,17 +189,20 @@ jobs:
                       assert b"FAKE_COMMAND_SELECTED" not in data
 
                   selected = []
+                  real_popen = subprocess.Popen
                   def recorder(argv, **kw):
                       selected.append((argv, kw))
-                      return subprocess.CompletedProcess(argv, 0, stdout=b"active", stderr=b"")
-                  with patch.object(m.subprocess, "run", side_effect=recorder):
-                      assert m.cmd(["systemctl", "--user", "show", m.UNIT, "-p", "ActiveState", "--value"],
-                                   "mock_user_systemd") == b"active"
+                      return real_popen(argv, **kw)
+                  with patch.object(m.subprocess, "Popen", side_effect=recorder):
+                      data = m.cmd(["systemctl", "--version"], "mock_systemd_version", timeout=10)
+                      assert b"systemd" in data
                   assert len(selected) == 1
                   argv, kw = selected[0]
                   assert argv[0] == "/usr/bin/systemctl"
                   assert kw["env"] == child_env
                   assert kw["stdin"] is subprocess.DEVNULL
+                  assert kw["stdout"] is subprocess.PIPE
+                  assert kw["stderr"] is subprocess.PIPE
 
                   for forbidden in ("sh", "/bin/sh", "/usr/bin/env", "python3"):
                       try:
@@ -213,6 +216,72 @@ jobs:
           print("fake_PATH_commands_not_executed=true")
           print("inherited_loader_git_curl_environment_stripped=true")
           print("canonical_user_bus_context_derived=true")
+          print("operator_service_mutation=false")
+          PY
+
+      - name: Bound streaming child output and local manifest reads
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("bounded_cutover", src)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          assert m.MAX_HTTP_BODY_BYTES == 2 * 1024 * 1024
+          assert m.MAX_MANIFEST_BYTES == 1024 * 1024
+          assert m.MAX_CHILD_STDERR_BYTES <= 64 * 1024
+
+          with TemporaryDirectory() as td:
+              temp = Path(td)
+              emitter = temp / "emit-oversized-http"
+              emitter.write_text(
+                  "#!/usr/bin/python3\n"
+                  "import sys\n"
+                  "sys.stdout.buffer.write(b'x' * (3 * 1024 * 1024))\n"
+                  "sys.stdout.flush()\n",
+                  encoding="utf-8",
+              )
+              emitter.chmod(0o755)
+
+              with patch.object(
+                  m, "trusted_subprocess_binary", return_value=str(emitter),
+              ):
+                  try:
+                      m.fetch("https://example.invalid/oversized", "oversized_http")
+                  except m.Hold as exc:
+                      assert str(exc) == "body_too_large_oversized_http", str(exc)
+                  else:
+                      raise AssertionError("oversized streaming body was accepted")
+
+              root = temp / "root"
+              manifests = root / "public/void/bootstrap/v2/manifests"
+              manifests.mkdir(parents=True)
+              renewed = manifests / (m.NEW_ID + ".json")
+              with renewed.open("wb") as handle:
+                  handle.truncate(m.MAX_MANIFEST_BYTES + 1)
+
+              fetch_called = False
+              def forbidden_fetch(*_args, **_kwargs):
+                  nonlocal_fetch = "network fetch must not occur after local oversize"
+                  raise AssertionError(nonlocal_fetch)
+
+              with patch.object(m, "ROOT", root), \
+                   patch.object(m, "fetch", side_effect=forbidden_fetch):
+                  try:
+                      m.check_mirrors()
+                  except m.Hold as exc:
+                      assert str(exc) == "renewed_local_size", str(exc)
+                  else:
+                      raise AssertionError("oversized local manifest was accepted")
+
+          print("subprocess_streaming_output_bounded=true")
+          print("oversized_http_body_rejected_before_full_buffer=true")
+          print("oversized_local_manifest_rejected_before_read=true")
           print("operator_service_mutation=false")
           PY
 
