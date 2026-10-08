@@ -24,12 +24,15 @@ paths, generation selectors, receipt URLs, or mutation callbacks.
 
 The pure classifier requires canonical UTF-8 JSONL with complete LF-terminated,
 `JSON.stringify`-round-trippable rows, no duplicate JSON members or truncated
-final row, and bounded size/row count. It binds all observed request history
-against exact chain, transaction, quote, USDC contract, destination and
-canonical coupled launch-authority lineage, rejecting missing or malformed
-launch tuples **even if the allocation ledger is empty**. The initial request snapshot must itself bind the canonical USDC contract and
-closed coupled launch tuple. Neither may be retroactively introduced by a
-later unreviewed request update. Later full request snapshots may only add
+final row, and bounded size/row count. It validates request snapshot shape and immutable field transitions across the
+shared history, then qualifies each payment obligation against its original
+request. The initial request snapshot for any **target or verified/allocation
+obligation** must bind a canonical USDC contract and closed coupled launch
+tuple, rejecting missing original authority **even if the allocation ledger
+is empty**. An unrelated *unverified* legacy request lacking those fields
+may coexist without blocking a fully qualified newer request. Such a legacy
+request remains permanently unqualified and cannot be upgraded by a later
+self-reported request snapshot. Malformed populated authority still HOLDs. Later full request snapshots may only add
 other missing bindings, not erase or change prior fields. **Any** earlier
 byte-identical snapshot repeated after intervening updates (A→B→A) HOLDs.
 The explicit `source_chain` and every present `payment_chain` / `chain`
@@ -135,7 +138,9 @@ matching history, deterministic replay, changed event bytes, duplicate identity,
 request/receipt/amount/quote drift, malformed or missing launch authority
 at the empty-ledger crash gap, request-token vs event-token mismatch,
 duplicate/regressed/nonconsecutively replayed request snapshots, original
-USDC-contract and launch-authority backfill, conflicting source-chain aliases,
+USDC-contract and launch-authority backfill scoped to the target or any
+verified/allocation obligation (without globally rejecting unrelated
+unverified legacy requests), conflicting source-chain aliases,
 conflicting/orphan allocations,
 noncanonical and truncated JSONL, near-sellout conservation and the absence
 of runtime, funds and host authority.

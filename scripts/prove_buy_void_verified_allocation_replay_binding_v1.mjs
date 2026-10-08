@@ -214,6 +214,54 @@ hold(scan([{ ...request, usdc_contract: undefined }, request], [event]),
 hold(scan([{ ...request, launch_authority: undefined }, request], [event]),
   /request_initial_launch_authority_missing/u);
 
+// A shared request ledger may contain old unqualified requests. Such a row
+// must HOLD when targeted or referenced by payment history, but it must not
+// poison observation of an unrelated, fully qualified newer obligation.
+const legacy = {
+  ...request, request_id: "buyvoid_legacy_cccccccc", tx_hash: tx("9"),
+  usdc_contract: undefined, launch_authority: undefined,
+};
+const legacyBackfilled = {
+  ...legacy, usdc_contract: request.usdc_contract,
+  launch_authority: LAUNCH_AUTHORITY, status: "retrospective-backfill",
+};
+gap(scan([legacy, request], [event]));
+good(scan([legacy, request], [event], allocationBytes), "allocation_present");
+gap(scan([legacy, legacyBackfilled, request], [event]));
+good(scan([legacy, legacyBackfilled, request], [event], allocationBytes),
+  "allocation_present");
+hold(scan([legacy, request], [event], Buffer.alloc(0), legacy.request_id),
+  /request_initial_usdc_contract_missing/u);
+hold(scan([legacy, legacyBackfilled, request], [event], Buffer.alloc(0), legacy.request_id),
+  /request_initial_usdc_contract_missing/u);
+const legacyEvent = {
+  ...event, request_id: legacy.request_id, tx_hash: legacy.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier, transaction_hash: legacy.tx_hash,
+  },
+};
+hold(scan([legacy, request], [legacyEvent, event]),
+  /request_initial_usdc_contract_missing/u);
+hold(scan([legacy, legacyBackfilled, request], [legacyEvent, event]),
+  /request_initial_usdc_contract_missing/u);
+const noInitialLaunch = {
+  ...request, request_id: "buyvoid_oldlaunch_dddddddd",
+  tx_hash: tx("8"), launch_authority: undefined,
+};
+gap(scan([noInitialLaunch, request], [event]));
+good(scan([noInitialLaunch, request], [event], allocationBytes),
+  "allocation_present");
+hold(scan([noInitialLaunch, request], [event], Buffer.alloc(0), noInitialLaunch.request_id),
+  /request_initial_launch_authority_missing/u);
+const noLaunchEvent = {
+  ...event, request_id: noInitialLaunch.request_id, tx_hash: noInitialLaunch.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier, transaction_hash: noInitialLaunch.tx_hash,
+  },
+};
+hold(scan([noInitialLaunch, request], [event, noLaunchEvent]),
+  /request_initial_launch_authority_missing/u);
+
 // Canonical request aliases may coexist, but ALL present chains must agree.
 gap(scan([{ ...request, payment_chain: "base", chain: "base" }], [event]));
 for (const aliased of [
@@ -286,6 +334,8 @@ console.log("usdc_contract_matched_to_request_or_held=true");
 console.log("request_snapshot_duplicates_or_lineage_erasure_held=true");
 console.log("request_chain_alias_conflicts_held=true");
 console.log("initial_token_and_launch_backfill_held=true");
+console.log("unrelated_unverified_legacy_request_not_global_hold=true");
+console.log("target_and_verified_legacy_initial_qualification_hold=true");
 console.log("nonconsecutive_stale_request_snapshot_replay_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");

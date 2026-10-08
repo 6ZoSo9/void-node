@@ -84,6 +84,11 @@ type RequestState = {
   receive: string;
   usdcContract: string;
   launchAuthority: RecordRow | null;
+  // Permanent original-request qualification: later snapshots cannot upgrade
+  // an original missing launch/token. Unrelated unverified legacy rows may
+  // coexist in the shared request history without authorizing an allocation.
+  initialUsdcContractQualified: boolean;
+  initialLaunchAuthorityQualified: boolean;
 };
 type VerifiedState = {
   request: RequestState;
@@ -226,13 +231,13 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
     const authority = canonicalLaunchAuthority(row.launch_authority);
     const prev = states.get(id);
     if (!prev) {
-      // Later mutable rows must not retroactively qualify an original legacy
-      // request whose token identity or coupled launch tuple was absent.
-      if (!usdcContract) fail("request_initial_usdc_contract_missing");
-      if (!authority) fail("request_initial_launch_authority_missing");
+      // Keep original absence as permanent negative evidence instead of
+      // aborting classification of an unrelated, fully qualified request.
       states.set(id, {
         id, chain: sourceChain, tx, voidMicro: quoted, usdcMicro: usdc,
         delivery, receive, usdcContract, launchAuthority: authority,
+        initialUsdcContractQualified: Boolean(usdcContract),
+        initialLaunchAuthorityQualified: authority !== null,
       });
       previousLines.set(id, new Set([exactLine]));
       continue;
@@ -257,6 +262,8 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       delivery: prev.delivery || delivery, receive: prev.receive || receive,
       usdcContract: prev.usdcContract || usdcContract,
       launchAuthority: prev.launchAuthority || authority,
+      initialUsdcContractQualified: prev.initialUsdcContractQualified,
+      initialLaunchAuthorityQualified: prev.initialLaunchAuthorityQualified,
     });
     seen.add(exactLine);
   }
@@ -273,7 +280,12 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   }
   const requestId = field(row.request_id, "verified_event_request_id_missing");
   const request = requests.get(requestId);
-  if (!request || !request.tx || !request.delivery || !request.receive || request.usdcMicro === null) {
+  if (!request) fail("verified_event_request_lineage_missing");
+  // Require original first-row token/launch evidence for every verified
+  // obligation, not merely the requested ID or an already-allocated row.
+  if (!request.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");
+  if (!request.initialLaunchAuthorityQualified) fail("request_initial_launch_authority_missing");
+  if (!request.tx || !request.delivery || !request.receive || request.usdcMicro === null) {
     fail("verified_event_request_lineage_missing");
   }
   if (!request.launchAuthority) fail("verified_event_request_launch_authority_missing");
@@ -330,7 +342,12 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     const target = field(input.request_id, "replay_binding_request_id_invalid");
     if (!REQUEST_ID.test(target)) fail("replay_binding_request_id_invalid");
     const requests = requestState(rows(input.requests_jsonl, "requests"));
-    if (!requests.has(target)) fail("replay_binding_request_absent");
+    const targetRequest = requests.get(target);
+    if (!targetRequest) fail("replay_binding_request_absent");
+    // Do not describe a legacy target as recoverable even when no verified
+    // payment exists. Unrelated unverified legacy rows are not global blockers.
+    if (!targetRequest.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");
+    if (!targetRequest.initialLaunchAuthorityQualified) fail("request_initial_launch_authority_missing");
     const operatorRows = rows(input.operator_events_jsonl, "operator_events");
     const byRequest = new Map<string, VerifiedState>();
     const byIdentity = new Map<string, VerifiedState>();
