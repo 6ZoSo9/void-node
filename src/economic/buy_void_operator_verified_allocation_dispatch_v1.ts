@@ -14,6 +14,8 @@ export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1 =
     legacy_payment_only_writer_for_verified_payment_forbidden: true,
     server_controlled_roots_required: true,
     private_root_independent_custody_proven: false,
+    custody_service_composed: false,
+    direct_web_process_private_root_write_authority: false,
     mounted_operator_route_verified: false,
     operator_principal_authenticated: false,
     deployed_artifact_generation_verified: false,
