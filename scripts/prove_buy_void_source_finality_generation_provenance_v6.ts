@@ -317,6 +317,56 @@ await test("V6 detects source-path replacement before open and after read", () =
   assert.equal(verifyBuyVoidSourceFinalityRuntimeSourceFilesV6().ok, true);
 });
 
+await test("V6 bounds descriptor reads when source bytes grow after preflight", () => {
+  const originalRead = fs.readSync;
+  let targetFd: number | null = null;
+  let targetSize = -1;
+  let injectedSentinel = false;
+  let consumed = 0;
+  let maximumRequestedEnd = 0;
+  const hardReadCap = (2 * 1024 * 1024) + 1;
+  try {
+    (fs as any).readSync = (
+      fd: number,
+      buffer: Buffer,
+      offset: number,
+      length: number,
+      position: number | null,
+    ) => {
+      if (targetFd === null) {
+        targetFd = fd;
+        targetSize = fs.fstatSync(fd).size;
+      }
+      if (fd === targetFd) {
+        const at = typeof position === "number" ? position : 0;
+        maximumRequestedEnd = Math.max(maximumRequestedEnd, at + length);
+        assert.ok(at + length <= hardReadCap, "descriptor read exceeded hard cap");
+        if (!injectedSentinel && at >= targetSize && length > 0) {
+          buffer[offset] = 0x78;
+          injectedSentinel = true;
+          consumed += 1;
+          return 1;
+        }
+      }
+      const read = (originalRead as any)(fd, buffer, offset, length, position) as number;
+      if (fd === targetFd) consumed += read;
+      return read;
+    };
+
+    const outcome = verifyBuyVoidSourceFinalityRuntimeSourceFilesV6();
+    assert.equal(outcome.ok, false);
+    if (outcome.ok === false) {
+      assert.equal(outcome.reason, "source_files_exceeded_read_bound");
+    }
+    assert.equal(injectedSentinel, true);
+    assert.ok(consumed <= hardReadCap);
+    assert.ok(maximumRequestedEnd <= hardReadCap);
+  } finally {
+    (fs as any).readSync = originalRead;
+  }
+  assert.equal(verifyBuyVoidSourceFinalityRuntimeSourceFilesV6().ok, true);
+});
+
 await test("manifest verifies recorded commit/blob mappings when commit objects are available", () => {
   assert.equal(VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V6.length, 5);
   let unavailableReviewedRecords = 0;
