@@ -1,0 +1,101 @@
+name: VOID Buy VOID descriptor-relative ancestor trust synthetic v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - ".github/workflows/buy-void-enforcement-descriptor-relative-linux-v1.yml"
+      - "docs/architecture/buy-void-enforcement-descriptor-relative-linux-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-descriptor-relative-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source-only head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify immutable checked-out head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install Node from exact test matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check and source-only synthetic attack proof
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+          node scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs \
+            | tee "descriptor-relative-node-${{ matrix.node }}.txt"
+          grep -Fx "ancestor_swap_before_directory_open_rejected=true" \
+            "descriptor-relative-node-${{ matrix.node }}.txt"
+          grep -Fx "ancestor_swap_before_leaf_open_rejected=true" \
+            "descriptor-relative-node-${{ matrix.node }}.txt"
+          grep -Fx "concurrent_3MiB_growth_rejected_with_pinned_plus_one=true" \
+            "descriptor-relative-node-${{ matrix.node }}.txt"
+          grep -Fx "compiled_candidate_accepted=false" \
+            "descriptor-relative-node-${{ matrix.node }}.txt"
+          grep -Fx "production_source_finality_authority_ready=false" \
+            "descriptor-relative-node-${{ matrix.node }}.txt"
+      - name: Upload unprivileged deterministic test receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-descriptor-relative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: descriptor-relative-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Committed source whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download three exact-head negative proof receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-descriptor-relative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proofs
+      - name: Require all Node receipts byte-for-byte identical
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "proofs/descriptor-relative-node-$version.txt"
+          done
+          cmp proofs/descriptor-relative-node-22.txt proofs/descriptor-relative-node-24.txt
+          cmp proofs/descriptor-relative-node-22.txt proofs/descriptor-relative-node-26.txt
+          echo "VOID_ENFORCEMENT_DESCRIPTOR_RELATIVE_THREE_NODE_SYNTHETIC_GREEN"
+          echo "enforcement_artifact_generation_accepted=false"
+          echo "deployed_artifact_generation_verified=false"
+          echo "production_source_finality_authority_ready=false"
