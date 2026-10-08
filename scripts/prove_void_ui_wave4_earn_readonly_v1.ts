@@ -299,9 +299,42 @@ const loadPathSnapshot = (
   },
 });
 
+const staleEvidenceNodes = [
+  "[data-earn-account-id]",
+  "[data-earn-status]",
+  "[data-earn-approved-work]",
+  "[data-earn-policy]",
+  "[data-earn-safe-mode]",
+  "[data-earn-background]",
+  "[data-earn-earned-wc]",
+  "[data-earn-redeemable-wc]",
+  "[data-earn-production-wc]",
+  "[data-earn-earned-meta]",
+  "[data-earn-redeemable-meta]",
+  "[data-earn-production-meta]",
+  "[data-earn-task-label]",
+  "[data-earn-task-reason]",
+  "[data-earn-task-difficulty]",
+  "[data-earn-task-need]",
+  "[data-earn-last-hour]",
+  "[data-earn-last-credit]",
+  "[data-earn-last-credit-time]",
+  "[data-earn-datanet-status]",
+  "[data-earn-datanet-records]",
+  "[data-earn-account-events]",
+  "[data-earn-source-runner]",
+  "[data-earn-source-reward]",
+  "[data-earn-source-redeemable]",
+  "[data-earn-source-production]",
+  "[data-earn-source-jobs]",
+  "[data-earn-source-receipts]",
+  "[data-earn-source-datanet]",
+].map((selector) => [selector, { textContent: "stale evidence" }] as const);
+
 const loadNodes = new Map<string, any>([
   ["[data-earn-state-chip]", { className: "", textContent: "Loaded" }],
   ["[data-earn-message]", { textContent: "stale loaded message" }],
+  ...staleEvidenceNodes,
   ["[data-earn-jobs-count]", { textContent: "7" }],
   ["[data-earn-receipts-count]", { textContent: "9" }],
   [
@@ -337,6 +370,7 @@ const priorSessionStorage = globalThis.sessionStorage;
 const priorFetch = globalThis.fetch;
 const loadButton = { disabled: false };
 let storageWrites = 0;
+let failedLoadMessage = "";
 
 Object.defineProperty(globalThis, "document", {
   configurable: true,
@@ -392,6 +426,13 @@ Object.defineProperty(globalThis, "fetch", {
 
 try {
   await loadAccount("account-A", loadButton);
+  failedLoadMessage = String(
+    loadNodes.get("[data-earn-message]")?.textContent || "",
+  );
+
+  loadNodes.get("[data-earn-account-id]").textContent = "late stale account";
+  loadButton.disabled = true;
+  await loadAccount("bad account!", loadButton);
 } finally {
   Object.defineProperty(globalThis, "document", {
     configurable: true,
@@ -413,6 +454,43 @@ try {
 
 assert.equal(loadButton.disabled, false);
 assert.equal(storageWrites, 0);
+assert.match(
+  failedLoadMessage,
+  /earn job unavailable history must be empty/,
+);
+for (const [selector, expected] of [
+  ["[data-earn-account-id]", "—"],
+  ["[data-earn-status]", "Not checked"],
+  ["[data-earn-approved-work]", "Not checked"],
+  ["[data-earn-policy]", "Not checked"],
+  ["[data-earn-safe-mode]", "Not checked"],
+  ["[data-earn-background]", "Not checked"],
+  ["[data-earn-earned-wc]", "—"],
+  ["[data-earn-redeemable-wc]", "—"],
+  ["[data-earn-production-wc]", "—"],
+  ["[data-earn-earned-meta]", "No account loaded"],
+  ["[data-earn-redeemable-meta]", "Visibility only"],
+  ["[data-earn-production-meta]", "Non-spendable"],
+  ["[data-earn-task-label]", "No task selected"],
+  ["[data-earn-task-reason]", "Load an account to inspect policy selection."],
+  ["[data-earn-task-difficulty]", "—"],
+  ["[data-earn-task-need]", "—"],
+  ["[data-earn-last-hour]", "—"],
+  ["[data-earn-last-credit]", "No credit loaded"],
+  ["[data-earn-last-credit-time]", "—"],
+  ["[data-earn-datanet-status]", "Not checked"],
+  ["[data-earn-datanet-records]", "—"],
+  ["[data-earn-account-events]", "—"],
+  ["[data-earn-source-runner]", "Not checked"],
+  ["[data-earn-source-reward]", "Not checked"],
+  ["[data-earn-source-redeemable]", "Not checked"],
+  ["[data-earn-source-production]", "Not checked"],
+  ["[data-earn-source-jobs]", "Not checked"],
+  ["[data-earn-source-receipts]", "Not checked"],
+  ["[data-earn-source-datanet]", "Not checked"],
+]) {
+  assert.equal(loadNodes.get(selector)?.textContent, expected, selector);
+}
 assert.equal(loadNodes.get("[data-earn-jobs-count]")?.textContent, "0");
 assert.equal(loadNodes.get("[data-earn-receipts-count]")?.textContent, "0");
 assert.deepEqual(loadNodes.get("[data-earn-jobs-list]")?.children, []);
@@ -433,7 +511,7 @@ assert.equal(
 );
 assert.match(
   String(loadNodes.get("[data-earn-message]")?.textContent || ""),
-  /earn job unavailable history must be empty/,
+  /Use 1–128 letters, numbers, periods, underscores, colons, or hyphens/,
 );
 
 for (const marker of [
@@ -474,7 +552,9 @@ for (const marker of [
   "jobs.available === true",
   "receipts.available === true",
   "renderEarnHistoryV1(",
-  "clearEarnHistoryEvidenceV1();",
+  "resetEarnView(",
+  "invalidateEarnRequest('earn request replaced by invalid account');",
+  "restoreEarnLoadControlV1(button);",
   "export const loadAccount = async",
   "Recent job history unavailable.",
   "Verification receipt history unavailable.",
