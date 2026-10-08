@@ -2,7 +2,7 @@
 
 (() => {
   const MARKER = "VOID_CANONICAL_PRODUCER_SELF_HTTP_GUARD_V1";
-  const LEGACY_SOURCE_BLOB_SHA = "1dc4c9e363c58a1d34d93612eb0ba7378b37d58b";
+  const LEGACY_SOURCE_BLOB_SHA = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
   if (globalThis.__voidCanonicalSelfHttpGuardV1?.installed) return;
 
   const originalFetch = globalThis.fetch;
