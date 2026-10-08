@@ -30,7 +30,10 @@ For `payment_verified` only, while holding that lock it:
 2. requires the candidate request id to exist in the durable request ledger
    with exactly the same quoted VOID amount supplied to admission, reconstructs
    that request's durable source-chain and payment-transaction binding from the
-   append-only request history, rejects chain/tx regression or substitution,
+   append-only request history, requires an explicit `source_chain` in every
+   original snapshot (never a default-to-Base or alias-only fallback), requires
+   all present `payment_chain` / `chain` aliases to agree with the explicit
+   chain, and rejects chain/tx regression or substitution,
    and requires the candidate event plus caller request object to match that
    durable payment binding before deriving the unique verified-request
    reservation total and checking whether this request is already verified;
@@ -115,6 +118,18 @@ whose caller quote disagrees with the durable request quote, and candidates whos
 caller/event payment tx hash or source chain disagree with the durable latest
 request binding. All must HOLD before the launch-authority mutation callback is
 entered.
+
+**Cross-layer source-chain consistency:** #2615's pure replay classifier
+rejects missing explicit request chains and conflicting chain aliases. The
+production capacity census must reject those same unbound histories before
+`payment_verified` append. A syntactically canonical JSON row does not
+establish correct chain lineage, and a later self-reported alias correction
+does not authenticate a missing/conflicting original. Existing historical
+unverified legacy rows that lack the required chain can therefore cause a
+shared-history HOLD until separately authenticated adjudication; they are
+not silently remapped to Base, omitted from recount, or rewritten to unblock
+another request. The linked #2622 private prestate census is source-only and
+not a substitute for independently authenticated historical origin.
 
 The original request and operator-event ledgers are a **byte-level admission
 contract**. A JSON object lacking the final LF is not necessarily a committed

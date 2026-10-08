@@ -46,12 +46,24 @@ const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX_HASH = /^0x[0-9a-f]{64}$/u;
 
 function canonicalRequestSourceChainV1(value: any): string {
-  const raw = String(
-    value?.source_chain || value?.payment_chain || value?.chain || "base",
-  ).trim().toLowerCase();
-  const chain = raw === "eth" ? "ethereum" : raw;
-  if (chain !== "base" && chain !== "ethereum") {
+  // An unbound original chain must never silently become Base, nor may an
+  // alternate alias override a contradictory source_chain. Exact payment
+  // replay/recovery requires this same explicit lineage.
+  const normalize = (raw: unknown): string => {
+    if (typeof raw !== "string") return "";
+    const label = raw.trim().toLowerCase();
+    const chain = label === "eth" ? "ethereum" : label;
+    return chain === "base" || chain === "ethereum" ? chain : "";
+  };
+  const chain = normalize(value?.source_chain);
+  if (!chain) {
     fail("buy_void_verified_payment_capacity_request_source_chain_invalid");
+  }
+  for (const alias of ["payment_chain", "chain"] as const) {
+    if (Object.prototype.hasOwnProperty.call(value, alias) &&
+        normalize(value[alias]) !== chain) {
+      fail("buy_void_verified_payment_capacity_request_source_chain_alias_mismatch");
+    }
   }
   return chain;
 }
