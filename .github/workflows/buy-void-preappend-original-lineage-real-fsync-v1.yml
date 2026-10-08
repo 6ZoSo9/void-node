@@ -1,0 +1,118 @@
+name: VOID Buy VOID original buyer lineage before payment fsync v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_preappend_original_lineage_real_fsync_v1.ts"
+      - ".github/workflows/buy-void-preappend-original-lineage-real-fsync-v1.yml"
+      - "docs/architecture/buy-void-preappend-original-lineage-real-fsync-v1.md"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-preappend-original-lineage-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact unmerged source checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checked-out head
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exact TypeScript and compiled runtime build
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Real disposable-ledger payment and allocation adversaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_preappend_original_lineage_real_fsync_v1.ts \
+            | tee preappend-proof-node-${{ matrix.node }}.txt
+          for required in \
+            VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN \
+            VOID_BUY_VOID_PREAPPEND_ORIGINAL_LINEAGE_REAL_FSYNC_V1_GREEN \
+            forged_receipt_and_caller_lineage_rejected_before_payment_fsync=true \
+            first_original_native_token_and_launch_required=true \
+            valid_payment_allocation_and_replay_remain_exactly_once=true \
+            production_payment_ingress_enabled=false \
+            funds_moved=false
+          do
+            grep -Fx "$required" preappend-proof-node-${{ matrix.node }}.txt
+          done
+      - name: Refuse mutation to source during proof
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+      - name: Preserve reproducible negative proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-preappend-lineage-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: preappend-proof-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head proof receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-preappend-lineage-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./preappend-evidence
+      - name: Require byte-identical 22/24/26 safety results
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "preappend-evidence/preappend-proof-node-$version.txt"
+          done
+          cmp preappend-evidence/preappend-proof-node-22.txt preappend-evidence/preappend-proof-node-24.txt
+          cmp preappend-evidence/preappend-proof-node-22.txt preappend-evidence/preappend-proof-node-26.txt
+          sha256sum preappend-evidence/preappend-proof-node-22.txt
+          echo "VOID_PREAPPEND_ORIGINAL_BUYER_THREE_NODE_BYTES_GREEN"
+          echo "production_payment_ingress_enabled=false"
+          echo "funds_moved=false"

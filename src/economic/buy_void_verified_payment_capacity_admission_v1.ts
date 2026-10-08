@@ -1516,6 +1516,142 @@ function assertPriorVerifiedAllocationsCompleteV1(input: {
   }
 }
 
+// First-original, complete V2 payment lineage must be qualified BEFORE
+// fsync of the irreversible payment_verified JSONL row. This uses the SAME
+// strict replay classifier as allocation postcheck, with one hypothetical
+// in-memory event row, not a second/weaker payment parser. It is invoked
+// exclusively while global capacity + request locks are held.
+function assertBuyVoidVerifiedPaymentPreappendOriginalLineageV1(input: {
+  request: any;
+  event: any;
+  current_request_id: string;
+  allocation_ledger_root: string;
+  allocation_high_water_root: string;
+  authority: {
+    request_jsonl: Buffer;
+    operator_jsonl: Buffer;
+  };
+}): void {
+  const requestId = input.current_request_id;
+  const eventLine = verifiedPaymentEventLineV1(input.event);
+  const expectedEventSha = sha256RefV1(eventLine);
+  const allocation = snapshotBuyVoidAllocationReservationPublicationWriterV1({
+    ledger_root: input.allocation_ledger_root,
+    high_water_root: input.allocation_high_water_root,
+  });
+  if (allocation.ok === false) {
+    fail("buy_void_preappend_allocation_snapshot_" + allocation.reason);
+  }
+  const candidate = classifyBuyVoidVerifiedAllocationReplayBindingV1({
+    request_id: requestId,
+    requests_jsonl: Buffer.from(input.authority.request_jsonl),
+    operator_events_jsonl: Buffer.concat([
+      Buffer.from(input.authority.operator_jsonl),
+      eventLine,
+    ]),
+    allocation_jsonl: Buffer.from(allocation.ledger_jsonl, "utf8"),
+  });
+  // A new accepted payment must be genuinely unallocated *before* append,
+  // and must bind the EXACT proposed serialized event bytes.
+  if (
+    candidate.status !== "verified_allocation_missing" ||
+    candidate.request_id !== requestId ||
+    candidate.payment_verified_event_sha256 !== expectedEventSha ||
+    !candidate.canonical_payment_identity ||
+    !/^voidpay1:(base|ethereum):0x[0-9a-f]{64}:[0-9]+$/u.test(
+      candidate.canonical_payment_identity,
+    )
+  ) {
+    fail("buy_void_preappend_verified_original_replay_lineage_invalid");
+  }
+  // Replay independently validates every original/history snapshot and
+  // receipt, but the caller-supplied request is a SECOND input to allocation
+  // planning. It must match the FIRST durable buyer and last transaction
+  // binding, rather than merely matching event request ID and quote.
+  const history = parseStrictJsonLinesV1(
+    Buffer.from(input.authority.request_jsonl),
+    "buy_void_preappend_original_requests",
+  ).filter((row) => row.request_id === requestId);
+  if (!history.length) {
+    fail("buy_void_preappend_original_request_missing");
+  }
+  const first = history[0], last = history[history.length - 1];
+  const caller = input.request;
+  if (
+    first.schema !== "void_public_buy_void_request_v1" ||
+    last.schema !== "void_public_buy_void_request_v1" ||
+    !Number.isSafeInteger(first.created_at_ms) ||
+    first.created_at_ms < 1
+  ) {
+    fail("buy_void_preappend_first_original_request_invalid");
+  }
+  const addressOrChain = (value: unknown): string =>
+    typeof value === "string" ? value.trim().toLowerCase() : "";
+  for (const field of [
+    "request_id", "source_chain", "payment_chain", "delivery_address",
+    "receive_address", "usdc_contract",
+  ] as const) {
+    const original = addressOrChain(first[field]);
+    if (
+      !original ||
+      addressOrChain(last[field]) !== original ||
+      addressOrChain(caller?.[field]) !== original
+    ) {
+      fail("buy_void_preappend_caller_original_" + field + "_mismatch");
+    }
+  }
+  // The first request can have no tx while a later durable snapshot binds
+  // the submitted hash; replay validates monotonic tx history.
+  const lastTx = addressOrChain(last.tx_hash);
+  if (
+    !TX_HASH.test(lastTx) ||
+    addressOrChain(caller?.tx_hash) !== lastTx ||
+    (first.tx_hash && addressOrChain(first.tx_hash) !== lastTx)
+  ) {
+    fail("buy_void_preappend_caller_original_tx_hash_mismatch");
+  }
+  for (const field of ["quoted_void", "usdc_amount"] as const) {
+    const original = microVoid(
+      first[field], "buy_void_preappend_original_" + field + "_invalid", true,
+    );
+    const recent = microVoid(
+      last[field], "buy_void_preappend_current_" + field + "_invalid", true,
+    );
+    const proposed = microVoid(
+      caller?.[field], "buy_void_preappend_caller_" + field + "_invalid", true,
+    );
+    if (original !== recent || original !== proposed) {
+      fail("buy_void_preappend_caller_original_" + field + "_mismatch");
+    }
+  }
+  const launchKeys = [
+    "activation_generation", "activation_receipt_id",
+    "activation_receipt_sha256", "coupled_launch_id", "expires_at_ms",
+    "generation_tip_sha256", "marker", "source_composition_id", "version",
+  ];
+  const firstLaunch = first.launch_authority;
+  const lastLaunch = last.launch_authority;
+  const callerLaunch = caller?.launch_authority;
+  if (
+    !firstLaunch || typeof firstLaunch !== "object" ||
+    Array.isArray(firstLaunch) ||
+    !lastLaunch || typeof lastLaunch !== "object" ||
+    Array.isArray(lastLaunch) ||
+    !callerLaunch || typeof callerLaunch !== "object" ||
+    Array.isArray(callerLaunch) ||
+    [firstLaunch, lastLaunch, callerLaunch].some((item) =>
+      Object.keys(item).sort().join("|") !==
+      [...launchKeys].sort().join("|"),
+    ) ||
+    launchKeys.some((key) =>
+      firstLaunch[key] !== lastLaunch[key] ||
+      firstLaunch[key] !== callerLaunch[key],
+    )
+  ) {
+    fail("buy_void_preappend_caller_original_launch_authority_mismatch");
+  }
+}
+
 function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
   request: any;
   event: any;
@@ -1898,6 +2034,16 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
                   allocation_ledger_root: allocationLedgerRoot,
                   allocation_high_water_root:
                     allocationHighWaterRoot,
+                  authority,
+                });
+                // The strict original buyer/receipt/caller binding MUST
+                // complete before a single byte of payment_verified appends.
+                assertBuyVoidVerifiedPaymentPreappendOriginalLineageV1({
+                  request,
+                  event,
+                  current_request_id: requestId,
+                  allocation_ledger_root: allocationLedgerRoot,
+                  allocation_high_water_root: allocationHighWaterRoot,
                   authority,
                 });
                 appendPaymentVerifiedEventDurableV1(
