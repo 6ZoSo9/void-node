@@ -66,9 +66,9 @@ jobs:
             import assert from "node:assert/strict";
             const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
             assert.equal(j.schema, "void_buy_void_source_finality_compiled_artifact_attestation_v4");
-            assert.equal(j.source_stack_head, "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e");
-            assert.equal(j.verified_payment_v2_source_git_blob_sha1, "32133e441ccb02bb4786d29e36932fb31399ec87");
-            assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1, "d642723385136e9f0382bd77efdb34948221f380");
+            assert.equal(j.source_stack_head, "5806d994d5c45bac31d49ea8edff343d02ad99cb");
+            assert.equal(j.verified_payment_v2_source_git_blob_sha1, "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac");
+            assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1, "7266c03d8874207ed3fda0f814d0a7a53d429c25");
             assert.equal(j.reviewed_source_generation.marker, "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6");
             assert.equal(j.artifact_count, 6);
             assert.equal(j.artifacts.length, 6);
