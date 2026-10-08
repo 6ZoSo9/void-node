@@ -298,7 +298,7 @@ function runSelfTest() {
   console.log("source_runtime_unchanged=true");
   console.log("candidate_acceptance=false");
 }
-function derive() {
+export function deriveBuyVoidEnforcementArtifactAttestationV5Candidate() {
   assert.ok([22,24,26].includes(Number(process.versions.node.split(".")[0])),"node major not reviewed");
   assert.ok(!fs.existsSync(path.join(ROOT,".dockerignore")),"unreviewed build ignore");
   assert.equal(ts.version,"5.9.3");
@@ -408,5 +408,5 @@ function derive() {
 const args=process.argv.slice(2);
 if(args.length===1&&args[0]==="--self-test"){runSelfTest();}
 else if(args.length===1&&args[0]==="--derive"){
-  process.stdout.write(JSON.stringify(derive(),null,2)+"\n");
+  process.stdout.write(JSON.stringify(deriveBuyVoidEnforcementArtifactAttestationV5Candidate(),null,2)+"\n");
 }else throw Error("v5_candidate_derivation_only_no_locked_authority");
