@@ -4,10 +4,10 @@ umask 077
 
 marker=VOID_REPLAY_NIMO_COMPARE_HANDLER_UPGRADE_V2
 trusted_self=/root/.void-replay-nimo-compare-handler-upgrade-v2.sh
-wrapper="$parent/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs"
 wrapper_blob=309b4de7c40c5b8a21bbc956cc445f6600a33215
 compare_fpr='SHA256:8NrrP3xxlMTcJEDYgNE+8DWMm1Z6zxFW5FpHWdk0EGI'
 parent=/usr/local/libexec/void-replay-witness-v1/void
+wrapper="$parent/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs"
 target="$parent/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs"
 stage=/home/zoso/.local/state/void-replay-compare-handler-upgrade-v1/handler.mjs
 config=/etc/void/buy-void-allocation-custody-witness-live-read-replay-external-forced-command-v1.json
