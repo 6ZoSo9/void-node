@@ -5,7 +5,7 @@
 This separate source-only Draft is stacked on exact [#2641](https://github.com/6ZoSo9/void-node/pull/2641)
 head `ad5192933e2f8c538bab041bb6d9a164fd67e880`, which in turn
 is based on the [#2638](https://github.com/6ZoSo9/void-node/pull/2638)
-V6 runtime bridge at `320ab95af3998a9dcfddd44d62c394c19ba7ea2c`.
+V6 runtime bridge at `3123b3054896beb39e8991441187a83ac07dc1f7`.
 
 PR #2641's initial enforced AST-closed import scanner correctly HELD
 because it discovered real code-generated ESM imports:
@@ -115,7 +115,7 @@ A later independent reviewer must authenticate actual emitted caller byte
 identities, Node's code-generated import resolution in the packaged image,
 immutable target bytes, imported external modules, all transitive dependencies
 and side-effect controls *before* qualifying a locked V5 enforcement
-successor. The checked-entry locked V4 sibling [#2639](https://github.com/6ZoSo9/void-node/pull/2639)
+successor. The checked-entry locked V4 sibling [#2636](https://github.com/6ZoSo9/void-node/pull/2639)
 also requires lineage reconciliation. Historical attestations stay immutable.
 
 No runtime service, signer, keys, customer ledger, RPC, payment, transaction,
