@@ -248,9 +248,25 @@ export function fileSha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
+// Do not inherit GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_CONFIG_COUNT,
+// replacement-object selection, global config, or an ambient Git executable.
+// Publication source/custody checks must inspect exactly repoRoot.
+const PUBLICATION_GIT_ENV = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  HOME: "/nonexistent",
+  LC_ALL: "C",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_NO_REPLACE_OBJECTS: "1",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+});
+
 export function git(repoRoot, args, label) {
-  const result = childProcess.spawnSync("git", ["-C", repoRoot, ...args], {
+  const result = childProcess.spawnSync("/usr/bin/git", ["-C", repoRoot, ...args], {
     encoding: "utf8",
+    env: PUBLICATION_GIT_ENV,
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.status !== 0) {
