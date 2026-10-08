@@ -88,9 +88,17 @@ function qualify(capacity,publication,replay){
   assert.doesNotMatch(locked,/persistBuyVoidAllocationReservationPublicationWriterV1/u);
   const persisted=publication.includes("export function persistBuyVoidAllocationReservationPublicationWriterV1(");
   assert.equal(persisted,true,"allocation publication writer disappeared");
-  assert.match(publication,/runtime_integration:\s*false/u);
-  assert.match(publication,/payment_verified_event_write:\s*false/u);
-  assert.match(publication,/allocation_ledger_write:\s*true/u);
+  const authStart=publication.indexOf(
+    "export const VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V1 =");
+  const authEnd=publication.indexOf("const LEDGER_NAME =",authStart);
+  assert.ok(authStart>=0&&authEnd>authStart,"allocation publisher authority block changed");
+  const sourceAuthority=publication.slice(authStart,authEnd);
+  assert.match(sourceAuthority,/runtime_integration:\s*false/u,
+    "runtime_integration authority unexpectedly promoted");
+  assert.match(sourceAuthority,/payment_verified_event_write:\s*false/u,
+    "payment writer authority unexpectedly promoted");
+  assert.match(sourceAuthority,/allocation_ledger_write:\s*true/u,
+    "allocation writer source contract changed");
   assert.match(replay,/verified_allocation_requires_protected_recovery/u);
   assert.match(replay,/independently_proven_event_fsync:\s*false/u);
   assert.match(replay,/capacity_lock_held:\s*false/u);
