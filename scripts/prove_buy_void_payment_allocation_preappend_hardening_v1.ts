@@ -390,7 +390,63 @@ async function proveSameSizePathReplacement(): Promise<void> {
   }
 }
 
+async function proveCallerEventSerializedOnce(): Promise<void> {
+  const fixture = setup();
+  let serializationCount = 0;
+  const candidate = {
+    ...correctEvent,
+    payment_verifier: {
+      ...correctEvent.payment_verifier,
+    },
+  };
+  Object.defineProperty(candidate, "toJSON", {
+    enumerable: false,
+    configurable: false,
+    value() {
+      serializationCount += 1;
+      return structuredClone(correctEvent);
+    },
+  });
+
+  try {
+    const result = await invoke(fixture, request, candidate);
+    assert.equal(result.ok, true);
+    assert.equal(
+      serializationCount,
+      1,
+      "caller payment event must be serialized exactly once",
+    );
+    const durable = fs.readFileSync(
+      path.join(fixture.requestDir, "operator-events.jsonl"),
+    );
+    assert.equal(
+      durable.equals(
+        Buffer.from(JSON.stringify(correctEvent) + "\n", "utf8"),
+      ),
+      true,
+      "durable payment row must equal the validated canonical event bytes",
+    );
+    const allocation = fs.readFileSync(
+      path.join(fixture.ledgerRoot, LEDGER),
+    );
+    const replay =
+      classifyBuyVoidVerifiedAllocationReplayBindingV1({
+        request_id: REQUEST_ID,
+        requests_jsonl: fs.readFileSync(
+          path.join(fixture.requestDir, "requests.jsonl"),
+        ),
+        operator_events_jsonl: durable,
+        allocation_jsonl: allocation,
+      });
+    assert.equal(replay.ok, true);
+    assert.equal(replay.status, "allocation_present");
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+}
+
 await provePositive();
+await proveCallerEventSerializedOnce();
 
 await provePreappendHold(
   "forged_verifier_buyer",
@@ -422,6 +478,8 @@ await proveSameSizePathReplacement();
 
 console.log("VOID_BUY_VOID_PAYMENT_ALLOCATION_PREAPPEND_HARDENING_V1_GREEN");
 console.log("valid_payment_append_allocation_sidecar=true");
+console.log("caller_payment_event_serialized_exactly_once=true");
+console.log("validated_payment_jsonl_equals_fsynced_bytes=true");
 console.log("forged_buyer_holds_before_payment_fsync=true");
 console.log("altered_caller_holds_before_payment_fsync=true");
 console.log("operator_jsonl_unchanged_on_preappend_hold=true");
