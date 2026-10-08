@@ -313,7 +313,9 @@ assert.equal(nativeEthereum.event.payment_verifier.usdc_contract, ETH_NATIVE_USD
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PROVENANCE_V1_GREEN");
 console.log("native_usdc_checkout_config_receipt_consistency=true");
 console.log("non_native_config_cannot_verify_native_checkout=true");
-console.log("missing_or_wrong_original_coupled_token_holds=true");\nconsole.log("original_checkout_payment_instructions_fully_bound=true");\nconsole.log("checkout_chain_ids_and_token_decimals_type_exact=true");
+console.log("missing_or_wrong_original_coupled_token_holds=true");
+console.log("original_checkout_payment_instructions_fully_bound=true");
+console.log("checkout_chain_ids_and_token_decimals_type_exact=true");
 console.log("ethereum_payment_log_not_finality=true");
 console.log("removed_log_rejected=true");
 console.log("per_log_transaction_hash_bound=true");
