@@ -77,7 +77,9 @@ jobs:
           for proof in scripts/prove_buy_void_*.ts
           do
             case "$proof" in
-              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts)
+              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts)
+                # V4/V5 are immutable historical-generation proofs. Current
+                # runtime trust generation is V6 and is exercised by this loop.
                 continue
                 ;;
             esac
