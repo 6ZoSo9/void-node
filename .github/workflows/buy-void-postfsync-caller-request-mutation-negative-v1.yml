@@ -1,0 +1,113 @@
+name: VOID Buy VOID post-fsync caller request mutation negative v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts"
+      - "scripts/prove_buy_void_postfsync_caller_request_mutation_negative_v1.ts"
+      - "docs/architecture/buy-void-postfsync-caller-request-mutation-negative-v1.md"
+      - ".github/workflows/buy-void-postfsync-caller-request-mutation-negative-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-negative:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact Draft head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source head and unchanged writer/replay code
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = abbd4cf733d6ba1e9fb6b5fd902f6c59303f0aab
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = 970e686cd96b43d496c44acb4ff343a5e61e26c5
+      - name: Set up reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked npm dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck exact negative proof and real imports
+        run: ./node_modules/.bin/tsc --noEmit --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --types node scripts/prove_buy_void_postfsync_caller_request_mutation_negative_v1.ts
+      - name: Build exact unmounted source writer
+        run: npm run build
+      - name: Reproduce post-fsync mutable original-caller DTO poison with disposable ledgers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_postfsync_caller_request_mutation_negative_v1.ts | tee "postfsync-caller-${{ matrix.node }}.txt"
+          for assertion in \
+            plain_immutable_control_passed=true \
+            preappend_original_buyer_validated=true \
+            original_verified_payment_fsynced_before_mutation=true \
+            mutable_caller_wallet_swapped_after_fsync=true \
+            incorrect_allocation_persisted_before_strict_replay_hold=true \
+            strict_postcheck_rejects_poisoned_allocation=true \
+            honest_retry_cannot_silently_repair_poisoned_allocation=true \
+            payment_row_was_not_duplicated=true \
+            customer_or_real_ledger_used=false \
+            runtime_route_mounted=false \
+            wallet_signer_chain_action=false \
+            production_authority_ready=false \
+            funds_moved=false
+          do
+            grep -Fx "$assertion" "postfsync-caller-${{ matrix.node }}.txt"
+          done
+      - name: Upload exact negative source truth receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-postfsync-caller-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: postfsync-caller-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Git whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [source-negative]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Collect exact three-node negative results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-postfsync-caller-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./negative-results
+      - name: Require byte-identical Node 22 24 26 negative receipt
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "negative-results/postfsync-caller-$v.txt"; done
+          cmp negative-results/postfsync-caller-22.txt negative-results/postfsync-caller-24.txt
+          cmp negative-results/postfsync-caller-22.txt negative-results/postfsync-caller-26.txt
+          echo "VOID_BUY_VOID_POSTFSYNC_CALLER_MUTATION_NEGATIVE_THREE_NODE_GREEN"
+          echo "production_payment_authority=false"
+          echo "funds_moved=false"
