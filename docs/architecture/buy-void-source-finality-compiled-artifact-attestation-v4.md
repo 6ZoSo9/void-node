@@ -2,69 +2,97 @@
 
 ## Purpose
 
-V4 is the locked compiled-artifact successor for the reviewed V6 source
-generation and the native-USDC V2 payment verifier. Historical V3 remains
-immutable predecessor evidence and is not repinned.
+V4 is the locked compiled-artifact successor for the finalized V6 reviewed
+source generation and hardened native-USDC V2 verifier. Historical V3/V5
+evidence remains immutable and is not repinned.
 
-The derive-only candidate in #2633 produced byte-identical candidate JSON on
-Node 22, 24 and 26. Its exact candidate SHA-256 is
-`d03761f2c4cae8388fcee50bb953c85062d5d58d653c79451f0bf097069a28e8`;
-the closed compiled-generation digest is
-`b35302ca60ea5e9f8a278fd67143e182a5dc49ceb838b8f85060322686d3e06d`.
+The independently audited current candidate is the exact 4,032-byte JSON
+archived from #2633 run 37820150421 and rechecked in #2637:
 
-## Acceptance contract
+- candidate SHA-256:
+  `27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128`;
+- candidate Git blob:
+  `4c95426572e6b019822f3ae6422aacad6287e562`;
+- compiled generation:
+  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`;
+- reviewed-source digest:
+  `95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426`.
 
-The locked proof executes the exact reviewed candidate derivation helper,
-Git-blob pins that helper, and requires its complete JSON bytes to equal the
-reviewed candidate digest above. It then changes exactly one authority field:
-`compiled_artifact_generation_verified=true`.
+The lock changes exactly one candidate authority field:
+`compiled_artifact_generation_verified=false` becomes `true`.
+Deployment, runtime mount and production source-finality authority remain false.
 
-The six compiled artifacts are fixed by exact byte length and SHA-256. The
-four common predecessor artifacts remain identical to V3. The two changed
-artifacts are:
+## Exact changed compiled artifacts
 
-- V6 source-finality generation module:
+The four predecessor-common artifacts remain byte-identical to immutable V3.
+The two changed artifacts are:
+
+- V6 source-finality generation:
   15,937 bytes,
-  `sha256:1a80772df43a5a39ac041faf093dd3da58d0bd587499237dd51fb18a4b0915db`.
-- V2 verified-payment module:
-  10,023 bytes,
-  `sha256:e2cc47627e1aa2d1094145745f86cd928a72ebd1103c8ca82f66f5f515112efc`.
+  `sha256:2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a`;
+- V2 verified-payment verifier:
+  12,161 bytes,
+  `sha256:7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2`.
 
-The reviewed V6 source identity remains Git blob
-`d642723385136e9f0382bd77efdb34948221f380`; the V2 verifier source remains
-`32133e441ccb02bb4786d29e36932fb31399ec87`. The reviewed-source generation
-digest is
-`6a2493b269919be87273eb9bcfc959ab601aab9c16689c54a813db619d1b980f`.
+Reviewed source identities:
 
-The candidate's descriptor-bound reader is re-run before every locked
-derivation. It retains `O_NOFOLLOW` descriptors, binds visible path identity
-before and after bounded positional reads, and detects one-byte growth beyond
-the preflight size without unbounded buffering.
+- V6 blob `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
+- V2 blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
+- source-generation anchor
+  `47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
 
-## Cross-version proof
+## Checked-entry execution
 
-The focused workflow rebuilds on Node 22, 24 and 26, derives the locked
-manifest independently, requires each result to equal the committed manifest,
-and then requires all three outputs to be byte-identical.
+The locked proof includes the #2639 P2 repair. It does not verify candidate
+helper bytes and then reopen the candidate pathname as executable source.
+Instead it executes the already-read, Git-blob-bound candidate bytes in an
+isolated Node ESM `--eval` child with:
+
+- expected candidate `import.meta.url` and argv;
+- `scripts/` cwd so the reviewed relative V6 dynamic import resolves;
+- fixed child environment excluding ambient `NODE_OPTIONS`, `NODE_PATH`
+  and user Git/preload configuration.
+
+The dedicated synthetic test extracts the exact production helper, replaces the
+candidate path after byte capture, and proves the replacement never executes.
+It separately injects hostile ambient Node preload settings and requires they
+remain absent from the child.
+
+This closes the reviewed helper check→execute race for this CI attestation
+path. It does not claim a mutable live host's complete compiled dependency
+closure is trusted.
+
+## Cross-version lock
+
+Node 22, 24 and 26 independently:
+
+1. install locked dependencies;
+2. build exact repository artifacts;
+3. rerun the candidate descriptor/path/growth adversaries;
+4. run the checked-entry adversary;
+5. derive the locked manifest;
+6. require byte equality with the committed manifest.
+
+The downstream job then requires all three locked outputs byte-identical.
 
 ## Authority boundary
 
-`compiled_artifact_generation_verified=true` is only a reviewed
-source/build identity statement. It does not establish a deployed or mounted
-runtime. The manifest therefore requires:
+A successful lock may state
+`compiled_artifact_generation_verified=true` only.
 
-- `deployed_artifact_generation_verified=false`
-- `runtime_mount_authority=false`
-- `production_source_finality_authority_ready=false`
+It must continue to state:
 
-A separately reviewed enforcement successor, packaged/final-image successor,
-runtime/deployment identity, original-request provenance, payment finality,
-anti-rollback custody, duplicate/capacity serialization, and exactly-once
-allocation recovery remain required.
+- `deployed_artifact_generation_verified=false`;
+- `runtime_mount_authority=false`;
+- `production_source_finality_authority_ready=false`.
 
-No live RPC, service deployment, wallet/private-key/signer access,
-transaction construction/signing/broadcast, Chain-2050/WC mutation,
-presale/market activation, treasury/liquidity action, or funds movement is
-performed by this lane.
+Enforcement, packaged/final-image, deployed runtime identity, authenticated
+original-request chronology, real payment finality, protected high-water
+custody, exactly-once allocation recovery and operator principal deployment
+remain separate gates.
+
+No live RPC, service deployment, wallet/private-key/signer access, customer
+ledger, transaction construction/signing/broadcast, Chain-2050/WC mutation,
+presale/market activation, treasury/liquidity or funds movement is performed.
 
 **PROTECT THE CORE.**

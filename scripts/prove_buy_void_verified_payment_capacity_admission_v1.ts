@@ -867,6 +867,158 @@ try {
   );
   assert.equal(mutationCalls, 2);
 
+  // Every historical original request snapshot needs explicit chain evidence.
+  // Do not admit a Base default or accept a contradictory alternate alias:
+  // that would create paid capacity which byte-exact replay must later HOLD.
+  {
+    const chainRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-chain-lineage-"),
+    );
+    try {
+      fs.chmodSync(chainRoot, 0o700);
+      const requestFile = path.join(chainRoot, "requests.jsonl");
+      fs.writeFileSync(
+        path.join(chainRoot, "operator-events.jsonl"),
+        "", { mode: 0o600 },
+      );
+      const original = {
+        request_id: "buyvoid_chain_12121212",
+        quoted_void: 2,
+        source_chain: "base",
+        tx_hash: "0x" + "a".repeat(64),
+      };
+      const writeOriginalHistory = (rows: any[]) =>
+        fs.writeFileSync(requestFile,
+          rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+          { mode: 0o600 });
+      const census = () => testOnlyReadStrictCapacityCensusV1(
+        chainRoot, 10_000_000n, () => {},
+      );
+      writeOriginalHistory([
+        { ...original, payment_chain: "base", chain: "BASE" },
+        { ...original, request_id: "buyvoid_eth_34343434",
+          source_chain: "ethereum", payment_chain: "eth", chain: "ETH" },
+      ]);
+      const qualified = census();
+      assert.equal(qualified.request_payment_bindings.get(original.request_id)?.source_chain, "base");
+      assert.equal(qualified.request_payment_bindings.get("buyvoid_eth_34343434")?.source_chain, "ethereum");
+      const invalidHistories: Array<{
+        name: string; rows: any[]; reason: string;
+      }> = [
+        { name: "missing source_chain with Base alias",
+          rows: [{ ...original, source_chain: undefined, payment_chain: "base" }],
+          reason: "invalid" },
+        { name: "missing every source chain label",
+          rows: [{ ...original, source_chain: undefined }],
+          reason: "invalid" },
+        { name: "empty source_chain with Ethereum alias",
+          rows: [{ ...original, source_chain: "", payment_chain: "ethereum" }],
+          reason: "invalid" },
+        { name: "conflicting payment_chain",
+          rows: [{ ...original, payment_chain: "ethereum" }],
+          reason: "alias_mismatch" },
+        { name: "conflicting chain alias",
+          rows: [{ ...original, chain: "ethereum" }],
+          reason: "alias_mismatch" },
+        { name: "present but null alias",
+          rows: [{ ...original, payment_chain: null }],
+          reason: "alias_mismatch" },
+        { name: "two aliases contradict one another",
+          rows: [{ ...original, payment_chain: "base", chain: "eth" }],
+          reason: "alias_mismatch" },
+        { name: "later snapshot cannot erase first alias contradiction",
+          rows: [{ ...original }, { ...original, status: "later", chain: "ethereum" }],
+          reason: "alias_mismatch" },
+        { name: "unverified unrelated legacy missing original chain",
+          rows: [
+            { ...original, request_id: "buyvoid_legacy_56565656", source_chain: undefined },
+            { ...original },
+          ],
+          reason: "invalid" },
+      ];
+      for (const { name, rows, reason } of invalidHistories) {
+        writeOriginalHistory(rows);
+        const bytesBefore = fs.readFileSync(requestFile);
+        assert.throws(census,
+          new RegExp("buy_void_verified_payment_capacity_request_source_chain_" + reason, "u"), name);
+        assert.equal(fs.readFileSync(requestFile).equals(bytesBefore), true,
+          "HOLD may not rewrite original historical request bytes");
+      }
+    } finally {
+      fs.rmSync(chainRoot, { recursive: true, force: true });
+    }
+  }
+
+  // A syntactically valid but non-LF-terminated row must not be treated as a
+  // committed operator event. Raw bytes are never normalized or rewritten.
+  // Exercise the SAME bounded, pinned reader used for request and event
+  // histories, not a second hand-written synthetic JSON parser.
+  {
+    const strictRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-canonical-jsonl-"),
+    );
+    try {
+      fs.chmodSync(strictRoot, 0o700);
+      const fixture = {
+        request_id: "buyvoid_canonical_12121212",
+        quoted_void: "2",
+        source_chain: "base",
+        note: "synthetic only",
+      };
+      const canonical = JSON.stringify(fixture) + "\n";
+      const utf8Corrupt = Buffer.concat([
+        Buffer.from(JSON.stringify(fixture).slice(0, -1) + ',"detail":"', "utf8"),
+        Buffer.from([0xff]),
+        Buffer.from('"}\n', "utf8"),
+      ]);
+      const adversaries: Array<{ label: string; bytes: Buffer; suffix: string }> = [
+        { label: "complete json without terminating LF",
+          bytes: Buffer.from(canonical.slice(0, -1)), suffix: "_truncated_or_noncanonical" },
+        { label: "CRLF line ending", bytes: Buffer.from(canonical.replace("\n", "\r\n")),
+          suffix: "_truncated_or_noncanonical" },
+        { label: "duplicate request_id field",
+          bytes: Buffer.from('{"request_id":"buyvoid_forged_ffffffff",' +
+            JSON.stringify(fixture).slice(1) + "\n"),
+          suffix: "_row_noncanonical" },
+        { label: "invalid UTF-8 byte", bytes: utf8Corrupt, suffix: "_utf8_invalid" },
+        { label: "UTF-8 BOM", bytes: Buffer.concat([
+          Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(canonical),
+        ]), suffix: "_utf8_bom_not_canonical" },
+        { label: "empty terminal JSONL row",
+          bytes: Buffer.from(canonical + "\n"), suffix: "_empty_row" },
+        { label: "noncanonical whitespace",
+          bytes: Buffer.from(JSON.stringify(fixture).replace(
+            ',"quoted_void"', ', "quoted_void"') + "\n"),
+          suffix: "_row_noncanonical" },
+      ];
+      for (const ledgerName of ["requests.jsonl", "operator-events.jsonl"]) {
+        const code = ledgerName === "requests.jsonl"
+          ? "buy_void_verified_payment_capacity_requests"
+          : "buy_void_verified_payment_capacity_operator_events";
+        const ledger = path.join(strictRoot, ledgerName);
+        const read = () => testOnlyReadStrictCapacityLedgerFileV1(
+          ledger, code, () => {},
+        );
+        fs.writeFileSync(ledger, canonical, { mode: 0o600 });
+        assert.deepEqual(read(), [fixture]);
+        fs.writeFileSync(ledger, canonical + canonical, { mode: 0o600 });
+        assert.deepEqual(read(), [fixture, fixture],
+          "valid LF-terminated rows preserve raw order");
+        for (const { label, bytes, suffix } of adversaries) {
+          fs.writeFileSync(ledger, bytes, { mode: 0o600 });
+          assert.throws(read, new RegExp(code + suffix, "u"), label);
+          assert.equal(fs.readFileSync(ledger).equals(bytes), true,
+            "authoritative input must never be rewritten by observation");
+        }
+        fs.writeFileSync(ledger, Buffer.alloc(0), { mode: 0o600 });
+        assert.deepEqual(read(), [],
+          "zero-byte ledger can be observed but not treated as payment proof");
+      }
+    } finally {
+      fs.rmSync(strictRoot, { recursive: true, force: true });
+    }
+  }
+
   // Descriptor-bound strict reads must reject a visible-path replacement
   // after the opened inode has already passed its initial stat.
   {
@@ -1331,11 +1483,17 @@ try {
   console.log("exact_remaining_capacity_admitted=true");
   console.log("capacity_exhaustion_rejected=true");
   console.log("malformed_authoritative_ledger_fails_closed=true");
+  console.log("authoritative_jsonl_requires_exact_lf_termination=true");
+  console.log("authoritative_jsonl_rejects_duplicate_members_and_invalid_utf8=true");
+  console.log("authoritative_jsonl_rejects_crlf_and_noncanonical_rows=true");
+  console.log("historical_invalid_authority_bytes_are_not_rewritten=true");
   console.log("legacy_lenient_projection_is_not_capacity_authority=true");
   console.log("candidate_request_must_exist_in_durable_ledger=true");
   console.log("candidate_quote_bound_to_durable_request=true");
   console.log("candidate_payment_tx_bound_to_durable_request=true");
   console.log("candidate_source_chain_bound_to_durable_request=true");
+  console.log("original_request_chain_explicit_no_base_default=true");
+  console.log("original_request_chain_aliases_all_agree_or_hold=true");
   console.log("duplicate_request_reverification_idempotent=true");
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("requests_ledger_descriptor_bound_bounded_read=true");
