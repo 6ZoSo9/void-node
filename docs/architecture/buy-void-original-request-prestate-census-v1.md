@@ -33,11 +33,17 @@ merely to satisfy this script. Its plain stdout JSON is a source-level
 observation, not an attestation. A sandbox/temporary fixture is suitable for
 review and CI. The production run requires a separate operator decision.
 
-The script requires the basename `requests.jsonl`, rejects symlink ancestors
-and final target, and retains a `O_RDONLY | O_NOFOLLOW` descriptor. It strictly
-bounds reads to 64 MiB and 100,000 lines, verifies a regular single-link file,
-checks the descriptor and visible path's identity and size/timestamps before
-and after the read, and revalidates ancestor identity. Concurrent mutation,
+The script requires the basename `requests.jsonl`, uses **Linux
+`/proc/self/fd` descriptor-relative traversal** from the root with
+`O_DIRECTORY | O_NOFOLLOW` at each component, refuses symlink ancestors and
+final targets, and retains a `O_RDONLY | O_NOFOLLOW` file descriptor. It
+strictly bounds reads to 64 MiB and 100,000 lines, verifies a regular
+single-link file, checks the descriptor and visible path's identity and
+size/timestamps before and after the read, and revalidates ancestor identity.
+The synthetic tests explicitly replace an intermediate pathname with a
+symlink **after the original parent descriptor is retained**, then assert that
+the opened file descriptor still belongs to the original selected directory
+and the changed path is held. The shipped tool itself has no swap hook. Concurrent mutation,
 truncated/noncanonical JSONL, unexpected request IDs and short reads HOLD.
 A **zero-byte requests.jsonl also HOLDs** with
 `empty_history_unqualified_without_external_anchor`: without independent

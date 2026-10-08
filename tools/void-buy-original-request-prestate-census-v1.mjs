@@ -85,36 +85,66 @@ function pinnedRead(file) {
       path.basename(file) !== 'requests.jsonl' || file !== path.normalize(file)) {
     fail('path_invalid');
   }
-  // Symlink ancestors can redirect a pathname between preflight and open.
-  // Reject them and revalidate their device/inode after the pinned read.
-  const pieces = path.dirname(file).split(path.sep).filter(Boolean);
-  const ancestors = [];
-  let at = path.parse(file).root;
-  for (const part of pieces) {
-    at = path.join(at, part);
-    const st = fs.lstatSync(at, { bigint: true });
-    if (!st.isDirectory() || st.isSymbolicLink()) fail('ancestor_not_plain_directory');
-    ancestors.push({ pathname: at, stat: st });
-  }
-  const beforePath = fs.lstatSync(file, { bigint: true });
-  if (!beforePath.isFile() || beforePath.isSymbolicLink() || beforePath.nlink !== 1n ||
-      beforePath.size > BigInt(MAX_FILE_BYTES)) fail('not_a_bounded_regular_file');
-  const flags = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW |
+  // Linux /proc/self/fd exposes retained directory descriptors as stable
+  // traversal roots. Opening child names relative to these pinned descriptors
+  // (and O_NOFOLLOW on every component) prevents transient symlink redirection
+  // from changing which directory supplies requests.jsonl.
+  const dirFlags = fs.constants.O_RDONLY | fs.constants.O_DIRECTORY |
+    fs.constants.O_NOFOLLOW | fs.constants.O_CLOEXEC;
+  const fileFlags = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW |
     fs.constants.O_CLOEXEC | fs.constants.O_NONBLOCK;
-  const fd = fs.openSync(file, flags);
+  const pieces = path.dirname(file).split(path.sep).filter(Boolean);
+  if (pieces.length > 32) fail('path_too_deep');
+  const openedDirs = [];
+  const ancestors = [];
+  let finalFd = -1;
+  let at = path.parse(file).root;
   try {
-    const before = fs.fstatSync(fd, { bigint: true });
-    if (!sameIdentity(beforePath, before)) fail('file_not_path_bound');
+    const rootFd = fs.openSync(at, dirFlags);
+    openedDirs.push(rootFd);
+    for (const part of pieces) {
+      at = path.join(at, part);
+      const visible = fs.lstatSync(at, { bigint: true });
+      if (!visible.isDirectory() || visible.isSymbolicLink()) {
+        fail('ancestor_not_plain_directory');
+      }
+      const parentFd = openedDirs[openedDirs.length - 1];
+      const dirFd = fs.openSync('/proc/self/fd/' + parentFd + '/' + part,
+        dirFlags);
+      openedDirs.push(dirFd);
+      const bound = fs.fstatSync(dirFd, { bigint: true });
+      if (!bound.isDirectory() || bound.isSymbolicLink() ||
+          bound.ino !== visible.ino || bound.dev !== visible.dev) {
+        fail('ancestor_changed_or_rebound');
+      }
+      ancestors.push({ pathname: at, stat: bound });
+    }
+    // TEST_CENSUS_PINNED_PARENT_BEFORE_FILE_OPEN
+    const parentFd = openedDirs[openedDirs.length - 1];
+    const finalRelativePath = '/proc/self/fd/' + parentFd + '/requests.jsonl';
+    const finalEntry = fs.lstatSync(finalRelativePath, { bigint: true });
+    if (!finalEntry.isFile() || finalEntry.isSymbolicLink()) {
+      fail('not_a_bounded_regular_file');
+    }
+    finalFd = fs.openSync(finalRelativePath, fileFlags);
+    // TEST_CENSUS_PINNED_FILE_BEFORE_PATH_RECHECK
+    const before = fs.fstatSync(finalFd, { bigint: true });
+    const beforePath = fs.lstatSync(file, { bigint: true });
+    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n ||
+        before.size > BigInt(MAX_FILE_BYTES)) fail('not_a_bounded_regular_file');
+    if (!sameIdentity(before, beforePath)) fail('file_not_path_bound');
     const size = Number(before.size);
-    if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE_BYTES) fail('file_unbounded');
+    if (!Number.isSafeInteger(size) || size < 0 || size > MAX_FILE_BYTES) {
+      fail('file_unbounded');
+    }
     const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < size) {
-      const read = fs.readSync(fd, bytes, offset, size - offset, offset);
+      const read = fs.readSync(finalFd, bytes, offset, size - offset, offset);
       if (read <= 0) fail('short_read');
       offset += read;
     }
-    const after = fs.fstatSync(fd, { bigint: true });
+    const after = fs.fstatSync(finalFd, { bigint: true });
     const currentPath = fs.lstatSync(file, { bigint: true });
     if (!sameIdentity(before, after) || !sameIdentity(after, currentPath)) {
       fail('file_changed_or_rebound');
@@ -127,7 +157,8 @@ function pinnedRead(file) {
     }
     return bytes;
   } finally {
-    fs.closeSync(fd);
+    if (finalFd >= 0) fs.closeSync(finalFd);
+    for (const dirFd of openedDirs.reverse()) fs.closeSync(dirFd);
   }
 }
 function parseCanonicalLines(bytes) {

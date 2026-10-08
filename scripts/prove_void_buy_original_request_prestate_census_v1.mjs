@@ -140,6 +140,61 @@ try {
     assert.equal(r.status,2);
     assert.match(parse(r.stderr).reason,/ancestor_not_plain_directory/u);
   } finally {fs.unlinkSync(linkedParent)}
+  // Deterministic transient intermediate symlink substitution: after the
+  // selected parent directory descriptor has been retained, replace its
+  // pathname with a symlink to another synthetic directory before file open.
+  // The instrumented *test copy* mutates fixture paths only; the shipped tool
+  // has no environment hook or filesystem mutation primitive.
+  const raceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'void-census-race-v1-'));
+  try {
+    const selected = path.join(raceRoot, 'selected');
+    const alternate = path.join(raceRoot, 'alternate');
+    fs.mkdirSync(selected, {mode:0o700});
+    fs.mkdirSync(alternate, {mode:0o700});
+    const originalFile = path.join(selected, 'requests.jsonl');
+    fs.writeFileSync(originalFile, JSON.stringify(qualified)+'\n', {mode:0o600});
+    fs.writeFileSync(path.join(alternate,'requests.jsonl'),
+      JSON.stringify({...qualified,request_id:'buyvoid_alt_dddddddd'})+'\n',
+      {mode:0o600});
+    const raceCode = toolSource.replace(
+      '    // TEST_CENSUS_PINNED_PARENT_BEFORE_FILE_OPEN',
+      `    if (process.env.VOID_SYNTHETIC_CENSUS_RACE === '1') {
+         fs.renameSync(path.dirname(file),path.dirname(file)+'.original');
+         fs.symlinkSync(path.join(path.dirname(path.dirname(file)),'alternate'),
+           path.dirname(file));
+       }
+       // TEST_CENSUS_PINNED_PARENT_BEFORE_FILE_OPEN`,
+    ).replace(
+      '    // TEST_CENSUS_PINNED_FILE_BEFORE_PATH_RECHECK',
+      `    if (process.env.VOID_SYNTHETIC_CENSUS_RACE === '1') {
+         const chosen = fs.lstatSync(
+           path.dirname(file)+'.original/requests.jsonl', {bigint:true});
+         const opened = fs.fstatSync(finalFd,{bigint:true});
+         if (chosen.dev !== opened.dev || chosen.ino !== opened.ino) {
+           fail('synthetic_wrong_opened_descriptor');
+         }
+       }
+       // TEST_CENSUS_PINNED_FILE_BEFORE_PATH_RECHECK`,
+    );
+    assert.notEqual(raceCode,toolSource);
+    const testCopy=path.join(raceRoot,'synthetic-race-only.mjs');
+    fs.writeFileSync(testCopy,raceCode,{mode:0o600});
+    const raced=spawnSync(process.execPath,[testCopy,'--read-only',originalFile],{
+      encoding:'utf8',timeout:5000,
+      env:{...process.env,VOID_SYNTHETIC_CENSUS_RACE:'1'},
+    });
+    assert.equal(raced.status,2,raced.stderr);
+    assert.equal(raced.stdout,'');
+    const report=parse(raced.stderr);
+    assert.match(report.reason,/file_not_path_bound|ancestor_changed_or_rebound/u);
+    assert.doesNotMatch(report.reason,/synthetic_wrong_opened_descriptor/u);
+    assert.equal(fs.lstatSync(selected).isSymbolicLink(),true);
+    fs.unlinkSync(selected);
+    fs.renameSync(selected+'.original',selected);
+    assert.equal(fs.lstatSync(path.join(selected,'requests.jsonl')).isFile(),true);
+  } finally {
+    fs.rmSync(raceRoot,{recursive:true,force:true});
+  }
   const extra = invoke('--read-only',p,'--apply');
   assert.equal(extra.status,2);
   assert.equal(extra.stdout,'');
@@ -152,6 +207,7 @@ try {
   console.log('originally_qualified_later_chain_and_contract_drift_counted=true');
   console.log('sensitive_request_id_address_tx_output=false');
   console.log('symlink_and_malformed_ledger_refused=true');
+  console.log('transient_intermediate_symlink_swap_cannot_redirect_opened_fd=true');
   console.log('empty_history_requires_independent_genesis_evidence=true');
   console.log('host_custody_or_payment_authority=false');
   console.log('production_gate_ready=false');
