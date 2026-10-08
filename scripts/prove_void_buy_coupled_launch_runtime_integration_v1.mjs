@@ -22,10 +22,10 @@ const index = read("src/index.ts");
 
 // Execute the exact two new route guards in an isolated VM with only inert
 // synthetic inputs; no RPC, wallet, filesystem or payment writer is supplied.
-const nativePreStart = index.indexOf('        const nativeUsdc=chainCfg.chain==="base"?');
-const nativePreEnd = index.indexOf("        let event:any;", nativePreStart);
-const nativePostStart = index.indexOf('        if(String(event?.payment_verifier?.usdc_contract||"")', nativePreEnd);
-const nativePostEnd = index.indexOf("        if(!__blo(found))", nativePostStart);
+const nativePreStart = index.indexOf('const nativeUsdc=chainCfg.chain==="base"?');
+const nativePreEnd = index.indexOf("let event:any;", nativePreStart);
+const nativePostStart = index.indexOf('if(!nativeEqual(event?.payment_verifier?.usdc_contract,nativeUsdc))', nativePreEnd);
+const nativePostEnd = index.indexOf("if(!__blo(found))", nativePostStart);
 const nativeWrite = index.indexOf("await __voidWriteBuyVoidOperatorEventV1(event,found);", nativePostEnd);
 const nativeReceipt = index.indexOf('const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt"', nativePreEnd);
 const nativeEthereum = index.indexOf('runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env})', nativePreEnd);
@@ -37,8 +37,11 @@ const nativePreflight = vm.runInNewContext(
   `(found,chainCfg,res)=>{\n${index.slice(nativePreStart,nativePreEnd)}\nreturn nativeUsdc;}`,
   Object.create(null), { timeout: 1000 },
 );
+const nativeEqualStart = index.indexOf("const nativeEqual=(value,expected)=>", nativePreStart);
+const nativeEqualEnd = index.indexOf("\n", nativeEqualStart);
+assert(nativeEqualStart > nativePreStart && nativeEqualEnd < nativePreEnd);
 const nativePostflight = vm.runInNewContext(
-  `(event,nativeUsdc,res)=>{\n${index.slice(nativePostStart,nativePostEnd)}\nreturn null;}`,
+  `(event,nativeUsdc,res)=>{\n${index.slice(nativeEqualStart,nativeEqualEnd)}\n${index.slice(nativePostStart,nativePostEnd)}\nreturn null;}`,
   Object.create(null), { timeout: 1000 },
 );
 const baseNativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
