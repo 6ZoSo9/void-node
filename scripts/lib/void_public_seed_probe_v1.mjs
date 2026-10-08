@@ -159,11 +159,37 @@ function requestOneBounded(
         response.on("end", () => {
           if (settled) return;
           const bytes = Buffer.concat(chunks, total);
+          let json = null;
+          if (bytes.length) {
+            try {
+              json = parseJsonBytes(bytes, `${method} ${url}`);
+            } catch {
+              // Never echo upstream response bodies or raw header values to CI.
+              // Fixed classes distinguish edge HTML from malformed JSON.
+              const mediaType = String(headersView.get("content-type") || "")
+                .split(";", 1)[0].trim().toLowerCase();
+              const mediaClass =
+                mediaType === "application/json" || mediaType.endsWith("+json")
+                  ? "json"
+                  : mediaType === "text/html" || mediaType === "application/xhtml+xml"
+                    ? "html"
+                    : mediaType.startsWith("text/")
+                      ? "text"
+                      : mediaType
+                        ? "other"
+                        : "missing";
+              fail(new Error(
+                `${method} ${url} did not return valid JSON ` +
+                `(http_status=${status}, content_type_class=${mediaClass}, response_bytes=${bytes.length})`,
+              ));
+              return;
+            }
+          }
           succeed({
             status,
             headers: headersView,
             bytes,
-            json: bytes.length ? parseJsonBytes(bytes, `${method} ${url}`) : null,
+            json,
             remote_address: connectedAddress,
           });
         });
