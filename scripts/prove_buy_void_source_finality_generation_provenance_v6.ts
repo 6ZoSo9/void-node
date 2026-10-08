@@ -280,6 +280,43 @@ await test("runtime source-file verifier binds the exact five reviewed Git blobs
   assert.match(result.reviewed_source_files_sha256, /^[0-9a-f]{64}$/);
 });
 
+await test("V6 detects source-path replacement before open and after read", () => {
+  // Forge only the observed file metadata, never real source bytes or paths.
+  const originalLstat = fs.lstatSync;
+  const target = "buy_void_source_finality_authenticated_composition_v3.ts";
+  const forged = (stat: fs.Stats): fs.Stats =>
+    Object.assign(Object.create(Object.getPrototypeOf(stat)),
+      stat, { ino: stat.ino + 123 }) as fs.Stats;
+  for (const position of ["before_open", "after_read"] as const) {
+    let examined = 0;
+    try {
+      (fs as any).lstatSync = (...args: unknown[]) => {
+        const stat = (originalLstat as any)(...args) as fs.Stats;
+        if (String(args[0]).endsWith(target)) {
+          examined += 1;
+          if ((position === "before_open" && examined === 1) ||
+              (position === "after_read" && examined === 2)) {
+            return forged(stat);
+          }
+        }
+        return stat;
+      };
+      const outcome = verifyBuyVoidSourceFinalityRuntimeSourceFilesV6();
+      assert.equal(outcome.ok, false, position);
+      if (outcome.ok === false) {
+        assert.equal(outcome.reason,
+          position === "before_open"
+            ? "source_files_path_not_bound_before_read"
+            : "source_files_path_rebound_after_read");
+      }
+      assert.equal(examined, position === "before_open" ? 1 : 2);
+    } finally {
+      (fs as any).lstatSync = originalLstat;
+    }
+  }
+  assert.equal(verifyBuyVoidSourceFinalityRuntimeSourceFilesV6().ok, true);
+});
+
 await test("manifest verifies recorded commit/blob mappings when commit objects are available", () => {
   assert.equal(VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V6.length, 5);
   let unavailableReviewedRecords = 0;

@@ -29,6 +29,14 @@ The V6 verifier checks module-derived paths, regular nonsymlink single-link
 files, bounded descriptor reads, stable inode/file metadata and Git blob SHA-1
 for **all five** before entering the original V3 composition. A canonical
 SHA-256 describes the entire V6 reviewed-source candidate record set.
+Unlike historical V5, V6 fails closed if Linux `O_NOFOLLOW` is unavailable,
+compares the initially visible source pathname's inode/metadata with the
+opened descriptor, and rechecks the visible pathname after reading and
+hashing the retained descriptor. A renamed/replaced path must HOLD even
+when the already-opened file contained the correct reviewed source bytes.
+Synthetic proofs forge `lstat` inode observations without writing or
+renaming any actual source file. This narrows a source-path race, but does
+not attest deployment generation or protect future path changes.
 
 The focused test independently checks commit/blob correspondence, verifies
 five source bytes, tamper rejection, and **requires historical V5 to HOLD**

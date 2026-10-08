@@ -200,8 +200,15 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV6():
   }
 
   const seen = new Set<string>();
-  const noFollow =
-    typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
+  // This reviewed generation is Linux-only: no silent symlink-follow fallback.
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    return {
+      ok: false,
+      reviewed_source_files_verified: false,
+      reason: "source_files_nofollow_unavailable",
+    };
+  }
 
   for (const record of VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V6) {
     if (
@@ -255,6 +262,22 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV6():
         };
       }
 
+      // Bind initially visible source path to the opened descriptor.
+      if (
+        before.dev !== pathname.dev ||
+        before.ino !== pathname.ino ||
+        before.nlink !== pathname.nlink ||
+        before.size !== pathname.size ||
+        before.mtimeMs !== pathname.mtimeMs ||
+        before.ctimeMs !== pathname.ctimeMs
+      ) {
+        return {
+          ok: false,
+          reviewed_source_files_verified: false,
+          reason: "source_files_path_not_bound_before_read",
+        };
+      }
+
       const bytes = fs.readFileSync(descriptor);
       const after = fs.fstatSync(descriptor);
       if (
@@ -276,6 +299,25 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV6():
           ok: false,
           reviewed_source_files_verified: false,
           reason: "source_files_git_blob_mismatch",
+        };
+      }
+      // Even a valid open descriptor may outlive rename/replacement of its
+      // visible pathname: rebind the path after the pinned-byte digest.
+      const visible = fs.lstatSync(sourcePath);
+      if (
+        !visible.isFile() ||
+        visible.isSymbolicLink() ||
+        visible.dev !== after.dev ||
+        visible.ino !== after.ino ||
+        visible.nlink !== after.nlink ||
+        visible.size !== after.size ||
+        visible.mtimeMs !== after.mtimeMs ||
+        visible.ctimeMs !== after.ctimeMs
+      ) {
+        return {
+          ok: false,
+          reviewed_source_files_verified: false,
+          reason: "source_files_path_rebound_after_read",
         };
       }
     } catch {
