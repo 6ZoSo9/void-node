@@ -1942,6 +1942,40 @@ function persistVerifiedPaymentAllocationUnderCapacityLockV1(input: {
   });
 }
 
+// Snapshot the JSON-only caller DTO ONCE before any awaited admission.
+// The first durable ledger still supplies true buyer/launch authority, and
+// the same detached request is reused by preappend, fsync, allocation and replay.
+function canonicalVerifiedPaymentCallerRequestV1(raw: any): Readonly<Record<string, any>> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    fail("buy_void_verified_payment_allocation_handoff_input_invalid");
+  }
+  let json: string;
+  try {
+    const text = JSON.stringify(raw);
+    if (typeof text !== "string") {
+      fail("buy_void_verified_payment_allocation_request_serialization_invalid");
+    }
+    json = text;
+  } catch {
+    fail("buy_void_verified_payment_allocation_request_serialization_invalid");
+  }
+  const bytes = Buffer.from(json + "\n", "utf8");
+  if (bytes.length < 3 || bytes.length > LEDGER_MAX_BYTES) {
+    fail("buy_void_verified_payment_allocation_request_serialization_invalid");
+  }
+  let parsed: any;
+  try { parsed = JSON.parse(json); }
+  catch { fail("buy_void_verified_payment_allocation_request_serialization_invalid"); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    fail("buy_void_verified_payment_allocation_request_serialization_invalid");
+  }
+  const snapshot = deepFreezeJsonValueV1(parsed) as Readonly<Record<string, any>>;
+  if (!Buffer.from(JSON.stringify(snapshot) + "\n", "utf8").equals(bytes)) {
+    fail("buy_void_verified_payment_allocation_request_roundtrip_mismatch");
+  }
+  return snapshot;
+}
+
 export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   input: {
     event: any;
@@ -1959,7 +1993,7 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   },
 ) {
   const rawEvent = input?.event;
-  const request = input?.request;
+  const request = canonicalVerifiedPaymentCallerRequestV1(input?.request);
   if (
     !rawEvent ||
     typeof rawEvent !== "object" ||
