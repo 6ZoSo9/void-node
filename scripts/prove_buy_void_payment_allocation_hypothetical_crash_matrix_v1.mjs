@@ -203,10 +203,12 @@ const phase = (ledger, highWater) =>
     observed_ledger_jsonl: ledger,
     observed_high_water_json: highWater,
   });
-const pending = ok(phase("", emptyHW.high_water_json), "intent_only");
+const pending = ok(phase("", emptyHW.high_water_json), "recoverable");
+assert.equal(pending.phase, "intent_only");
 assert.equal(pending.write_ledger_append_required, true);
 assert.equal(pending.write_high_water_required, true);
-const ledgerOnly = ok(phase(ledger1, emptyHW.high_water_json), "ledger_committed");
+const ledgerOnly = ok(phase(ledger1, emptyHW.high_water_json), "recoverable");
+assert.equal(ledgerOnly.phase, "ledger_committed");
 assert.equal(ledgerOnly.write_ledger_append_required, false);
 assert.equal(ledgerOnly.write_high_water_required, true);
 const replayAfterLedger = replay(requestHistory, verifiedEvents,
@@ -217,7 +219,8 @@ assert.equal(replayAfterLedger.allocation_record_id,
 // The publication protocol is the separate authority here: its "ledger_committed"
 // status must NEVER be conflated with completed durable two-root publication.
 assert.notEqual(ledgerOnly.phase, "complete");
-const complete = ok(phase(ledger1,nextHW.high_water_json), "complete");
+const complete = ok(phase(ledger1,nextHW.high_water_json), "recoverable");
+assert.equal(complete.phase, "complete");
 assert.equal(complete.write_ledger_append_required, false);
 assert.equal(complete.write_high_water_required, false);
 assert.equal(replayAfterLedger.unallocated_verified_void_micro, "0");
