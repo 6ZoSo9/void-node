@@ -906,6 +906,20 @@ const privacyInput = {
 const privacyButton = { disabled: false };
 let privacyClearHandler: (() => void) | null = null;
 let privacySubmitBound = false;
+let privacySubmitHandler: ((event: { preventDefault: () => void }) => void) | null = null;
+let privacySubmitPrevented = 0;
+const fireBoundPrivacySubmit = () => {
+  const handler = privacySubmitHandler;
+  assert.ok(handler, "actual Wallet submit listener must be bound");
+  handler({ preventDefault: () => { privacySubmitPrevented += 1; } });
+};
+const waitForPrivacyChip = async (expected: string) => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (privacyNodes.get("[data-wallet-state-chip]")?.textContent === expected) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, expected);
+};
 const privacyForm = {
   dataset: {} as Record<string, string>,
   querySelector: (selector: string) => {
@@ -918,8 +932,11 @@ const privacyForm = {
     };
     return null;
   },
-  addEventListener: (name: string) => {
-    if (name === "submit") privacySubmitBound = true;
+  addEventListener: (name: string, handler: (event: { preventDefault: () => void }) => void) => {
+    if (name === "submit") {
+      privacySubmitBound = true;
+      privacySubmitHandler = handler;
+    }
   },
 };
 let activePrivacyForm: typeof privacyForm = privacyForm;
@@ -965,7 +982,9 @@ try {
   assert.equal(privacySubmitBound, true, "Wallet submit bound despite denied getItem");
   assert.equal(privacyForm.dataset.walletBound, "true");
   assert.equal(privacyDenied.get, 1);
-  await loadWalletAccountV1(privacyInput.value, privacyButton);
+  fireBoundPrivacySubmit();
+  await waitForPrivacyChip("Local wallet found");
+  assert.equal(privacySubmitPrevented, 1);
   assert.equal(privacyFetches, 1);
   assert.equal(privacyDenied.set, 1);
   assert.equal(privacyButton.disabled, false);
@@ -987,6 +1006,50 @@ try {
   assert.equal(privacyNodes.get("[data-wallet-ledger-wc]")?.textContent, "—");
   assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "No account loaded");
 
+  // Keep a real bound submit pending while storage removal throws. Clear must
+  // abort its owner/generation; even a mock fetch that ignores AbortSignal and
+  // resolves with a valid wallet afterward must not repaint cleared evidence.
+  let resolvePendingWalletFetch!: (response: Response) => void;
+  let markPendingWalletFetchStarted!: () => void;
+  const pendingWalletFetchStarted = new Promise<void>((resolve) => {
+    markPendingWalletFetchStarted = resolve;
+  });
+  globalThis.fetch = (() => {
+    privacyFetches += 1;
+    return new Promise<Response>((resolve) => {
+      resolvePendingWalletFetch = resolve;
+      markPendingWalletFetchStarted();
+    });
+  }) as typeof fetch;
+  privacyInput.value = "account-A";
+  fireBoundPrivacySubmit();
+  await pendingWalletFetchStarted;
+  assert.equal(privacyFetches, 2);
+  assert.equal(privacySubmitPrevented, 2);
+  assert.equal(privacyButton.disabled, true);
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "Loading account");
+  assert.ok(privacyClearHandler, "bound clear listener must cancel the pending request");
+  privacyClearHandler!();
+  assert.equal(privacyDenied.remove, 2);
+  assert.equal(privacyInput.value, "");
+  assert.equal(privacyButton.disabled, false);
+  assert.equal(privacyFocused, 2);
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "No account loaded");
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "—");
+  resolvePendingWalletFetch(responseAt(
+    "http://localhost/__void/ui/wave3/wallet.json?account=account-A",
+    JSON.stringify(validSnapshot("account-A")),
+    { status: 200, headers: { "content-type": "application/json" } },
+  ));
+  for (let tick = 0; tick < 12; tick += 1) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  assert.equal(privacyDenied.set, 1, "stale response must not persist a wallet");
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "No account loaded");
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "—");
+  assert.equal(privacyNodes.get("[data-wallet-ledger-wc]")?.textContent, "—");
+  assert.equal(privacyButton.disabled, false);
+
   // Some browsers throw when accessing the sessionStorage property itself,
   // before any method call. Neither binding nor clear may inherit that throw.
   const propertyDeniedForm = {
@@ -1003,15 +1066,37 @@ try {
   });
   assert.doesNotThrow(() => bindWalletViewV1());
   assert.equal(propertyDeniedForm.dataset.walletBound, "true");
-  const deniedPropertyInput = { value: "account-A", focus: () => {} };
-  const deniedPropertyButton = { disabled: true };
-  assert.doesNotThrow(() => clearWalletViewV1({
-    input: deniedPropertyInput,
-    button: deniedPropertyButton,
-  }));
-  assert.equal(deniedPropertyInput.value, "");
-  assert.equal(deniedPropertyButton.disabled, false);
-  assert.ok(privacyDenied.property >= 2);
+  // Use the actual newly bound submit closure while the storage PROPERTY
+  // getter itself throws. Direct loadWalletAccountV1 would miss that boundary.
+  const propertyBeforeSubmit = privacyDenied.property;
+  globalThis.fetch = (async () => {
+    privacyFetches += 1;
+    return responseAt(
+      "http://localhost/__void/ui/wave3/wallet.json?account=account-A",
+      JSON.stringify(validSnapshot("account-A")),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+  privacyInput.value = "account-A";
+  fireBoundPrivacySubmit();
+  await waitForPrivacyChip("Local wallet found");
+  assert.equal(privacyFetches, 3);
+  assert.equal(privacySubmitPrevented, 3);
+  assert.ok(privacyDenied.property > propertyBeforeSubmit,
+    "property getter failure must be caught after verified fetch");
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "account-A");
+  assert.equal(privacyNodes.get("[data-wallet-ledger-wc]")?.textContent, "3");
+  assert.notEqual(privacyNodes.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable");
+  assert.equal(privacyButton.disabled, false);
+  // The bound Clear handler must also tolerate a denied storage property getter.
+  privacyClearHandler!();
+  assert.equal(privacyInput.value, "");
+  assert.equal(privacyButton.disabled, false);
+  assert.equal(privacyFocused, 3);
+  assert.equal(privacyNodes.get("[data-wallet-account-id]")?.textContent, "—");
+  assert.equal(privacyNodes.get("[data-wallet-state-chip]")?.textContent, "No account loaded");
+  assert.ok(privacyDenied.property >= propertyBeforeSubmit + 2);
 } finally {
   Date.now = originalPrivacyNow;
   globalThis.fetch = originalPrivacyFetch;
@@ -1127,6 +1212,8 @@ console.log("browser_session_storage_get_denial_nonblocking=true");
 console.log("browser_session_storage_set_denial_preserves_verified_evidence=true");
 console.log("browser_session_storage_remove_denial_clears_evidence=true");
 console.log("browser_session_storage_property_getter_denial_nonblocking=true");
+console.log("browser_bound_submit_survives_storage_property_getter_denial=true");
+console.log("browser_denied_storage_clear_blocks_late_pending_wallet_response=true");
 console.log("browser_route_departure_invalidates_generation=true");
 console.log(`wallet_source_sha256=${sha256File(sourcePath)}`);
 console.log(`wallet_client_sha256=${sha256File(clientPath)}`);
