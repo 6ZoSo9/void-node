@@ -18524,9 +18524,7 @@ small{color:#94a3b8}
       return out;
     }
 
-    const __boi=require("./economic/buy_void_operator_local_intent_v1");
-    const __voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1;
-    const __voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
+    const __boi=require("./economic/buy_void_operator_local_intent_v1"),__voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1,__voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
 
     // VOID_BUY_VOID_OPERATOR_MARK_V1
     async function __voidReadBuyVoidOperatorEventsV1(){
@@ -18606,91 +18604,18 @@ small{color:#94a3b8}
 <script>
 async function j(url){const r=await fetch(url);return await r.json()}async function m(url){const r=await fetch(url,{method:"POST",headers:{"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"}});return await r.json()}
 
-function esc(x){
-  return String(x == null ? "" : x).replace(/[&<>"']/g, function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c];
-  });
-}
+function esc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]})}
 
 // VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1
 // VOID_BUY_VOID_OPERATOR_PAGE_VERIFY_PAYMENT_BUTTON_V1
-async function verifyPayment(id){
-  const out = await m("/__void/buy-void/operator/verify-payment.json?id=" + encodeURIComponent(id));
-  alert(out.ok ? "Payment verified" : JSON.stringify(out));
-  refresh();
-}
+async function verifyPayment(id){const out=await m("/__void/buy-void/operator/verify-payment.json?id="+encodeURIComponent(id));alert(out.ok?"Payment verified":JSON.stringify(out));refresh()}
+async function markReq(id,status){const note=prompt("Operator note for "+status+":",status);if(note===null)return;let voidTx="";if(status==="fulfilled"){voidTx=prompt("VOID delivery tx hash required for fulfillment:","0x");if(voidTx===null)return;voidTx=voidTx.trim()}let url="/__void/buy-void/operator/mark.json?id="+encodeURIComponent(id)+"&status="+encodeURIComponent(status)+"&note="+encodeURIComponent(note);if(status==="fulfilled")url+="&void_tx_hash="+encodeURIComponent(voidTx);const out=await m(url);alert(out.ok?"Marked "+status:JSON.stringify(out));refresh()}
 
-async function markReq(id, status){
-  const note = prompt("Operator note for " + status + ":", status);
-  if (note === null) return;
+function renderReq(r){const id=esc(r.request_id),tx=esc(r.tx_hash||""),status=esc(r.effective_status||r.status||"");return '<div class="card"><h3>'+id+'</h3><p><span class="badge">'+status+'</span><span class="badge">'+esc(r.usdc_amount)+' USDC</span><span class="badge">'+esc(r.quoted_void)+' VOID</span></p><p><b>Delivery:</b> '+esc(r.delivery_address||"")+'</p><p><b>TX:</b> '+(tx||'<small>none</small>')+'</p><button onclick="verifyPayment(\\''+id+'\\')">Verify payment</button><button class="review" onclick="markReq(\\''+id+'\\',\\'reviewed\\')">Mark reviewed</button><button class="fulfill" onclick="markReq(\\''+id+'\\',\\'fulfilled\\')">Mark fulfilled</button><button class="reject" onclick="markReq(\\''+id+'\\',\\'rejected\\')">Reject</button><pre>'+esc(JSON.stringify(r,null,2))+'</pre></div>'}
 
-  let voidTx = "";
-  if (status === "fulfilled") {
-    voidTx = prompt("VOID delivery tx hash required for fulfillment:", "0x");
-    if (voidTx === null) return;
-    voidTx = voidTx.trim();
-  }
+function renderBucket(name,arr){return '<section class="card"><h2>'+esc(name)+' ('+arr.length+')</h2>'+(arr.length?arr.map(renderReq).join(""):'<p><small>empty</small></p>')+'</section>'}
 
-  let url = "/__void/buy-void/operator/mark.json?id=" + encodeURIComponent(id) +
-    "&status=" + encodeURIComponent(status) +
-    "&note=" + encodeURIComponent(note);
-
-  if (status === "fulfilled") {
-    url += "&void_tx_hash=" + encodeURIComponent(voidTx);
-  }
-
-  const out = await m(url);
-  alert(out.ok ? "Marked " + status : JSON.stringify(out));
-  refresh();
-}
-
-function renderReq(r){
-  const id = esc(r.request_id);
-  const tx = esc(r.tx_hash || "");
-  const status = esc(r.effective_status || r.status || "");
-  return '<div class="card">' +
-    '<h3>' + id + '</h3>' +
-    '<p><span class="badge">' + status + '</span><span class="badge">' + esc(r.usdc_amount) + ' USDC</span><span class="badge">' + esc(r.quoted_void) + ' VOID</span></p>' +
-    '<p><b>Delivery:</b> ' + esc(r.delivery_address || "") + '</p>' +
-    '<p><b>TX:</b> ' + (tx || '<small>none</small>') + '</p>' +
-    '<button onclick="verifyPayment(\\'' + id + '\\')">Verify payment</button>' +
-    '<button class="review" onclick="markReq(\\'' + id + '\\',\\'reviewed\\')">Mark reviewed</button>' +
-    '<button class="fulfill" onclick="markReq(\\'' + id + '\\',\\'fulfilled\\')">Mark fulfilled</button>' +
-    '<button class="reject" onclick="markReq(\\'' + id + '\\',\\'rejected\\')">Reject</button>' +
-    '<pre>' + esc(JSON.stringify(r, null, 2)) + '</pre>' +
-    '</div>';
-}
-
-function renderBucket(name, arr){
-  return '<section class="card"><h2>' + esc(name) + ' (' + arr.length + ')</h2>' +
-    (arr.length ? arr.map(renderReq).join("") : '<p><small>empty</small></p>') +
-    '</section>';
-}
-
-async function refresh(){
-  const q = await j("/__void/buy-void/operator/queue.json");
-  const c = q.counts || {};
-  const s = q.sale_state || {};
-  document.getElementById("summary").innerHTML =
-    '<h2>Summary</h2>' +
-    '<p><span class="badge">total ' + esc(c.total || 0) + '</span>' +
-    '<span class="badge">awaiting ' + esc(c.awaiting_payment || 0) + '</span>' +
-    '<span class="badge">tx submitted ' + esc(c.tx_submitted || 0) + '</span>' +
-    '<span class="badge">payment verified ' + esc(c.payment_verified || 0) + '</span>' +
-    '<span class="badge">reviewed ' + esc(c.reviewed || 0) + '</span>' +
-    '<span class="badge">fulfilled ' + esc(c.fulfilled || 0) + '</span>' +
-    '<span class="badge">rejected ' + esc(c.rejected || 0) + '</span></p>' +
-    '<p>Raised: $' + esc(s.raised_usdc_so_far || 0) + ' USDC • Remaining: ' + esc(s.remaining_void || 0) + ' VOID • Sold out: ' + esc(s.sold_out) + '</p>';
-
-  const r = q.requests || {};
-  document.getElementById("queue").innerHTML =
-    renderBucket("Awaiting payment", r.awaiting_payment || []) +
-    renderBucket("TX submitted", r.tx_submitted || []) +
-    renderBucket("Payment verified", r.payment_verified || []) +
-    renderBucket("Reviewed", r.reviewed || []) +
-    renderBucket("Fulfilled", r.fulfilled || []) +
-    renderBucket("Rejected", r.rejected || []);
-}
+async function refresh(){const q=await j("/__void/buy-void/operator/queue.json"),c=q.counts||{},s=q.sale_state||{};document.getElementById("summary").innerHTML='<h2>Summary</h2><p><span class="badge">total '+esc(c.total||0)+'</span><span class="badge">awaiting '+esc(c.awaiting_payment||0)+'</span><span class="badge">tx submitted '+esc(c.tx_submitted||0)+'</span><span class="badge">payment verified '+esc(c.payment_verified||0)+'</span><span class="badge">reviewed '+esc(c.reviewed||0)+'</span><span class="badge">fulfilled '+esc(c.fulfilled||0)+'</span><span class="badge">rejected '+esc(c.rejected||0)+'</span></p><p>Raised: $'+esc(s.raised_usdc_so_far||0)+' USDC • Remaining: '+esc(s.remaining_void||0)+' VOID • Sold out: '+esc(s.sold_out)+'</p>';const r=q.requests||{};document.getElementById("queue").innerHTML=renderBucket("Awaiting payment",r.awaiting_payment||[])+renderBucket("TX submitted",r.tx_submitted||[])+renderBucket("Payment verified",r.payment_verified||[])+renderBucket("Reviewed",r.reviewed||[])+renderBucket("Fulfilled",r.fulfilled||[])+renderBucket("Rejected",r.rejected||[])}
 
 refresh();
 setInterval(refresh, 10000);
@@ -18841,8 +18766,8 @@ return res.status(400).json({
 const nativeUsdc=chainCfg.chain==="base"?"0x833589fcd6edb6e08f4c7c32d4f71b54bda02913":chainCfg.chain==="ethereum"?"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48":"";
 const nativeEqual=(value,expected)=>typeof value==="string"&&value.trim().toLowerCase()===expected;
 if(!nativeUsdc||!nativeEqual(found.source_chain,chainCfg.chain)||!nativeEqual(found.payment_chain,chainCfg.chain)||![found.usdc_contract,found.payment_instructions?.token_contract,chainCfg.usdc_contract].every(value=>nativeEqual(value,nativeUsdc)))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_native_usdc_policy_mismatch"});
-const nativeChainId=chainCfg.chain==="base"?8453:chainCfg.chain==="ethereum"?1:0,pi=found.payment_instructions;
-if(!nativeChainId||found.payment_chain_id!==nativeChainId||!pi||!nativeEqual(pi.send_chain,chainCfg.chain)||pi.send_chain_id!==nativeChainId||pi.token_decimals!==6||!nativeEqual(pi.send_to,cfg.receive_address)||!nativeEqual(pi.send_to,found.receive_address)||!nativeEqual(pi.send_from,found.delivery_address))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_payment_instructions_policy_mismatch"});
+const ci=chainCfg.chain==="base"?8453:chainCfg.chain==="ethereum"?1:0,pi=found.payment_instructions;
+if(!ci||found.payment_chain_id!==ci||!pi||!nativeEqual(pi.send_chain,chainCfg.chain)||pi.send_chain_id!==ci||pi.token_decimals!==6||!nativeEqual(pi.send_to,cfg.receive_address)||!nativeEqual(pi.send_to,found.receive_address)||!nativeEqual(pi.send_from,found.delivery_address))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_payment_instructions_policy_mismatch"});
 let event:any;
 if(chainCfg.chain==="ethereum"){
 const ef:any=await import("./economic/buy_void_ethereum_public_checkout_finality_gate_v1.js");
