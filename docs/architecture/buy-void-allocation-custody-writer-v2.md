@@ -37,9 +37,11 @@ with source SHA-256:
 
 `sha256:41e4f975c7926ddd082fd26f5e1ee936de06a1fdbe081b308daa4849c069d06d`.
 
-The V2 proof reads the historical writer bytes from Git and requires that
-removing exactly one new source block from the current file reconstructs the
-V1 writer byte-for-byte.
+The V2 proof does not depend on the historical writer object being advertised
+into a fresh Git clone. It removes exactly one reviewed additive source block
+from the exact current writer, reconstructs the predecessor bytes locally, and
+requires those bytes to match both the historical Git-blob SHA-1 and historical
+source SHA-256.
 
 The only added source block defines
 `BuyVoidAllocationReservationPublicationSnapshotV1` and
