@@ -64,8 +64,10 @@ const SOURCE_BLOBS=Object.freeze({
     "60158fa63c7fafc55738d4b5a021cc021983812a",
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
+  // Reviewed public Buy VOID operator ingress deny successor (#2631).
+  // The e97ce051405d5b19a363eaf0834838a0ecef3a10 predecessor is historical.
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "e97ce051405d5b19a363eaf0834838a0ecef3a10",
+    "850419187facd4a90feeb15aa676b03d785e44b5",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
@@ -310,6 +312,9 @@ function inspectCurrentSources(ref){
   requireContains(composition,[
     "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1",
     "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1",
+    '  "/__void/buy-void/operator",',
+    "canonical = decodeURIComponent(pathname).toLowerCase();",
+    'if (canonical.includes("%")) return true;',
   ],"precision_web_composition_contract_invalid");
   requireContains(compositionRunner,[
     'VOID_COMPOSITION_PORT="\${VOID_COMPOSITION_PORT:-8082}"',

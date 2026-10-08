@@ -541,19 +541,50 @@ const invalidateWalletRequest = (reason) => {
   walletRequestOwner.cancel(reason);
 };
 
+// Browser session persistence is only a convenience. It is never account,
+// source, wallet, or spendability evidence, and can be denied by the browser.
+const readSavedWalletAccountV1 = () => {
+  try {
+    const value = globalThis.sessionStorage?.getItem(ACCOUNT_STORAGE_KEY);
+    return typeof value === 'string' ? value : '';
+  } catch (storageError) {
+    void storageError;
+    return '';
+  }
+};
+
+const rememberWalletAccountV1 = (value) => {
+  try {
+    globalThis.sessionStorage?.setItem(ACCOUNT_STORAGE_KEY, value);
+  } catch (storageError) {
+    void storageError;
+  }
+};
+
+const forgetWalletAccountV1 = (override) => {
+  try {
+    const storage = override === undefined
+      ? globalThis.sessionStorage
+      : override;
+    storage?.removeItem(ACCOUNT_STORAGE_KEY);
+  } catch (storageError) {
+    void storageError;
+  }
+};
+
 export const restoreWalletLoadControlV1 = (button) => {
   if (button) button.disabled = false;
 };
 
 export const clearWalletViewV1 = ({
   invalidate = invalidateWalletRequest,
-  storage = sessionStorage,
+  storage = undefined,
   input = null,
   button = null,
   reset = resetWalletView,
 } = {}) => {
   invalidate('wallet cleared');
-  storage.removeItem(ACCOUNT_STORAGE_KEY);
+  forgetWalletAccountV1(storage);
   if (input) input.value = '';
   reset();
   restoreWalletLoadControlV1(button);
@@ -615,7 +646,7 @@ export const loadWalletAccountV1 = async (account, button) => {
     );
 
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
-    sessionStorage.setItem(ACCOUNT_STORAGE_KEY, value);
+    rememberWalletAccountV1(value);
     renderWalletV1(body, value, requestStartedAtMs);
   } catch (error) {
     if (serial !== requestSerial || currentRoute() !== 'wallet') return;
@@ -627,7 +658,7 @@ export const loadWalletAccountV1 = async (account, button) => {
   }
 };
 
-const bindWalletView = () => {
+export const bindWalletViewV1 = () => {
   if (currentRoute() !== 'wallet') {
     if (walletViewPresent || walletRequestOwner.isActive()) {
       invalidateWalletRequest('wallet route left');
@@ -651,7 +682,7 @@ const bindWalletView = () => {
 
   const input = form.querySelector('[data-wallet-account-input]');
   const button = form.querySelector('[data-wallet-load]');
-  const saved = sessionStorage.getItem(ACCOUNT_STORAGE_KEY) || '';
+  const saved = readSavedWalletAccountV1();
   if (input && saved) input.value = saved;
 
   resetWalletView(
@@ -675,9 +706,9 @@ if (
   typeof document !== 'undefined' &&
   typeof MutationObserver !== 'undefined'
 ) {
-  const observer = new MutationObserver(() => bindWalletView());
+  const observer = new MutationObserver(() => bindWalletViewV1());
   const start = () => {
-    bindWalletView();
+    bindWalletViewV1();
     observer.observe(document.body, { childList: true, subtree: true });
   };
   if (document.readyState === 'loading') {
