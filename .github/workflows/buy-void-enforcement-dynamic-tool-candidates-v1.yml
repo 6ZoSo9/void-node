@@ -1,0 +1,156 @@
+name: VOID Buy VOID enforcement dynamic tool candidates v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-dynamic-tool-candidates-v1.md"
+      - ".github/workflows/buy-void-enforcement-dynamic-tool-candidates-v1.yml"
+      - "src/economic/**"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-dynamic-tool-candidate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact PR source identity
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node from reviewed matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependency for AST-only proof
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Falsify ambient Git binary and Git configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_reviewed_git_invocation_v1.mjs --self-test \
+            | tee "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "unreviewed_PATH_git_shim_executed=false" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "ambient_GIT_LD_config_excluded=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "invalid_source_ancestry_rejected=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "changed_committed_source_rejected=true" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+          grep -Fx "candidate_identity_accepted=false" \
+            "$RUNNER_TEMP/reviewed-git-source-trust.txt"
+      - name: Prove descriptor-relative source reader adversaries
+        run: node scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+
+      - name: Prove synthetic generated-loader edge and reject unreviewed inputs
+        run: node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
+      - name: Derive exact three-target thirteen-caller source census
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > tool-candidates-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_dynamic_tool_candidate_source_identity_v1");
+            assert.equal(j.reviewed_source_generation,"f18d789562d655eec9fde34571ed9b7d050f92bf");
+            assert.equal(j.original_dynamic_caller_count,13);
+            assert.equal(j.original_unique_tool_count,3);
+            assert.equal(j.source_callers.length,13);
+            assert.equal(j.tool_candidates.length,3);
+            assert.equal(j.source_target_files_git_blobs_verified,true);
+            for(const key of ["actual_compiled_importer_execution_qualified",
+              "executed_target_verified","dynamic_tool_transitive_closure_verified",
+              "complete_executable_closure_verified","candidate_identity_accepted",
+              "deployed_artifact_generation_verified",
+              "production_source_finality_authority_ready","presale_activation",
+              "funds_movement"])assert.equal(j[key],false,key);
+            assert.ok(j.source_callers.every(x=>x.executed_target_verified===false));
+            assert.ok(j.tool_candidates.every(x=>x.executed_target_verified===false));
+            console.log("VOID_BUY_VOID_DYNAMIC_TOOL_SOURCE_IDENTITY_CANDIDATE_GREEN");
+            console.log("production_authority=false");
+          ' tool-candidates-${{ matrix.node }}.json
+      - name: Reject invocation without derive-only intent
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs > "$RUNNER_TEMP/acceptance-stderr" 2>&1; then
+            echo "UNEXPECTED_TOOL_RUNTIME_ACCEPTANCE" >&2; exit 1
+          fi
+          grep -F "tool_candidate_census_only_no_production_authority" "$RUNNER_TEMP/acceptance-stderr"
+      - name: Upload candidate source-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-dynamic-tool-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: tool-candidates-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact three-source evidence files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-dynamic-tool-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./candidate
+      - name: Require byte-identical Node 22 24 26 candidate reports
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "candidate/tool-candidates-$v.json"; done
+          cmp candidate/tool-candidates-22.json candidate/tool-candidates-24.json
+          cmp candidate/tool-candidates-22.json candidate/tool-candidates-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("candidate/tool-candidates-22.json");
+            const result=JSON.parse(bytes);
+            assert.equal(result.complete_executable_closure_verified,false);
+            assert.equal(result.executed_target_verified,false);
+            assert.equal(result.candidate_identity_accepted,false);
+            console.log("VOID_DYNAMIC_TOOL_CANDIDATE_THREE_NODE_BYTES_GREEN");
+            console.log("candidate_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("complete_execution_authority=false");
+          '

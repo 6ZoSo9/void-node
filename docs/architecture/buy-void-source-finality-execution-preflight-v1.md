@@ -6,11 +6,12 @@ Marker: `VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1`
 
 Insert the accepted source-finality stack into the live ERC-20 delivery dependency path without granting production source-finality authority, mounting a new route, deploying source, accessing a signer, broadcasting a transaction, mutating Chain-2050, changing presale inventory, or moving funds.
 
-This lane is intentionally fail-closed. The current V4 source-finality generation remains a candidate and still reports:
+This lane is intentionally fail-closed. The current V6 source-finality generation remains a candidate and still reports:
 
 ```text
 source_generation_verified=false
 deployed_artifact_generation_verified=false
+remote_provider_identity_verified=false
 ancestry_verified=false
 provider_quorum_verified=false
 production_source_finality_authority_ready=false
@@ -70,7 +71,7 @@ The preflight does not trust a caller to restate the payment being authorized. I
 - requested USDC units; and
 - quoted VOID units.
 
-The persisted 6-decimal unit integers are converted back to exact decimal strings before V4 observation. The reconstruction also rechecks instruction/binding identity fields and fails closed on ambiguity or mismatch.
+The persisted 6-decimal unit integers are converted back to exact decimal strings before V6 observation. The reconstruction also rechecks instruction/binding identity fields and fails closed on ambiguity or mismatch.
 
 ## Process source identity
 
@@ -90,17 +91,24 @@ V1 validates the closed identity shape before any source-chain RPC observation. 
 A preflight may return `ready` only if the upstream observation simultaneously proves all of:
 
 ```text
+marker=VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6
 reviewed_source_files_verified=true
 authenticated_transport_identity_verified=true
+observation_generated_in_composition=true
+same_provider_consistency_verified=true
+provider_consistency_verified=true
 total_operation_deadline_verified=true
 source_generation_verified=true
 deployed_artifact_generation_verified=true
+remote_provider_identity_verified=true
 ancestry_verified=true
 provider_quorum_verified=true
 production_source_finality_authority_ready=true
 ```
 
-Current V4 cannot satisfy that set, by design. Its successful candidate result still carries false generation/ancestry/quorum/production-authority flags. #1477 therefore integrates enforcement without activating money movement.
+Current V6 cannot satisfy that set, by design. Its successful candidate result still carries false generation/ancestry/quorum/production-authority flags. #1477 therefore integrates enforcement without activating money movement.
+
+The classifier also binds the observation to the exact V6 marker; an injected object carrying otherwise-ready booleans under another generation marker, outside the reviewed composition, without both provider-consistency facts, or without remote-provider identity remains HOLD. The exported test-only classifier can exercise these adversaries but always reports signer/broadcast/production transition authority false.
 
 A future authority lane must independently close those remaining truth conditions and update the production-default observer before the guard can release signer/broadcaster access.
 
@@ -129,7 +137,7 @@ not invoked. If any binding differs, the preflight returns
 broadcaster blocked.
 
 This closes the producer boundary consumed by the payment-keyed Chain-2050
-fulfillment-call layer without activating it: current V4 still cannot reach the
+fulfillment-call layer without activating it: current V6 still cannot reach the
 production-ready branch.
 
 ## No runtime activation in this PR
@@ -147,4 +155,4 @@ This PR is source/CI only. It does not:
 - change treasury/liquidity state; or
 - move funds.
 
-The existing delivery runtime remains separately controlled by its enable/configuration/dependency gates, and V4's `production_source_finality_authority_ready=false` remains authoritative until a later reviewed source-finality authority generation replaces it.
+The existing delivery runtime remains separately controlled by its enable/configuration/dependency gates, and V6's `production_source_finality_authority_ready=false` remains authoritative until a later reviewed source-finality authority generation replaces it.

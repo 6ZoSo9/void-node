@@ -1,0 +1,166 @@
+name: VOID Buy VOID enforcement V5 candidate derivation
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/**"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v5-candidate.md"
+      - ".github/workflows/buy-void-enforcement-artifact-attestation-v5-candidate.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "Dockerfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-enforcement-v5-candidate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact PR source generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove exact head binding
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parse candidate and trust helpers before expensive build
+        run: |
+          node --check scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs
+          node --check scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+          node --check scripts/prove_buy_void_reviewed_git_invocation_v1.mjs
+      - name: Prove ancestor-safe descriptor-relative source reads
+        run: node scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+      - name: Prove absolute sanitized reviewed Git execution
+        run: node scripts/prove_buy_void_reviewed_git_invocation_v1.mjs --self-test
+      - name: Build exact source-only enforcement artifacts
+        run: npm run build
+      - name: Self-test closed imports and retained fd growth/swap holds
+        run: node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
+      - name: Prove V6 runtime bridge preserves signer and broadcast HOLD
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
+      - name: Derive unaccepted V5 enforcement candidate
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const file = process.argv[1];
+            const candidate = JSON.parse(fs.readFileSync(file, "utf8"));
+            assert.equal(candidate.schema, "void_buy_void_enforcement_artifact_v5_candidate");
+            assert.equal(candidate.version, 5);
+            assert.equal(candidate.source_runtime_parent, "f18d789562d655eec9fde34571ed9b7d050f92bf");
+            assert.ok(candidate.closed_runtime_artifacts.some(
+              entry => entry.path === "dist/economic/buy_void_source_finality_generation_provenance_v6.js"));
+            assert.ok(!candidate.closed_runtime_artifacts.some(
+              entry => /generation_provenance_v[45][.]js$/.test(entry.path)));
+            assert.equal(candidate.static_relative_import_graph_bound,true);
+            assert.equal(candidate.no_dynamic_unknown_imports,false);
+            assert.ok(candidate.dynamic_tool_candidate_count >= 1);
+            assert.equal(candidate.dynamic_tool_import_candidates.length,
+              candidate.dynamic_tool_candidate_count);
+            assert.equal(candidate.complete_executable_closure_verified,false);
+            assert.equal(candidate.dynamic_tool_execution_identity_verified,false);
+            assert.equal(candidate.dynamic_tool_transitive_closure_verified,false);
+            for(const edge of candidate.dynamic_tool_import_candidates) {
+              assert.match(edge.importer_artifact,/^dist\/economic\/buy_void_[a-z0-9_]+[.]js$/);
+              assert.match(edge.tool_specifier,/^[.][.]\/[.][.]\/tools\/buy-void-[a-z0-9-]+-v[0-9]+[.]mjs$/);
+              assert.equal(edge.executed_target_verified,false);
+              assert.equal(edge.dynamic_tool_transitive_closure_verified,false);
+            }
+            for(const key of ["candidate_identity_accepted","deployed_artifact_generation_verified",
+              "runtime_mount_authority","production_source_finality_authority_ready",
+              "presale_activation","funds_movement"]) assert.equal(candidate[key],false,key);
+            console.log("ENFORCEMENT_V5_STATIC_GRAPH_AND_DYNAMIC_TOOL_HOLD_EVIDENCE_GREEN");
+          ' enforcement-v5-candidate-${{ matrix.node }}.json
+      - name: Require rejection of missing derivation authorization
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs > "$RUNNER_TEMP/forbidden.txt" 2>&1; then
+            echo "UNEXPECTED_ENFORCEMENT_V5_ACCEPTANCE" >&2; exit 1
+          fi
+          grep -F "v5_candidate_derivation_only_no_locked_authority" "$RUNNER_TEMP/forbidden.txt"
+      - name: Upload Node candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-enforcement-v5-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: enforcement-v5-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head derivations
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-v5-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./v5-enforcement-evidence
+      - name: Require exact Node 22 24 26 candidate byte equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "v5-enforcement-evidence/enforcement-v5-candidate-$node.json"
+          done
+          cmp v5-enforcement-evidence/enforcement-v5-candidate-22.json v5-enforcement-evidence/enforcement-v5-candidate-24.json
+          cmp v5-enforcement-evidence/enforcement-v5-candidate-22.json v5-enforcement-evidence/enforcement-v5-candidate-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("v5-enforcement-evidence/enforcement-v5-candidate-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.candidate_identity_accepted,false);
+            assert.equal(j.complete_executable_closure_verified,false);
+            assert.equal(j.dynamic_tool_execution_identity_verified,false);
+            assert.equal(j.dynamic_tool_transitive_closure_verified,false);
+            assert.equal(j.no_dynamic_unknown_imports,false);
+            assert.ok(j.dynamic_tool_candidate_count >= 1);
+            assert.equal(j.production_source_finality_authority_ready,false);
+            assert.equal(j.deployed_artifact_generation_verified,false);
+            console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_CROSS_NODE_GREEN");
+            console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("candidate_enforcement_set_sha256="+j.candidate_enforcement_set_sha256);
+            console.log("candidate_acceptance=false");
+          '

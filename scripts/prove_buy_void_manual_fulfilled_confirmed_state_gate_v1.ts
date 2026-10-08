@@ -81,7 +81,7 @@ async function main(): Promise<void> {
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.expression.getText(sf) === "app" &&
-      node.expression.name.text === "get" &&
+      node.expression.name.text === "post" &&
       node.arguments.length >= 2 &&
       (ts.isStringLiteral(node.arguments[0]) ||
         ts.isNoSubstitutionTemplateLiteral(node.arguments[0])) &&
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     ts.forEachChild(node, visit);
   }
   visit(sf);
-  assert.equal(candidates.length, 1, "expected one exact manual mark GET route");
+  assert.equal(candidates.length, 1, "expected one exact manual mark POST route");
 
   const routeCall = candidates[0];
   const callback = routeCall.arguments.find(
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   const synthetic = `
 const __routes = new Map();
 const app = {
-  get(route, ...handlers) {
+  post(route, ...handlers) {
     __routes.set(route, handlers[handlers.length - 1]);
   },
 };
@@ -210,7 +210,7 @@ let __operatorEventReadCalls = 0;
 let __operatorEventApplyCalls = 0;
 let __localGateCalls = 0;
 
-function __voidBuyVoidOperatorLocalOnlyV1(_req, _res) {
+function __voidBuyVoidOperatorMutationIntentV1(_req, _res) {
   __localGateCalls += 1;
   return true;
 }

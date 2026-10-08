@@ -77,10 +77,10 @@ jobs:
           for proof in scripts/prove_buy_void_*.ts
           do
             case "$proof" in
-              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)
+              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)
                 # Historical source/custody generations remain covered by
-                # dedicated preservation workflows. Current writer identity is
-                # qualified by prove_buy_void_allocation_custody_writer_v2.ts.
+                # dedicated preservation workflows. Current source-finality is
+                # V6 and current custody writer identity is V2.
                 continue
                 ;;
             esac

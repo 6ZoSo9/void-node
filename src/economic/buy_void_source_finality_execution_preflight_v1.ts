@@ -21,8 +21,9 @@ import type {
   BuyVoidSourceChainFinalityRpcPolicyV1,
 } from "./buy_void_source_chain_finality_rpc_adapter_v1.js";
 import {
-  observeBuyVoidSourceFinalityGenerationProvenanceV5,
-} from "./buy_void_source_finality_generation_provenance_v5.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
+  observeBuyVoidSourceFinalityGenerationProvenanceV6,
+} from "./buy_void_source_finality_generation_provenance_v6.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1";
@@ -46,7 +47,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1 =
     server_controlled_policy: true,
     fulfillment_journal_reconstruction: true,
     immutable_process_source_identity_required: true,
-    v5_runtime_source_file_verification_reused: true,
+    v6_runtime_source_file_verification_reused: true,
     authenticated_source_rpc_transport_reused: true,
     total_operation_deadline_reused: true,
     production_source_finality_authority_required: true,
@@ -569,15 +570,34 @@ function readyObservation(value: unknown): value is Record<string, any> {
   const result = value as Record<string, any>;
   return (
     result.ok === true &&
+    result.marker ===
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6 &&
     result.reviewed_source_files_verified === true &&
     result.authenticated_transport_identity_verified === true &&
+    result.observation_generated_in_composition === true &&
+    result.same_provider_consistency_verified === true &&
+    result.provider_consistency_verified === true &&
     result.total_operation_deadline_verified === true &&
     result.source_generation_verified === true &&
     result.deployed_artifact_generation_verified === true &&
+    result.remote_provider_identity_verified === true &&
     result.ancestry_verified === true &&
     result.provider_quorum_verified === true &&
     result.production_source_finality_authority_ready === true
   );
+}
+
+export function testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1(
+  value: unknown,
+) {
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_OBSERVATION_TEST_ONLY_V1",
+    would_be_ready: readyObservation(value),
+    production_transition_authority: false,
+    signer_access_authorized: false,
+    transaction_broadcast_authorized: false,
+  });
 }
 
 export async function runBuyVoidSourceFinalityExecutionPreflightV1(
@@ -654,7 +674,7 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
 
   const observe =
     dependencies.observe_source_finality ||
-    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV5(value));
+    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV6(value));
   let observation: unknown;
   try {
     observation = await observe({

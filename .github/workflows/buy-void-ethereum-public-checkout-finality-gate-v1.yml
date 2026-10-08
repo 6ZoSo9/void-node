@@ -8,7 +8,7 @@ on:
       - "public/void-app-wave1-v1/assets/js/buy-live.js"
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
-      - "src/economic/buy_void_source_finality_generation_provenance_v5.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
       - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
