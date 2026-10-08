@@ -143,7 +143,7 @@ function address(value: unknown, code: string, optional = false): string {
   return result;
 }
 function chain(value: unknown): "base" | "ethereum" {
-  const raw = String(value ?? "base").toLowerCase();
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
   const normalized = raw === "eth" ? "ethereum" : raw;
   if (normalized !== "base" && normalized !== "ethereum") fail("source_chain_invalid");
   return normalized;

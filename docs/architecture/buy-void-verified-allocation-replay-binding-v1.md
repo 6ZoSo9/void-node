@@ -34,7 +34,8 @@ row it binds the exact canonical payment identity using the existing
 `canonicalBuyVoidPaymentIdentityV1` primitive, enforces one immutable event per
 request/payment identity, exact request quote and configured 2:1 canonical
 presale economics, canonical request-bound USDC token contract, transfer
-amount, source transaction, log index and delivery addresses. A legacy request
+amount, source transaction, explicit nondefaulted source chain, log index and
+delivery addresses. A legacy request
 without a recorded USDC contract remains source-HOLD; a later reviewed trusted
 request/policy migration would be required rather than guessing from an event. Aggregate verified obligations must not exceed 10,000,000 VOID.
 

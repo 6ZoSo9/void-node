@@ -207,6 +207,11 @@ const partialOpening = { ...request, tx_hash: "", usdc_contract: undefined,
 gap(scan([partialOpening, request], [event]));
 hold(scan([{ ...request, quoted_void: "7" }], [event]), /verified_event_request_quote_mismatch/u);
 hold(scan([{ ...request, tx_hash: tx("8") }], [event]), /verified_event_transaction_binding_mismatch/u);
+// Never substitute Base when either the request or verifier chain is absent.
+hold(scan([{ ...request, source_chain: undefined }], [event]), /source_chain_invalid/u);
+hold(scan([request], [{ ...event, payment_verifier: {
+  ...event.payment_verifier, chain: undefined,
+} }]), /source_chain_invalid/u);
 hold(scan([{ ...request, delivery_address: addr("7") }], [event]), /verified_event_destination_or_amount_mismatch/u);
 hold(scan([request], [{ ...event, payment_verifier: { ...event.payment_verifier, log_index: "8" } }], allocationBytes), /allocation_history_event_lineage_mismatch/u);
 hold(scan([request], [{ ...event, marked_at_ms: 1800000000003 }], allocationBytes), /allocation_history_event_lineage_mismatch/u);
