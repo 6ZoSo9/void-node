@@ -50,6 +50,21 @@ function same(a,b) {
 function read(root,relative,max=MAX_READ) {
   return readDescriptorRelativeLinuxV1(root,relative,max);
 }
+function ast(file,bytes,kind) {
+  const node=ts.createSourceFile(
+    file,
+    bytes.toString("utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    kind,
+  );
+  assert.equal(
+    node.parseDiagnostics.length,
+    0,
+    "invalid JS/TS source: "+file,
+  );
+  return node;
+}
 function inspectTool(file,bytes) {
   const doc=ast(file,bytes,ts.ScriptKind.JS);
   const imports=[];
