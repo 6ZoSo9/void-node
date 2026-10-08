@@ -22,6 +22,11 @@ const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+// Current coupled checkout uses chain-native USDC, not an env-chosen ERC-20.
+const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
+  base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+});
 
 export type BuyVoidReceiptLogV2 = {
   address?: unknown;
@@ -232,6 +237,30 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   const requestReceiveAddress = normalizeAddress(request.receive_address);
   const deliveryAddress = normalizeAddress(request.delivery_address);
   if (!usdcContract) return held("invalid_usdc_contract_policy");
+
+  // Pure consistency check only: original first-row chronology and custody
+  // must be authenticated separately by the protected runtime/history lane.
+  // Legacy V2 fixtures without any checkout/coupled evidence keep their
+  // previous behavior, but are NOT production payment-admission authority.
+  const original = request as BuyVoidRequestV1 & {
+    usdc_contract?: unknown;
+    launch_authority?: unknown;
+  };
+  const hasCheckoutTokenEvidence =
+    Object.prototype.hasOwnProperty.call(original, "usdc_contract") ||
+    Object.prototype.hasOwnProperty.call(original, "launch_authority");
+  if (hasCheckoutTokenEvidence) {
+    const originalToken = normalizeAddress(original.usdc_contract);
+    if (!originalToken) {
+      return held("original_request_usdc_contract_missing_or_invalid");
+    }
+    if (originalToken !== NATIVE_USDC_BY_CHAIN[chain]) {
+      return held("original_request_non_native_usdc_contract");
+    }
+    if (originalToken !== usdcContract) {
+      return held("verified_payment_policy_original_usdc_mismatch");
+    }
+  }
   if (
     !policyReceiveAddress ||
     !requestReceiveAddress ||

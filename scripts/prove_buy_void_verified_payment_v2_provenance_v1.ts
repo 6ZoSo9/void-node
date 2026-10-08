@@ -190,7 +190,66 @@ expectHeld(
   "receive_address_binding_mismatch",
 );
 
+// Bound checkout token, configured verifier token and receipt token must agree
+// on fixed native USDC, independently of the caller-supplied policy address.
+const BASE_NATIVE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const ETH_NATIVE_USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const checkout = {
+  ...request,
+  usdc_contract: BASE_NATIVE_USDC,
+  launch_authority: { marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1" },
+};
+const canonicalPolicy: BuyVoidVerifiedPaymentPolicyV2 = {
+  ...policy(),
+  usdc_contract_by_chain: { base: BASE_NATIVE_USDC },
+};
+const canonicalReceipt = receipt({
+  logs: [matchingLog({ address: BASE_NATIVE_USDC })],
+});
+const nativeBase = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: checkout, receipt: canonicalReceipt, policy: canonicalPolicy,
+}));
+assert.equal(nativeBase.event.payment_verifier.chain, "base");
+assert.equal(nativeBase.event.payment_verifier.usdc_contract, BASE_NATIVE_USDC);
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: checkout, receipt: receipt(), policy: policy(),
+}), "verified_payment_policy_original_usdc_mismatch");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, usdc_contract: usdc },
+  receipt: receipt(), policy: policy(),
+}), "original_request_non_native_usdc_contract");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...request, launch_authority: checkout.launch_authority },
+  receipt: canonicalReceipt, policy: canonicalPolicy,
+}), "original_request_usdc_contract_missing_or_invalid");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, usdc_contract: undefined },
+  receipt: canonicalReceipt, policy: canonicalPolicy,
+}), "original_request_usdc_contract_missing_or_invalid");
+const caseInsensitiveNative = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, usdc_contract: BASE_NATIVE_USDC.toUpperCase() },
+  receipt: canonicalReceipt, policy: canonicalPolicy,
+}));
+assert.equal(caseInsensitiveNative.event.payment_verifier.usdc_contract, BASE_NATIVE_USDC);
+// Ethereum payment-log shape does not replace independent Ethereum finality.
+const nativeEthereum = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, source_chain: "ethereum", usdc_contract: ETH_NATIVE_USDC },
+  receipt: receipt({ logs: [matchingLog({ address: ETH_NATIVE_USDC })] }),
+  policy: {
+    allowed_chains: ["ethereum"],
+    usdc_contract_by_chain: { ethereum: ETH_NATIVE_USDC },
+    receive_address_by_chain: { ethereum: receiver },
+    current_block_number_by_chain: { ethereum: "0x65" },
+  },
+}));
+assert.equal(nativeEthereum.event.payment_verifier.chain, "ethereum");
+assert.equal(nativeEthereum.event.payment_verifier.usdc_contract, ETH_NATIVE_USDC);
+
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PROVENANCE_V1_GREEN");
+console.log("native_usdc_checkout_config_receipt_consistency=true");
+console.log("non_native_config_cannot_verify_native_checkout=true");
+console.log("missing_or_wrong_original_coupled_token_holds=true");
+console.log("ethereum_payment_log_not_finality=true");
 console.log("removed_log_rejected=true");
 console.log("per_log_transaction_hash_bound=true");
 console.log("per_log_block_number_bound=true");
