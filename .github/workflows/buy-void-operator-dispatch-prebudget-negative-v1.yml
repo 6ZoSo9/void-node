@@ -1,0 +1,117 @@
+name: VOID Buy VOID operator dispatcher prebudget negative v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_operator_dispatch_prebudget_negative_v1.ts"
+      - "docs/architecture/buy-void-operator-dispatch-prebudget-negative-v1.md"
+      - ".github/workflows/buy-void-operator-dispatch-prebudget-negative-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-operator-dispatch-prebudget-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  negative:
+    name: negative / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact unmerged source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Use pinned Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install immutable locked dependencies without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check TypeScript source and build compiled code
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Run REAL unmounted planner with synthetic oversized callbacks
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_operator_dispatch_prebudget_negative_v1.ts \
+            | tee "operator-prebudget-negative-${{ matrix.node }}.txt"
+          for expected in \
+            'VOID_BUY_VOID_OPERATOR_DISPATCH_PREBUDGET_NEGATIVE_V1_GREEN' \
+            'valid_small_immutable_snapshot_accepted=true' \
+            'materialized_over_limit_before_reject=true' \
+            'event_toJSON_callback_executed_before_HOLD=true' \
+            'request_toJSON_callback_executed_before_HOLD=true' \
+            'event_property_getter_executed_before_HOLD=true' \
+            'pre_serialization_resource_bound_verified=false' \
+            'mounted_operator_route_verified=false' \
+            'payment_or_allocation_append_performed=false' \
+            'production_gate_ready=false' \
+            'presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$expected" "operator-prebudget-negative-${{ matrix.node }}.txt"
+          done
+      - name: Upload test-only negative witness
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-prebudget-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: operator-prebudget-negative-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Check source diff whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [negative]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact three synthetic witnesses
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-prebudget-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Demand complete byte equality across Node 22 24 and 26
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do
+            test -s "receipts/operator-prebudget-negative-$n.txt"
+          done
+          cmp receipts/operator-prebudget-negative-22.txt receipts/operator-prebudget-negative-24.txt
+          cmp receipts/operator-prebudget-negative-22.txt receipts/operator-prebudget-negative-26.txt
+          echo "VOID_BUY_VOID_OPERATOR_PREBUDGET_NEGATIVE_CROSS_NODE_GREEN"
+          echo "negative_finding_reproduced_not_a_security_fix=true"
+          echo "production_gate_ready=false"
