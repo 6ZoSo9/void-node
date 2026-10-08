@@ -27,10 +27,12 @@ contract, and log index appear internally consistent.
 The fixed original native-USDC token contract is Base (8453)
 `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913` or Ethereum (1)
 `0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48`. The pure V2 receipt
-verifier now requires a supplied checkout `usdc_contract` or coupled
-`launch_authority` request to bind a present, correctly shaped **native**
-USDC contract, equal to the verifier's configured contract. An environment-
-chosen arbitrary ERC-20 receipt is not payment in the original native USDC.
+verifier enters strict checkout binding when **any** original checkout/coupled
+own-property is present: `payment_chain`, `payment_chain_id`,
+`payment_instructions`, `usdc_contract`, or `launch_authority`. That path
+requires a present, correctly shaped **native** USDC contract equal to the
+verifier's configured contract. An environment-chosen arbitrary ERC-20 receipt
+is not payment in the original native USDC.
 
 The guard also binds the buyer-facing checkout instructions for any
 checkout/coupled request. The original request must carry the selected
@@ -54,12 +56,14 @@ chain IDs and token decimals.
 
 **Not historical authority:** this is an in-memory guard, not proof that the
 caller supplied the first durable accepted request snapshot. Generic legacy/
-test requests with neither original token nor coupled launch evidence retain
-their earlier behavior and must **not** be promoted to production verification
-without separately authenticated original lineage. Historical missing fields,
-anti-rollback custody, finality, capacity/duplicate lock, allocation-reservation
-persistence and coupled launch remain HOLD. Ethereum payment-log matching does
-not by itself establish Ethereum finality.
+test requests retain earlier behavior only when they carry **none** of
+`payment_chain`, `payment_chain_id`, `payment_instructions`,
+`usdc_contract`, or `launch_authority`. Partial checkout evidence cannot
+downgrade into the legacy path. The compatibility path must **not** be promoted
+to production verification without separately authenticated original lineage.
+Historical missing fields, anti-rollback custody, finality, capacity/duplicate
+lock, allocation-reservation persistence and coupled launch remain HOLD.
+Ethereum payment-log matching does not by itself establish Ethereum finality.
 
 ## Failure behavior
 
