@@ -35,8 +35,13 @@ opened descriptor, and rechecks the visible pathname after reading and
 hashing the retained descriptor. A renamed/replaced path must HOLD even
 when the already-opened file contained the correct reviewed source bytes.
 Synthetic proofs forge `lstat` inode observations without writing or
-renaming any actual source file. This narrows a source-path race, but does
-not attest deployment generation or protect future path changes.
+changing any actual source file. Descriptor reads are additionally capped to
+the preflight size plus one sentinel byte, with the preflight size itself
+limited to 2 MiB. If an opened source grows after the initial `fstat`, the
+sentinel causes an immediate `source_files_exceeded_read_bound` HOLD; the
+reader never consumes beyond the 2 MiB + 1 detection cap. This narrows
+source-path and growth races, but does not attest deployment generation or
+protect future path changes.
 
 The focused test independently checks commit/blob correspondence, verifies
 five source bytes, tamper rejection, and **requires historical V5 to HOLD**

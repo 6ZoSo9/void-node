@@ -54,6 +54,9 @@ jobs:
       - name: Build exact repository artifacts
         run: npm run build
 
+      - name: Adversarial pinned descriptor read proof
+        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
+
       - name: Derive V4 candidate only
         run: |
           set -euo pipefail
@@ -63,9 +66,9 @@ jobs:
             import assert from "node:assert/strict";
             const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
             assert.equal(j.schema, "void_buy_void_source_finality_compiled_artifact_attestation_v4");
-            assert.equal(j.source_stack_head, "27efd7400d95abc9f533c6c0158e6538ee8e2027");
+            assert.equal(j.source_stack_head, "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e");
             assert.equal(j.verified_payment_v2_source_git_blob_sha1, "32133e441ccb02bb4786d29e36932fb31399ec87");
-            assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1, "7306efd9b3fd9850dfab8e691a2fe000948aba98");
+            assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1, "d642723385136e9f0382bd77efdb34948221f380");
             assert.equal(j.reviewed_source_generation.marker, "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6");
             assert.equal(j.artifact_count, 6);
             assert.equal(j.artifacts.length, 6);

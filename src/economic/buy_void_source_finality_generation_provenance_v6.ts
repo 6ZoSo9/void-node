@@ -278,7 +278,29 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV6():
         };
       }
 
-      const bytes = fs.readFileSync(descriptor);
+      // Read at most the preflight size plus one sentinel byte. A source
+      // that grows after the pre-read stat must HOLD without unbounded buffering.
+      const readBuffer = Buffer.alloc(before.size + 1);
+      let bytesRead = 0;
+      while (bytesRead < readBuffer.length) {
+        const read = fs.readSync(
+          descriptor,
+          readBuffer,
+          bytesRead,
+          readBuffer.length - bytesRead,
+          bytesRead,
+        );
+        if (read === 0) break;
+        bytesRead += read;
+      }
+      if (bytesRead > before.size) {
+        return {
+          ok: false,
+          reviewed_source_files_verified: false,
+          reason: "source_files_exceeded_read_bound",
+        };
+      }
+      const bytes = readBuffer.subarray(0, bytesRead);
       const after = fs.fstatSync(descriptor);
       if (
         before.dev !== after.dev ||

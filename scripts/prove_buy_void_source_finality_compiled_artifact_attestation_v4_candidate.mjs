@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
 const SOURCE_STACK_HEAD =
-  "27efd7400d95abc9f533c6c0158e6538ee8e2027";
+  "83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH =
   "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
@@ -24,7 +25,7 @@ const EXPECTED_VERIFIER_SOURCE_GIT_BLOB_SHA1 =
 // declared accepted until cross-Node review and a locked successor manifest.
 const COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V4 = false;
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "7306efd9b3fd9850dfab8e691a2fe000948aba98";
+  "d642723385136e9f0382bd77efdb34948221f380";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
 const EXPECTED_INPUT_BLOBS = Object.freeze({
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
@@ -80,16 +81,75 @@ function gitBlobSha1(bytes) {
     .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
     .update(bytes).digest("hex");
 }
-function read(relativePath, maxBytes = MAX_BYTES) {
-  const absolute = path.join(ROOT, relativePath);
-  const stat = fs.lstatSync(absolute);
-  if (!stat.isFile() || stat.isSymbolicLink() ||
-      stat.size <= 0 || stat.size > maxBytes) {
-    fail("invalid_file:" + relativePath);
+// This candidate reader is a source-/artifact-identity boundary: it must
+// not accept a different same-size inode or buffer unbounded concurrent growth.
+function sameFileIdentity(a, b) {
+  return a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs;
+}
+function readPinnedFile(absolute, relativePath, maxBytes = MAX_BYTES) {
+  if (!Number.isSafeInteger(maxBytes) ||
+      maxBytes < 1 || maxBytes > 16 * 1024 * 1024) {
+    fail("invalid_read_limit:" + relativePath);
   }
-  const bytes = fs.readFileSync(absolute);
-  if (bytes.length !== stat.size) fail("short_read:" + relativePath);
-  return bytes;
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    fail("source_nofollow_unavailable:" + relativePath);
+  }
+  let fd = null;
+  try {
+    const visibleBefore = fs.lstatSync(absolute);
+    if (!visibleBefore.isFile() || visibleBefore.isSymbolicLink() ||
+        visibleBefore.nlink !== 1 || visibleBefore.size <= 0 ||
+        visibleBefore.size > maxBytes) {
+      fail("invalid_file:" + relativePath);
+    }
+    fd = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow);
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 ||
+        before.size <= 0 || before.size > maxBytes) {
+      fail("invalid_descriptor:" + relativePath);
+    }
+    if (!sameFileIdentity(visibleBefore, before)) {
+      fail("path_fd_mismatch_before_read:" + relativePath);
+    }
+    // One extra sentinel byte detects file growth after the pinned fstat.
+    // An expected 6-byte file can never force a 3-MiB read allocation.
+    const cap = before.size + 1;
+    const buffer = Buffer.alloc(cap);
+    let total = 0;
+    while (total < cap) {
+      const n = fs.readSync(fd, buffer, total, cap - total, total);
+      if (n === 0) break;
+      total += n;
+    }
+    if (total > before.size) {
+      fail("file_read_exceeds_pinned_bound:" + relativePath);
+    }
+    if (total !== before.size) {
+      fail("short_read:" + relativePath);
+    }
+    const after = fs.fstatSync(fd);
+    if (!sameFileIdentity(before, after)) {
+      fail("descriptor_changed_after_read:" + relativePath);
+    }
+    const visibleAfter = fs.lstatSync(absolute);
+    if (!visibleAfter.isFile() || visibleAfter.isSymbolicLink() ||
+        !sameFileIdentity(visibleAfter, after)) {
+      fail("visible_path_changed_after_read:" + relativePath);
+    }
+    return buffer.subarray(0, total);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+function read(relativePath, maxBytes = MAX_BYTES) {
+  return readPinnedFile(path.join(ROOT, relativePath), relativePath, maxBytes);
 }
 function assertSourceStack() {
   try {
@@ -289,8 +349,113 @@ async function derive() {
   });
 }
 
+// Synthetic input files live exclusively in OS temporary storage. The
+// production checkout, V3 manifest, private data and runtime are never changed.
+function provePinnedReaderAdversaries() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "void-v4-read-fault-"));
+  const file = path.join(dir, "fixture.bin");
+  const displaced = path.join(dir, "displaced.bin");
+  const expected = Buffer.from("SAFE!!");
+  const mutated = Buffer.from("EVIL!!");
+  const clean = () => {
+    fs.rmSync(file, { force: true });
+    fs.rmSync(displaced, { force: true });
+    fs.writeFileSync(file, expected, { mode: 0o600 });
+  };
+  try {
+    clean();
+    assert.equal(readPinnedFile(file, "synthetic", 64).toString(), "SAFE!!");
+    // Substitute a different same-sized inode *between* first lstat and open.
+    const originalOpen = fs.openSync;
+    try {
+      let swapped = false;
+      fs.openSync = (...args) => {
+        if (args[0] === file && !swapped) {
+          swapped = true;
+          fs.renameSync(file, displaced);
+          fs.writeFileSync(file, mutated, { mode: 0o600 });
+        }
+        return originalOpen(...args);
+      };
+      assert.throws(
+        () => readPinnedFile(file, "synthetic", 64),
+        /path_fd_mismatch_before_read:synthetic/u,
+      );
+      assert.equal(swapped, true);
+    } finally {
+      fs.openSync = originalOpen;
+    }
+
+    clean();
+    // Keep a correct old fd but replace the pathname just before postread
+    // lstat, which must not validate the digest of a stale opened inode.
+    const originalLstat = fs.lstatSync;
+    try {
+      let visits = 0;
+      fs.lstatSync = (...args) => {
+        if (args[0] === file && ++visits === 2) {
+          fs.renameSync(file, displaced);
+          fs.writeFileSync(file, mutated, { mode: 0o600 });
+        }
+        return originalLstat(...args);
+      };
+      assert.throws(
+        () => readPinnedFile(file, "synthetic", 64),
+        /visible_path_changed_after_read:synthetic/u,
+      );
+      assert.equal(visits, 2);
+    } finally {
+      fs.lstatSync = originalLstat;
+    }
+
+    clean();
+    // Grow the file by 3 MiB when the first retained-fd read is attempted.
+    // The six-byte preflight admits at most seven bytes into memory.
+    const originalRead = fs.readSync;
+    try {
+      let totalRead = 0;
+      let maxBuffer = 0;
+      let grew = false;
+      fs.readSync = (fd, buffer, offset, length, position) => {
+        if (!grew) {
+          grew = true;
+          fs.appendFileSync(file, Buffer.alloc(3 * 1024 * 1024, 0x61));
+        }
+        maxBuffer = Math.max(maxBuffer, buffer.length);
+        const n = originalRead(fd, buffer, offset, length, position);
+        totalRead += n;
+        return n;
+      };
+      assert.throws(
+        () => readPinnedFile(file, "synthetic", 64),
+        /file_read_exceeds_pinned_bound:synthetic/u,
+      );
+      assert.equal(grew, true);
+      assert.equal(totalRead, expected.length + 1);
+      assert.equal(maxBuffer, expected.length + 1);
+    } finally {
+      fs.readSync = originalRead;
+    }
+
+    clean();
+    assert.equal(readPinnedFile(file, "synthetic", 64).toString(), "SAFE!!");
+    console.log("V4_CANDIDATE_DESCRIPTOR_BINDING_AND_BOUNDED_READ_GREEN");
+    console.log("same_size_path_replacement_rejected=true");
+    console.log("postread_visible_path_replacement_rejected=true");
+    console.log("concurrent_growth_read_bytes_at_most_pinned_plus_one=true");
+    console.log("restored_source_accepted=true");
+    console.log("production_artifact_acceptance=false");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 // Candidate derivation only: no accepted manifest or compiled authority.
 const args = process.argv.slice(2);
+if (args.length === 1 && args[0] === "--self-test") {
+  provePinnedReaderAdversaries();
+  process.exit(0);
+}
 if (args.length !== 1 || args[0] !== "--derive") {
   fail("v4_candidate_derivation_only_not_locked_or_production_authority");
 }

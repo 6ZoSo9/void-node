@@ -10,12 +10,29 @@ change requires a newly derived, independently reviewed compiled successor,
 not a V3 hash repin or a skipped failing workflow.
 
 This candidate is stacked directly on PR #2630 source head
-`27efd7400d95abc9f533c6c0158e6538ee8e2027`.
+`83eb6a1deec4c1b581af9ee86d3ad5956ddeb41e`.
 It requires source-finality V6 source Git blob
-`7306efd9b3fd9850dfab8e691a2fe000948aba98` and native-USDC V2
+`d642723385136e9f0382bd77efdb34948221f380` and native-USDC V2
 verifier blob `32133e441ccb02bb4786d29e36932fb31399ec87`.
 Build inputs include fixed compiler version TypeScript 5.9.3, the reviewed
 `package.json`, `package-lock.json`, and `tsconfig.build.json` Git blobs.
+
+## Descriptor trust and lineage refresh
+
+The reviewed V6 source parent advanced after a source-read growth fix, and this
+candidate has been reconciled to its new exact commit and blob; the preceding
+cross-Node result, even if green, is **not** evidence for the new parent.
+The candidate reader now pins a regular single-link file with
+`O_RDONLY|O_NOFOLLOW`, verifies visible path ↔ descriptor identity before
+and after a bounded positional read, and consumes **at most preflight
+size+1 sentinel byte**. It rejects replaced same-size inodes, changed
+timestamps/size and growth without unbounded allocation. The isolated
+`--self-test` uses disposable OS-temp files, never repo files, to exercise
+same-size before-open replacement, postread replacement, poststat 3 MiB growth,
+and restored unchanged data.
+
+No trust is inferred from the mere existence of an old generated manifest.
+Source compatibility must be rebuilt and compared on **this** exact new head.
 
 ## Derivation boundaries
 
