@@ -263,6 +263,31 @@ async function main(): Promise<void> {
     VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1.money_movement,
     false,
   );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .canonical_payment_rpc_rail_guard_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .noncanonical_chain_id_reaches_rpc,
+    false,
+  );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .request_and_policy_snapshot_once,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .caller_accessor_or_proxy_authority,
+    false,
+  );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .post_observation_caller_mutation_authority,
+    false,
+  );
 
   const observerTransport = new FixtureTransport();
   const observed = await observeBuyVoidPaymentV1({
@@ -361,6 +386,217 @@ async function main(): Promise<void> {
   assert.equal(wrongConfirmation.mutation_performed, false);
   assert.equal(wrongConfirmationTransport.calls.length, 0);
   assert.equal(fs.existsSync(journalPath), false);
+
+  const wrongRailRoot = path.join(root, "wrong-rail");
+  const wrongRailTransport = new FixtureTransport();
+  const wrongRail = await runBuyVoidAutoClaimWorkerV1({
+    request,
+    root_dir: wrongRailRoot,
+    worker_policy: workerPolicy,
+    observer_policy: {
+      ...observerPolicy,
+      chain_id: 1,
+    },
+    verification_policy: verificationPolicy,
+    fulfillment_policy: fulfillmentPolicy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1,
+    transport: wrongRailTransport,
+    now_ms: 1_700_000_000_000,
+  });
+  if (!("reason" in wrongRail)) {
+    throw new Error("expected canonical rail hold");
+  }
+  assert.equal(wrongRail.ok, false);
+  assert.equal(wrongRail.stage, "payment_observation");
+  assert.equal(
+    wrongRail.reason,
+    "canonical_payment_rpc_chain_id_mismatch",
+  );
+  assert.deepEqual(
+    wrongRail.detail,
+    { expected_chain_id: "8453" },
+  );
+  assert.equal(
+    wrongRailTransport.calls.length,
+    0,
+    "noncanonical rail reached RPC transport",
+  );
+  assert.equal(
+    fs.existsSync(wrongRailRoot),
+    false,
+    "noncanonical rail mutated claim filesystem",
+  );
+
+  const accessorRoot = path.join(root, "accessor-request");
+  const accessorRequest:any = { ...request };
+  let requestAccessorCalls = 0;
+  Object.defineProperty(accessorRequest, "quoted_void", {
+    enumerable: true,
+    get() {
+      requestAccessorCalls += 1;
+      return "25";
+    },
+  });
+  const accessorTransport = new FixtureTransport();
+  const accessorHeld = await runBuyVoidAutoClaimWorkerV1({
+    request: accessorRequest,
+    root_dir: accessorRoot,
+    worker_policy: workerPolicy,
+    observer_policy: observerPolicy,
+    verification_policy: verificationPolicy,
+    fulfillment_policy: fulfillmentPolicy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1,
+    transport: accessorTransport,
+    now_ms: 1_700_000_000_000,
+  });
+  if (!("reason" in accessorHeld)) {
+    throw new Error("expected request accessor snapshot hold");
+  }
+  assert.equal(accessorHeld.reason, "auto_claim_input_snapshot_invalid");
+  assert.equal(requestAccessorCalls, 0, "request getter executed");
+  assert.equal(accessorTransport.calls.length, 0);
+  assert.equal(fs.existsSync(accessorRoot), false);
+
+  let verificationProxyTraps = 0;
+  const verificationProxy = new Proxy(
+    {
+      ...verificationPolicy,
+      allowed_chains: [...verificationPolicy.allowed_chains],
+      usdc_contract_by_chain: {
+        ...verificationPolicy.usdc_contract_by_chain,
+      },
+      receive_address_by_chain: {
+        ...verificationPolicy.receive_address_by_chain,
+      },
+      current_block_number_by_chain: {
+        ...verificationPolicy.current_block_number_by_chain,
+      },
+    },
+    {
+      ownKeys(target) {
+        verificationProxyTraps += 1;
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor(target, key) {
+        verificationProxyTraps += 1;
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    },
+  );
+  const proxyRoot = path.join(root, "proxy-policy");
+  const proxyTransport = new FixtureTransport();
+  const proxyHeld = await runBuyVoidAutoClaimWorkerV1({
+    request,
+    root_dir: proxyRoot,
+    worker_policy: workerPolicy,
+    observer_policy: observerPolicy,
+    verification_policy: verificationProxy,
+    fulfillment_policy: fulfillmentPolicy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1,
+    transport: proxyTransport,
+    now_ms: 1_700_000_000_000,
+  });
+  if (!("reason" in proxyHeld)) {
+    throw new Error("expected verification policy proxy hold");
+  }
+  assert.equal(proxyHeld.reason, "auto_claim_input_snapshot_invalid");
+  assert.equal(verificationProxyTraps, 0, "policy Proxy trap executed");
+  assert.equal(proxyTransport.calls.length, 0);
+  assert.equal(fs.existsSync(proxyRoot), false);
+
+  const mutableRequest:any = { ...request };
+  const mutableWorkerPolicy:any = { ...workerPolicy };
+  const mutableObserverPolicy:any = { ...observerPolicy };
+  const mutableVerificationPolicy:any = {
+    ...verificationPolicy,
+    allowed_chains: [...verificationPolicy.allowed_chains],
+    usdc_contract_by_chain: {
+      ...verificationPolicy.usdc_contract_by_chain,
+    },
+    receive_address_by_chain: {
+      ...verificationPolicy.receive_address_by_chain,
+    },
+    current_block_number_by_chain: {
+      ...verificationPolicy.current_block_number_by_chain,
+    },
+  };
+  const mutableFulfillmentPolicy:any = {
+    ...fulfillmentPolicy,
+    allowed_chains: [...fulfillmentPolicy.allowed_chains],
+    min_confirmations_by_chain: {
+      ...fulfillmentPolicy.min_confirmations_by_chain,
+    },
+    usdc_contract_by_chain: {
+      ...fulfillmentPolicy.usdc_contract_by_chain,
+    },
+    receive_address_by_chain: {
+      ...fulfillmentPolicy.receive_address_by_chain,
+    },
+  };
+  const mutationCalls: BuyVoidPaymentRpcCallV1[] = [];
+  const mutatingTransport: BuyVoidPaymentRpcTransportV1 = {
+    async call(input): Promise<unknown> {
+      mutationCalls.push(input);
+      if (mutationCalls.length === 1) {
+        mutableRequest.source_chain = "ethereum";
+        mutableRequest.tx_hash = "0x" + "b".repeat(64);
+        mutableRequest.delivery_address = "0x" + "9".repeat(40);
+        mutableRequest.usdc_amount = "99";
+        mutableRequest.quoted_void = "198";
+        mutableWorkerPolicy.enabled = false;
+        mutableObserverPolicy.source_chain = "ethereum";
+        mutableObserverPolicy.chain_id = 1;
+        mutableVerificationPolicy.allowed_chains = ["ethereum"];
+        mutableVerificationPolicy.usdc_contract_by_chain.base =
+          "0x" + "8".repeat(40);
+        mutableFulfillmentPolicy.automatic_fulfillment_enabled = false;
+        mutableFulfillmentPolicy.rate_void_units_numerator = "99";
+        mutableFulfillmentPolicy.pool_remaining_void_units = "0";
+      }
+      if (input.method === "eth_chainId") return "0x2105";
+      if (input.method === "eth_getTransactionReceipt") return receipt;
+      if (input.method === "eth_blockNumber") return "0x65";
+      throw new Error("unexpected_rpc_method");
+    },
+  };
+  const mutationRoot = path.join(root, "post-rpc-mutation");
+  const mutationResult = await runBuyVoidAutoClaimWorkerV1({
+    request: mutableRequest,
+    root_dir: mutationRoot,
+    worker_policy: mutableWorkerPolicy,
+    observer_policy: mutableObserverPolicy,
+    verification_policy: mutableVerificationPolicy,
+    fulfillment_policy: mutableFulfillmentPolicy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1,
+    transport: mutatingTransport,
+    now_ms: 1_700_000_000_000,
+  });
+  if ("reason" in mutationResult) throw new Error(mutationResult.reason);
+  assert.equal(mutationResult.status, "claimed");
+  assert.equal(mutationCalls.length, 3);
+  assert.equal(mutableRequest.source_chain, "ethereum");
+  assert.equal(mutableObserverPolicy.chain_id, 1);
+  assert.equal(mutableWorkerPolicy.enabled, false);
+  assert.equal(
+    mutationResult.request_state_patch.canonical_payment_identity,
+    `voidpay1:base:${txHash}:7`,
+  );
+  assert.equal(
+    mutationResult.journal.intent.verification_binding.delivery_address,
+    delivery,
+  );
+  assert.equal(
+    mutationResult.journal.intent.verification_binding.payment_usdc_units,
+    "12500000",
+  );
+  assert.equal(
+    mutationResult.journal.intent.verification_binding.quoted_void_units,
+    "25000000",
+  );
 
   const applied = await runBuyVoidAutoClaimWorkerV1({
     request,
@@ -544,6 +780,13 @@ async function main(): Promise<void> {
   console.log("one_request_per_run=1");
   console.log("dry_by_default=1");
   console.log("exact_confirmation_required=1");
+  console.log("canonical_payment_rpc_rail_guard_required=1");
+  console.log("noncanonical_chain_id_held_before_rpc=1");
+  console.log("noncanonical_chain_id_claim_mutation=0");
+  console.log("request_policy_snapshot_once=1");
+  console.log("request_accessor_rejected_without_invocation=1");
+  console.log("verification_policy_proxy_rejected_without_traps=1");
+  console.log("post_rpc_caller_request_policy_mutation_ignored=1");
   console.log("duplicate_safe_claim=1");
   console.log("request_journal_write=0");
   console.log("inventory_decrement=0");
