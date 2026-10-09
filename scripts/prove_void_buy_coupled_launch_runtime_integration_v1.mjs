@@ -708,7 +708,7 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 
   assert.equal(
     currentCandidate.source_runtime_parent,
-    "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c",
+    "f627cad6bc07a6ad3ebe7cbd946723316fcd0567",
   );
   assert.equal(
     currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,

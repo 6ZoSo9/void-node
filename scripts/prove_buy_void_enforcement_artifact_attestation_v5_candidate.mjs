@@ -14,7 +14,7 @@ import {
 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "eeef850affd912a0d1e019bfac2d681b38ea24ed";
+const SOURCE_HEAD = "f627cad6bc07a6ad3ebe7cbd946723316fcd0567";
 const SOURCE_PREFLIGHT_GIT_BLOB = "b61615c8b928a95c33100878ca70aa147abad103";
 const SOURCE_V6_GIT_BLOB = "e7ac4c296930587e7b7ec415e57bb18190c88962";
 const SOURCE_V2_GIT_BLOB = "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
