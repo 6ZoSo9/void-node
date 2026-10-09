@@ -98,7 +98,7 @@ jobs:
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(j.schema,"void_buy_void_enforcement_artifact_v5_candidate");
           assert.equal(j.version,5);
-          assert.equal(j.source_runtime_parent,"4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c");
+          assert.equal(j.source_runtime_parent,"3533626d7167c98ba8d65d2c423b460b1a3199fc");
           assert.equal(
             j.predecessor?.historical_v4_manifest_git_blob_sha1,
             "d9e391bb058132b83a4eeaec00797e41dab9fa26",
