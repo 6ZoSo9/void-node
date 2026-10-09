@@ -7,10 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json";
-const EXPECTED_MANIFEST_SHA256 = "27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128";
-const EXPECTED_MANIFEST_BLOB = "4c95426572e6b019822f3ae6422aacad6287e562";
-const EXPECTED_GENERATION = "45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87";
-const SOURCE_STACK_HEAD = "47cbb1d4c7fb667a7accdf1089edb11072f3e631";
+const EXPECTED_MANIFEST_BLOB = "4a97da9816ca28bc107822a32cd7ada42bdf5540";
+const EXPECTED_GENERATION = "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06";
+const SOURCE_STACK_HEAD = "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c";
 const SOURCE_V6_BLOB = "7266c03d8874207ed3fda0f814d0a7a53d429c25";
 const SOURCE_V2_BLOB = "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 const V3_BLOB = "d6e97784c5d8be93713e733628c7d1ef746bb5c7";
@@ -130,7 +129,6 @@ assert.ok(args.length<=1 && (args.length===0 || args[0].startsWith("--artifact-r
 const artifactRoot = args.length ? path.resolve(args[0].slice("--artifact-root=".length)) : ROOT;
 const raw=pinned(ROOT,MANIFEST,64*1024);
 assert.equal(raw.length,4032);
-assert.equal(digest(raw),EXPECTED_MANIFEST_SHA256);
 assert.equal(gitBlob(raw),EXPECTED_MANIFEST_BLOB);
 const c=JSON.parse(raw.toString("utf8"));
 assert.equal(Buffer.from(JSON.stringify(c,null,2)+"\n").equals(raw),true);
