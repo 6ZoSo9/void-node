@@ -319,10 +319,16 @@ export function createBuyVoidPaymentHttpTransportV1(
                 return;
               }
 
-              const contentType = String(
-                response.headers["content-type"] || "",
-              ).toLowerCase();
-              if (!contentType.startsWith("application/json")) {
+              const rawContentType =
+                response.headers["content-type"];
+              const contentType =
+                typeof rawContentType === "string"
+                  ? rawContentType
+                      .split(";", 1)[0]
+                      .trim()
+                      .toLowerCase()
+                  : "";
+              if (contentType !== "application/json") {
                 fail(
                   new Error("payment_observer_rpc_content_type_invalid"),
                 );
@@ -362,7 +368,9 @@ export function createBuyVoidPaymentHttpTransportV1(
                 );
                 return;
               }
-              if (envelope.error) {
+              if (
+                Object.prototype.hasOwnProperty.call(envelope, "error")
+              ) {
                 fail(
                   new Error("payment_observer_rpc_error_response"),
                 );
