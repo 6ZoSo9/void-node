@@ -318,16 +318,26 @@ for (const status of [
       },
     },
   });
-  const plan = planBuyVoidOperatorAllocationDispatchV1(stateful);
+  // The old source accepted each stateful getter once. The successor
+  // rejects the entire outer accessor container before ANY getter executes.
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(stateful),
+    /buy_void_operator_allocation_dispatch_input_container_accessor_or_hidden_field/u,
+  );
   assert.deepEqual(reads, {
-    event: 1,
-    request: 1,
-    request_dir: 1,
-    allocation_ledger_root: 1,
-    allocation_high_water_root: 1,
-    with_launch_authority_mutation: 1,
-    read_sale_state: 1,
+    event: 0,
+    request: 0,
+    request_dir: 0,
+    allocation_ledger_root: 0,
+    allocation_high_water_root: 0,
+    with_launch_authority_mutation: 0,
+    read_sale_state: 0,
   });
+  const validPlainInput = input({
+    with_launch_authority_mutation: launchA,
+    read_sale_state: saleA,
+  });
+  const plan = planBuyVoidOperatorAllocationDispatchV1(validPlainInput);
   assert.equal(plan.kind, "verified_payment_allocation_handoff");
   if (plan.kind !== "verified_payment_allocation_handoff") {
     throw new Error("expected_verified_payment_allocation_handoff_plan");
