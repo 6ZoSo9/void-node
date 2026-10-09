@@ -15,7 +15,7 @@ const IDX_PATH = "src/index.ts";
 const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
-  "967d18c74bdea52dd1e2342931b7f418e5aee614";
+  "ac80a8e99ce6f163c2eed004b76f5f89affe2275";
 const FROZEN_ROUTER_GIT_BLOB = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
   "496715e7ae2941663908976a4a3f4efd7c6199cf";
@@ -55,6 +55,9 @@ const authority =
 assert.equal(authority.bounded_plain_data_snapshot_required, true);
 assert.equal(authority.pre_serialization_resource_bound_verified, true);
 assert.equal(authority.caller_accessor_or_tojson_authority, false);
+assert.equal(authority.pre_serialization_plain_data_bound, true);
+assert.equal(authority.accessor_or_tojson_input_allowed, false);
+assert.equal(authority.proxy_input_allowed, false);
 
 for (const key of [
   "mounted_operator_route_verified",
@@ -257,6 +260,29 @@ let serializeCount = 0;
 }
 
 {
+  let proxyTraps = 0;
+  const target = {
+    request_id: "synthetic-r1",
+    operator_status: "payment_verified",
+  };
+  const event = new Proxy(target, {
+    ownKeys(value) {
+      proxyTraps++;
+      return Reflect.ownKeys(value);
+    },
+    getOwnPropertyDescriptor(value, key) {
+      proxyTraps++;
+      return Reflect.getOwnPropertyDescriptor(value, key);
+    },
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({event})),
+    /buy_void_operator_allocation_dispatch_event_proxy_forbidden/u,
+  );
+  assert.equal(proxyTraps, 0, "Proxy trap must not execute");
+}
+
+{
   const originalStringify = JSON.stringify;
   let stringifyCalls = 0;
   try {
@@ -399,6 +425,7 @@ console.log("exact_canonical_allocation_roots_required=true");
 console.log("immutable_event_and_request_snapshots=true");
 console.log("caller_toJSON_rejected_without_invocation=true");
 console.log("caller_accessor_rejected_without_invocation=true");
+console.log("caller_proxy_rejected_without_traps=true");
 console.log("oversize_text_holds_before_full_json_serialization=true");
 console.log("deep_nesting_holds_before_json_serialization=true");
 console.log("server_control_properties_read_once=true");
