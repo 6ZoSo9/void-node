@@ -15,6 +15,8 @@ export const VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1 = {
   server_controlled_rpc_policy: true,
   rpc_read: true,
   rpc_write: false,
+  inactivity_timeout_bounded: true,
+  total_request_deadline_bounded: true,
   allowed_rpc_methods: [
     "eth_chainId",
     "eth_getTransactionReceipt",
@@ -280,6 +282,7 @@ export function createBuyVoidPaymentHttpTransportV1(
             });
 
             response.on("end", () => {
+              clearTotalDeadline();
               if (
                 typeof response.statusCode !== "number" ||
                 response.statusCode < 200 ||
@@ -352,12 +355,29 @@ export function createBuyVoidPaymentHttpTransportV1(
           },
         );
 
+        // ClientRequest timeout is inactivity-based. Enforce a separate
+        // total wall-clock deadline so a drip-feed RPC cannot hold the
+        // operator payment verification request open indefinitely.
+        const totalDeadline = setTimeout(() => {
+          request.destroy(
+            new Error("payment_observer_rpc_deadline_exceeded"),
+          );
+        }, normalized.timeout_ms);
+        totalDeadline.unref?.();
+        const clearTotalDeadline = () => {
+          clearTimeout(totalDeadline);
+        };
+        request.once("close", clearTotalDeadline);
+
         request.on("timeout", () => {
           request.destroy(
             new Error("payment_observer_rpc_timeout"),
           );
         });
-        request.on("error", reject);
+        request.on("error", (error) => {
+          clearTotalDeadline();
+          reject(error);
+        });
         request.end(payload);
       });
     },
