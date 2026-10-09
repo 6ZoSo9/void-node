@@ -106,7 +106,7 @@ and explicitly verifies the mounted event writer still calls the old
 payment-only API. Therefore
 `mounted_verified_allocation_dispatch=false` is intentional truth,
 not a failure hidden by CI. The verified-payment allocation source API
-is pinned to Git blob `496715e7ae2941663908976a4a3f4efd7c6199cf`.
+is pinned to Git blob `f591f7407d9afc2cf77e0f90923aa11b4817fd4e`.
 
 The scoped GitHub workflow separately typechecks/builds this composed
 checkout on Node 22/24/26 **without starting a server**, runs the inert
