@@ -348,6 +348,17 @@ function snapshotAutoFulfillmentInputV1(
     "prior_claims",
   ]);
   if (!input) return null;
+  if (
+    !input.request ||
+    !input.verified_payment_event ||
+    !input.policy
+  ) {
+    return Object.freeze({
+      request: input.request,
+      verified_payment_event: input.verified_payment_event,
+      policy: input.policy,
+    }) as unknown as BuyVoidAutoFulfillmentInputV1;
+  }
 
   const request = snapshotAutoFulfillmentRequestV1(input.request);
   const event = snapshotAutoFulfillmentEventV1(
