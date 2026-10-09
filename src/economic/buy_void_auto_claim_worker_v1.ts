@@ -371,20 +371,46 @@ function snapshotAutoClaimInvocationV1(
 
   const rootDir = read("root_dir");
   const apply = read("apply");
+  const confirmation = read("confirmation");
   const nowMs = read("now_ms");
   const transport = read("transport");
   if (
     typeof rootDir !== "string" ||
     rootDir.trim().length < 1 ||
     (apply !== undefined && typeof apply !== "boolean") ||
+    (confirmation !== undefined && typeof confirmation !== "string") ||
     (nowMs !== undefined &&
-      (!Number.isSafeInteger(nowMs) || Number(nowMs) <= 0)) ||
-    (transport !== undefined &&
-      (!transport ||
-        typeof transport !== "object" ||
-        typeof (transport as { call?: unknown }).call !== "function"))
+      (!Number.isSafeInteger(nowMs) || Number(nowMs) <= 0))
   ) {
     throw new Error("auto_claim_invocation_invalid");
+  }
+
+  if (transport !== undefined) {
+    if (
+      !transport ||
+      typeof transport !== "object" ||
+      utilTypes.isProxy(transport)
+    ) {
+      throw new Error("auto_claim_transport_invalid");
+    }
+    const transportPrototype = Object.getPrototypeOf(transport);
+    if (transportPrototype && utilTypes.isProxy(transportPrototype)) {
+      throw new Error("auto_claim_transport_invalid");
+    }
+    const callDescriptor =
+      Object.getOwnPropertyDescriptor(transport, "call") ||
+      (
+        transportPrototype
+          ? Object.getOwnPropertyDescriptor(transportPrototype, "call")
+          : undefined
+      );
+    if (
+      !callDescriptor ||
+      !Object.hasOwn(callDescriptor, "value") ||
+      typeof callDescriptor.value !== "function"
+    ) {
+      throw new Error("auto_claim_transport_invalid");
+    }
   }
 
   return Object.freeze({
@@ -414,7 +440,7 @@ function snapshotAutoClaimInvocationV1(
         "auto_claim_fulfillment_policy",
       ) as BuyVoidAutoFulfillmentPolicyV1,
     apply: apply === true,
-    confirmation: read("confirmation"),
+    confirmation,
     now_ms: nowMs as number | undefined,
     transport: transport as BuyVoidPaymentRpcTransportV1 | undefined,
   });
