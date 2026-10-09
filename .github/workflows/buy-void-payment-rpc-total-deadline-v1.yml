@@ -1,0 +1,122 @@
+name: VOID Buy VOID payment RPC total deadline v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "scripts/prove_buy_void_payment_rpc_total_deadline_v1.ts"
+      - "docs/architecture/buy-void-payment-rpc-total-deadline-v1.md"
+      - ".github/workflows/buy-void-payment-rpc-total-deadline-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-payment-rpc-total-deadline-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck focused proof and build source
+        run: |
+          ./node_modules/.bin/tsc --noEmit --esModuleInterop \
+            --module NodeNext --moduleResolution NodeNext \
+            --target ES2022 --skipLibCheck --types node \
+            scripts/prove_buy_void_payment_rpc_total_deadline_v1.ts
+          npm run build
+
+      - name: Prove bounded local payment RPC transport
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_payment_rpc_total_deadline_v1.ts \
+            | tee "payment-rpc-node-${{ matrix.node }}.txt"
+          for invariant in \
+            'VOID_BUY_VOID_PAYMENT_RPC_TOTAL_DEADLINE_V1_GREEN' \
+            'valid_json_rpc_response_preserved=true' \
+            'application_jsonp_rejected=true' \
+            'wrong_json_rpc_id_rejected=true' \
+            'oversize_response_rejected=true' \
+            'drip_feed_total_deadline_enforced=true' \
+            'inactivity_timeout_only=false' \
+            'external_rpc_contact=false' \
+            'loopback_fixture_only=true' \
+            'wallet_or_signer_access=false' \
+            'transaction_broadcast=false' \
+            'runtime_service_mutation=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$invariant" "payment-rpc-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-payment-rpc-deadline-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: payment-rpc-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download three exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-payment-rpc-deadline-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./payment-rpc
+
+      - name: Require exact Node 22 24 26 receipt equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "payment-rpc/payment-rpc-node-$v.txt"
+          done
+          cmp payment-rpc/payment-rpc-node-22.txt payment-rpc/payment-rpc-node-24.txt
+          cmp payment-rpc/payment-rpc-node-22.txt payment-rpc/payment-rpc-node-26.txt
+          echo "VOID_BUY_VOID_PAYMENT_RPC_TOTAL_DEADLINE_CROSS_NODE_GREEN"
+          echo "external_rpc_contact=false"
+          echo "transaction_broadcast=false"
+          echo "funds_moved=false"
