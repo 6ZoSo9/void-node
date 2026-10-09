@@ -1,59 +1,86 @@
-# Buy VOID payment RPC total-deadline boundary v1
+# Buy VOID RPC total-response deadline — bounded transport V1
 
-## Purpose
+## Scope and reason
 
-The Base Buy VOID payment-verification route now delegates RPC observation to
-`src/economic/buy_void_payment_rpc_observer_v1.ts` instead of issuing raw
-`fetch` calls.
+The existing `createBuyVoidPaymentHttpTransportV1` uses
+`ClientRequest.timeout`, which bounds **socket inactivity**, not the
+total wall-clock duration of a JSON-RPC request/response. A source-RPC
+endpoint can emit small chunks frequently enough to prevent an idle
+timeout, indefinitely delaying an operator payment observation.
 
-That observer already bounded response bytes and configured Node's request
-timeout. However Node's request timeout is inactivity-based: a peer that sends a
-small amount of data often enough can keep the connection active indefinitely.
-For an operator-facing payment verification path, that is not a complete
-resource bound.
+I independently reproduced this with an inert Node 22.16.0 loopback
+server: an HTTP response with small chunks took about **465 ms**
+despite a configured **100 ms socket timeout**. The reproduction
+did not access any real VOID RPC or customer data.
 
-This change adds a separate **total wall-clock deadline** using the same bounded
-timeout policy. The request is destroyed with
-`payment_observer_rpc_deadline_exceeded` if the full RPC response has not
-finished by that deadline, even while bytes continue arriving.
+## Exact source-only correction
 
-The existing inactivity timeout remains in place as an independent guard.
+This Draft changes only the existing reviewed transport module,
+`src/economic/buy_void_payment_rpc_observer_v1.ts`, plus a new synthetic
+proof, focused workflow and this note.
 
-## Content-type boundary
+The transport now installs a separate **wall-clock total deadline**
+measured from before network transmission. It records a monotonic acceptance
+deadline in addition to arming the transport timer. All error/abort paths settle
+once and clear that timer; timer expiry rejects with
+`payment_observer_rpc_total_deadline_exceeded` and destroys the client request.
 
-The observer also tightens JSON response admission. A response is accepted only
-when the normalized content type is exactly `application/json`, optionally
-followed by a parameter delimiter such as
-`application/json; charset=utf-8`.
+Success is independently gated by the monotonic deadline at the single
+settlement fence. This matters when the JavaScript event loop is delayed:
+buffered socket I/O cannot resolve successfully after the wall-clock deadline
+merely because the response `end` callback is delivered before an already-due
+timer callback. JSON parsing and all envelope checks occur before that final
+success settlement, so CPU work that crosses the deadline also fails closed.
 
-Prefix lookalikes such as `application/jsonp` are rejected.
+The existing idle timeout, response-byte cap, 2xx status, exact
+`application/json` media type (parameters allowed), JSON-RPC
+`jsonrpc: "2.0"` and numeric request ID binding, method allowlist, result
+presence, and any-error-member rejection remain intact. A response error,
+abort, or incomplete close also rejects fail-closed.
 
-## Deterministic proof
+The synthetic proof compiles the **actual edited source** and starts
+only ephemeral `127.0.0.1` HTTP fixture listeners. No external DNS,
+real RPC, user service, wallet, signer or customer record is accessed.
+It tests valid observations, rejected write methods, a continuously
+dripping response that stays below the socket idle limit, oversized body, a
+prematurely aborted partial response, non-2xx forged JSON, mismatched ID,
+invalid/JSON-prefixed media types, mixed result+error envelopes, disabled
+observer, and external cleartext-URL rejection.
 
-`scripts/prove_buy_void_payment_rpc_total_deadline_v1.ts` starts a synthetic
-HTTP server bound only to `127.0.0.1`. It never contacts an external RPC.
+A separate child-process loopback responder also completes a valid response
+after the configured deadline while the client event loop is intentionally
+blocked across that deadline. The client must still return the total-deadline
+HOLD after it resumes. This specifically falsifies timer-delivery ordering as
+an acceptance authority.
 
-Against the actual reviewed transport it proves:
+The Node 22/24/26 matrix compiles the exact unmerged head and checks
+each synthetic proof plus byte-identical deterministic evidence in a
+separate cross-node job. All recorded production, signer and money
+movement flags must remain false.
 
-- a normal JSON-RPC response succeeds;
-- `application/jsonp` is rejected;
-- a mismatched JSON-RPC response ID is rejected;
-- a response exceeding the configured byte cap is rejected;
-- a response that terminates prematurely after headers/body prefix is rejected
-  through the explicit response-abort path;
-- a drip-feed response that remains active inside the inactivity window still
-  hits the total wall-clock deadline.
+## Composition and release hold
 
-The same proof must pass byte-identically on Node 22, 24 and 26.
+This is **NOT** the complete production operator-route repair.
+Integration Draft #2675 now consumes this exact total-deadline successor
+through a two-parent source merge that retains the reviewed owner lineage. Its
+V6 reviewed-source record advances to observer blob
+`0073818ad6f6418e895bf794024c9d678b3bef86` at source commit
+`9df9648f546eb9320259eae1d3930a7c132a6511`. That source rollover requires a
+fresh V6 reviewed-source digest plus compiled V4, enforcement and packaged
+successor evidence; historical identities are not repinned or waived.
 
-## Authority boundary
+Changing this shared RPC observer also changes a reviewed economic
+source and its emitted compiled artifact. Historical V5 source,
+compiled V3, enforcement and packaged identities must **NOT** be
+repinned or skipped just to make previous-generation CI green.
+Independent composed source/compiled/enforcement/stopped-image and
+deployed runtime generations are required after any integration.
 
-This is transport hardening only. It does not mount a new route or service,
-change a payment decision, submit a transaction, access a wallet/private key or
-signer, mutate Chain-2050/WC, activate presale/market state, or move funds.
-
-The observer remains RPC-read-only. The route still requires the existing
-operator capability and mutation intent boundary and the downstream verified
-payment policy.
+The actual payment_verified-to-allocation_reserved dispatcher is still
+UNMOUNTED, custody reserve/recover and antirollback cross-UID high-water
+remain unqualified, and no coupled WC/VOID presale release is authorized.
+No Ready/merge/deploy/restart, operator credential, customer evidence,
+wallet/key/signer, transaction/broadcast, Chain-2050/WC, treasury or
+funds action occurs in this Draft.
 
 **PROTECT THE CORE.**

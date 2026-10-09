@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import https from "node:https";
+import { performance } from "node:perf_hooks";
 import type {
   BuyVoidRequestV1,
 } from "./buy_void_auto_fulfillment_v1.js";
@@ -15,9 +16,6 @@ export const VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1 = {
   server_controlled_rpc_policy: true,
   rpc_read: true,
   rpc_write: false,
-  inactivity_timeout_bounded: true,
-  total_request_deadline_bounded: true,
-  strict_json_content_type_required: true,
   allowed_rpc_methods: [
     "eth_chainId",
     "eth_getTransactionReceipt",
@@ -252,28 +250,32 @@ export function createBuyVoidPaymentHttpTransportV1(
       const client =
         normalized.rpc_url.protocol === "https:" ? https : http;
 
-      return new Promise((resolve, reject) => {
-        let settled = false;
-        let totalDeadline: ReturnType<typeof setTimeout> | null = null;
+      const deadlineAtMonotonicMs =
+        performance.now() + normalized.timeout_ms;
 
-        const clearTotalDeadline = () => {
-          if (totalDeadline !== null) {
-            clearTimeout(totalDeadline);
-            totalDeadline = null;
-          }
+      return new Promise((resolve, reject) => {
+        // Node's ClientRequest.timeout is an INACTIVITY timeout. A server can
+        // send one byte repeatedly and keep it alive indefinitely, so the
+        // complete RPC request/response requires its own absolute deadline.
+        // Exactly one outcome is allowed; every completion clears the timer.
+        let finished = false;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        const totalDeadlineError = () =>
+          new Error("payment_observer_rpc_total_deadline_exceeded");
+        const complete = (error: Error | null, value?: unknown): void => {
+          if (finished) return;
+          const resolvedError =
+            error === null &&
+            performance.now() >= deadlineAtMonotonicMs
+              ? totalDeadlineError()
+              : error;
+          finished = true;
+          if (deadline !== undefined) clearTimeout(deadline);
+          if (resolvedError) reject(resolvedError);
+          else resolve(value);
         };
-        const finishReject = (error: Error) => {
-          if (settled) return;
-          settled = true;
-          clearTotalDeadline();
-          reject(error);
-        };
-        const finishResolve = (value: unknown) => {
-          if (settled) return;
-          settled = true;
-          clearTotalDeadline();
-          resolve(value);
-        };
+        const fail = (error: Error): void => complete(error);
+        const succeed = (value: unknown): void => complete(null, value);
 
         const request = client.request(
           normalized.rpc_url,
@@ -287,54 +289,58 @@ export function createBuyVoidPaymentHttpTransportV1(
             timeout: normalized.timeout_ms,
           },
           (response) => {
+            response.on("error", fail);
+            response.on("aborted", () => {
+              fail(new Error("payment_observer_rpc_response_aborted"));
+            });
+            response.on("close", () => {
+              if (!response.complete) {
+                fail(new Error("payment_observer_rpc_response_aborted"));
+              }
+            });
             const chunks: Buffer[] = [];
             let size = 0;
 
             response.on("data", (chunk: Buffer | string) => {
-              if (settled) return;
+              if (finished) return;
               const value = Buffer.isBuffer(chunk)
                 ? chunk
                 : Buffer.from(chunk);
               size += value.byteLength;
               if (size > normalized.max_response_bytes) {
-                finishReject(
-                  new Error("payment_observer_rpc_response_too_large"),
+                const error = new Error(
+                  "payment_observer_rpc_response_too_large",
                 );
+                fail(error);
                 request.destroy();
                 return;
               }
               chunks.push(value);
             });
 
-            response.on("aborted", () => {
-              finishReject(
-                new Error("payment_observer_rpc_response_aborted"),
-              );
-            });
-            response.on("error", (error) => {
-              finishReject(error);
-            });
-
             response.on("end", () => {
-              if (settled) return;
               if (
                 typeof response.statusCode !== "number" ||
                 response.statusCode < 200 ||
                 response.statusCode >= 300
               ) {
-                finishReject(
+                fail(
                   new Error("payment_observer_rpc_http_status"),
                 );
                 return;
               }
 
-              const contentType = String(
-                response.headers["content-type"] || "",
-              ).toLowerCase();
-              if (
-                !/^application\/json(?:\s*;|$)/u.test(contentType)
-              ) {
-                finishReject(
+              const rawContentType =
+                response.headers["content-type"];
+              const contentType =
+                typeof rawContentType === "string"
+                  ? rawContentType
+                      .split(";", 1)[0]
+                      .trim()
+                      .toLowerCase()
+                  : "";
+              if (contentType !== "application/json") {
+                fail(
                   new Error("payment_observer_rpc_content_type_invalid"),
                 );
                 return;
@@ -346,7 +352,7 @@ export function createBuyVoidPaymentHttpTransportV1(
                   Buffer.concat(chunks).toString("utf8"),
                 );
               } catch {
-                finishReject(
+                fail(
                   new Error("payment_observer_rpc_invalid_json"),
                 );
                 return;
@@ -357,7 +363,7 @@ export function createBuyVoidPaymentHttpTransportV1(
                 typeof decoded !== "object" ||
                 Array.isArray(decoded)
               ) {
-                finishReject(
+                fail(
                   new Error("payment_observer_rpc_invalid_envelope"),
                 );
                 return;
@@ -368,49 +374,47 @@ export function createBuyVoidPaymentHttpTransportV1(
                 envelope.jsonrpc !== "2.0" ||
                 envelope.id !== currentRequestId
               ) {
-                finishReject(
+                fail(
                   new Error("payment_observer_rpc_envelope_mismatch"),
                 );
                 return;
               }
-              if (envelope.error) {
-                finishReject(
+              if (
+                Object.prototype.hasOwnProperty.call(envelope, "error")
+              ) {
+                fail(
                   new Error("payment_observer_rpc_error_response"),
                 );
                 return;
               }
               if (!Object.prototype.hasOwnProperty.call(envelope, "result")) {
-                finishReject(
+                fail(
                   new Error("payment_observer_rpc_result_missing"),
                 );
                 return;
               }
 
-              finishResolve(envelope.result);
+              succeed(envelope.result);
             });
           },
         );
 
-        // ClientRequest timeout is inactivity-based. Enforce a separate
-        // total wall-clock deadline so a drip-feed RPC cannot hold the
-        // operator payment verification request open indefinitely.
-        totalDeadline = setTimeout(() => {
-          finishReject(
-            new Error("payment_observer_rpc_deadline_exceeded"),
-          );
+        deadline = setTimeout(() => {
+          // Timer delivery stops transport work when scheduling is healthy.
+          // The success gate above independently checks monotonic wall-clock
+          // time so buffered I/O cannot win after this deadline if the event
+          // loop was blocked past the timer's due time.
+          fail(totalDeadlineError());
           request.destroy();
         }, normalized.timeout_ms);
-        totalDeadline.unref?.();
+        deadline.unref?.();
 
         request.on("timeout", () => {
-          finishReject(
-            new Error("payment_observer_rpc_timeout"),
-          );
+          const error = new Error("payment_observer_rpc_timeout");
+          fail(error);
           request.destroy();
         });
-        request.on("error", (error) => {
-          finishReject(error);
-        });
+        request.on("error", fail);
         request.end(payload);
       });
     },
