@@ -36,7 +36,7 @@ const INPUTS = Object.freeze([
 ]);
 const EXTERNALS = new Set([
   "express","ethers","node:crypto","node:fs","node:path","node:http",
-  "node:https","node:perf_hooks","node:url",
+  "node:https","node:perf_hooks","node:url","node:util",
 ]);
 const MAX_BYTES = 16*1024*1024;
 
@@ -239,6 +239,17 @@ function closedArtifacts() {
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
+  // Exact builtin required by canonical V2 Proxy-checking source.
+  const utilOnly=scan(ENTRY,Buffer.from(
+    'import { types as utilTypes } from "node:util";'
+  ));
+  assert.deepEqual(utilOnly.externals,["node:util"]);
+  assert.throws(
+    ()=>scan(ENTRY,Buffer.from(
+      'import { execSync } from "node:child_process";'
+    )),
+    /unreviewed external module/u,
+  );
   const reviewedGlobals=scan(ENTRY,Buffer.from(
     'const GLOBAL_DEPENDENCIES="__void_buy_void_delivery_runtime_dependencies_v1";\n'+
     'const value=globalThis[GLOBAL_DEPENDENCIES];\n'+
