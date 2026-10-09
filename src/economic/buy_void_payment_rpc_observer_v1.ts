@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import https from "node:https";
+import { performance } from "node:perf_hooks";
 import type {
   BuyVoidRequestV1,
 } from "./buy_void_auto_fulfillment_v1.js";
@@ -249,6 +250,9 @@ export function createBuyVoidPaymentHttpTransportV1(
       const client =
         normalized.rpc_url.protocol === "https:" ? https : http;
 
+      const deadlineAtMonotonicMs =
+        performance.now() + normalized.timeout_ms;
+
       return new Promise((resolve, reject) => {
         // Node's ClientRequest.timeout is an INACTIVITY timeout. A server can
         // send one byte repeatedly and keep it alive indefinitely, so the
@@ -256,11 +260,18 @@ export function createBuyVoidPaymentHttpTransportV1(
         // Exactly one outcome is allowed; every completion clears the timer.
         let finished = false;
         let deadline: ReturnType<typeof setTimeout> | undefined;
+        const totalDeadlineError = () =>
+          new Error("payment_observer_rpc_total_deadline_exceeded");
         const complete = (error: Error | null, value?: unknown): void => {
           if (finished) return;
+          const resolvedError =
+            error === null &&
+            performance.now() >= deadlineAtMonotonicMs
+              ? totalDeadlineError()
+              : error;
           finished = true;
           if (deadline !== undefined) clearTimeout(deadline);
-          if (error) reject(error);
+          if (resolvedError) reject(resolvedError);
           else resolve(value);
         };
         const fail = (error: Error): void => complete(error);
@@ -389,12 +400,11 @@ export function createBuyVoidPaymentHttpTransportV1(
         );
 
         deadline = setTimeout(() => {
-          const error = new Error(
-            "payment_observer_rpc_total_deadline_exceeded",
-          );
-          // Reject immediately even if the socket/error callback is delayed.
-          // Still destroy the socket to stop further response buffering.
-          fail(error);
+          // Timer delivery stops transport work when scheduling is healthy.
+          // The success gate above independently checks monotonic wall-clock
+          // time so buffered I/O cannot win after this deadline if the event
+          // loop was blocked past the timer's due time.
+          fail(totalDeadlineError());
           request.destroy();
         }, normalized.timeout_ms);
         deadline.unref?.();
