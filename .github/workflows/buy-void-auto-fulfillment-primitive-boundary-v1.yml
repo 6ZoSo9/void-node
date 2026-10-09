@@ -1,0 +1,129 @@
+name: VOID Buy VOID auto fulfillment primitive boundary v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_primitive_boundary_v1.ts"
+      - "docs/architecture/buy-void-auto-fulfillment-primitive-boundary-v1.md"
+      - ".github/workflows/buy-void-auto-fulfillment-primitive-boundary-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-auto-fulfillment-primitive-boundary-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build repaired source
+        run: npm run build
+
+      - name: Prove primitive-only fulfillment authority
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_auto_fulfillment_primitive_boundary_v1.ts \
+            | tee "auto-fulfillment-primitive-boundary-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_AUTO_FULFILLMENT_PRIMITIVE_BOUNDARY_V1_GREEN' \
+            'primitive_control_approved=true' \
+            'wrong_structural_type_case_count=37' \
+            'wrong_structural_types_held=true' \
+            'canonical_identity_wrong_types_held=true' \
+            'malformed_prior_claims_held=true' \
+            'reviewed_primitive_forms_preserved=true' \
+            'canonical_approved_decision_preserved=true' \
+            'verifier_falsy_wrong_type_tx_hash_does_not_fallback=true' \
+            'top_level_proxy_rejected_without_traps=true' \
+            'request_accessor_rejected_without_invocation=true' \
+            'payment_verifier_proxy_rejected_without_traps=true' \
+            'policy_map_accessor_rejected_without_invocation=true' \
+            'prior_claim_accessor_rejected_without_invocation=true' \
+            'revoked_array_proxy_held=true' \
+            'custom_prototype_rejected=true' \
+            'irrelevant_top_level_getter_not_invoked=true' \
+            'irrelevant_request_getter_not_invoked=true' \
+            'unreviewed_policy_map_getter_not_invoked=true' \
+            'allowed_chain_bound_precedes_descriptors=true' \
+            'prior_claim_bound_precedes_descriptors=true' \
+            'oversize_reviewed_text_held=true' \
+            'production_payment_authority_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "auto-fulfillment-primitive-boundary-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-auto-fulfillment-primitive-boundary-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: auto-fulfillment-primitive-boundary-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download repaired receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-auto-fulfillment-primitive-boundary-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical Node 22 24 26 proof
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/auto-fulfillment-primitive-boundary-node-$v.txt"
+          done
+          cmp evidence/auto-fulfillment-primitive-boundary-node-22.txt evidence/auto-fulfillment-primitive-boundary-node-24.txt
+          cmp evidence/auto-fulfillment-primitive-boundary-node-22.txt evidence/auto-fulfillment-primitive-boundary-node-26.txt
+          echo "VOID_BUY_VOID_AUTO_FULFILLMENT_PRIMITIVE_BOUNDARY_CROSS_NODE_GREEN"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"

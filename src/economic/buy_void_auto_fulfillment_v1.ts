@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { types as utilTypes } from "node:util";
 
 export const VOID_BUY_VOID_AUTO_FULFILLMENT_V1 =
   "VOID_BUY_VOID_AUTO_FULFILLMENT_V1";
@@ -17,6 +18,380 @@ const HEX_32 = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1 =
+  1024 * 1024;
+const AUTO_FULFILLMENT_MAX_ALLOWED_CHAINS_V1 = 32;
+const AUTO_FULFILLMENT_MAX_PRIOR_CLAIMS_V1 = 8192;
+
+type AutoFulfillmentDataFieldV1 = Readonly<{
+  present: boolean;
+  value: unknown;
+}>;
+
+function plainAutoFulfillmentRecordV1(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    utilTypes.isProxy(value) ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function ownAutoFulfillmentDataFieldV1(
+  recordValue: Record<string, unknown>,
+  key: string,
+): AutoFulfillmentDataFieldV1 | null {
+  const descriptor = Object.getOwnPropertyDescriptor(recordValue, key);
+  if (!descriptor) {
+    return Object.freeze({ present: false, value: undefined });
+  }
+  if (
+    descriptor.enumerable !== true ||
+    !Object.hasOwn(descriptor, "value")
+  ) {
+    return null;
+  }
+  if (
+    typeof descriptor.value === "string" &&
+    descriptor.value.length >
+      AUTO_FULFILLMENT_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    present: true,
+    value: descriptor.value,
+  });
+}
+
+function snapshotAutoFulfillmentSelectedRecordV1(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, unknown> | null {
+  const recordValue = plainAutoFulfillmentRecordV1(value);
+  if (!recordValue) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const field = ownAutoFulfillmentDataFieldV1(recordValue, key);
+    if (!field) return null;
+    if (!field.present) continue;
+    Object.defineProperty(out, key, {
+      value: field.value,
+      enumerable: true,
+      writable: true,
+      configurable: false,
+    });
+  }
+  return out;
+}
+
+function snapshotAutoFulfillmentArrayV1(
+  value: unknown,
+  maximum: number,
+): readonly unknown[] | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    utilTypes.isProxy(value) ||
+    !Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return null;
+  }
+  const length = value.length;
+  if (
+    !Number.isSafeInteger(maximum) ||
+    maximum < 0 ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > maximum
+  ) {
+    return null;
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const ownKeys = Reflect.ownKeys(descriptors);
+  if (
+    ownKeys.some((key) => typeof key !== "string") ||
+    ownKeys.length !== length + 1
+  ) {
+    return null;
+  }
+  const out: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      return null;
+    }
+    if (
+      typeof descriptor.value === "string" &&
+      descriptor.value.length >
+        AUTO_FULFILLMENT_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1
+    ) {
+      return null;
+    }
+    out.push(descriptor.value);
+  }
+  return Object.freeze(out);
+}
+
+function snapshotAutoFulfillmentMapV1(
+  value: unknown,
+  keys: readonly string[],
+): Readonly<Record<string, unknown>> | null {
+  const recordValue = plainAutoFulfillmentRecordV1(value);
+  if (!recordValue) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const field = ownAutoFulfillmentDataFieldV1(recordValue, key);
+    if (!field) return null;
+    if (field.present) out[key] = field.value;
+  }
+  return Object.freeze(out);
+}
+
+const AUTO_FULFILLMENT_REQUEST_KEYS_V1 = Object.freeze([
+  "request_id",
+  "source_chain",
+  "tx_hash",
+  "delivery_address",
+  "receive_address",
+  "usdc_amount",
+  "quoted_void",
+]);
+
+const AUTO_FULFILLMENT_EVENT_KEYS_V1 = Object.freeze([
+  "schema",
+  "marker",
+  "payment_identity_input_complete",
+  "request_id",
+  "operator_status",
+  "payment_verified",
+  "tx_hash",
+  "payment_verifier",
+]);
+
+const AUTO_FULFILLMENT_VERIFIER_KEYS_V1 = Object.freeze([
+  "chain",
+  "transaction_hash",
+  "log_index",
+  "block_number",
+  "confirmations",
+  "usdc_contract",
+  "from_address",
+  "receive_address",
+  "delivery_address",
+  "amount_units",
+  "requested_units",
+]);
+
+const AUTO_FULFILLMENT_POLICY_KEYS_V1 = Object.freeze([
+  "automatic_fulfillment_enabled",
+  "allowed_chains",
+  "min_confirmations_by_chain",
+  "usdc_contract_by_chain",
+  "receive_address_by_chain",
+  "rate_void_units_numerator",
+  "rate_void_units_denominator",
+  "pool_remaining_void_units",
+  "exact_payment_required",
+]);
+
+const AUTO_FULFILLMENT_CLAIM_KEYS_V1 = Object.freeze([
+  "schema",
+  "marker",
+  "canonical_payment_identity",
+  "canonical_payment_identity_sha256",
+  "request_id",
+  "decision_fingerprint",
+  "instruction_id",
+  "unsigned_instruction",
+  "status",
+]);
+
+const AUTO_FULFILLMENT_INSTRUCTION_KEYS_V1 = Object.freeze([
+  "schema",
+  "marker",
+  "instruction_id",
+  "request_id",
+  "canonical_payment_identity",
+  "source_chain",
+  "payment_transaction_hash",
+  "payment_log_index",
+  "confirmed_block_number",
+  "confirmation_count",
+  "payment_usdc_units",
+  "delivery_address",
+  "void_amount_units",
+  "signing_authorized",
+  "transaction_broadcast_authorized",
+  "automatic_execution_authorized",
+]);
+
+function snapshotAutoFulfillmentRequestV1(
+  value: unknown,
+): BuyVoidRequestV1 | null {
+  const request = snapshotAutoFulfillmentSelectedRecordV1(
+    value,
+    AUTO_FULFILLMENT_REQUEST_KEYS_V1,
+  );
+  return request
+    ? Object.freeze(request) as unknown as BuyVoidRequestV1
+    : null;
+}
+
+function snapshotAutoFulfillmentEventV1(
+  value: unknown,
+): BuyVoidVerifiedPaymentAdmissionEventV1 | null {
+  const event = snapshotAutoFulfillmentSelectedRecordV1(
+    value,
+    AUTO_FULFILLMENT_EVENT_KEYS_V1,
+  );
+  if (!event) return null;
+  if (Object.hasOwn(event, "payment_verifier")) {
+    const verifier = snapshotAutoFulfillmentSelectedRecordV1(
+      event.payment_verifier,
+      AUTO_FULFILLMENT_VERIFIER_KEYS_V1,
+    );
+    if (!verifier) return null;
+    event.payment_verifier = Object.freeze(verifier);
+  }
+  return Object.freeze(
+    event,
+  ) as unknown as BuyVoidVerifiedPaymentAdmissionEventV1;
+}
+
+function snapshotAutoFulfillmentPolicyV1(
+  value: unknown,
+): BuyVoidAutoFulfillmentPolicyV1 | null {
+  const policy = snapshotAutoFulfillmentSelectedRecordV1(
+    value,
+    AUTO_FULFILLMENT_POLICY_KEYS_V1,
+  );
+  if (!policy) return null;
+
+  if (Object.hasOwn(policy, "allowed_chains")) {
+    const allowed = snapshotAutoFulfillmentArrayV1(
+      policy.allowed_chains,
+      AUTO_FULFILLMENT_MAX_ALLOWED_CHAINS_V1,
+    );
+    if (!allowed) return null;
+    policy.allowed_chains = allowed;
+  }
+
+  const reviewedChains = Array.isArray(policy.allowed_chains)
+    ? [...new Set(
+        policy.allowed_chains
+          .map((entry) => normalizeChain(entry))
+          .filter(Boolean),
+      )]
+    : [];
+  for (const key of [
+    "min_confirmations_by_chain",
+    "usdc_contract_by_chain",
+    "receive_address_by_chain",
+  ]) {
+    if (!Object.hasOwn(policy, key)) continue;
+    const map = snapshotAutoFulfillmentMapV1(
+      policy[key],
+      reviewedChains,
+    );
+    if (!map) return null;
+    policy[key] = map;
+  }
+
+  return Object.freeze(
+    policy,
+  ) as unknown as BuyVoidAutoFulfillmentPolicyV1;
+}
+
+function snapshotAutoFulfillmentClaimV1(
+  value: unknown,
+): BuyVoidFulfillmentClaimV1 | null {
+  const claim = snapshotAutoFulfillmentSelectedRecordV1(
+    value,
+    AUTO_FULFILLMENT_CLAIM_KEYS_V1,
+  );
+  if (!claim) return null;
+  if (Object.hasOwn(claim, "unsigned_instruction")) {
+    const instruction = snapshotAutoFulfillmentSelectedRecordV1(
+      claim.unsigned_instruction,
+      AUTO_FULFILLMENT_INSTRUCTION_KEYS_V1,
+    );
+    if (!instruction) return null;
+    claim.unsigned_instruction = Object.freeze(instruction);
+  }
+  return Object.freeze(
+    claim,
+  ) as unknown as BuyVoidFulfillmentClaimV1;
+}
+
+function snapshotAutoFulfillmentInputV1(
+  value: unknown,
+): BuyVoidAutoFulfillmentInputV1 | null {
+  const input = snapshotAutoFulfillmentSelectedRecordV1(value, [
+    "request",
+    "verified_payment_event",
+    "policy",
+    "prior_claims",
+  ]);
+  if (!input) return null;
+  if (
+    !input.request ||
+    !input.verified_payment_event ||
+    !input.policy
+  ) {
+    return Object.freeze({
+      request: input.request,
+      verified_payment_event: input.verified_payment_event,
+      policy: input.policy,
+    }) as unknown as BuyVoidAutoFulfillmentInputV1;
+  }
+
+  const request = snapshotAutoFulfillmentRequestV1(input.request);
+  const event = snapshotAutoFulfillmentEventV1(
+    input.verified_payment_event,
+  );
+  const policy = snapshotAutoFulfillmentPolicyV1(input.policy);
+  if (!request || !event || !policy) return null;
+
+  let priorClaims: readonly BuyVoidFulfillmentClaimV1[] | undefined;
+  if (Object.hasOwn(input, "prior_claims")) {
+    const rawClaims = snapshotAutoFulfillmentArrayV1(
+      input.prior_claims,
+      AUTO_FULFILLMENT_MAX_PRIOR_CLAIMS_V1,
+    );
+    if (!rawClaims) return null;
+    const claims: BuyVoidFulfillmentClaimV1[] = [];
+    for (const rawClaim of rawClaims) {
+      const claim = snapshotAutoFulfillmentClaimV1(rawClaim);
+      if (!claim) return null;
+      claims.push(claim);
+    }
+    priorClaims = Object.freeze(claims);
+  }
+
+  return Object.freeze({
+    request,
+    verified_payment_event: event,
+    policy,
+    ...(priorClaims !== undefined
+      ? { prior_claims: priorClaims }
+      : {}),
+  }) as unknown as BuyVoidAutoFulfillmentInputV1;
+}
 
 export type BuyVoidRequestV1 = {
   request_id: string;
@@ -150,18 +525,21 @@ function sha256Hex(value: string): string {
 }
 
 function normalizeChain(value: unknown): string {
-  const raw = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const raw = value.trim().toLowerCase();
   const chain = raw === "eth" ? "ethereum" : raw;
   return CHAIN.test(chain) ? chain : "";
 }
 
 function normalizeHash(value: unknown): string {
-  const hash = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const hash = value.trim().toLowerCase();
   return HEX_32.test(hash) ? hash : "";
 }
 
 function normalizeAddress(value: unknown): string {
-  const address = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const address = value.trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
 }
 
@@ -172,7 +550,8 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
     return BigInt(value);
   }
 
-  const raw = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
   if (!raw) return null;
 
   try {
@@ -192,7 +571,11 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
 }
 
 function decimalToUnits(value: unknown, decimals = 6): bigint | null {
-  const raw = String(value ?? "").trim();
+  let raw = "";
+  if (typeof value === "string") raw = value.trim();
+  else if (typeof value === "number" && Number.isFinite(value)) {
+    raw = String(value);
+  }
   if (!raw || !/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) return null;
 
   const [whole, fraction = ""] = raw.split(".");
@@ -238,12 +621,25 @@ export function canonicalBuyVoidPaymentIdentityV1(input: {
 export function decideBuyVoidAutoFulfillmentV1(
   input: BuyVoidAutoFulfillmentInputV1,
 ): BuyVoidAutoFulfillmentDecisionV1 {
-  const request = input?.request;
-  const event = input?.verified_payment_event;
-  const policy = input?.policy;
-  const priorClaims = Array.isArray(input?.prior_claims) ? input.prior_claims : [];
+  if (!input) return held("missing_input");
+  const detachedInput = snapshotAutoFulfillmentInputV1(input);
+  if (!detachedInput) {
+    return held("auto_fulfillment_input_not_plain_data");
+  }
+
+  const request = detachedInput.request;
+  const event = detachedInput.verified_payment_event;
+  const policy = detachedInput.policy;
+  const priorClaimsInput = detachedInput.prior_claims;
 
   if (!request || !event || !policy) return held("missing_input");
+  if (
+    priorClaimsInput !== undefined &&
+    !Array.isArray(priorClaimsInput)
+  ) {
+    return held("invalid_prior_claims");
+  }
+  const priorClaims = priorClaimsInput ?? [];
   if (policy.automatic_fulfillment_enabled !== true) {
     return held("automatic_fulfillment_disabled");
   }
@@ -263,31 +659,47 @@ export function decideBuyVoidAutoFulfillmentV1(
   ) {
     return held("untrusted_payment_verification_provenance", {
       expected_schema: "void_buy_void_verified_payment_event_v2",
-      observed_schema: String(provenanceEvent.schema || ""),
+      observed_schema:
+        typeof provenanceEvent.schema === "string"
+          ? provenanceEvent.schema
+          : "",
       expected_marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
-      observed_marker: String(provenanceEvent.marker || ""),
+      observed_marker:
+        typeof provenanceEvent.marker === "string"
+          ? provenanceEvent.marker
+          : "",
       payment_identity_input_complete:
         provenanceEvent.payment_identity_input_complete === true,
     });
   }
 
-  const requestId = String(request.request_id || "").trim();
+  if (typeof request.request_id !== "string") {
+    return held("invalid_request_id");
+  }
+  const requestId = request.request_id.trim();
   if (!/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
     return held("invalid_request_id");
   }
-  if (String(event.request_id || "").trim() !== requestId) {
+  if (
+    typeof event.request_id !== "string" ||
+    event.request_id.trim() !== requestId
+  ) {
     return held("request_event_mismatch");
   }
   if (
-    String(event.operator_status || "").trim().toLowerCase() !==
-      "payment_verified" ||
+    typeof event.operator_status !== "string" ||
+    event.operator_status.trim().toLowerCase() !== "payment_verified" ||
     event.payment_verified !== true
   ) {
     return held("payment_not_verified");
   }
 
   const verifier = event.payment_verifier;
-  if (!verifier || typeof verifier !== "object") {
+  if (
+    !verifier ||
+    typeof verifier !== "object" ||
+    Array.isArray(verifier)
+  ) {
     return held("missing_payment_verifier");
   }
 
@@ -297,15 +709,33 @@ export function decideBuyVoidAutoFulfillmentV1(
     return held("source_chain_mismatch");
   }
 
+  if (!Array.isArray(policy.allowed_chains)) {
+    return held("invalid_allowed_chains_policy");
+  }
+  if (
+    !policy.min_confirmations_by_chain ||
+    typeof policy.min_confirmations_by_chain !== "object" ||
+    Array.isArray(policy.min_confirmations_by_chain) ||
+    !policy.usdc_contract_by_chain ||
+    typeof policy.usdc_contract_by_chain !== "object" ||
+    Array.isArray(policy.usdc_contract_by_chain) ||
+    !policy.receive_address_by_chain ||
+    typeof policy.receive_address_by_chain !== "object" ||
+    Array.isArray(policy.receive_address_by_chain)
+  ) {
+    return held("invalid_fulfillment_policy_map_shape");
+  }
   const allowedChains = new Set(
-    (policy.allowed_chains || []).map(normalizeChain).filter(Boolean),
+    policy.allowed_chains.map(normalizeChain).filter(Boolean),
   );
   if (!allowedChains.has(eventChain)) return held("source_chain_not_allowlisted");
 
   const requestTxHash = normalizeHash(request.tx_hash);
-  const eventTxHash = normalizeHash(
-    verifier.transaction_hash || event.tx_hash,
-  );
+  const eventTxHash =
+    verifier.transaction_hash !== undefined &&
+    verifier.transaction_hash !== null
+      ? normalizeHash(verifier.transaction_hash)
+      : normalizeHash(event.tx_hash);
   const outerEventTxHash = normalizeHash(event.tx_hash);
   if (!requestTxHash || !eventTxHash || !outerEventTxHash) {
     return held("invalid_payment_transaction_hash");
@@ -325,10 +755,10 @@ export function decideBuyVoidAutoFulfillmentV1(
   const confirmations = parseNonNegativeInteger(verifier.confirmations);
   if (confirmations === null) return held("missing_confirmation_count");
 
-  const requiredConfirmations = Number(
-    policy.min_confirmations_by_chain?.[eventChain],
-  );
+  const requiredConfirmations =
+    policy.min_confirmations_by_chain?.[eventChain];
   if (
+    typeof requiredConfirmations !== "number" ||
     !Number.isSafeInteger(requiredConfirmations) ||
     requiredConfirmations < 1
   ) {
@@ -475,12 +905,18 @@ export function decideBuyVoidAutoFulfillmentV1(
 
   const paymentClaim = priorClaims.find(
     (claim) =>
-      String(claim?.canonical_payment_identity || "") ===
-      canonicalPaymentIdentity,
+      typeof claim?.canonical_payment_identity === "string" &&
+      claim.canonical_payment_identity === canonicalPaymentIdentity,
   );
   if (paymentClaim) {
-    const claimedRequestId = String(paymentClaim.request_id || "");
-    const claimedFingerprint = String(paymentClaim.decision_fingerprint || "");
+    if (
+      typeof paymentClaim.request_id !== "string" ||
+      typeof paymentClaim.decision_fingerprint !== "string"
+    ) {
+      return held("prior_claim_identity_invalid");
+    }
+    const claimedRequestId = paymentClaim.request_id;
+    const claimedFingerprint = paymentClaim.decision_fingerprint;
 
     if (
       claimedRequestId === requestId &&
@@ -512,14 +948,17 @@ export function decideBuyVoidAutoFulfillmentV1(
   }
 
   const requestClaim = priorClaims.find(
-    (claim) => String(claim?.request_id || "") === requestId,
+    (claim) =>
+      typeof claim?.request_id === "string" &&
+      claim.request_id === requestId,
   );
   if (requestClaim) {
     return held("request_already_claimed", {
       request_id: requestId,
-      claimed_payment_identity: String(
-        requestClaim.canonical_payment_identity || "",
-      ),
+      claimed_payment_identity:
+        typeof requestClaim.canonical_payment_identity === "string"
+          ? requestClaim.canonical_payment_identity
+          : "",
       attempted_payment_identity: canonicalPaymentIdentity,
     });
   }
