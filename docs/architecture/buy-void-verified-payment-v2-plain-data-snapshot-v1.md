@@ -18,9 +18,18 @@ Primitive-boundary predecessor V2 blob:
 
 `0df94fb35681f358318416fe6c48f3b794cd6074`
 
-Plain-data-snapshot V2 blob:
+Earlier plain-data-snapshot V2 blob:
 
 `af8bf48fc43a57fac7032a5a6027d1b03aa37054`
+
+Current bounded per-index snapshot V2 blob:
+
+`550ede02fc0b7d6874c324af58b5ef9c5591b311`
+
+The later source keeps the same plain-data authority model while avoiding
+whole-array descriptor-table allocation. The inherited primitive regression is
+therefore repinned to this exact current blob rather than to the earlier
+bounded-snapshot generation `21420412cc9b3cf9d415e179151eb973dda07131`.
 
 ## Snapshot rules
 
