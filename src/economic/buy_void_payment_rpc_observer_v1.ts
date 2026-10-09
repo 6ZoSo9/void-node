@@ -282,18 +282,26 @@ export function createBuyVoidPaymentHttpTransportV1(
             response.on("aborted", () => {
               fail(new Error("payment_observer_rpc_response_aborted"));
             });
+            response.on("close", () => {
+              if (!response.complete) {
+                fail(new Error("payment_observer_rpc_response_aborted"));
+              }
+            });
             const chunks: Buffer[] = [];
             let size = 0;
 
             response.on("data", (chunk: Buffer | string) => {
+              if (finished) return;
               const value = Buffer.isBuffer(chunk)
                 ? chunk
                 : Buffer.from(chunk);
               size += value.byteLength;
               if (size > normalized.max_response_bytes) {
-                request.destroy(
-                  new Error("payment_observer_rpc_response_too_large"),
+                const error = new Error(
+                  "payment_observer_rpc_response_too_large",
                 );
+                fail(error);
+                request.destroy(error);
                 return;
               }
               chunks.push(value);
