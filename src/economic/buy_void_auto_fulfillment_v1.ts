@@ -150,18 +150,21 @@ function sha256Hex(value: string): string {
 }
 
 function normalizeChain(value: unknown): string {
-  const raw = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const raw = value.trim().toLowerCase();
   const chain = raw === "eth" ? "ethereum" : raw;
   return CHAIN.test(chain) ? chain : "";
 }
 
 function normalizeHash(value: unknown): string {
-  const hash = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const hash = value.trim().toLowerCase();
   return HEX_32.test(hash) ? hash : "";
 }
 
 function normalizeAddress(value: unknown): string {
-  const address = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const address = value.trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
 }
 
@@ -172,7 +175,8 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
     return BigInt(value);
   }
 
-  const raw = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
   if (!raw) return null;
 
   try {
@@ -192,7 +196,11 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
 }
 
 function decimalToUnits(value: unknown, decimals = 6): bigint | null {
-  const raw = String(value ?? "").trim();
+  let raw = "";
+  if (typeof value === "string") raw = value.trim();
+  else if (typeof value === "number" && Number.isFinite(value)) {
+    raw = String(value);
+  }
   if (!raw || !/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) return null;
 
   const [whole, fraction = ""] = raw.split(".");
@@ -263,31 +271,47 @@ export function decideBuyVoidAutoFulfillmentV1(
   ) {
     return held("untrusted_payment_verification_provenance", {
       expected_schema: "void_buy_void_verified_payment_event_v2",
-      observed_schema: String(provenanceEvent.schema || ""),
+      observed_schema:
+        typeof provenanceEvent.schema === "string"
+          ? provenanceEvent.schema
+          : "",
       expected_marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
-      observed_marker: String(provenanceEvent.marker || ""),
+      observed_marker:
+        typeof provenanceEvent.marker === "string"
+          ? provenanceEvent.marker
+          : "",
       payment_identity_input_complete:
         provenanceEvent.payment_identity_input_complete === true,
     });
   }
 
-  const requestId = String(request.request_id || "").trim();
+  if (typeof request.request_id !== "string") {
+    return held("invalid_request_id");
+  }
+  const requestId = request.request_id.trim();
   if (!/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
     return held("invalid_request_id");
   }
-  if (String(event.request_id || "").trim() !== requestId) {
+  if (
+    typeof event.request_id !== "string" ||
+    event.request_id.trim() !== requestId
+  ) {
     return held("request_event_mismatch");
   }
   if (
-    String(event.operator_status || "").trim().toLowerCase() !==
-      "payment_verified" ||
+    typeof event.operator_status !== "string" ||
+    event.operator_status.trim().toLowerCase() !== "payment_verified" ||
     event.payment_verified !== true
   ) {
     return held("payment_not_verified");
   }
 
   const verifier = event.payment_verifier;
-  if (!verifier || typeof verifier !== "object") {
+  if (
+    !verifier ||
+    typeof verifier !== "object" ||
+    Array.isArray(verifier)
+  ) {
     return held("missing_payment_verifier");
   }
 
@@ -297,15 +321,20 @@ export function decideBuyVoidAutoFulfillmentV1(
     return held("source_chain_mismatch");
   }
 
+  if (!Array.isArray(policy.allowed_chains)) {
+    return held("invalid_allowed_chains_policy");
+  }
   const allowedChains = new Set(
-    (policy.allowed_chains || []).map(normalizeChain).filter(Boolean),
+    policy.allowed_chains.map(normalizeChain).filter(Boolean),
   );
   if (!allowedChains.has(eventChain)) return held("source_chain_not_allowlisted");
 
   const requestTxHash = normalizeHash(request.tx_hash);
-  const eventTxHash = normalizeHash(
-    verifier.transaction_hash || event.tx_hash,
-  );
+  const eventTxHash =
+    verifier.transaction_hash !== undefined &&
+    verifier.transaction_hash !== null
+      ? normalizeHash(verifier.transaction_hash)
+      : normalizeHash(event.tx_hash);
   const outerEventTxHash = normalizeHash(event.tx_hash);
   if (!requestTxHash || !eventTxHash || !outerEventTxHash) {
     return held("invalid_payment_transaction_hash");
@@ -325,19 +354,16 @@ export function decideBuyVoidAutoFulfillmentV1(
   const confirmations = parseNonNegativeInteger(verifier.confirmations);
   if (confirmations === null) return held("missing_confirmation_count");
 
-  const requiredConfirmations = Number(
+  const requiredConfirmations = parseNonNegativeInteger(
     policy.min_confirmations_by_chain?.[eventChain],
   );
-  if (
-    !Number.isSafeInteger(requiredConfirmations) ||
-    requiredConfirmations < 1
-  ) {
+  if (requiredConfirmations === null || requiredConfirmations < 1n) {
     return held("invalid_confirmation_policy");
   }
-  if (confirmations < BigInt(requiredConfirmations)) {
+  if (confirmations < requiredConfirmations) {
     return held("insufficient_confirmations", {
       confirmations: confirmations.toString(),
-      required_confirmations: String(requiredConfirmations),
+      required_confirmations: requiredConfirmations.toString(),
     });
   }
 
@@ -475,12 +501,18 @@ export function decideBuyVoidAutoFulfillmentV1(
 
   const paymentClaim = priorClaims.find(
     (claim) =>
-      String(claim?.canonical_payment_identity || "") ===
-      canonicalPaymentIdentity,
+      typeof claim?.canonical_payment_identity === "string" &&
+      claim.canonical_payment_identity === canonicalPaymentIdentity,
   );
   if (paymentClaim) {
-    const claimedRequestId = String(paymentClaim.request_id || "");
-    const claimedFingerprint = String(paymentClaim.decision_fingerprint || "");
+    if (
+      typeof paymentClaim.request_id !== "string" ||
+      typeof paymentClaim.decision_fingerprint !== "string"
+    ) {
+      return held("prior_claim_identity_invalid");
+    }
+    const claimedRequestId = paymentClaim.request_id;
+    const claimedFingerprint = paymentClaim.decision_fingerprint;
 
     if (
       claimedRequestId === requestId &&
@@ -512,14 +544,17 @@ export function decideBuyVoidAutoFulfillmentV1(
   }
 
   const requestClaim = priorClaims.find(
-    (claim) => String(claim?.request_id || "") === requestId,
+    (claim) =>
+      typeof claim?.request_id === "string" &&
+      claim.request_id === requestId,
   );
   if (requestClaim) {
     return held("request_already_claimed", {
       request_id: requestId,
-      claimed_payment_identity: String(
-        requestClaim.canonical_payment_identity || "",
-      ),
+      claimed_payment_identity:
+        typeof requestClaim.canonical_payment_identity === "string"
+          ? requestClaim.canonical_payment_identity
+          : "",
       attempted_payment_identity: canonicalPaymentIdentity,
     });
   }
