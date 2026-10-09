@@ -125,6 +125,51 @@ async function proveInterruptedScan(
 }
 
 try {
+  const objectToJsonBefore =
+    Object.getOwnPropertyDescriptor(Object.prototype, "toJSON");
+  let inheritedObjectToJsonCalls = 0;
+  try {
+    Object.defineProperty(Object.prototype, "toJSON", {
+      value() {
+        inheritedObjectToJsonCalls += 1;
+        return {
+          schema: "ambient_prototype_must_not_rewrite_bakery_claim",
+        };
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+    const prototypeSafeLock = path.join(root, "prototype-tojson");
+    assert.equal(
+      withBuyVoidFilesystemBakeryLockV1(
+        prototypeSafeLock,
+        () => "prototype-safe",
+      ),
+      "prototype-safe",
+    );
+    assert.equal(
+      inheritedObjectToJsonCalls,
+      0,
+      "ambient Object.prototype.toJSON executed while writing lock claims",
+    );
+    assert.deepEqual(
+      fs.readdirSync(prototypeSafeLock + ".queue"),
+      [],
+      "prototype-safe lock claims were not cleaned up",
+    );
+  } finally {
+    if (objectToJsonBefore) {
+      Object.defineProperty(
+        Object.prototype,
+        "toJSON",
+        objectToJsonBefore,
+      );
+    } else {
+      delete (Object.prototype as any).toJSON;
+    }
+  }
+
   for (const mode of ["sync", "async"] as const) {
     await proveInterruptedScan(mode, false);
     await proveInterruptedScan(mode, true);
@@ -239,6 +284,7 @@ try {
   console.log(
     "VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_ASYNC_V1_GREEN",
   );
+  console.log("ambient_object_prototype_toJSON_lock_claim_authority=false");
   console.log("ordinary_thenable_callback_covered=true");
   console.log("lock_claim_present_after_promise_resume=true");
   console.log("lock_claim_removed_after_resolution=true");
