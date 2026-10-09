@@ -21,9 +21,15 @@ helper here changes none of those routes or authentication rules.
 ## Source-only dispatch contract
 
 `src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts`
-implements an **unmounted** router-callable dispatch. It JSON-snapshots
-the event and caller request once, bounds each snapshot to 256 KiB,
-deep-freezes nested values, and requires matching nonempty request IDs.
+implements an **unmounted** router-callable dispatch. Before any full JSON
+serialization, it walks the event and caller request through a closed
+plain-data snapshot boundary: only JSON primitives, dense arrays and plain
+objects are accepted; accessors, symbol keys, functions, `toJSON` callbacks,
+non-plain prototypes and unsupported values HOLD without invocation. The walk
+enforces depth, node/key, array, key-text and value-text limits and an exact
+encoded JSON budget capped at 256 KiB. Only after that preflight does it
+serialize the detached clone, verify the computed byte budget, parse it back,
+deep-freeze it, and require matching nonempty request IDs.
 
 Before validation it also captures the request root, both allocation roots and
 both server callbacks exactly once. The frozen plan retains those exact values,
@@ -65,9 +71,11 @@ first-original buyer history, provider quorum or external high-water witness.
 ## Deterministic tests
 
 `scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts`
-uses **inert, in-memory JSON** only: immutable snapshots, stateful `toJSON`,
-stateful root/callback getters that must each be read exactly once,
-exact nonpayment preservation, rejection of
+uses **inert, in-memory JSON** only: immutable snapshots, caller `toJSON`
+and property-accessor rejection without invocation, a 4 MiB text adversary
+that must HOLD before full `JSON.stringify`, deep nesting that must HOLD at
+the structural depth gate, stateful root/callback getters that must each be
+read exactly once, exact nonpayment preservation, rejection of
 `payment_verified` whitespace/case aliases and every unknown status,
 invalid/missing/relative/aliased roots, request-ID mismatch and invalid
 callback negatives. The same malformed-status cases are passed through the
@@ -88,7 +96,10 @@ is pinned to Git blob `496715e7ae2941663908976a4a3f4efd7c6199cf`.
 
 The scoped GitHub workflow separately typechecks/builds this composed
 checkout on Node 22/24/26 **without starting a server**, runs the inert
-proof, and requires byte-equal reports from all three versions.
+proof, and requires byte-equal reports from all three versions. The
+pre-serialization budget is a source-level resource boundary only; the
+dispatcher remains unmounted and does not claim protection for arbitrary
+unreviewed upstream proxy objects or live customer history.
 
 ## Remaining release gates
 
