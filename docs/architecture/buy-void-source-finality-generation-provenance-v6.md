@@ -38,7 +38,7 @@ Two reviewed records roll:
   Historical predecessor: `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac` at `52deccca51077d457177e738135dbb0e0536d2f3`.
 
 The canonical reviewed-source-set digest for those five records is
-`ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
+`35691ec1fe0c19f08e9d1c256ce160c1f47139877832b97c0686d93ab42560f8`.
 
 Records are fixed source metadata; caller or environment input cannot substitute
 commit or blob identities.

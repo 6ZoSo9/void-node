@@ -12,7 +12,7 @@
   `1397e6e17f53084158bdc2137dae0b38f6d6929a`, blob
   `550ede02fc0b7d6874c324af58b5ef9c5591b311`.
 - [ ] Canonical five-record digest is
-  `ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
+  `35691ec1fe0c19f08e9d1c256ce160c1f47139877832b97c0686d93ab42560f8`.
 - [ ] Historical V5 returns source-file mismatch on the changed generation; no
   predecessor pin or historical compiled/enforcement/package identity is waived.
 - [ ] All five V6 module-derived files are bounded, single-link, regular,
