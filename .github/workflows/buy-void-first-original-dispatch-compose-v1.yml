@@ -9,6 +9,7 @@ on:
       - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v1.md"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
       - ".github/workflows/buy-void-first-original-dispatch-compose-v1.yml"
       - "docs/architecture/buy-void-first-original-dispatch-compose-v1.md"
       - "package.json"
@@ -65,6 +66,7 @@ jobs:
               ["scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts","e58bf39fadc25123771481608fad2a61a8f3133f"],
               ["src/economic/buy_void_verified_allocation_replay_binding_v1.ts","0a74a3652081c3e142d0b887676771a7ac148f32"],
               ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts","9fb39172afa09e49c11d72ff376e9af2d99a4101"],
+              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs","d42148523c44d95d3b87236ade22cfb92dcb5bee"],
               ["src/economic/buy_void_verified_payment_capacity_admission_v1.ts","f591f7407d9afc2cf77e0f90923aa11b4817fd4e"],
             ]);
             for (const [file,sha] of pins) {
@@ -82,6 +84,42 @@ jobs:
             exit 1
           fi
           grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historic.txt"
+      - name: Current first-original crash/replay V2 must pass; frozen V1 stays rejected
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \
+            > "$RUNNER_TEMP/current-crash-v2.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const receipt=JSON.parse(fs.readFileSync(
+              process.env.RUNNER_TEMP+"/current-crash-v2.json","utf8"));
+            assert.equal(receipt.marker,
+              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2");
+            for(const key of [
+              "frozen_historical_V1_proof_unchanged",
+              "late_buyer_wallet_backfill_verified_allocation_rejected",
+              "changed_original_buyer_wallet_rejected",
+              "late_tx_and_receive_with_original_wallet_positive",
+              "exact_replay_idempotent",
+              "conflicting_identity_rejected",
+              "malformed_or_orphan_history_rejected",
+            ]) assert.equal(receipt[key],true,"current V2 replay guard: "+key);
+            assert.equal(receipt.initial_buyer_wallet_missing_variants_rejected,3);
+            assert.deepEqual(receipt.observed_publication_phases,
+              ["intent_only","ledger_committed","complete"]);
+            for(const key of [
+              "proposed_allocation_mutated","actual_durable_payment_fsync_verified",
+              "verified_capacity_and_request_locks_held",
+              "independently_proven_original_request",
+              "protected_high_water_custody_verified",
+              "allocation_publication_integrated",
+              "exactly_once_allocation_production_ready",
+              "signer_or_wallet_access",
+              "production_source_finality_authority_ready",
+              "presale_activation","funds_moved",
+            ]) assert.equal(receipt[key],false,"must retain HOLD: "+key);
+          '
       - name: Hardened dispatcher outer input proof
         run: |
           set -euo pipefail

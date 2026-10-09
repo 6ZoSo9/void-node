@@ -78,3 +78,9 @@ wallet, transaction, chain, treasury, inventory, liquidity, payment
 or funds action occurs.
 
 **PROTECT THE CORE.**
+
+## Unified historical-V1 HOLD and current first-original crash V2
+
+The candidate also runs the **actual current** `prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs` on all Node 22/24/26 source-proven heads, in addition to requiring the frozen V1 proof to continue rejecting the newly reviewed replay source generation. The V2 script is pinned at Git blob `d42148523c44d95d3b87236ade22cfb92dcb5bee`. Its original-buyer wallet, late-backfill, replay, double-allocation, synthetic publication-phase and 10m VOID boundary assertions remain intact; the workflow independently checks its positive receipt fields and that every production/funds authority is false.
+
+This unifies the extra crash V2 regression covered in competing Draft #2745 into this exact-first-original/dispatcher composition without changing the payment source, custodian, historical V1 bytes or real route. Neither V2 synthetic success nor cross-node CI is a production crash recovery/first fsync/witness qualification.
