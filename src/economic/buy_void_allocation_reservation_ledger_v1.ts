@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { types as utilTypes } from "node:util";
 
 import {
   canonicalBuyVoidPaymentIdentityV1,
@@ -209,6 +210,126 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       typeof value === "object" &&
       !Array.isArray(value),
   );
+}
+
+// PLAN-SIDE TRUST BOUNDARY. The caller may be a handoff object, not JSON
+// read directly from a trusted file. Read each own data field exactly once,
+// before invoking any primitive normalizers or reading mutable Buffer bytes.
+// Rejected Proxies and accessors must not run traps/getters on this path.
+const PLAN_INPUT_KEYS_V1 = Object.freeze([
+  "ledger_jsonl",
+  "request_id",
+  "source_chain",
+  "payment_transaction_hash",
+  "payment_log_index",
+  "launch_authority",
+  "buyer_delivery_wallet",
+  "quote_void_amount",
+  "quote_usdc_amount",
+  "pool_void_total",
+  "verified_payment_receipt_ref",
+  "payment_verified_event_sha256",
+  "duplicate_payment_guard_result",
+  "inventory_allocation_guard_result",
+  "operator_activation_record_ref",
+  "created_at_ms",
+  "verified_payment_gate_green",
+  "duplicate_payment_guard_green",
+  "inventory_allocation_guard_green",
+  "operator_activation_record_green",
+]);
+
+function detachedAllocationDataV1(
+  candidate: unknown,
+  keys: readonly string[],
+  failure: string,
+  topLevel = false,
+): Record<string, unknown> {
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    utilTypes.isProxy(candidate) ||
+    Array.isArray(candidate)
+  ) {
+    throw new Error(failure);
+  }
+  const prototype = Object.getPrototypeOf(candidate);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error(failure);
+  }
+  const ownKeys = Reflect.ownKeys(candidate);
+  if (
+    ownKeys.length !== keys.length ||
+    ownKeys.some((key) => typeof key !== "string" || !keys.includes(key))
+  ) {
+    throw new Error(failure);
+  }
+  const detached: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(candidate, key);
+    if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) {
+      throw new Error(failure);
+    }
+    let value = descriptor.value;
+    if (topLevel && key === "ledger_jsonl") {
+      if (utilTypes.isProxy(value)) {
+        throw new Error(failure);
+      }
+      if (typeof value === "string") {
+        if (Buffer.byteLength(value, "utf8") > MAX_LEDGER_BYTES) {
+          throw new Error("allocation_reservation_ledger_too_large");
+        }
+      } else if (Buffer.isBuffer(value)) {
+        if (value.length > MAX_LEDGER_BYTES) {
+          throw new Error("allocation_reservation_ledger_too_large");
+        }
+        // Never retain an externally mutable byte array for classification
+        // and then read that same array again while building next JSONL.
+        value = Buffer.from(value);
+      } else {
+        throw new Error(failure);
+      }
+    } else if (topLevel && key === "launch_authority") {
+      value = detachedAllocationDataV1(
+        value,
+        REQUEST_AUTHORITY_KEYS,
+        "allocation_reservation_request_launch_authority_invalid",
+      );
+    } else if (
+      value !== null &&
+      (typeof value === "object" || typeof value === "function")
+    ) {
+      throw new Error(failure);
+    }
+    Object.defineProperty(detached, key, {
+      value,
+      enumerable: true,
+      configurable: false,
+      writable: false,
+    });
+  }
+  return Object.freeze(detached);
+}
+function snapshotAllocationPlanInputV1<T extends object>(input: T): T {
+  return detachedAllocationDataV1(
+    input,
+    PLAN_INPUT_KEYS_V1,
+    "allocation_reservation_input_not_plain_data",
+    true,
+  ) as unknown as T;
+}
+
+// Never let an ambient Object.prototype.toJSON handler alter record bytes
+// after deterministic hash calculation or during subsequent replay validation.
+// This field is nonenumerable and does not change historic JSON key ordering.
+function withoutAmbientToJsonV1<T extends object>(value: T): T {
+  Object.defineProperty(value, "toJSON", {
+    value: undefined,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return value;
 }
 
 function canonicalJson(value: unknown): string {
@@ -860,16 +981,30 @@ function parseRecordV1(
   ) {
     throw new Error("allocation_reservation_hash_mismatch");
   }
-  return Object.freeze(record);
+  return Object.freeze(withoutAmbientToJsonV1(record));
 }
 
 export function classifyBuyVoidAllocationReservationLedgerV1(
   ledger: string | Buffer,
 ): BuyVoidAllocationReservationLedgerDecisionV1 {
   try {
-    const bytes = Buffer.isBuffer(ledger)
-      ? ledger
-      : Buffer.from(String(ledger ?? ""), "utf8");
+    if (utilTypes.isProxy(ledger)) {
+      throw new Error("allocation_reservation_ledger_not_plain_data");
+    }
+    let bytes: Buffer;
+    if (typeof ledger === "string") {
+      if (Buffer.byteLength(ledger, "utf8") > MAX_LEDGER_BYTES) {
+        throw new Error("allocation_reservation_ledger_too_large");
+      }
+      bytes = Buffer.from(ledger, "utf8");
+    } else if (Buffer.isBuffer(ledger)) {
+      if (ledger.length > MAX_LEDGER_BYTES) {
+        throw new Error("allocation_reservation_ledger_too_large");
+      }
+      bytes = Buffer.from(ledger);
+    } else {
+      throw new Error("allocation_reservation_ledger_not_plain_data");
+    }
     if (bytes.length > MAX_LEDGER_BYTES) {
       throw new Error("allocation_reservation_ledger_too_large");
     }
@@ -1074,7 +1209,7 @@ function candidateCoreV1(input: {
   });
 }
 
-export function planBuyVoidAllocationReservationV1(input: {
+export function planBuyVoidAllocationReservationV1(rawInput: {
   ledger_jsonl: string | Buffer;
   request_id: unknown;
   source_chain: unknown;
@@ -1097,6 +1232,7 @@ export function planBuyVoidAllocationReservationV1(input: {
   operator_activation_record_green: unknown;
 }): BuyVoidAllocationReservationPlanDecisionV1 {
   try {
+    const input = snapshotAllocationPlanInputV1(rawInput);
     if (
       input?.verified_payment_gate_green !== true ||
       input?.duplicate_payment_guard_green !== true ||
@@ -1300,11 +1436,11 @@ export function planBuyVoidAllocationReservationV1(input: {
       previous_allocation_record_hash:
         ledger.tip_hash,
     };
-    const record = Object.freeze({
+    const record = Object.freeze(withoutAmbientToJsonV1({
       ...recordWithoutHash,
       allocation_record_hash:
         recordHashV1(recordWithoutHash),
-    });
+    }));
 
     const priorText = Buffer.isBuffer(input.ledger_jsonl)
       ? input.ledger_jsonl.toString("utf8")
