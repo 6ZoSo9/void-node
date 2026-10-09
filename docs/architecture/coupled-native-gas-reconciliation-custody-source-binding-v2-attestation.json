@@ -1,0 +1,32 @@
+{
+  "schema": "void_coupled_native_gas_reconciliation_custody_source_binding_v2_attestation_v1",
+  "marker": "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V2_ATTESTATION",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate": {
+    "script_path": "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_v2_candidate.mjs",
+    "script_git_blob_sha1": "6e9e55bba6ba371c721562b664fe16cfdcfae138",
+    "evidence_sha256": "9842d29130e2cd0ff7b1597ca2f20b721dc069440f21cf38d24f228e99a454e3",
+    "source_stack_head": "b0f7189af0d29769ec701bd590e0df81b23b5c07"
+  },
+  "predecessor": {
+    "reviewed_source_manifest_sha256": "a287bd3af0332b526e6f727c4083f1305644a2a2fa0c669fff7313beac4bc253",
+    "bakery_lock_git_blob_sha1": "03376ad9853c1ca37c5be4d7f36d9daccab25078"
+  },
+  "accepted_v2": {
+    "reviewed_source_manifest_sha256": "4e3c83de580ee12803ce122f0df34194d3594c4dd49eee56a9fa8184b4353144",
+    "bakery_lock_git_blob_sha1": "9bd47abb857368d928c0ca289766cdf3571629ba",
+    "changed_source_paths": [
+      "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+    ],
+    "reviewed_source_count": 21,
+    "source_manifest_accepted": true
+  },
+  "deployed_artifact_generation_verified": false,
+  "trusted_collector_proven": false,
+  "live_host_qualification_performed": false,
+  "runtime_integration": false,
+  "payment_acceptance": false,
+  "production_gate_ready": false,
+  "funds_movement": false
+}
