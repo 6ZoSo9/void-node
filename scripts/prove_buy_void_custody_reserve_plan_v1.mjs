@@ -311,3 +311,6 @@ console.log("filesystem_write=false");
 console.log("custody_reserve_method_enabled=false");
 console.log("production_allocation_mutation_ready=false");
 console.log("funds_movement=false");
+// Source-only synthetic proof: no real allocation, transfer or funding action.
+// Retain the established marker and satisfy the separately pinned CI receipt.
+console.log("funds_moved=false");
