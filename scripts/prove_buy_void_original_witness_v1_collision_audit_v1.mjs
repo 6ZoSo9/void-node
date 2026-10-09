@@ -50,7 +50,7 @@ function blobAt(commit,p){
 }
 function constant(text,suffix){
   const name=CONTRACT_CONST+suffix;
-  const re=new RegExp("export const "+name+"\\s*=\\s*\"([^\"]+)\";","u");
+  const re=new RegExp("export const "+name+"\\s*=\\s*\"([^\"]+)\";","gu");
   const matches=[...text.matchAll(re)];
   assert.equal(matches.length,1,"missing/duplicate contract constant:"+suffix);
   return matches[0][1];
