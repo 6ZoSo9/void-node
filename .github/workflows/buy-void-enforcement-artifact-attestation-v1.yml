@@ -64,6 +64,12 @@ jobs:
       - name: Build exact current artifacts
         run: npm run build
 
+      - name: Verify reviewed node-util boundary without modifying frozen V1
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs
+
+
       - name: Preserve current V6 signer and broadcast HOLD
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
 
