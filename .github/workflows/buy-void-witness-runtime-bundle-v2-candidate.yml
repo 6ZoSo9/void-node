@@ -1,0 +1,153 @@
+name: VOID Buy VOID Nimo witness runtime bundle V2 candidate
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
+      - ".github/workflows/buy-void-witness-runtime-bundle-v2-candidate.yml"
+      - "docs/architecture/buy-void-witness-runtime-bundle-v2-candidate.md"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "Dockerfile"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-witness-runtime-bundle-v2-candidate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact PR source checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checked out source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node exact version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bound import-closure negative self-tests
+        run: node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test
+      - name: Compile current source
+        run: npm run build
+      - name: Derive unaccepted Nimo V2 witness candidate
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --derive \
+            > "witness-v2-candidate-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const record=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(record.schema,"void_buy_void_witness_runtime_bundle_v2_candidate");
+            assert.equal(record.version,2);
+            assert.equal(record.exact_source_generation_commit,
+              "884edc6e82bd505a83e51a44b38f7e318431f314");
+            assert.equal(record.source_file_count,8);
+            assert.equal(record.unchanged_historical_source_count,7);
+            assert.equal(record.changed_source_count,1);
+            assert.deepEqual(record.source_files.filter(x=>!x.unchanged_since_historical_v1)
+              .map(x=>x.path),["src/economic/buy_void_auto_fulfillment_v1.ts"]);
+            assert.equal(record.runtime_file_count,8);
+            assert.equal(record.runtime_edge_count,11);
+            assert.equal(record.relative_runtime_edges.length,11);
+            assert.equal(record.historical_predecessor.manifest_id,
+              "voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7");
+            assert.match(record.candidate_manifest_id,/^voidwfb2_[0-9a-f]{64}$/);
+            for(const flag of ["runtime_bundle_identity_accepted",
+              "historical_v1_qualified_for_current_source",
+              "deployed_bundle_verified","installed_nimo_witness_verified",
+              "external_transport_authenticated",
+              "production_payment_authority_ready",
+              "production_allocation_mutation_ready","presale_activation","funds_movement"])
+              assert.equal(record[flag],false,flag);
+            console.log("WITNESS_RUNTIME_BUNDLE_V2_CANDIDATE_UNACCEPTED_GREEN");
+          ' "witness-v2-candidate-${{ matrix.node }}.json"
+      - name: Reject unreviewed production and no-argument mode
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs > "$RUNNER_TEMP/held.txt" 2>&1; then
+            echo "UNEXPECTED_WITNESS_V2_ACCEPTANCE" >&2; exit 1
+          fi
+          grep -F "witness_v2_candidate_derive_only_no_production_authority" "$RUNNER_TEMP/held.txt"
+      - name: Upload exact candidate JSON
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: witness-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: witness-v2-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Collect 22/24/26 candidate records
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: witness-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./v2-candidate
+      - name: Require exact byte equality and no runtime authority
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do test -s "v2-candidate/witness-v2-candidate-$version.json"; done
+          cmp v2-candidate/witness-v2-candidate-22.json v2-candidate/witness-v2-candidate-24.json
+          cmp v2-candidate/witness-v2-candidate-22.json v2-candidate/witness-v2-candidate-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("v2-candidate/witness-v2-candidate-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.runtime_bundle_identity_accepted,false);
+            assert.equal(j.installed_nimo_witness_verified,false);
+            assert.equal(j.production_allocation_mutation_ready,false);
+            assert.equal(j.presale_activation,false);
+            console.log("VOID_WITNESS_BUNDLE_V2_CROSS_NODE_BYTE_IDENTICAL_GREEN");
+            console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("candidate_manifest_id="+j.candidate_manifest_id);
+            console.log("accepted=false");
+          '
