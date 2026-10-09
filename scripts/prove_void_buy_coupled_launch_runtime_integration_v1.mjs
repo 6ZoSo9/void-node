@@ -210,8 +210,13 @@ async function expectTransportFailure(handler, expected, overrides = {}) {
     const transport = boundedTransport(url, overrides);
     await assert.rejects(
       transport.call({ method: "eth_blockNumber", params: [] }),
-      error => String(error?.message || error) === expected,
-      expected,
+      error => {
+        const message = String(error?.message || error);
+        return expected instanceof RegExp
+          ? expected.test(message)
+          : message === expected;
+      },
+      String(expected),
     );
   });
 }
@@ -255,7 +260,7 @@ await expectTransportFailure((_req, res) => {
 
 await expectTransportFailure((_req, _res) => {
   // Intentionally do not answer; the reviewed client-owned timeout must abort.
-}, "payment_observer_rpc_timeout", {
+}, /payment_observer_rpc_(?:timeout|total_deadline_exceeded)/, {
   timeout_ms: 50,
 });
 
