@@ -1,0 +1,125 @@
+name: VOID Buy VOID first-original dual-rail real handoff V2
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts"
+      - ".github/workflows/buy-void-handoff-first-original-dual-rail-v2.yml"
+      - "docs/architecture/buy-void-handoff-first-original-dual-rail-v2.md"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-first-original-dual-rail-v2-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  dual-rail:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checked-out source
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact lock without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Type-check and build exact source
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Reprove first-original handoff V2 and independent dual-rail evidence
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \
+            > "$RUNNER_TEMP/original-v2.txt"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN' \
+            "$RUNNER_TEMP/original-v2.txt"
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts \
+            > "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V2_GREEN' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'both_native_usdc_rails_admitted=2' "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'same_tx_log_cross_rail_payment_identities_distinct=true' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'idempotent_cross_rail_replays=2' "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'ethereum_first_original_missing_wallet_holds=3' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'ethereum_cross_chain_original_history_holds=2' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'ethereum_non_native_usdc_original_holds=1' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'failed_cases_durable_payment_allocation_high_water_mutated=false' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'actual_live_provider_finality_verified=false' \
+            "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'presale_activation=false' "dual-rail-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "dual-rail-${{ matrix.node }}.txt"
+      - name: Upload exact source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-dual-rail-original-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dual-rail-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [dual-rail]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-dual-rail-original-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require complete byte equality and deny production authority
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/dual-rail-$v.txt"; done
+          cmp receipts/dual-rail-22.txt receipts/dual-rail-24.txt
+          cmp receipts/dual-rail-22.txt receipts/dual-rail-26.txt
+          grep -Fx 'runtime_integration=false' receipts/dual-rail-22.txt
+          grep -Fx 'protected_high_water_custody_proven=false' receipts/dual-rail-22.txt
+          grep -Fx 'production_gate_ready=false' receipts/dual-rail-22.txt
+          grep -Fx 'presale_activation=false' receipts/dual-rail-22.txt
+          echo 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_THREE_NODE_EQUAL_GREEN'
