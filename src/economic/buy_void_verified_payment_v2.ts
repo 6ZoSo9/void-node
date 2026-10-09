@@ -2,6 +2,7 @@ import type {
   BuyVoidRequestV1,
   BuyVoidVerifiedPaymentEventV1,
 } from "./buy_void_auto_fulfillment_v1.js";
+import { types as utilTypes } from "node:util";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_V2";
@@ -135,6 +136,249 @@ function held(
   };
 }
 
+
+type BuyVoidDataFieldSnapshotV2 = Readonly<{
+  present: boolean;
+  value: unknown;
+}>;
+
+function plainDataRecordV2(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    utilTypes.isProxy(value) ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function ownDataFieldV2(
+  recordValue: Record<string, unknown>,
+  key: string,
+): BuyVoidDataFieldSnapshotV2 | null {
+  const descriptor = Object.getOwnPropertyDescriptor(recordValue, key);
+  if (!descriptor) {
+    return Object.freeze({ present: false, value: undefined });
+  }
+  if (
+    descriptor.enumerable !== true ||
+    !Object.hasOwn(descriptor, "value")
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    present: true,
+    value: descriptor.value,
+  });
+}
+
+function snapshotSelectedDataRecordV2(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, unknown> | null {
+  const recordValue = plainDataRecordV2(value);
+  if (!recordValue) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const field = ownDataFieldV2(recordValue, key);
+    if (!field) return null;
+    if (field.present) out[key] = field.value;
+  }
+  return out;
+}
+
+function snapshotDataArrayV2(
+  value: unknown,
+): readonly unknown[] | null {
+  if (
+    !Array.isArray(value) ||
+    utilTypes.isProxy(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return null;
+  }
+  const descriptors =
+    Object.getOwnPropertyDescriptors(value) as Record<
+      PropertyKey,
+      PropertyDescriptor
+    >;
+  const ownKeys = Reflect.ownKeys(descriptors);
+  const length = descriptors["length"]?.value;
+  if (
+    ownKeys.some((key) => typeof key !== "string") ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    ownKeys.length !== length + 1
+  ) {
+    return null;
+  }
+  const out: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      return null;
+    }
+    out.push(descriptor.value);
+  }
+  return Object.freeze(out);
+}
+
+function snapshotDataMapV2(
+  value: unknown,
+): Readonly<Record<string, unknown>> | null {
+  const recordValue = plainDataRecordV2(value);
+  if (!recordValue) return null;
+  const descriptors = Object.getOwnPropertyDescriptors(recordValue);
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.some((key) => typeof key !== "string")) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys as string[]) {
+    const descriptor = descriptors[key];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      return null;
+    }
+    out[key] = descriptor.value;
+  }
+  return Object.freeze(out);
+}
+
+const REQUEST_SNAPSHOT_KEYS_V2 = Object.freeze([
+  "request_id",
+  "source_chain",
+  "tx_hash",
+  "delivery_address",
+  "receive_address",
+  "usdc_amount",
+  "quoted_void",
+  "payment_chain",
+  "payment_chain_id",
+  "usdc_contract",
+  "payment_instructions",
+  "launch_authority",
+]);
+
+const PAYMENT_INSTRUCTION_KEYS_V2 = Object.freeze([
+  "send_chain",
+  "send_chain_id",
+  "token_contract",
+  "token_decimals",
+  "send_to",
+  "send_from",
+]);
+
+function snapshotRequestV2(
+  value: unknown,
+): BuyVoidVerifiedPaymentRequestV2 | null {
+  const selected = snapshotSelectedDataRecordV2(
+    value,
+    REQUEST_SNAPSHOT_KEYS_V2,
+  );
+  if (!selected) return null;
+  if (Object.hasOwn(selected, "payment_instructions")) {
+    const instructions = snapshotSelectedDataRecordV2(
+      selected.payment_instructions,
+      PAYMENT_INSTRUCTION_KEYS_V2,
+    );
+    if (!instructions) return null;
+    selected.payment_instructions = Object.freeze(instructions);
+  }
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidVerifiedPaymentRequestV2;
+}
+
+function snapshotPolicyV2(
+  value: unknown,
+): BuyVoidVerifiedPaymentPolicyV2 | null {
+  const selected = snapshotSelectedDataRecordV2(value, [
+    "allowed_chains",
+    "usdc_contract_by_chain",
+    "receive_address_by_chain",
+    "current_block_number_by_chain",
+  ]);
+  if (!selected) return null;
+
+  if (Object.hasOwn(selected, "allowed_chains")) {
+    const allowed = snapshotDataArrayV2(selected.allowed_chains);
+    if (!allowed) return null;
+    selected.allowed_chains = allowed;
+  }
+  for (const key of [
+    "usdc_contract_by_chain",
+    "receive_address_by_chain",
+    "current_block_number_by_chain",
+  ]) {
+    if (!Object.hasOwn(selected, key)) continue;
+    const map = snapshotDataMapV2(selected[key]);
+    if (!map) return null;
+    selected[key] = map;
+  }
+
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidVerifiedPaymentPolicyV2;
+}
+
+const RECEIPT_LOG_KEYS_V2 = Object.freeze([
+  "address",
+  "topics",
+  "data",
+  "logIndex",
+  "transactionHash",
+  "blockNumber",
+  "removed",
+]);
+
+function snapshotReceiptV2(
+  value: unknown,
+): BuyVoidTransactionReceiptV2 | null {
+  const selected = snapshotSelectedDataRecordV2(value, [
+    "status",
+    "transactionHash",
+    "blockNumber",
+    "logs",
+  ]);
+  if (!selected) return null;
+  if (Object.hasOwn(selected, "logs")) {
+    const rawLogs = snapshotDataArrayV2(selected.logs);
+    if (!rawLogs) return null;
+    const logs: Readonly<Record<string, unknown>>[] = [];
+    for (const rawLog of rawLogs) {
+      const log = snapshotSelectedDataRecordV2(
+        rawLog,
+        RECEIPT_LOG_KEYS_V2,
+      );
+      if (!log) return null;
+      if (Object.hasOwn(log, "topics")) {
+        const topics = snapshotDataArrayV2(log.topics);
+        if (!topics) return null;
+        log.topics = topics;
+      }
+      logs.push(Object.freeze(log));
+    }
+    selected.logs = Object.freeze(logs);
+  }
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidTransactionReceiptV2;
+}
+
 function normalizeChain(value: unknown): string {
   if (typeof value !== "string") return "";
   const raw = value.trim().toLowerCase();
@@ -160,9 +404,7 @@ function exactCheckoutInteger(value: unknown, expected: number): boolean {
 }
 
 function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
+  return plainDataRecordV2(value);
 }
 
 function normalizeHash(value: unknown): string {
@@ -230,10 +472,27 @@ function receiptSucceeded(value: unknown): boolean {
 export function buildBuyVoidVerifiedPaymentEventV2(
   input: BuildBuyVoidVerifiedPaymentInputV2,
 ): BuyVoidVerifiedPaymentDecisionV2 {
-  const request = input?.request;
-  const receipt = input?.receipt;
-  const policy = input?.policy;
-  if (!request || !receipt || !policy) return held("missing_input");
+  if (!input) return held("missing_input");
+  const envelope = snapshotSelectedDataRecordV2(input, [
+    "request",
+    "receipt",
+    "policy",
+  ]);
+  if (!envelope) return held("payment_input_not_plain_data");
+
+  const rawRequest = envelope.request;
+  const rawReceipt = envelope.receipt;
+  const rawPolicy = envelope.policy;
+  if (!rawRequest || !rawReceipt || !rawPolicy) {
+    return held("missing_input");
+  }
+
+  const request = snapshotRequestV2(rawRequest);
+  const receipt = snapshotReceiptV2(rawReceipt);
+  const policy = snapshotPolicyV2(rawPolicy);
+  if (!request || !receipt || !policy) {
+    return held("payment_input_not_plain_data");
+  }
 
   if (typeof request.request_id !== "string") {
     return held("invalid_request_id");

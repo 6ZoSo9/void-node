@@ -1,0 +1,135 @@
+name: VOID Buy VOID V2 plain data snapshot v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_plain_data_snapshot_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_primitive_boundary_v1.ts"
+      - "docs/architecture/buy-void-verified-payment-v2-plain-data-snapshot-v1.md"
+      - ".github/workflows/buy-void-verified-payment-v2-plain-data-snapshot-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v2-plain-data-snapshot-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build repaired source
+        run: npm run build
+
+      - name: Preserve primitive-type regression
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_v2_primitive_boundary_v1.ts \
+            | tee "v2-primitive-regression-node-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PRIMITIVE_BOUNDARY_V1_GREEN' \
+            "v2-primitive-regression-node-${{ matrix.node }}.txt"
+          grep -Fx 'wrong_type_case_count=29' \
+            "v2-primitive-regression-node-${{ matrix.node }}.txt"
+          grep -Fx 'array_wrapped_authority_values_rejected=true' \
+            "v2-primitive-regression-node-${{ matrix.node }}.txt"
+
+      - name: Prove one-time inert plain-data snapshot
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_v2_plain_data_snapshot_v1.ts \
+            | tee "v2-plain-data-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PLAIN_DATA_SNAPSHOT_V1_GREEN' \
+            'plain_data_control_verified=true' \
+            'accessor_or_proxy_rejection_case_count=8' \
+            'accessor_getters_executed=false' \
+            'proxy_traps_executed=false' \
+            'nested_policy_map_accessor_rejected=true' \
+            'nested_payment_instruction_accessor_rejected=true' \
+            'null_prototype_plain_records_supported=true' \
+            'canonical_verified_event_preserved=true' \
+            'production_payment_authority_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "v2-plain-data-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v2-plain-data-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            v2-primitive-regression-node-${{ matrix.node }}.txt
+            v2-plain-data-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v2-plain-data-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical Node 22 24 26 evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/v2-primitive-regression-node-$v.txt"
+            test -s "evidence/v2-plain-data-node-$v.txt"
+          done
+          cmp evidence/v2-primitive-regression-node-22.txt evidence/v2-primitive-regression-node-24.txt
+          cmp evidence/v2-primitive-regression-node-22.txt evidence/v2-primitive-regression-node-26.txt
+          cmp evidence/v2-plain-data-node-22.txt evidence/v2-plain-data-node-24.txt
+          cmp evidence/v2-plain-data-node-22.txt evidence/v2-plain-data-node-26.txt
+          echo "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PLAIN_DATA_SNAPSHOT_CROSS_NODE_GREEN"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"
