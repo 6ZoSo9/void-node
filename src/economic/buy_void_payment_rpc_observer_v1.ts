@@ -301,7 +301,7 @@ export function createBuyVoidPaymentHttpTransportV1(
                   "payment_observer_rpc_response_too_large",
                 );
                 fail(error);
-                request.destroy(error);
+                request.destroy();
                 return;
               }
               chunks.push(value);
@@ -387,14 +387,14 @@ export function createBuyVoidPaymentHttpTransportV1(
           // Reject immediately even if the socket/error callback is delayed.
           // Still destroy the socket to stop further response buffering.
           fail(error);
-          request.destroy(error);
+          request.destroy();
         }, normalized.timeout_ms);
         deadline.unref?.();
 
         request.on("timeout", () => {
           const error = new Error("payment_observer_rpc_timeout");
           fail(error);
-          request.destroy(error);
+          request.destroy();
         });
         request.on("error", fail);
         request.end(payload);
