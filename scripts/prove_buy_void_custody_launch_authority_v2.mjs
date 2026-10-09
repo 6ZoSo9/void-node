@@ -23,7 +23,7 @@ import {
 const SOURCE =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_SOURCE_BLOB =
-  "d7a5e8b815eee0036bbc211c604b098f2de28101";
+  "223ebdb8317009228094b8ebecef19dc37d87a91";
 
 function gitBlob(bytes) {
   return crypto.createHash("sha1")
@@ -69,6 +69,8 @@ assert.equal(policy.caller_supplied_source_gate_authority, false);
 assert.equal(policy.caller_supplied_journal_bytes_authority, false);
 assert.equal(policy.caller_supplied_receipt_bytes_authority, false);
 assert.equal(policy.caller_supplied_high_water_bytes_authority, false);
+assert.equal(policy.caller_supplied_clock_authority, false);
+assert.equal(policy.trusted_server_clock_required_before_runtime_use, true);
 assert.equal(
   policy.observed_bytes_must_be_server_descriptor_bound_before_runtime_use,
   true,
@@ -146,6 +148,7 @@ async function signedReceipt({
   activatedAt,
   expiresAt,
   nonceByte,
+  sourceComposition = SOURCE_COMPOSITION,
   activation = activationWallet,
   sovereign = sovereignWallet,
 }) {
@@ -154,7 +157,7 @@ async function signedReceipt({
     version: 1,
     status: "COUPLED_PUBLIC_LAUNCH_ACTIVE",
     coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
-    source_composition_id: SOURCE_COMPOSITION,
+    source_composition_id: sourceComposition,
     activation_signer: activation.address.toLowerCase(),
     sovereign_signer: sovereign.address.toLowerCase(),
     activation_nonce: "0x" + nonceByte.repeat(32),
@@ -220,6 +223,11 @@ function classify({
     expected_activation_signer: activationWallet.address,
     expected_sovereign_signer: sovereignWallet.address,
   });
+}
+
+function assertCandidateAbsent(result, label) {
+  assert.equal(result.candidate_high_water_json, null, label + "_json");
+  assert.equal(result.candidate_high_water_sha256, null, label + "_sha256");
 }
 
 // A new custody domain may derive a candidate but is never considered ready
@@ -340,6 +348,35 @@ const staleReceipt = classify({
 });
 assert.equal(staleReceipt.ready, false);
 assert.equal(staleReceipt.reason, "receipt_generation_mismatch");
+assertCandidateAbsent(staleReceipt, "stale_generation_receipt");
+
+const malformedReceipt = classify({
+  journalBytes: journal3,
+  receiptBytes: Buffer.from("{", "utf8"),
+  highWaterBytes: highWater3,
+  nowMs: 40_000,
+});
+assert.equal(malformedReceipt.ready, false);
+assert.equal(malformedReceipt.reason, "receipt_json_invalid");
+assertCandidateAbsent(malformedReceipt, "malformed_receipt");
+
+const wrongSourceReceipt = await signedReceipt({
+  generation: GEN2,
+  tip: event3.event_sha256,
+  activatedAt: 30_000,
+  expiresAt: 270_000,
+  nonceByte: "44",
+  sourceComposition: "sha256:" + "cd".repeat(32),
+});
+const wrongSource = classify({
+  journalBytes: journal3,
+  receiptBytes: wrongSourceReceipt,
+  highWaterBytes: highWater3,
+  nowMs: 40_000,
+});
+assert.equal(wrongSource.ready, false);
+assert.equal(wrongSource.reason, "receipt_semantics_invalid");
+assertCandidateAbsent(wrongSource, "source_composition_mismatch");
 
 // Signature failure is terminal even with current journal/high-water.
 const forged = JSON.parse(receipt2.toString("utf8"));
@@ -356,6 +393,23 @@ const forgedResult = classify({
 });
 assert.equal(forgedResult.ready, false);
 assert.equal(forgedResult.reason, "receipt_signature_invalid");
+assertCandidateAbsent(forgedResult, "forged_activation_signature");
+
+const forgedSovereign = JSON.parse(receipt2.toString("utf8"));
+forgedSovereign.sovereign_signature =
+  "0x" + "00".repeat(65);
+const forgedSovereignResult = classify({
+  journalBytes: journal3,
+  receiptBytes: Buffer.from(
+    JSON.stringify(forgedSovereign, null, 2) + "\n",
+    "utf8",
+  ),
+  highWaterBytes: highWater3,
+  nowMs: 40_000,
+});
+assert.equal(forgedSovereignResult.ready, false);
+assert.equal(forgedSovereignResult.reason, "receipt_signature_invalid");
+assertCandidateAbsent(forgedSovereignResult, "forged_sovereign_signature");
 
 // High-water encoding is exact and source-composition bound.
 const rebuiltHighWater3 = buildBuyVoidCustodyLaunchHighWaterV2({
@@ -404,13 +458,23 @@ assert.equal(
   "high_water_prefix_mismatch",
 );
 
+const callerClockHeld =
+  classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
+    generation_journal_bytes: journal1,
+    activation_receipt_bytes: receipt1,
+    custody_high_water_bytes: highWater1,
+    now_ms: 20_000,
+  });
+assert.equal(callerClockHeld.ready, false);
+assert.equal(callerClockHeld.reason, "caller_supplied_clock_forbidden");
+assertCandidateAbsent(callerClockHeld, "caller_supplied_clock");
+
 const productionHold =
   classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
-  generation_journal_bytes: journal1,
-  activation_receipt_bytes: receipt1,
-  custody_high_water_bytes: highWater1,
-  now_ms: 20_000,
-});
+    generation_journal_bytes: journal1,
+    activation_receipt_bytes: receipt1,
+    custody_high_water_bytes: highWater1,
+  });
 assert.equal(productionHold.ready, false);
 assert.equal(productionHold.reason, "source_gate_not_ready");
 assert.equal(productionHold.operator_home_anchor_read, false);
@@ -431,6 +495,10 @@ console.log("noncanonical_journal_bytes_rejected=true");
 console.log("high_water_prefix_digest_mismatch_rejected=true");
 console.log("stale_generation_receipt_rejected=true");
 console.log("forged_activation_signature_rejected=true");
+console.log("forged_sovereign_signature_rejected=true");
+console.log("invalid_receipt_candidate_high_water_absent=true");
+console.log("caller_supplied_clock_authority=false");
+console.log("trusted_server_clock_required=true");
 console.log("operator_home_anchor_dependency=false");
 console.log("classifier_filesystem_io=false");
 console.log("classifier_userInfo_dependency=false");
