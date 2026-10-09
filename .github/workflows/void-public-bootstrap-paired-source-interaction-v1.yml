@@ -1,0 +1,152 @@
+name: VOID public bootstrap paired-source interaction v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-paired-source-interaction-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_SHA: "77f798e42efc73f83052311db94b0a7f33994cf8"
+      CHECKPOINT_SHA: "960840f4ee3ee579d1510f5b9339d1f9f0f5c846"
+      SEAL_SHA: "00bea686ca9f97ec065b2ce1288bb64b62c9585c"
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact source head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+
+      - name: Build disjoint exact-source Git tree
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          for sha in "$BASE_SHA" "$CHECKPOINT_SHA" "$SEAL_SHA"; do
+            if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              git fetch --no-tags origin "$sha"
+            fi
+            test "$(git cat-file -t "$sha")" = commit
+          done
+          git merge-base --is-ancestor "$BASE_SHA" "$CHECKPOINT_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$SEAL_SHA"
+          expected_checkpoint="$(printf '%s\n' \
+            .github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml \
+            scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs \
+            scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs | LC_ALL=C sort)"
+          expected_seal="$(printf '%s\n' \
+            .github/workflows/void-checkpoint-restore-node-init-seal-v1.yml \
+            scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs \
+            src/node_core.ts | LC_ALL=C sort)"
+          test "$(git diff --name-only "$BASE_SHA" "$CHECKPOINT_SHA" | LC_ALL=C sort)" = "$expected_checkpoint"
+          test "$(git diff --name-only "$BASE_SHA" "$SEAL_SHA" | LC_ALL=C sort)" = "$expected_seal"
+
+          tree_sha="$(git merge-tree --write-tree "$CHECKPOINT_SHA" "$SEAL_SHA")"
+          [[ "$tree_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git diff --name-only "$BASE_SHA" "$tree_sha" | LC_ALL=C sort)" = "$(printf '%s\n%s\n' "$expected_checkpoint" "$expected_seal" | LC_ALL=C sort)"
+          git diff --check "$BASE_SHA" "$tree_sha"
+
+          for path in \
+            .github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml \
+            scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs \
+            scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs; do
+            test "$(git rev-parse "$CHECKPOINT_SHA:$path")" = "$(git rev-parse "$tree_sha:$path")"
+            test "$(git ls-tree "$CHECKPOINT_SHA" -- "$path")" = "$(git ls-tree "$tree_sha" -- "$path")"
+          done
+          for path in \
+            .github/workflows/void-checkpoint-restore-node-init-seal-v1.yml \
+            scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs \
+            src/node_core.ts; do
+            test "$(git rev-parse "$SEAL_SHA:$path")" = "$(git rev-parse "$tree_sha:$path")"
+            test "$(git ls-tree "$SEAL_SHA" -- "$path")" = "$(git ls-tree "$tree_sha" -- "$path")"
+          done
+
+          source_workflow="$(git show "$tree_sha:.github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml")"
+          grep -Fq "VOID_PUBLIC_CHECKPOINT_RESTORE: '1'" <<< "$source_workflow"
+          grep -Fq 'test ! -e "$DATA_DIR"' <<< "$source_workflow"
+          grep -Fq 'VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1' <<< "$source_workflow"
+          if grep -Fq 'mkdir -p outside-machine-evidence "$DATA_DIR"' <<< "$source_workflow"; then exit 1; fi
+
+          git show "$tree_sha:src/node_core.ts" | node --input-type=module -e '
+            import fs from "node:fs";
+            const s=fs.readFileSync(0,"utf8");
+            const c=s.indexOf("export class Node {");
+            const store=s.indexOf("readonly store = new SegStore(",c);
+            const idx=s.indexOf("readonly txIndex = new TxIndex(",c);
+            const receipts=s.indexOf("readonly receipts = new ReceiptsStore(",c);
+            if (!(c>=0 && store>c && store<idx && idx<receipts)) process.exit(1);
+          '
+
+          target="$RUNNER_TEMP/void-public-bootstrap-paired-source-v1"
+          test ! -e "$target"
+          git worktree add --detach "$target" "$BASE_SHA"
+          git -C "$target" read-tree --reset -u "$tree_sha"
+          test "$(git -C "$target" write-tree)" = "$tree_sha"
+          git -C "$target" diff --cached --check
+          echo "PAIRED_TREE=$target" >> "$GITHUB_ENV"
+          echo "VOID_PUBLIC_BOOTSTRAP_PAIRWISE_GIT_TREE_V1_GREEN"
+          echo "combined_tree_sha=$tree_sha"
+          echo "six_original_source_blobs_unchanged=true"
+          echo "branches_and_main_unchanged=true"
+
+      - name: Install locked dependencies (ephemeral runner only)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PAIRED_TREE"
+          npm ci --ignore-scripts
+
+      - name: Compile combined source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PAIRED_TREE"
+          npm run build
+
+      - name: Prove reviewed checkpoint acceptance contract (inert)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PAIRED_TREE"
+          node scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs
+
+      - name: Prove actual SegStore constructor seal (synthetic)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PAIRED_TREE"
+          node scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs
+
+      - name: Prove named tunnel public contract (inert)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PAIRED_TREE"
+          node scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
+
+      - name: Record boundaries
+        run: |
+          echo "VOID_PUBLIC_BOOTSTRAP_PAIRED_SOURCE_INTERACTION_V1_GREEN"
+          echo "combined_source_build_and_regressions=true"
+          echo "external_clone_or_checkpoint_restore_performed=false"
+          echo "runtime_deployed=false"
+          echo "wallet_signer_chain_funds_mutation=false"
+          echo "public_outside_machine_acceptance=false"
