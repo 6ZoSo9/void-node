@@ -27,7 +27,7 @@ permissions:
 jobs:
   compiled-successor:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -41,49 +41,35 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Bind checkout and historical compiled V3
+      - name: Bind checkout and historical compiled V3/V4
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json)" =             "d6e97784c5d8be93713e733628c7d1ef746bb5c7"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "a07f2e9b03958a58280c4d940fe49097a9413af5"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Build and prove current locked compiled V4
+      - name: Preserve historical compiled V4 without current-source execution
         run: |
-          npm run build
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs
-
-      - name: Require compiled successor to stop before deployment authority
-        run: |
-          node --input-type=module - <<'NODE'
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          const v4=JSON.parse(fs.readFileSync(
-            "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json",
-            "utf8",
-          ));
-          assert.equal(v4.compiled_artifact_generation_verified,true);
-          assert.equal(v4.deployed_artifact_generation_verified,false);
-          assert.equal(v4.runtime_mount_authority,false);
-          assert.equal(v4.production_source_finality_authority_ready,false);
-          console.log("PACKAGED_GATE_COMPILED_V4_HOLD_GREEN=true");
-          NODE
+          set -euo pipefail
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs             | tee "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_acceptance=true'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_rederived_against_current_source=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_deployed_artifact_generation_verified=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
 
       - name: Diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
+          set -euo pipefail
           if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
