@@ -325,7 +325,7 @@ export function deriveBuyVoidEnforcementArtifactAttestationV5Candidate() {
   const sourceRuntimeInputs=[
     ...new Set([
       ...artifacts.map(a=>
-        a.path.replace(/^dist\\//u,"src/").replace(/\\.js$/u,".ts")),
+        a.path.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts")),
       ...INPUTS,
     ]),
   ].sort();
