@@ -10,7 +10,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_verified_payment_v2.ts";
-const EXPECTED_SOURCE_BLOB="a56285847d696c34467460f6584edfbc3e7834f0";
+const EXPECTED_SOURCE_BLOB="96fe5e418e6b99f90ebdcd88ff76bd78283b357b";
 const PREDECESSOR_SOURCE_BLOB="0df94fb35681f358318416fe6c48f3b794cd6074";
 
 function gitBlob(bytes:Buffer):string {
@@ -34,6 +34,12 @@ for(const marker of [
   'snapshotPolicyV2',
   'payment_input_not_plain_data',
 ]) assert.ok(source.includes(marker),"missing plain-data boundary: "+marker);
+const arraySnapshotIndex=source.indexOf("function snapshotDataArrayV2");
+const arrayProxyIndex=source.indexOf("utilTypes.isProxy(value)",arraySnapshotIndex);
+const arrayIsArrayIndex=source.indexOf("!Array.isArray(value)",arraySnapshotIndex);
+assert.ok(arraySnapshotIndex>=0 && arrayProxyIndex>arraySnapshotIndex &&
+  arrayIsArrayIndex>arrayProxyIndex,
+  "array Proxy must be rejected before Array.isArray/prototype inspection");
 
 const txHash="0x"+"a".repeat(64);
 const delivery="0x"+"1".repeat(40);
@@ -199,6 +205,14 @@ function requireHeld(label:string,input:any):void {
   assert.equal(traps,0,"input Proxy trap executed");
 }
 
+{
+  const fixture=baseline();
+  const revocable=Proxy.revocable(fixture.policy.allowed_chains,{});
+  revocable.revoke();
+  fixture.policy.allowed_chains=revocable.proxy;
+  requireHeld("revoked_allowed_chains_proxy",fixture);
+}
+
 const nullProto=baseline();
 nullProto.request=Object.assign(Object.create(null),nullProto.request);
 nullProto.policy=Object.assign(Object.create(null),nullProto.policy);
@@ -223,9 +237,11 @@ console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PLAIN_DATA_SNAPSHOT_V1_GREEN");
 console.log("predecessor_source_blob="+PREDECESSOR_SOURCE_BLOB);
 console.log("repaired_source_blob="+EXPECTED_SOURCE_BLOB);
 console.log("plain_data_control_verified=true");
-console.log("accessor_or_proxy_rejection_case_count=8");
+console.log("accessor_or_proxy_rejection_case_count=9");
 console.log("accessor_getters_executed=false");
 console.log("proxy_traps_executed=false");
+console.log("revoked_array_proxy_held_without_throw=true");
+console.log("array_proxy_rejected_before_isarray=true");
 console.log("nested_policy_map_accessor_rejected=true");
 console.log("nested_payment_instruction_accessor_rejected=true");
 console.log("null_prototype_plain_records_supported=true");

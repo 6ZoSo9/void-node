@@ -199,8 +199,10 @@ function snapshotDataArrayV2(
   value: unknown,
 ): readonly unknown[] | null {
   if (
-    !Array.isArray(value) ||
+    !value ||
+    typeof value !== "object" ||
     utilTypes.isProxy(value) ||
+    !Array.isArray(value) ||
     Object.getPrototypeOf(value) !== Array.prototype
   ) {
     return null;

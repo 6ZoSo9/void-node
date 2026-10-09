@@ -10,7 +10,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_verified_payment_v2.ts";
-const EXPECTED_SOURCE_BLOB="a56285847d696c34467460f6584edfbc3e7834f0";
+const EXPECTED_SOURCE_BLOB="96fe5e418e6b99f90ebdcd88ff76bd78283b357b";
 const PREDECESSOR_SOURCE_BLOB="c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 
 function gitBlob(bytes:Buffer):string {

@@ -20,7 +20,7 @@ Primitive-boundary predecessor V2 blob:
 
 Plain-data-snapshot V2 blob:
 
-`a56285847d696c34467460f6584edfbc3e7834f0`
+`96fe5e418e6b99f90ebdcd88ff76bd78283b357b`
 
 ## Snapshot rules
 
@@ -45,7 +45,7 @@ only fields used by this verifier enter the snapshot boundary.
 The existing 29-case primitive-boundary proof is repinned to the new V2 blob
 and must remain green.
 
-A new focused proof requires eight executable-object cases to HOLD while their
+A new focused proof requires nine executable-object cases to HOLD while their
 getters/Proxy traps remain completely unexecuted:
 
 - request-ID accessor;
@@ -55,7 +55,8 @@ getters/Proxy traps remain completely unexecuted:
 - policy-map entry accessor;
 - request Proxy;
 - transfer-log Proxy; and
-- top-level input Proxy.
+- top-level input Proxy; and
+- revoked `allowed_chains` array Proxy, which must HOLD without throwing.
 
 The same proof requires ordinary null-prototype data records to remain accepted
 and to produce the exact same canonical verified event as the plain-object

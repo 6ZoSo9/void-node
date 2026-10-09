@@ -76,9 +76,11 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PLAIN_DATA_SNAPSHOT_V1_GREEN' \
             'plain_data_control_verified=true' \
-            'accessor_or_proxy_rejection_case_count=8' \
+            'accessor_or_proxy_rejection_case_count=9' \
             'accessor_getters_executed=false' \
             'proxy_traps_executed=false' \
+            'revoked_array_proxy_held_without_throw=true' \
+            'array_proxy_rejected_before_isarray=true' \
             'nested_policy_map_accessor_rejected=true' \
             'nested_payment_instruction_accessor_rejected=true' \
             'null_prototype_plain_records_supported=true' \
