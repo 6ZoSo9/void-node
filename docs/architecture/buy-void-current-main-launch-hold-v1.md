@@ -53,9 +53,12 @@ provenance bound, promoting dispatcher mount authority, or pretending a
 different OS HOME-based launch anchor is equivalent.
 
 `--census` outputs deterministic JSON that truthfully marks all production,
-deployed, reserve/recover, custody/payment, cross-UID and presale flags FALSE.
+deployed, reserve/recover, custody/payment, cross-UID and presale
+**qualification** flags FALSE.
 An exact-head Node22/24/26 workflow independently compares all three
 source-only receipts byte-for-byte without contacting an endpoint.
+No live process, service state or current public presale traffic is observed;
+these receipts are restricted to reviewed source-generation authority.
 
 ## What future promotion requires
 

@@ -101,8 +101,8 @@ function inspectSourceHold(source) {
     independent_custody_payment_provenance_verified:false,
     payment_verified_to_allocation_production_ready:false,
     deployed_artifact_generation_verified:false,
-    public_presale_active:false,
-    wc_void_market_active:false,
+    public_presale_launch_qualified:false,
+    wc_void_market_launch_qualified:false,
     wallet_or_signer_action:false,
     chain_mutation:false,
     funds_moved:false,
@@ -138,7 +138,7 @@ function selfTest(source) {
   console.log("operator_verified_allocation_dispatch_mounted=false");
   console.log("cross_uid_launch_anchor_independently_verified=false");
   console.log("payment_verified_to_allocation_production_ready=false");
-  console.log("public_presale_active=false");
+  console.log("public_presale_launch_qualified=false");
   console.log("funds_moved=false");
 }
 function checkoutLineage() {

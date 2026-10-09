@@ -60,7 +60,7 @@ jobs:
             "launch-hold-node-${{ matrix.node }}.txt"
           grep -Fx 'cross_uid_launch_anchor_independently_verified=false' \
             "launch-hold-node-${{ matrix.node }}.txt"
-          grep -Fx 'public_presale_active=false' \
+          grep -Fx 'public_presale_launch_qualified=false' \
             "launch-hold-node-${{ matrix.node }}.txt"
           node scripts/prove_buy_void_current_main_launch_hold_v1.mjs --census \
             > "launch-census-node-${{ matrix.node }}.json"
@@ -79,7 +79,7 @@ jobs:
               "independent_custody_payment_provenance_verified",
               "payment_verified_to_allocation_production_ready",
               "deployed_artifact_generation_verified",
-              "public_presale_active","wc_void_market_active",
+              "public_presale_launch_qualified","wc_void_market_launch_qualified",
               "wallet_or_signer_action","chain_mutation","funds_moved"])
               assert.equal(o[k],false,k);
             console.log("VOID_PAYMENT_ALLOCATION_RELEASE_AUTHORITY_HELD_GREEN");
