@@ -5,9 +5,9 @@
 This Draft rederives the positive saga package evidence from the current
 composed enforcement lineage instead of inheriting historical #2647.
 
-Exact parent: `3fcfc169ffa2e5eee0f9542ea5b761cb32ef7117` (#2660).
-That parent is cross-Node green for the composed dynamic-tool source census
-and still records the saga target as execution-unverified.
+Historical package parent: `3fcfc169ffa2e5eee0f9542ea5b761cb32ef7117` (#2660).
+The current integration successor binds the same importer/saga bytes to stabilized
+source parent `eeef850affd912a0d1e019bfac2d681b38ea24ed`. The saga target remains execution-unverified.
 
 ## Exact source change
 
@@ -17,7 +17,10 @@ The final production Docker stage adds exactly one reviewed tool copy:
 COPY --from=build /app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs ./tools/
 ```
 
-Current Dockerfile Git blob: `15375dfb34bc457ac57865ae07642b5602f9e958`.
+Historical Dockerfile Git blob: `15375dfb34bc457ac57865ae07642b5602f9e958`.
+Current deterministic Dockerfile Git blob: `2acd9bcf0416eeb0f9fd72c1a556696863ff1607`.
+The rollover changes package installation to exact `RUN npm ci`; the reviewed
+saga COPY line and importer/saga source identities are unchanged.
 No broadcaster/custodian service tool and no blanket `/app/tools` copy is added.
 
 Reviewed saga identity:
