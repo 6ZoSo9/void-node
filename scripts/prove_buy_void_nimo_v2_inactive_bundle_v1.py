@@ -14,6 +14,8 @@ from pathlib import Path
 import stat
 import sys
 import tarfile
+import tempfile
+from unittest import mock
 
 LOCK_REL = "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
 LOCK_BLOB = "73c7f88348a1d6b208336df8779940657607bd7d"
@@ -228,27 +230,80 @@ def write_archive(destination, members):
     return target
 
 
+def same_archive_inode(before, after):
+    return (
+        before.st_dev == after.st_dev and
+        before.st_ino == after.st_ino and
+        before.st_mode == after.st_mode and
+        before.st_nlink == after.st_nlink and
+        before.st_size == after.st_size and
+        before.st_mtime_ns == after.st_mtime_ns and
+        before.st_ctime_ns == after.st_ctime_ns
+    )
+
+
 def inspect_archive(path):
     original = Path(path)
-    require(original.is_file() and not original.is_symlink(),
-            "archive_not_regular")
-    require(original.stat().st_size < 2 * MAX_TOTAL,
-            "archive_size_invalid")
+    visible = original.lstat()
+    require(stat.S_ISREG(visible.st_mode) and visible.st_nlink == 1 and
+            0 < visible.st_size < 2 * MAX_TOTAL, "archive_not_bounded_regular")
+    # One retained descriptor for source hash, TAR parsing and path identity.
+    # O_NONBLOCK prevents a raced FIFO replacement from blocking on open.
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(original, flags)
     values = {}
-    with tarfile.open(original, mode="r:") as archive:
-        for member in archive.getmembers():
-            name = member.name
-            require(name.startswith(PREFIX) and not name.startswith("/") and
-                    ".." not in name.split("/") and member.isfile() and
-                    member.mode == 0o444 and member.uid == 0 and
-                    member.gid == 0 and member.mtime == 0,
-                    "unsafe_archive_member")
-            require(name not in values and member.size < MAX_TOTAL,
-                    "duplicate_or_oversized_member")
-            handle = archive.extractfile(member)
-            require(handle is not None, "missing_archive_bytes")
-            values[name] = handle.read(member.size + 1)
-            require(len(values[name]) == member.size, "archive_member_size_changed")
+    archive_hash = hashlib.sha256()
+    try:
+        opened = os.fstat(fd)
+        require(stat.S_ISREG(opened.st_mode) and opened.st_nlink == 1 and
+                0 < opened.st_size < 2 * MAX_TOTAL and
+                same_archive_inode(visible, opened),
+                "archive_replaced_before_open")
+
+        offset = 0
+        while offset < opened.st_size:
+            chunk = os.pread(fd, min(65536, opened.st_size - offset), offset)
+            require(bool(chunk), "archive_source_truncated")
+            archive_hash.update(chunk)
+            offset += len(chunk)
+        require(not os.pread(fd, 1, opened.st_size), "archive_source_grew")
+
+        member_count = 0
+        total_bytes = 0
+        with os.fdopen(fd, "rb", closefd=False) as source:
+            with tarfile.open(fileobj=source, mode="r:") as archive:
+                # Bounded iteration instead of unbounded getmembers().
+                for member in archive:
+                    member_count += 1
+                    require(member_count <= 10, "archive_member_count_exceeded")
+                    name = member.name
+                    require(name.startswith(PREFIX) and not name.startswith("/") and
+                            ".." not in name.split("/") and member.isfile() and
+                            member.mode == 0o444 and member.uid == 0 and
+                            member.gid == 0 and member.mtime == 0,
+                            "unsafe_archive_member")
+                    require(name not in values and 0 <= member.size < MAX_TOTAL,
+                            "duplicate_or_oversized_member")
+                    total_bytes += member.size
+                    require(total_bytes <= MAX_TOTAL, "archive_total_bytes_exceeded")
+                    handle = archive.extractfile(member)
+                    require(handle is not None, "missing_archive_bytes")
+                    values[name] = handle.read(member.size + 1)
+                    require(len(values[name]) == member.size,
+                            "archive_member_size_changed")
+        require(member_count == 10, "archive_member_count_invalid")
+        last_fd = os.fstat(fd)
+        last_path = original.lstat()
+        require(same_archive_inode(opened, last_fd) and
+                stat.S_ISREG(last_path.st_mode) and
+                same_archive_inode(last_fd, last_path),
+                "archive_rebound_during_inspection")
+        inspected = {"sha256": archive_hash.hexdigest(),
+                     "bytes": opened.st_size}
+    finally:
+        # A close failure must surface. Never silently ignore it.
+        os.close(fd)
+
     raw = values.get(PREFIX + "review/proposed-lock.json")
     require(type(raw) is bytes, "missing_proposed_lock")
     lock = verify_lock(raw)
@@ -262,7 +317,7 @@ def inspect_archive(path):
         content = values[PREFIX + "payload/" + row["path"]]
         require(len(content) == row["bytes"] and digest(content) == row["sha256"],
                 "payload_unreviewed")
-    return lock, values
+    return lock, values, inspected
 
 
 def receipt(lock):
@@ -278,6 +333,68 @@ def receipt(lock):
         "payment_to_allocation_authorized": False,
         "presale_activation": False,
         "funds_moved": False,
+    }
+
+
+def archive_input_adversaries():
+    # Disposable OS-temp files only. Never inspect installed Nimo modules.
+    with tempfile.TemporaryDirectory(prefix="void-nimo-archive-race-") as tmp:
+        file = Path(tmp) / "candidate.tar"
+        displaced = Path(tmp) / "old-candidate.tar"
+        with tarfile.open(file, mode="w", format=tarfile.USTAR_FORMAT) as out:
+            info = tarfile.TarInfo("inert-fixture")
+            info.size = 6
+            out.addfile(info, io.BytesIO(b"INERT!"))
+        original = file.read_bytes()
+        for kind in ("same-size", "oversize", "fifo"):
+            file.write_bytes(original)
+            displaced.unlink(missing_ok=True)
+            switched = []
+            original_open = os.open
+            def swap_before_open(name, flags, *rest, **kwargs):
+                if os.fspath(name) == os.fspath(file) and not switched:
+                    switched.append(True)
+                    file.rename(displaced)
+                    if kind == "same-size":
+                        file.write_bytes(original)
+                    elif kind == "oversize":
+                        file.write_bytes(bytes(2 * MAX_TOTAL + 4096))
+                    else:
+                        os.mkfifo(file, 0o600)
+                return original_open(name, flags, *rest, **kwargs)
+            with mock.patch.object(os, "open", side_effect=swap_before_open):
+                try:
+                    inspect_archive(file)
+                except (ValueError, OSError, tarfile.TarError) as err:
+                    require("archive_replaced_before_open" in str(err),
+                            "archive_swap_not_failed_at_identity_check")
+                else:
+                    raise AssertionError("untrusted_archive_swap_accepted")
+            require(len(switched) == 1, "archive_swap_not_exercised")
+            file.unlink()
+            displaced.rename(file)
+
+        with tarfile.open(file, mode="w", format=tarfile.USTAR_FORMAT) as out:
+            for index in range(11):
+                info = tarfile.TarInfo(PREFIX + "review/extra-" + str(index))
+                info.size = 0
+                info.mode = 0o444
+                out.addfile(info, io.BytesIO(b""))
+        try:
+            inspect_archive(file)
+        except ValueError as err:
+            require("archive_member_count_exceeded" in str(err),
+                    "archive_member_limit_not_enforced")
+        else:
+            raise AssertionError("unbounded_archive_members_accepted")
+
+    return {
+        "archive_same_size_inode_swap_rejected": True,
+        "archive_oversize_replacement_rejected": True,
+        "archive_fifo_replacement_rejected_without_blocking": True,
+        "archive_eleven_members_rejected_before_manifest": True,
+        "archive_single_descriptor_bound": True,
+        "real_nimo_or_customer_source_mutation": False,
     }
 
 
@@ -299,6 +416,7 @@ def negative_self_test():
         else:
             raise AssertionError("unsafe_proposed_lock_accepted")
     return {"negative_lock_mutations_rejected": 4,
+            **archive_input_adversaries(),
             "original_v1_reissue_forbidden": True,
             "presale_activation": False}
 
@@ -314,7 +432,7 @@ def main():
     group.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.inspect_archive:
-        lock, _ = inspect_archive(args.inspect_archive)
+        lock, _, _ = inspect_archive(args.inspect_archive)
         result = receipt(lock)
         result["inactive_archive_contents_verified"] = True
     elif args.self_test:
@@ -326,9 +444,9 @@ def main():
         if args.package:
             out = write_archive(args.package, archive_members(lock_bytes, lock, blobs))
             # The independent read-only inspector must qualify what was emitted.
-            inspect_archive(out)
-            result["inactive_archive_sha256"] = digest(out.read_bytes())
-            result["inactive_archive_bytes"] = out.stat().st_size
+            _, _, proof = inspect_archive(out)
+            result["inactive_archive_sha256"] = proof["sha256"]
+            result["inactive_archive_bytes"] = proof["bytes"]
             result["inactive_archive_contents_verified"] = True
     sys.stdout.buffer.write(canonical(result))
 

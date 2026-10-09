@@ -50,6 +50,43 @@ the full TAR BYTES and test receipts to match byte-for-byte. CI outputs
 are inert review artifacts with short retention, **not installation
 receipts, signed approvals, launch generations or deployment commands**.
 
+## Offline inspector input-path integrity hardening (separate P2 successor)
+
+An independent review of the original reproducible TAR identified a **distinct**
+offline-inspector input hazard: its `Path.is_file()` + `stat().st_size`
+preflight was followed by `tarfile.open(path, "r:")`, a new filesystem
+pathname open; `getmembers()` also built an unbounded member table before
+admission. A caller- or directory-controlled path could be replaced between
+the metadata check and TAR parsing. This is **not** a flaw in the immutable
+original 256,000-byte archive already reviewed, and it is not evidence that
+any user has launched or installed V2. It affects reuse with untrusted archive
+paths, including an offline Nimo inspection.
+
+The source-only successor opens the supplied TAR **once** with
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK`; requires a regular, single-link file,
+bounded size and exact `lstat`↔`fstat` inode/mode/size/time identity; hashes
+that SAME retained descriptor via bounded `pread`; and gives the same
+descriptor to `tarfile.open(fileobj=...)`. No later pathname reopen is
+accepted for the reported TAR SHA-256/length. It iterates members with
+strict 10-entry and cumulative-byte caps before untrusted expansion and
+rechecks the retained fd against the visible pathname after parsing. FIFO,
+symlink, inode replacement, unexpected growth, extra members and unreadable
+archives fail closed.
+
+The `--self-test` uses only disposable synthetic TARs and forcefully swaps a
+small regular input to a new same-size inode, an oversized regular file, and
+a FIFO **between lstat and the single open**. All three must HOLD at the
+descriptor identity check without reading the replacement. An 11-entry TAR
+must HOLD at the member-count check. Existing four semantic invalid-lock
+tests, exact eight compiled-module source hash checks, original frozen V1
+identity, all-false authority receipts and Node 22/24/26 byte-equal TAR
+checks remain intact.
+
+**No approval, installation or root/witness change:** The revised inspector
+is a bounded read-only review step. A validated archive is still *inactive*
+and V2 remains unaccepted. Container path ancestors and deployed Nimo principal
+binding need separate host evidence before any production use.
+
 ## Later independently reviewed activation
 
 Original frozen V1 installed bytes MUST remain untouched and rollback-safe.

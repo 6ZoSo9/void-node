@@ -66,6 +66,13 @@ jobs:
           records=[json.loads(line) for line in open("inactive-v2-${{ matrix.node }}.txt")]
           assert len(records)==4
           assert records[0]["negative_lock_mutations_rejected"]==4
+          for key in ("archive_same_size_inode_swap_rejected",
+                      "archive_oversize_replacement_rejected",
+                      "archive_fifo_replacement_rejected_without_blocking",
+                      "archive_eleven_members_rejected_before_manifest",
+                      "archive_single_descriptor_bound"):
+              assert records[0][key] is True, key
+          assert records[0]["real_nimo_or_customer_source_mutation"] is False
           assert records[1]["compiled_source_file_count"]==8
           assert records[2]["inactive_archive_contents_verified"] is True
           assert records[3]["inactive_archive_contents_verified"] is True
@@ -77,6 +84,7 @@ jobs:
               assert row["presale_activation"] is False
               assert row["funds_moved"] is False
           print("VOID_NIMO_V2_INACTIVE_ONLY_ARCHIVE_REVIEW_GREEN")
+          print("VOID_NIMO_V2_ARCHIVE_SINGLE_DESCRIPTOR_BOUNDED_INPUT_GREEN")
           '
       - name: Upload inactive archive and standalone read-only inspector
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
