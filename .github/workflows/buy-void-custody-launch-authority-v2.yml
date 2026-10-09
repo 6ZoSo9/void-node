@@ -75,6 +75,10 @@ jobs:
             'high_water_prefix_digest_mismatch_rejected=true' \
             'stale_generation_receipt_rejected=true' \
             'forged_activation_signature_rejected=true' \
+            'forged_sovereign_signature_rejected=true' \
+            'invalid_receipt_candidate_high_water_absent=true' \
+            'caller_supplied_clock_authority=false' \
+            'trusted_server_clock_required=true' \
             'operator_home_anchor_dependency=false' \
             'classifier_filesystem_io=false' \
             'classifier_userInfo_dependency=false' \
