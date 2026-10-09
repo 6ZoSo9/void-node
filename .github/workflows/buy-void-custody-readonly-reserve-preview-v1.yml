@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_custody_readonly_reserve_preview_v1.mjs"
       - "scripts/prove_buy_void_custody_allocation_roots_observed_read_v1.mjs"
       - "scripts/prove_buy_void_custody_readonly_reserve_preview_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs"
       - ".github/workflows/buy-void-custody-readonly-reserve-preview-v1.yml"
       - "docs/architecture/buy-void-custody-readonly-reserve-preview-v1.md"
   workflow_dispatch:
@@ -75,6 +76,11 @@ jobs:
             'custody_reserve_method_enabled=false' \
             'funds_moved=false'
           do grep -Fx "$marker" "readonly-allocation-${{ matrix.node }}.txt"; done
+      - name: Check historical V1 exact builtin restriction
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs
+          node scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs > /dev/null
       - name: Upload exact-head deterministic receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

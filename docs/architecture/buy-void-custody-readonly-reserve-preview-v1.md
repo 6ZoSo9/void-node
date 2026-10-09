@@ -84,3 +84,21 @@ a success result or admitting real buyer funds.
 
 Do not merge/deploy/enable a custody method or access live buyer files
 because these source-only proofs pass. **PROTECT THE CORE.**
+
+## Non-authority CI compatibility: reviewed runtime builtin and V5 ancestor
+
+The current V2 verified-payment executable source uses Node's built-in
+`node:util` (`util.types.isProxy`) to reject executable caller objects.
+The historical V1 closure scanner previously rejected this literal import
+while the V5 candidate already included it. The successor scanner adds
+**only** `node:util` to its external allowlist, with independent negative
+tests for `node:child_process`, `node:vm`, `node:module`, dynamic,
+escaping, nonliteral and CommonJS loader imports. Historical V1
+source-head/tree labels and locked historical manifest bytes are unchanged.
+
+The V5 candidate's source parent is now exact
+`22a30e3ffad6047a472488104c769140bd050878`.
+The historical predecessor `3533626d7167c98ba8d65d2c423b460b1a3199fc`
+is verified to be a Git ancestor before the workflow accepts the current
+source parent. Nothing changes accepted V4 manifest hashes, source-lock
+fingerprints, dynamic-tool nonauthority or launch flags.
