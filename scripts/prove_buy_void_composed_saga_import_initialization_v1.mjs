@@ -10,10 +10,10 @@ import { readDescriptorRelativeLinuxV1 } from "./prove_buy_void_enforcement_desc
 import { runReviewedGitV1, proveReviewedGitV1Synthetic } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const PARENT="5a38cc34ca497b8b39a299aba09ce012d9d3c181";
+const PARENT="eeef850affd912a0d1e019bfac2d681b38ea24ed";
 const SAGA="tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs";
 const SAGA_BLOB="d6a2d1cd82e5e255f435c1e21d1783774a44b2b1";
-const DOCKER_BLOB="15375dfb34bc457ac57865ae07642b5602f9e958";
+const DOCKER_BLOB="2acd9bcf0416eeb0f9fd72c1a556696863ff1607";
 const SAGA_BYTES=58023;
 const ALLOWED_IMPORTS=["node:crypto","node:fs","node:path"];
 function sha256(bytes){return crypto.createHash("sha256").update(bytes).digest("hex");}

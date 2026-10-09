@@ -3,8 +3,14 @@
 ## Purpose and current lineage
 
 This Draft derives an **unaccepted enforcement V5 candidate** from current
-runtime V6 bridge #2638 at exact source parent
-`3533626d7167c98ba8d65d2c423b460b1a3199fc`.
+runtime V6 bridge #2638 at exact stabilized source parent
+`eeef850affd912a0d1e019bfac2d681b38ea24ed`.
+
+The predecessor V6 source parent
+`3533626d7167c98ba8d65d2c423b460b1a3199fc` remains historical evidence. The successor rebind is
+required because the integration Dockerfile moved from package-manager fallback
+to deterministic `RUN npm ci`; the three authority-bearing source fingerprints
+listed below are byte-identical across that transition.
 
 Historical enforcement V1/V4 and source-finality V3/V5 attestations remain
 immutable. They are predecessor evidence, not values to repin.
@@ -146,8 +152,8 @@ activation or funds movement is performed here.
 
 ## Current V6 source-anchor successor
 
-The enforcement V5 candidate now binds current V6 source integration commit
-`3533626d7167c98ba8d65d2c423b460b1a3199fc` and V6 source blob
+The enforcement V5 candidate now binds current stabilized integration commit
+`eeef850affd912a0d1e019bfac2d681b38ea24ed` and V6 source blob
 `e7ac4c296930587e7b7ec415e57bb18190c88962`. That V6 source advances its
 reviewed payment-observer identity after bounded total-response deadline
 hardening. This does **not** rewrite the historical locked compiled-V4 manifest
