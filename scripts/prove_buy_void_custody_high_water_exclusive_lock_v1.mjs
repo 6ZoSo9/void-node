@@ -90,6 +90,10 @@ try {
   fs.chmodSync(PRIVATE,0o755);
   assert.throws(() => withLock({private_directory:PRIVATE}, () => {}),
     /custody_hw_exclusive_private_owner_mode_required/u);
+  fs.chmodSync(PRIVATE,0o1700);
+  assert.throws(() => withLock({private_directory:PRIVATE}, () => {}),
+    /custody_hw_exclusive_private_owner_mode_required/u,
+    "sticky/special bits are not exact private 0700");
   fs.chmodSync(PRIVATE,0o700);
   fs.symlinkSync(PRIVATE,LINK,"dir");
   assert.throws(() => withLock({private_directory:LINK},()=>{}),
@@ -134,6 +138,7 @@ try {
   console.log("real_child_process_contention_rejected=true");
   console.log("successful_release_directory_fsynced=true");
   console.log("same_uid_private_0700_required=true");
+  console.log("private_mode_special_bits_rejected=true");
   console.log("symlink_private_root_rejected=true");
   console.log("stale_lock_auto_takeover=false");
   console.log("failed_callback_lock_retained=true");
