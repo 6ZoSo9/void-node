@@ -1,0 +1,163 @@
+name: VOID Buy VOID custody reserve first-original buyer V2
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_custody_reserve_plan_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v2.mjs"
+      - "docs/architecture/buy-void-custody-reserve-plan-v2.md"
+      - ".github/workflows/buy-void-custody-reserve-first-original-v2.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-reserve-v2-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checked-out commit
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install source-only locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile source for inert planner tests
+        run: npm run build
+      - name: Preserve historical V1 refusal on new source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_custody_reserve_plan_v1.mjs > "$RUNNER_TEMP/v1-historical.txt" 2>&1; then
+            echo "UNEXPECTED_HISTORICAL_V1_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'dependency drift: src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/v1-historical.txt"
+      - name: Prove first-original buyer V2 custody reserve source semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_reserve_plan_v2.mjs \
+            | tee "custody-reserve-v2-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V2_REVIEW_GREEN' \
+            'frozen_V1_proof_git_blob_unchanged=true' \
+            'first_original_wallet_missing_absent_null_empty_held=true' \
+            'later_wallet_backfill_with_matching_allocation_held=true' \
+            'original_wallet_with_late_tx_and_receive_allowed=true' \
+            'planned_then_idempotent_exact_ledger=true' \
+            'prior_verified_allocation_gap_held=true' \
+            'caller_green_flags_accepted=false' \
+            'custody_reserve_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "custody-reserve-v2-${{ matrix.node }}.txt"
+          done
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const content=fs.readFileSync(process.argv[1],"utf8");
+            const proof=fs.readFileSync("scripts/prove_buy_void_custody_reserve_plan_v2.mjs");
+            const gblob=b=>crypto.createHash("sha1").update(
+              Buffer.from("blob "+b.length+"\0")).update(b).digest("hex");
+            assert.ok(content.includes("first_original_wallet_missing_absent_null_empty_held=true"));
+            const result={
+              schema:"void_buy_void_custody_reserve_first_original_v2_review",
+              version:2,
+              frozen_v1_source_git_blob_sha1:"94596835ee781f1dcfd42ab79787787868c31841",
+              successor_replay_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32",
+              v2_proof_git_blob_sha1:gblob(proof),
+              original_buyer_missing_variants_rejected:3,
+              matching_allocation_backfill_rejected:true,
+              late_tx_and_receive_preserve_valid_original_buyer:true,
+              historical_v1_reissued:false,
+              source_only:true,descriptor_bound_reads:false,
+              custody_reserve_method_enabled:false,
+              allocation_write:false,production_allocation_mutation_ready:false,
+              presale_activation:false,funds_movement:false
+            };
+            fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2)+"\n");
+            console.log("CUSTODY_RESERVE_V2_SYNTHETIC_EVIDENCE_NOT_PRODUCTION_GREEN");
+          ' "custody-reserve-v2-${{ matrix.node }}.txt" \
+            "custody-reserve-v2-${{ matrix.node }}.json"
+      - name: Upload source-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-reserve-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-reserve-v2-${{ matrix.node }}.json
+          retention-days: 2
+          if-no-files-found: error
+      - name: Range whitespace checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download all three versioned receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-reserve-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          path: ./receipts
+          merge-multiple: true
+      - name: Require exact cross-Node byte identity and launch HOLD
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/custody-reserve-v2-$v.json"; done
+          cmp receipts/custody-reserve-v2-22.json receipts/custody-reserve-v2-24.json
+          cmp receipts/custody-reserve-v2-22.json receipts/custody-reserve-v2-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("receipts/custody-reserve-v2-22.json");
+            const j=JSON.parse(bytes);
+            for (const field of ["descriptor_bound_reads","custody_reserve_method_enabled",
+              "allocation_write","production_allocation_mutation_ready",
+              "presale_activation","funds_movement"]) assert.equal(j[field],false,field);
+            assert.equal(j.original_buyer_missing_variants_rejected,3);
+            assert.equal(j.historical_v1_reissued,false);
+            console.log("CUSTODY_RESERVE_FIRST_ORIGINAL_V2_CROSS_NODE_GREEN");
+            console.log("review_receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("production_allocation_mutation_ready=false");
+          '
