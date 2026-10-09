@@ -1,0 +1,119 @@
+name: VOID Buy VOID V2 primitive boundary v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_primitive_boundary_v1.ts"
+      - "docs/architecture/buy-void-verified-payment-v2-primitive-boundary-v1.md"
+      - ".github/workflows/buy-void-verified-payment-v2-primitive-boundary-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v2-primitive-boundary-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build repaired source
+        run: npm run build
+
+      - name: Prove primitive-only authority boundary
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_v2_primitive_boundary_v1.ts \
+            | tee "v2-primitive-boundary-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PRIMITIVE_BOUNDARY_V1_GREEN' \
+            'primitive_control_verified=true' \
+            'wrong_type_case_count=29' \
+            'array_wrapped_authority_values_rejected=true' \
+            'request_id_nonstring_rejected=true' \
+            'allowed_chains_nonarray_rejected=true' \
+            'checkout_instruction_wrong_types_rejected=true' \
+            'malformed_log_removed_type_rejected=true' \
+            'falsy_wrong_type_log_tx_hash_rejected=true' \
+            'accepted_primitive_forms_preserved=true' \
+            'verified_event_unchanged_for_reviewed_primitive_forms=true' \
+            'production_payment_authority_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "v2-primitive-boundary-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v2-primitive-boundary-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: v2-primitive-boundary-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v2-primitive-boundary-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical repaired evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/v2-primitive-boundary-node-$v.txt"
+          done
+          cmp evidence/v2-primitive-boundary-node-22.txt evidence/v2-primitive-boundary-node-24.txt
+          cmp evidence/v2-primitive-boundary-node-22.txt evidence/v2-primitive-boundary-node-26.txt
+          echo "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PRIMITIVE_BOUNDARY_CROSS_NODE_GREEN"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"

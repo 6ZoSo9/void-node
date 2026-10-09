@@ -136,13 +136,15 @@ function held(
 }
 
 function normalizeChain(value: unknown): string {
-  const raw = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const raw = value.trim().toLowerCase();
   const chain = raw === "eth" ? "ethereum" : raw;
   return CHAIN.test(chain) ? chain : "";
 }
 
 function normalizeAddress(value: unknown): string {
-  const address = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const address = value.trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
 }
 
@@ -164,7 +166,8 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function normalizeHash(value: unknown): string {
-  const hash = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const hash = value.trim().toLowerCase();
   return HEX_32.test(hash) ? hash : "";
 }
 
@@ -175,7 +178,8 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
     return BigInt(value);
   }
 
-  const raw = String(value ?? "").trim().toLowerCase();
+  if (typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
   if (!raw) return null;
 
   try {
@@ -191,7 +195,11 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
 }
 
 function decimalToUnits(value: unknown, decimals = 6): bigint | null {
-  const raw = String(value ?? "").trim();
+  let raw = "";
+  if (typeof value === "string") raw = value.trim();
+  else if (typeof value === "number" && Number.isFinite(value)) {
+    raw = String(value);
+  }
   if (!raw || !/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) return null;
 
   const [whole, fraction = ""] = raw.split(".");
@@ -208,7 +216,8 @@ function decimalToUnits(value: unknown, decimals = 6): bigint | null {
 }
 
 function topicAddress(value: unknown): string {
-  const topic = String(value || "").trim().toLowerCase();
+  if (typeof value !== "string") return "";
+  const topic = value.trim().toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(topic)) return "";
   return `0x${topic.slice(-40)}`;
 }
@@ -226,7 +235,10 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   const policy = input?.policy;
   if (!request || !receipt || !policy) return held("missing_input");
 
-  const requestId = String(request.request_id || "").trim();
+  if (typeof request.request_id !== "string") {
+    return held("invalid_request_id");
+  }
+  const requestId = request.request_id.trim();
   if (!/^[A-Za-z0-9._:-]{3,160}$/.test(requestId)) {
     return held("invalid_request_id");
   }
@@ -234,8 +246,11 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   const chain = normalizeChain(request.source_chain);
   if (!chain) return held("invalid_source_chain");
 
+  if (!Array.isArray(policy.allowed_chains)) {
+    return held("invalid_allowed_chains_policy");
+  }
   const allowedChains = new Set(
-    (policy.allowed_chains || []).map(normalizeChain).filter(Boolean),
+    policy.allowed_chains.map(normalizeChain).filter(Boolean),
   );
   if (!allowedChains.has(chain)) return held("source_chain_not_allowlisted");
 
@@ -345,14 +360,20 @@ export function buildBuyVoidVerifiedPaymentEventV2(
   let matchingTransferLogIndexOutOfDomain = false;
 
   for (const rawLog of rawLogs) {
-    const log = (rawLog || {}) as BuyVoidReceiptLogV2;
+    if (!rawLog || typeof rawLog !== "object" || Array.isArray(rawLog)) {
+      continue;
+    }
+    const log = rawLog as BuyVoidReceiptLogV2;
+    if (log.removed !== undefined && typeof log.removed !== "boolean") {
+      continue;
+    }
     if (log.removed === true) continue;
 
     const logContract = normalizeAddress(log.address);
     if (logContract !== usdcContract) continue;
 
     const topics = Array.isArray(log.topics) ? log.topics : [];
-    if (String(topics[0] || "").trim().toLowerCase() !== TRANSFER_TOPIC) {
+    if (normalizeHash(topics[0]) !== TRANSFER_TOPIC) {
       continue;
     }
 
@@ -364,9 +385,10 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     const amountUnits = parseNonNegativeInteger(log.data);
     if (amountUnits === null || amountUnits !== requestedUnits) continue;
 
-    const logTxHash = log.transactionHash
-      ? normalizeHash(log.transactionHash)
-      : receiptTxHash;
+    const logTxHash =
+      log.transactionHash !== undefined && log.transactionHash !== null
+        ? normalizeHash(log.transactionHash)
+        : receiptTxHash;
     if (!logTxHash || logTxHash !== receiptTxHash) continue;
 
     const logBlockNumber: bigint | null =
