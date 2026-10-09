@@ -257,8 +257,8 @@ await test("historical V5 remains immutable and rejects V6 verifier bytes", () =
     .find((r) => r.path === "src/economic/buy_void_verified_payment_v2.ts");
   assert.ok(old && current);
   assert.equal(old.git_blob_sha1, "c0e4660bb238e1b718b8a471890901bd5a59badf");
-  assert.equal(current.git_blob_sha1, "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac");
-  assert.equal(current.source_commit_sha, "52deccca51077d457177e738135dbb0e0536d2f3");
+  assert.equal(current.git_blob_sha1, "550ede02fc0b7d6874c324af58b5ef9c5591b311");
+  assert.equal(current.source_commit_sha, "1397e6e17f53084158bdc2137dae0b38f6d6929a");
   assert.notEqual(old.git_blob_sha1, current.git_blob_sha1);
   const oldVerification = verifyBuyVoidSourceFinalityRuntimeSourceFilesV5();
   assert.equal(oldVerification.ok, false);

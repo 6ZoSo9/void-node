@@ -16,6 +16,8 @@ const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
   "a4fa630f00f4c2e8e44c0dfdebc4e4717cb60a7d";
+// 711a521 only renames the manual-fulfillment gate import/call; the proof below
+// independently rechecks the mounted verify-payment/mark route slice.
 const FROZEN_ROUTER_GIT_BLOB = "240414e313f44f80d57f4e349be2f1ab3d72fe66";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
   "f591f7407d9afc2cf77e0f90923aa11b4817fd4e";
