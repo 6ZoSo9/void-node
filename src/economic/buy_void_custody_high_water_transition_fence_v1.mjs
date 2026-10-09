@@ -10,6 +10,7 @@ export const VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_POLICY_V1 =
     fence_record_deletion_allowed: false,
     stale_fence_automatic_takeover: false,
     transition_slot_keyed_by_prior_high_water: true,
+    bootstrap_slot_global_across_source_compositions: true,
     competing_successor_same_prior_must_conflict: true,
     exact_next_high_water_bytes_stored: true,
     recovery_from_prior_or_exact_next_only: true,
@@ -130,11 +131,18 @@ function parseHighWater(bytes, label) {
 }
 
 function deriveSlotId(sourceCompositionId, priorSha256) {
+  // A non-bootstrap prior digest already commits to the complete canonical
+  // prior high-water, including source_composition_id. At bootstrap there is
+  // no prior digest, so including the proposed source composition would split
+  // the create-only namespace and allow two source generations to win
+  // different first-transition slots. Keep bootstrap globally singular.
+  const keyMaterial = priorSha256 === null
+    ? ["bootstrap"]
+    : [sourceCompositionId, priorSha256];
   const material = Buffer.from(
     [
       VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_V1,
-      sourceCompositionId,
-      priorSha256 === null ? "bootstrap" : priorSha256,
+      ...keyMaterial,
     ].join("\n"),
     "utf8",
   );
