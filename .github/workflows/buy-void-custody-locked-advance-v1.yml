@@ -1,0 +1,82 @@
+name: VOID Buy custody locked advance source-only v1
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_locked_advance_v1.mjs"
+      - "src/economic/buy_void_custody_high_water_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "scripts/prove_buy_void_custody_owned_temp_cleanup_v1.mjs"
+      - "scripts/prove_buy_void_custody_locked_advance_v1.mjs"
+      - "scripts/prove_buy_void_custody_high_water_exclusive_lock_v1.mjs"
+      - ".github/workflows/buy-void-custody-locked-advance-v1.yml"
+      - "docs/architecture/buy-void-custody-locked-advance-v1.md"
+      - "docs/architecture/buy-void-custody-high-water-exclusive-lock-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: buy-void-custody-locked-advance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Synthetic lock and composed advance proofs
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_custody_locked_advance_v1.mjs
+          node --check scripts/prove_buy_void_custody_locked_advance_v1.mjs
+          node scripts/prove_buy_void_custody_high_water_exclusive_lock_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_owned_temp_cleanup_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_locked_advance_v1.mjs |
+            tee "locked-advance-${{ matrix.node }}.txt"
+          grep -Fx "production_authority_false=true" "locked-advance-${{ matrix.node }}.txt"
+          grep -Fx "VOID_BUY_VOID_CUSTODY_LOCKED_ADVANCE_SYNTHETIC_GREEN" "locked-advance-${{ matrix.node }}.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-locked-advance-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: locked-advance-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Check changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+  cross-node:
+    needs: synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-locked-advance-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Verify byte-identical Node receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "receipts/locked-advance-$node.txt"; done
+          cmp receipts/locked-advance-22.txt receipts/locked-advance-24.txt
+          cmp receipts/locked-advance-22.txt receipts/locked-advance-26.txt
+          echo "VOID_CUSTODY_LOCKED_ADVANCE_CROSS_NODE_GREEN"
