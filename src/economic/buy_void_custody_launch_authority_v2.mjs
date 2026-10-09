@@ -153,7 +153,13 @@ function normalizedSourceGate(sourceGate) {
   });
 }
 
-function parseReceipt(receiptBytes, sourceGate, nowMs) {
+function parseReceipt(
+  receiptBytes,
+  sourceGate,
+  nowMs,
+  expectedActivationSigner,
+  expectedSovereignSigner,
+) {
   const { parsed } = parseJsonBytes(
     receiptBytes,
     MAX_RECEIPT_BYTES,
@@ -171,9 +177,9 @@ function parseReceipt(receiptBytes, sourceGate, nowMs) {
     !BYTES32.test(String(receipt.activation_generation || "")) ||
     !SHA256_ID.test(String(receipt.generation_tip_sha256 || "")) ||
     String(receipt.activation_signer || "").toLowerCase() !==
-      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
+      String(expectedActivationSigner || "").toLowerCase() ||
     String(receipt.sovereign_signer || "").toLowerCase() !==
-      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1 ||
+      String(expectedSovereignSigner || "").toLowerCase() ||
     receipt.buy_void_private_runtime_active !== true ||
     receipt.wc_void_market_active !== true ||
     receipt.public_presale_active !== true ||
@@ -445,6 +451,8 @@ function classifyCore({
       activation_receipt_bytes,
       sourceGate,
       now_ms,
+      expected_activation_signer,
+      expected_sovereign_signer,
     );
     if (
       receipt.activation_generation !== journalState.generation ||
