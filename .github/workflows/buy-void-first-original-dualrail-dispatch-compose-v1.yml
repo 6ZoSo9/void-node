@@ -1,0 +1,206 @@
+name: VOID Buy VOID first-original dual-rail and guarded dispatcher composition v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - ".github/workflows/buy-void-first-original-dual-rail-dispatch-compose-v1.yml"
+      - "docs/architecture/buy-void-first-original-dual-rail-dispatch-compose-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-original-dualrail-dispatch-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged review head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind the exact HEAD and both independently reviewed branches
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+          git merge-base --is-ancestor 9f8925719aa72f210052ebe03de076d4fbb43592 HEAD
+          git merge-base --is-ancestor 7dfc45375d8feaefa0b52efc1959a845832204e8 HEAD
+      - name: Install exact Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build without starting node
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Require exact reviewed original wallet / dispatcher / dual-rail source tuple
+        run: |
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const pins=new Map([
+              ["src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts","0e27a76e777c326d2d9e2b1550b7f2979fca9abb"],
+              ["scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts","e58bf39fadc25123771481608fad2a61a8f3133f"],
+              ["src/economic/buy_void_verified_allocation_replay_binding_v1.ts","0a74a3652081c3e142d0b887676771a7ac148f32"],
+              ["src/economic/buy_void_verified_payment_capacity_admission_v1.ts","f591f7407d9afc2cf77e0f90923aa11b4817fd4e"],
+              ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts","9fb39172afa09e49c11d72ff376e9af2d99a4101"],
+              ["scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts","7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b"],
+              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs","d42148523c44d95d3b87236ade22cfb92dcb5bee"]
+            ]);
+            for(const [file,pin] of pins) {
+              const bytes=fs.readFileSync(file);
+              const sha=crypto.createHash("sha1").update(Buffer.from("blob "+bytes.length+"\0")).update(bytes).digest("hex");
+              assert.equal(sha,pin,"reviewed source changed: "+file);
+            }
+            console.log("VOID_FIRST_ORIGINAL_DUALRAIL_DISPATCH_SEVEN_BLOBS_PINNED");
+          '
+      - name: Historical first-original crash V1 still rejects revised replay source
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs             > "$RUNNER_TEMP/frozen-v1.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_V1_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/frozen-v1.txt"
+      - name: First-original buyer V2 crash and replay idempotence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs             > "$RUNNER_TEMP/crash-v2.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(r.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2");
+            assert.equal(r.initial_buyer_wallet_missing_variants_rejected,3);
+            for(const k of ["frozen_historical_V1_proof_unchanged",
+                            "exact_replay_idempotent",
+                            "conflicting_identity_rejected",
+                            "late_tx_and_receive_with_original_wallet_positive"])assert.equal(r[k],true,k);
+            for(const k of ["presale_activation","funds_moved",
+                            "protected_high_water_custody_verified",
+                            "exactly_once_allocation_production_ready"])assert.equal(r[k],false,k);
+          ' "$RUNNER_TEMP/crash-v2.json"
+      - name: Hardened operator dispatcher must reject hostile outer inputs
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > "$RUNNER_TEMP/dispatch.txt"
+          for mark in             'outer_input_proxy_rejected_without_traps=true'             'outer_input_getter_rejected_without_invocation=true'             'null_prototype_outer_input_accepted=true'             'dispatch_calls_allocation_writer_only_on_verified_branch=true'             'mounted_verified_allocation_dispatch=false'             'payment_or_allocation_append_performed=false'             'presale_activation=false' 'funds_moved=false'
+          do grep -Fx "$mark" "$RUNNER_TEMP/dispatch.txt"; done
+      - name: First-original buyer actual OS-temp handoff V2
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts             > "$RUNNER_TEMP/handoff.txt"
+          for mark in             'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN'             'first_original_missing_absent_null_empty_preappend_held=true'             'forged_matching_allocation_replay_held=true'             'valid_original_late_tx_receiver_preserves_deterministic_allocation=true'             'runtime_integration=false' 'presale_activation=false' 'funds_movement=false'
+          do grep -Fx "$mark" "$RUNNER_TEMP/handoff.txt"; done
+      - name: Cross-rail Base and Ethereum actual OS-temp handoff V2
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts             > "dual-rail-${{ matrix.node }}.txt"
+          for mark in             'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V2_GREEN'             'both_native_usdc_rails_admitted=2'             'same_tx_log_cross_rail_payment_identities_distinct=true'             'idempotent_cross_rail_replays=2'             'ethereum_first_original_missing_wallet_holds=3'             'ethereum_cross_chain_original_history_holds=2'             'ethereum_non_native_usdc_original_holds=1'             'failed_cases_durable_payment_allocation_high_water_mutated=false'             'runtime_integration=false' 'protected_high_water_custody_proven=false'             'actual_live_provider_finality_verified=false'             'production_gate_ready=false' 'presale_activation=false'             'funds_movement=false'
+          do grep -Fx "$mark" "dual-rail-${{ matrix.node }}.txt"; done
+      - name: Emit deterministic unaccepted combined receipt
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const data={
+              schema:"void_buy_void_first_original_dualrail_guarded_dispatch_source_v1",
+              version:1,
+              dispatcher_source_git_blob_sha1:"0e27a76e777c326d2d9e2b1550b7f2979fca9abb",
+              first_original_replay_source_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32",
+              native_usdc_payment_handoff_source_git_blob_sha1:"f591f7407d9afc2cf77e0f90923aa11b4817fd4e",
+              dual_rail_test_git_blob_sha1:"7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b",
+              frozen_historical_v1_reissued:false,
+              first_original_buyer_wallet_bound:true,
+              base_and_ethereum_native_usdc_handoff_synthetic_verified:true,
+              same_tx_log_dual_chain_payment_ids_distinct:true,
+              durable_allocation_replay_idempotent_synthetic_verified:true,
+              hostile_operator_outer_input_rejected:true,
+              actual_operator_dispatch_mounted:false,
+              accepted_cross_uid_custody_verified:false,
+              real_payment_provider_finality_verified:false,
+              protected_high_water_custody_verified:false,
+              installed_nimo_witness_v2_verified:false,
+              production_allocation_mutation_ready:false,
+              presale_activation:false,
+              funds_movement:false
+            };
+            fs.writeFileSync(process.argv[1],JSON.stringify(data,null,2)+"\n");
+          ' combined-${{ matrix.node }}.json
+      - name: Upload deterministic evidence (not an activation receipt)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-original-dualrail-dispatch-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: combined-${{ matrix.node }}.json
+          retention-days: 1
+          if-no-files-found: error
+      - name: Committed change whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact unmerged-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-original-dualrail-dispatch-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./review
+      - name: Require exact three-node byte equality and zero activation authority
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do test -s "review/combined-$version.json"; done
+          cmp review/combined-22.json review/combined-24.json
+          cmp review/combined-22.json review/combined-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const raw=fs.readFileSync("review/combined-22.json");
+            const r=JSON.parse(raw);
+            for(const key of ["frozen_historical_v1_reissued",
+                "actual_operator_dispatch_mounted","accepted_cross_uid_custody_verified",
+                "real_payment_provider_finality_verified","protected_high_water_custody_verified",
+                "installed_nimo_witness_v2_verified","production_allocation_mutation_ready",
+                "presale_activation","funds_movement"])assert.equal(r[key],false,key);
+            for(const key of ["first_original_buyer_wallet_bound",
+                "base_and_ethereum_native_usdc_handoff_synthetic_verified",
+                "same_tx_log_dual_chain_payment_ids_distinct",
+                "durable_allocation_replay_idempotent_synthetic_verified",
+                "hostile_operator_outer_input_rejected"])assert.equal(r[key],true,key);
+            console.log("VOID_BUY_VOID_ORIGINAL_DUALRAIL_DISPATCH_COMPOSE_THREE_NODE_GREEN");
+            console.log("source_receipt_sha256="+crypto.createHash("sha256").update(raw).digest("hex"));
+            console.log("production_allocation_mutation_ready=false");
+          '
