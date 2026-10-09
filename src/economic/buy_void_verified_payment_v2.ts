@@ -23,6 +23,10 @@ const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+const MAX_SNAPSHOT_TEXT_CODE_UNITS_V2 = 1024 * 1024;
+const MAX_ALLOWED_CHAINS_V2 = 32;
+const MAX_RECEIPT_LOGS_V2 = 4096;
+const MAX_LOG_TOPICS_V2 = 16;
 // Current coupled checkout uses chain-native USDC, not an env-chosen ERC-20.
 const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
   base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -174,6 +178,12 @@ function ownDataFieldV2(
   ) {
     return null;
   }
+  if (
+    typeof descriptor.value === "string" &&
+    descriptor.value.length > MAX_SNAPSHOT_TEXT_CODE_UNITS_V2
+  ) {
+    return null;
+  }
   return Object.freeze({
     present: true,
     value: descriptor.value,
@@ -197,6 +207,7 @@ function snapshotSelectedDataRecordV2(
 
 function snapshotDataArrayV2(
   value: unknown,
+  maxItems: number,
 ): readonly unknown[] | null {
   if (
     !value ||
@@ -207,17 +218,24 @@ function snapshotDataArrayV2(
   ) {
     return null;
   }
+  const length = value.length;
+  if (
+    !Number.isSafeInteger(maxItems) ||
+    maxItems < 0 ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > maxItems
+  ) {
+    return null;
+  }
   const descriptors =
     Object.getOwnPropertyDescriptors(value) as unknown as Record<
       PropertyKey,
       PropertyDescriptor
     >;
   const ownKeys = Reflect.ownKeys(descriptors);
-  const length = descriptors["length"]?.value;
   if (
     ownKeys.some((key) => typeof key !== "string") ||
-    !Number.isSafeInteger(length) ||
-    length < 0 ||
     ownKeys.length !== length + 1
   ) {
     return null;
@@ -232,6 +250,12 @@ function snapshotDataArrayV2(
     ) {
       return null;
     }
+    if (
+      typeof descriptor.value === "string" &&
+      descriptor.value.length > MAX_SNAPSHOT_TEXT_CODE_UNITS_V2
+    ) {
+      return null;
+    }
     out.push(descriptor.value);
   }
   return Object.freeze(out);
@@ -239,23 +263,15 @@ function snapshotDataArrayV2(
 
 function snapshotDataMapV2(
   value: unknown,
+  keys: readonly string[],
 ): Readonly<Record<string, unknown>> | null {
   const recordValue = plainDataRecordV2(value);
   if (!recordValue) return null;
-  const descriptors = Object.getOwnPropertyDescriptors(recordValue);
-  const keys = Reflect.ownKeys(descriptors);
-  if (keys.some((key) => typeof key !== "string")) return null;
   const out: Record<string, unknown> = Object.create(null);
-  for (const key of keys as string[]) {
-    const descriptor = descriptors[key];
-    if (
-      !descriptor ||
-      descriptor.enumerable !== true ||
-      !Object.hasOwn(descriptor, "value")
-    ) {
-      return null;
-    }
-    out[key] = descriptor.value;
+  for (const key of keys) {
+    const field = ownDataFieldV2(recordValue, key);
+    if (!field) return null;
+    if (field.present) out[key] = field.value;
   }
   return Object.freeze(out);
 }
@@ -317,17 +333,27 @@ function snapshotPolicyV2(
   if (!selected) return null;
 
   if (Object.hasOwn(selected, "allowed_chains")) {
-    const allowed = snapshotDataArrayV2(selected.allowed_chains);
+    const allowed = snapshotDataArrayV2(
+      selected.allowed_chains,
+      MAX_ALLOWED_CHAINS_V2,
+    );
     if (!allowed) return null;
     selected.allowed_chains = allowed;
   }
+  const reviewedChains = Array.isArray(selected.allowed_chains)
+    ? [...new Set(
+        selected.allowed_chains
+          .map((value) => normalizeChain(value))
+          .filter(Boolean),
+      )]
+    : [];
   for (const key of [
     "usdc_contract_by_chain",
     "receive_address_by_chain",
     "current_block_number_by_chain",
   ]) {
     if (!Object.hasOwn(selected, key)) continue;
-    const map = snapshotDataMapV2(selected[key]);
+    const map = snapshotDataMapV2(selected[key], reviewedChains);
     if (!map) return null;
     selected[key] = map;
   }
@@ -358,7 +384,10 @@ function snapshotReceiptV2(
   ]);
   if (!selected) return null;
   if (Object.hasOwn(selected, "logs")) {
-    const rawLogs = snapshotDataArrayV2(selected.logs);
+    const rawLogs = snapshotDataArrayV2(
+      selected.logs,
+      MAX_RECEIPT_LOGS_V2,
+    );
     if (!rawLogs) return null;
     const logs: Readonly<Record<string, unknown>>[] = [];
     for (const rawLog of rawLogs) {
@@ -368,7 +397,10 @@ function snapshotReceiptV2(
       );
       if (!log) return null;
       if (Object.hasOwn(log, "topics")) {
-        const topics = snapshotDataArrayV2(log.topics);
+        const topics = snapshotDataArrayV2(
+          log.topics,
+          MAX_LOG_TOPICS_V2,
+        );
         if (!topics) return null;
         log.topics = topics;
       }
