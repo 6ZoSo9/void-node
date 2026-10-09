@@ -330,6 +330,16 @@ const event = (row: any) => ({
   marked_at_ms: 1,
   payment_verifier: { chain: row.source_chain },
 });
+// The writer is evaluated in a separate VM realm. Build only its synthetic
+// caller fixtures in that same realm so the strict plain-record validator
+// tests real data rather than rejecting host-realm Object.prototype.
+const vmPlainJsonCopy = (value: any): any =>
+  vm.runInContext("JSON.parse", context)(JSON.stringify(value));
+assert.equal(
+  Object.getPrototypeOf(vmPlainJsonCopy({})),
+  vm.runInContext("Object.prototype", context),
+);
+
 const a = request("a", 10.1);
 const b = request("b", 10.2);
 rows.push(a, b, request("c", 8));
@@ -441,7 +451,9 @@ events.splice(0, events.length, event(a));
 operations = 0;
 let launchCalls = 0;
 const write = () => context.writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-  event: event(b), request: b, request_dir: requestDir, read_sale_state: sale,
+  event: vmPlainJsonCopy(event(b)),
+  request: vmPlainJsonCopy(b),
+  request_dir: requestDir, read_sale_state: sale,
   with_launch_authority_mutation: (
     _request: any,
     operation: (assert_current_authority: () => any) => any,
