@@ -29,7 +29,7 @@ const gitBlob = crypto.createHash("sha1")
 assert.equal(gitBlob, EXPECTED_OBSERVER_GIT_BLOB,
   "repaired reviewed total-deadline observer source must not drift");
 const GUARD_SOURCE = "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts";
-const EXPECTED_GUARD_GIT_BLOB = "1f273163b06668579d19db93cc923a5980be02eb";
+const EXPECTED_GUARD_GIT_BLOB = "36382d833ea41f7c648cdcc6e00967f98cd70192";
 const guardBytes = fs.readFileSync(path.join(ROOT, GUARD_SOURCE));
 assert.equal(crypto.createHash("sha1")
   .update(Buffer.from("blob " + guardBytes.byteLength + "\0", "utf8"))
@@ -163,6 +163,13 @@ for(const [rail,id,hex] of [
       return "base";
     },
   });
+  const directHeld=classifyBuyVoidCanonicalPaymentRpcRailV1(accessorPolicy);
+  assert.equal(directHeld.ok,false);
+  if(directHeld.ok===false) {
+    assert.equal(directHeld.reason,"canonical_payment_rpc_policy_accessor_forbidden");
+  }
+  assert.equal(policyGetterCalls,0,
+    "direct classifier executed policy getter");
   const mock=fixture("0x2105");
   const held=await observeBuyVoidCanonicalRailPaymentV1({
     request:request("base"),policy:accessorPolicy,transport:mock.transport,
@@ -186,6 +193,10 @@ for(const [rail,id,hex] of [
       return Reflect.getOwnPropertyDescriptor(target,key);
     },
   });
+  const directHeld=classifyBuyVoidCanonicalPaymentRpcRailV1(proxyPolicy);
+  assert.equal(directHeld.ok,false);
+  assert.equal(policyProxyTraps,0,
+    "direct classifier executed policy Proxy trap");
   const mock=fixture("0x2105");
   const held=await observeBuyVoidCanonicalRailPaymentV1({
     request:request("base"),policy:proxyPolicy,transport:mock.transport,
@@ -315,6 +326,8 @@ console.log("wrong_chain_id_held_before_RPC=true");
 console.log("mismatched_request_chain_held_before_RPC=true");
 console.log("policy_accessor_rejected_without_invocation=true");
 console.log("policy_proxy_rejected_without_traps=true");
+console.log("direct_classifier_policy_accessor_rejected_without_invocation=true");
+console.log("direct_classifier_policy_proxy_rejected_without_traps=true");
 console.log("request_accessor_rejected_without_invocation=true");
 console.log("request_proxy_rejected_without_traps=true");
 console.log("post_admission_policy_request_mutation_ignored=true");
