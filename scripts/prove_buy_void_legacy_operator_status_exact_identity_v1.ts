@@ -11,7 +11,7 @@ import {
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const EXPECTED_WRITER_BLOB="b5d0a66b9cf416691c60801406a2e376cf649c79";
+const EXPECTED_WRITER_BLOB="cfd4743103682f20c4b174e1c87aba0458590d12";
 const source=fs.readFileSync(path.join(ROOT,"src/economic/buy_void_verified_payment_capacity_admission_v1.ts"));
 const blob=crypto.createHash("sha1")
   .update(Buffer.from("blob "+source.length+"\0","utf8")).update(source).digest("hex");
@@ -24,6 +24,9 @@ assert.ok(writer.includes('Object.getOwnPropertyDescriptor(event, "toJSON")'));
 assert.ok(writer.includes("const canonicalOperatorEvent ="));
 assert.ok(writer.includes("const operatorEventLine = canonicalOperatorEvent.line"));
 assert.ok(writer.includes("buy_void_operator_event_capacity_status_changed_during_snapshot"));
+assert.ok(text.includes("utilTypes.isProxy(value)"));
+assert.ok(text.includes("Object.create(null)"));
+assert.ok(text.includes('Object.defineProperty(clone, "toJSON"'));
 assert.ok(writer.indexOf('fail("buy_void_operator_event_capacity_status_noncanonical")') <
   writer.indexOf("fs.mkdirSync(requestDir"),"status admission must precede filesystem mutation");
 assert.equal(writer.includes('JSON.stringify(event) + "\\n"'),false,
@@ -132,6 +135,126 @@ try {
   assert.equal(fs.existsSync(toJsonRoot),false,
     "top-level toJSON event mutated filesystem");
 
+  // Ambient prototype JSON hooks must not regain authority after the caller
+  // event is validated. Detached objects are null-prototype and detached
+  // arrays shadow toJSON.
+  const objectToJsonBefore =
+    Object.getOwnPropertyDescriptor(Object.prototype, "toJSON");
+  const arrayToJsonBefore =
+    Object.getOwnPropertyDescriptor(Array.prototype, "toJSON");
+  let objectPrototypeToJsonCalls=0;
+  let arrayPrototypeToJsonCalls=0;
+  try {
+    Object.defineProperty(Object.prototype,"toJSON",{
+      value(){
+        objectPrototypeToJsonCalls+=1;
+        return {
+          request_id:REQUEST_ID,
+          operator_status:"payment_verified",
+          marked_at_ms:126,
+        };
+      },
+      enumerable:false,writable:true,configurable:true,
+    });
+    Object.defineProperty(Array.prototype,"toJSON",{
+      value(){
+        arrayPrototypeToJsonCalls+=1;
+        return ["mutated"];
+      },
+      enumerable:false,writable:true,configurable:true,
+    });
+    const inheritedRoot=path.join(temp,"inherited-prototype-root");
+    const result=await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event:{
+        request_id:REQUEST_ID,
+        operator_status:"reviewed",
+        marked_at_ms:126,
+        detail:{items:["safe"]},
+      },
+      request:makeReq(),
+      request_dir:inheritedRoot,
+      with_launch_authority_mutation:noopLaunch,
+      read_sale_state:noopSale,
+    });
+    assert.equal(result.ok,true);
+    assert.equal(objectPrototypeToJsonCalls,0,
+      "Object.prototype.toJSON executed during writer snapshot");
+    assert.equal(arrayPrototypeToJsonCalls,0,
+      "Array.prototype.toJSON executed during writer snapshot");
+    const rows=fs.readFileSync(
+      path.join(inheritedRoot,"operator-events.jsonl"),"utf8",
+    ).trim().split("\n").filter(Boolean).map((line)=>JSON.parse(line));
+    assert.equal(rows.length,1);
+    assert.equal(rows[0].operator_status,"reviewed");
+    assert.deepEqual(rows[0].detail.items,["safe"]);
+  } finally {
+    if(objectToJsonBefore) {
+      Object.defineProperty(Object.prototype,"toJSON",objectToJsonBefore);
+    } else {
+      delete (Object.prototype as any).toJSON;
+    }
+    if(arrayToJsonBefore) {
+      Object.defineProperty(Array.prototype,"toJSON",arrayToJsonBefore);
+    } else {
+      delete (Array.prototype as any).toJSON;
+    }
+  }
+
+  // Nested executable JSON hooks are rejected before invocation and before
+  // filesystem mutation, not merely rebound after serialization.
+  const nestedToJsonRoot=path.join(temp,"nested-tojson-root");
+  let nestedToJsonCalls=0;
+  await assert.rejects(
+    ()=>writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event:{
+        request_id:REQUEST_ID,
+        operator_status:"reviewed",
+        marked_at_ms:127,
+        detail:{
+          toJSON(){
+            nestedToJsonCalls+=1;
+            return {operator_status:"payment_verified"};
+          },
+        },
+      },
+      request:makeReq(),
+      request_dir:nestedToJsonRoot,
+      with_launch_authority_mutation:noopLaunch,
+      read_sale_state:noopSale,
+    }),
+    /buy_void_verified_payment_allocation_event_tojson_forbidden/u,
+  );
+  assert.equal(nestedToJsonCalls,0);
+  assert.equal(fs.existsSync(nestedToJsonRoot),false);
+
+  const nestedGetterRoot=path.join(temp,"nested-getter-root");
+  let nestedGetterCalls=0;
+  const nested:any={};
+  Object.defineProperty(nested,"value",{
+    enumerable:true,
+    get(){
+      nestedGetterCalls+=1;
+      return "payment_verified";
+    },
+  });
+  await assert.rejects(
+    ()=>writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event:{
+        request_id:REQUEST_ID,
+        operator_status:"reviewed",
+        marked_at_ms:128,
+        detail:nested,
+      },
+      request:makeReq(),
+      request_dir:nestedGetterRoot,
+      with_launch_authority_mutation:noopLaunch,
+      read_sale_state:noopSale,
+    }),
+    /buy_void_verified_payment_allocation_event_accessor_or_nondata_property/u,
+  );
+  assert.equal(nestedGetterCalls,0);
+  assert.equal(fs.existsSync(nestedGetterRoot),false);
+
   // Exercise the ACTUAL descriptor-bound capacity census on synthetic
   // private JSONL files; no RPC, signer, live ledger or wallet is involved.
   const ledger=path.join(temp,"capacity-only");
@@ -174,6 +297,9 @@ try {
   console.log("computed_status_object_toJSON_alias_rejected=true");
   console.log("stateful_status_getter_rejected_without_invocation=true");
   console.log("top_level_toJSON_rejected_without_invocation=true");
+  console.log("inherited_prototype_toJSON_not_invoked=true");
+  console.log("nested_toJSON_rejected_without_invocation=true");
+  console.log("nested_accessor_rejected_without_invocation=true");
   console.log("legacy_recount_rejects_trimmed_verified_alias=true");
   console.log("canonical_reviewed_and_rejected_still_nonpayment=true");
   console.log("canonical_verified_capacity_recount_preserved=true");
