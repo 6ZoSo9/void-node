@@ -76,7 +76,7 @@ jobs:
             const candidate = JSON.parse(fs.readFileSync(file, "utf8"));
             assert.equal(candidate.schema, "void_buy_void_enforcement_artifact_v5_candidate");
             assert.equal(candidate.version, 5);
-            assert.equal(candidate.source_runtime_parent, "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c");
+            assert.equal(candidate.source_runtime_parent, "3533626d7167c98ba8d65d2c423b460b1a3199fc");
             assert.ok(candidate.closed_runtime_artifacts.some(
               entry => entry.path === "dist/economic/buy_void_source_finality_generation_provenance_v6.js"));
             assert.ok(!candidate.closed_runtime_artifacts.some(
