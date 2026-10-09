@@ -17,7 +17,7 @@ const SOURCE = fileURLToPath(new URL(
   "../src/economic/buy_void_custody_high_water_exclusive_lock_v1.mjs",
   import.meta.url,
 ));
-const SOURCE_GIT_BLOB = "1785709f55fa707c126a32f3909111d019156233";
+const SOURCE_GIT_BLOB = "90543eccebad8efe1d5299a318d1d894dba9cd00";
 const LOCK_NAME = ".void-buy-custody-high-water-exclusive-v1.lock";
 const bytes = fs.readFileSync(SOURCE);
 const actualBlob = crypto.createHash("sha1")
@@ -27,6 +27,11 @@ assert.equal(actualBlob, SOURCE_GIT_BLOB, "owner source changed: re-review fault
 assert.equal(process.platform, "linux");
 assert.ok(typeof process.getuid === "function" && process.getuid() > 0,
   "nonroot synthetic Linux runner required");
+assert.equal(POLICY.callback_failure_lock_retained, true);
+assert.equal(POLICY.pre_release_failure_lock_retained, true);
+assert.equal(POLICY.durable_release_success_requires_parent_fsync, true);
+assert.equal(POLICY.post_rmdir_fsync_failure_lock_retention_guaranteed, false);
+assert.equal(POLICY.release_failure_requires_separate_recovery_authority, true);
 for (const flag of [
   "custody_high_water_writer_implemented",
   "installed_custody_service_uid_qualified",
