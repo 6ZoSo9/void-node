@@ -208,7 +208,7 @@ function snapshotDataArrayV2(
     return null;
   }
   const descriptors =
-    Object.getOwnPropertyDescriptors(value) as Record<
+    Object.getOwnPropertyDescriptors(value) as unknown as Record<
       PropertyKey,
       PropertyDescriptor
     >;

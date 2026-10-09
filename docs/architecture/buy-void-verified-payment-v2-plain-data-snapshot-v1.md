@@ -20,7 +20,7 @@ Primitive-boundary predecessor V2 blob:
 
 Plain-data-snapshot V2 blob:
 
-`96fe5e418e6b99f90ebdcd88ff76bd78283b357b`
+`af8bf48fc43a57fac7032a5a6027d1b03aa37054`
 
 ## Snapshot rules
 
