@@ -32,6 +32,8 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2_POLICY =
     caller_supplied_journal_bytes_authority: false,
     caller_supplied_receipt_bytes_authority: false,
     caller_supplied_high_water_bytes_authority: false,
+    caller_supplied_clock_authority: false,
+    trusted_server_clock_required_before_runtime_use: true,
     observed_bytes_must_be_server_descriptor_bound_before_runtime_use: true,
     caller_supplied_verified_boolean_authority: false,
     caller_supplied_anchor_path_authority: false,
@@ -467,21 +469,6 @@ function classifyCore({
   try {
     sourceGate = normalizedSourceGate(source_gate);
     const journalState = activeJournalState(generation_journal_bytes);
-    const candidateBytes = buildBuyVoidCustodyLaunchHighWaterV2({
-      source_composition_id: sourceGate.composition_id,
-      sequence: journalState.sequence,
-      generation: journalState.generation,
-      tip_sha256: journalState.tip_sha256,
-      journal_prefix_sha256: sha256Id(generation_journal_bytes),
-    });
-    candidate = Object.freeze({
-      sequence: journalState.sequence,
-      generation: journalState.generation,
-      tip_sha256: journalState.tip_sha256,
-      journal_prefix_sha256: sha256Id(generation_journal_bytes),
-      json: candidateBytes.toString("utf8"),
-      sha256: sha256Id(candidateBytes),
-    });
 
     const { receipt, receipt_sha256 } = parseReceipt(
       activation_receipt_bytes,
@@ -501,6 +488,22 @@ function classifyCore({
       expected_activation_signer,
       expected_sovereign_signer,
     );
+
+    const candidateBytes = buildBuyVoidCustodyLaunchHighWaterV2({
+      source_composition_id: sourceGate.composition_id,
+      sequence: journalState.sequence,
+      generation: journalState.generation,
+      tip_sha256: journalState.tip_sha256,
+      journal_prefix_sha256: sha256Id(generation_journal_bytes),
+    });
+    candidate = Object.freeze({
+      sequence: journalState.sequence,
+      generation: journalState.generation,
+      tip_sha256: journalState.tip_sha256,
+      journal_prefix_sha256: sha256Id(generation_journal_bytes),
+      json: candidateBytes.toString("utf8"),
+      sha256: sha256Id(candidateBytes),
+    });
 
     const highWater = verifyHighWaterLineage(
       generation_journal_bytes,
@@ -554,23 +557,30 @@ function classifyCore({
     const reason = message.startsWith("custody_launch_authority_")
       ? message.slice("custody_launch_authority_".length)
       : "held";
-    return held(reason, sourceGate?.composition_id ?? null, candidate);
+    return held(reason, sourceGate?.composition_id ?? null, null);
   }
 }
 
-export function classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
-  generation_journal_bytes,
-  activation_receipt_bytes,
-  custody_high_water_bytes,
-  now_ms = Date.now(),
-}) {
+export function classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2(input = {}) {
+  if (
+    input &&
+    typeof input === "object" &&
+    Object.prototype.hasOwnProperty.call(input, "now_ms")
+  ) {
+    return held("caller_supplied_clock_forbidden");
+  }
+  const {
+    generation_journal_bytes,
+    activation_receipt_bytes,
+    custody_high_water_bytes,
+  } = input;
   const sourceGate = readBuyLaunchSourceGateV1();
   return classifyCore({
     source_gate: sourceGate,
     generation_journal_bytes,
     activation_receipt_bytes,
     custody_high_water_bytes,
-    now_ms,
+    now_ms: Date.now(),
     expected_activation_signer:
       VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
     expected_sovereign_signer:
