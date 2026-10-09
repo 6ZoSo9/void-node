@@ -34,8 +34,9 @@ only ephemeral `127.0.0.1` HTTP fixture listeners. No external DNS,
 real RPC, user service, wallet, signer or customer record is accessed.
 It tests valid observations, rejected write methods, a continuously
 dripping response that stays below the socket idle limit, oversized
-body, non-2xx forged JSON, mismatched ID, invalid content-type,
-disabled observer, and external cleartext-URL rejection.
+body, a prematurely aborted partial response, non-2xx forged JSON,
+mismatched ID, invalid content-type, disabled observer, and external
+cleartext-URL rejection.
 
 The Node 22/24/26 matrix compiles the exact unmerged head and checks
 each synthetic proof plus byte-identical deterministic evidence in a
@@ -45,14 +46,14 @@ movement flags must remain false.
 ## Composition and release hold
 
 This is **NOT** the complete production operator-route repair.
-In [integration Draft #2675](https://github.com/6ZoSo9/void-node/pull/2675),
-the authenticated Base payment route still uses the separate ad-hoc
-`__voidBuyVoidRpcV1` fetch helper for receipt and block-number calls.
-Hardening the reviewed observer alone does **not** make that route
-consume this bounded transport. The operator producer must be
-separately refactored to use a server-controlled reviewed RPC transport
-with real chain/provider identity and linked payment/source-finality
-requirements, under the owning integration PR's source review.
+Current [integration Draft #2675](https://github.com/6ZoSo9/void-node/pull/2675)
+has separately removed the ad-hoc `__voidBuyVoidRpcV1` helper and routes
+Base payment observation through the reviewed payment observer. However #2675
+still consumes the historical V6-pinned observer blob
+`eb924f8e5376d0ed62c11456b46f1915eccd32fc`; it does **not** consume this
+total-deadline successor. Composing this source change therefore requires a new
+reviewed source-finality / compiled / enforcement generation rather than a
+silent repin inside #2675.
 
 Changing this shared RPC observer also changes a reviewed economic
 source and its emitted compiled artifact. Historical V5 source,
