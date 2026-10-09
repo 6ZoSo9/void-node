@@ -70,6 +70,7 @@ jobs:
             'same_state_noop_requires_no_fence=true' \
             'rollback_same_sequence_conflict_cross_source_hold=true' \
             'tampered_or_noncanonical_fence_record_rejected=true' \
+            'array_wrapped_authority_strings_rejected=true' \
             'removable_lock_required=false' \
             'lock_release_fsync_dependency=false' \
             'filesystem_write_implemented=false' \
