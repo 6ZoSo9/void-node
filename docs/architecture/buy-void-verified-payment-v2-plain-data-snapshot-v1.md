@@ -35,7 +35,13 @@ The verifier now:
 - snapshots policy maps from own enumerable data properties;
 - snapshots checkout payment instructions before consistency checks;
 - snapshots receipt logs and their topic arrays before transfer matching; and
-- uses only the detached snapshots for the rest of verification.
+- uses only the detached snapshots for the rest of verification;
+- caps the reviewed chain allowlist at 32 entries, receipt logs at 4096 and
+  per-log topics at 16 **before** allocating array descriptor tables;
+- caps reviewed string fields at 1 MiB; and
+- reads policy maps only for normalized allowlisted chains through exact own
+  data descriptors, so unrelated enumerable properties/getters are neither
+  enumerated nor executed.
 
 Unknown top-level/request fields are not traversed merely because they exist;
 only fields used by this verifier enter the snapshot boundary.
@@ -60,7 +66,9 @@ getters/Proxy traps remain completely unexecuted:
 
 The same proof requires ordinary null-prototype data records to remain accepted
 and to produce the exact same canonical verified event as the plain-object
-control.
+control. It additionally proves oversized allowlist/log arrays HOLD before
+descriptor-table allocation, an unrelated policy-map getter is not enumerated,
+and oversized reviewed text HOLDs at snapshot admission.
 
 ## Downstream boundary
 
