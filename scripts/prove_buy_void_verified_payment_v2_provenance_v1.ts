@@ -274,7 +274,7 @@ for (const [patch, reason] of [
   [{ payment_chain_id: 1 }, "original_request_payment_chain_id_mismatch"],
   [{ payment_chain_id: "8453" }, "original_request_payment_chain_id_mismatch"],
   [{ payment_instructions: undefined },
-    "original_request_payment_instructions_missing_or_invalid"],
+    "payment_input_not_plain_data"],
   [{ payment_instructions: { ...checkout.payment_instructions, send_chain: "ethereum" } },
     "original_request_payment_instruction_chain_mismatch"],
   [{ payment_instructions: { ...checkout.payment_instructions, send_chain_id: 1 } },
@@ -304,6 +304,18 @@ for (const [patch, reason] of [
     policy: canonicalPolicy,
   }), reason);
 }
+
+// Distinguish a genuinely absent legacy instruction field from an explicitly
+// present undefined value. The latter now fails earlier at the reviewed
+// pre-serialization plain-data boundary; the former still reaches the exact
+// missing-instructions semantic guard without executing caller callbacks.
+const noInstructionRequest = { ...checkout };
+delete (noInstructionRequest as Record<string, unknown>).payment_instructions;
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: noInstructionRequest,
+  receipt: canonicalReceipt,
+  policy: canonicalPolicy,
+}), "original_request_payment_instructions_missing_or_invalid");
 
 const caseInsensitiveNative = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
   request: {
