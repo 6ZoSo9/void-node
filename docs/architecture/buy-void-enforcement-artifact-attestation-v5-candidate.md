@@ -4,23 +4,25 @@
 
 This Draft derives an **unaccepted enforcement V5 candidate** from current
 runtime V6 bridge #2638 at exact source parent
-`4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c`.
+`3533626d7167c98ba8d65d2c423b460b1a3199fc`.
 
 Historical enforcement V1/V4 and source-finality V3/V5 attestations remain
-immutable. They are predecessor evidence, not values to repin.
+immutable predecessor evidence. The source-finality compiled V4 manifest named
+below is the separately reviewed current successor evidence; historical V4
+identities are not rewritten.
 
 Current source identities bound by the candidate:
 
 - execution preflight:
   `b61615c8b928a95c33100878ca70aa147abad103`;
 - V6 source-finality:
-  `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
+  `e7ac4c296930587e7b7ec415e57bb18190c88962`;
 - finalized V2 verifier:
   `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
 - current locked compiled V4 manifest:
-  `a07f2e9b03958a58280c4d940fe49097a9413af5`;
+  `03e31b1fe739e110f54eebad3c028adf908a21bf`;
 - locked compiled generation:
-  `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`.
+  `2795a591588aeb31d5f144a3a128079b05f29a3d712a182dd7071452687aa203`.
 
 The old enforcement V4 set
 `854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`
