@@ -6,7 +6,7 @@ Status: **source-only read capability / production HOLD**.
 
 Exact source Git blob: `7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325`.
 
-Focused proof Git blob: `064d8c19d8fdc0979ecb280cc51ca3bc7fbc3ab3`.
+Focused proof Git blob: `2771a03bdfa130fba169ce81c3d7212f3ff33011` (descriptor-timed mutation test; source reader identity unchanged).
 
 ## Purpose
 
@@ -70,6 +70,16 @@ public payment-admission serialization protocol so a second verified payment
 cannot become durable while an earlier verified allocation is unresolved.
 
 ## Adversarial proof
+
+The cross-file mutation adversary identifies the **actual operator-events
+descriptor by device and inode**, then appends to `requests.jsonl` during
+the operator read. A numeric `fs.readSync` call index is insufficient:
+the first ledger may issue multiple short/sentinel reads before the
+operator ledger begins, in which case the correct earlier fail-closed
+reason is `requests_changed_during_read` rather than the intended
+`requests_changed_during_observation`. This proof now requires both the
+operator-descriptor injection marker and the later observation-stage
+HOLD; it does **not** permit either ledger to change and return bytes.
 
 The proof uses disposable temp files only. It requires:
 

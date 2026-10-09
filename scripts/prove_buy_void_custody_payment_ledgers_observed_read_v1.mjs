@@ -135,16 +135,26 @@ try{
 
   const originalRead=fs.readSync;
   let readCalls=0;
+  let mutatedDuringOperatorRead=false;
+  // Each pinned leaf can require several short reads, including a separate
+  // EOF/sentinel read. The second fs.readSync call is NOT necessarily the
+  // operator ledger. Bind the adversary to the actual operator descriptor.
+  const operatorIdentity=fs.statSync(operatorPath,{bigint:true});
   try{
-    fs.readSync=function(...args){
+    fs.readSync=function(fd,...args){
       readCalls++;
-      if(readCalls===2){
+      const stat=fs.fstatSync(fd,{bigint:true});
+      if(!mutatedDuringOperatorRead&&
+         stat.dev===operatorIdentity.dev&&stat.ino===operatorIdentity.ino){
+        mutatedDuringOperatorRead=true;
         fs.appendFileSync(requestPath,Buffer.from("{}\n","utf8"));
       }
-      return originalRead.apply(fs,args);
+      return originalRead.call(fs,fd,...args);
     };
     requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({request_dir:requestDir}),
       /requests_changed_during_observation/u);
+    assert.equal(mutatedDuringOperatorRead,true,
+      "first-ledger mutation must occur during second-ledger descriptor read");
     assert.ok(readCalls>=2);
   }finally{
     fs.readSync=originalRead;
