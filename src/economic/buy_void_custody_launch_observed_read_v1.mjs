@@ -36,7 +36,7 @@ const sha256 = bytes =>
 const identity = (a, b) =>
   a.dev === b.dev && a.ino === b.ino && a.mode === b.mode &&
   a.nlink === b.nlink && a.size === b.size &&
-  a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+  a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 
 function hold(reason) {
   return Object.freeze({
@@ -96,9 +96,9 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
   let leafFd;
   let walking = "/";
   try {
-    const rootSeen = fs.lstatSync("/");
+    const rootSeen = fs.lstatSync("/", { bigint: true });
     const rootFd = fs.openSync("/", directoryFlags);
-    const rootStat = fs.fstatSync(rootFd);
+    const rootStat = fs.fstatSync(rootFd, { bigint: true });
     heldDirs.push({ fd: rootFd, fullPath: "/", stat: rootStat });
     if (!rootSeen.isDirectory() || !identity(rootSeen, rootStat)) {
       throw new Error("filesystem_root_unbound");
@@ -106,7 +106,7 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
     for (const component of components) {
       const parent = heldDirs.at(-1);
       walking = path.join(walking, component);
-      const visible = fs.lstatSync(walking);
+      const visible = fs.lstatSync(walking, { bigint: true });
       if (!visible.isDirectory() || visible.isSymbolicLink()) {
         throw new Error("untrusted_directory_ancestor");
       }
@@ -114,7 +114,7 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
         "/proc/self/fd/" + parent.fd + "/" + component,
         directoryFlags,
       );
-      const stat = fs.fstatSync(fd);
+      const stat = fs.fstatSync(fd, { bigint: true });
       heldDirs.push({ fd, fullPath: walking, stat });
       if (!stat.isDirectory() || !identity(visible, stat)) {
         throw new Error("directory_ancestor_fd_mismatch");
@@ -123,34 +123,34 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
     const parentDir = heldDirs.at(-1);
     if (privateCustody) {
       const uid = typeof process.getuid === "function"
-        ? process.getuid() : null;
+        ? BigInt(process.getuid()) : null;
       if (uid === null || parentDir.stat.uid !== uid ||
-          (parentDir.stat.mode & 0o077) !== 0) {
+          (parentDir.stat.mode & 0o077n) !== 0n) {
         throw new Error("custody_private_directory_unqualified");
       }
     }
-    const expected = fs.lstatSync(absolute);
+    const expected = fs.lstatSync(absolute, { bigint: true });
     if (!expected.isFile() || expected.isSymbolicLink() ||
-        expected.nlink !== 1 || expected.size < 1 ||
-        expected.size > maxBytes) {
+        expected.nlink !== 1n || expected.size < 1n ||
+        expected.size > BigInt(maxBytes)) {
       throw new Error("untrusted_observation_leaf");
     }
     leafFd = fs.openSync(
       "/proc/self/fd/" + parentDir.fd + "/" + basename,
       fileFlags,
     );
-    const before = fs.fstatSync(leafFd);
-    if (!before.isFile() || before.nlink !== 1 ||
+    const before = fs.fstatSync(leafFd, { bigint: true });
+    if (!before.isFile() || before.nlink !== 1n ||
         !identity(before, expected)) {
       throw new Error("leaf_descriptor_path_mismatch");
     }
     if (privateCustody) {
-      const uid = process.getuid();
-      if (before.uid !== uid || (before.mode & 0o077) !== 0) {
+      const uid = BigInt(process.getuid());
+      if (before.uid !== uid || (before.mode & 0o077n) !== 0n) {
         throw new Error("custody_high_water_private_file_unqualified");
       }
     }
-    const cap = before.size + 1;
+    const cap = Number(before.size) + 1;
     const bytes = Buffer.alloc(cap);
     let total = 0;
     while (total < cap) {
@@ -158,21 +158,21 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
       if (n === 0) break;
       total += n;
     }
-    if (total !== before.size) {
+    if (BigInt(total) !== before.size) {
       throw new Error("bound_source_growth_or_truncation");
     }
-    const after = fs.fstatSync(leafFd);
-    const visibleAfter = fs.lstatSync(absolute);
+    const after = fs.fstatSync(leafFd, { bigint: true });
+    const visibleAfter = fs.lstatSync(absolute, { bigint: true });
     if (!identity(before, after) || !visibleAfter.isFile() ||
         visibleAfter.isSymbolicLink() ||
         !identity(visibleAfter, after)) {
       throw new Error("observation_leaf_changed");
     }
     for (const dir of heldDirs) {
-      const current = fs.lstatSync(dir.fullPath);
+      const current = fs.lstatSync(dir.fullPath, { bigint: true });
       if (!current.isDirectory() || current.isSymbolicLink() ||
           !identity(current, dir.stat) ||
-          !identity(fs.fstatSync(dir.fd), dir.stat)) {
+          !identity(fs.fstatSync(dir.fd, { bigint: true }), dir.stat)) {
         throw new Error("observation_ancestor_rebound");
       }
     }
