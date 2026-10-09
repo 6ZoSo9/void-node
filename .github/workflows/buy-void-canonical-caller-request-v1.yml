@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = 496715e7ae2941663908976a4a3f4efd7c6199cf
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = f591f7407d9afc2cf77e0f90923aa11b4817fd4e
           test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = 970e686cd96b43d496c44acb4ff343a5e61e26c5
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
