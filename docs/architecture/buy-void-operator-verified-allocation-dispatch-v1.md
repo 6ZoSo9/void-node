@@ -28,9 +28,16 @@ objects are accepted; Node-detectable Proxy objects, accessors, symbol keys,
 functions, `toJSON` callbacks, non-plain prototypes and unsupported values
 HOLD before caller traps/callbacks are invoked. The walk
 enforces depth, node/key, array, key-text and value-text limits and an exact
-encoded JSON budget capped at 256 KiB. Only after that preflight does it
-serialize the detached clone, verify the computed byte budget, parse it back,
-deep-freeze it, and require matching nonempty request IDs.
+encoded JSON budget capped at 256 KiB. Detached plain objects use a null
+prototype, and detached arrays shadow inherited `toJSON`, so ambient
+`Object.prototype` / `Array.prototype` hooks cannot become serialization
+authority. Only after that preflight does it serialize the detached clone,
+verify the computed byte budget, and deep-freeze the same prototype-isolated
+clone; it does not parse the JSON back into ordinary-prototype objects.
+
+The event and request `request_id` fields must both be nonempty primitive
+strings and must be exactly equal. Arrays, numbers or other values are not
+coerced with `String(...)` into authority.
 
 Before validation it also captures the request root, both allocation roots and
 both server callbacks exactly once. The frozen plan retains those exact values,
@@ -78,9 +85,11 @@ executing `ownKeys`/descriptor traps, a 4 MiB text adversary
 that must HOLD before full `JSON.stringify`, deep nesting that must HOLD at
 the structural depth gate, a 5,000-key object that must stop at the key-count
 gate without constructing a complete descriptor table or JSON string, a sparse
-array that must not fall through to inherited index lookup, stateful
-root/callback getters that must each be read exactly once, exact nonpayment
-preservation, rejection of
+array that must not fall through to inherited index lookup, synthetic
+`Object.prototype.toJSON` and `Array.prototype.toJSON` hooks that must never
+execute or alter route classification, array/numeric request-ID coercion
+negatives, stateful root/callback getters that must each be read exactly once,
+exact nonpayment preservation, rejection of
 `payment_verified` whitespace/case aliases and every unknown status,
 invalid/missing/relative/aliased roots, request-ID mismatch and invalid
 callback negatives. The same malformed-status cases are passed through the
