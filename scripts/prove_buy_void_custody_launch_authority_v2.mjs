@@ -15,7 +15,7 @@ import {
   VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2,
   VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2_POLICY,
   buildBuyVoidCustodyLaunchHighWaterV2,
-  readBuyVoidCustodyLaunchAuthorityV2,
+  classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2,
   testOnlyBuildGenerationJournalEventV2,
   testOnlyClassifyBuyVoidCustodyLaunchAuthorityV2,
 } from "../src/economic/buy_void_custody_launch_authority_v2.mjs";
@@ -23,7 +23,7 @@ import {
 const SOURCE =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_SOURCE_BLOB =
-  "8daef632d7ec740d44cc9abf089cce1c1a92f886";
+  "0ab53ab8c615136b7c8c05164d939d78e7885754";
 
 function gitBlob(bytes) {
   return crypto.createHash("sha1")
@@ -59,6 +59,13 @@ assert.equal(policy.shared_generation_journal_required, true);
 assert.equal(policy.custody_private_high_water_required, true);
 assert.equal(policy.custody_high_water_writer_implemented, false);
 assert.equal(policy.caller_supplied_source_gate_authority, false);
+assert.equal(policy.caller_supplied_journal_bytes_authority, false);
+assert.equal(policy.caller_supplied_receipt_bytes_authority, false);
+assert.equal(policy.caller_supplied_high_water_bytes_authority, false);
+assert.equal(
+  policy.observed_bytes_must_be_server_descriptor_bound_before_runtime_use,
+  true,
+);
 assert.equal(policy.custody_reserve_method_enabled, false);
 assert.equal(policy.custody_recover_method_enabled, false);
 assert.equal(policy.production_allocation_mutation_ready, false);
@@ -349,13 +356,32 @@ const rebuiltHighWater3 = buildBuyVoidCustodyLaunchHighWaterV2({
   sequence: 3,
   generation: GEN2,
   tip_sha256: event3.event_sha256,
+  journal_prefix_sha256:
+    "sha256:" + crypto.createHash("sha256").update(journal3).digest("hex"),
 });
 assert.equal(rebuiltHighWater3.equals(highWater3), true);
 
 // The production wrapper deliberately derives the source gate itself. On the
 // current source generation the global verified-payment-capacity readiness is
 // still false, so production classification must remain HOLD.
-const productionHold = readBuyVoidCustodyLaunchAuthorityV2({
+// A raw-byte variation of an already accepted prefix cannot satisfy the
+// custody high-water even if the existing journal semantic classifier accepts
+// the same parsed event values.
+const spacedJournal1 = Buffer.from(
+  journal1.toString("utf8").replace(',"version"', ', "version"'),
+  "utf8",
+);
+const rawPrefixMutation = classify({
+  journalBytes: spacedJournal1,
+  receiptBytes: receipt1,
+  highWaterBytes: highWater1,
+  nowMs: 20_000,
+});
+assert.equal(rawPrefixMutation.ready, false);
+assert.equal(rawPrefixMutation.reason, "high_water_prefix_mismatch");
+
+const productionHold =
+  classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
   generation_journal_bytes: journal1,
   activation_receipt_bytes: receipt1,
   custody_high_water_bytes: highWater1,
@@ -377,9 +403,11 @@ console.log("missing_high_water_bootstrap_HOLD=true");
 console.log("generation_advance_requires_high_water_update=true");
 console.log("custody_high_water_rollback_rejected=true");
 console.log("same_sequence_fork_rejected=true");
+console.log("historical_journal_prefix_byte_mutation_rejected=true");
 console.log("stale_generation_receipt_rejected=true");
 console.log("forged_activation_signature_rejected=true");
 console.log("operator_home_anchor_dependency=false");
+console.log("observed_bytes_not_caller_authority=true");
 console.log("production_source_gate_ready=false");
 console.log("custody_high_water_write_performed=false");
 console.log("custody_reserve_method_enabled=false");
