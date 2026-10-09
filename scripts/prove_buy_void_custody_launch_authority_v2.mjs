@@ -39,6 +39,13 @@ assert.equal(
   "exact custody launch classifier source drift",
 );
 const source = sourceBytes.toString("utf8");
+assert.equal(source.includes('from "node:fs"'), false,
+  "classifier must remain filesystem-I/O free");
+assert.equal(source.includes("userInfo"), false,
+  "classifier must not derive authority from OS-account home");
+assert.equal(source.includes("buyLaunchGenerationExternalAnchorPathV1"), false,
+  "classifier must not read the operator-home external anchor");
+
 for (const required of [
   "verifyBuyLaunchLiveActivationSignatureV1",
   "verifyBuyLaunchLiveActivationSovereignSignatureV1",
@@ -425,6 +432,8 @@ console.log("high_water_prefix_digest_mismatch_rejected=true");
 console.log("stale_generation_receipt_rejected=true");
 console.log("forged_activation_signature_rejected=true");
 console.log("operator_home_anchor_dependency=false");
+console.log("classifier_filesystem_io=false");
+console.log("classifier_userInfo_dependency=false");
 console.log("observed_bytes_not_caller_authority=true");
 console.log("production_source_gate_ready=false");
 console.log("custody_high_water_write_performed=false");
