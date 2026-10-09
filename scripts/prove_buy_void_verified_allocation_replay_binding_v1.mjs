@@ -7,6 +7,7 @@ import {
   VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_AUTHORITY_V1,
   VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1,
   classifyBuyVoidVerifiedAllocationReplayBindingV1,
+  classifyBuyVoidPreappendVerifiedPaymentLineageV1,
 } from "../dist/economic/buy_void_verified_allocation_replay_binding_v1.js";
 import {
   planBuyVoidAllocationReservationV1,
@@ -267,6 +268,86 @@ for (const key of [
 const partialOpening = { ...request, tx_hash: "", receive_address: undefined };
 gap(scan([partialOpening, request], [event]));
 
+// A missing ORIGINAL buyer delivery wallet can never be backfilled into
+// payment/allocated authority by a later, unauthenticated full request row.
+// This gap differs from late tx and receive binding, both still permitted.
+for (const absentBuyerWallet of [undefined, null, ""]) {
+  const first = { ...request, delivery_address: absentBuyerWallet };
+  const late = { ...request, status: "buyer-wallet-backfilled" };
+  hold(scan([first, late], [event]),
+    /request_initial_delivery_address_missing/u);
+  hold(scan([first, late], [event], allocationBytes),
+    /request_initial_delivery_address_missing/u);
+  // The target must HOLD before even treating a never-verified request as
+  // a potentially recoverable allocation/payment obligation.
+  hold(scan([first, late], []),
+    /request_initial_delivery_address_missing/u);
+  const preappend = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([first, late]),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  assert.equal(preappend.ok, false);
+  assert.equal(preappend.status, "held");
+  assert.match(preappend.reason || "",
+    /request_initial_delivery_address_missing/u);
+  assert.equal(preappend.operation_performed, false);
+}
+// Verified payment with the original buyer delivery wallet DOES remain
+// admissible when its transaction hash and receive address are later filled.
+const validLateBinding = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+  request,
+  event,
+  requests_jsonl: buf([partialOpening, request]),
+  prior_operator_events_jsonl: Buffer.alloc(0),
+  allocation_jsonl: Buffer.alloc(0),
+});
+assert.equal(validLateBinding.ok, true, validLateBinding.reason);
+assert.equal(validLateBinding.status, "ready");
+
+// A missing first buyer wallet on an unrelated UNVERIFIED legacy request is
+// scoped negative evidence, not a global denial of a qualified paid request.
+const legacyMissingWallet = {
+  ...request,
+  request_id: "buyvoid_missingwallet_aaaaaaaa",
+  tx_hash: tx("9"),
+  delivery_address: undefined,
+};
+const lateLegacyWallet = {
+  ...legacyMissingWallet,
+  delivery_address: request.delivery_address,
+  status: "retrospective-wallet",
+};
+gap(scan([legacyMissingWallet, lateLegacyWallet, request], [event]));
+good(scan([legacyMissingWallet, lateLegacyWallet, request], [event],
+  allocationBytes), "allocation_present");
+hold(scan([legacyMissingWallet, lateLegacyWallet, request],
+  [event], Buffer.alloc(0), legacyMissingWallet.request_id),
+  /request_initial_delivery_address_missing/u);
+const forgedLegacyVerified = {
+  ...event, request_id: legacyMissingWallet.request_id,
+  tx_hash: legacyMissingWallet.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier,
+    transaction_hash: legacyMissingWallet.tx_hash,
+  },
+};
+hold(scan([legacyMissingWallet, lateLegacyWallet, request],
+  [forgedLegacyVerified, event]),
+  /request_initial_delivery_address_missing/u);
+
+// Once the FIRST wallet is bound, a different later wallet cannot become
+// authoritative even if the verifier also claims that different wallet.
+const changedWallet = addr("7");
+hold(scan([request, { ...request, delivery_address: changedWallet,
+  status: "caller-wallet-rewrite" }], [{
+    ...event,
+    payment_verifier: { ...event.payment_verifier,
+      delivery_address: changedWallet, from_address: changedWallet },
+  }]), /request_history_lineage_drift/u);
+
 // Backfilling a legacy token or launch tuple from a later mutable row cannot
 // convert unqualified original history into a recoverable payment allocation.
 hold(scan([{ ...request, usdc_contract: undefined }, request], [event]),
@@ -459,6 +540,11 @@ console.log("request_chain_alias_conflicts_held=true");
 console.log("unrelated_legacy_chain_alias_conflict_scoped_without_authority=true");
 console.log("fatal_utf8_decoder_error_required_on_allocation_fixture=true");
 console.log("initial_token_and_launch_backfill_held=true");
+console.log("first_original_buyer_delivery_wallet_required=true");
+console.log("later_buyer_wallet_backfill_cannot_authorize_verified_payment=true");
+console.log("unrelated_unverified_missing_buyer_wallet_is_scoped=true");
+console.log("legitimate_late_tx_and_receive_binding_retained=true");
+console.log("preappend_original_buyer_wallet_verified=true");
 console.log("unrelated_unverified_legacy_request_not_global_hold=true");
 console.log("target_and_verified_legacy_initial_qualification_hold=true");
 console.log("nonconsecutive_stale_request_snapshot_replay_held=true");

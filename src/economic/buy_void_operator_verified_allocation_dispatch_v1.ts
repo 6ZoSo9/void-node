@@ -34,6 +34,9 @@ export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1 =
     verified_payment_must_use_allocation_handoff: true,
     legacy_payment_only_writer_for_verified_payment_forbidden: true,
     bounded_plain_data_snapshot_required: true,
+    outer_dispatch_container_plain_data_required: true,
+    outer_dispatch_proxy_or_accessor_authority: false,
+    outer_dispatch_unreviewed_fields_allowed: false,
     pre_serialization_resource_bound_verified: true,
     caller_accessor_or_tojson_authority: false,
     server_controlled_roots_required: true,
@@ -335,18 +338,67 @@ function absolutePrivateRoot(value: unknown): string {
   return value;
 }
 
+const DISPATCH_INPUT_FIELDS_V1 = new Set([
+  "event",
+  "request",
+  "request_dir",
+  "allocation_ledger_root",
+  "allocation_high_water_root",
+  "with_launch_authority_mutation",
+  "read_sale_state",
+]);
+
+function capturePlainDispatchContainerV1(
+  input: unknown,
+): Readonly<BuyVoidOperatorAllocationDispatchInputV1> {
+  // Check the outer container BEFORE evaluating even its first property.
+  // The inner event/request snapshots already enforce their own bounds.
+  if (!input || typeof input !== "object" ||
+      utilTypes.isProxy(input) || Array.isArray(input)) {
+    hold("input_container_not_plain_data");
+  }
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) {
+    hold("input_container_not_plain_data");
+  }
+  const ownKeys = Reflect.ownKeys(input);
+  if (ownKeys.length > DISPATCH_INPUT_FIELDS_V1.size) {
+    hold("input_container_unreviewed_fields");
+  }
+  const detached: Record<string, unknown> = Object.create(null);
+  for (const key of ownKeys) {
+    if (typeof key !== "string" || !DISPATCH_INPUT_FIELDS_V1.has(key)) {
+      hold("input_container_unreviewed_fields");
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !descriptor.enumerable ||
+        !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+      hold("input_container_accessor_or_hidden_field");
+    }
+    Object.defineProperty(detached, key, {
+      value: descriptor.value,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
+  }
+  return Object.freeze(detached) as unknown as
+    Readonly<BuyVoidOperatorAllocationDispatchInputV1>;
+}
+
 export function planBuyVoidOperatorAllocationDispatchV1(
   input: BuyVoidOperatorAllocationDispatchInputV1,
 ) {
-  // Capture every caller-controlled property once. The returned frozen plan
-  // is the only authority dispatch() may consume after validation.
-  const rawEvent = input?.event;
-  const rawRequest = input?.request;
-  const requestDir = input?.request_dir;
-  const allocationLedgerRootRaw = input?.allocation_ledger_root;
-  const allocationHighWaterRootRaw = input?.allocation_high_water_root;
-  const withLaunchAuthorityMutation = input?.with_launch_authority_mutation;
-  const readSaleState = input?.read_sale_state;
+  // The outer input may itself be a Proxy or a getter-bearing object.
+  // Validate that container first; only detached own data may select a writer.
+  const captured = capturePlainDispatchContainerV1(input);
+  const rawEvent = captured.event;
+  const rawRequest = captured.request;
+  const requestDir = captured.request_dir;
+  const allocationLedgerRootRaw = captured.allocation_ledger_root;
+  const allocationHighWaterRootRaw = captured.allocation_high_water_root;
+  const withLaunchAuthorityMutation = captured.with_launch_authority_mutation;
+  const readSaleState = captured.read_sale_state;
   const event = frozenJsonSnapshot(rawEvent, "event");
   const request = frozenJsonSnapshot(rawRequest, "request");
   const requestId = event.request_id;

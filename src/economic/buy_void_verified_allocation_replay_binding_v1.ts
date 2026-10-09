@@ -94,6 +94,9 @@ type RequestState = {
   // an original missing launch/token. Unrelated unverified legacy rows may
   // coexist in the shared request history without authorizing an allocation.
   initialUsdcContractQualified: boolean;
+  // Permanent first-row buyer address evidence. Later snapshots may fill
+  // pending tx/receive fields, but cannot invent an original buyer wallet.
+  initialDeliveryQualified: boolean;
   initialLaunchAuthorityQualified: boolean;
   // Preserve any first or later cross-chain alias conflict as permanent
   // per-request negative evidence, without poisoning unrelated obligations.
@@ -255,6 +258,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
         id, chain: sourceChain, tx, voidMicro: quoted, usdcMicro: usdc,
         delivery, receive, usdcContract, launchAuthority: authority,
         initialUsdcContractQualified: Boolean(usdcContract),
+        initialDeliveryQualified: Boolean(delivery),
         initialLaunchAuthorityQualified: authority !== null,
         sourceAliasesQualified: aliasesQualified,
       });
@@ -282,6 +286,7 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
       usdcContract: prev.usdcContract || usdcContract,
       launchAuthority: prev.launchAuthority || authority,
       initialUsdcContractQualified: prev.initialUsdcContractQualified,
+      initialDeliveryQualified: prev.initialDeliveryQualified,
       initialLaunchAuthorityQualified: prev.initialLaunchAuthorityQualified,
       sourceAliasesQualified: prev.sourceAliasesQualified && aliasesQualified,
     });
@@ -305,6 +310,7 @@ function bindVerifiedEvent(item: HistoryRow, requests: Map<string, RequestState>
   // Require original first-row token/launch evidence for every verified
   // obligation, not merely the requested ID or an already-allocated row.
   if (!request.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");
+  if (!request.initialDeliveryQualified) fail("request_initial_delivery_address_missing");
   if (!request.initialLaunchAuthorityQualified) fail("request_initial_launch_authority_missing");
   if (!request.tx || !request.delivery || !request.receive || request.usdcMicro === null) {
     fail("verified_event_request_lineage_missing");
@@ -372,6 +378,7 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     // Do not describe a legacy target as recoverable even when no verified
     // payment exists. Unrelated unverified legacy rows are not global blockers.
     if (!targetRequest.initialUsdcContractQualified) fail("request_initial_usdc_contract_missing");
+    if (!targetRequest.initialDeliveryQualified) fail("request_initial_delivery_address_missing");
     if (!targetRequest.initialLaunchAuthorityQualified) fail("request_initial_launch_authority_missing");
     const operatorRows = rows(input.operator_events_jsonl, "operator_events");
     const byRequest = new Map<string, VerifiedState>();
@@ -586,6 +593,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
       !original ||
       !original.sourceAliasesQualified ||
       !original.initialUsdcContractQualified ||
+      !original.initialDeliveryQualified ||
       !original.initialLaunchAuthorityQualified ||
       !original.tx ||
       !original.delivery ||
