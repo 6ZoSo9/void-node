@@ -63,6 +63,8 @@ jobs:
             "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'nested_accessor_rejected_without_invocation=true' \
             "operator-status-node-${{ matrix.node }}.txt"
+          grep -Fx 'aggregate_json_budget_holds_before_serialization=true' \
+            "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'legacy_recount_rejects_trimmed_verified_alias=true' \
             "operator-status-node-${{ matrix.node }}.txt"
           grep -Fx 'canonical_verified_capacity_recount_preserved=true' \
