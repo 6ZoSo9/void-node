@@ -33,6 +33,9 @@ export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1 =
     source_only_contract: true,
     verified_payment_must_use_allocation_handoff: true,
     legacy_payment_only_writer_for_verified_payment_forbidden: true,
+    bounded_plain_data_snapshot_required: true,
+    pre_serialization_resource_bound_verified: true,
+    caller_accessor_or_tojson_authority: false,
     server_controlled_roots_required: true,
     pre_serialization_plain_data_bound: true,
     accessor_or_tojson_input_allowed: false,
@@ -264,6 +267,212 @@ function cloneBoundedPlainJsonValueV1(
   }
 }
 
+const SNAPSHOT_MAX_BYTES_V1 = 256 * 1024;
+const SNAPSHOT_MAX_DEPTH_V1 = 16;
+const SNAPSHOT_MAX_NODES_V1 = 4096;
+const SNAPSHOT_MAX_KEYS_V1 = 4096;
+const SNAPSHOT_MAX_ARRAY_ITEMS_V1 = 1024;
+const SNAPSHOT_MAX_KEY_CODE_UNITS_V1 = 256;
+const SNAPSHOT_MAX_TEXT_CODE_UNITS_V1 = 32 * 1024;
+
+type SnapshotBudgetV1 = {
+  bytes: number;
+  nodes: number;
+  keys: number;
+};
+
+function jsonStringByteLengthV1(value: string): number {
+  // Exact UTF-8 byte count of JSON.stringify(string), including quotes,
+  // without constructing the escaped JSON string.
+  let bytes = 2;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (
+      code === 0x22 ||
+      code === 0x5c ||
+      code === 0x08 ||
+      code === 0x09 ||
+      code === 0x0a ||
+      code === 0x0c ||
+      code === 0x0d
+    ) {
+      bytes += 2;
+      continue;
+    }
+    if (code <= 0x1f) {
+      bytes += 6;
+      continue;
+    }
+    if (code <= 0x7f) {
+      bytes += 1;
+      continue;
+    }
+    if (code <= 0x7ff) {
+      bytes += 2;
+      continue;
+    }
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next =
+        index + 1 < value.length ? value.charCodeAt(index + 1) : -1;
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        // JSON.stringify escapes an unpaired surrogate as \udxxx.
+        bytes += 6;
+      }
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      bytes += 6;
+      continue;
+    }
+    bytes += 3;
+  }
+  return bytes;
+}
+
+function addSnapshotBytesV1(
+  budget: SnapshotBudgetV1,
+  bytes: number,
+  label: string,
+): void {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    hold(label + "_invalid");
+  }
+  budget.bytes += bytes;
+  if (budget.bytes > SNAPSHOT_MAX_BYTES_V1) {
+    hold(label + "_size_exceeded");
+  }
+}
+
+function detachedBoundedJsonValueV1(
+  value: unknown,
+  label: string,
+  budget: SnapshotBudgetV1,
+  depth: number,
+): any {
+  if (depth > SNAPSHOT_MAX_DEPTH_V1) {
+    hold(label + "_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > SNAPSHOT_MAX_NODES_V1) {
+    hold(label + "_node_count_exceeded");
+  }
+
+  if (value === null) {
+    addSnapshotBytesV1(budget, 4, label);
+    return null;
+  }
+  if (typeof value === "boolean") {
+    addSnapshotBytesV1(budget, value ? 4 : 5, label);
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) hold(label + "_invalid_number");
+    const encoded = Object.is(value, -0) ? "0" : String(value);
+    addSnapshotBytesV1(budget, encoded.length, label);
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value.length > SNAPSHOT_MAX_TEXT_CODE_UNITS_V1) {
+      hold(label + "_text_size_exceeded");
+    }
+    addSnapshotBytesV1(budget, jsonStringByteLengthV1(value), label);
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    hold(label + "_unsupported_value");
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+
+  if (Array.isArray(value)) {
+    if (prototype !== Array.prototype ||
+        value.length > SNAPSHOT_MAX_ARRAY_ITEMS_V1) {
+      hold(label + "_array_invalid");
+    }
+    const ownKeys = Reflect.ownKeys(descriptors);
+    if (ownKeys.some((key) => typeof key === "symbol")) {
+      hold(label + "_symbol_key_forbidden");
+    }
+    const stringKeys = ownKeys as string[];
+    if (
+      stringKeys.some((key) =>
+        key !== "length" && !/^(0|[1-9][0-9]*)$/.test(key))
+    ) {
+      hold(label + "_array_property_invalid");
+    }
+    if (stringKeys.length !== value.length + 1) {
+      hold(label + "_sparse_array_forbidden");
+    }
+
+    addSnapshotBytesV1(budget, 2 + Math.max(0, value.length - 1), label);
+    const clone: any[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (!descriptor || !Object.hasOwn(descriptor, "value") ||
+          descriptor.enumerable !== true) {
+        hold(label + "_accessor_or_nondata_property");
+      }
+      clone.push(
+        detachedBoundedJsonValueV1(
+          descriptor.value,
+          label,
+          budget,
+          depth + 1,
+        ),
+      );
+    }
+    return clone;
+  }
+
+  if (prototype !== Object.prototype && prototype !== null) {
+    hold(label + "_nonplain_object");
+  }
+
+  const ownKeys = Reflect.ownKeys(descriptors);
+  if (ownKeys.some((key) => typeof key === "symbol")) {
+    hold(label + "_symbol_key_forbidden");
+  }
+  const keys = ownKeys as string[];
+  budget.keys += keys.length;
+  if (budget.keys > SNAPSHOT_MAX_KEYS_V1) {
+    hold(label + "_key_count_exceeded");
+  }
+
+  addSnapshotBytesV1(budget, 2 + Math.max(0, keys.length - 1), label);
+  const clone: Record<string, any> = {};
+  for (const key of keys) {
+    if (key.length > SNAPSHOT_MAX_KEY_CODE_UNITS_V1) {
+      hold(label + "_key_size_exceeded");
+    }
+    const descriptor = descriptors[key];
+    if (!descriptor || !Object.hasOwn(descriptor, "value") ||
+        descriptor.enumerable !== true) {
+      hold(label + "_accessor_or_nondata_property");
+    }
+    addSnapshotBytesV1(
+      budget,
+      jsonStringByteLengthV1(key) + 1,
+      label,
+    );
+    Object.defineProperty(clone, key, {
+      value: detachedBoundedJsonValueV1(
+        descriptor.value,
+        label,
+        budget,
+        depth + 1,
+      ),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return clone;
+}
+
 function frozenJsonSnapshot(
   value: any,
   label: string,
@@ -271,31 +480,45 @@ function frozenJsonSnapshot(
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     hold(label + "_invalid");
   }
-  const budget: SnapshotBudgetV1 = { bytes: 0, nodes: 0 };
-  const clone = cloneBoundedPlainJsonValueV1(
-    value,
-    label,
-    budget,
-    new WeakSet<object>(),
-    0,
-  );
-  if (!clone || typeof clone !== "object" || Array.isArray(clone)) {
+
+  const budget: SnapshotBudgetV1 = { bytes: 0, nodes: 0, keys: 0 };
+  const detached =
+    detachedBoundedJsonValueV1(value, label, budget, 0);
+  if (!detached || typeof detached !== "object" ||
+      Array.isArray(detached)) {
     hold(label + "_invalid_json");
   }
 
-  // Only serialize the detached inert clone after the conservative encoded
-  // upper bound has passed. No caller getter, toJSON function or Proxy can run
-  // here, and this allocation is bounded by SNAPSHOT_MAX_BYTES.
   let raw: string;
   try {
-    raw = JSON.stringify(clone);
+    raw = JSON.stringify(detached);
   } catch {
-    hold(label + "_safe_clone_serialization_failed");
+    hold(label + "_serialization_failed");
   }
-  if (Buffer.byteLength(raw, "utf8") > SNAPSHOT_MAX_BYTES) {
-    hold(label + "_size_exceeded");
+  if (
+    Buffer.byteLength(raw, "utf8") !== budget.bytes ||
+    budget.bytes > SNAPSHOT_MAX_BYTES_V1
+  ) {
+    hold(label + "_serialization_budget_mismatch");
   }
-  return clone as Readonly<Record<string, any>>;
+
+  let clone: any;
+  try {
+    clone = JSON.parse(raw);
+  } catch {
+    hold(label + "_invalid_json");
+  }
+  if (!clone || typeof clone !== "object" || Array.isArray(clone)) {
+    hold(label + "_invalid_json");
+  }
+  function freezeDeep(item: any): any {
+    if (item && typeof item === "object" && !Object.isFrozen(item)) {
+      for (const nested of Object.values(item)) freezeDeep(nested);
+      Object.freeze(item);
+    }
+    return item;
+  }
+  return freezeDeep(clone) as Readonly<Record<string, any>>;
 }
 
 function absolutePrivateRoot(value: unknown): string {
