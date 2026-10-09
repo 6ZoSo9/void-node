@@ -36,7 +36,7 @@ const INPUTS = Object.freeze([
 ]);
 const EXTERNALS = new Set([
   "express","ethers","node:crypto","node:fs","node:path","node:http",
-  "node:https","node:perf_hooks","node:url",
+  "node:https","node:perf_hooks","node:url","node:util",
 ]);
 const MAX_BYTES = 16*1024*1024;
 
@@ -239,6 +239,19 @@ function closedArtifacts() {
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
+  // Current reviewed V2 verifier imports built-in util.types.isProxy to
+  // reject adversarial Proxy inputs BEFORE policy semantic evaluation.
+  // This is a precise builtin addition, not an allowance for arbitrary
+  // third-party modules, eval or dynamic loader imports.
+  const verifiedPaymentBuiltin=scan(
+    "dist/economic/buy_void_verified_payment_v2.js",
+    Buffer.from('import { types as utilTypes } from "node:util";\n'),
+  );
+  assert.deepEqual(verifiedPaymentBuiltin.externals, ["node:util"]);
+  assert.throws(() => scan(
+    "dist/economic/buy_void_verified_payment_v2.js",
+    Buffer.from('import { execSync } from "node:child_process";\n'),
+  ), undefined, "unreviewed runtime builtin must still HOLD");
   const reviewedGlobals=scan(ENTRY,Buffer.from(
     'const GLOBAL_DEPENDENCIES="__void_buy_void_delivery_runtime_dependencies_v1";\n'+
     'const value=globalThis[GLOBAL_DEPENDENCIES];\n'+
@@ -288,6 +301,8 @@ function runSelfTest() {
   console.log("reviewed_absolute_git_invocation_integrated=true");
   console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_SELF_TEST_GREEN");
   console.log("nonliteral_and_external_imports_rejected=true");
+  console.log("reviewed_node_util_builtin_only=true");
+  console.log("unreviewed_node_child_process_builtin_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
   console.log("computed_global_dynamic_loader_aliases_rejected=true");
