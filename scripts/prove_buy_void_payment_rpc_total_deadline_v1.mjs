@@ -15,7 +15,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = "src/economic/buy_void_payment_rpc_observer_v1.ts";
-const EXPECTED_SOURCE_BLOB = "ad47f67b894ea6b145003a33ee8154c1a1b87e2f";
+const EXPECTED_SOURCE_BLOB = "c759978aa8694386a31861ed6e22983b962ef68a";
 const rpcMethod = "eth_blockNumber";
 const rpcParams = [];
 const blob = bytes => crypto.createHash("sha1")
@@ -184,6 +184,44 @@ await ephemeralRpc((input,res)=>{
     "unexpected content type must fail");
 });
 console.log("non_json_content_type_rejected=true");
+
+await ephemeralRpc((input,res)=>{
+  res.writeHead(200,{"content-type":"application/jsonp"});
+  res.end(JSON.stringify({jsonrpc:"2.0",id:input.id,result:"0x1"}));
+},async url=>{
+  await requireRejection(transport(url)
+    .call({method:rpcMethod,params:rpcParams}),
+    /payment_observer_rpc_content_type_invalid/,
+    "JSON-prefixed but non-JSON media type must fail");
+});
+console.log("json_prefix_media_type_rejected=true");
+
+await ephemeralRpc((input,res)=>{
+  res.writeHead(200,{"content-type":"application/json; charset=utf-8"});
+  res.end(JSON.stringify({jsonrpc:"2.0",id:input.id,result:"0x2"}));
+},async url=>{
+  const value=await transport(url).call({method:rpcMethod,params:rpcParams});
+  assert.equal(value,"0x2","standard JSON media parameters must remain valid");
+});
+console.log("json_media_type_parameters_allowed=true");
+
+for (const errorValue of [null,false,0,""]) {
+  await ephemeralRpc((input,res)=>{
+    res.writeHead(200,{"content-type":"application/json"});
+    res.end(JSON.stringify({
+      jsonrpc:"2.0",
+      id:input.id,
+      result:"0x3",
+      error:errorValue,
+    }));
+  },async url=>{
+    await requireRejection(transport(url)
+      .call({method:rpcMethod,params:rpcParams}),
+      /payment_observer_rpc_error_response/,
+      "success envelope must reject any simultaneous error member");
+  });
+}
+console.log("mixed_result_error_envelope_rejected=true");
 
 const disabled=createBuyVoidPaymentHttpTransportV1({
   enabled:false,source_chain:"base",chain_id:8453,
