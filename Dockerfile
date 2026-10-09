@@ -2,7 +2,7 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
-RUN npm ci || yarn || pnpm i
+RUN npm ci
 COPY . .
 RUN npm run build
 
