@@ -20,23 +20,38 @@ This Draft changes only the existing reviewed transport module,
 proof, focused workflow and this note.
 
 The transport now installs a separate **wall-clock total deadline**
-measured from before network transmission. All success/error/abort
-paths settle once and clear that timer; deadline expiration rejects
-with `payment_observer_rpc_total_deadline_exceeded` and destroys the
-client request, even when response data continues arriving. The
-existing idle timeout, response-byte cap, 2xx status, JSON media type,
-JSON-RPC `jsonrpc: "2.0"` and numeric request ID binding, method
-allowlist and result checks remain intact. A response error or abort
-also rejects fail-closed, rather than silently hanging after headers.
+measured from before network transmission. It records a monotonic acceptance
+deadline in addition to arming the transport timer. All error/abort paths settle
+once and clear that timer; timer expiry rejects with
+`payment_observer_rpc_total_deadline_exceeded` and destroys the client request.
+
+Success is independently gated by the monotonic deadline at the single
+settlement fence. This matters when the JavaScript event loop is delayed:
+buffered socket I/O cannot resolve successfully after the wall-clock deadline
+merely because the response `end` callback is delivered before an already-due
+timer callback. JSON parsing and all envelope checks occur before that final
+success settlement, so CPU work that crosses the deadline also fails closed.
+
+The existing idle timeout, response-byte cap, 2xx status, exact
+`application/json` media type (parameters allowed), JSON-RPC
+`jsonrpc: "2.0"` and numeric request ID binding, method allowlist, result
+presence, and any-error-member rejection remain intact. A response error,
+abort, or incomplete close also rejects fail-closed.
 
 The synthetic proof compiles the **actual edited source** and starts
 only ephemeral `127.0.0.1` HTTP fixture listeners. No external DNS,
 real RPC, user service, wallet, signer or customer record is accessed.
 It tests valid observations, rejected write methods, a continuously
-dripping response that stays below the socket idle limit, oversized
-body, a prematurely aborted partial response, non-2xx forged JSON,
-mismatched ID, invalid content-type, disabled observer, and external
-cleartext-URL rejection.
+dripping response that stays below the socket idle limit, oversized body, a
+prematurely aborted partial response, non-2xx forged JSON, mismatched ID,
+invalid/JSON-prefixed media types, mixed result+error envelopes, disabled
+observer, and external cleartext-URL rejection.
+
+A separate child-process loopback responder also completes a valid response
+after the configured deadline while the client event loop is intentionally
+blocked across that deadline. The client must still return the total-deadline
+HOLD after it resumes. This specifically falsifies timer-delivery ordering as
+an acceptance authority.
 
 The Node 22/24/26 matrix compiles the exact unmerged head and checks
 each synthetic proof plus byte-identical deterministic evidence in a
