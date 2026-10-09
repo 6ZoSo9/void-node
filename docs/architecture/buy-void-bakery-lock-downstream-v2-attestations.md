@@ -45,9 +45,13 @@ Exactly one reviewed source differs from V1:
 ## Proof model
 
 The locked proof does not trust copied constants alone. It Git-blob pins both
-derive-only candidate scripts, executes them again against the exact checkout,
-requires the full candidate JSON bytes to match the reviewed cross-Node evidence
-SHA-256, rechecks the single-file delta and all authority-false fields, then
+derive-only candidate scripts and executes the **authenticated bytes
+themselves** with a scrubbed child environment; it never reopens the candidate
+pathname as the child entrypoint after verification. The original scripts
+directory is retained as the ESM import base so the reviewed `../dist` and
+`../tools` dependencies resolve exactly as authored. The proof then requires
+the full candidate JSON bytes to match the reviewed cross-Node evidence
+SHA-256, rechecks the single-file delta and all authority-false fields, and
 requires the committed V2 attestation JSON bytes to equal the derived locked
 objects exactly.
 
