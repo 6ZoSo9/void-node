@@ -11,7 +11,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_auto_fulfillment_v1.ts";
-const EXPECTED_SOURCE_BLOB="3f10035412f6a52eebe4c4855b8f18072d452f47";
+const EXPECTED_SOURCE_BLOB="0784bd1a2a05c2ccb92b29ad425ad43a1cff2b3d";
 const PREDECESSOR_SOURCE_BLOB="1ac1ad6213be83f1aa8261a554caa91544fe5e09";
 
 function gitBlob(bytes:Buffer):string {
@@ -26,8 +26,11 @@ const source=sourceBytes.toString("utf8");
 for(const required of [
   'types as utilTypes',
   'utilTypes.isProxy(value)',
-  'Object.getOwnPropertyDescriptors(value)',
+  'Object.getOwnPropertyDescriptor(recordValue, key)',
+  'snapshotAutoFulfillmentSelectedRecordV1',
   'snapshotAutoFulfillmentInputV1',
+  'AUTO_FULFILLMENT_MAX_ALLOWED_CHAINS_V1',
+  'AUTO_FULFILLMENT_MAX_PRIOR_CLAIMS_V1',
   'auto_fulfillment_input_not_plain_data',
 ]) assert.ok(source.includes(required),
   "missing plain-data snapshot boundary: "+required);
@@ -263,6 +266,94 @@ for(const [label,mutate] of duplicateCases){
   assert.equal(decision.ok,false,"custom request prototype must HOLD");
 }
 
+// Unknown caller properties are outside the reviewed authority surface and
+// must not be enumerated or invoked.
+{
+  const fixture=baseline();
+  let reads=0;
+  Object.defineProperty(fixture,"irrelevant",{
+    enumerable:true,configurable:true,
+    get(){reads++; return {authority:true};},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,true,"irrelevant top-level getter changed decision");
+  assert.equal(reads,0,"irrelevant top-level getter executed");
+  assert.equal(JSON.stringify(decision),expectedDecision);
+}
+
+{
+  const fixture=baseline();
+  let reads=0;
+  Object.defineProperty(fixture.request,"irrelevant",{
+    enumerable:true,configurable:true,
+    get(){reads++; return "authority";},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,true,"irrelevant request getter changed decision");
+  assert.equal(reads,0,"irrelevant request getter executed");
+}
+
+{
+  const fixture=baseline();
+  let reads=0;
+  Object.defineProperty(fixture.policy.usdc_contract_by_chain,"evil",{
+    enumerable:true,configurable:true,
+    get(){reads++; return "0x"+"9".repeat(40);},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,true,
+    "unreviewed policy-map getter changed decision");
+  assert.equal(reads,0,"unreviewed policy-map getter executed");
+}
+
+// Reviewed arrays are length-bounded before descriptor-table allocation.
+{
+  const fixture=baseline();
+  const target=Array.from({length:33},()=>"base");
+  fixture.policy.allowed_chains=target;
+  const original=Object.getOwnPropertyDescriptors;
+  let targetDescriptorCalls=0;
+  try {
+    Object.getOwnPropertyDescriptors=((value:any)=>{
+      if(value===target) targetDescriptorCalls++;
+      return original(value);
+    }) as typeof Object.getOwnPropertyDescriptors;
+    const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+    assert.equal(decision.ok,false,"oversized allowlist must HOLD");
+  } finally {
+    Object.getOwnPropertyDescriptors=original;
+  }
+  assert.equal(targetDescriptorCalls,0,
+    "oversized allowlist reached descriptor allocation");
+}
+
+{
+  const fixture=baseline();
+  const target=Array.from({length:8193},()=>control.claim);
+  fixture.prior_claims=target;
+  const original=Object.getOwnPropertyDescriptors;
+  let targetDescriptorCalls=0;
+  try {
+    Object.getOwnPropertyDescriptors=((value:any)=>{
+      if(value===target) targetDescriptorCalls++;
+      return original(value);
+    }) as typeof Object.getOwnPropertyDescriptors;
+    const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+    assert.equal(decision.ok,false,"oversized prior claims must HOLD");
+  } finally {
+    Object.getOwnPropertyDescriptors=original;
+  }
+  assert.equal(targetDescriptorCalls,0,
+    "oversized prior claims reached descriptor allocation");
+}
+
+{
+  const fixture=baseline();
+  fixture.request.request_id="x".repeat(1024*1024+1);
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"oversized reviewed text must HOLD");
+}
+
 const primitiveVariants=baseline();
 primitiveVariants.request.usdc_amount=10;
 primitiveVariants.request.quoted_void=20;
@@ -309,6 +400,12 @@ console.log("policy_map_accessor_rejected_without_invocation=true");
 console.log("prior_claim_accessor_rejected_without_invocation=true");
 console.log("revoked_array_proxy_held=true");
 console.log("custom_prototype_rejected=true");
+console.log("irrelevant_top_level_getter_not_invoked=true");
+console.log("irrelevant_request_getter_not_invoked=true");
+console.log("unreviewed_policy_map_getter_not_invoked=true");
+console.log("allowed_chain_bound_precedes_descriptors=true");
+console.log("prior_claim_bound_precedes_descriptors=true");
+console.log("oversize_reviewed_text_held=true");
 console.log("production_payment_authority_ready=false");
 console.log("rpc_used=false");
 console.log("filesystem_write=false");
