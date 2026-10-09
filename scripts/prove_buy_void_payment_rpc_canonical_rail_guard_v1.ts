@@ -29,12 +29,17 @@ const gitBlob = crypto.createHash("sha1")
 assert.equal(gitBlob, EXPECTED_OBSERVER_GIT_BLOB,
   "repaired reviewed total-deadline observer source must not drift");
 const GUARD_SOURCE = "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts";
-const EXPECTED_GUARD_GIT_BLOB = "adc71e97f6f6704303aaf1868dd5239032c77450";
+const EXPECTED_GUARD_GIT_BLOB = "2864703a443eac19c3fb6e5750757e5c54fce5dd";
 const guardBytes = fs.readFileSync(path.join(ROOT, GUARD_SOURCE));
 assert.equal(crypto.createHash("sha1")
   .update(Buffer.from("blob " + guardBytes.byteLength + "\0", "utf8"))
   .update(guardBytes).digest("hex"), EXPECTED_GUARD_GIT_BLOB,
   "canonical rail guard source identity must match the reviewed byte string");
+const guardSource=guardBytes.toString("utf8");
+assert.ok(
+  guardSource.includes("const snapshot: BuyVoidPaymentRpcObserverPolicyV1 ="),
+  "validated RPC policy snapshot must close its observer-policy type",
+);
 
 assert.equal(
   VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_V1,
@@ -347,6 +352,7 @@ console.log("ethereum_mainnet_chain_id_1_required=true");
 console.log("wrong_chain_id_held_before_RPC=true");
 console.log("mismatched_request_chain_held_before_RPC=true");
 console.log("disabled_policy_held_before_RPC=true");
+console.log("typed_policy_snapshot_contract=true");
 console.log("policy_accessor_rejected_without_invocation=true");
 console.log("policy_proxy_rejected_without_traps=true");
 console.log("direct_classifier_policy_accessor_rejected_without_invocation=true");

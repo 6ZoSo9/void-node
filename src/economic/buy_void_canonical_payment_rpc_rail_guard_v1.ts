@@ -153,16 +153,20 @@ function snapshotCanonicalPaymentRpcPolicyV1(
     return held("canonical_payment_rpc_policy_invalid");
   }
 
-  return Object.freeze({
+  const snapshot: BuyVoidPaymentRpcObserverPolicyV1 = {
     enabled,
     source_chain: sourceChain,
     chain_id: chainId,
     rpc_url: rpcUrl,
-    ...(timeoutMs !== undefined ? { timeout_ms: timeoutMs } : {}),
-    ...(maxResponseBytes !== undefined
+    ...(typeof timeoutMs === "string" || typeof timeoutMs === "number"
+      ? { timeout_ms: timeoutMs }
+      : {}),
+    ...(typeof maxResponseBytes === "string" ||
+    typeof maxResponseBytes === "number"
       ? { max_response_bytes: maxResponseBytes }
       : {}),
-  });
+  };
+  return Object.freeze(snapshot);
 }
 
 function snapshotCanonicalPaymentRequestIdentityV1(
