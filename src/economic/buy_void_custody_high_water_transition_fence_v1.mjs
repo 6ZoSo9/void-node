@@ -36,19 +36,19 @@ const HIGH_WATER_KEYS = Object.freeze([
 ]);
 const FENCE_KEYS = Object.freeze([
   "marker",
-  "next_generation",
-  "next_high_water_base64",
-  "next_high_water_sha256",
-  "next_journal_prefix_sha256",
-  "next_sequence",
-  "next_tip_sha256",
-  "prior_generation",
+  "version",
+  "transition_slot_id",
+  "source_composition_id",
   "prior_high_water_sha256",
   "prior_sequence",
+  "prior_generation",
   "prior_tip_sha256",
-  "source_composition_id",
-  "transition_slot_id",
-  "version",
+  "next_high_water_sha256",
+  "next_sequence",
+  "next_generation",
+  "next_tip_sha256",
+  "next_journal_prefix_sha256",
+  "next_high_water_base64",
 ]);
 
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
