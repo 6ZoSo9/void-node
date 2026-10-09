@@ -91,6 +91,7 @@ jobs:
         env:
           VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: ${{ inputs.manifest_url }}
           VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'
+          VOID_PUBLIC_CHECKPOINT_RESTORE: '1'
           DATA_DIR: ${{ runner.temp }}/void-public-bootstrap-data
         run: |
           set -Eeuo pipefail
@@ -98,7 +99,8 @@ jobs:
           test "${#VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL}" -le 2048
           [[ "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD" =~ ^[1-9][0-9]*$ ]]
           rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
-          mkdir -p outside-machine-evidence "$DATA_DIR"
+          mkdir -p outside-machine-evidence
+          test ! -e "$DATA_DIR"
 
           LOG=outside-machine-evidence/node.log
           READY=outside-machine-evidence/ready.json

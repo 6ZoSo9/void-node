@@ -112,6 +112,12 @@ try {
   assert.match(workflowSource, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD/);
   assert.match(workflowSource, /target\.txt/);
   assert.match(workflowSource, /target_head_reached=true/);
+  assert.match(workflowSource, /VOID_PUBLIC_CHECKPOINT_RESTORE:\\s*'1'/);
+  assert.match(workflowSource, /test ! -e "\\$DATA_DIR"/);
+  assert.doesNotMatch(
+    workflowSource,
+    /mkdir -p outside-machine-evidence "\\$DATA_DIR"/,
+  );
   assert.doesNotMatch(workflowSource, /Number\(body\.head\) <= 0\) process\.exit\(1\)/);
 
   console.log("verified_remote_manifest_identity_bound=true");
@@ -121,6 +127,8 @@ try {
   console.log("wrong_typed_ready_head_rejected=true");
   console.log("authority_boundary_preserved=true");
   console.log("workflow_checks_target_before_initial_and_grace_acceptance=true");
+  console.log("fresh_acceptance_requests_checkpoint_restore=true");
+  console.log("checkpoint_restore_data_dir_precreated=false");
   console.log(`${MARKER}_GREEN`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
