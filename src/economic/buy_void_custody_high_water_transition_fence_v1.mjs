@@ -288,18 +288,6 @@ export function parseBuyVoidCustodyHighWaterTransitionFenceV1(bytes) {
   ) {
     fail("record_next_binding_invalid");
   }
-  if (
-    record.prior_high_water_sha256 !== null &&
-    (
-      record.next_sequence <= record.prior_sequence ||
-      (
-        record.next_generation === record.prior_generation &&
-        record.next_tip_sha256 === record.prior_tip_sha256
-      )
-    )
-  ) {
-    fail("record_transition_progress_invalid");
-  }
   const expectedSlot = deriveSlotId(
     record.source_composition_id,
     record.prior_high_water_sha256,
