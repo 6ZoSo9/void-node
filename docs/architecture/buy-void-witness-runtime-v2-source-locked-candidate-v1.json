@@ -1,0 +1,159 @@
+{
+  "schema": "void_buy_void_witness_runtime_v2_source_lock_candidate_v1",
+  "marker": "VOID_BUY_VOID_WITNESS_RUNTIME_V2_SOURCE_LOCK_CANDIDATE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "exact_source_generation_commit": "884edc6e82bd505a83e51a44b38f7e318431f314",
+  "reviewed_generator_git_blob_sha1": "3c25a46818eace3f989b75466013cc7c4cec1362",
+  "generator_branch_head": "d68058d8513b79b98788b7fd3334b377df0fc25b",
+  "candidate_manifest_id": "voidwfb2_b1cf93ea36879332d2745294b8aab1b261d5e7c13522af681db8d390254df73d",
+  "candidate_json_sha256": "sha256:84be9d7a3e8ac9b5426dacd324f0d6e1b45eac5ae0fe797b2a072de57180ccf3",
+  "historical_v1": {
+    "source_commit": "e390424c1d31cd87dcf3551cc0d2d610a24e12f8",
+    "manifest_id": "voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7",
+    "manifest_sha256": "sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2",
+    "contract_git_blob_sha1": "d0f80d3b50e3dcc46c1f58dc4bd0a73b7875db56"
+  },
+  "source_files": [
+    {
+      "path": "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+      "git_blob_sha1": "742cf489d8a785aa155a0e1bd12b65e94e07d1f1"
+    },
+    {
+      "path": "src/economic/buy_void_allocation_custody_external_witness_v1.ts",
+      "git_blob_sha1": "5d24f3fb3e94611c653a0e3e1319afa7d0f4db72"
+    },
+    {
+      "path": "src/economic/buy_void_allocation_custody_witness_transport_v1.ts",
+      "git_blob_sha1": "a5163272f08d6d96a9c2387fa6db344018e09694"
+    },
+    {
+      "path": "src/economic/buy_void_allocation_reservation_high_water_v1.ts",
+      "git_blob_sha1": "9383c94cf848efb9a0112f1b741df4e10f790ac6"
+    },
+    {
+      "path": "src/economic/buy_void_allocation_reservation_ledger_v1.ts",
+      "git_blob_sha1": "c3fc204710a9189723651cfeb6ffc52b1aa049db"
+    },
+    {
+      "path": "src/economic/buy_void_auto_fulfillment_v1.ts",
+      "git_blob_sha1": "b7c963b1d55f000d82ad82289b31107b432503de"
+    },
+    {
+      "path": "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      "git_blob_sha1": "e284a38a4b7f3d498b07e77c661d6eef3b742e7a"
+    },
+    {
+      "path": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+      "git_blob_sha1": "03376ad9853c1ca37c5be4d7f36d9daccab25078"
+    }
+  ],
+  "runtime_files": [
+    {
+      "path": "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+      "installed_path": "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+      "bytes": 48914,
+      "sha256": "88f425986eff8597cdf6725e4608b3790aed2359fef6ae9fadb76292d9e5a26d"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_custody_external_witness_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_custody_external_witness_v1.js",
+      "bytes": 35821,
+      "sha256": "35d80f00a9ec0ce57bb457596d27e8c86a70d76efe310372e1fff796a92d43ca"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_custody_witness_transport_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_custody_witness_transport_v1.js",
+      "bytes": 35066,
+      "sha256": "8e03107d1545977a19b847bbec926543b9812b6d9c16a4d7e13e62cf5c790979"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+      "bytes": 12251,
+      "sha256": "1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+      "bytes": 37442,
+      "sha256": "af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f"
+    },
+    {
+      "path": "dist/economic/buy_void_auto_fulfillment_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_auto_fulfillment_v1.js",
+      "bytes": 26226,
+      "sha256": "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c"
+    },
+    {
+      "path": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+      "bytes": 21165,
+      "sha256": "0b4dd188dbbf7658542b1d20c521227fa1fc01d7d79e89a713863b771380da13"
+    },
+    {
+      "path": "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "bytes": 18018,
+      "sha256": "7c7a6b92c1a88b14d325d331700a2bd19a0068630ae0094c65b2dcc6a25a9994"
+    }
+  ],
+  "source_file_count": 8,
+  "runtime_file_count": 8,
+  "relative_import_edge_count": 11,
+  "unchanged_historical_source_files": 7,
+  "changed_source_file": "src/economic/buy_void_auto_fulfillment_v1.ts",
+  "build_inputs": [
+    {
+      "path": "package.json",
+      "git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee"
+    },
+    {
+      "path": "package-lock.json",
+      "git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b"
+    },
+    {
+      "path": "tsconfig.json",
+      "git_blob_sha1": "c970faf406a0fa95638ce0b1ac0c63f8d8e96120"
+    },
+    {
+      "path": "tsconfig.build.json",
+      "git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb"
+    },
+    {
+      "path": "scripts/copy_void_runtime_js_v1.mjs",
+      "git_blob_sha1": "d1c4b3735ca2d3a9aa392ec1173cf7b123e0f9d9"
+    },
+    {
+      "path": "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+      "git_blob_sha1": "3786dbc03de4be29b6e42059e46dbe1b95d8aa04"
+    },
+    {
+      "path": "Dockerfile",
+      "git_blob_sha1": "2acd9bcf0416eeb0f9fd72c1a556696863ff1607"
+    }
+  ],
+  "compiler": {
+    "typescript_version": "5.9.3",
+    "typescript_js_sha256": "3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675",
+    "tsc_js_sha256": "e8f349eabd48486bdb2bf9dc1a00c89d58297270c54b745838879e2859194419"
+  },
+  "external_builtin_modules": [
+    "node:child_process",
+    "node:crypto",
+    "node:fs",
+    "node:os",
+    "node:path",
+    "node:url",
+    "node:util"
+  ],
+  "locked_candidate_only": true,
+  "historical_v1_artifact_rewritten": false,
+  "runtime_bundle_identity_accepted": false,
+  "installed_nimo_witness_verified": false,
+  "external_transport_authenticated": false,
+  "production_payment_authority_ready": false,
+  "production_allocation_mutation_ready": false,
+  "presale_activation": false,
+  "funds_movement": false
+}

@@ -1,0 +1,102 @@
+name: VOID Buy VOID witness V2 locked source candidate v1
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/buy-void-witness-runtime-v2-source-locked-candidate-v1.json"
+      - "docs/architecture/buy-void-witness-runtime-v2-source-lock-v1.md"
+      - "scripts/prove_buy_void_witness_runtime_bundle_v2_locked_candidate_v1.mjs"
+      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
+      - ".github/workflows/buy-void-witness-runtime-v2-source-lock-v1.yml"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: witness-v2-source-lock-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - name: Checkout exact PR generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact checkout
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Reviewed Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Lock installation dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exact TypeScript compile from review generation
+        run: npm run build
+      - name: Prove V2 source and compiled identity without accepting it
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs
+          node --check scripts/prove_buy_void_witness_runtime_bundle_v2_locked_candidate_v1.mjs
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test >/dev/null
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_locked_candidate_v1.mjs \
+            | tee "locked-witness-v2-${{ matrix.node }}.txt"
+          for marker in \
+            "VOID_BUY_VOID_WITNESS_RUNTIME_V2_LOCKED_CANDIDATE_V1_GREEN" \
+            "8_source_and_8_compiled_artifacts_exact=true" \
+            "11_static_relative_imports_exact=true" \
+            "synthetic_source_compiled_manifest_drift_rejected=true" \
+            "historical_V1_manifest_and_contract_preserved=true" \
+            "current_V2_installed_on_Nimo=false" \
+            "production_allocation_mutation_ready=false" \
+            "presale_activation=false" \
+            "funds_movement=false"
+          do grep -Fx "$marker" "locked-witness-v2-${{ matrix.node }}.txt"; done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: witness-locked-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: locked-witness-v2-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: witness-locked-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "proof/locked-witness-v2-$node.txt"; done
+          cmp proof/locked-witness-v2-22.txt proof/locked-witness-v2-24.txt
+          cmp proof/locked-witness-v2-22.txt proof/locked-witness-v2-26.txt
+          echo VOID_BUY_VOID_WITNESS_RUNTIME_V2_SOURCE_LOCK_CROSS_NODE_GREEN
+          echo "historical_v1_manifest_modified=false"
+          echo "runtime_bundle_identity_accepted=false"
+          echo "presale_activation=false"
