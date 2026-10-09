@@ -13,7 +13,7 @@ import {
 } from "../src/economic/buy_void_custody_launch_observed_read_v1.mjs";
 
 const SOURCE = "src/economic/buy_void_custody_launch_observed_read_v1.mjs";
-const SOURCE_BLOB = "e4da36b14c4bea4aee59ea959c2e6cf1d69bd5aa";
+const SOURCE_BLOB = "d0dd148d6701e5e47cc8301d71a0777876560834";
 const bytes = fs.readFileSync(SOURCE);
 const actual = crypto.createHash("sha1")
   .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -156,6 +156,26 @@ try {
   } finally {fs.readSync=originalRead;cleanDir();}
 
   attacked=false;
+  try{
+    const sameSizeMutation=Buffer.from(journalBytes);
+    sameSizeMutation[sameSizeMutation.length-2] =
+      sameSizeMutation[sameSizeMutation.length-2] === 0x65 ? 0x66 : 0x65;
+    assert.equal(sameSizeMutation.length,journalBytes.length);
+    fs.readSync=function(fd,buffer,...args){
+      if(!attacked){
+        attacked=true;
+        fs.writeFileSync(journal,sameSizeMutation,{mode:0o600});
+      }
+      return originalRead.call(fs,fd,buffer,...args);
+    };
+    held();
+    assert.equal(attacked,true);
+  } finally {
+    fs.readSync=originalRead;
+    fs.writeFileSync(journal,journalBytes,{mode:0o600});
+  }
+
+  attacked=false;
   let maxSize=0,totalRead=0;
   try{
     fs.readSync=function(fd,buffer,...args){
@@ -190,6 +210,7 @@ try {
   console.log("leaf_symlink_rejected=true");
   console.log("ancestor_preopen_swap_rejected=true");
   console.log("ancestor_during_read_swap_rejected=true");
+  console.log("same_size_in_place_mutation_rejected=true");
   console.log("three_MiB_growth_read_bounded_to_original_plus_one=true");
   console.log("server_path_configuration_verified=false");
   console.log("cross_file_atomic_snapshot_verified=false");
