@@ -59,6 +59,7 @@ jobs:
             'VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_V1_GREEN' \
             'same_prior_competing_successors_share_one_slot=true' \
             'prior_authority_bound_by_exact_digest_only=true' \
+            'prior_lineage_metadata_not_duplicated=true' \
             'different_successor_existing_slot_conflicts=true' \
             'create_only_record_never_deleted=true' \
             'crash_before_high_water_write_resumes_exact_transition=true' \
