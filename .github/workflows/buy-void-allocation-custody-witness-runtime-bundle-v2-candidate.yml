@@ -1,0 +1,133 @@
+name: VOID Buy VOID custody runtime-bundle V2 candidate
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_v2_candidate.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-v2-candidate.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-v2-candidate.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-runtime-bundle-v2-candidate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    name: derive runtime-bundle V2 candidate / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build exact runtime bytes
+        run: npm run build
+
+      - name: Derive V2 candidate only
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_v2_candidate.mjs --derive             | tee "custody-runtime-bundle-v2-candidate-node-${{ matrix.node }}.json"
+          node --input-type=module - "custody-runtime-bundle-v2-candidate-node-${{ matrix.node }}.json" <<'NODE'
+          import fs from "node:fs";
+          const value = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (
+            value.candidate_manifest_accepted !== false ||
+            value.predecessor_manifest_accepted !== false ||
+            value.live_nimo_installed !== false ||
+            value.runtime_integration !== false ||
+            value.protected_high_water_custody_proven !== false ||
+            value.production_gate_ready !== false ||
+            value.funds_movement !== false ||
+            JSON.stringify(value.changed_runtime_paths) !==
+              JSON.stringify(["dist/economic/buy_void_filesystem_bakery_lock_v1.js"]) ||
+            value.candidate_bakery_lock_sha256 !==
+              "sha256:47e80dfffa0cd1fd97169f9d63e836c9dbf52461aaafafdf10499b5cf91fd3ca"
+          ) process.exit(1);
+          console.log("VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_V2_CANDIDATE_GREEN");
+          console.log("candidate_runtime_bundle_manifest_id=" + value.candidate_runtime_bundle_manifest_id);
+          console.log("candidate_runtime_bundle_manifest_sha256=" + value.candidate_runtime_bundle_manifest_sha256);
+          NODE
+
+      - name: Upload derive-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-runtime-bundle-v2-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-runtime-bundle-v2-candidate-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+
+  compare:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact candidate receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-runtime-bundle-v2-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require Node 22/24/26 byte equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/custody-runtime-bundle-v2-candidate-node-$v.json"
+          done
+          cmp evidence/custody-runtime-bundle-v2-candidate-node-22.json evidence/custody-runtime-bundle-v2-candidate-node-24.json
+          cmp evidence/custody-runtime-bundle-v2-candidate-node-22.json evidence/custody-runtime-bundle-v2-candidate-node-26.json
+          echo "VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_V2_CROSS_NODE_GREEN"
