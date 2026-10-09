@@ -142,9 +142,12 @@ malformedDuplicateInput.prior_claims = [malformedPriorClaim];
 const malformedDuplicate =
   decideBuyVoidAutoFulfillmentV1(malformedDuplicateInput);
 assert.equal(malformedDuplicate.ok, false);
+// The detached plain-data boundary now rejects malformed prior-claim
+// structure before an existing-claim fingerprint comparison. It must HOLD,
+// never accidentally classify the malformed replay as a duplicate.
 assert.equal(
   heldReason(malformedDuplicate),
-  "payment_identity_claim_conflict",
+  "auto_fulfillment_input_not_plain_data",
 );
 
 console.log("VOID_BUY_VOID_AUTO_FULFILLMENT_REPLAY_GUARD_V1_GREEN");
