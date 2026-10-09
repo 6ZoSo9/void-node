@@ -21,7 +21,7 @@ const WRITER =
 const CLASSIFIER =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_WRITER_BLOB =
-  "77b1c10c70bd668d8c1bc950d47bfe12b4c9cef0";
+  "5d25fff093d070fe633e2e9da2e31d3b39b36131";
 const EXPECTED_CLASSIFIER_BLOB =
   "223ebdb8317009228094b8ebecef19dc37d87a91";
 const HIGH_WATER_NAME =
@@ -396,6 +396,21 @@ function readHigh(fixture) {
 assert.equal(
   VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1
     .bootstrap_write_enabled,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1
+    .inspect_temp_cleanup_enabled,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1
+    .unowned_temp_cleanup_enabled,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1
+    .cross_process_exclusive_writer_fence_verified,
   false,
 );
 assert.equal(
