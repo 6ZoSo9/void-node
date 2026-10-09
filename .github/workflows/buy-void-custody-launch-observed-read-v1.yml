@@ -68,6 +68,7 @@ jobs:
             'leaf_symlink_rejected=true' \
             'ancestor_preopen_swap_rejected=true' \
             'ancestor_during_read_swap_rejected=true' \
+            'same_size_in_place_mutation_rejected=true' \
             'three_MiB_growth_read_bounded_to_original_plus_one=true' \
             'server_path_configuration_verified=false' \
             'cross_file_atomic_snapshot_verified=false' \
