@@ -10,10 +10,12 @@ on:
       - "package-lock.json"
       - "tsconfig.build.json"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
       - "scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
       - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
       - ".github/workflows/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
 
