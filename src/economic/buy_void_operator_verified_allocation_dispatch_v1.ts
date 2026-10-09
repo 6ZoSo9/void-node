@@ -1,4 +1,5 @@
 import path from "node:path";
+import { types as utilTypes } from "node:util";
 import {
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
   writeBuyVoidVerifiedPaymentAllocationHandoffV1,
@@ -33,6 +34,9 @@ export const VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1 =
     verified_payment_must_use_allocation_handoff: true,
     legacy_payment_only_writer_for_verified_payment_forbidden: true,
     server_controlled_roots_required: true,
+    pre_serialization_plain_data_bound: true,
+    accessor_or_tojson_input_allowed: false,
+    proxy_input_allowed: false,
     private_root_independent_custody_proven: false,
     custody_service_composed: false,
     direct_web_process_private_root_write_authority: false,
@@ -66,38 +70,232 @@ function hold(reason: string): never {
   throw new Error("buy_void_operator_allocation_dispatch_" + reason);
 }
 
-function frozenJsonSnapshot(value: any, label: string): Readonly<Record<string, any>> {
+const SNAPSHOT_MAX_BYTES = 256 * 1024;
+const SNAPSHOT_MAX_DEPTH = 16;
+const SNAPSHOT_MAX_NODES = 4096;
+const SNAPSHOT_MAX_KEYS_PER_OBJECT = 256;
+const SNAPSHOT_MAX_ARRAY_LENGTH = 4096;
+const SNAPSHOT_MAX_KEY_CODE_UNITS = 4096;
+const SNAPSHOT_MAX_STRING_CODE_UNITS = 64 * 1024;
+
+type SnapshotBudgetV1 = {
+  bytes: number;
+  nodes: number;
+};
+
+function addSnapshotBudgetV1(
+  budget: SnapshotBudgetV1,
+  amount: number,
+  label: string,
+): void {
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    hold(label + "_budget_invalid");
+  }
+  budget.bytes += amount;
+  if (
+    !Number.isSafeInteger(budget.bytes) ||
+    budget.bytes > SNAPSHOT_MAX_BYTES
+  ) {
+    hold(label + "_size_exceeded");
+  }
+}
+
+function addSnapshotStringUpperBoundV1(
+  budget: SnapshotBudgetV1,
+  value: string,
+  maximumCodeUnits: number,
+  label: string,
+): void {
+  if (value.length > maximumCodeUnits) {
+    hold(label + "_text_too_large");
+  }
+  // JSON string escaping consumes at most six ASCII bytes per UTF-16 code
+  // unit, plus quotes. This is deliberately conservative so the later
+  // serialization of the safe clone cannot exceed the admitted budget.
+  addSnapshotBudgetV1(budget, 2 + value.length * 6, label);
+}
+
+function cloneBoundedPlainJsonValueV1(
+  value: unknown,
+  label: string,
+  budget: SnapshotBudgetV1,
+  active: WeakSet<object>,
+  depth: number,
+): any {
+  if (depth > SNAPSHOT_MAX_DEPTH) {
+    hold(label + "_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > SNAPSHOT_MAX_NODES) {
+    hold(label + "_node_count_exceeded");
+  }
+
+  if (value === null) {
+    addSnapshotBudgetV1(budget, 4, label);
+    return null;
+  }
+  if (typeof value === "string") {
+    addSnapshotStringUpperBoundV1(
+      budget,
+      value,
+      SNAPSHOT_MAX_STRING_CODE_UNITS,
+      label,
+    );
+    return value;
+  }
+  if (typeof value === "boolean") {
+    addSnapshotBudgetV1(budget, 5, label);
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) hold(label + "_number_invalid");
+    addSnapshotBudgetV1(budget, 32, label);
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    hold(label + "_value_type_invalid");
+  }
+  if (utilTypes.isProxy(value)) {
+    hold(label + "_proxy_forbidden");
+  }
+
+  const objectValue = value as object;
+  if (active.has(objectValue)) {
+    hold(label + "_cycle_forbidden");
+  }
+  active.add(objectValue);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) {
+        hold(label + "_array_prototype_invalid");
+      }
+      if (value.length > SNAPSHOT_MAX_ARRAY_LENGTH) {
+        hold(label + "_array_length_exceeded");
+      }
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      const keys = Reflect.ownKeys(descriptors);
+      if (keys.some((key) => typeof key !== "string")) {
+        hold(label + "_symbol_key_forbidden");
+      }
+      const elementKeys = (keys as string[]).filter(
+        (key) => key !== "length",
+      );
+      if (elementKeys.length !== value.length) {
+        hold(label + "_array_shape_invalid");
+      }
+      addSnapshotBudgetV1(budget, 2, label);
+      const out: any[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (
+          !descriptor ||
+          descriptor.enumerable !== true ||
+          !Object.hasOwn(descriptor, "value")
+        ) {
+          hold(label + "_array_accessor_or_hole_forbidden");
+        }
+        if (index !== 0) addSnapshotBudgetV1(budget, 1, label);
+        out.push(
+          cloneBoundedPlainJsonValueV1(
+            descriptor.value,
+            label,
+            budget,
+            active,
+            depth + 1,
+          ),
+        );
+      }
+      return Object.freeze(out);
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      hold(label + "_prototype_invalid");
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.some((key) => typeof key !== "string")) {
+      hold(label + "_symbol_key_forbidden");
+    }
+    if (keys.length > SNAPSHOT_MAX_KEYS_PER_OBJECT) {
+      hold(label + "_key_count_exceeded");
+    }
+
+    addSnapshotBudgetV1(budget, 2, label);
+    const out: Record<string, any> = Object.create(null);
+    let index = 0;
+    for (const key of keys as string[]) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        hold(label + "_accessor_or_hidden_property_forbidden");
+      }
+      if (key === "toJSON" && typeof descriptor.value === "function") {
+        hold(label + "_tojson_forbidden");
+      }
+      if (index !== 0) addSnapshotBudgetV1(budget, 1, label);
+      addSnapshotStringUpperBoundV1(
+        budget,
+        key,
+        SNAPSHOT_MAX_KEY_CODE_UNITS,
+        label,
+      );
+      addSnapshotBudgetV1(budget, 1, label);
+      Object.defineProperty(out, key, {
+        value: cloneBoundedPlainJsonValueV1(
+          descriptor.value,
+          label,
+          budget,
+          active,
+          depth + 1,
+        ),
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
+      index += 1;
+    }
+    return Object.freeze(out);
+  } finally {
+    active.delete(objectValue);
+  }
+}
+
+function frozenJsonSnapshot(
+  value: any,
+  label: string,
+): Readonly<Record<string, any>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     hold(label + "_invalid");
   }
-  let raw: string;
-  try {
-    const result = JSON.stringify(value);
-    if (typeof result !== "string") hold(label + "_invalid_json");
-    raw = result;
-  } catch {
-    hold(label + "_serialization_failed");
-  }
-  if (Buffer.byteLength(raw, "utf8") > 256 * 1024) {
-    hold(label + "_size_exceeded");
-  }
-  let clone: any;
-  try {
-    clone = JSON.parse(raw);
-  } catch {
-    hold(label + "_invalid_json");
-  }
+  const budget: SnapshotBudgetV1 = { bytes: 0, nodes: 0 };
+  const clone = cloneBoundedPlainJsonValueV1(
+    value,
+    label,
+    budget,
+    new WeakSet<object>(),
+    0,
+  );
   if (!clone || typeof clone !== "object" || Array.isArray(clone)) {
     hold(label + "_invalid_json");
   }
-  function freezeDeep(item: any): any {
-    if (item && typeof item === "object" && !Object.isFrozen(item)) {
-      for (const nested of Object.values(item)) freezeDeep(nested);
-      Object.freeze(item);
-    }
-    return item;
+
+  // Only serialize the detached inert clone after the conservative encoded
+  // upper bound has passed. No caller getter, toJSON function or Proxy can run
+  // here, and this allocation is bounded by SNAPSHOT_MAX_BYTES.
+  let raw: string;
+  try {
+    raw = JSON.stringify(clone);
+  } catch {
+    hold(label + "_safe_clone_serialization_failed");
   }
-  return freezeDeep(clone) as Readonly<Record<string, any>>;
+  if (Buffer.byteLength(raw, "utf8") > SNAPSHOT_MAX_BYTES) {
+    hold(label + "_size_exceeded");
+  }
+  return clone as Readonly<Record<string, any>>;
 }
 
 function absolutePrivateRoot(value: unknown): string {
