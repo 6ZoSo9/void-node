@@ -1,0 +1,166 @@
+name: VOID Buy VOID composed V2 proof and original V1 witness identity
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_provenance_v1.ts"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
+      - "scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs"
+      - ".github/workflows/buy-void-current-payment-and-frozen-v1-compose-v1.yml"
+      - "docs/architecture/buy-void-current-payment-and-frozen-v1-compose-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v2-proof-original-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged branch with archived source ancestry
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout and both reviewed source branches
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+          git merge-base --is-ancestor 8384105508a96ff84ffe9143422191764f750ad7 HEAD
+          git merge-base --is-ancestor a09ce920d172aaafbc1dd2fa6c563c6b6dd34d0a HEAD
+          git merge-base --is-ancestor b9a4c030fc665c3ca1e127751bc6dddbb82e3ff9 HEAD
+          test "$(git rev-parse HEAD:src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)" = "d2e84643c9f4d76c642c7e07d4ea2bf1634035e4"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked compiler without dependency scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build source-only current artifact outputs
+        run: npm run build
+      - name: Prove current native USDC V2 coupled instructions and strict plain data
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_v2_provenance_v1.ts \
+            > "$RUNNER_TEMP/v2-current-payment.log"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PROVENANCE_V1_GREEN' "$RUNNER_TEMP/v2-current-payment.log"
+          grep -Fx 'original_checkout_payment_instructions_fully_bound=true' "$RUNNER_TEMP/v2-current-payment.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-current-payment.log"
+      - name: Prove true frozen witness V1 archived source and reject V2 equivalence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs --self-test
+          node scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs --check \
+            > "$RUNNER_TEMP/original-witness-v1.json"
+      - name: Prove current V5 enforcement is explicitly unaccepted
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive \
+            > "$RUNNER_TEMP/unaccepted-enforcement-v5.json"
+      - name: Emit deterministic three-version combined non-authority evidence
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const witness=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/original-witness-v1.json","utf8"));
+            const v5=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/unaccepted-enforcement-v5.json","utf8"));
+            assert.equal(witness.working_source_restored_to_original_v1,true);
+            assert.equal(witness.original_source_git_blob_sha1,"d2e84643c9f4d76c642c7e07d4ea2bf1634035e4");
+            assert.equal(witness.source_v2_accepted,false);
+            assert.equal(witness.original_v1_receipt_authorizes_current_runtime,false);
+            assert.equal(witness.production_allocation_mutation_ready,false);
+            assert.equal(v5.candidate_identity_accepted,false);
+            assert.equal(v5.complete_executable_closure_verified,false);
+            assert.equal(v5.deployed_artifact_generation_verified,false);
+            assert.equal(v5.production_source_finality_authority_ready,false);
+            const result={
+              schema:"void_buy_void_current_v2_payment_and_frozen_original_v1_source_compose_v1",
+              historical_v1_original_blob:witness.original_source_git_blob_sha1,
+              historical_v1_restored:witness.working_source_restored_to_original_v1,
+              reviewed_v2_payment_and_checkout_proven:true,
+              reviewed_v5_static_enforcement_candidate_digest:v5.candidate_enforcement_set_sha256,
+              source_v2_witness_accepted:false,
+              original_v1_authorizes_new_compiled_witness:false,
+              complete_executable_closure_verified:false,
+              allocation_mutation_ready:false,
+              real_payment_verified:false,
+              deployed_artifact_generation_verified:false,
+              production_source_finality_authority_ready:false,
+              presale_activation:false,
+              funds_movement:false
+            };
+            const bytes=Buffer.from(JSON.stringify(result,null,2)+"\n");
+            fs.writeFileSync(process.argv[1],bytes);
+            console.log("VOID_CURRENT_PAYMENT_AND_ORIGINAL_V1_COMPOSE_SOURCE_GREEN");
+            console.log("receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("production_authority=false");
+          ' combined-source-proof-${{ matrix.node }}.json
+      - name: Upload exact source-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v2-and-original-v1-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: combined-source-proof-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Scoped diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [source-proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three source-only receipt files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v2-and-original-v1-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Require exact receipt bytes and all authority false
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "evidence/combined-source-proof-$n.json"; done
+          cmp evidence/combined-source-proof-22.json evidence/combined-source-proof-24.json
+          cmp evidence/combined-source-proof-22.json evidence/combined-source-proof-26.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("evidence/combined-source-proof-22.json");
+            const j=JSON.parse(bytes);
+            for(const key of ["source_v2_witness_accepted",
+              "original_v1_authorizes_new_compiled_witness",
+              "complete_executable_closure_verified",
+              "allocation_mutation_ready","real_payment_verified",
+              "deployed_artifact_generation_verified",
+              "production_source_finality_authority_ready",
+              "presale_activation","funds_movement"]) {
+              if(j[key]!==false)process.exit(1);
+            }
+            console.log("VOID_BUY_VOID_ORIGINAL_V1_AND_CURRENT_V2_SOURCE_THREE_NODE_GREEN");
+            console.log("receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("deployment_and_payment_authority=false");
+          '
