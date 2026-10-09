@@ -1,0 +1,132 @@
+name: VOID Buy VOID current-main payment allocation launch HOLD v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_current_main_launch_hold_v1.mjs"
+      - ".github/workflows/buy-void-current-main-launch-hold-v1.yml"
+      - "docs/architecture/buy-void-current-main-launch-hold-v1.md"
+      - "src/index.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "tools/void-buy-allocation-custody-service-v1.mjs"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-current-main-launch-hold-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  source-hold:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove exact checked-out PR head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Select Node for independent source-only proof
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact held release state and five negatives
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_current_main_launch_hold_v1.mjs
+          node scripts/prove_buy_void_current_main_launch_hold_v1.mjs --self-test \
+            | tee "launch-hold-node-${{ matrix.node }}.txt"
+          grep -Fx 'five_synthetic_premature_authority_promotions_rejected=true' \
+            "launch-hold-node-${{ matrix.node }}.txt"
+          grep -Fx 'operator_verified_allocation_dispatch_mounted=false' \
+            "launch-hold-node-${{ matrix.node }}.txt"
+          grep -Fx 'custody_reserve_or_recover_enabled=false' \
+            "launch-hold-node-${{ matrix.node }}.txt"
+          grep -Fx 'cross_uid_launch_anchor_independently_verified=false' \
+            "launch-hold-node-${{ matrix.node }}.txt"
+          grep -Fx 'public_presale_active=false' \
+            "launch-hold-node-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_current_main_launch_hold_v1.mjs --census \
+            > "launch-census-node-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const o=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(o.reviewed_source_head,"aa39d97c13f9ee18da19a6c0dda377925ad66dcf");
+            assert.equal(o.source_files_verified,5);
+            assert.equal(o.canonical_handoff_source_present,true);
+            assert.equal(o.operator_route_uses_legacy_payment_writer,true);
+            for(const k of ["operator_verified_allocation_dispatch_mounted",
+              "privileged_allocation_reserve_enabled",
+              "privileged_allocation_recover_enabled",
+              "cross_uid_launch_anchor_independently_verified",
+              "independent_custody_payment_provenance_verified",
+              "payment_verified_to_allocation_production_ready",
+              "deployed_artifact_generation_verified",
+              "public_presale_active","wc_void_market_active",
+              "wallet_or_signer_action","chain_mutation","funds_moved"])
+              assert.equal(o[k],false,k);
+            console.log("VOID_PAYMENT_ALLOCATION_RELEASE_AUTHORITY_HELD_GREEN");
+          ' "launch-census-node-${{ matrix.node }}.json"
+      - name: Upload nonauthorizing deterministic source hold receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-launch-hold-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            launch-hold-node-${{ matrix.node }}.txt
+            launch-census-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Source-only diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [source-hold]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download three exact-head source-only receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-source-launch-hold-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./source-hold
+      - name: Require three byte-identical evidence receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "source-hold/launch-census-node-$node.json"
+            test -s "source-hold/launch-hold-node-$node.txt"
+          done
+          cmp source-hold/launch-census-node-22.json source-hold/launch-census-node-24.json
+          cmp source-hold/launch-census-node-22.json source-hold/launch-census-node-26.json
+          cmp source-hold/launch-hold-node-22.txt source-hold/launch-hold-node-24.txt
+          cmp source-hold/launch-hold-node-22.txt source-hold/launch-hold-node-26.txt
+          echo "VOID_BUY_VOID_CURRENT_MAIN_PAYMENT_ALLOCATION_HOLD_THREE_NODE_GREEN"
+          echo "public_presale_authority=false"
+          echo "wallet_signer_or_funds_action=false"
