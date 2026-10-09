@@ -21,7 +21,8 @@ facts:
    tip;
 3. a custody-private high-water record proves the shared journal has not rolled
    back or forked relative to the last generation previously accepted by the
-   custody domain.
+   custody domain, including an exact SHA-256 binding to the raw historical
+   journal prefix bytes.
 
 The operator-home external anchor remains authoritative for the existing public
 launch gate. This candidate gives the **custody UID its own anti-rollback
@@ -33,10 +34,14 @@ memory**, rather than pretending it can safely inherit another UID's home path.
 It imports the reviewed coupled-launch journal and dual-signature verification
 functions, but performs no filesystem or service mutation.
 
-The production entry point
-`readBuyVoidCustodyLaunchAuthorityV2(...)` derives the source gate internally
-through `readBuyLaunchSourceGateV1()`; a caller cannot provide a green
-`source_gate` boolean to this production entry point.
+The production-facing source classifier
+`classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2(...)` derives the source
+gate internally through `readBuyLaunchSourceGateV1()`; a caller cannot provide
+a green `source_gate` boolean to this entry point. The journal, receipt and
+high-water byte arguments are still only **observations** at this layer. Policy
+explicitly requires them to be obtained by separately reviewed server-side
+descriptor-bound reads before any runtime use; caller-supplied observed bytes
+carry no authority by themselves.
 
 The source checks:
 
@@ -51,6 +56,8 @@ The source checks:
 - high-water sequence cannot be ahead of the observed journal;
 - the prior custody high-water event must still be present at the exact
   historical journal sequence with the same generation and event hash;
+- the exact raw journal prefix through that sequence must match the
+  custody-private `journal_prefix_sha256`;
 - a same-sequence fork therefore HOLDs;
 - a journal rollback below custody high-water HOLDs;
 - a newer valid journal generation returns
@@ -99,6 +106,8 @@ It proves:
   classifier-ready;
 - journal rollback below that high-water fails;
 - an alternate same-sequence branch fails;
+- a raw-byte mutation of an already accepted historical journal prefix fails
+  even when the parsed event semantics are unchanged;
 - an old signed receipt cannot authorize a new active generation;
 - a forged activation signature fails;
 - the production entry point remains HOLD on the current source generation
