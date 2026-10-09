@@ -91,6 +91,26 @@ function assertGenerationStable() {
     0,
     "reviewed native-gas custody source set drifted after source stack head",
   );
+  const worktree = spawnSync(
+    "git",
+    ["diff", "--quiet", "HEAD", "--", ...paths],
+    { cwd: ROOT, stdio: "ignore" },
+  );
+  assert.equal(
+    worktree.status,
+    0,
+    "reviewed native-gas custody worktree differs from exact HEAD",
+  );
+  const index = spawnSync(
+    "git",
+    ["diff", "--cached", "--quiet", "HEAD", "--", ...paths],
+    { cwd: ROOT, stdio: "ignore" },
+  );
+  assert.equal(
+    index.status,
+    0,
+    "reviewed native-gas custody index differs from exact HEAD",
+  );
 }
 
 function derive() {
