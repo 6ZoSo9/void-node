@@ -1,82 +1,111 @@
-# Buy VOID source-finality generation provenance V6 — candidate successor
+# Buy VOID source-finality generation provenance V6 — integrated candidate
 
-## Why V6 is separate
+## Why V6 remains a separate generation
 
-Draft [#2625](https://github.com/6ZoSo9/void-node/pull/2625) modifies the
-pure V2 payment verifier to reject server-selected arbitrary ERC-20 tokens
-when a coupled checkout originally names native USDC. The historical reviewed
-V5 source identity points to verifier Git blob
-`c0e4660bb238e1b718b8a471890901bd5a59badf`, which correctly
-**fails closed** against the changed verifier bytes. V5 (and V4) must remain
-unchanged; no old source manifest or compiled artifact is repinned.
+Historical V5 is immutable predecessor evidence. The current integration changes
+two of V5's five reviewed runtime sources:
 
-V6 is a **stacked Draft candidate**, based on the exact #2625 commit
-`52deccca51077d457177e738135dbb0e0536d2f3`, not on current main.
-Its V2 verifier's exact Git blob is
-`c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
-If the parent branch advances or the source changes, its pin is no longer
-valid and independent review must start from the new exact bytes.
+- the V2 payment verifier, which binds coupled native-USDC checkout intent; and
+- the payment RPC observer, which now enforces bounded transport parsing plus a
+  monotonic total wall-clock acceptance deadline.
+
+Historical V5 therefore must continue to fail closed against these bytes. No V5
+source record or historical compiled/enforcement/package artifact is repinned.
+
+The current integrated source anchor is
+`3533626d7167c98ba8d65d2c423b460b1a3199fc`. It retains #2687 as a merge
+parent so the reviewed observer source commit remains real repository ancestry.
 
 ## Closed source identities
 
-V6 retains the identical four historical V5 source records for:
-authenticated composition V3, source-finality authority V2, source-chain
-RPC adapter V1, and payment RPC observer V1. Only the fifth record
-(`src/economic/buy_void_verified_payment_v2.ts`) rolls to the exact
-new commit/blob above. Records cannot come from caller or environment input.
+V6 retains the identical three historical records for:
+
+- authenticated composition V3 — blob
+  `a3dbe4d0fed3034d3ca2c0b3704a758d7c776090`;
+- source-finality authority V2 — blob
+  `64953050d74bc0bc6d1e6948ae992d6143edca99`;
+- source-chain RPC adapter V1 — blob
+  `419054e00f4d96015cd066be81e8719ee71ac00c`.
+
+Two reviewed records roll:
+
+- payment RPC observer V1 — reviewed source commit
+  `9df9648f546eb9320259eae1d3930a7c132a6511`, blob
+  `0073818ad6f6418e895bf794024c9d678b3bef86`;
+- verified-payment V2 — reviewed source commit
+  `52deccca51077d457177e738135dbb0e0536d2f3`, blob
+  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
+
+The canonical reviewed-source-set digest for those five records is
+`ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
+
+Records are fixed source metadata; caller or environment input cannot substitute
+commit or blob identities.
+
+## Runtime-file verification
 
 The V6 verifier checks module-derived paths, regular nonsymlink single-link
-files, bounded descriptor reads, stable inode/file metadata and Git blob SHA-1
-for **all five** before entering the original V3 composition. A canonical
-SHA-256 describes the entire V6 reviewed-source candidate record set.
-Unlike historical V5, V6 fails closed if Linux `O_NOFOLLOW` is unavailable,
-compares the initially visible source pathname's inode/metadata with the
-opened descriptor, and rechecks the visible pathname after reading and
-hashing the retained descriptor. A renamed/replaced path must HOLD even
-when the already-opened file contained the correct reviewed source bytes.
-Synthetic proofs forge `lstat` inode observations without writing or
-changing any actual source file. Descriptor reads are additionally capped to
-the preflight size plus one sentinel byte, with the preflight size itself
-limited to 2 MiB. If an opened source grows after the initial `fstat`, the
-sentinel causes an immediate `source_files_exceeded_read_bound` HOLD; the
-reader never consumes beyond the 2 MiB + 1 detection cap. This narrows
-source-path and growth races, but does not attest deployment generation or
-protect future path changes.
+files, retained-descriptor identity, bounded reads and Git blob SHA-1 for all
+five sources before entering the authenticated composition. Linux
+`O_NOFOLLOW` is required. The visible pathname is compared with the retained
+descriptor before and after reading.
 
-The focused test independently checks commit/blob correspondence, verifies
-five source bytes, tamper rejection, and **requires historical V5 to HOLD**
-on the new verifier source. It also proves the monotonic total deadline covers
-V6 preflight source reads. Only synthetic loopback JSON-RPC is used by the
-integration proof. No production payment RPC or operator ledger is read.
+Each file is capped at 2 MiB before reading. The descriptor reader allocates
+only the preflight size plus one sentinel byte, so concurrent growth is detected
+without unbounded buffering. Same-size mutation, path replacement, descriptor
+drift and post-read rebinding HOLD.
 
-## Source proof is not payment, runtime, or deployment authority
+The focused proof also verifies each recorded commit-to-blob mapping against Git
+history in a non-shallow checkout.
 
-The V6 source module explicitly leaves
+## Payment-observer rollover
+
+The reviewed payment observer keeps a closed read-only RPC method set, HTTPS or
+loopback HTTP transport, bounded idle timeout, bounded response bytes, 2xx HTTP,
+exact JSON media type, JSON-RPC version/request-ID binding and receipt/chain
+checks.
+
+Its total deadline is not timer-delivery-only. The transport records a
+monotonic acceptance deadline before network transmission. The single success
+settlement fence rechecks monotonic time after response aggregation, JSON parse
+and envelope validation. A valid response buffered while the client event loop
+is blocked past the deadline therefore still HOLDs with
+`payment_observer_rpc_total_deadline_exceeded`.
+
+The synthetic proof includes a responder in a separate child process so server
+time continues while the client event loop is deliberately blocked across the
+deadline.
+
+## Source proof is not production authority
+
+V6 still leaves current production authority false. In particular,
 `source_generation_verified=false`,
-`deployed_artifact_generation_verified=false`, and
-`production_source_finality_authority_ready=false`.
-Authentication of the **first historical** buyer request, verification of
-real native-USDC payment/finality, protected rollback-resistant high-water,
-serialized duplicate/capacity admission and exactly-once allocation custody
-remain separate hard gates. Unqualified legacy request shapes cannot gain
-payment authority from a V6 source-file checksum.
+`deployed_artifact_generation_verified=false`,
+`remote_provider_identity_verified=false`,
+`ancestry_verified=false`,
+`provider_quorum_verified=false`, and
+`production_source_finality_authority_ready=false` remain authoritative.
 
-The required later lineage is:
+Authentication of the first durable buyer request, real payment/finality,
+protected antirollback high-water, serialized duplicate/capacity admission,
+exactly-once allocation custody, deployed image identity and mounted runtime
+remain separate gates.
+
+The required successor lineage is:
 
 ```text
-independent V2 verifier review + V6 closed-source review
-  -> compiled V6 source-finality successor
-  -> enforcement-artifact successor
+V6 closed-source review
+  -> cross-Node compiled V4 candidate
+  -> locked compiled V4 successor
+  -> enforcement successor
   -> packaged/final-image successor
-  -> separately accepted deployment/runtime generation
-  -> protected original-request/payment/allocation custody evidence
+  -> separately accepted deployed runtime generation
+  -> protected request/payment/allocation custody evidence
 ```
 
-This Draft does not modify `src/index.ts`, V5, historical artifact identities,
-the existing execution preflight, Dockerfile, wallet, signing, services,
-Chain-2050/WC, presale/market activation, treasury or funds. A GREEN V6
-focused workflow is not an endorsement to waive failed historic V5 jobs.
-The separately owned [#2626](https://github.com/6ZoSo9/void-node/pull/2626)
-operator route remains a distinct source-only review.
+This source lane does not itself deploy/restart a service, read a live customer
+ledger, access credentials/wallet/private keys/signers, construct or broadcast
+a transaction, mutate Chain-2050/WC, activate presale/market state, or move
+inventory/treasury/liquidity/funds.
 
 **PROTECT THE CORE.**

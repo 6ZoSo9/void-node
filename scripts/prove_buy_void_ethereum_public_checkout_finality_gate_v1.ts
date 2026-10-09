@@ -963,10 +963,25 @@ assert.doesNotMatch(
   /__voidBuyVoidRpcV1\(chainCfg,"eth_getTransactionReceipt"/u,
   "Ethereum runtime must not authorize from the legacy receipt-only path",
 );
+assert.doesNotMatch(
+  baseRuntimeBranch,
+  /__voidBuyVoidRpcV1/u,
+  "Base runtime must not fall back to the retired ad-hoc RPC helper",
+);
 assert.match(
   baseRuntimeBranch,
-  /__voidBuyVoidRpcV1\(chainCfg,"eth_getTransactionReceipt"/u,
-  "Base receipt verifier behavior must remain present",
+  /import\("\.\/economic\/buy_void_payment_rpc_observer_v1\.js"\)/u,
+  "Base runtime must reuse the reviewed payment RPC observer",
+);
+assert.match(
+  baseRuntimeBranch,
+  /observeBuyVoidPaymentV1\(\{request:found,policy:\{enabled:true,source_chain:"base",chain_id:8453/u,
+  "Base runtime must bind the reviewed observer to Base chain ID 8453",
+);
+assert.match(
+  baseRuntimeBranch,
+  /const receipt:any=observed\.receipt,currentBlock:any=observed\.current_block_number/u,
+  "Base V2 verification must consume only the reviewed observer result",
 );
 assert.match(
   baseRuntimeBranch,

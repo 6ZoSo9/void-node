@@ -1,0 +1,119 @@
+name: VOID Buy VOID canonical RPC rail policy v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts"
+      - "scripts/prove_buy_void_payment_rpc_canonical_rail_guard_v1.ts"
+      - ".github/workflows/buy-void-payment-rpc-canonical-rail-guard-v1.yml"
+      - "docs/architecture/buy-void-payment-rpc-canonical-rail-guard-v1.md"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-canonical-rpc-rail-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm exact head and clean initial worktree
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact reviewed source
+        run: npm run build
+      - name: Prove canonical rail identity before any RPC
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_payment_rpc_canonical_rail_guard_v1.ts \
+            | tee "canonical-rail-node-${{ matrix.node }}.txt"
+          for proof in \
+            legacy_observer_mismatched_chain_configuration_observed_synthetically=true \
+            base_mainnet_chain_id_8453_required=true \
+            ethereum_mainnet_chain_id_1_required=true \
+            wrong_chain_id_held_before_RPC=true \
+            mismatched_request_chain_held_before_RPC=true \
+            disabled_policy_held_before_RPC=true \
+            policy_accessor_rejected_without_invocation=true \
+            policy_proxy_rejected_without_traps=true \
+            direct_classifier_policy_accessor_rejected_without_invocation=true \
+            direct_classifier_policy_proxy_rejected_without_traps=true \
+            request_accessor_rejected_without_invocation=true \
+            request_proxy_rejected_without_traps=true \
+            post_admission_policy_request_mutation_ignored=true \
+            canonical_receipt_observation_delegates_to_V1=true \
+            real_RPC_or_customer_record_used=false \
+            runtime_route_mount=false \
+            production_payment_authority_ready=false \
+            signing_or_funds_moved=false
+          do
+            grep -Fx "$proof" "canonical-rail-node-${{ matrix.node }}.txt"
+          done
+      - name: Upload deterministic canonical-rail proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-canonical-rpc-rail-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: canonical-rail-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exact-head synthetic receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-canonical-rpc-rail-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./candidate
+      - name: Require byte-identical Node 22, 24 and 26 output
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "candidate/canonical-rail-node-$n.txt"; done
+          cmp candidate/canonical-rail-node-22.txt candidate/canonical-rail-node-24.txt
+          cmp candidate/canonical-rail-node-22.txt candidate/canonical-rail-node-26.txt
+          echo "VOID_BUY_VOID_CANONICAL_RPC_RAIL_CROSS_NODE_GREEN"
+          echo "runtime_route_mount=false"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"

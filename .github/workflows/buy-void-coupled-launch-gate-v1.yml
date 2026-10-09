@@ -12,6 +12,7 @@ on:
       - "scripts/prove_buy_void_sale_capacity_projection_v1.ts"
       - "docs/architecture/buy-void-verified-payment-capacity-admission-v1.md"
       - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
       - "scripts/prove_buy_void_verified_payment_v2.ts"
       - "scripts/prove_buy_void_verified_payment_v2_provenance_v1.ts"
       - "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts"

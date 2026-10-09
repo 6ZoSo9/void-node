@@ -1,0 +1,113 @@
+name: VOID Buy VOID payment RPC total deadline v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "scripts/prove_buy_void_payment_rpc_total_deadline_v1.mjs"
+      - ".github/workflows/buy-void-payment-rpc-total-deadline-v1.yml"
+      - "docs/architecture/buy-void-payment-rpc-total-deadline-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-payment-rpc-total-deadline-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: absolute RPC response deadline / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checked-out commit
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile source with locked TypeScript inputs
+        run: npm run build
+      - name: Test absolute wall-clock RPC deadline and fail-closed parser
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_payment_rpc_total_deadline_v1.mjs
+          node scripts/prove_buy_void_payment_rpc_total_deadline_v1.mjs \
+            | tee "buy-void-rpc-deadline-node-${{ matrix.node }}.txt"
+          for proof in \
+            slow_drip_total_wall_clock_deadline_enforced=true \
+            event_loop_starvation_total_deadline_enforced=true \
+            oversized_rpc_response_rejected=true \
+            premature_rpc_response_rejected=true \
+            mismatched_response_id_rejected=true \
+            forged_non2xx_result_rejected=true \
+            non_json_content_type_rejected=true \
+            json_prefix_media_type_rejected=true \
+            mixed_result_error_envelope_rejected=true \
+            only_synthetic_loopback_http=true \
+            production_payment_authority_ready=false \
+            wallet_or_signer_access=false \
+            funds_moved=false
+          do grep -Fx "$proof" "buy-void-rpc-deadline-node-${{ matrix.node }}.txt"; done
+      - name: Upload deterministic source-only test evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-buy-rpc-total-deadline-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: buy-void-rpc-deadline-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Git changed-path whitespace hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE:-}" ]; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exact-head test receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-buy-rpc-total-deadline-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Verify identical deterministic Node 22/24/26 evidence
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do
+            test -s "evidence/buy-void-rpc-deadline-node-$n.txt"
+          done
+          cmp evidence/buy-void-rpc-deadline-node-22.txt evidence/buy-void-rpc-deadline-node-24.txt
+          cmp evidence/buy-void-rpc-deadline-node-22.txt evidence/buy-void-rpc-deadline-node-26.txt
+          echo "VOID_BUY_VOID_PAYMENT_RPC_TOTAL_DEADLINE_THREE_NODE_EVIDENCE_GREEN"
+          echo "production_payment_authority_ready=false"

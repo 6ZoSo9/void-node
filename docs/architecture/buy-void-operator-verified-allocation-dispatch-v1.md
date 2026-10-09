@@ -83,7 +83,7 @@ uses **inert, in-memory JSON** only: immutable snapshots, caller `toJSON`
 and property-accessor rejection without invocation, Proxy rejection without
 executing `ownKeys`/descriptor traps, a 4 MiB text adversary
 that must HOLD before full `JSON.stringify`, deep nesting that must HOLD at
-the structural depth gate, a 5,000-key object that must stop at the key-count
+the structural depth gate, a 2,049-key object that must stop at the key-count
 gate without constructing a complete descriptor table or JSON string, a sparse
 array that must not fall through to inherited index lookup, synthetic
 `Object.prototype.toJSON` and `Array.prototype.toJSON` hooks that must never
@@ -100,21 +100,23 @@ for nonpayment statuses.
 
 The proof also pins the **existing composed operator router's**
 `src/index.ts` exact Git blob
-`f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048`, confirms its
+`193227620943bde40630eec5d60bcc480595887b`, confirms its
 POST-only verification/mark mutation routes and operator intent helper,
 and explicitly verifies the mounted event writer still calls the old
 payment-only API. Therefore
 `mounted_verified_allocation_dispatch=false` is intentional truth,
 not a failure hidden by CI. The verified-payment allocation source API
-is pinned to Git blob `496715e7ae2941663908976a4a3f4efd7c6199cf`.
+is pinned to Git blob `f591f7407d9afc2cf77e0f90923aa11b4817fd4e`.
 
 The scoped GitHub workflow separately typechecks/builds this composed
 checkout on Node 22/24/26 **without starting a server**, runs the inert
-proof, and requires byte-equal reports from all three versions. The
-pre-serialization budget is a source-level resource boundary only; the
-dispatcher remains unmounted and does not claim that a later HTTP/router
-integration has supplied the same already-bounded DTO contract or qualified
-live customer history.
+proof, and requires byte-equal reports from all three versions. After any
+current-main or parent-stack reconciliation, prior component GREEN is not
+inherited: fresh pull-request checks must bind the new exact head before
+release review. The pre-serialization budget is a source-level resource
+boundary only; the dispatcher remains unmounted and does not claim that a
+later HTTP/router integration has supplied the same already-bounded DTO
+contract or qualified live customer history.
 
 ## Remaining release gates
 
@@ -149,4 +151,9 @@ Any other absolute path, swapped root, nested root, relative path, or filesystem
 root remains HOLD. This is a source-level anti-miswiring constraint only; it
 does not prove the installed service owns those roots or grant the web process
 direct write authority.
+## Exact-head CI evidence trigger
+
+This documentation-only revision records that the current integration head must
+receive a fresh pull-request synchronize CI generation after the manual
+fulfilled-state callsite repair. It changes no runtime behavior or authority.
 
