@@ -120,6 +120,26 @@ function assertSourceGenerationStable() {
     0,
     "reviewed runtime-bundle source/build inputs drifted after source stack head",
   );
+  const worktree = spawnSync(
+    "git",
+    ["diff", "--quiet", "HEAD", "--", ...sourceInputs],
+    { cwd: ROOT, stdio: "ignore" },
+  );
+  assert.equal(
+    worktree.status,
+    0,
+    "reviewed runtime-bundle worktree inputs differ from exact HEAD",
+  );
+  const index = spawnSync(
+    "git",
+    ["diff", "--cached", "--quiet", "HEAD", "--", ...sourceInputs],
+    { cwd: ROOT, stdio: "ignore" },
+  );
+  assert.equal(
+    index.status,
+    0,
+    "reviewed runtime-bundle index inputs differ from exact HEAD",
+  );
 
   const bakeryBytes = fs.readFileSync(path.join(ROOT, BAKERY_SOURCE));
   assert.equal(
