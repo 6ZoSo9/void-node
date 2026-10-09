@@ -1,0 +1,106 @@
+name: VOID Buy VOID V2 JSON primitive coercion negative v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_v2_json_primitive_coercion_negative_v1.ts"
+      - "docs/architecture/buy-void-v2-json-primitive-coercion-negative-v1.md"
+      - ".github/workflows/buy-void-v2-json-primitive-coercion-negative-v1.yml"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v2-json-primitive-negative-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact negative witness head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Compile existing source
+        run: npm run build
+
+      - name: Reproduce wrong JSON primitive types reaching verified payment
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_v2_json_primitive_coercion_negative_v1.ts             | tee "v2-json-primitive-negative-node-${{ matrix.node }}.txt"
+          for marker in             'VOID_BUY_VOID_V2_JSON_PRIMITIVE_COERCION_NEGATIVE_V1_REPRODUCED'             'primitive_control_verified=true'             'array_wrapped_wrong_types_accepted_as_verified=true'             'wrong_type_case_count=21'             'verified_event_byte_equivalent_to_primitive_control=true'             'request_wrong_types_reproduced=true'             'policy_wrong_types_reproduced=true'             'receipt_wrong_types_reproduced=true'             'usdc_log_wrong_types_reproduced=true'             'production_payment_authority_ready=false'             'source_modified=false'             'customer_record_used=false'             'rpc_used=false'             'wallet_or_signer_access=false'             'transaction_broadcast=false'             'funds_moved=false'
+          do
+            grep -Fx "$marker" "v2-json-primitive-negative-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload negative evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v2-json-primitive-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: v2-json-primitive-negative-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [reproduce]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download negative receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v2-json-primitive-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical Node 22 24 26 reproduction
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/v2-json-primitive-negative-node-$v.txt"
+          done
+          cmp evidence/v2-json-primitive-negative-node-22.txt evidence/v2-json-primitive-negative-node-24.txt
+          cmp evidence/v2-json-primitive-negative-node-22.txt evidence/v2-json-primitive-negative-node-26.txt
+          echo "VOID_BUY_VOID_V2_JSON_PRIMITIVE_COERCION_NEGATIVE_CROSS_NODE_GREEN"
+          echo "defect_reproduced=true"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"
