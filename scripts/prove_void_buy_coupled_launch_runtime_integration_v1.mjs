@@ -708,7 +708,9 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 
   assert.equal(
     currentCandidate.source_runtime_parent,
-    "f627cad6bc07a6ad3ebe7cbd946723316fcd0567",
+    // The earlier f627cad source is still an ancestor of this reviewed
+    // V2 plain-data hardening generation; never conflate historical V4.
+    "22a30e3ffad6047a472488104c769140bd050878",
   );
   assert.equal(
     currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,

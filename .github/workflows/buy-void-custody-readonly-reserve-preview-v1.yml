@@ -1,0 +1,123 @@
+name: VOID custody read-only allocation admission preview v1
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_readonly_reserve_preview_v1.mjs"
+      - "scripts/prove_buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "scripts/prove_buy_void_custody_readonly_reserve_preview_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs"
+      - ".github/workflows/buy-void-custody-readonly-reserve-preview-v1.yml"
+      - "docs/architecture/buy-void-custody-readonly-reserve-preview-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: buy-custody-readonly-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact source head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install immutable dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build reviewed TypeScript inputs
+        run: npm run build
+      - name: Prove descriptor-bound private allocation observation
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs
+          node --check scripts/prove_buy_void_custody_allocation_roots_observed_read_v1.mjs
+          node scripts/prove_buy_void_custody_allocation_roots_observed_read_v1.mjs \
+            | tee "readonly-allocation-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_ALLOCATION_OBSERVED_READ_V1_GREEN' \
+            'actual_descriptor_bound_allocation_high_water_read_only=true' \
+            'same_bytes_high_water_inode_swap_rejected=true' \
+            'cross_root_atomic_snapshot_proven=false' \
+            'production_allocation_mutation_ready=false'
+          do grep -Fx "$marker" "readonly-allocation-${{ matrix.node }}.txt"; done
+      - name: Prove signed-launch and payment admission remains held
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_custody_readonly_reserve_preview_v1.mjs
+          node --check scripts/prove_buy_void_custody_readonly_reserve_preview_v1.mjs
+          node scripts/prove_buy_void_custody_readonly_reserve_preview_v1.mjs \
+            | tee -a "readonly-allocation-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_READONLY_RESERVE_PREVIEW_V1_GREEN' \
+            'real_payment_launch_allocation_observers_composed=true' \
+            'canonical_allocation_high_water_binding_verified=true' \
+            'unactivated_signed_launch_stays_HOLD=true' \
+            'mismatched_allocation_high_water_stays_HOLD=true' \
+            'remote_authenticated_custody_ipc=false' \
+            'custody_reserve_method_enabled=false' \
+            'funds_moved=false'
+          do grep -Fx "$marker" "readonly-allocation-${{ matrix.node }}.txt"; done
+      - name: Check historical V1 exact builtin restriction
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs
+          node scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs > /dev/null
+      - name: Upload exact-head deterministic receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: readonly-allocation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: readonly-allocation-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download all exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: readonly-allocation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require byte-identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "proof/readonly-allocation-$node.txt"; done
+          cmp proof/readonly-allocation-22.txt proof/readonly-allocation-24.txt
+          cmp proof/readonly-allocation-22.txt proof/readonly-allocation-26.txt
+          echo VOID_BUY_VOID_CUSTODY_READONLY_RESERVE_THREE_NODE_GREEN
+          echo "cross_root_atomic_snapshot_proven=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
