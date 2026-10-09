@@ -265,10 +265,11 @@ try {
     acceptanceWorkflow,
     /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS: '30'/,
   );
-  assert.match(
-    acceptanceWorkflow,
-    /seq 1 "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
-  );
+  assert.match(acceptanceWorkflow, /monotonic_seconds\(\)/);
+  assert.match(acceptanceWorkflow, /read -r uptime idle < \/proc\/uptime/);
+  assert.match(acceptanceWorkflow, /--max-time "\$curl_max_s"/);
+  assert.match(acceptanceWorkflow, /timeout -k 1s "\$remaining_s" node/);
+  assert.match(acceptanceWorkflow, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/);
   assert.match(acceptanceWorkflow, /public_sync_via_loopback_adapter=true/);
   assert.match(acceptanceWorkflow, /direct_remote_fetch_from_node=false/);
   assert.match(ciWorkflow, /node: \[22, 24, 26\]/);

@@ -127,10 +127,12 @@ try {
     workflowSource,
     /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS:\s*'30'/,
   );
-  assert.match(
-    workflowSource,
-    /seq 1 "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
-  );
+  assert.match(workflowSource, /monotonic_seconds\(\)/);
+  assert.match(workflowSource, /read -r uptime idle < \/proc\/uptime/);
+  assert.match(workflowSource, /deadline_s=/);
+  assert.match(workflowSource, /--max-time "\$curl_max_s"/);
+  assert.match(workflowSource, /timeout -k 1s "\$remaining_s" node/);
+  assert.match(workflowSource, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/);
   assert.match(
     workflowSource,
     /sleep "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"/,
@@ -155,6 +157,54 @@ try {
     workflowSource,
     /mkdir -p outside-machine-evidence "\$DATA_DIR"/,
   );
+  // Execute the actual workflow polling body under inert local command stubs.
+  // Slow curl and late-success cases must be bounded by elapsed monotonic time.
+  assert.equal(process.platform, "linux", "monotonic acceptance uses procfs");
+  const waitBegin = workflowSource.indexOf("          monotonic_seconds() {");
+  const waitEnd = workflowSource.indexOf(
+    '\n          if test "$GREEN" != 1; then', waitBegin,
+  );
+  assert.ok(waitBegin >= 0 && waitEnd > waitBegin, "timed readiness loop missing");
+  const waitBody = workflowSource.slice(waitBegin, waitEnd);
+  const fakeBin = path.join(tmp, "clock-probe-bin");
+  fs.mkdirSync(fakeBin);
+  const fakeCurl = path.join(fakeBin, "curl");
+  const fakeNode = path.join(fakeBin, "node");
+  fs.writeFileSync(fakeNode, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+  for (const [scenario, curlSource, waitSeconds, expectedExit] of [
+    ["slow_failure", "#!/bin/sh\nsleep 1\nexit 28\n", 2, 2],
+    ["late_success", "#!/bin/sh\nsleep 2\nprintf '{}\\n'\n", 1, 2],
+    ["on_time_success", "#!/bin/sh\nprintf '{}\\n'\n", 2, 0],
+  ]) {
+    fs.writeFileSync(fakeCurl, curlSource, { mode: 0o700 });
+    const started = Date.now();
+    const observed = spawnSync("bash", [
+      "-c", "set -Eeuo pipefail\n" + waitBody +
+        '\nprintf "accepted=%s\\n" "$GREEN"\n',
+    ], {
+      cwd: tmp,
+      encoding: "utf8",
+      timeout: 9_000,
+      env: {
+        PATH: fakeBin + ":" + process.env.PATH,
+        PID: String(process.pid),
+        READY: path.join(tmp, "ready.json"),
+        LOG: path.join(tmp, "node.log"),
+        VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS: String(waitSeconds),
+        VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD: "1951058",
+      },
+    });
+    assert.equal(observed.error, undefined, scenario);
+    assert.equal(observed.status, expectedExit, scenario + ": " + observed.stderr);
+    if (expectedExit === 2) {
+      assert.match(observed.stderr, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/, scenario);
+    } else {
+      assert.match(observed.stdout, /accepted=1/, scenario);
+      assert.doesNotMatch(observed.stderr, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/, scenario);
+    }
+    assert.ok(Date.now() - started < 7_500, scenario + " overshot bounded fixture");
+  }
+
   assert.doesNotMatch(workflowSource, /Number\(body\.head\) <= 0\) process\.exit\(1\)/);
 
   console.log("verified_remote_manifest_identity_bound=true");
@@ -168,6 +218,8 @@ try {
   console.log("checkpoint_restore_data_dir_precreated=false");
   console.log("checkpoint_restore_timeout_ms=1800000");
   console.log("acceptance_readiness_wait_seconds=2400");
+  console.log("acceptance_wait_real_elapsed_monotonic_bound=true");
+  console.log("slow_ready_and_late_success_deadline_adversaries_hold=true");
   console.log("post_ready_grace_seconds=30");
   console.log("restore_timeout_plus_start_margin_lt_readiness_wait=true");
   console.log("prestart_plus_readiness_plus_grace_lt_job_timeout=true");
