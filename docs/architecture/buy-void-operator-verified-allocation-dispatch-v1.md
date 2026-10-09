@@ -156,4 +156,3 @@ direct write authority.
 This documentation-only revision records that the current integration head must
 receive a fresh pull-request synchronize CI generation after the manual
 fulfilled-state callsite repair. It changes no runtime behavior or authority.
-
