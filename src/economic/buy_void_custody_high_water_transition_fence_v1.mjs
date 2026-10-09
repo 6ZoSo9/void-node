@@ -114,13 +114,17 @@ function parseHighWater(bytes, label) {
   if (
     highWater.marker !== HIGH_WATER_MARKER ||
     highWater.version !== 2 ||
-    !SHA256_ID.test(String(highWater.source_composition_id || "")) ||
+    typeof highWater.source_composition_id !== "string" ||
+    !SHA256_ID.test(highWater.source_composition_id) ||
     !Number.isSafeInteger(highWater.sequence) ||
     highWater.sequence < 1 ||
-    !BYTES32.test(String(highWater.generation || "")) ||
+    typeof highWater.generation !== "string" ||
+    !BYTES32.test(highWater.generation) ||
     highWater.state !== "active" ||
-    !SHA256_ID.test(String(highWater.tip_sha256 || "")) ||
-    !SHA256_ID.test(String(highWater.journal_prefix_sha256 || ""))
+    typeof highWater.tip_sha256 !== "string" ||
+    !SHA256_ID.test(highWater.tip_sha256) ||
+    typeof highWater.journal_prefix_sha256 !== "string" ||
+    !SHA256_ID.test(highWater.journal_prefix_sha256)
   ) {
     fail(label + "_semantics_invalid");
   }
@@ -244,16 +248,23 @@ export function parseBuyVoidCustodyHighWaterTransitionFenceV1(bytes) {
   if (
     record.marker !== VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_V1 ||
     record.version !== 1 ||
-    !SLOT_ID.test(String(record.transition_slot_id || "")) ||
-    !SHA256_ID.test(String(record.source_composition_id || "")) ||
+    typeof record.transition_slot_id !== "string" ||
+    !SLOT_ID.test(record.transition_slot_id) ||
+    typeof record.source_composition_id !== "string" ||
+    !SHA256_ID.test(record.source_composition_id) ||
     !(record.prior_high_water_sha256 === null ||
-      SHA256_ID.test(String(record.prior_high_water_sha256 || ""))) ||
-    !SHA256_ID.test(String(record.next_high_water_sha256 || "")) ||
+      (typeof record.prior_high_water_sha256 === "string" &&
+       SHA256_ID.test(record.prior_high_water_sha256))) ||
+    typeof record.next_high_water_sha256 !== "string" ||
+    !SHA256_ID.test(record.next_high_water_sha256) ||
     !Number.isSafeInteger(record.next_sequence) ||
     record.next_sequence < 1 ||
-    !BYTES32.test(String(record.next_generation || "")) ||
-    !SHA256_ID.test(String(record.next_tip_sha256 || "")) ||
-    !SHA256_ID.test(String(record.next_journal_prefix_sha256 || "")) ||
+    typeof record.next_generation !== "string" ||
+    !BYTES32.test(record.next_generation) ||
+    typeof record.next_tip_sha256 !== "string" ||
+    !SHA256_ID.test(record.next_tip_sha256) ||
+    typeof record.next_journal_prefix_sha256 !== "string" ||
+    !SHA256_ID.test(record.next_journal_prefix_sha256) ||
     typeof record.next_high_water_base64 !== "string" ||
     record.next_high_water_base64.length < 1
   ) {
