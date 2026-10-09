@@ -71,9 +71,11 @@ jobs:
             'generation_advance_requires_high_water_update=true' \
             'custody_high_water_rollback_rejected=true' \
             'same_sequence_fork_rejected=true' \
+            'historical_journal_prefix_byte_mutation_rejected=true' \
             'stale_generation_receipt_rejected=true' \
             'forged_activation_signature_rejected=true' \
             'operator_home_anchor_dependency=false' \
+            'observed_bytes_not_caller_authority=true' \
             'production_source_gate_ready=false' \
             'custody_high_water_write_performed=false' \
             'custody_reserve_method_enabled=false' \
