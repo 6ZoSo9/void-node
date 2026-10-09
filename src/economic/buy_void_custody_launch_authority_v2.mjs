@@ -29,6 +29,10 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2_POLICY =
     custody_private_high_water_required: true,
     custody_high_water_writer_implemented: false,
     caller_supplied_source_gate_authority: false,
+    caller_supplied_journal_bytes_authority: false,
+    caller_supplied_receipt_bytes_authority: false,
+    caller_supplied_high_water_bytes_authority: false,
+    observed_bytes_must_be_server_descriptor_bound_before_runtime_use: true,
     caller_supplied_verified_boolean_authority: false,
     caller_supplied_anchor_path_authority: false,
     custody_reserve_method_enabled: false,
@@ -80,6 +84,7 @@ const RECEIPT_KEYS = Object.freeze([
 
 const HIGH_WATER_KEYS = Object.freeze([
   "generation",
+  "journal_prefix_sha256",
   "marker",
   "sequence",
   "source_composition_id",
@@ -288,13 +293,15 @@ export function buildBuyVoidCustodyLaunchHighWaterV2({
   sequence,
   generation,
   tip_sha256,
+  journal_prefix_sha256,
 }) {
   if (
     !SHA256_ID.test(String(source_composition_id || "")) ||
     !Number.isSafeInteger(sequence) ||
     sequence < 1 ||
     !BYTES32.test(String(generation || "")) ||
-    !SHA256_ID.test(String(tip_sha256 || ""))
+    !SHA256_ID.test(String(tip_sha256 || "")) ||
+    !SHA256_ID.test(String(journal_prefix_sha256 || ""))
   ) {
     fail("high_water_input_invalid");
   }
@@ -306,6 +313,7 @@ export function buildBuyVoidCustodyLaunchHighWaterV2({
     generation,
     state: "active",
     tip_sha256,
+    journal_prefix_sha256,
   });
   return Buffer.from(JSON.stringify(body, null, 2) + "\n", "utf8");
 }
@@ -329,7 +337,8 @@ function parseHighWater(highWaterBytes) {
     highWater.sequence < 1 ||
     !BYTES32.test(String(highWater.generation || "")) ||
     highWater.state !== "active" ||
-    !SHA256_ID.test(String(highWater.tip_sha256 || ""))
+    !SHA256_ID.test(String(highWater.tip_sha256 || "")) ||
+    !SHA256_ID.test(String(highWater.journal_prefix_sha256 || ""))
   ) {
     fail("high_water_semantics_invalid");
   }
@@ -380,10 +389,20 @@ function verifyHighWaterLineage(
     fail("high_water_lineage_mismatch");
   }
 
+  const prefixBytes = Buffer.from(
+    lines.slice(0, highWater.sequence).join("\n") + "\n",
+    "utf8",
+  );
+  if (sha256Id(prefixBytes) !== highWater.journal_prefix_sha256) {
+    fail("high_water_prefix_mismatch");
+  }
+
+  const currentJournalSha = sha256Id(journalBytes);
   const matchesCurrent =
     highWater.sequence === journalState.sequence &&
     highWater.generation === journalState.generation &&
-    highWater.tip_sha256 === journalState.tip_sha256;
+    highWater.tip_sha256 === journalState.tip_sha256 &&
+    highWater.journal_prefix_sha256 === currentJournalSha;
   return Object.freeze({
     current: highWater,
     matches_current: matchesCurrent,
@@ -402,6 +421,8 @@ function held(reason, sourceCompositionId = null, candidate = null) {
     sequence: candidate?.sequence ?? null,
     generation: candidate?.generation ?? null,
     tip_sha256: candidate?.tip_sha256 ?? null,
+    journal_prefix_sha256:
+      candidate?.journal_prefix_sha256 ?? null,
     activation_receipt_id: null,
     activation_receipt_sha256: null,
     activation_signer: null,
@@ -438,11 +459,13 @@ function classifyCore({
       sequence: journalState.sequence,
       generation: journalState.generation,
       tip_sha256: journalState.tip_sha256,
+      journal_prefix_sha256: sha256Id(generation_journal_bytes),
     });
     candidate = Object.freeze({
       sequence: journalState.sequence,
       generation: journalState.generation,
       tip_sha256: journalState.tip_sha256,
+      journal_prefix_sha256: sha256Id(generation_journal_bytes),
       json: candidateBytes.toString("utf8"),
       sha256: sha256Id(candidateBytes),
     });
@@ -496,6 +519,7 @@ function classifyCore({
       sequence: journalState.sequence,
       generation: journalState.generation,
       tip_sha256: journalState.tip_sha256,
+      journal_prefix_sha256: candidate.journal_prefix_sha256,
       activation_receipt_id: receipt.activation_receipt_id,
       activation_receipt_sha256: receipt_sha256,
       activation_signer: signed.activation_signer,
@@ -521,7 +545,7 @@ function classifyCore({
   }
 }
 
-export function readBuyVoidCustodyLaunchAuthorityV2({
+export function classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
   generation_journal_bytes,
   activation_receipt_bytes,
   custody_high_water_bytes,
