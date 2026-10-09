@@ -151,3 +151,9 @@ Any other absolute path, swapped root, nested root, relative path, or filesystem
 root remains HOLD. This is a source-level anti-miswiring constraint only; it
 does not prove the installed service owns those roots or grant the web process
 direct write authority.
+## Exact-head CI evidence trigger
+
+This documentation-only revision records that the current integration head must
+receive a fresh pull-request synchronize CI generation after the manual
+fulfilled-state callsite repair. It changes no runtime behavior or authority.
+
