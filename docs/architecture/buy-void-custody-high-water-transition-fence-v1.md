@@ -51,7 +51,9 @@ The permanent record contains only authority that can be rebound exactly:
 
 Prior sequence/generation/tip are intentionally not duplicated into the fence
 record. Their exact prior bytes are represented only by the cryptographic
-digest, avoiding unbound redundant metadata.
+digest, avoiding unbound redundant metadata. The closed parser key set enforces
+that choice: injected `prior_sequence`, `prior_generation`, or
+`prior_tip_sha256` fields are schema-invalid rather than tolerated metadata.
 
 The parser revalidates:
 
