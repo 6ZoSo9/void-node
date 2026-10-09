@@ -11,7 +11,11 @@ export const VOID_BUY_VOID_CUSTODY_HIGH_WATER_EXCLUSIVE_LOCK_POLICY_V1 =
     lock_directory_mode_0700: true,
     parent_fsync_before_callback_required: true,
     stale_lock_automatic_takeover: false,
-    failed_transaction_lock_release: false,
+    callback_failure_lock_retained: true,
+    pre_release_failure_lock_retained: true,
+    durable_release_success_requires_parent_fsync: true,
+    post_rmdir_fsync_failure_lock_retention_guaranteed: false,
+    release_failure_requires_separate_recovery_authority: true,
     callback_must_be_synchronous: true,
     trusted_server_path_selection_verified: false,
     installed_custody_service_uid_qualified: false,
@@ -184,9 +188,12 @@ export function withBuyVoidCustodyHighWaterExclusiveLockV1(
       result,
     });
   } finally {
-    // On failure LEAVE the lock in place. Automatic stale lock reaping,
-    // even after a callback exception, could let a new process race an
-    // uncommitted high-water rename. Manual recovery is a separate authority.
+    // Callback and all failures before rmdir retain the lock. Once rmdir
+    // succeeds, however, a later parent-fsync failure is an UNCERTAIN RELEASE:
+    // the pathname may already be absent and another process may acquire.
+    // This primitive never auto-reaps a stale lock and never treats a thrown
+    // release error as proof that exclusion is still present. Recovery/fencing
+    // of an uncertain release is a separate authority.
     if (heldLockFd !== undefined) fs.closeSync(heldLockFd);
     for (const entry of opened.reverse()) fs.closeSync(entry.fd);
     void lockCreated;
