@@ -17,7 +17,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs";
 const EXPECTED_SOURCE_BLOB=
-  "335d7ac544805c819d385f93a74be07adc6e056a";
+  "97ef9de26f5b51ce935dc4f94a454b05af3c153b";
 const PARENT_LOCK_BLOB=
   "90543eccebad8efe1d5299a318d1d894dba9cd00";
 
@@ -57,6 +57,10 @@ assert.equal(source.includes("rename"),false);
 assert.equal(source.includes("mkdir"),false);
 assert.ok(source.includes("fence_record_deletion_allowed: false"));
 assert.ok(source.includes("transition_slot_keyed_by_prior_high_water: true"));
+assert.equal(source.includes("String(highWater."),false,
+  "high-water authority strings must not be coerced");
+assert.equal(source.includes("String(record."),false,
+  "fence authority strings must not be coerced");
 
 const parentLock=fs.readFileSync(path.join(
   ROOT,"src/economic/buy_void_custody_high_water_exclusive_lock_v1.mjs"));
@@ -282,6 +286,46 @@ assert.throws(
   /custody_hw_transition_fence_source_composition_changed/u,
 );
 
+// Authority-bearing JSON strings must be actual primitive strings. A
+// single-element array must never stringify into a valid digest/generation.
+for(const key of [
+  "source_composition_id",
+  "generation",
+  "tip_sha256",
+  "journal_prefix_sha256",
+]) {
+  const value=JSON.parse(h1.toString("utf8"));
+  value[key]=[value[key]];
+  const malformed=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
+  assert.throws(
+    ()=>buildBuyVoidCustodyHighWaterTransitionFenceV1({
+      prior_high_water_bytes:null,
+      next_high_water_bytes:malformed,
+    }),
+    /custody_hw_transition_fence_next_high_water_semantics_invalid/u,
+    "array-wrapped high-water authority accepted: "+key,
+  );
+}
+
+for(const key of [
+  "transition_slot_id",
+  "source_composition_id",
+  "prior_high_water_sha256",
+  "next_high_water_sha256",
+  "next_generation",
+  "next_tip_sha256",
+  "next_journal_prefix_sha256",
+]) {
+  const value=JSON.parse(transition12.record_bytes.toString("utf8"));
+  value[key]=[value[key]];
+  const malformed=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
+  assert.throws(
+    ()=>parseBuyVoidCustodyHighWaterTransitionFenceV1(malformed),
+    /custody_hw_transition_fence_record_semantics_invalid/u,
+    "array-wrapped fence authority accepted: "+key,
+  );
+}
+
 // Prior authority is represented by the exact prior digest only. Redundant
 // prior metadata is outside the closed record schema and must be rejected.
 {
@@ -337,10 +381,12 @@ console.log("create_only_record_never_deleted=true");
 console.log("crash_before_high_water_write_resumes_exact_transition=true");
 console.log("exact_next_high_water_replay_is_committed=true");
 console.log("unexpected_current_high_water_holds=true");
-console.log("bootstrap_transition_recoverable=true");\nconsole.log("bootstrap_slot_global_across_source_compositions=true");
+console.log("bootstrap_transition_recoverable=true");
+console.log("bootstrap_slot_global_across_source_compositions=true");
 console.log("same_state_noop_requires_no_fence=true");
 console.log("rollback_same_sequence_conflict_cross_source_hold=true");
 console.log("tampered_or_noncanonical_fence_record_rejected=true");
+console.log("array_wrapped_authority_strings_rejected=true");
 console.log("removable_lock_required=false");
 console.log("lock_release_fsync_dependency=false");
 console.log("filesystem_write_implemented=false");
