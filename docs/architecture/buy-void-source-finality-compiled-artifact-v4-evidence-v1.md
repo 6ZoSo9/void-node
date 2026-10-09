@@ -11,8 +11,8 @@ The reviewed source identities are:
   `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
 - V6 source Git blob
   `7266c03d8874207ed3fda0f814d0a7a53d429c25`;
-- V6 source-generation anchor
-  `47cbb1d4c7fb667a7accdf1089edb11072f3e631`.
+- current reviewed V6 source-generation anchor
+  `4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c`.
 
 Historical V5 reviewed-source and V3 compiled manifests are NOT altered.
 
@@ -21,34 +21,32 @@ compiled attestation. Compiled generation verified, deployed generation
 verified, runtime mount authority, and production source-finality ready all
 remain FALSE.
 
-## Exact cross-Node candidate evidence
+## Exact candidate evidence and rebind
 
-At exact PR #2633 head
-`f2cc22051d6408299c82975af78756d147c45647`, GitHub Actions run
-`37820150421` finished SUCCESS, including independent Node 22/24/26 builds
-and the exact downstream cross-Node byte comparison.
+The original #2633 candidate was independently built on Node 22/24/26 and
+archived as historical evidence. The current integration does **not** claim
+that historical candidate body is still the current source-generation body.
 
-Archived workflow artifacts:
+The reviewed source-stack anchor later advanced to
+`4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c` without changing the six
+compiled artifact byte identities listed below. Therefore this integration
+re-derives the unaccepted candidate from the current reviewed source-stack
+anchor and commits the resulting exact 4,032-byte body separately.
 
-- Node 22: artifact ID `11569338319`;
-- Node 24: artifact ID `11569881052`;
-- Node 26: artifact ID `11570175883`.
+Current unaccepted candidate identity:
 
-Each contains the same 4,032-byte candidate JSON. The exact raw candidate
-identities are:
-
-- SHA-256
-  `27279497f9a3bc2b93da59facb6a44d01ba7ba74342d6db6b0521867f1aa8128`;
 - Git blob SHA-1
-  `4c95426572e6b019822f3ae6422aacad6287e562`;
+  `4a97da9816ca28bc107822a32cd7ada42bdf5540`;
 - compiled artifact generation SHA-256
-  `45bb17e864579bb59f3b31f63260ce43b1cf85b8e3143d1fa31760e7122f9a87`.
+  `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`;
+- `compiled_artifact_generation_verified=false`;
+- `deployed_artifact_generation_verified=false`;
+- `runtime_mount_authority=false`;
+- `production_source_finality_authority_ready=false`.
 
-The reviewed-candidate evidence JSON in this branch is exactly the archived
-Node-22 body. Current #2633 later gained only proof/ancestry reconciliation;
-the candidate helper requires no reviewed runtime source or compiler-input
-drift from the source-generation anchor, so this evidence package re-derives
-the candidate on its own exact head and requires byte equality before passing.
+Exact-head CI must freshly derive this candidate and require byte-for-byte
+equality with the committed evidence JSON. Historical #2633 artifacts remain
+historical evidence only and are not repinned into current authority.
 
 ## Closed six-artifact identities
 
@@ -81,7 +79,7 @@ The changed compiled artifacts are only V6 and V2.
 
 ## Independent verification
 
-The evidence proof checks exact raw candidate bytes, SHA-256, Git blob SHA-1,
+The evidence proof checks exact raw candidate bytes by Git blob SHA-1,
 source and compiler inputs, Git ancestry, immutable V3 provenance, four
 unchanged predecessor compiled artifacts, the closed six-file artifact set,
 exact compiled lengths/hashes and an independently recomputed canonical
