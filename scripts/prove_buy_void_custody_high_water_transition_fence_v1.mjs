@@ -17,7 +17,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs";
 const EXPECTED_SOURCE_BLOB=
-  "dd53bb3d308dd238f4ca8183486f1a33a9b58481";
+  "335d7ac544805c819d385f93a74be07adc6e056a";
 const PARENT_LOCK_BLOB=
   "90543eccebad8efe1d5299a318d1d894dba9cd00";
 
@@ -114,11 +114,8 @@ assert.match(
 );
 assert.equal(
   Object.prototype.hasOwnProperty.call(parsed12.record,"prior_sequence"),
-  true,
+  false,
 );
-assert.equal(parsed12.record.prior_sequence,1);
-assert.equal(parsed12.record.prior_generation,gen("1"));
-assert.equal(parsed12.record.prior_tip_sha256,shaId("1"));
 assert.equal(parsed12.record.next_sequence,3);
 assert.ok(parsed12.next_high_water_bytes.equals(h2));
 
@@ -208,11 +205,8 @@ const bootstrapParsed=parseBuyVoidCustodyHighWaterTransitionFenceV1(
 assert.equal(bootstrapParsed.record.prior_high_water_sha256,null);
 assert.equal(
   Object.prototype.hasOwnProperty.call(bootstrapParsed.record,"prior_sequence"),
-  true,
+  false,
 );
-assert.equal(bootstrapParsed.record.prior_sequence,null);
-assert.equal(bootstrapParsed.record.prior_generation,null);
-assert.equal(bootstrapParsed.record.prior_tip_sha256,null);
 const bootstrapResume=classifyBuyVoidCustodyHighWaterTransitionRecoveryV1({
   fence_record_bytes:bootstrap.record_bytes,
   observed_current_high_water_bytes:null,
@@ -257,24 +251,15 @@ assert.throws(
   /custody_hw_transition_fence_source_composition_changed/u,
 );
 
-// Prior lineage metadata is mandatory and bootstrap/non-bootstrap shape must
-// agree with the prior digest sentinel.
+// Prior authority is represented by the exact prior digest only. Redundant
+// prior metadata is outside the closed record schema and must be rejected.
 {
   const value=JSON.parse(transition12.record_bytes.toString("utf8"));
-  delete value.prior_sequence;
-  const tampered=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
-  assert.throws(
-    ()=>parseBuyVoidCustodyHighWaterTransitionFenceV1(tampered),
-    /custody_hw_transition_fence_record_shape_invalid/u,
-  );
-}
-{
-  const value=JSON.parse(bootstrap.record_bytes.toString("utf8"));
   value.prior_sequence=1;
   const tampered=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
   assert.throws(
     ()=>parseBuyVoidCustodyHighWaterTransitionFenceV1(tampered),
-    /custody_hw_transition_fence_record_semantics_invalid/u,
+    /custody_hw_transition_fence_record_shape_invalid/u,
   );
 }
 
@@ -315,7 +300,7 @@ console.log("source_git_blob="+EXPECTED_SOURCE_BLOB);
 console.log("reviewed_removable_lock_parent_blob="+PARENT_LOCK_BLOB);
 console.log("same_prior_competing_successors_share_one_slot=true");
 console.log("prior_authority_bound_by_exact_digest_only=true");
-console.log("prior_lineage_metadata_serialized=true");
+console.log("prior_lineage_metadata_not_duplicated=true");
 console.log("different_successor_existing_slot_conflicts=true");
 console.log("create_only_record_never_deleted=true");
 console.log("crash_before_high_water_write_resumes_exact_transition=true");
