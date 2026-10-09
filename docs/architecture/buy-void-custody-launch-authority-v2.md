@@ -43,6 +43,13 @@ explicitly requires them to be obtained by separately reviewed server-side
 descriptor-bound reads before any runtime use; caller-supplied observed bytes
 carry no authority by themselves.
 
+The production-facing entry point also obtains lease time from `Date.now()`
+inside the reviewed process. A caller-supplied `now_ms` field is rejected
+with `caller_supplied_clock_forbidden`; explicit time injection exists only
+on the clearly test-only classifier. Policy therefore fixes
+`caller_supplied_clock_authority=false` and
+`trusted_server_clock_required_before_runtime_use=true`.
+
 The source checks:
 
 - exact active generation-journal chain semantics;
@@ -67,8 +74,12 @@ The source checks:
 - missing high-water returns
   `custody_launch_high_water_bootstrap_required`, not production-ready.
 
-A candidate high-water body is returned for later review, but this module
-**never writes it**.
+A candidate high-water body is returned only after the activation receipt has
+passed exact semantics/source-composition checks, generation/tip equality and
+both reviewed signatures. Malformed/stale/forged/source-mismatched receipts
+return candidate fields `null`. Candidate bytes are exposed only for the
+deliberate valid-signed bootstrap/advance states (and the already-current ready
+state), and this module **never writes them**.
 
 ## Why the high-water write is intentionally absent
 
@@ -111,10 +122,16 @@ It proves:
 - noncanonical raw journal bytes fail before bootstrap/high-water evaluation;
 - a custody high-water carrying the wrong raw-prefix digest fails even when
   its sequence/generation/event-tip fields otherwise match;
-- an old signed receipt cannot authorize a new active generation;
-- a forged activation signature fails;
-- the production entry point remains HOLD on the current source generation
-  because the canonical source gate itself is still not production-ready.
+- an old signed receipt cannot authorize a new active generation and exposes no
+  candidate high-water;
+- malformed receipt bytes, source-composition mismatch, forged activation
+  signature and forged Sovereign signature all fail with candidate high-water
+  fields `null`;
+- a caller-supplied production `now_ms` is rejected rather than reviving a
+  stale lease;
+- the production entry point without a caller clock remains HOLD on the current
+  source generation because the canonical source gate itself is still not
+  production-ready.
 
 Node 22/24/26 must produce byte-identical evidence.
 
