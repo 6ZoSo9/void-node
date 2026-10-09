@@ -39,6 +39,8 @@ Against the actual reviewed transport it proves:
 - `application/jsonp` is rejected;
 - a mismatched JSON-RPC response ID is rejected;
 - a response exceeding the configured byte cap is rejected;
+- a response that terminates prematurely after headers/body prefix is rejected
+  through the explicit response-abort path;
 - a drip-feed response that remains active inside the inactivity window still
   hits the total wall-clock deadline.
 
