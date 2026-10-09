@@ -83,6 +83,10 @@ jobs:
             'array_proxy_rejected_before_isarray=true' \
             'nested_policy_map_accessor_rejected=true' \
             'nested_payment_instruction_accessor_rejected=true' \
+            'allowed_chain_array_bound_precedes_descriptors=true' \
+            'receipt_log_array_bound_precedes_descriptors=true' \
+            'unreviewed_policy_map_getter_not_enumerated=true' \
+            'oversize_reviewed_text_held=true' \
             'null_prototype_plain_records_supported=true' \
             'canonical_verified_event_preserved=true' \
             'production_payment_authority_ready=false' \
