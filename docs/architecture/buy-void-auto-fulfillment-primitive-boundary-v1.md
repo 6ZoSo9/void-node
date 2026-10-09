@@ -13,8 +13,11 @@ be enforced in `buy_void_auto_fulfillment_v1.ts` itself.
 Predecessor source blob:
 `1ac1ad6213be83f1aa8261a554caa91544fe5e09`.
 
-Repaired source blob:
+Primitive-only repair source blob:
 `7c2ca19bde43b13df36bd06c946ad96130fe5d05`.
+
+Current plain-data snapshot successor blob:
+`3f10035412f6a52eebe4c4855b8f18072d452f47`.
 
 ## Repair
 
@@ -22,6 +25,12 @@ Authority-bearing chain/hash/address/request/status values must be primitive
 strings before trimming or case normalization.
 
 Integer-like receipt/verifier values accept only reviewed primitive `bigint | number | string` forms. `min_confirmations_by_chain` is stricter: the policy type is `Record<string, number>`, so it requires a positive safe integer number and rejects string/bigint aliases. USDC/VOID decimal quantities accept primitive strings or finite numbers.
+
+Before those semantic checks, the decision now takes a bounded detached snapshot
+of the entire reviewed input. The snapshot rejects Proxy objects before traps,
+accessor/hidden properties before getter execution, cycles, custom object/array
+prototypes, symbols, sparse arrays, and excessive depth/nodes/keys/array/text
+sizes. Only the detached frozen data is used afterward.
 
 The decision additionally:
 
@@ -47,6 +56,10 @@ claims to HOLD.
 
 A primitive-variant control confirms the reviewed numeric/string forms still
 produce the exact same canonical approved decision and instruction.
+
+The proof also requires top-level/request/payment-verifier Proxy inputs,
+request/policy-map/prior-claim accessors, a revoked array Proxy and a custom
+request prototype to HOLD with caller getters/traps unexecuted.
 
 Node 22/24/26 must emit byte-identical proof receipts.
 
