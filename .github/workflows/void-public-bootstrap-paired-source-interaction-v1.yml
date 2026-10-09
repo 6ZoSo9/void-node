@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 25
     env:
       BASE_SHA: "77f798e42efc73f83052311db94b0a7f33994cf8"
-      CHECKPOINT_SHA: "960840f4ee3ee579d1510f5b9339d1f9f0f5c846"
+      CHECKPOINT_SHA: "5e39a5232a743b50da2d589334410370581ed0ba"
       SEAL_SHA: "00bea686ca9f97ec065b2ce1288bb64b62c9585c"
     steps:
       - name: Exact source checkout
