@@ -30,7 +30,11 @@ existing code is modified:
   callback-free detached JSON snapshot. It rejects Proxy inputs, non-plain
   object prototypes, enumerable accessors, executable/nested `toJSON`,
   unsupported values, cycles, excessive depth/nodes/keys/array length and
-  oversize text before serializing caller data. Detached objects use a null
+  oversize text before serializing caller data. It also maintains an exact
+  running UTF-8 JSON byte budget (including escapes, punctuation and keys)
+  bounded to the existing 64 MiB ledger ceiling minus the final newline, so
+  many individually valid fields cannot create an oversized serialization
+  before HOLD. Detached objects use a null
   prototype and detached arrays shadow inherited `toJSON`, so ambient
   `Object.prototype.toJSON` or `Array.prototype.toJSON` cannot rewrite the
   validated event. The same detached snapshot bytes are used for persistence.
@@ -62,7 +66,10 @@ rejected without invocation; nested `toJSON` and nested accessors must likewise
 HOLD before filesystem mutation. Synthetic non-enumerable
 `Object.prototype.toJSON` and `Array.prototype.toJSON` hooks are installed
 and restored around an actual disposable `reviewed` append; neither hook may
-execute and the durable row must remain exactly `reviewed`.
+execute and the durable row must remain exactly `reviewed`. A repeated
+1 MiB control-character string adversary would expand beyond 64 MiB when JSON
+escaped; it must hit the aggregate byte budget before any full
+`JSON.stringify` and before request-root creation.
 
 It separately exercises `testOnlyReadStrictCapacityCensusV1` against
 private OS-temp `requests.jsonl` and `operator-events.jsonl`:
