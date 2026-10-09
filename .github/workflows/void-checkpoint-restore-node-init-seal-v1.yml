@@ -1,0 +1,58 @@
+name: VOID checkpoint restored Node init seal v1
+
+on:
+  pull_request:
+    paths:
+      - 'src/node_core.ts'
+      - 'src/chain/seg_store.ts'
+      - 'src/chain/txindex.ts'
+      - 'src/chain/receipts.ts'
+      - 'src/chain/segstore_path_confinement_v1.ts'
+      - 'scripts/run_void_public_checkpoint_restore_v1.mjs'
+      - 'scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs'
+      - '.github/workflows/void-checkpoint-restore-node-init-seal-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove exact checkout identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Compile exact source
+        run: npm run build
+      - name: Prove real SegStore and index initialization ordering
+        run: node scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
