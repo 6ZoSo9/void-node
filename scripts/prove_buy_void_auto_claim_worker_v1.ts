@@ -263,6 +263,16 @@ async function main(): Promise<void> {
     VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1.money_movement,
     false,
   );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .canonical_payment_rpc_rail_guard_required,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1
+      .noncanonical_chain_id_reaches_rpc,
+    false,
+  );
 
   const observerTransport = new FixtureTransport();
   const observed = await observeBuyVoidPaymentV1({
@@ -361,6 +371,47 @@ async function main(): Promise<void> {
   assert.equal(wrongConfirmation.mutation_performed, false);
   assert.equal(wrongConfirmationTransport.calls.length, 0);
   assert.equal(fs.existsSync(journalPath), false);
+
+  const wrongRailRoot = path.join(root, "wrong-rail");
+  const wrongRailTransport = new FixtureTransport();
+  const wrongRail = await runBuyVoidAutoClaimWorkerV1({
+    request,
+    root_dir: wrongRailRoot,
+    worker_policy: workerPolicy,
+    observer_policy: {
+      ...observerPolicy,
+      chain_id: 1,
+    },
+    verification_policy: verificationPolicy,
+    fulfillment_policy: fulfillmentPolicy,
+    apply: true,
+    confirmation: VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1,
+    transport: wrongRailTransport,
+    now_ms: 1_700_000_000_000,
+  });
+  if (!("reason" in wrongRail)) {
+    throw new Error("expected canonical rail hold");
+  }
+  assert.equal(wrongRail.ok, false);
+  assert.equal(wrongRail.stage, "payment_observation");
+  assert.equal(
+    wrongRail.reason,
+    "canonical_payment_rpc_chain_id_mismatch",
+  );
+  assert.deepEqual(
+    wrongRail.detail,
+    { expected_chain_id: "8453" },
+  );
+  assert.equal(
+    wrongRailTransport.calls.length,
+    0,
+    "noncanonical rail reached RPC transport",
+  );
+  assert.equal(
+    fs.existsSync(wrongRailRoot),
+    false,
+    "noncanonical rail mutated claim filesystem",
+  );
 
   const applied = await runBuyVoidAutoClaimWorkerV1({
     request,
@@ -544,6 +595,9 @@ async function main(): Promise<void> {
   console.log("one_request_per_run=1");
   console.log("dry_by_default=1");
   console.log("exact_confirmation_required=1");
+  console.log("canonical_payment_rpc_rail_guard_required=1");
+  console.log("noncanonical_chain_id_held_before_rpc=1");
+  console.log("noncanonical_chain_id_claim_mutation=0");
   console.log("duplicate_safe_claim=1");
   console.log("request_journal_write=0");
   console.log("inventory_decrement=0");
