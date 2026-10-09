@@ -17,7 +17,7 @@ const SOURCE="src/economic/buy_void_custody_reserve_plan_v1.mjs";
 const EXPECTED_SOURCE_BLOB="c8ce5546fbe9a801161adbd7218888500ce346c9";
 const PINS=Object.freeze({
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
+    "0a74a3652081c3e142d0b887676771a7ac148f32",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "c3fc204710a9189723651cfeb6ffc52b1aa049db",
   "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts":
@@ -189,6 +189,18 @@ assert.equal(again.idempotent,true);
 assert.equal(again.next_ledger_jsonl,first.next_ledger_jsonl);
 assert.equal(again.allocation_record_id,first.allocation_record_id);
 
+// A customer wallet first appearing in a later snapshot must not turn
+// verified-payment evidence into a candidate custody allocation.
+for (const requestHistory of [
+  [{...request,delivery_address:null}],
+  [{...request,delivery_address:null},request],
+]) {
+  requireHeld(testOnlyPlanBuyVoidCustodyReserveV1({
+    ...base, requests_jsonl:buf(requestHistory),
+  }),/verified_payment_replay_request_initial_delivery_address_missing/u);
+}
+
+
 const mismatchedLaunchRequest={
   ...request,
   launch_authority:{
@@ -292,7 +304,7 @@ assert.equal(getterReads,0,"production input accessor executed");
 const productionHeld=planBuyVoidCustodyReserveFromObservedBytesV1(productionBase);
 requireHeld(productionHeld,/launch_authority_not_ready/u);
 
-console.log("VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V1_PROOF_GREEN");
+console.log("VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V2_ORIGINAL_WALLET_GREEN");
 console.log("exact_source_and_dependency_blobs_verified=true");
 console.log("durable_verified_payment_replay_semantics_reused=true");
 console.log("canonical_allocation_planner_reused=true");
@@ -309,6 +321,7 @@ console.log("caller_clock_accepted=false");
 console.log("descriptor_bound_reads=false");
 console.log("filesystem_write=false");
 console.log("custody_reserve_method_enabled=false");
+console.log("first_original_delivery_lineage_required=true");
 console.log("production_allocation_mutation_ready=false");
 console.log("funds_movement=false");
 // Source-only synthetic proof: no real allocation, transfer or funding action.

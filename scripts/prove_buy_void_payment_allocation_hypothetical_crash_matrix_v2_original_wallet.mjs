@@ -27,7 +27,7 @@ const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "c3fc204710a9189723651cfeb6ffc52b1aa049db",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
+    "0a74a3652081c3e142d0b887676771a7ac148f32",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":
     "9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts":
@@ -171,6 +171,22 @@ assert.equal(observedGap.authority.independently_proven_event_fsync, false);
 assert.equal(observedGap.authority.capacity_lock_held, false);
 assert.equal(observedGap.authority.production_gate_ready, false);
 
+// First-original buyer-wallet provenance: later snapshots cannot add a
+// delivery address omitted from the initial request, even if event payment
+// verification is otherwise syntactically complete. Pure source test only.
+for (const requestHistory of [
+  [{ ...firstRequest, delivery_address: null }],
+  [{ ...firstRequest, delivery_address: null }, firstRequest],
+]) {
+  const rejected = replay(rows(requestHistory), verifiedEvents);
+  held(rejected, "held");
+  assert.equal(rejected.reason, "request_initial_delivery_address_missing");
+  assert.equal(rejected.operation_performed, false);
+  assert.equal(rejected.authority.production_gate_ready, false);
+  assert.equal(rejected.authority.funds_movement, false);
+}
+
+
 // First hypothetical repair uses the EXISTING canonical immutable allocation
 // record builder; never constructs a second record type or identity format.
 const allocationCandidate = ok(plan(), "planned");
@@ -291,12 +307,15 @@ assert.equal(excess.status,"held");
 // composable for fixed fixtures. No fsync / original-history / custody proof,
 // no runtime hook, no change to separate payment-capacity accounting.
 const report = Object.freeze({
-  marker:"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V1",
+  marker:"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2_ORIGINAL_WALLET",
   source_only:true,
+  source_proof_generation:"v2_first_original_wallet",
+  historical_v1_preserved_unmodified:true,
+  historical_v1_qualified_for_current_source:false,
   original_source_github_head:"f7c894eb2ff8f378b2f0a906192cc1a0602e1d24",
   predecessor_replay_source_blob_sha1:"feb1f0e3fea1ff07406cd3b8fcd315c48338596f",
   current_replay_source_blob_sha1:
-    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
+    "0a74a3652081c3e142d0b887676771a7ac148f32",
   original_event_line_sha256:exactEventSha,
   canonical_payment_identity:observedGap.canonical_payment_identity,
   candidate_record_id:allocationCandidate.record.record_id,
@@ -306,6 +325,7 @@ const report = Object.freeze({
   inventory_units_after_synthetic_sellout:"0",
   exact_replay_idempotent:true,
   conflicting_identity_rejected:true,
+  original_first_delivery_lineage_required:true,
   malformed_or_orphan_history_rejected:true,
   proposed_allocation_mutated:false,
   actual_durable_payment_fsync_verified:false,

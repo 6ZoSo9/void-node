@@ -4,6 +4,8 @@ on:
     paths:
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
       - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs"
       - ".github/workflows/buy-void-first-original-wallet-replay-proof-v1.yml"
       - "docs/architecture/buy-void-first-original-wallet-replay-proof-v1.md"
   workflow_dispatch:
@@ -46,11 +48,24 @@ jobs:
       - name: Run original first-wallet crash and custody reserve adversaries
         run: |
           set -euo pipefail
-          node --check scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs
-          node --check scripts/prove_buy_void_custody_reserve_plan_v1.mjs
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "crash-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_custody_reserve_plan_v1.mjs > "reserve-${{ matrix.node }}.txt"
-          node -e 'const fs=require("node:fs");const assert=require("node:assert/strict");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));assert.equal(r.original_first_delivery_lineage_required,true);assert.equal(r.current_replay_source_blob_sha1,"0a74a3652081c3e142d0b887676771a7ac148f32");for(const k of ["actual_durable_payment_fsync_verified","verified_capacity_and_request_locks_held","protected_high_water_custody_verified","allocation_publication_integrated","exactly_once_allocation_production_ready","presale_activation","funds_moved"])assert.equal(r[k],false,k);console.log("current_replay_binding_and_historic_HOLDs_verified=true")' "crash-${{ matrix.node }}.json"
+          node --check scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs
+          node --check scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs > "crash-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs > "reserve-${{ matrix.node }}.txt"
+          # Frozen historical V1 source-proof identities MUST remain unchanged
+          # and reject this new source generation; do not reissue V1.
+          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "$RUNNER_TEMP/v1-crash-hold.txt" 2>&1; then
+            echo UNEXPECTED_HISTORICAL_V1_CRASH_PROOF_REISSUE >&2
+            exit 1
+          fi
+          grep -F "reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts" "$RUNNER_TEMP/v1-crash-hold.txt"
+          if node scripts/prove_buy_void_custody_reserve_plan_v1.mjs > "$RUNNER_TEMP/v1-reserve-hold.txt" 2>&1; then
+            echo UNEXPECTED_HISTORICAL_V1_CUSTODY_PROOF_REISSUE >&2
+            exit 1
+          fi
+          grep -F "dependency drift: src/economic/buy_void_verified_allocation_replay_binding_v1.ts" "$RUNNER_TEMP/v1-reserve-hold.txt"
+          node -e 'const fs=require("node:fs");const assert=require("node:assert/strict");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));assert.equal(r.original_first_delivery_lineage_required,true);assert.equal(r.source_proof_generation,"v2_first_original_wallet");assert.equal(r.historical_v1_preserved_unmodified,true);assert.equal(r.historical_v1_qualified_for_current_source,false);assert.equal(r.current_replay_source_blob_sha1,"0a74a3652081c3e142d0b887676771a7ac148f32");for(const k of ["actual_durable_payment_fsync_verified","verified_capacity_and_request_locks_held","protected_high_water_custody_verified","allocation_publication_integrated","exactly_once_allocation_production_ready","presale_activation","funds_moved"])assert.equal(r[k],false,k);console.log("current_replay_binding_and_historic_HOLDs_verified=true")' "crash-${{ matrix.node }}.json"
+          grep -Fx "VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V2_ORIGINAL_WALLET_GREEN" "reserve-${{ matrix.node }}.txt"
           grep -Fx "first_original_delivery_lineage_required=true" "reserve-${{ matrix.node }}.txt"
           grep -Fx "production_allocation_mutation_ready=false" "reserve-${{ matrix.node }}.txt"
           grep -Fx "funds_moved=false" "reserve-${{ matrix.node }}.txt"
