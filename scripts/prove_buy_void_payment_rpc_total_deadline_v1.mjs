@@ -15,7 +15,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = "src/economic/buy_void_payment_rpc_observer_v1.ts";
-const EXPECTED_SOURCE_BLOB = "ab16a304cd923a551855cd7b37368eb7f1706170";
+const EXPECTED_SOURCE_BLOB = "e78b8511a6c049182d7c0e1ae1af320744f57cf7";
 const rpcMethod = "eth_blockNumber";
 const rpcParams = [];
 const blob = bytes => crypto.createHash("sha1")
@@ -136,6 +136,21 @@ await ephemeralRpc((input,res)=>{
     "unbounded payload must fail without loading the entire body");
 });
 console.log("oversized_rpc_response_rejected=true");
+
+await ephemeralRpc((input,res)=>{
+  res.writeHead(200,{"content-type":"application/json",
+    "content-length":"4096"});
+  res.write('{"jsonrpc":"2.0","id":'+input.id+',"result":"partial');
+  setTimeout(()=>res.destroy(),25);
+},async url=>{
+  await requireRejection(
+    transport(url,{timeout_ms:500,max_response_bytes:8192})
+      .call({method:rpcMethod,params:rpcParams}),
+    /payment_observer_rpc_response_aborted/,
+    "premature response close must settle fail-closed",
+  );
+});
+console.log("premature_rpc_response_rejected=true");
 
 await ephemeralRpc((input,res)=>{
   res.writeHead(502,{"content-type":"application/json"});
