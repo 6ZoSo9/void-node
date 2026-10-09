@@ -2,7 +2,7 @@
 
 This Draft is a **synthetic fault-cut review child** of
 [#2690](https://github.com/6ZoSo9/void-node/pull/2690), exact parent
-`c2fbf99de1066295a93b61d4ce7fd668254ac34c`.
+`19885db0f6c1eb221d1695d36070884517f4e726`.
 The parent is an UNMOUNTED, cross-process private custody lock source
 candidate. Neither this Draft nor its parent is a privileged high-water
 writer, authenticated IPC service or production lock deployment.
@@ -22,16 +22,16 @@ lockCreated = false;
 
 The final parent fsync can fail **after the lock pathname is already gone**.
 The API then throws, but another process may enter the critical section
-because `mkdir(lockdir)` no longer sees the missing lock. The documentation's
-statement that failures retain the lock is not guaranteed for this **specific
-post-rmdir fsync failure window**. This is an ambiguity about a *candidate
+because `mkdir(lockdir)` no longer sees the missing lock. The corrected owner
+contract now explicitly labels this **specific post-rmdir fsync failure window**
+as an uncertain release and sets `post_rmdir_fsync_failure_lock_retention_guaranteed=false`. This is an ambiguity about a *candidate
 unmounted primitive*, not evidence of a live VOID double reservation.
 
 ## Narrow standalone exact-source negative proof
 
 `scripts/prove_buy_void_custody_exclusive_lock_release_fsync_fault_v1.mjs`
 imports the **actual** source from #2690 and pins its precise Git blob
-`1785709f55fa707c126a32f3909111d019156233`.
+`90543eccebad8efe1d5299a318d1d894dba9cd00`.
 
 It creates ONE private `os.tmpdir()` fixture. Under an unprivileged Linux
 UID, it patches only its **own process's** `fs.fsyncSync` or
