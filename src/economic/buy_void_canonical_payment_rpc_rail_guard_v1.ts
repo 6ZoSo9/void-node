@@ -154,7 +154,7 @@ function snapshotCanonicalPaymentRpcPolicyV1(
   }
 
   return Object.freeze({
-    enabled: true,
+    enabled,
     source_chain: sourceChain,
     chain_id: chainId,
     rpc_url: rpcUrl,
