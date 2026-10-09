@@ -1,0 +1,103 @@
+name: VOID Buy VOID custody permanent fence mutable-input negative v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_custody_fence_mutable_input_negative_v1.mjs"
+      - "docs/architecture/buy-void-custody-fence-mutable-input-negative-v1.md"
+      - ".github/workflows/buy-void-custody-fence-mutable-input-negative-v1.yml"
+      - "src/economic/buy_void_custody_high_water_fence_storage_v1.mjs"
+      - "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-fence-mutable-input-negative-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  witness:
+    name: inert buffer-ownership negative / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source-only PR
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify checkout identity
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up Node from exact matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Reproduce original source mismatch only in OS temporary fixture
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_custody_fence_mutable_input_negative_v1.mjs
+          node scripts/prove_buy_void_custody_fence_mutable_input_negative_v1.mjs \
+            | tee "fence-input-negative-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CUSTODY_FENCE_MUTABLE_INPUT_NEGATIVE_V1_REPRODUCED' \
+            "fence-input-negative-${{ matrix.node }}.txt"
+          grep -Fx 'exclusive_create_mutation_after_validation=true' \
+            "fence-input-negative-${{ matrix.node }}.txt"
+          grep -Fx 'reported_digest_mismatch_permanent_slot=true' \
+            "fence-input-negative-${{ matrix.node }}.txt"
+          grep -Fx 'invalid_permanent_slot_replay_held=true' \
+            "fence-input-negative-${{ matrix.node }}.txt"
+          grep -Fx 'production_allocation_mutation_ready=false' \
+            "fence-input-negative-${{ matrix.node }}.txt"
+      - name: Upload reproducible negative-test receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-fence-input-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: fence-input-negative-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [witness]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exactly three negative receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-fence-input-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Byte-compare Node 22 24 26 negative receipts
+        run: |
+          set -euo pipefail
+          for major in 22 24 26; do
+            test -s "receipts/fence-input-negative-$major.txt"
+          done
+          cmp receipts/fence-input-negative-22.txt receipts/fence-input-negative-24.txt
+          cmp receipts/fence-input-negative-22.txt receipts/fence-input-negative-26.txt
+          echo 'CUSTODY_FENCE_INPUT_NEGATIVE_THREE_NODE_REPRODUCIBLE'
+          echo 'source_candidate_bug_still_exists=true'
+          echo 'production_high_water_authority=false'
