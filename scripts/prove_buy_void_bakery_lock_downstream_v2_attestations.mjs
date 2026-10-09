@@ -38,8 +38,69 @@ function gitBlobSha1(bytes) {
     .digest("hex");
 }
 
-function read(relativePath) {
-  return fs.readFileSync(path.join(ROOT, relativePath));
+function sameIdentity(a, b) {
+  return a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs;
+}
+
+function read(relativePath, maxBytes = 2 * 1024 * 1024) {
+  assert.equal(path.isAbsolute(relativePath), false, "absolute path forbidden");
+  assert.equal(relativePath.split(/[\\/]/u).includes(".."), false, "parent path forbidden");
+  assert.ok(
+    Number.isSafeInteger(maxBytes) && maxBytes > 0 && maxBytes <= 4 * 1024 * 1024,
+    "read limit invalid",
+  );
+  const absolute = path.join(ROOT, relativePath);
+  const noFollow = fs.constants.O_NOFOLLOW;
+  assert.ok(typeof noFollow === "number" && noFollow > 0, "O_NOFOLLOW unavailable");
+  let fd = null;
+  try {
+    const visibleBefore = fs.lstatSync(absolute, { bigint: true });
+    assert.ok(
+      visibleBefore.isFile() &&
+      !visibleBefore.isSymbolicLink() &&
+      visibleBefore.nlink === 1n &&
+      visibleBefore.size > 0n &&
+      visibleBefore.size <= BigInt(maxBytes),
+      "visible input invalid: " + relativePath,
+    );
+    fd = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow);
+    const before = fs.fstatSync(fd, { bigint: true });
+    assert.ok(
+      before.isFile() &&
+      before.nlink === 1n &&
+      before.size > 0n &&
+      before.size <= BigInt(maxBytes) &&
+      sameIdentity(visibleBefore, before),
+      "path/descriptor mismatch before read: " + relativePath,
+    );
+    const pinnedSize = Number(before.size);
+    const buffer = Buffer.alloc(pinnedSize + 1);
+    let total = 0;
+    while (total < buffer.length) {
+      const n = fs.readSync(fd, buffer, total, buffer.length - total, total);
+      if (n === 0) break;
+      total += n;
+    }
+    assert.equal(total, pinnedSize, "input grew or truncated: " + relativePath);
+    const after = fs.fstatSync(fd, { bigint: true });
+    const visibleAfter = fs.lstatSync(absolute, { bigint: true });
+    assert.ok(
+      sameIdentity(before, after) &&
+      visibleAfter.isFile() &&
+      !visibleAfter.isSymbolicLink() &&
+      sameIdentity(visibleAfter, after),
+      "input changed during read: " + relativePath,
+    );
+    return buffer.subarray(0, total);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
 }
 
 function executeCandidateBytes(scriptBytes, scriptPath) {
