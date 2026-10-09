@@ -59,6 +59,8 @@ jobs:
           grep -Fx 'caller_proxy_rejected_without_traps=true' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'oversize_text_holds_before_full_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'deep_nesting_holds_before_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'excess_key_count_holds_before_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'sparse_array_inherited_lookup_forbidden=true' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'mounted_verified_allocation_dispatch=false' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'payment_or_allocation_append_performed=false' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'presale_activation=false' "dispatch-node-${{ matrix.node }}.txt"
