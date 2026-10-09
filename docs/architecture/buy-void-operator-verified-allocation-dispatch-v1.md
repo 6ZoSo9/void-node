@@ -76,8 +76,11 @@ uses **inert, in-memory JSON** only: immutable snapshots, caller `toJSON`
 and property-accessor rejection without invocation, Proxy rejection without
 executing `ownKeys`/descriptor traps, a 4 MiB text adversary
 that must HOLD before full `JSON.stringify`, deep nesting that must HOLD at
-the structural depth gate, stateful root/callback getters that must each be
-read exactly once, exact nonpayment preservation, rejection of
+the structural depth gate, a 5,000-key object that must stop at the key-count
+gate without constructing a complete descriptor table or JSON string, a sparse
+array that must not fall through to inherited index lookup, stateful
+root/callback getters that must each be read exactly once, exact nonpayment
+preservation, rejection of
 `payment_verified` whitespace/case aliases and every unknown status,
 invalid/missing/relative/aliased roots, request-ID mismatch and invalid
 callback negatives. The same malformed-status cases are passed through the
