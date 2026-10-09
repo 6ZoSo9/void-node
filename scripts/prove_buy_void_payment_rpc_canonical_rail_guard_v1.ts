@@ -29,7 +29,7 @@ const gitBlob = crypto.createHash("sha1")
 assert.equal(gitBlob, EXPECTED_OBSERVER_GIT_BLOB,
   "repaired reviewed total-deadline observer source must not drift");
 const GUARD_SOURCE = "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts";
-const EXPECTED_GUARD_GIT_BLOB = "36382d833ea41f7c648cdcc6e00967f98cd70192";
+const EXPECTED_GUARD_GIT_BLOB = "adc71e97f6f6704303aaf1868dd5239032c77450";
 const guardBytes = fs.readFileSync(path.join(ROOT, GUARD_SOURCE));
 assert.equal(crypto.createHash("sha1")
   .update(Buffer.from("blob " + guardBytes.byteLength + "\0", "utf8"))
@@ -306,6 +306,28 @@ for(const candidate of negativePolicies) {
   const decision=classifyBuyVoidCanonicalPaymentRpcRailV1(candidate);
   assert.equal(decision.ok,false,"wrong pairing/type must HOLD");
 }
+{
+  const disabledPolicy={...policy("base",8453),enabled:false};
+  const disabledFixture=fixture("0x2105");
+  const disabledObserved=await observeBuyVoidCanonicalRailPaymentV1({
+    request:request("base"),
+    policy:disabledPolicy,
+    transport:disabledFixture.transport,
+  });
+  assert.equal(disabledObserved.ok,false);
+  if(disabledObserved.ok===false) {
+    assert.equal(
+      disabledObserved.reason,
+      "canonical_payment_rpc_policy_disabled",
+    );
+  }
+  assert.equal(
+    disabledFixture.calls,
+    0,
+    "disabled canonical policy reached RPC",
+  );
+}
+
 const wrongRequest=fixture("0x2105");
 const mismatchReq=await observeBuyVoidCanonicalRailPaymentV1({
   request:request("ethereum"),policy:policy("base",8453),
@@ -324,6 +346,7 @@ console.log("base_mainnet_chain_id_8453_required=true");
 console.log("ethereum_mainnet_chain_id_1_required=true");
 console.log("wrong_chain_id_held_before_RPC=true");
 console.log("mismatched_request_chain_held_before_RPC=true");
+console.log("disabled_policy_held_before_RPC=true");
 console.log("policy_accessor_rejected_without_invocation=true");
 console.log("policy_proxy_rejected_without_traps=true");
 console.log("direct_classifier_policy_accessor_rejected_without_invocation=true");
