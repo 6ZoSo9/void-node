@@ -249,9 +249,16 @@ export function decideBuyVoidAutoFulfillmentV1(
   const request = input?.request;
   const event = input?.verified_payment_event;
   const policy = input?.policy;
-  const priorClaims = Array.isArray(input?.prior_claims) ? input.prior_claims : [];
+  const priorClaimsInput = input?.prior_claims;
 
   if (!request || !event || !policy) return held("missing_input");
+  if (
+    priorClaimsInput !== undefined &&
+    !Array.isArray(priorClaimsInput)
+  ) {
+    return held("invalid_prior_claims");
+  }
+  const priorClaims = priorClaimsInput ?? [];
   if (policy.automatic_fulfillment_enabled !== true) {
     return held("automatic_fulfillment_disabled");
   }
@@ -323,6 +330,19 @@ export function decideBuyVoidAutoFulfillmentV1(
 
   if (!Array.isArray(policy.allowed_chains)) {
     return held("invalid_allowed_chains_policy");
+  }
+  if (
+    !policy.min_confirmations_by_chain ||
+    typeof policy.min_confirmations_by_chain !== "object" ||
+    Array.isArray(policy.min_confirmations_by_chain) ||
+    !policy.usdc_contract_by_chain ||
+    typeof policy.usdc_contract_by_chain !== "object" ||
+    Array.isArray(policy.usdc_contract_by_chain) ||
+    !policy.receive_address_by_chain ||
+    typeof policy.receive_address_by_chain !== "object" ||
+    Array.isArray(policy.receive_address_by_chain)
+  ) {
+    return held("invalid_fulfillment_policy_map_shape");
   }
   const allowedChains = new Set(
     policy.allowed_chains.map(normalizeChain).filter(Boolean),

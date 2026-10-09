@@ -11,7 +11,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_auto_fulfillment_v1.ts";
-const EXPECTED_SOURCE_BLOB="778e5a269326d20f501e109f8d9d19068b0b7419";
+const EXPECTED_SOURCE_BLOB="7c2ca19bde43b13df36bd06c946ad96130fe5d05";
 const PREDECESSOR_SOURCE_BLOB="1ac1ad6213be83f1aa8261a554caa91544fe5e09";
 
 function gitBlob(bytes:Buffer):string {
@@ -117,6 +117,11 @@ const wrongTypeCases:Array<[string,(fixture:any)=>void]>=[
   ["verifier_amount_units_array",f=>{f.verified_payment_event.payment_verifier.amount_units=[f.verified_payment_event.payment_verifier.amount_units];}],
   ["verifier_requested_units_array",f=>{f.verified_payment_event.payment_verifier.requested_units=[f.verified_payment_event.payment_verifier.requested_units];}],
   ["policy_allowed_chain_element_array",f=>{f.policy.allowed_chains[0]=[f.policy.allowed_chains[0]];}],
+  ["policy_allowed_chains_nonarray",f=>{f.policy.allowed_chains="base";}],
+  ["policy_min_confirmations_map_array",f=>{const m:any=[];m.base=12;f.policy.min_confirmations_by_chain=m;}],
+  ["policy_usdc_contract_map_array",f=>{const m:any=[];m.base=usdc;f.policy.usdc_contract_by_chain=m;}],
+  ["policy_receive_address_map_array",f=>{const m:any=[];m.base=receiver;f.policy.receive_address_by_chain=m;}],
+  ["prior_claims_nonarray",f=>{f.prior_claims={};}],
   ["policy_min_confirmations_array",f=>{f.policy.min_confirmations_by_chain.base=[f.policy.min_confirmations_by_chain.base];}],
   ["policy_min_confirmations_string",f=>{f.policy.min_confirmations_by_chain.base="12";}],
   ["policy_min_confirmations_bigint",f=>{f.policy.min_confirmations_by_chain.base=12n;}],

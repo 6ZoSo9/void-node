@@ -14,7 +14,7 @@ Predecessor source blob:
 `1ac1ad6213be83f1aa8261a554caa91544fe5e09`.
 
 Repaired source blob:
-`778e5a269326d20f501e109f8d9d19068b0b7419`.
+`7c2ca19bde43b13df36bd06c946ad96130fe5d05`.
 
 ## Repair
 
@@ -29,6 +29,8 @@ The decision additionally:
 - requires verified-event operator status to be a primitive string;
 - requires the payment verifier to be a non-array object;
 - requires the chain allowlist to actually be an array;
+- requires confirmation/USDC/receive policy maps to be non-array record containers;
+- rejects a supplied non-array `prior_claims` value instead of silently treating it as an empty claim history;
 - treats a verifier transaction hash as fallback-eligible only when truly
   absent (`null`/`undefined`), not merely falsy;
 - parses minimum confirmations without `Number(object)` coercion; and
@@ -39,7 +41,7 @@ The decision additionally:
 ## Focused proof
 
 The proof starts from one approved synthetic Base/USDC fulfillment decision and
-requires 32 malformed structural-type cases to HOLD. It separately requires
+requires 37 malformed structural/container-type cases to HOLD. It separately requires
 array-wrapped canonical-payment-identity inputs to throw and malformed prior
 claims to HOLD.
 
