@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { types as utilTypes } from "node:util";
 
 export const VOID_BUY_VOID_AUTO_FULFILLMENT_V1 =
   "VOID_BUY_VOID_AUTO_FULFILLMENT_V1";
@@ -17,6 +18,159 @@ const HEX_32 = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_DEPTH_V1 = 16;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_NODES_V1 = 8192;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_KEYS_V1 = 16384;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_ARRAY_ITEMS_V1 = 8192;
+const AUTO_FULFILLMENT_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1 = 1024 * 1024;
+
+type AutoFulfillmentSnapshotBudgetV1 = {
+  nodes: number;
+  keys: number;
+};
+
+function cloneAutoFulfillmentPlainDataV1(
+  value: unknown,
+  budget: AutoFulfillmentSnapshotBudgetV1,
+  active: WeakSet<object>,
+  depth: number,
+): any {
+  if (depth > AUTO_FULFILLMENT_SNAPSHOT_MAX_DEPTH_V1) {
+    throw new Error("auto_fulfillment_snapshot_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > AUTO_FULFILLMENT_SNAPSHOT_MAX_NODES_V1) {
+    throw new Error("auto_fulfillment_snapshot_node_count_exceeded");
+  }
+
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return value;
+  }
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    if (value.length > AUTO_FULFILLMENT_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1) {
+      throw new Error("auto_fulfillment_snapshot_text_size_exceeded");
+    }
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    throw new Error("auto_fulfillment_snapshot_value_type_invalid");
+  }
+  if (utilTypes.isProxy(value)) {
+    throw new Error("auto_fulfillment_snapshot_proxy_forbidden");
+  }
+
+  const objectValue = value as object;
+  if (active.has(objectValue)) {
+    throw new Error("auto_fulfillment_snapshot_cycle_forbidden");
+  }
+  active.add(objectValue);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) {
+        throw new Error("auto_fulfillment_snapshot_array_prototype_invalid");
+      }
+      if (value.length > AUTO_FULFILLMENT_SNAPSHOT_MAX_ARRAY_ITEMS_V1) {
+        throw new Error("auto_fulfillment_snapshot_array_length_exceeded");
+      }
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      const ownKeys = Reflect.ownKeys(descriptors);
+      if (ownKeys.some((key) => typeof key !== "string")) {
+        throw new Error("auto_fulfillment_snapshot_symbol_key_forbidden");
+      }
+      const elementKeys = (ownKeys as string[]).filter(
+        (key) => key !== "length",
+      );
+      if (elementKeys.length !== value.length) {
+        throw new Error("auto_fulfillment_snapshot_array_shape_invalid");
+      }
+      const out: any[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (
+          !descriptor ||
+          descriptor.enumerable !== true ||
+          !Object.hasOwn(descriptor, "value")
+        ) {
+          throw new Error(
+            "auto_fulfillment_snapshot_array_accessor_or_hole_forbidden",
+          );
+        }
+        out.push(
+          cloneAutoFulfillmentPlainDataV1(
+            descriptor.value,
+            budget,
+            active,
+            depth + 1,
+          ),
+        );
+      }
+      return Object.freeze(out);
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error("auto_fulfillment_snapshot_object_prototype_invalid");
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const ownKeys = Reflect.ownKeys(descriptors);
+    if (ownKeys.some((key) => typeof key !== "string")) {
+      throw new Error("auto_fulfillment_snapshot_symbol_key_forbidden");
+    }
+    budget.keys += ownKeys.length;
+    if (budget.keys > AUTO_FULFILLMENT_SNAPSHOT_MAX_KEYS_V1) {
+      throw new Error("auto_fulfillment_snapshot_key_count_exceeded");
+    }
+
+    const out: Record<string, any> = Object.create(null);
+    for (const key of ownKeys as string[]) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        throw new Error(
+          "auto_fulfillment_snapshot_accessor_or_hidden_property_forbidden",
+        );
+      }
+      Object.defineProperty(out, key, {
+        value: cloneAutoFulfillmentPlainDataV1(
+          descriptor.value,
+          budget,
+          active,
+          depth + 1,
+        ),
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
+    }
+    return Object.freeze(out);
+  } finally {
+    active.delete(objectValue);
+  }
+}
+
+function snapshotAutoFulfillmentInputV1(
+  value: unknown,
+): BuyVoidAutoFulfillmentInputV1 {
+  const snapshot = cloneAutoFulfillmentPlainDataV1(
+    value,
+    { nodes: 0, keys: 0 },
+    new WeakSet<object>(),
+    0,
+  );
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    throw new Error("auto_fulfillment_snapshot_input_invalid");
+  }
+  return snapshot as BuyVoidAutoFulfillmentInputV1;
+}
 
 export type BuyVoidRequestV1 = {
   request_id: string;
@@ -246,10 +400,17 @@ export function canonicalBuyVoidPaymentIdentityV1(input: {
 export function decideBuyVoidAutoFulfillmentV1(
   input: BuyVoidAutoFulfillmentInputV1,
 ): BuyVoidAutoFulfillmentDecisionV1 {
-  const request = input?.request;
-  const event = input?.verified_payment_event;
-  const policy = input?.policy;
-  const priorClaimsInput = input?.prior_claims;
+  let detachedInput: BuyVoidAutoFulfillmentInputV1;
+  try {
+    detachedInput = snapshotAutoFulfillmentInputV1(input);
+  } catch {
+    return held("auto_fulfillment_input_not_plain_data");
+  }
+
+  const request = detachedInput.request;
+  const event = detachedInput.verified_payment_event;
+  const policy = detachedInput.policy;
+  const priorClaimsInput = detachedInput.prior_claims;
 
   if (!request || !event || !policy) return held("missing_input");
   if (
