@@ -68,6 +68,7 @@ jobs:
             'application_jsonp_rejected=true' \
             'wrong_json_rpc_id_rejected=true' \
             'oversize_response_rejected=true' \
+            'premature_response_abort_rejected=true' \
             'drip_feed_total_deadline_enforced=true' \
             'inactivity_timeout_only=false' \
             'external_rpc_contact=false' \
