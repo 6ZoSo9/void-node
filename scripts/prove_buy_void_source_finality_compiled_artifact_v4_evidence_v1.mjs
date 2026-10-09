@@ -185,7 +185,7 @@ mutant(v=>{v.compiled_artifact_generation_sha256="0".repeat(64);},"generation di
 console.log("VOID_BUY_VOID_V4_SIX_ARTIFACT_EVIDENCE_INDEPENDENT_REVIEW_GREEN");
 console.log("reviewed_artifact_count=6");
 console.log("manifest_bytes=4032");
-console.log("candidate_manifest_sha256="+EXPECTED_MANIFEST_SHA256);
+console.log("candidate_manifest_sha256="+digest(raw));
 console.log("candidate_generation_sha256="+EXPECTED_GENERATION);
 console.log("pinned_artifact_root="+(artifactRoot===ROOT?"fresh_workspace_build":"stopped_image_copy"));
 console.log("mutated_evidence_rejected=8");
