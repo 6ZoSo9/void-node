@@ -1,0 +1,130 @@
+name: VOID Buy VOID custody payment-ledger observed read v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "scripts/prove_buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - ".github/workflows/buy-void-custody-payment-ledgers-observed-read-v1.yml"
+      - "docs/architecture/buy-void-custody-payment-ledgers-observed-read-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-payment-read-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check reader and proof
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs
+          node --check scripts/prove_buy_void_custody_payment_ledgers_observed_read_v1.mjs
+
+      - name: Prove retained-descriptor cross-file read window
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_payment_ledgers_observed_read_v1.mjs \
+            | tee "custody-payment-read-node-${{ matrix.node }}.txt"
+          for invariant in \
+            'VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_V1_PROOF_GREEN' \
+            'exact_source_git_blob_verified=true' \
+            'fixed_requests_and_operator_leaf_names=true' \
+            'two_leaf_descriptors_open_before_read=true' \
+            'cross_file_read_window_unchanged_proven=true' \
+            'leaf_symlink_rejected=true' \
+            'request_mutation_during_operator_read_rejected=true' \
+            'post_open_growth_bounded_and_rejected=true' \
+            'ancestor_swap_during_read_rejected=true' \
+            'proxy_and_accessor_execution_count=0' \
+            'midwalk_descriptor_cleanup_verified=true' \
+            'descriptor_close_failure_visible=true' \
+            'server_path_configuration_verified=false' \
+            'cross_uid_permissions_qualified=false' \
+            'cross_file_atomic_snapshot_verified=false' \
+            'payment_capacity_lock_verified=false' \
+            'filesystem_write=false' \
+            'custody_reserve_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$invariant" "custody-payment-read-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload exact-head proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-custody-payment-read-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-payment-read-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-custody-payment-read-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./custody-payment-read-proofs
+
+      - name: Require byte-identical cross-Node evidence
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "custody-payment-read-proofs/custody-payment-read-node-$version.txt"
+          done
+          cmp custody-payment-read-proofs/custody-payment-read-node-22.txt custody-payment-read-proofs/custody-payment-read-node-24.txt
+          cmp custody-payment-read-proofs/custody-payment-read-node-22.txt custody-payment-read-proofs/custody-payment-read-node-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_CROSS_NODE_GREEN"
+          echo "cross_file_atomic_snapshot_verified=false"
+          echo "payment_capacity_lock_verified=false"
+          echo "custody_reserve_method_enabled=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"
