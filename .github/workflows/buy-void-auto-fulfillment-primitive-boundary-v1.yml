@@ -62,7 +62,7 @@ jobs:
           for marker in \
             'VOID_BUY_VOID_AUTO_FULFILLMENT_PRIMITIVE_BOUNDARY_V1_GREEN' \
             'primitive_control_approved=true' \
-            'wrong_structural_type_case_count=30' \
+            'wrong_structural_type_case_count=32' \
             'wrong_structural_types_held=true' \
             'canonical_identity_wrong_types_held=true' \
             'malformed_prior_claims_held=true' \

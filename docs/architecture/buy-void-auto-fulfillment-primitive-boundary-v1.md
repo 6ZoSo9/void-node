@@ -14,15 +14,14 @@ Predecessor source blob:
 `1ac1ad6213be83f1aa8261a554caa91544fe5e09`.
 
 Repaired source blob:
-`916528049e74546f06ae0f734b0a178bb556119a`.
+`778e5a269326d20f501e109f8d9d19068b0b7419`.
 
 ## Repair
 
 Authority-bearing chain/hash/address/request/status values must be primitive
 strings before trimming or case normalization.
 
-Integer-like values accept only reviewed primitive `bigint | number | string`
-forms. USDC/VOID decimal quantities accept primitive strings or finite numbers.
+Integer-like receipt/verifier values accept only reviewed primitive `bigint | number | string` forms. `min_confirmations_by_chain` is stricter: the policy type is `Record<string, number>`, so it requires a positive safe integer number and rejects string/bigint aliases. USDC/VOID decimal quantities accept primitive strings or finite numbers.
 
 The decision additionally:
 
@@ -40,7 +39,7 @@ The decision additionally:
 ## Focused proof
 
 The proof starts from one approved synthetic Base/USDC fulfillment decision and
-requires 30 malformed structural-type cases to HOLD. It separately requires
+requires 32 malformed structural-type cases to HOLD. It separately requires
 array-wrapped canonical-payment-identity inputs to throw and malformed prior
 claims to HOLD.
 

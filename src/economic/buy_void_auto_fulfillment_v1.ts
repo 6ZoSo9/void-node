@@ -354,16 +354,19 @@ export function decideBuyVoidAutoFulfillmentV1(
   const confirmations = parseNonNegativeInteger(verifier.confirmations);
   if (confirmations === null) return held("missing_confirmation_count");
 
-  const requiredConfirmations = parseNonNegativeInteger(
-    policy.min_confirmations_by_chain?.[eventChain],
-  );
-  if (requiredConfirmations === null || requiredConfirmations < 1n) {
+  const requiredConfirmations =
+    policy.min_confirmations_by_chain?.[eventChain];
+  if (
+    typeof requiredConfirmations !== "number" ||
+    !Number.isSafeInteger(requiredConfirmations) ||
+    requiredConfirmations < 1
+  ) {
     return held("invalid_confirmation_policy");
   }
-  if (confirmations < requiredConfirmations) {
+  if (confirmations < BigInt(requiredConfirmations)) {
     return held("insufficient_confirmations", {
       confirmations: confirmations.toString(),
-      required_confirmations: requiredConfirmations.toString(),
+      required_confirmations: String(requiredConfirmations),
     });
   }
 
