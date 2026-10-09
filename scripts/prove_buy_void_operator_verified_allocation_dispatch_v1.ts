@@ -15,7 +15,7 @@ const IDX_PATH = "src/index.ts";
 const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
-  "a4fa630f00f4c2e8e44c0dfdebc4e4717cb60a7d";
+  "0e27a76e777c326d2d9e2b1550b7f2979fca9abb";
 // 711a521 only renames the manual-fulfillment gate import/call; the proof below
 // independently rechecks the mounted verify-payment/mark route slice.
 const FROZEN_ROUTER_GIT_BLOB = "240414e313f44f80d57f4e349be2f1ab3d72fe66";
@@ -52,6 +52,117 @@ function input(overrides: Record<string, any> = {}): any {
   };
 }
 
+
+{
+  // The outer dispatch object must never invoke a caller-controlled trap
+  // while selecting root paths, callbacks, event or request authority.
+  let callbackCount = 0;
+  const hostileInput = new Proxy(input(), {
+    get() { callbackCount += 1; throw Error("hostile_outer_get"); },
+    ownKeys() { callbackCount += 1; throw Error("hostile_outer_keys"); },
+    getPrototypeOf() {
+      callbackCount += 1;
+      throw Error("hostile_outer_prototype");
+    },
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(hostileInput),
+    /buy_void_operator_allocation_dispatch_input_container_not_plain_data/u,
+  );
+  assert.equal(callbackCount, 0, "outer Proxy traps must not run");
+
+  const revocable = Proxy.revocable(input(), {});
+  revocable.revoke();
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(revocable.proxy),
+    /buy_void_operator_allocation_dispatch_input_container_not_plain_data/u,
+    "revoked outer Proxy must HOLD before Array.isArray",
+  );
+
+  const getterInput = input();
+  Object.defineProperty(getterInput, "event", {
+    enumerable: true,
+    configurable: true,
+    get() {
+      callbackCount += 1;
+      throw Error("hostile_outer_event_getter");
+    },
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(getterInput),
+    /buy_void_operator_allocation_dispatch_input_container_accessor_or_hidden_field/u,
+  );
+  assert.equal(callbackCount, 0, "outer event getter must not run");
+
+  const rootGetter = input();
+  Object.defineProperty(rootGetter, "allocation_ledger_root", {
+    enumerable: true,
+    configurable: true,
+    get() {
+      callbackCount += 1;
+      return VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1;
+    },
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(rootGetter),
+    /buy_void_operator_allocation_dispatch_input_container_accessor_or_hidden_field/u,
+  );
+  assert.equal(callbackCount, 0, "outer custody-root getter must not run");
+
+  const hiddenInput = input();
+  Object.defineProperty(hiddenInput, "read_sale_state", {
+    value: hiddenInput.read_sale_state,
+    enumerable: false,
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(hiddenInput),
+    /buy_void_operator_allocation_dispatch_input_container_accessor_or_hidden_field/u,
+  );
+
+  const symbolInput = input();
+  Object.defineProperty(symbolInput, Symbol("capability"), {
+    value: "synthetic", enumerable: true,
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(symbolInput),
+    /buy_void_operator_allocation_dispatch_input_container_unreviewed_fields/u,
+  );
+
+  const callbackInput = input();
+  Object.defineProperty(callbackInput, "toJSON", {
+    value() { callbackCount += 1; throw Error("hostile_outer_toJSON"); },
+    enumerable: true,
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(callbackInput),
+    /buy_void_operator_allocation_dispatch_input_container_unreviewed_fields/u,
+  );
+  assert.equal(callbackCount, 0, "outer toJSON callback must not run");
+
+  const inherited = Object.create({
+    get event() {
+      callbackCount += 1;
+      throw Error("hostile_outer_inherited_event");
+    },
+  });
+  Object.defineProperties(inherited,
+    Object.getOwnPropertyDescriptors(input()));
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(inherited),
+    /buy_void_operator_allocation_dispatch_input_container_not_plain_data/u,
+  );
+  assert.equal(callbackCount, 0, "inherited callback must not run");
+
+  const nullPrototypeInput = Object.assign(Object.create(null), input());
+  const accepted = planBuyVoidOperatorAllocationDispatchV1(nullPrototypeInput);
+  assert.equal(accepted.kind, "verified_payment_allocation_handoff");
+  assert.equal(accepted.allocation_ledger_root,
+    VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1);
+  assert.equal(accepted.allocation_high_water_root,
+    VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1);
+  assert.equal(callbackCount, 0);
+}
+
 const authority =
   VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1;
 assert.equal(authority.bounded_plain_data_snapshot_required, true);
@@ -60,6 +171,9 @@ assert.equal(authority.caller_accessor_or_tojson_authority, false);
 assert.equal(authority.pre_serialization_plain_data_bound, true);
 assert.equal(authority.accessor_or_tojson_input_allowed, false);
 assert.equal(authority.proxy_input_allowed, false);
+assert.equal(authority.outer_dispatch_container_plain_data_required, true);
+assert.equal(authority.outer_dispatch_proxy_or_accessor_authority, false);
+assert.equal(authority.outer_dispatch_unreviewed_fields_allowed, false);
 
 for (const key of [
   "mounted_operator_route_verified",
@@ -574,6 +688,12 @@ console.log("pre_serialization_plain_data_bound=true");
 console.log("caller_toJSON_rejected_without_invocation=true");
 console.log("caller_accessor_rejected_without_invocation=true");
 console.log("caller_proxy_rejected_without_traps=true");
+console.log("outer_input_proxy_rejected_without_traps=true");
+console.log("outer_input_getter_rejected_without_invocation=true");
+console.log("outer_input_root_getter_rejected_without_invocation=true");
+console.log("outer_input_non_plain_prototype_rejected=true");
+console.log("outer_input_unreviewed_keys_and_toJSON_rejected=true");
+console.log("null_prototype_outer_input_accepted=true");
 console.log("oversize_text_holds_before_full_json_serialization=true");
 console.log("deep_nesting_holds_before_json_serialization=true");
 console.log("excess_key_count_holds_before_json_serialization=true");
