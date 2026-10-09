@@ -1,7 +1,6 @@
 // NEGATIVE EVIDENCE ONLY: this is intentionally a test for current
 // read-side mutation and concurrent writer interruption. It does not fix
 // or enable the production custody high-water writer.
-#!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
