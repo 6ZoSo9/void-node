@@ -17,6 +17,7 @@ export const VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1 = {
   rpc_write: false,
   inactivity_timeout_bounded: true,
   total_request_deadline_bounded: true,
+  strict_json_content_type_required: true,
   allowed_rpc_methods: [
     "eth_chainId",
     "eth_getTransactionReceipt",
@@ -297,7 +298,9 @@ export function createBuyVoidPaymentHttpTransportV1(
               const contentType = String(
                 response.headers["content-type"] || "",
               ).toLowerCase();
-              if (!contentType.startsWith("application/json")) {
+              if (
+                !/^application\/json(?:\s*;|$)/u.test(contentType)
+              ) {
                 reject(
                   new Error("payment_observer_rpc_content_type_invalid"),
                 );
