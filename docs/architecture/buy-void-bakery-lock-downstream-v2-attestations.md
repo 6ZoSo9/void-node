@@ -44,10 +44,13 @@ Exactly one reviewed source differs from V1:
 
 ## Proof model
 
-The locked proof does not trust copied constants alone. It Git-blob pins both
-derive-only candidate scripts and executes the **authenticated bytes
-themselves** with a scrubbed child environment; it never reopens the candidate
-pathname as the child entrypoint after verification. The original scripts
+The locked proof does not trust copied constants alone. Candidate scripts and
+committed attestation inputs are first read through bounded retained
+`O_RDONLY|O_NOFOLLOW` descriptors with regular/single-link checks, nanosecond
+pre/post inode identity, and a pre-size + one-byte growth sentinel. It then
+Git-blob pins both derive-only candidate scripts and executes the
+**authenticated bytes themselves** with a scrubbed child environment; it never
+reopens the candidate pathname as the child entrypoint after verification. The original scripts
 directory is retained as the ESM import base so the reviewed `../dist` and
 `../tools` dependencies resolve exactly as authored. The proof then requires
 the full candidate JSON bytes to match the reviewed cross-Node evidence
