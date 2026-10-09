@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json)" =             "d6e97784c5d8be93713e733628c7d1ef746bb5c7"
-          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "c621c1361e9db1bcda32af1dd25e7a2515e793d7"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "a07f2e9b03958a58280c4d940fe49097a9413af5"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
