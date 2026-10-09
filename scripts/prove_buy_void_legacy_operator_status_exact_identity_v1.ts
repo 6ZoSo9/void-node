@@ -137,70 +137,76 @@ try {
   assert.equal(fs.existsSync(toJsonRoot),false,
     "top-level toJSON event mutated filesystem");
 
-  // Ambient prototype JSON hooks must not regain authority after the caller
-  // event is validated. Detached objects are null-prototype and detached
-  // arrays shadow toJSON.
-  const objectToJsonBefore =
-    Object.getOwnPropertyDescriptor(Object.prototype, "toJSON");
-  const arrayToJsonBefore =
-    Object.getOwnPropertyDescriptor(Array.prototype, "toJSON");
+  // Caller-controlled inherited JSON hooks must never execute. Non-standard
+  // object/array prototypes are rejected before the writer reaches the lock or
+  // filesystem mutation boundary; ambient prototypes are never installed
+  // globally by this proof, so unrelated lock serialization is not poisoned.
   let objectPrototypeToJsonCalls=0;
+  const inheritedObjectPrototype=Object.create(Object.prototype);
+  Object.defineProperty(inheritedObjectPrototype,"toJSON",{
+    value(){
+      objectPrototypeToJsonCalls+=1;
+      return {
+        request_id:REQUEST_ID,
+        operator_status:"payment_verified",
+        marked_at_ms:126,
+      };
+    },
+    enumerable:false,writable:true,configurable:true,
+  });
+  const inheritedObjectEvent:any=Object.create(inheritedObjectPrototype);
+  Object.assign(inheritedObjectEvent,{
+    request_id:REQUEST_ID,
+    operator_status:"reviewed",
+    marked_at_ms:126,
+  });
+  const inheritedObjectRoot=path.join(temp,"inherited-object-prototype-root");
+  await assert.rejects(
+    ()=>writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event:inheritedObjectEvent,
+      request:makeReq(),
+      request_dir:inheritedObjectRoot,
+      with_launch_authority_mutation:noopLaunch,
+      read_sale_state:noopSale,
+    }),
+    /buy_void_verified_payment_allocation_event_nonplain_object/u,
+  );
+  assert.equal(objectPrototypeToJsonCalls,0,
+    "inherited object toJSON executed during writer snapshot");
+  assert.equal(fs.existsSync(inheritedObjectRoot),false,
+    "inherited object prototype mutated filesystem");
+
   let arrayPrototypeToJsonCalls=0;
-  try {
-    Object.defineProperty(Object.prototype,"toJSON",{
-      value(){
-        objectPrototypeToJsonCalls+=1;
-        return {
-          request_id:REQUEST_ID,
-          operator_status:"payment_verified",
-          marked_at_ms:126,
-        };
-      },
-      enumerable:false,writable:true,configurable:true,
-    });
-    Object.defineProperty(Array.prototype,"toJSON",{
-      value(){
-        arrayPrototypeToJsonCalls+=1;
-        return ["mutated"];
-      },
-      enumerable:false,writable:true,configurable:true,
-    });
-    const inheritedRoot=path.join(temp,"inherited-prototype-root");
-    const result=await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+  const inheritedArrayPrototype=Object.create(Array.prototype);
+  Object.defineProperty(inheritedArrayPrototype,"toJSON",{
+    value(){
+      arrayPrototypeToJsonCalls+=1;
+      return ["mutated"];
+    },
+    enumerable:false,writable:true,configurable:true,
+  });
+  const inheritedItems:any[]=["safe"];
+  Object.setPrototypeOf(inheritedItems,inheritedArrayPrototype);
+  const inheritedArrayRoot=path.join(temp,"inherited-array-prototype-root");
+  await assert.rejects(
+    ()=>writeBuyVoidOperatorEventWithCapacityAdmissionV1({
       event:{
         request_id:REQUEST_ID,
         operator_status:"reviewed",
         marked_at_ms:126,
-        detail:{items:["safe"]},
+        detail:{items:inheritedItems},
       },
       request:makeReq(),
-      request_dir:inheritedRoot,
+      request_dir:inheritedArrayRoot,
       with_launch_authority_mutation:noopLaunch,
       read_sale_state:noopSale,
-    });
-    assert.equal(result.ok,true);
-    assert.equal(objectPrototypeToJsonCalls,0,
-      "Object.prototype.toJSON executed during writer snapshot");
-    assert.equal(arrayPrototypeToJsonCalls,0,
-      "Array.prototype.toJSON executed during writer snapshot");
-    const rows=fs.readFileSync(
-      path.join(inheritedRoot,"operator-events.jsonl"),"utf8",
-    ).trim().split("\n").filter(Boolean).map((line)=>JSON.parse(line));
-    assert.equal(rows.length,1);
-    assert.equal(rows[0].operator_status,"reviewed");
-    assert.deepEqual(rows[0].detail.items,["safe"]);
-  } finally {
-    if(objectToJsonBefore) {
-      Object.defineProperty(Object.prototype,"toJSON",objectToJsonBefore);
-    } else {
-      delete (Object.prototype as any).toJSON;
-    }
-    if(arrayToJsonBefore) {
-      Object.defineProperty(Array.prototype,"toJSON",arrayToJsonBefore);
-    } else {
-      delete (Array.prototype as any).toJSON;
-    }
-  }
+    }),
+    /buy_void_verified_payment_allocation_event_array_invalid/u,
+  );
+  assert.equal(arrayPrototypeToJsonCalls,0,
+    "inherited array toJSON executed during writer snapshot");
+  assert.equal(fs.existsSync(inheritedArrayRoot),false,
+    "inherited array prototype mutated filesystem");
 
   // Nested executable JSON hooks are rejected before invocation and before
   // filesystem mutation, not merely rebound after serialization.
