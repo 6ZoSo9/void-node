@@ -21,7 +21,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OBSERVER = "src/economic/buy_void_payment_rpc_observer_v1.ts";
 const EXPECTED_OBSERVER_GIT_BLOB =
-  "c759978aa8694386a31861ed6e22983b962ef68a";
+  "0073818ad6f6418e895bf794024c9d678b3bef86";
 const bytes = fs.readFileSync(path.join(ROOT, OBSERVER));
 const gitBlob = crypto.createHash("sha1")
   .update(Buffer.from("blob " + bytes.byteLength + "\0", "utf8"))
