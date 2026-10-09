@@ -5,9 +5,9 @@
 This versioned source-only Draft is stacked on
 [Draft #2687](https://github.com/6ZoSo9/void-node/pull/2687),
 at the exact reviewed absolute-deadline transport head
-`7589cfaf0f2f5ef696efdfaa71d50de0bf9cbed0`.
+`5baa63f8bc9937e43b0e15e75d8742809b541d74`.
 The imported V1 transport source blob is
-`e78b8511a6c049182d7c0e1ae1af320744f57cf7`, and MUST remain
+`ad47f67b894ea6b145003a33ee8154c1a1b87e2f`, and MUST remain
 unchanged. Its independent response timer, response-byte cap, HTTP/media,
 JSON-RPC envelope and request ID defenses are retained exactly.
 
