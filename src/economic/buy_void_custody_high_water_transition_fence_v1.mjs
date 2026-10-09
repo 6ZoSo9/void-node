@@ -196,6 +196,9 @@ export function buildBuyVoidCustodyHighWaterTransitionFenceV1({
     transition_slot_id: slotId,
     source_composition_id: next.source_composition_id,
     prior_high_water_sha256: priorSha,
+    prior_sequence: prior?.sequence ?? null,
+    prior_generation: prior?.generation ?? null,
+    prior_tip_sha256: prior?.tip_sha256 ?? null,
     next_high_water_sha256: sha256Id(next_high_water_bytes),
     next_sequence: next.sequence,
     next_generation: next.generation,
@@ -243,6 +246,20 @@ export function parseBuyVoidCustodyHighWaterTransitionFenceV1(bytes) {
     !SHA256_ID.test(String(record.source_composition_id || "")) ||
     !(record.prior_high_water_sha256 === null ||
       SHA256_ID.test(String(record.prior_high_water_sha256 || ""))) ||
+    (
+      record.prior_high_water_sha256 === null
+        ? (
+            record.prior_sequence !== null ||
+            record.prior_generation !== null ||
+            record.prior_tip_sha256 !== null
+          )
+        : (
+            !Number.isSafeInteger(record.prior_sequence) ||
+            record.prior_sequence < 1 ||
+            !BYTES32.test(String(record.prior_generation || "")) ||
+            !SHA256_ID.test(String(record.prior_tip_sha256 || ""))
+          )
+    ) ||
     !SHA256_ID.test(String(record.next_high_water_sha256 || "")) ||
     !Number.isSafeInteger(record.next_sequence) ||
     record.next_sequence < 1 ||
@@ -270,6 +287,18 @@ export function parseBuyVoidCustodyHighWaterTransitionFenceV1(bytes) {
     next.journal_prefix_sha256 !== record.next_journal_prefix_sha256
   ) {
     fail("record_next_binding_invalid");
+  }
+  if (
+    record.prior_high_water_sha256 !== null &&
+    (
+      record.next_sequence <= record.prior_sequence ||
+      (
+        record.next_generation === record.prior_generation &&
+        record.next_tip_sha256 === record.prior_tip_sha256
+      )
+    )
+  ) {
+    fail("record_transition_progress_invalid");
   }
   const expectedSlot = deriveSlotId(
     record.source_composition_id,
