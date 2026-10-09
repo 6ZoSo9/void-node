@@ -135,8 +135,15 @@ try {
   const two=await handoff(both,ETH);accepted++;
   assert.equal(two.payment_event_appended,true);
   assert.notEqual(one.allocation.allocation_record_id,two.allocation.allocation_record_id);
-  assert.equal(one.allocation.canonical_payment_identity,"voidpay1:base:"+SAME_TX+":7");
-  assert.equal(two.allocation.canonical_payment_identity,"voidpay1:ethereum:"+SAME_TX+":7");
+  // The handoff response intentionally exposes a record ID, not full ledger
+  // contents. Inspect the REAL durable reservation rows for chain identity.
+  const reservations=fs.readFileSync(path.join(both.ledgerRoot,LEDGER),"utf8")
+    .trim().split("\n").filter(Boolean).map(JSON.parse);
+  assert.deepEqual(
+    reservations.map(r=>r.canonical_payment_identity).sort(),
+    ["voidpay1:base:"+SAME_TX+":7","voidpay1:ethereum:"+SAME_TX+":7"].sort(),
+    "same EVM transaction/log on two source chains must never alias",
+  );
   assert.equal(count(path.join(both.requestDir,EVENT)),2);
   assert.equal(count(path.join(both.ledgerRoot,LEDGER)),2);
   const before=snapshot(both);
@@ -193,8 +200,9 @@ for(const [label,initial] of [
   try {
     const result=await handoff(f,ETH);
     assert.equal(result.payment_event_appended,true);
-    assert.equal(result.allocation.canonical_payment_identity,
-      "voidpay1:ethereum:"+SAME_TX+":7");
+    const savedIdentity=JSON.parse(fs.readFileSync(
+      path.join(f.ledgerRoot,LEDGER),"utf8").trim()).canonical_payment_identity;
+    assert.equal(savedIdentity,"voidpay1:ethereum:"+SAME_TX+":7");
     const before=snapshot(f);
     const repeat=await handoff(f,ETH);
     assert.equal(repeat.payment_event_appended,false);
