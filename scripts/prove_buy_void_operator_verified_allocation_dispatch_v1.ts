@@ -423,6 +423,7 @@ console.log("invalid_status_cannot_reach_legacy_writer=true");
 console.log("missing_invalid_or_aliased_private_roots_fail_closed=true");
 console.log("exact_canonical_allocation_roots_required=true");
 console.log("immutable_event_and_request_snapshots=true");
+console.log("pre_serialization_plain_data_bound=true");
 console.log("caller_toJSON_rejected_without_invocation=true");
 console.log("caller_accessor_rejected_without_invocation=true");
 console.log("caller_proxy_rejected_without_traps=true");
