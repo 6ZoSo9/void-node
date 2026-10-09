@@ -228,21 +228,12 @@ function snapshotDataArrayV2(
   ) {
     return null;
   }
-  const descriptors =
-    Object.getOwnPropertyDescriptors(value) as unknown as Record<
-      PropertyKey,
-      PropertyDescriptor
-    >;
-  const ownKeys = Reflect.ownKeys(descriptors);
-  if (
-    ownKeys.some((key) => typeof key !== "string") ||
-    ownKeys.length !== length + 1
-  ) {
-    return null;
-  }
   const out: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    const descriptor = Object.getOwnPropertyDescriptor(
+      value,
+      String(index),
+    );
     if (
       !descriptor ||
       descriptor.enumerable !== true ||
