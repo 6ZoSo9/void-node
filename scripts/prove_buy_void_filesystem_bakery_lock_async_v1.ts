@@ -151,7 +151,7 @@ try {
     assert.equal(
       inheritedObjectToJsonCalls,
       0,
-      "ambient Object.prototype.toJSON executed while writing lock claims",
+      "ambient Object.prototype.toJSON executed during bakery lock acquire/release",
     );
     assert.deepEqual(
       fs.readdirSync(prototypeSafeLock + ".queue"),
