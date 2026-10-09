@@ -1,0 +1,118 @@
+name: VOID Buy VOID public allocation reservation source producer relocation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/usdc-to-void-presale-allocation-reservation-record-v1-proof.sh"
+      - "src/index.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md"
+      - "docs/architecture/buy-void-public-allocation-record-producer-relocation-v1.md"
+      - ".github/workflows/buy-void-public-allocation-record-producer-relocation-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact checkout to workflow head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Verify canonical V2 producer, capacity writer, and disabled reservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ops/mainnet0/usdc-to-void-presale-allocation-reservation-record-v1-proof.sh \
+            | tee "$RUNNER_TEMP/allocation-producer-positive.log"
+          grep -Fx "VOID_USDC_TO_VOID_PRESALE_ALLOCATION_RESERVATION_RECORD_V1_GREEN" \
+            "$RUNNER_TEMP/allocation-producer-positive.log"
+          grep -Fx "canonical_v2_payment_verified_constructor_bound=true" \
+            "$RUNNER_TEMP/allocation-producer-positive.log"
+          grep -Fx "canonical_v2_route_capacity_writer_bound=true" \
+            "$RUNNER_TEMP/allocation-producer-positive.log"
+          grep -Fx "allocation_reservation_record_write_enabled_false=true" \
+            "$RUNNER_TEMP/allocation-producer-positive.log"
+          grep -Fx "automatic_fulfillment_still_false=true" \
+            "$RUNNER_TEMP/allocation-producer-positive.log"
+
+      - name: Synthetic changed V2 constructor and disconnected route must HOLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/ops/mainnet0/usdc-to-void-presale-allocation-reservation-record-v1-proof.sh"
+          test_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$test_dir"' EXIT
+          mkdir -p "$test_dir/src/economic" "$test_dir/docs/public"
+          cp src/index.ts "$test_dir/src/index.ts"
+          cp src/economic/buy_void_verified_payment_v2.ts \
+            "$test_dir/src/economic/buy_void_verified_payment_v2.ts"
+          cp docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md \
+            "$test_dir/docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md"
+          (cd "$test_dir" && bash "$proof") > "$RUNNER_TEMP/control-positive.log" 2>&1
+          grep -Fx "VOID_USDC_TO_VOID_PRESALE_ALLOCATION_RESERVATION_RECORD_V1_GREEN" \
+            "$RUNNER_TEMP/control-positive.log"
+
+          python3 - "$test_dir/src/economic/buy_void_verified_payment_v2.ts" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); body=p.read_text()
+          old='operator_status: "payment_verified"'
+          assert body.count(old)==1, "mutation target cardinality"
+          p.write_text(body.replace(old,'operator_status: "reviewed"',1))
+          PY
+          if (cd "$test_dir" && bash "$proof") > "$RUNNER_TEMP/v2-mutation.log" 2>&1; then
+            echo "UNEXPECTED_CHANGED_V2_PRODUCER_ACCEPTED" >&2; exit 1
+          fi
+          grep -F "canonical_v2_payment_verified_constructor_missing" \
+            "$RUNNER_TEMP/v2-mutation.log"
+
+          cp src/economic/buy_void_verified_payment_v2.ts \
+            "$test_dir/src/economic/buy_void_verified_payment_v2.ts"
+          python3 - "$test_dir/src/index.ts" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); body=p.read_text()
+          old="buildBuyVoidVerifiedPaymentEventV2({request:found"
+          assert body.count(old)==1, "route wiring mutation target cardinality"
+          p.write_text(body.replace(old,"buildBuyVoidVerifiedPaymentEventV0({request:found",1))
+          PY
+          if (cd "$test_dir" && bash "$proof") > "$RUNNER_TEMP/route-mutation.log" 2>&1; then
+            echo "UNEXPECTED_DISCONNECTED_V2_ROUTE_ACCEPTED" >&2; exit 1
+          fi
+          grep -F "canonical_v2_route_writer_binding_missing" \
+            "$RUNNER_TEMP/route-mutation.log"
+          echo "VOID_BUY_VOID_PUBLIC_ALLOCATION_PRODUCER_RELOCATION_NEGATIVE_GREEN"
+          echo "canonical_payment_v2_producer_checked=true"
+          echo "disconnected_route_held=true"
+          echo "allocation_reservation_record_write_enabled=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"
+
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
