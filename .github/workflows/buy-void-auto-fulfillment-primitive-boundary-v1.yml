@@ -76,6 +76,12 @@ jobs:
             'prior_claim_accessor_rejected_without_invocation=true' \
             'revoked_array_proxy_held=true' \
             'custom_prototype_rejected=true' \
+            'irrelevant_top_level_getter_not_invoked=true' \
+            'irrelevant_request_getter_not_invoked=true' \
+            'unreviewed_policy_map_getter_not_invoked=true' \
+            'allowed_chain_bound_precedes_descriptors=true' \
+            'prior_claim_bound_precedes_descriptors=true' \
+            'oversize_reviewed_text_held=true' \
             'production_payment_authority_ready=false' \
             'funds_moved=false'
           do
