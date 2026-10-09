@@ -45,16 +45,23 @@ The primitive:
 - checks retained directory and lock identity before an empty-directory
   removal; releases only after synchronous callback completion and
   parent-directory fsync;
-- **retains** a lock on callback failure, a failed release or a process
-  crash. Stale-lock takeover/reaping is not an API. Recovery needs
-  independently approved prior-record/rename/high-water and host
-  identity reconstruction.
+- **retains** the lock on callback failure and every detected failure
+  before the lock-directory `rmdir`; a process crash while the directory is
+  present likewise leaves conservative stale-lock evidence;
+- does **not** claim that every failed release retains exclusion. If `rmdir`
+  succeeds and the following parent-directory fsync fails, the call throws but
+  the lock pathname may already be absent in the running namespace. That is an
+  **uncertain release**, not a retained-lock proof. A second process may be able
+  to acquire; any production writer therefore needs separately reviewed
+  recovery/fencing for this state. Stale-lock takeover/reaping is not an API.
 
 The synthetic proof only creates private OS-temp fixtures. It tests
 nested and real **second-process** contention, successful exclusive
 release, a later clean acquisition, 0755 mode, symlink root, existing
-stale directory, callback exception and attempted async critical
-section. Any failure leaves the lock until **fixture-only** cleanup.
+stale directory, callback exception and attempted async critical section.
+Those cases all fail before release and retain the lock until **fixture-only**
+cleanup. A separate child proof (#2691 lineage) exercises the post-rmdir
+parent-fsync fault because that stage intentionally has different semantics.
 Node 22/24/26 produce byte-identical receipts.
 
 ## What this does not close

@@ -18,7 +18,11 @@ assert.equal(POLICY.installed_custody_service_uid_qualified, false);
 assert.equal(POLICY.custody_high_water_writer_implemented, false);
 assert.equal(POLICY.production_allocation_mutation_ready, false);
 assert.equal(POLICY.stale_lock_automatic_takeover, false);
-assert.equal(POLICY.failed_transaction_lock_release, false);
+assert.equal(POLICY.callback_failure_lock_retained, true);
+assert.equal(POLICY.pre_release_failure_lock_retained, true);
+assert.equal(POLICY.durable_release_success_requires_parent_fsync, true);
+assert.equal(POLICY.post_rmdir_fsync_failure_lock_retention_guaranteed, false);
+assert.equal(POLICY.release_failure_requires_separate_recovery_authority, true);
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "void-hw-lock-test-"));
 const PRIVATE = path.join(ROOT, "custody-private");
@@ -90,6 +94,10 @@ try {
   fs.chmodSync(PRIVATE,0o755);
   assert.throws(() => withLock({private_directory:PRIVATE}, () => {}),
     /custody_hw_exclusive_private_owner_mode_required/u);
+  fs.chmodSync(PRIVATE,0o1700);
+  assert.throws(() => withLock({private_directory:PRIVATE}, () => {}),
+    /custody_hw_exclusive_private_owner_mode_required/u,
+    "sticky/special bits are not exact private 0700");
   fs.chmodSync(PRIVATE,0o700);
   fs.symlinkSync(PRIVATE,LINK,"dir");
   assert.throws(() => withLock({private_directory:LINK},()=>{}),
@@ -134,8 +142,14 @@ try {
   console.log("real_child_process_contention_rejected=true");
   console.log("successful_release_directory_fsynced=true");
   console.log("same_uid_private_0700_required=true");
+  console.log("private_mode_special_bits_rejected=true");
   console.log("symlink_private_root_rejected=true");
   console.log("stale_lock_auto_takeover=false");
+  console.log("callback_failure_lock_retained=true");
+  console.log("pre_release_failure_lock_retained=true");
+  console.log("durable_release_success_requires_parent_fsync=true");
+  console.log("post_rmdir_fsync_failure_lock_retention_guaranteed=false");
+  console.log("release_failure_requires_separate_recovery_authority=true");
   console.log("failed_callback_lock_retained=true");
   console.log("async_callback_lock_retained=true");
   console.log("no_existing_customer_or_custody_file_read=true");
