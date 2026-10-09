@@ -1,0 +1,113 @@
+name: VOID Buy VOID cross-UID launch authority synthetic v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_cross_uid_launch_anchor_projection_v1.mjs"
+      - "docs/architecture/buy-void-cross-uid-launch-anchor-projection-v1.md"
+      - ".github/workflows/buy-void-cross-uid-launch-anchor-projection-v1.yml"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-cross-uid-launch-projection-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact read-only proof source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove checked-out head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Install pinned Node for synthetic-only source projection
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Run source-bound cross-account anchor projection
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_cross_uid_launch_anchor_projection_v1.mjs
+          node scripts/prove_buy_void_cross_uid_launch_anchor_projection_v1.mjs \
+            | tee "cross-uid-node-${{ matrix.node }}.txt"
+          for invariant in \
+            'original_launch_source_git_blob_pinned=true' \
+            'custody_reserve_and_recovery_source_HOLD_preserved=true' \
+            'synthetic_operator_vs_custody_anchor_paths_differ=true' \
+            'same_DATA_DIR_does_not_share_external_anchor=true' \
+            'HOME_environment_override_does_not_rebind_OS_user_anchor=true' \
+            'cross_uid_launch_generation_bound=false' \
+            'canonical_durable_payment_provenance_bound=false' \
+            'custody_reserve_or_recover_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'real_external_anchor_read=false' \
+            'real_customer_data_access=false' \
+            'presale_or_market_activation=false' \
+            'funds_moved=false'
+          do grep -Fx "$invariant" "cross-uid-node-${{ matrix.node }}.txt"; done
+
+      - name: Upload untrusted source-only synthetic receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-cross-uid-launch-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: cross-uid-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch all three fixed-head source-projection receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-cross-uid-launch-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./cross-uid-evidence
+
+      - name: Require exact Node 22 24 26 receipt equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "cross-uid-evidence/cross-uid-node-$v.txt"; done
+          cmp cross-uid-evidence/cross-uid-node-22.txt cross-uid-evidence/cross-uid-node-24.txt
+          cmp cross-uid-evidence/cross-uid-node-22.txt cross-uid-evidence/cross-uid-node-26.txt
+          echo "VOID_BUY_VOID_CROSS_UID_LAUNCH_ANCHOR_THREE_NODE_GREEN"
+          echo "live_host_identity_qualification=false"
+          echo "cross_uid_launch_generation_bound=false"
+          echo "custody_reserve_or_recover_enabled=false"
+          echo "funds_moved=false"
