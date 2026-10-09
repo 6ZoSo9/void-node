@@ -1,0 +1,152 @@
+name: VOID guarded first-original payment handoff source composition v1
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - ".github/workflows/buy-void-first-original-guarded-dispatch-composition-v1.yml"
+      - "docs/architecture/buy-void-first-original-guarded-dispatch-composition-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: buy-first-original-guarded-source-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind source checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Select reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install immutable dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact source
+        run: npm run build
+      - name: Verify source identities without runtime mount
+        run: |
+          set -euo pipefail
+          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "0e27a76e777c326d2d9e2b1550b7f2979fca9abb"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "f591f7407d9afc2cf77e0f90923aa11b4817fd4e"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "0a74a3652081c3e142d0b887676771a7ac148f32"
+          test "$(git hash-object src/index.ts)" = "240414e313f44f80d57f4e349be2f1ab3d72fe66"
+      - name: Exercise actual source dispatcher outer plain-data HOLD
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > dispatch.txt
+          for marker in \
+            'outer_input_proxy_rejected_without_traps=true' \
+            'outer_input_getter_rejected_without_invocation=true' \
+            'outer_input_root_getter_rejected_without_invocation=true' \
+            'outer_input_unreviewed_keys_and_toJSON_rejected=true' \
+            'null_prototype_outer_input_accepted=true' \
+            'dispatch_calls_allocation_writer_only_on_verified_branch=true' \
+            'mounted_verified_allocation_dispatch=false' \
+            'direct_web_process_private_root_write_authority=false'
+          do
+            grep -Fx "$marker" dispatch.txt
+          done
+      - name: Exercise actual first-original buyer handoff and frozen V1 HOLD
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > historical-v1.txt 2>&1; then
+            echo "HISTORICAL_V1_REISSUE_FORBIDDEN" >&2
+            exit 1
+          fi
+          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' historical-v1.txt
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs > /dev/null
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > handoff.txt
+          for marker in \
+            'original_handoff_v1_proof_blob_immutable=true' \
+            'first_original_missing_absent_null_empty_preappend_held=true' \
+            'forged_matching_allocation_replay_held=true' \
+            'valid_original_late_tx_receiver_preserves_deterministic_allocation=true' \
+            'durable_payment_event_reappend=false' \
+            'runtime_integration=false' \
+            'protected_high_water_custody_proven=false' \
+            'production_gate_ready=false' \
+            'presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" handoff.txt
+          done
+      - name: Emit deterministic no-authority composition receipt
+        run: |
+          set -euo pipefail
+          {
+            echo "actual_guarded_dispatch_source_sha1=0e27a76e777c326d2d9e2b1550b7f2979fca9abb"
+            echo "original_buyer_replay_source_sha1=0a74a3652081c3e142d0b887676771a7ac148f32"
+            echo "canonical_payment_writer_source_sha1=f591f7407d9afc2cf77e0f90923aa11b4817fd4e"
+            echo "actual_source_guarded_dispatch_negative_adversaries_green=true"
+            echo "real_temp_first_original_buyer_handoff_green=true"
+            echo "historical_v1_source_identity_reissued=false"
+            echo "operator_http_route_mounted_to_dispatcher=false"
+            echo "authenticated_custody_ipc_mounted=false"
+            echo "production_allocation_mutation_ready=false"
+            echo "presale_activation=false"
+            echo "funds_moved=false"
+            echo "VOID_FIRST_ORIGINAL_GUARDED_DISPATCH_SOURCE_COMPOSITION_V1_GREEN"
+          } > "guarded-first-original-${{ matrix.node }}.txt"
+          grep -Fx "funds_moved=false" "guarded-first-original-${{ matrix.node }}.txt"
+      - name: Upload reviewed source receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: guarded-first-original-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: guarded-first-original-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if test -n "${BASE_SHA:-}" && test -n "${HEAD_SHA:-}"; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: compose
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Fetch three exact-head source receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: guarded-first-original-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require three byte-identical false-authority receipts
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "proof/guarded-first-original-$n.txt"; done
+          cmp proof/guarded-first-original-22.txt proof/guarded-first-original-24.txt
+          cmp proof/guarded-first-original-22.txt proof/guarded-first-original-26.txt
+          grep -Fx "historical_v1_source_identity_reissued=false" proof/guarded-first-original-22.txt
+          grep -Fx "operator_http_route_mounted_to_dispatcher=false" proof/guarded-first-original-22.txt
+          grep -Fx "production_allocation_mutation_ready=false" proof/guarded-first-original-22.txt
+          echo VOID_FIRST_ORIGINAL_GUARDED_DISPATCH_CROSS_NODE_GREEN
