@@ -29,7 +29,7 @@ const gitBlob = crypto.createHash("sha1")
 assert.equal(gitBlob, EXPECTED_OBSERVER_GIT_BLOB,
   "repaired reviewed total-deadline observer source must not drift");
 const GUARD_SOURCE = "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts";
-const EXPECTED_GUARD_GIT_BLOB = "b5e1a4288889e8c63c6cbe651ebdf41446fd6813";
+const EXPECTED_GUARD_GIT_BLOB = "1f273163b06668579d19db93cc923a5980be02eb";
 const guardBytes = fs.readFileSync(path.join(ROOT, GUARD_SOURCE));
 assert.equal(crypto.createHash("sha1")
   .update(Buffer.from("blob " + guardBytes.byteLength + "\0", "utf8"))
@@ -45,6 +45,26 @@ assert.equal(VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1.exact_e
 assert.equal(VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1.production_payment_authority_ready,false);
 assert.equal(VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1.runtime_route_mount,false);
 assert.equal(VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1.signer_access,false);
+assert.equal(
+  VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1
+    .policy_snapshot_once_before_guard_and_transport,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1
+    .policy_accessors_or_proxy_allowed,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1
+    .request_payment_identity_snapshot_once,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1
+    .request_accessors_or_proxy_allowed,
+  false,
+);
 
 const rpcUrl = "http://127.0.0.1:1/";
 const hash = "0x" + "a".repeat(64);
@@ -128,6 +148,134 @@ for(const [rail,id,hex] of [
   }
 }
 
+// Executable policy/request surfaces are rejected without invocation.
+{
+  let policyGetterCalls=0;
+  const accessorPolicy:any={
+    enabled:true,
+    chain_id:8453,
+    rpc_url:rpcUrl,
+  };
+  Object.defineProperty(accessorPolicy,"source_chain",{
+    enumerable:true,
+    get(){
+      policyGetterCalls+=1;
+      return "base";
+    },
+  });
+  const mock=fixture("0x2105");
+  const held=await observeBuyVoidCanonicalRailPaymentV1({
+    request:request("base"),policy:accessorPolicy,transport:mock.transport,
+  });
+  assert.equal(held.ok,false);
+  if(held.ok===false) {
+    assert.equal(held.reason,"canonical_payment_rpc_policy_accessor_forbidden");
+  }
+  assert.equal(policyGetterCalls,0,"policy getter executed");
+  assert.equal(mock.calls,0,"accessor policy reached RPC");
+}
+{
+  let policyProxyTraps=0;
+  const proxyPolicy=new Proxy(policy("base",8453),{
+    ownKeys(target){
+      policyProxyTraps+=1;
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target,key){
+      policyProxyTraps+=1;
+      return Reflect.getOwnPropertyDescriptor(target,key);
+    },
+  });
+  const mock=fixture("0x2105");
+  const held=await observeBuyVoidCanonicalRailPaymentV1({
+    request:request("base"),policy:proxyPolicy,transport:mock.transport,
+  });
+  assert.equal(held.ok,false);
+  assert.equal(policyProxyTraps,0,"policy Proxy trap executed");
+  assert.equal(mock.calls,0,"proxy policy reached RPC");
+}
+{
+  let requestGetterCalls=0;
+  const accessorRequest:any={tx_hash:hash};
+  Object.defineProperty(accessorRequest,"source_chain",{
+    enumerable:true,
+    get(){
+      requestGetterCalls+=1;
+      return "base";
+    },
+  });
+  const mock=fixture("0x2105");
+  const held=await observeBuyVoidCanonicalRailPaymentV1({
+    request:accessorRequest,policy:policy("base",8453),transport:mock.transport,
+  });
+  assert.equal(held.ok,false);
+  if(held.ok===false) {
+    assert.equal(held.reason,"canonical_payment_rpc_request_invalid");
+  }
+  assert.equal(requestGetterCalls,0,"request getter executed");
+  assert.equal(mock.calls,0,"accessor request reached RPC");
+}
+{
+  let requestProxyTraps=0;
+  const proxyRequest=new Proxy(request("base") as any,{
+    ownKeys(target){
+      requestProxyTraps+=1;
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target,key){
+      requestProxyTraps+=1;
+      return Reflect.getOwnPropertyDescriptor(target,key);
+    },
+  });
+  const mock=fixture("0x2105");
+  const held=await observeBuyVoidCanonicalRailPaymentV1({
+    request:proxyRequest,policy:policy("base",8453),transport:mock.transport,
+  });
+  assert.equal(held.ok,false);
+  assert.equal(requestProxyTraps,0,"request Proxy trap executed");
+  assert.equal(mock.calls,0,"proxy request reached RPC");
+}
+
+// Once admitted, later mutation of the original policy/request cannot change
+// the rail or payment identity consumed by the legacy observer.
+{
+  const mutablePolicy:any=policy("base",8453);
+  const mutableRequest:any=request("base");
+  let calls=0;
+  const transport:BuyVoidPaymentRpcTransportV1={
+    async call(input) {
+      calls+=1;
+      if(calls===1) {
+        mutablePolicy.source_chain="ethereum";
+        mutablePolicy.chain_id=1;
+        mutablePolicy.rpc_url="https://example.invalid/changed";
+        mutableRequest.source_chain="ethereum";
+        mutableRequest.tx_hash="0x"+"b".repeat(64);
+      }
+      if(input.method==="eth_chainId") return "0x2105";
+      if(input.method==="eth_getTransactionReceipt") {
+        assert.deepEqual(input.params,[hash],
+          "observer payment hash changed after caller mutation");
+        return {
+          status:"0x1",transactionHash:hash,blockNumber:"0x8",logs:[],
+        };
+      }
+      if(input.method==="eth_blockNumber") return "0x9";
+      throw new Error("unexpected synthetic RPC method");
+    },
+  };
+  const out=await observeBuyVoidCanonicalRailPaymentV1({
+    request:mutableRequest,policy:mutablePolicy,transport,
+  });
+  assert.equal(out.ok,true,"admitted snapshot did not survive caller mutation");
+  assert.equal(calls,3);
+  if(out.ok===true) {
+    assert.equal(out.source_chain,"base");
+    assert.equal(out.chain_id,"8453");
+    assert.equal(out.payment_transaction_hash,hash);
+  }
+}
+
 const negativePolicies:unknown[] = [
   policy("base",1),policy("base","1"),
   policy("ethereum",8453),policy("ethereum","8453"),
@@ -165,6 +313,11 @@ console.log("base_mainnet_chain_id_8453_required=true");
 console.log("ethereum_mainnet_chain_id_1_required=true");
 console.log("wrong_chain_id_held_before_RPC=true");
 console.log("mismatched_request_chain_held_before_RPC=true");
+console.log("policy_accessor_rejected_without_invocation=true");
+console.log("policy_proxy_rejected_without_traps=true");
+console.log("request_accessor_rejected_without_invocation=true");
+console.log("request_proxy_rejected_without_traps=true");
+console.log("post_admission_policy_request_mutation_ignored=true");
 console.log("canonical_receipt_observation_delegates_to_V1=true");
 console.log("negative_policy_cases="+negativePolicies.length);
 console.log("real_RPC_or_customer_record_used=false");
