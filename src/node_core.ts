@@ -695,6 +695,13 @@ export class Node {
     DirectUpgradeLocalSessionV1
   >();
 
+  // A restored checkpoint is sealed before derived index/receipt directories
+  // exist. Verify SegStore's inherited generation BEFORE their constructors
+  // can mkdir in DATA_DIR; do not bypass or recalculate the accepted seal.
+  readonly store = new SegStore(process.env.DATA_DIR || "data", {
+    segmentMaxBytes: 128 * 1024 * 1024,
+    sparseEvery: 512,
+  });
   readonly txIndex = new TxIndex(path.join(this.baseDir, "index"));
   readonly receipts = new ReceiptsStore(path.join(this.baseDir, "receipts"), { shardSpan: 10_000 });
 
@@ -726,10 +733,6 @@ export class Node {
   private blobFetchQ: { cid: string; providers: string[]; enqueuedAt: number }[] = [];
   private blobFetchRunning = false;
 
-  readonly store = new SegStore(process.env.DATA_DIR || "data", {
-    segmentMaxBytes: 128 * 1024 * 1024,
-    sparseEvery: 512,
-  });
   readonly mempool = new Mempool();
   private proposerTimer: NodeJS.Timeout | null = null;
   private followerPullPersistenceGenerationV1: Promise<void> | null = null;
