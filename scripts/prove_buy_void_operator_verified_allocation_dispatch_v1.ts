@@ -15,7 +15,7 @@ const IDX_PATH = "src/index.ts";
 const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
-  "36544de43be6ea0cc845d876b259789a76b15806";
+  "56cc3d4089f870868222328d9b56dd91415974a0";
 const FROZEN_ROUTER_GIT_BLOB = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
   "496715e7ae2941663908976a4a3f4efd7c6199cf";
@@ -366,6 +366,73 @@ let serializeCount = 0;
   );
 }
 
+{
+  const objectToJsonBefore =
+    Object.getOwnPropertyDescriptor(Object.prototype, "toJSON");
+  const arrayToJsonBefore =
+    Object.getOwnPropertyDescriptor(Array.prototype, "toJSON");
+  let objectPrototypeToJsonCalls = 0;
+  let arrayPrototypeToJsonCalls = 0;
+  try {
+    Object.defineProperty(Object.prototype, "toJSON", {
+      value() {
+        objectPrototypeToJsonCalls++;
+        return {
+          request_id: "synthetic-r1",
+          operator_status: "reviewed",
+        };
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Array.prototype, "toJSON", {
+      value() {
+        arrayPrototypeToJsonCalls++;
+        return ["mutated"];
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+
+    const plan = planBuyVoidOperatorAllocationDispatchV1(input({
+      event: {
+        request_id: "synthetic-r1",
+        operator_status: "payment_verified",
+        payment_verifier: {
+          from_address: "0x" + "1".repeat(40),
+          path: ["safe"],
+        },
+      },
+    }));
+    assert.equal(plan.kind, "verified_payment_allocation_handoff");
+    assert.equal(plan.event.operator_status, "payment_verified");
+    assert.equal(Object.getPrototypeOf(plan.event), null);
+    assert.equal(Object.getPrototypeOf(plan.event.payment_verifier), null);
+    assert.equal(
+      Object.hasOwn(plan.event.payment_verifier.path, "toJSON"),
+      true,
+    );
+    assert.equal(plan.event.payment_verifier.path.toJSON, undefined);
+    const encoded = JSON.stringify(plan.event);
+    assert.match(encoded, /"operator_status":"payment_verified"/u);
+    assert.equal(objectPrototypeToJsonCalls, 0);
+    assert.equal(arrayPrototypeToJsonCalls, 0);
+  } finally {
+    if (objectToJsonBefore) {
+      Object.defineProperty(Object.prototype, "toJSON", objectToJsonBefore);
+    } else {
+      delete (Object.prototype as any).toJSON;
+    }
+    if (arrayToJsonBefore) {
+      Object.defineProperty(Array.prototype, "toJSON", arrayToJsonBefore);
+    } else {
+      delete (Array.prototype as any).toJSON;
+    }
+  }
+}
+
 for (const [reason, overrides] of [
   ["missing roots", {allocation_ledger_root:undefined}],
   ["empty roots", {allocation_high_water_root:""}],
@@ -375,6 +442,20 @@ for (const [reason, overrides] of [
   ["same roots", {allocation_high_water_root:VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1}],
   ["nested roots", {allocation_high_water_root:"/var/lib/void-synthetic-ledger/child"}],
   ["wrong request id", {request:{request_id:"other"}}],
+  ["event request id array", {
+    event:{request_id:["synthetic-r1"],operator_status:"payment_verified"},
+  }],
+  ["request request id array", {
+    request:{request_id:["synthetic-r1"]},
+  }],
+  ["event request id number", {
+    event:{request_id:7,operator_status:"payment_verified"},
+    request:{request_id:7},
+  }],
+  ["request request id number", {
+    event:{request_id:"7",operator_status:"payment_verified"},
+    request:{request_id:7},
+  }],
   ["empty status", {event:{request_id:"synthetic-r1",operator_status:""}}],
   ["non-string status", {event:{request_id:"synthetic-r1",operator_status:1}}],
   ["invalid server callback", {read_sale_state:null}],
@@ -473,6 +554,9 @@ console.log("oversize_text_holds_before_full_json_serialization=true");
 console.log("deep_nesting_holds_before_json_serialization=true");
 console.log("excess_key_count_holds_before_json_serialization=true");
 console.log("sparse_array_inherited_lookup_forbidden=true");
+console.log("inherited_object_toJSON_cannot_mutate_snapshot=true");
+console.log("inherited_array_toJSON_cannot_mutate_snapshot=true");
+console.log("request_id_primitive_exact_identity_required=true");
 console.log("server_control_properties_read_once=true");
 console.log("dispatch_calls_allocation_writer_only_on_verified_branch=true");
 console.log("mounted_operator_legacy_payment_only_producer_observed=true");
