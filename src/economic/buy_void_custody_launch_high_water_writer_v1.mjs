@@ -563,6 +563,9 @@ function atomicAdvance(
     HIGH_WATER_NAME,
   );
   let fd = -1;
+  // Only the writer that successfully obtained O_EXCL owns tempPath.
+  // EEXIST must not cause cleanup to delete someone else's staged file.
+  let tempCreated = false;
   let renamed = false;
   try {
     fd = fs.openSync(
@@ -573,6 +576,7 @@ function atomicAdvance(
         O_NOFOLLOW,
       0o600,
     );
+    tempCreated = true;
     writeAll(fd, nextBytes);
     fs.fsyncSync(fd);
     fs.closeSync(fd);
@@ -610,7 +614,7 @@ function atomicAdvance(
       try { fs.closeSync(fd); }
       catch { recordFdCloseFailureV1("temp_write_cleanup"); }
     }
-    if (!renamed) {
+    if (tempCreated && !renamed) {
       try {
         fs.unlinkSync(tempPath);
         fs.fsyncSync(evidence.custodyDirectory.fd);
