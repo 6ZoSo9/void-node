@@ -333,7 +333,7 @@ let serializeCount = 0;
     request_id: "synthetic-r1",
     operator_status: "payment_verified",
   };
-  for (let index = 0; index < 2049; index++) {
+  for (let index = 0; index < 5000; index++) {
     event["k" + index] = index;
   }
   const originalStringify = JSON.stringify;
