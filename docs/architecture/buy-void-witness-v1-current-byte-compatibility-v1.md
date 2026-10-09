@@ -35,8 +35,10 @@ The latest reviewed integration runtime generation
   `src/economic/buy_void_auto_fulfillment_v1.ts`, old Git blob
   `1ac1ad6213be83f1aa8261a554caa91544fe5e09` versus current
   `b7c963b1d55f000d82ad82289b31107b432503de`.
-- **7/7 identical pinned build inputs**, verified by Git commit and actual
-  compiled candidate source.
+- **6/7 identical pinned build inputs**. The reviewed `Dockerfile` changed:
+  original Git blob `8809dba927a34acb4eb99e8293e7c65584c2ceaf`, current
+  Git blob `2acd9bcf0416eeb0f9fd72c1a556696863ff1607`.
+  All seven current build-input identities are independently verified.
 - **7/8 identical compiled file SHA256 identities** against the original
   frozen V1 manifest. Its installed auto-fulfillment file was 14,860 bytes
   with SHA256 `ae15c56f...`; current proposed V2 is 26,226 bytes with

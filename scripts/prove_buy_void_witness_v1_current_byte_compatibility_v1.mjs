@@ -172,18 +172,29 @@ function checkCandidate(value, originalRows, variantRows) {
   assert.equal(sameSources,7);
   assert.equal(changedAutoSources,1);
   const inputsSeen=new Set();
+  let unchangedInputs=0;
+  let changedDockerfile=0;
   for(const observed of value.build_inputs) {
     assert.ok(!inputsSeen.has(observed.path));
     inputsSeen.add(observed.path);
-    const old=sourceAt(ORIGINAL_V1_SOURCE,observed.path);
+    const historical=sourceAt(ORIGINAL_V1_SOURCE,observed.path);
     const current=sourceAt(CURRENT,observed.path);
-    assert.equal(old,current,"witness V1 build input changed: "+observed.path);
     assert.equal(current,observed.git_blob_sha1,
       "reported current build input mismatch: "+observed.path);
     assert.equal(gitBlob(read(observed.path)),current,
       "worktree build input mismatch: "+observed.path);
+    if(historical===current) {
+      unchangedInputs++;
+    } else {
+      assert.equal(observed.path,"Dockerfile","unexpected V1 build-input divergence");
+      assert.equal(historical,"8809dba927a34acb4eb99e8293e7c65584c2ceaf");
+      assert.equal(current,"2acd9bcf0416eeb0f9fd72c1a556696863ff1607");
+      changedDockerfile++;
+    }
   }
   assert.equal(inputsSeen.size,7);
+  assert.equal(unchangedInputs,6);
+  assert.equal(changedDockerfile,1);
   const MUST_FALSE=[
     "runtime_bundle_identity_accepted",
     "historical_v1_qualified_for_current_source",
@@ -201,7 +212,7 @@ function checkCandidate(value, originalRows, variantRows) {
     "current V2 compiled Proxy detection import missing");
   return Object.freeze({
     source_files_match_original_frozen_v1:7,
-    build_inputs_match_original_frozen_v1:7,
+    build_inputs_match_original_frozen_v1:6,
     runtime_hashes_match_original_frozen_v1:7,
     runtime_hashes_match_integration_v1_alias:8,
     original_v1_auto_runtime_sha256:ORIGINAL_AUTO_COMPILED_SHA,
