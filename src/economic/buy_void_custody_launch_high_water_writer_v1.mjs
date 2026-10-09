@@ -7,6 +7,9 @@ import {
   classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2,
 } from "./buy_void_custody_launch_authority_v2.mjs";
 
+import { buildBuyVoidCustodyHighWaterTransitionFenceV1 } from "./buy_void_custody_high_water_transition_fence_v1.mjs";
+import { createOnlyBuyVoidCustodyHighWaterFenceRecordV1 } from "./buy_void_custody_high_water_fence_storage_v1.mjs";
+
 export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1 =
   "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1";
 
@@ -21,6 +24,9 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1 =
     arbitrary_bytes_write: false,
     bootstrap_write_enabled: false,
     high_water_advance_write_enabled: true,
+    inspect_temp_cleanup_enabled: false,
+    unowned_temp_cleanup_enabled: false,
+    cross_process_exclusive_writer_fence_verified: false,
     atomic_single_file_publication: true,
     directory_fsync: true,
     exact_postcheck: true,
@@ -50,9 +56,6 @@ const MAX_HIGH_WATER_BYTES = 16 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
-const TEMP_RE =
-  /^\.buy-void-custody-launch-high-water-v2\.json\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
-
 function fail(reason) {
   throw new Error("custody_launch_high_water_writer_" + reason);
 }
@@ -249,13 +252,24 @@ function openPinnedDirectory(directoryPath, custody, reason) {
     fail(reason + "_open_failed");
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("open_directory_cleanup"); }
     }
   }
 }
 
+// Closing an already-disposable descriptor is best-effort, but a failure
+// must never disappear silently. Expose a fixed, path-free marker without
+// disturbing an already-recorded publication/mutation result.
+function recordFdCloseFailureV1(stage) {
+  process.stderr.write(
+    "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_FD_CLOSE_FAILURE_V1 stage=" +
+      stage + "\n",
+  );
+}
 function closePinned(directory) {
-  try { fs.closeSync(directory.fd); } catch {}
+  try { fs.closeSync(directory.fd); }
+  catch { recordFdCloseFailureV1("close_pinned_directory"); }
 }
 
 function assertPinnedVisible(directory, reason) {
@@ -515,29 +529,10 @@ function canonicalCandidate(decision) {
   return bytes;
 }
 
-function cleanupTemps(directory) {
-  assertPinnedVisible(directory, "custody_root");
-  let changed = false;
-  for (const name of fs.readdirSync(directory.proc_path)) {
-    if (!name.startsWith("." + HIGH_WATER_NAME + ".tmp-")) continue;
-    if (!TEMP_RE.test(name)) fail("temp_name_invalid");
-    const target = path.join(directory.proc_path, name);
-    const stat = fs.lstatSync(target, { bigint: true });
-    validateReadFile(
-      stat,
-      MAX_HIGH_WATER_BYTES,
-      "temp_file_invalid",
-      true,
-    );
-    fs.unlinkSync(target);
-    changed = true;
-  }
-  if (changed) {
-    fs.fsyncSync(directory.fd);
-    assertPinnedVisible(directory, "custody_root");
-  }
-}
-
+// A temp may belong to another writer between fsync and fixed-name rename.
+// Inspections and advances NEVER unlink unknown temps by name. Only the
+// owner of an O_EXCL-created temp may remove that exact temp on failure.
+// Recovery/reclamation needs a separately reviewed exclusive custody fence.
 function writeAll(fd, bytes) {
   let offset = 0;
   while (offset < bytes.length) {
@@ -562,7 +557,6 @@ function atomicAdvance(
   onRenamed,
 ) {
   if (!Buffer.isBuffer(expectedCurrent)) fail("current_high_water_missing");
-  cleanupTemps(evidence.custodyDirectory);
   const tempName =
     "." + HIGH_WATER_NAME + ".tmp-" + String(process.pid) + "-" +
     crypto.randomBytes(8).toString("hex");
@@ -572,6 +566,9 @@ function atomicAdvance(
     HIGH_WATER_NAME,
   );
   let fd = -1;
+  // Only the writer that successfully obtained O_EXCL owns tempPath.
+  // EEXIST must not cause cleanup to delete someone else's staged file.
+  let tempCreated = false;
   let renamed = false;
   try {
     fd = fs.openSync(
@@ -582,12 +579,13 @@ function atomicAdvance(
         O_NOFOLLOW,
       0o600,
     );
+    tempCreated = true;
     writeAll(fd, nextBytes);
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     fd = -1;
 
-    if (typeof beforeReplaceHook === "function") beforeReplaceHook();
+    if (typeof beforeReplaceHook === "function") beforeReplaceHook(expectedCurrent, nextBytes);
 
     const reobserved = observedBytes(evidence);
     if (!sameObservation(expectedObservation, reobserved)) {
@@ -616,9 +614,10 @@ function atomicAdvance(
     return published;
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("temp_write_cleanup"); }
     }
-    if (!renamed) {
+    if (tempCreated && !renamed) {
       try {
         fs.unlinkSync(tempPath);
         fs.fsyncSync(evidence.custodyDirectory.fd);
@@ -682,7 +681,6 @@ function runWriter(options, classifier, mutate, beforeReplaceHook = null) {
   let evidence = null;
   try {
     evidence = openEvidence(options);
-    cleanupTemps(evidence.custodyDirectory);
     const before = observedBytes(evidence);
     const decision = classifier(before);
     if (
@@ -762,6 +760,79 @@ export function createBuyVoidCustodyLaunchHighWaterWriterV1(rawOptions) {
   });
 }
 
+// This directory is preprovisioned as 0700 by the custody principal. The
+// source-only writer never creates, reaps or unlinks a permanent fence slot.
+export const VOID_BUY_VOID_CUSTODY_PERMANENT_FENCE_DIRECTORY_V1 =
+  ".void-buy-void-custody-permanent-fences-v1";
+
+function makePermanentFenceHookV1(options, testAfterFence = null) {
+  const fenceDirectory = path.join(
+    options.custody_root, VOID_BUY_VOID_CUSTODY_PERMANENT_FENCE_DIRECTORY_V1,
+  );
+  return (priorBytes, nextBytes) => {
+    if (!Buffer.isBuffer(priorBytes) || !Buffer.isBuffer(nextBytes)) {
+      fail("permanent_fence_bytes_invalid");
+    }
+    const plan = buildBuyVoidCustodyHighWaterTransitionFenceV1({
+      prior_high_water_bytes: Buffer.from(priorBytes),
+      next_high_water_bytes: Buffer.from(nextBytes),
+    });
+    if (plan.status !== "transition" || plan.transition_required !== true ||
+        !Buffer.isBuffer(plan.record_bytes)) {
+      fail("permanent_fence_transition_invalid");
+    }
+    const stored = createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
+      configured_fence_directory: fenceDirectory,
+      record_bytes: Buffer.from(plan.record_bytes),
+    });
+    if (!stored || !["created", "exists_same_transition"].includes(stored.status) ||
+        stored.record_durable_observation !== true ||
+        stored.stored_record_sha256 !== plan.record_sha256 ||
+        stored.transition_slot_id !== plan.transition_slot_id ||
+        stored.high_water_mutated !== false ||
+        stored.production_allocation_mutation_ready !== false) {
+      fail("permanent_fence_storage_unqualified");
+    }
+    if (typeof testAfterFence === "function") {
+      testAfterFence(
+        Buffer.from(priorBytes),
+        Buffer.from(nextBytes),
+        Buffer.from(plan.record_bytes),
+      );
+    }
+  };
+}
+
+function createPermanentlyFencedWriterV1(options, classifier, testHook = null) {
+  const beforeRename = makePermanentFenceHookV1(options, testHook);
+  return Object.freeze({
+    inspect() { return runWriter(options, classifier, false); },
+    advance() { return runWriter(options, classifier, true, beforeRename); },
+    authority: VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1,
+  });
+}
+
+// NOT a mounted production entrypoint. Caller path/UID, exclusive lock,
+// lease and signature qualifications remain separate launch admission gates.
+export function createBuyVoidCustodyLaunchHighWaterPermanentlyFencedWriterV1(rawOptions) {
+  return createPermanentlyFencedWriterV1(
+    normalizeOptions(rawOptions),
+    classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2,
+  );
+}
+
+export function testOnlyCreateBuyVoidCustodyPermanentlyFencedWriterV1(
+  rawOptions, classifier, afterFenceHook = null,
+) {
+  if (typeof classifier !== "function" ||
+      (afterFenceHook !== null && typeof afterFenceHook !== "function")) {
+    fail("permanent_fence_test_hook_invalid");
+  }
+  return createPermanentlyFencedWriterV1(
+    normalizeOptions(rawOptions), classifier, afterFenceHook,
+  );
+}
+
 export function createBuyVoidCustodyLaunchHighWaterWriterFromEnvV1(
   env = process.env,
 ) {
@@ -817,6 +888,9 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_CONTRACT_V1 =
     high_water_filename: HIGH_WATER_NAME,
     bootstrap_write_enabled: false,
     high_water_advance_write_enabled: true,
+    inspect_temp_cleanup_enabled: false,
+    unowned_temp_cleanup_enabled: false,
+    cross_process_exclusive_writer_fence_verified: false,
     startup_configured_paths: true,
     request_selected_paths: false,
     arbitrary_path_write: false,
