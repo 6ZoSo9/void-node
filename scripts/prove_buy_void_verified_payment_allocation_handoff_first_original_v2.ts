@@ -49,7 +49,7 @@ assert.ok(frozen.toString("utf8").includes(
 
 // The original V1 source-only, real-temp-filesystem handoff proof is executed
 // only AFTER exact Git blob authentication above. Never repin or overwrite V1.
-await import("./prove_buy_void_verified_payment_allocation_handoff_v1.ts");
+await import("./prove_buy_void_verified_payment_allocation_handoff_v1.js");
 
 const tx=c=>"0x"+c.repeat(64),address=c=>"0x"+c.repeat(40);
 const ref=c=>"sha256:"+c.repeat(64);
