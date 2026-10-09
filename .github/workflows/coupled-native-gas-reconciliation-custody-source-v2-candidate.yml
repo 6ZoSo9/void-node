@@ -1,0 +1,118 @@
+name: VOID native gas custody reviewed V2 source candidate
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_source_v2_candidate.mjs"
+      - "docs/architecture/coupled-native-gas-reconciliation-custody-source-v2-candidate.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-custody-source-v2-candidate.yml"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/coupled_native_gas_*.ts"
+      - "tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact checkout identity and clean worktree
+        env:
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup reviewed Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Exact single-delta source negative proof
+        run: node scripts/prove_coupled_native_gas_reconciliation_custody_source_v2_candidate.mjs --self-test
+      - name: Derive read-only source generation candidate
+        run: |
+          set -euo pipefail
+          node scripts/prove_coupled_native_gas_reconciliation_custody_source_v2_candidate.mjs --derive > "$RUNNER_TEMP/native-gas-v2-node-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_coupled_native_gas_reconciliation_custody_source_generation_v2_candidate");
+            assert.equal(j.source_stack_parent,"884edc6e82bd505a83e51a44b38f7e318431f314");
+            assert.equal(j.reviewed_source_count,21);
+            assert.equal(j.changed_source_count,1);
+            assert.equal(j.unchanged_source_count,20);
+            assert.equal(j.source_blobs.filter(x=>x.changed).length,1);
+            assert.equal(j.source_blobs.find(x=>x.changed).path,"src/economic/buy_void_auto_fulfillment_v1.ts");
+            assert.equal(j.source_blobs.find(x=>x.changed).current_git_blob_sha1,"b7c963b1d55f000d82ad82289b31107b432503de");
+            for(const key of ["source_generation_v2_accepted","deployed_artifact_generation_verified",
+              "trusted_collector_proven","bootstrap_receipt_external_trust_proven",
+              "evidence_generation_monotonicity_proven","verification_clock_authority_proven",
+              "live_host_qualification_performed","storage_bootstrap","runtime_integration",
+              "production_gate_ready","presale_activation","funds_movement"])assert.equal(j[key],false,key);
+            assert.equal(j.source_identity_candidate_verified,true);
+            console.log("NATIVE_GAS_SOURCE_V2_CANDIDATE_21_FILES_BOUND_UNACCEPTED_GREEN");
+          ' "$RUNNER_TEMP/native-gas-v2-node-${{ matrix.node }}.json"
+      - name: Deny default invocation and accepted mode
+        run: |
+          set -euo pipefail
+          if node scripts/prove_coupled_native_gas_reconciliation_custody_source_v2_candidate.mjs              > "$RUNNER_TEMP/forbidden" 2>&1; then exit 1; fi
+          grep -F "source_v2_review_candidate_only_no_authority" "$RUNNER_TEMP/forbidden"
+      - name: Upload source-only candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-gas-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/native-gas-v2-node-${{ matrix.node }}.json
+          retention-days: 1
+          if-no-files-found: error
+      - name: Require no whitespace defects in changed files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE" "$HEAD"
+
+  equality:
+    needs: [candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Download all three exact-source proofs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: native-gas-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Compare complete candidate bytes
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "evidence/native-gas-v2-node-$n.json"; done
+          cmp evidence/native-gas-v2-node-22.json evidence/native-gas-v2-node-24.json
+          cmp evidence/native-gas-v2-node-22.json evidence/native-gas-v2-node-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("evidence/native-gas-v2-node-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.source_generation_v2_accepted,false);
+            assert.equal(j.production_gate_ready,false);
+            console.log("NATIVE_GAS_SOURCE_V2_CROSS_NODE_CANDIDATE_GREEN");
+            console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("candidate_acceptance=false");
+          '
