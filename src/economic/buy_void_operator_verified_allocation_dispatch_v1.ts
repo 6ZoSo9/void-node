@@ -195,32 +195,20 @@ function detachedBoundedJsonValueV1(
   }
 
   const prototype = Object.getPrototypeOf(value);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
 
   if (Array.isArray(value)) {
     if (prototype !== Array.prototype ||
         value.length > SNAPSHOT_MAX_ARRAY_ITEMS_V1) {
       hold(label + "_array_invalid");
     }
-    const ownKeys = Reflect.ownKeys(descriptors);
-    if (ownKeys.some((key) => typeof key === "symbol")) {
-      hold(label + "_symbol_key_forbidden");
-    }
-    const stringKeys = ownKeys as string[];
-    if (
-      stringKeys.some((key) =>
-        key !== "length" && !/^(0|[1-9][0-9]*)$/.test(key))
-    ) {
-      hold(label + "_array_property_invalid");
-    }
-    if (stringKeys.length !== value.length + 1) {
-      hold(label + "_sparse_array_forbidden");
-    }
 
     addSnapshotBytesV1(budget, 2 + Math.max(0, value.length - 1), label);
     const clone: any[] = [];
     for (let index = 0; index < value.length; index += 1) {
-      const descriptor = descriptors[String(index)];
+      const descriptor =
+        Object.getOwnPropertyDescriptor(value, String(index));
+      // Dense own data properties only. JSON array holes can otherwise read
+      // inherited values/getters during serialization.
       if (!descriptor || !Object.hasOwn(descriptor, "value") ||
           descriptor.enumerable !== true) {
         hold(label + "_accessor_or_nondata_property");
@@ -241,27 +229,29 @@ function detachedBoundedJsonValueV1(
     hold(label + "_nonplain_object");
   }
 
-  const ownKeys = Reflect.ownKeys(descriptors);
-  if (ownKeys.some((key) => typeof key === "symbol")) {
-    hold(label + "_symbol_key_forbidden");
-  }
-  const keys = ownKeys as string[];
-  budget.keys += keys.length;
-  if (budget.keys > SNAPSHOT_MAX_KEYS_V1) {
-    hold(label + "_key_count_exceeded");
-  }
-
-  addSnapshotBytesV1(budget, 2 + Math.max(0, keys.length - 1), label);
+  // Iterate enumerable own string keys without first allocating a complete
+  // key/descriptor table. Non-enumerable and Symbol properties are irrelevant
+  // to the detached JSON representation; inherited keys are ignored.
   const clone: Record<string, any> = {};
-  for (const key of keys) {
+  let ownKeyCount = 0;
+  addSnapshotBytesV1(budget, 2, label);
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) continue;
+    ownKeyCount += 1;
+    budget.keys += 1;
+    if (ownKeyCount > SNAPSHOT_MAX_KEYS_V1 ||
+        budget.keys > SNAPSHOT_MAX_KEYS_V1) {
+      hold(label + "_key_count_exceeded");
+    }
     if (key.length > SNAPSHOT_MAX_KEY_CODE_UNITS_V1) {
       hold(label + "_key_size_exceeded");
     }
-    const descriptor = descriptors[key];
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor || !Object.hasOwn(descriptor, "value") ||
         descriptor.enumerable !== true) {
       hold(label + "_accessor_or_nondata_property");
     }
+    if (ownKeyCount > 1) addSnapshotBytesV1(budget, 1, label);
     addSnapshotBytesV1(
       budget,
       jsonStringByteLengthV1(key) + 1,
