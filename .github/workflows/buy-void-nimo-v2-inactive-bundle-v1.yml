@@ -1,0 +1,129 @@
+name: VOID Nimo witness V2 inactive review bundle v1
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py"
+      - ".github/workflows/buy-void-nimo-v2-inactive-bundle-v1.yml"
+      - "docs/architecture/buy-void-nimo-v2-inactive-bundle-v1.md"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nimo-v2-inactive-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact source checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require exact checkout
+        env:
+          SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install and compile reproducible source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Recheck reviewed V2 source and historical V1 pins
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs --prove > /dev/null
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test > /dev/null
+      - name: Create and inspect NON-INSTALLED review archive
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py
+          stage="$(mktemp -d)"
+          chmod 0700 "$stage"
+          trap 'rm -rf -- "$stage"' EXIT
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py --self-test > "inactive-v2-${{ matrix.node }}.txt"
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py --plan >> "inactive-v2-${{ matrix.node }}.txt"
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py \
+            --package "$stage/void-nimo-v2-inactive.tar" >> "inactive-v2-${{ matrix.node }}.txt"
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py \
+            --inspect-archive "$stage/void-nimo-v2-inactive.tar" >> "inactive-v2-${{ matrix.node }}.txt"
+          cp -- "$stage/void-nimo-v2-inactive.tar" "inactive-v2-${{ matrix.node }}.tar"
+          python3 -c '
+          import json
+          records=[json.loads(line) for line in open("inactive-v2-${{ matrix.node }}.txt")]
+          assert len(records)==4
+          assert records[0]["negative_lock_mutations_rejected"]==4
+          assert records[1]["compiled_source_file_count"]==8
+          assert records[2]["inactive_archive_contents_verified"] is True
+          assert records[3]["inactive_archive_contents_verified"] is True
+          for row in records[1:]:
+              assert row["status"]=="HOLD_UNACCEPTED_NOT_INSTALLED"
+              assert row["v2_host_installed"] is False
+              assert row["v2_runtime_bundle_identity_accepted"] is False
+              assert row["payment_to_allocation_authorized"] is False
+              assert row["presale_activation"] is False
+              assert row["funds_moved"] is False
+          print("VOID_NIMO_V2_INACTIVE_ONLY_ARCHIVE_REVIEW_GREEN")
+          '
+      - name: Upload inactive archive and standalone read-only inspector
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-nimo-v2-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            inactive-v2-${{ matrix.node }}.tar
+            inactive-v2-${{ matrix.node }}.txt
+            scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py
+          if-no-files-found: error
+          retention-days: 2
+      - name: Source and diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head inactive artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-nimo-v2-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./inactive
+      - name: Require byte-for-byte identical review payloads
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "inactive/inactive-v2-$node.tar"
+            test -s "inactive/inactive-v2-$node.txt"
+          done
+          cmp inactive/inactive-v2-22.tar inactive/inactive-v2-24.tar
+          cmp inactive/inactive-v2-22.tar inactive/inactive-v2-26.tar
+          cmp inactive/inactive-v2-22.txt inactive/inactive-v2-24.txt
+          cmp inactive/inactive-v2-22.txt inactive/inactive-v2-26.txt
+          echo VOID_NIMO_V2_INACTIVE_ARCHIVE_THREE_NODE_GREEN
+          echo "original_v1_installed_files_mutated=false"
+          echo "candidate_v2_installation_performed=false"
+          echo "source_only_review_artifact=true"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
