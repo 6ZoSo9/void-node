@@ -30,10 +30,12 @@ Canonical public checkout rails are ONLY:
 `src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts`
 exports a fail-closed pure `classifyBuyVoidCanonicalPaymentRpcRailV1`
 and an **unmounted** adapter `observeBuyVoidCanonicalRailPaymentV1`.
-The classifier binds `source_chain` to its unique numeric/string
-decimal chain ID, refuses aliases, fractional/negative/zero/hex,
-wrong-typed values or disabled policies, and runs *before any transport
-or RPC operation*.
+The classifier first applies the same inert policy snapshot boundary used by
+the adapter, then binds `source_chain` to its unique numeric/string decimal
+chain ID. The exported classifier therefore rejects Proxy/accessor policy
+surfaces without invoking them, refuses aliases, fractional/negative/zero/hex,
+wrong-typed values or disabled policies, and runs *before any transport or RPC
+operation*.
 
 The adapter first snapshots the server-controlled RPC policy into one frozen,
 plain primitive object. Proxy policies and accessors are rejected before their
@@ -64,7 +66,8 @@ The synthetic proof:
   the original V1 observer, and no other RPC methods called.
 - Requires malformed rail/policy combinations and mismatched request rail to
   HOLD before any provider call.
-- Proves policy getters and Proxy traps are rejected without invocation.
+- Proves policy getters and Proxy traps are rejected without invocation both
+  through the adapter and through the exported classifier directly.
 - Proves request identity getters and Proxy traps are rejected without
   invocation.
 - Mutates the original policy and request during the first synthetic RPC call
