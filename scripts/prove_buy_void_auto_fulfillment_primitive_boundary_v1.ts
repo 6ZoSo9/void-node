@@ -11,7 +11,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_auto_fulfillment_v1.ts";
-const EXPECTED_SOURCE_BLOB="0784bd1a2a05c2ccb92b29ad425ad43a1cff2b3d";
+const EXPECTED_SOURCE_BLOB="b7c963b1d55f000d82ad82289b31107b432503de";
 const PREDECESSOR_SOURCE_BLOB="1ac1ad6213be83f1aa8261a554caa91544fe5e09";
 
 function gitBlob(bytes:Buffer):string {

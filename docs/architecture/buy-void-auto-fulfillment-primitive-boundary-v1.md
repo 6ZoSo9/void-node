@@ -19,8 +19,18 @@ Primitive-only repair source blob:
 Initial generic plain-data snapshot blob:
 `3f10035412f6a52eebe4c4855b8f18072d452f47`.
 
-Current selected-field snapshot blob:
+Predecessor selected-field snapshot blob:
 `0784bd1a2a05c2ccb92b29ad425ad43a1cff2b3d`.
+
+Current selected-field snapshot blob:
+`b7c963b1d55f000d82ad82289b31107b432503de`.
+
+The selected-record builder uses mutable **detached** data descriptors only during
+assembly so that verified nested event, policy and claim snapshots can replace
+intermediate fields. Every completed nested record is frozen before it is used
+by the fulfillment decision. This corrects a valid-payment crash caused by
+reassigning a non-writable intermediate data property; it does not accept new
+caller object types or grant payment/runtime authority.
 
 ## Repair
 

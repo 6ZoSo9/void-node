@@ -87,7 +87,7 @@ function snapshotAutoFulfillmentSelectedRecordV1(
     Object.defineProperty(out, key, {
       value: field.value,
       enumerable: true,
-      writable: false,
+      writable: true,
       configurable: false,
     });
   }
