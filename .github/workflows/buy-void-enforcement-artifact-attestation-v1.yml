@@ -98,7 +98,9 @@ jobs:
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(j.schema,"void_buy_void_enforcement_artifact_v5_candidate");
           assert.equal(j.version,5);
-          assert.equal(j.source_runtime_parent,"3533626d7167c98ba8d65d2c423b460b1a3199fc");
+          // Exact current V6 runtime-source candidate parent, not the
+          // immutable historical enforcement-V4 provenance label.
+          assert.equal(j.source_runtime_parent,"22a30e3ffad6047a472488104c769140bd050878");
           assert.equal(
             j.predecessor?.historical_v4_manifest_git_blob_sha1,
             "d9e391bb058132b83a4eeaec00797e41dab9fa26",

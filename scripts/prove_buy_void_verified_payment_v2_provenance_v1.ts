@@ -273,8 +273,10 @@ for (const [patch, reason] of [
   [{ payment_chain: undefined }, "original_request_payment_chain_mismatch"],
   [{ payment_chain_id: 1 }, "original_request_payment_chain_id_mismatch"],
   [{ payment_chain_id: "8453" }, "original_request_payment_chain_id_mismatch"],
+  // An own property with undefined is rejected at the plain-data snapshot,
+  // before checkout-field semantic checks. Preserve that earlier HOLD.
   [{ payment_instructions: undefined },
-    "original_request_payment_instructions_missing_or_invalid"],
+    "payment_input_not_plain_data"],
   [{ payment_instructions: { ...checkout.payment_instructions, send_chain: "ethereum" } },
     "original_request_payment_instruction_chain_mismatch"],
   [{ payment_instructions: { ...checkout.payment_instructions, send_chain_id: 1 } },
@@ -304,6 +306,18 @@ for (const [patch, reason] of [
     policy: canonicalPolicy,
   }), reason);
 }
+
+// An actually ABSENT payment_instructions property is different from an
+// own undefined value: it passes plain-data snapshotting but fails the
+// independent coupled-checkout instructions requirement. Preserve both.
+const { payment_instructions: omittedPaymentInstructions, ...withoutInstructions } =
+  checkout;
+void omittedPaymentInstructions;
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: withoutInstructions,
+  receipt: canonicalReceipt,
+  policy: canonicalPolicy,
+}), "original_request_payment_instructions_missing_or_invalid");
 
 const caseInsensitiveNative = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
   request: {

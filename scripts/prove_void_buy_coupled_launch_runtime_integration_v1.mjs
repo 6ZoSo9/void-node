@@ -6,9 +6,6 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import {
-  derive as deriveBuyVoidEnforcementArtifactAttestationV1,
-} from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
-import {
   deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
 } from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
@@ -683,8 +680,10 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  const currentRaw =
-    deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
+  // The immutable V1 enforcement scanner's historical external-import
+  // allowlist is NOT a verifier for the current native-USDC V2 generation.
+  // Current runtime closure is derived only by the bounded, explicitly
+  // UNACCEPTED V5 scanner; preserve older predecessor bytes separately.
   const currentCandidate =
     deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
   const historicalV4 = JSON.parse(read(
@@ -700,15 +699,26 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
     historicalV4.current_enforcement.enforcement_artifact_set_sha256,
     "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
   );
-  assert.notEqual(
-    currentRaw.enforcement_artifact_set_sha256,
-    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
-    "new source generation must not be mislabeled as historical enforcement V4",
+  // Archived CI artifact from the reviewed current V5 source: one old
+  // V4 runtime entry is removed and exactly one V6 entry is introduced.
+  // Both statements are checked against the *derived graph*, never
+  // fabricated by repinning the immutable historical V4 manifest.
+  assert.deepEqual(currentCandidate.delta_from_historical_v1.removed_paths, [
+    "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
+  ]);
+  assert.deepEqual(currentCandidate.delta_from_historical_v1.added_paths, [
+    "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+  ]);
+  assert.ok(
+    currentCandidate.delta_from_historical_v1.changed_paths.includes(
+      "dist/economic/buy_void_verified_payment_v2.js",
+    ),
+    "reviewed native-USDC V2 changed compiled identity must be explicit",
   );
 
   assert.equal(
     currentCandidate.source_runtime_parent,
-    "f627cad6bc07a6ad3ebe7cbd946723316fcd0567",
+    "22a30e3ffad6047a472488104c769140bd050878",
   );
   assert.equal(
     currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,
