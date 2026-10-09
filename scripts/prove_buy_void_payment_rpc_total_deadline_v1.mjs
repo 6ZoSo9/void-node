@@ -2,6 +2,7 @@
 // Read-only, synthetic loopback HTTP test. No real RPC, payments, signers or funds.
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -15,7 +16,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = "src/economic/buy_void_payment_rpc_observer_v1.ts";
-const EXPECTED_SOURCE_BLOB = "c759978aa8694386a31861ed6e22983b962ef68a";
+const EXPECTED_SOURCE_BLOB = "0073818ad6f6418e895bf794024c9d678b3bef86";
 const rpcMethod = "eth_blockNumber";
 const rpcParams = [];
 const blob = bytes => crypto.createHash("sha1")
@@ -69,6 +70,53 @@ async function ephemeralRpc(responder, probe) {
       server.close(error=>error?reject(error):resolve());
     });
   }
+}
+async function independentRpcResponder(delayMs) {
+  const childSource = [
+    'const http=require("node:http");',
+    'const server=http.createServer((req,res)=>{',
+    '  const chunks=[]; req.on("data",c=>chunks.push(c));',
+    '  req.on("end",()=>{',
+    '    let value; try{value=JSON.parse(Buffer.concat(chunks).toString("utf8"));}',
+    '    catch{res.writeHead(400);res.end();return;}',
+    '    setTimeout(()=>{',
+    '      res.writeHead(200,{"content-type":"application/json"});',
+    '      res.end(JSON.stringify({jsonrpc:"2.0",id:value.id,result:"0x44"}));',
+    '    },'+String(delayMs)+');',
+    '  });',
+    '});',
+    'server.listen(0,"127.0.0.1",()=>process.stdout.write(String(server.address().port)+"\\n"));',
+    'process.on("SIGTERM",()=>server.close(()=>process.exit(0)));',
+  ].join("\n");
+  const child=spawn(process.execPath,["-e",childSource],{stdio:["ignore","pipe","pipe"]});
+  let stderr="";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data",chunk=>{stderr+=chunk;});
+  const port=await new Promise((resolve,reject)=>{
+    let stdout="";
+    const timeout=setTimeout(()=>reject(new Error("independent_rpc_child_start_timeout:"+stderr)),3000);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data",chunk=>{
+      stdout+=chunk;
+      const line=stdout.split(/\r?\n/u)[0].trim();
+      if(/^[0-9]+$/u.test(line)){clearTimeout(timeout);resolve(Number(line));}
+    });
+    child.once("error",error=>{clearTimeout(timeout);reject(error);});
+    child.once("exit",code=>{
+      if(!/^[0-9]+/u.test(stdout)){clearTimeout(timeout);reject(new Error("independent_rpc_child_exited:"+code+":"+stderr));}
+    });
+  });
+  return {
+    url:"http://127.0.0.1:"+port+"/",
+    async stop(){
+      if(child.exitCode!==null)return;
+      child.kill("SIGTERM");
+      await new Promise(resolve=>{
+        const timeout=setTimeout(()=>{child.kill("SIGKILL");resolve();},2000);
+        child.once("exit",()=>{clearTimeout(timeout);resolve();});
+      });
+    },
+  };
 }
 function transport(url, overrides={}) {
   const value=createBuyVoidPaymentHttpTransportV1({
@@ -125,6 +173,32 @@ await ephemeralRpc((input,res)=>{
   assert.ok(elapsed<1900,"absolute RPC deadline took too long");
 });
 console.log("slow_drip_total_wall_clock_deadline_enforced=true");
+
+// The responder runs in a separate process so its wall clock keeps advancing
+// while this client event loop is intentionally blocked. A response completed
+// after the configured deadline must not win merely because its socket "end"
+// callback is delivered before an already-due timer callback.
+{
+  const independent=await independentRpcResponder(110);
+  try {
+    const t=transport(independent.url,{timeout_ms:100,max_response_bytes:8192});
+    const started=performance.now();
+    const outcomePromise=t.call({method:rpcMethod,params:rpcParams})
+      .then(value=>({ok:true,value}),error=>({ok:false,error}));
+    await new Promise(resolve=>setTimeout(resolve,60));
+    const blockedUntil=performance.now()+150;
+    while(performance.now()<blockedUntil){}
+    const outcome=await outcomePromise;
+    const elapsed=performance.now()-started;
+    assert.ok(elapsed>=180,"client event loop did not cross the absolute deadline");
+    assert.equal(outcome.ok,false,"late buffered response must not beat wall-clock deadline");
+    assert.match(String(outcome.error?.message||outcome.error),
+      /payment_observer_rpc_total_deadline_exceeded/);
+  } finally {
+    await independent.stop();
+  }
+}
+console.log("event_loop_starvation_total_deadline_enforced=true");
 
 await ephemeralRpc((input,res)=>{
   res.writeHead(200,{"content-type":"application/json"});
