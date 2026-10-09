@@ -10,7 +10,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_verified_payment_v2.ts";
-const EXPECTED_SOURCE_BLOB="af8bf48fc43a57fac7032a5a6027d1b03aa37054";
+const EXPECTED_SOURCE_BLOB="21420412cc9b3cf9d415e179151eb973dda07131";
 const PREDECESSOR_SOURCE_BLOB="0df94fb35681f358318416fe6c48f3b794cd6074";
 
 function gitBlob(bytes:Buffer):string {
@@ -32,6 +32,10 @@ for(const marker of [
   'snapshotRequestV2',
   'snapshotReceiptV2',
   'snapshotPolicyV2',
+  'MAX_ALLOWED_CHAINS_V2',
+  'MAX_RECEIPT_LOGS_V2',
+  'MAX_LOG_TOPICS_V2',
+  'MAX_SNAPSHOT_TEXT_CODE_UNITS_V2',
   'payment_input_not_plain_data',
 ]) assert.ok(source.includes(marker),"missing plain-data boundary: "+marker);
 const arraySnapshotIndex=source.indexOf("function snapshotDataArrayV2");
@@ -213,6 +217,69 @@ function requireHeld(label:string,input:any):void {
   requireHeld("revoked_allowed_chains_proxy",fixture);
 }
 
+// Structural resource limits must fire before allocating descriptor tables for
+// attacker-sized arrays.
+{
+  const fixture=baseline();
+  const target=Array.from({length:33},()=>"base");
+  fixture.policy.allowed_chains=target;
+  const original=Object.getOwnPropertyDescriptors;
+  let targetDescriptorCalls=0;
+  try {
+    Object.getOwnPropertyDescriptors=((value:any)=>{
+      if(value===target) targetDescriptorCalls++;
+      return original(value);
+    }) as typeof Object.getOwnPropertyDescriptors;
+    requireHeld("allowed_chains_resource_bound",fixture);
+  } finally {
+    Object.getOwnPropertyDescriptors=original;
+  }
+  assert.equal(targetDescriptorCalls,0,
+    "oversized allowed_chains reached descriptor allocation");
+}
+
+{
+  const fixture=baseline();
+  const template=fixture.receipt.logs[0];
+  const target=Array.from({length:4097},()=>template);
+  fixture.receipt.logs=target;
+  const original=Object.getOwnPropertyDescriptors;
+  let targetDescriptorCalls=0;
+  try {
+    Object.getOwnPropertyDescriptors=((value:any)=>{
+      if(value===target) targetDescriptorCalls++;
+      return original(value);
+    }) as typeof Object.getOwnPropertyDescriptors;
+    requireHeld("receipt_logs_resource_bound",fixture);
+  } finally {
+    Object.getOwnPropertyDescriptors=original;
+  }
+  assert.equal(targetDescriptorCalls,0,
+    "oversized receipt logs reached descriptor allocation");
+}
+
+// Policy maps must snapshot only reviewed allowlisted chains; an unrelated
+// enumerable getter is not authority and must never execute.
+{
+  const fixture=baseline();
+  let reads=0;
+  Object.defineProperty(fixture.policy.usdc_contract_by_chain,"evil",{
+    enumerable:true,configurable:true,
+    get(){reads++; return "0x"+"9".repeat(40);},
+  });
+  const decision=buildBuyVoidVerifiedPaymentEventV2(fixture);
+  assert.equal(decision.ok,true,
+    "unreviewed policy-map field changed valid payment decision");
+  assert.equal(reads,0,"unreviewed policy-map getter executed");
+}
+
+// A reviewed text field is bounded at snapshot admission.
+{
+  const fixture=baseline();
+  fixture.request.request_id="x".repeat(1024*1024+1);
+  requireHeld("oversize_reviewed_text",fixture);
+}
+
 const nullProto=baseline();
 nullProto.request=Object.assign(Object.create(null),nullProto.request);
 nullProto.policy=Object.assign(Object.create(null),nullProto.policy);
@@ -244,6 +311,10 @@ console.log("revoked_array_proxy_held_without_throw=true");
 console.log("array_proxy_rejected_before_isarray=true");
 console.log("nested_policy_map_accessor_rejected=true");
 console.log("nested_payment_instruction_accessor_rejected=true");
+console.log("allowed_chain_array_bound_precedes_descriptors=true");
+console.log("receipt_log_array_bound_precedes_descriptors=true");
+console.log("unreviewed_policy_map_getter_not_enumerated=true");
+console.log("oversize_reviewed_text_held=true");
 console.log("null_prototype_plain_records_supported=true");
 console.log("canonical_verified_event_preserved=true");
 console.log("production_payment_authority_ready=false");
