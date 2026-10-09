@@ -36,6 +36,9 @@ EXPECTED_PATHS = (
 )
 PREFIX = "inactive-v2-candidate/"
 MAX_TOTAL = 1024 * 1024
+# Exact CI cross-node original review TAR; not a V2 installation/acceptance.
+EXPECTED_INACTIVE_ARCHIVE_BYTES = 256000
+EXPECTED_INACTIVE_ARCHIVE_SHA256 = "656357f5ed98da324e205ca85085fa4b72d9289f8e2c2b7d5d43eb8e082c87c6"
 FALSE_FLAGS = (
     "historical_v1_installation_confirmed_by_authenticated_attestation",
     "operator_readonly_census_treated_as_attestation",
@@ -300,6 +303,11 @@ def inspect_archive(path):
                 "archive_rebound_during_inspection")
         inspected = {"sha256": archive_hash.hexdigest(),
                      "bytes": opened.st_size}
+        # Verify the complete physical archive, including otherwise-ignored
+        # trailing TAR blocks. Member equality alone cannot bind reviewed bytes.
+        require(opened.st_size == EXPECTED_INACTIVE_ARCHIVE_BYTES and
+                inspected["sha256"] == EXPECTED_INACTIVE_ARCHIVE_SHA256,
+                "archive_exact_wire_bytes_mismatch")
     finally:
         # A close failure must surface. Never silently ignore it.
         os.close(fd)
@@ -435,6 +443,7 @@ def main():
         lock, _, _ = inspect_archive(args.inspect_archive)
         result = receipt(lock)
         result["inactive_archive_contents_verified"] = True
+        result["inactive_archive_exact_wire_verified"] = True
     elif args.self_test:
         result = negative_self_test()
     else:
@@ -448,6 +457,7 @@ def main():
             result["inactive_archive_sha256"] = proof["sha256"]
             result["inactive_archive_bytes"] = proof["bytes"]
             result["inactive_archive_contents_verified"] = True
+            result["inactive_archive_exact_wire_verified"] = True
     sys.stdout.buffer.write(canonical(result))
 
 

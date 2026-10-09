@@ -60,6 +60,35 @@ jobs:
             --package "$stage/void-nimo-v2-inactive.tar" >> "inactive-v2-${{ matrix.node }}.txt"
           python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py \
             --inspect-archive "$stage/void-nimo-v2-inactive.tar" >> "inactive-v2-${{ matrix.node }}.txt"
+          # Exact TAR payload is a reviewed byte-for-byte artifact, not just
+          # ten valid members. tarfile ignores trailing data by default.
+          python3 - "$stage/void-nimo-v2-inactive.tar" <<'PY'
+          import hashlib
+          import pathlib
+          import subprocess
+          import sys
+          original = pathlib.Path(sys.argv[1])
+          raw = original.read_bytes()
+          assert len(raw) == 256000
+          assert hashlib.sha256(raw).hexdigest() == "656357f5ed98da324e205ca85085fa4b72d9289f8e2c2b7d5d43eb8e082c87c6"
+          inspector = "scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py"
+          for label, modified in (
+              ("trailing-junk", raw + b"J" * 512),
+              ("ignored-padding", raw[:-1] + b"Z"),
+          ):
+              candidate = original.parent / ("invalid-" + label + ".tar")
+              candidate.write_bytes(modified)
+              try:
+                  result = subprocess.run(
+                      [sys.executable, "-I", "-B", inspector,
+                       "--inspect-archive", str(candidate)],
+                      text=True, capture_output=True, timeout=10,
+                  )
+                  assert result.returncode == 2, label
+                  assert "archive_exact_wire_bytes_mismatch" in result.stderr, label
+              finally:
+                  candidate.unlink(missing_ok=True)
+          PY
           cp -- "$stage/void-nimo-v2-inactive.tar" "inactive-v2-${{ matrix.node }}.tar"
           python3 -c '
           import json
@@ -76,6 +105,8 @@ jobs:
           assert records[1]["compiled_source_file_count"]==8
           assert records[2]["inactive_archive_contents_verified"] is True
           assert records[3]["inactive_archive_contents_verified"] is True
+          assert records[2]["inactive_archive_exact_wire_verified"] is True
+          assert records[3]["inactive_archive_exact_wire_verified"] is True
           for row in records[1:]:
               assert row["status"]=="HOLD_UNACCEPTED_NOT_INSTALLED"
               assert row["v2_host_installed"] is False
@@ -85,6 +116,7 @@ jobs:
               assert row["funds_moved"] is False
           print("VOID_NIMO_V2_INACTIVE_ONLY_ARCHIVE_REVIEW_GREEN")
           print("VOID_NIMO_V2_ARCHIVE_SINGLE_DESCRIPTOR_BOUNDED_INPUT_GREEN")
+          print("VOID_NIMO_V2_INACTIVE_TAR_EXACT_WIRE_BYTES_GREEN")
           '
       - name: Upload inactive archive and standalone read-only inspector
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
