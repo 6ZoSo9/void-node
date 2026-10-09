@@ -23,7 +23,7 @@ import {
 const SOURCE =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_SOURCE_BLOB =
-  "0ab53ab8c615136b7c8c05164d939d78e7885754";
+  "d7a5e8b815eee0036bbc211c604b098f2de28101";
 
 function gitBlob(bytes) {
   return crypto.createHash("sha1")
@@ -378,7 +378,24 @@ const rawPrefixMutation = classify({
   nowMs: 20_000,
 });
 assert.equal(rawPrefixMutation.ready, false);
-assert.equal(rawPrefixMutation.reason, "high_water_prefix_mismatch");
+assert.equal(rawPrefixMutation.reason, "generation_journal_noncanonical");
+
+const forgedHighWater = JSON.parse(highWater1.toString("utf8"));
+forgedHighWater.journal_prefix_sha256 = "sha256:" + "00".repeat(32);
+const forgedHighWaterResult = classify({
+  journalBytes: journal1,
+  receiptBytes: receipt1,
+  highWaterBytes: Buffer.from(
+    JSON.stringify(forgedHighWater, null, 2) + "\n",
+    "utf8",
+  ),
+  nowMs: 20_000,
+});
+assert.equal(forgedHighWaterResult.ready, false);
+assert.equal(
+  forgedHighWaterResult.reason,
+  "high_water_prefix_mismatch",
+);
 
 const productionHold =
   classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2({
@@ -403,7 +420,8 @@ console.log("missing_high_water_bootstrap_HOLD=true");
 console.log("generation_advance_requires_high_water_update=true");
 console.log("custody_high_water_rollback_rejected=true");
 console.log("same_sequence_fork_rejected=true");
-console.log("historical_journal_prefix_byte_mutation_rejected=true");
+console.log("noncanonical_journal_bytes_rejected=true");
+console.log("high_water_prefix_digest_mismatch_rejected=true");
 console.log("stale_generation_receipt_rejected=true");
 console.log("forged_activation_signature_rejected=true");
 console.log("operator_home_anchor_dependency=false");
