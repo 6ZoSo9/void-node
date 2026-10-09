@@ -1,0 +1,131 @@
+name: VOID Buy VOID custody read-only evidence V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_launch_observed_read_v1.mjs"
+      - "scripts/prove_buy_void_custody_launch_observed_read_v1.mjs"
+      - ".github/workflows/buy-void-custody-launch-observed-read-v1.yml"
+      - "docs/architecture/buy-void-custody-launch-observed-read-v1.md"
+      - "src/economic/buy_void_custody_launch_authority_v2.mjs"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-read-evidence-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact unmerged source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact source SHA
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check source-only reader and synthetic proof
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_custody_launch_observed_read_v1.mjs
+          node --check scripts/prove_buy_void_custody_launch_observed_read_v1.mjs
+
+      - name: Exercise disposable Linux directory-FD and custody boundaries
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_launch_observed_read_v1.mjs \
+            | tee custody-read-node-${{ matrix.node }}.txt
+          for invariant in \
+            'VOID_BUY_VOID_CUSTODY_LAUNCH_READ_ONLY_EVIDENCE_V1_PROOF_GREEN' \
+            'exact_source_git_blob_verified=true' \
+            'three_source_files_bound_by_retained_directory_descriptors=true' \
+            'custody_high_water_absent_holds=true' \
+            'custody_high_water_permissions_fail_closed=true' \
+            'leaf_symlink_rejected=true' \
+            'ancestor_preopen_swap_rejected=true' \
+            'ancestor_during_read_swap_rejected=true' \
+            'three_MiB_growth_read_bounded_to_original_plus_one=true' \
+            'server_path_configuration_verified=false' \
+            'cross_file_atomic_snapshot_verified=false' \
+            'source_gate_verified=false' \
+            'receipt_signature_verified=false' \
+            'cross_uid_permissions_qualified=false' \
+            'custody_high_water_write_performed=false' \
+            'custody_reserve_method_enabled=false' \
+            'custody_recover_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_movement=false' \
+            'real_custody_file_access=false'
+          do
+            grep -Fx "$invariant" custody-read-node-${{ matrix.node }}.txt
+          done
+
+      - name: Upload exact immutable synthetic receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-custody-read-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-read-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-custody-read-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./custody-read-proofs
+
+      - name: Compare Node 22 24 26 receipt bytes
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "custody-read-proofs/custody-read-node-$version.txt"
+          done
+          cmp custody-read-proofs/custody-read-node-22.txt custody-read-proofs/custody-read-node-24.txt
+          cmp custody-read-proofs/custody-read-node-22.txt custody-read-proofs/custody-read-node-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_READ_ONLY_CROSS_NODE_GREEN"
+          echo "privileged_custody_service_mounted=false"
+          echo "cross_file_atomic_snapshot_verified=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"
