@@ -252,7 +252,23 @@ try {
   assert.match(qualificationWorkflow, /--interval-ms 30000/);
   assert.match(qualificationWorkflow, /manifest_published=false/);
   assert.match(acceptanceWorkflow, /VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'/);
-  assert.match(acceptanceWorkflow, /seq 1 2400/);
+  assert.match(acceptanceWorkflow, /VOID_PUBLIC_CHECKPOINT_RESTORE: '1'/);
+  assert.match(
+    acceptanceWorkflow,
+    /VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS: '1800000'/,
+  );
+  assert.match(
+    acceptanceWorkflow,
+    /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS: '2400'/,
+  );
+  assert.match(
+    acceptanceWorkflow,
+    /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS: '30'/,
+  );
+  assert.match(
+    acceptanceWorkflow,
+    /seq 1 "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
+  );
   assert.match(acceptanceWorkflow, /public_sync_via_loopback_adapter=true/);
   assert.match(acceptanceWorkflow, /direct_remote_fetch_from_node=false/);
   assert.match(ciWorkflow, /node: \[22, 24, 26\]/);

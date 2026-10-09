@@ -113,7 +113,7 @@ try {
   assert.match(workflowSource, /target\.txt/);
   assert.match(workflowSource, /target_head_reached=true/);
   assert.match(workflowSource, /VOID_PUBLIC_CHECKPOINT_RESTORE:\s*'1'/);
-  assert.match(workflowSource, /test ! -e "\\$DATA_DIR"/);
+  assert.match(workflowSource, /test ! -e "\$DATA_DIR"/);
   assert.match(workflowSource, /timeout-minutes:\s*55/);
   assert.match(
     workflowSource,
@@ -129,11 +129,11 @@ try {
   );
   assert.match(
     workflowSource,
-    /seq 1 "\\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
+    /seq 1 "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
   );
   assert.match(
     workflowSource,
-    /sleep "\\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"/,
+    /sleep "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"/,
   );
   const jobBudgetSeconds = 55 * 60;
   const restoreBudgetSeconds = 1800000 / 1000;
@@ -153,7 +153,7 @@ try {
   );
   assert.doesNotMatch(
     workflowSource,
-    /mkdir -p outside-machine-evidence "\\$DATA_DIR"/,
+    /mkdir -p outside-machine-evidence "\$DATA_DIR"/,
   );
   assert.doesNotMatch(workflowSource, /Number\(body\.head\) <= 0\) process\.exit\(1\)/);
 
