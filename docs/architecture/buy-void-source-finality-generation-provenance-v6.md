@@ -33,8 +33,9 @@ Two reviewed records roll:
   `9df9648f546eb9320259eae1d3930a7c132a6511`, blob
   `0073818ad6f6418e895bf794024c9d678b3bef86`;
 - verified-payment V2 — reviewed source commit
-  `52deccca51077d457177e738135dbb0e0536d2f3`, blob
-  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
+  `1397e6e17f53084158bdc2137dae0b38f6d6929a`, blob
+  `550ede02fc0b7d6874c324af58b5ef9c5591b311`.
+  Historical predecessor: `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac` at `52deccca51077d457177e738135dbb0e0536d2f3`.
 
 The canonical reviewed-source-set digest for those five records is
 `ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
