@@ -1,0 +1,103 @@
+name: VOID Nimo V2 witness proposed hash lock source-only v1
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.md"
+      - "scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs"
+      - ".github/workflows/buy-void-nimo-witness-v2-proposed-lock-v1.yml"
+      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: void-nimo-witness-proposed-lock-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact PR head checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Qualify checkout origin
+        env:
+          EXACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node exact version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile fixed reviewed source
+        run: npm run build
+      - name: Verify original V1 and proposed V2 identity and adversaries
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test             > /dev/null
+          node scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs --prove             | tee "nimo-v2-proposed-${{ matrix.node }}.txt"
+          for marker in             'original_v1_contract_git_blob_verified=true'             'integrated_draft_v1_identity_conflict_disclosed=true'             'current_v2_exact_eight_runtime_hashes_verified=true'             'candidate_canonical_content_id_verified=true'             'v2_candidate_record_sha256_verified=true'             'negative_identity_and_runtime_mutations_rejected=5'             'operator_host_census_treated_as_authority=false'             'installed_v2_host_qualified=false'             'production_payment_authority_ready=false'             'funds_moved=false'             'VOID_BUY_VOID_NIMO_WITNESS_V2_PROPOSED_LOCK_V1_GREEN'
+          do grep -Fx "$marker" "nimo-v2-proposed-${{ matrix.node }}.txt"; done
+      - name: Reject host/installation mutation flags
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs --install; then
+            echo "unexpected_host_installation_authority" >&2
+            exit 1
+          fi
+          if node scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs --apply; then
+            echo "unexpected_apply_authority" >&2
+            exit 1
+          fi
+      - name: Upload source-only review receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-nimo-v2-proposed-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: nimo-v2-proposed-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Gather Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-nimo-v2-proposed-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require matching immutable source-only proof
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "proof/nimo-v2-proposed-$node.txt"; done
+          cmp proof/nimo-v2-proposed-22.txt proof/nimo-v2-proposed-24.txt
+          cmp proof/nimo-v2-proposed-22.txt proof/nimo-v2-proposed-26.txt
+          echo VOID_BUY_VOID_NIMO_V2_PROPOSED_LOCK_THREE_NODE_GREEN
+          echo "accepted_v2_host_installation=false"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
