@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 import vm from "node:vm";
 import ts from "typescript";
 
@@ -198,6 +198,7 @@ const context = vm.createContext({
   path,
   Buffer,
   TextDecoder,
+  utilTypes,
   fs: syntheticFs,
   randomBytes: (length: number) => Buffer.alloc(length, 7),
   withBuyVoidTerminalCloseoutRequestLockV1: (_input: any, operation: () => any) => operation(),
@@ -264,14 +265,30 @@ evaluate(declarations(admissionPath, [
   "LEDGER_MAX_BYTES", "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
   "O_NOFOLLOW", "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
-  "deepFreezeJsonValueV1", "canonicalVerifiedPaymentEventV1",
+  "CANONICAL_EVENT_MAX_DEPTH_V1", "CANONICAL_EVENT_MAX_NODES_V1",
+  "CANONICAL_EVENT_MAX_KEYS_V1", "CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1",
+  "CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1", "CANONICAL_EVENT_MAX_JSON_BYTES_V1",
+  "canonicalJsonStringByteLengthV1", "addCanonicalEventBytesV1",
+  "detachedCanonicalJsonValueV1", "deepFreezeJsonValueV1",
+  "canonicalVerifiedPaymentEventV1",
   "recoverPaymentVerifiedSidecarsV1", "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   "withBuyVoidVerifiedPaymentCapacityAdmissionV1",
 ]), context);
+assert.equal(
+  typeof context.detachedCanonicalJsonValueV1,
+  "function",
+  "canonical event detached-value helper extracted",
+);
 evaluate(declarations("src/index.ts", ["__voidBuyVoidSaleStateV1"]), context);
 const project = context.projectBuyVoidVerifiedPaymentCapacityV1;
 const quote = context.quoteBuyVoidFromUsdcV1;
 const classify = context.classifyBuyVoidVerifiedPaymentCapacityAdmissionV1;
+const vmPlainJson = (value: any) =>
+  vm.runInContext(
+    `JSON.parse(${JSON.stringify(JSON.stringify(value))})`,
+    context,
+    { timeout: 10_000 },
+  );
 const indexSource = fs.readFileSync("src/index.ts", "utf8");
 const amountGuardLine = indexSource
   .split("\n")
@@ -435,7 +452,10 @@ events.splice(0, events.length, event(a));
 operations = 0;
 let launchCalls = 0;
 const write = () => context.writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-  event: event(b), request: b, request_dir: requestDir, read_sale_state: sale,
+  // The source executes inside a separate vm realm and now correctly rejects
+  // cross-realm objects as non-plain. Recreate the synthetic JSON event inside
+  // that realm rather than weakening the production prototype boundary.
+  event: vmPlainJson(event(b)), request: b, request_dir: requestDir, read_sale_state: sale,
   with_launch_authority_mutation: (
     _request: any,
     operation: (assert_current_authority: () => any) => any,
@@ -475,4 +495,5 @@ console.log("exact_request_quote_from_raw_decimal=true");
 console.log("ieee754_underquote_examples_rejected=true");
 console.log("non_microvoid_quote_product_holds=true");
 console.log("actual_sale_projection=true; exact_microvoid=true; synthetic_admission_retry=true; synthetic_sidecar_recovery=true");
+console.log("synthetic_writer_event_constructed_in_vm_realm=true");
 console.log("filesystem_custody_lock_append_fsync_link_duplicate_guard_mocked=true; real_ledger_write=false; runtime_started=false");
