@@ -70,6 +70,7 @@ assert.equal(policy.create_only_fence_required,true);
 assert.equal(policy.fence_record_deletion_allowed,false);
 assert.equal(policy.stale_fence_automatic_takeover,false);
 assert.equal(policy.transition_slot_keyed_by_prior_high_water,true);
+assert.equal(policy.bootstrap_slot_global_across_source_compositions,true);
 assert.equal(policy.competing_successor_same_prior_must_conflict,true);
 assert.equal(policy.exact_next_high_water_bytes_stored,true);
 assert.equal(policy.recovery_from_prior_or_exact_next_only,true);
@@ -218,6 +219,36 @@ const bootstrapCommitted=classifyBuyVoidCustodyHighWaterTransitionRecoveryV1({
 });
 assert.equal(bootstrapCommitted.status,"committed");
 
+// Bootstrap has no prior bytes to bind source composition. Different proposed
+// source generations must therefore collide on the same permanent first slot.
+const otherSourceBootstrap=buildBuyVoidCustodyHighWaterTransitionFenceV1({
+  prior_high_water_bytes:null,
+  next_high_water_bytes:highWater({
+    sequence:1,
+    source:shaId("f"),
+    generation:gen("8"),
+    tip:shaId("8"),
+    prefix:shaId("8"),
+  }),
+});
+assert.equal(
+  otherSourceBootstrap.transition_slot_id,
+  bootstrap.transition_slot_id,
+  "bootstrap namespace must be singular across source compositions",
+);
+assert.notEqual(
+  otherSourceBootstrap.record_sha256,
+  bootstrap.record_sha256,
+  "different bootstrap successor bytes must remain distinguishable",
+);
+assert.throws(
+  ()=>classifyBuyVoidCustodyHighWaterTransitionFenceSlotV1({
+    expected_record_bytes:otherSourceBootstrap.record_bytes,
+    observed_record_bytes:bootstrap.record_bytes,
+  }),
+  /custody_hw_transition_fence_competing_successor_same_prior/u,
+);
+
 // Exact same state is a no-op and requires no transition fence.
 const unchanged=buildBuyVoidCustodyHighWaterTransitionFenceV1({
   prior_high_water_bytes:h2,
@@ -306,7 +337,7 @@ console.log("create_only_record_never_deleted=true");
 console.log("crash_before_high_water_write_resumes_exact_transition=true");
 console.log("exact_next_high_water_replay_is_committed=true");
 console.log("unexpected_current_high_water_holds=true");
-console.log("bootstrap_transition_recoverable=true");
+console.log("bootstrap_transition_recoverable=true");\nconsole.log("bootstrap_slot_global_across_source_compositions=true");
 console.log("same_state_noop_requires_no_fence=true");
 console.log("rollback_same_sequence_conflict_cross_source_hold=true");
 console.log("tampered_or_noncanonical_fence_record_rejected=true");
