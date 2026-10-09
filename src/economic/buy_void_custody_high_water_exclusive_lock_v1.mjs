@@ -91,8 +91,7 @@ function openBoundDirectories(absolute, components, flags) {
     const uid = typeof process.getuid === "function" ? process.getuid() : null;
     if (!Number.isSafeInteger(uid) || uid === 0 ||
         privateDir.stat.uid !== uid ||
-        (privateDir.stat.mode & 0o077) !== 0 ||
-        (privateDir.stat.mode & 0o700) !== 0o700) {
+        (privateDir.stat.mode & 0o7777) !== 0o700) {
       throw new Error("custody_hw_exclusive_private_owner_mode_required");
     }
     return opened;
@@ -145,7 +144,7 @@ export function withBuyVoidCustodyHighWaterExclusiveLockV1(
     const lockStat = fs.fstatSync(heldLockFd);
     const seenLock = fs.lstatSync(privatePath);
     if (!lockStat.isDirectory() || lockStat.uid !== process.getuid() ||
-        (lockStat.mode & 0o077) !== 0 ||
+        (lockStat.mode & 0o7777) !== 0o700 ||
         !identity(lockStat, seenLock)) {
       throw new Error("custody_hw_exclusive_lock_inode_or_mode_invalid");
     }
