@@ -10,7 +10,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SH
   "sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1 =
-  "e390424c1d31cd87dcf3551cc0d2d610a24e12f8";
+  "f627cad6bc07a6ad3ebe7cbd946723316fcd0567";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V1 =
   Object.freeze({
@@ -54,7 +54,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1 =
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_custody_witness_transport_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_custody_witness_transport_v1.js", sha256: "sha256:8e03107d1545977a19b847bbec926543b9812b6d9c16a4d7e13e62cf5c790979" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_reservation_high_water_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_high_water_v1.js", sha256: "sha256:1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_reservation_ledger_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_ledger_v1.js", sha256: "sha256:af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f" }),
-    Object.freeze({ source_path: "dist/economic/buy_void_auto_fulfillment_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_auto_fulfillment_v1.js", sha256: "sha256:ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6" }),
+    Object.freeze({ source_path: "dist/economic/buy_void_auto_fulfillment_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_auto_fulfillment_v1.js", sha256: "sha256:119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c" }),
     Object.freeze({ source_path: "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js", sha256: "sha256:0b4dd188dbbf7658542b1d20c521227fa1fc01d7d79e89a713863b771380da13" }),
     Object.freeze({ source_path: "dist/economic/buy_void_filesystem_bakery_lock_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_filesystem_bakery_lock_v1.js", sha256: "sha256:7c7a6b92c1a88b14d325d331700a2bd19a0068630ae0094c65b2dcc6a25a9994" }),
   ] as const);
