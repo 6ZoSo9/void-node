@@ -193,7 +193,10 @@ function readClaim(file: string): BuyVoidFilesystemBakeryLockClaimV1 {
     "schema",
     "ticket",
   ].sort();
-  if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+  if (
+    keys.length !== expected.length ||
+    keys.some((key, index) => key !== expected[index])
+  ) {
     throw new Error("bakery_lock_claim_keys_invalid");
   }
   if (value.schema !== CLAIM_SCHEMA) {
