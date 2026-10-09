@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,6 +42,42 @@ function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath));
 }
 
+function executeCandidateBytes(scriptBytes, scriptPath) {
+  const exactPath = path.resolve(ROOT, scriptPath);
+  const prelude =
+    "import.meta.url = " + JSON.stringify(pathToFileURL(exactPath).href) + ";\n" +
+    "process.argv = [process.execPath, " + JSON.stringify(exactPath) +
+    ', "--derive"];\n';
+  return execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      prelude + scriptBytes.toString("utf8"),
+    ],
+    {
+      // ESM eval resolves the candidate's static ../dist and ../tools imports
+      // from the scripts directory. import.meta.url is rebound only so the
+      // candidate computes its reviewed repository ROOT exactly as authored.
+      cwd: path.dirname(exactPath),
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+        TZ: "UTC",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+}
+
 function derive(scriptPath, expectedBlob, expectedEvidenceSha) {
   const scriptBytes = read(scriptPath);
   assert.equal(
@@ -50,29 +86,16 @@ function derive(scriptPath, expectedBlob, expectedEvidenceSha) {
     "candidate script Git blob mismatch: " + scriptPath,
   );
 
-  const run = spawnSync(
-    process.execPath,
-    [path.join(ROOT, scriptPath), "--derive"],
-    {
-      cwd: ROOT,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 120_000,
-      maxBuffer: 1024 * 1024,
-    },
-  );
-  assert.equal(
-    run.status,
-    0,
-    "candidate derivation failed: " + scriptPath + "\n" + run.stderr,
-  );
-  const bytes = Buffer.from(run.stdout, "utf8");
+  // Execute the exact authenticated bytes. Do not reopen scriptPath as the
+  // child entrypoint after verification.
+  const stdout = executeCandidateBytes(scriptBytes, scriptPath);
+  const bytes = Buffer.from(stdout, "utf8");
   assert.equal(
     sha256(bytes),
     expectedEvidenceSha,
     "candidate evidence bytes changed: " + scriptPath,
   );
-  return JSON.parse(run.stdout);
+  return JSON.parse(stdout);
 }
 
 function exactCommitted(relativePath, expected) {
