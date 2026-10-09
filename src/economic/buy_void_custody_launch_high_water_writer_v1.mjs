@@ -249,13 +249,24 @@ function openPinnedDirectory(directoryPath, custody, reason) {
     fail(reason + "_open_failed");
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("open_directory_cleanup"); }
     }
   }
 }
 
+// Closing an already-disposable descriptor is best-effort, but a failure
+// must never disappear silently. Expose a fixed, path-free marker without
+// disturbing an already-recorded publication/mutation result.
+function recordFdCloseFailureV1(stage) {
+  process.stderr.write(
+    "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_FD_CLOSE_FAILURE_V1 stage=" +
+      stage + "\n",
+  );
+}
 function closePinned(directory) {
-  try { fs.closeSync(directory.fd); } catch {}
+  try { fs.closeSync(directory.fd); }
+  catch { recordFdCloseFailureV1("close_pinned_directory"); }
 }
 
 function assertPinnedVisible(directory, reason) {
@@ -596,7 +607,8 @@ function atomicAdvance(
     return published;
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("temp_write_cleanup"); }
     }
     if (!renamed) {
       try {
