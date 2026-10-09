@@ -11,7 +11,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_auto_fulfillment_v1.ts";
-const EXPECTED_SOURCE_BLOB="7c2ca19bde43b13df36bd06c946ad96130fe5d05";
+const EXPECTED_SOURCE_BLOB="3f10035412f6a52eebe4c4855b8f18072d452f47";
 const PREDECESSOR_SOURCE_BLOB="1ac1ad6213be83f1aa8261a554caa91544fe5e09";
 
 function gitBlob(bytes:Buffer):string {
@@ -23,6 +23,15 @@ const sourceBytes=fs.readFileSync(path.join(ROOT,SOURCE));
 assert.equal(gitBlob(sourceBytes),EXPECTED_SOURCE_BLOB,
   "repaired auto-fulfillment source drift");
 const source=sourceBytes.toString("utf8");
+for(const required of [
+  'types as utilTypes',
+  'utilTypes.isProxy(value)',
+  'Object.getOwnPropertyDescriptors(value)',
+  'snapshotAutoFulfillmentInputV1',
+  'auto_fulfillment_input_not_plain_data',
+]) assert.ok(source.includes(required),
+  "missing plain-data snapshot boundary: "+required);
+
 for(const forbidden of [
   'String(value || "").trim().toLowerCase()',
   'String(value ?? "").trim().toLowerCase()',
@@ -163,6 +172,97 @@ for(const [label,mutate] of duplicateCases){
   assert.equal(decision.ok,false,"malformed prior claim must HOLD: "+label);
 }
 
+// Executable-object authority must be rejected without invoking caller code.
+{
+  const raw=baseline();
+  let traps=0;
+  const fixture=new Proxy(raw,{
+    get(target,property,receiverValue){
+      traps++;
+      return Reflect.get(target,property,receiverValue);
+    },
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"top-level Proxy must HOLD");
+  assert.equal(traps,0,"top-level Proxy trap executed");
+}
+
+{
+  const fixture=baseline();
+  let reads=0;
+  const value=fixture.request.request_id;
+  Object.defineProperty(fixture.request,"request_id",{
+    enumerable:true,configurable:true,
+    get(){reads++; return value;},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"request accessor must HOLD");
+  assert.equal(reads,0,"request getter executed");
+}
+
+{
+  const fixture=baseline();
+  let traps=0;
+  fixture.verified_payment_event.payment_verifier=new Proxy(
+    fixture.verified_payment_event.payment_verifier,
+    {
+      ownKeys(target){traps++; return Reflect.ownKeys(target);},
+      getOwnPropertyDescriptor(target,key){
+        traps++;
+        return Reflect.getOwnPropertyDescriptor(target,key);
+      },
+    },
+  );
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"payment verifier Proxy must HOLD");
+  assert.equal(traps,0,"payment verifier Proxy trap executed");
+}
+
+{
+  const fixture=baseline();
+  let reads=0;
+  Object.defineProperty(fixture.policy.usdc_contract_by_chain,"base",{
+    enumerable:true,configurable:true,
+    get(){reads++; return usdc;},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"policy-map accessor must HOLD");
+  assert.equal(reads,0,"policy-map getter executed");
+}
+
+{
+  const fixture=baseline();
+  fixture.prior_claims=[structuredClone(control.claim)];
+  let reads=0;
+  const claim=fixture.prior_claims[0];
+  const value=claim.request_id;
+  Object.defineProperty(claim,"request_id",{
+    enumerable:true,configurable:true,
+    get(){reads++; return value;},
+  });
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"prior-claim accessor must HOLD");
+  assert.equal(reads,0,"prior-claim getter executed");
+}
+
+{
+  const fixture=baseline();
+  const revocable=Proxy.revocable(fixture.policy.allowed_chains,{});
+  revocable.revoke();
+  fixture.policy.allowed_chains=revocable.proxy;
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"revoked array Proxy must HOLD");
+}
+
+{
+  const fixture=baseline();
+  const custom=Object.create({inherited:"authority"});
+  Object.assign(custom,fixture.request);
+  fixture.request=custom;
+  const decision=decideBuyVoidAutoFulfillmentV1(fixture);
+  assert.equal(decision.ok,false,"custom request prototype must HOLD");
+}
+
 const primitiveVariants=baseline();
 primitiveVariants.request.usdc_amount=10;
 primitiveVariants.request.quoted_void=20;
@@ -202,6 +302,13 @@ console.log("malformed_prior_claims_held=true");
 console.log("reviewed_primitive_forms_preserved=true");
 console.log("canonical_approved_decision_preserved=true");
 console.log("verifier_falsy_wrong_type_tx_hash_does_not_fallback=true");
+console.log("top_level_proxy_rejected_without_traps=true");
+console.log("request_accessor_rejected_without_invocation=true");
+console.log("payment_verifier_proxy_rejected_without_traps=true");
+console.log("policy_map_accessor_rejected_without_invocation=true");
+console.log("prior_claim_accessor_rejected_without_invocation=true");
+console.log("revoked_array_proxy_held=true");
+console.log("custom_prototype_rejected=true");
 console.log("production_payment_authority_ready=false");
 console.log("rpc_used=false");
 console.log("filesystem_write=false");
