@@ -8,11 +8,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBuyVoidCustodyLaunchHighWaterV2 } from
   "../src/economic/buy_void_custody_launch_authority_v2.mjs";
-import { testOnlyCreateBuyVoidCustodyLaunchHighWaterWriterV1 as writerFactory } from
+import { testOnlyCreateBuyVoidCustodyLaunchHighWaterWriterV1 as writerFactory,
+  VOID_BUY_VOID_CUSTODY_PERMANENT_FENCE_DIRECTORY_V1 as FENCE_NAME } from
   "../src/economic/buy_void_custody_launch_high_water_writer_v1.mjs";
 import { testOnlyCreateBuyVoidCustodyLockedAdvanceV1 as lockedFactory,
-  VOID_BUY_VOID_CUSTODY_LOCKED_ADVANCE_AUTHORITY_V1 as AUTH } from
+  VOID_BUY_VOID_CUSTODY_LOCKED_ADVANCE_AUTHORITY_V1 as AUTH,
+  testOnlyCreateBuyVoidCustodyPermanentlyFencedLockedAdvanceV1 as fencedFactory } from
   "../src/economic/buy_void_custody_locked_advance_v1.mjs";
+import {
+  buildBuyVoidCustodyHighWaterTransitionFenceV1 as planFence,
+} from "../src/economic/buy_void_custody_high_water_transition_fence_v1.mjs";
+import {
+  createOnlyBuyVoidCustodyHighWaterFenceRecordV1 as persistFence,
+} from "../src/economic/buy_void_custody_high_water_fence_storage_v1.mjs";
 
 const rootSource = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function gitBlob(p) {
@@ -164,3 +172,141 @@ assert.equal(AUTH.presale_activation, false);
 assert.equal(AUTH.funds_movement, false);
 console.log("production_authority_remains_false=true");
 console.log("VOID_BUY_VOID_CUSTODY_LOCKED_ACTUAL_WRITER_V1_GREEN");
+
+
+function fenceDir(f) { return path.join(f.custody, FENCE_NAME); }
+function privateFence(f) {
+  fs.mkdirSync(fenceDir(f), { mode: 0o700 });
+  fs.chmodSync(fenceDir(f), 0o700);
+}
+function fenceFile(f, next = HIGH_2) {
+  const plan = planFence({
+    prior_high_water_bytes: HIGH_1,
+    next_high_water_bytes: next,
+  });
+  assert.equal(plan.status, "transition");
+  return {
+    plan,
+    file: path.join(fenceDir(f), plan.transition_slot_id + ".json"),
+  };
+}
+// Real writer under actual exclusive lock: durable create-only fence must
+// predate high-water rename, and read-only inspection must not create either.
+{
+  const f = makeFixture("permanent-success");
+  try {
+    privateFence(f);
+    const slot = fenceFile(f);
+    const candidate = fencedFactory(f.options, classifier, () => {
+      assert.equal(fs.statSync(slot.file).isFile(), true);
+      assert.deepEqual(fs.readFileSync(slot.file), slot.plan.record_bytes);
+      assert.deepEqual(readHigh(f), HIGH_1, "fence must precede rename");
+      assert.equal(fs.statSync(path.join(f.custody, LOCK)).isDirectory(), true);
+    });
+    const observed = candidate.inspect();
+    assert.equal(observed.operation_performed, false);
+    assert.equal(fs.existsSync(slot.file), false);
+    assert.equal(fs.existsSync(path.join(f.custody, LOCK)), false);
+    assert.equal(candidate.advance().status, "advanced");
+    assert.deepEqual(readHigh(f), HIGH_2);
+    assert.deepEqual(fs.readFileSync(slot.file), slot.plan.record_bytes);
+    assert.equal(fs.statSync(slot.file).mode & 0o777, 0o600);
+    const inode = fs.statSync(slot.file).ino;
+    assert.equal(candidate.advance().status, "current");
+    assert.equal(fs.statSync(slot.file).ino, inode);
+    assert.equal(fs.readdirSync(fenceDir(f)).length, 1);
+    assert.equal(fs.existsSync(path.join(f.custody, LOCK)), false);
+    console.log("durable_same_prior_fence_before_actual_writer_rename=true");
+    console.log("success_and_replay_do_not_overwrite_fence=true");
+    console.log("read_only_inspect_creates_no_fence_or_lock=true");
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+}
+// A crash-shaped failure after fence fsync but before rename leaves BOTH the
+// exact permanent next bytes and the prior high-water for qualified recovery.
+{
+  const f = makeFixture("permanent-interruption");
+  try {
+    privateFence(f);
+    const slot = fenceFile(f);
+    let hooks = 0;
+    const interrupted = fencedFactory(f.options, classifier, () => {
+      hooks += 1;
+      assert.deepEqual(fs.readFileSync(slot.file), slot.plan.record_bytes);
+      throw new Error("synthetic_crash_after_durable_fence");
+    });
+    const held = interrupted.advance();
+    assert.equal(held.ok, false);
+    assert.equal(held.operation_performed, false);
+    assert.equal(held.mutation_truth_known, true);
+    assert.equal(held.exclusive_lock_release_fsynced, false);
+    assert.equal(hooks, 1);
+    assert.deepEqual(readHigh(f), HIGH_1);
+    assert.deepEqual(fs.readFileSync(slot.file), slot.plan.record_bytes);
+    const inode = fs.statSync(slot.file).ino;
+    assert.equal(fs.statSync(path.join(f.custody, LOCK)).isDirectory(), true);
+    const denied = fencedFactory(f.options, classifier).advance();
+    assert.equal(denied.ok, false);
+    assert.equal(denied.operation_performed, false);
+    // Fixture operator-recovery simulation ONLY. No automatic reaping API.
+    fs.rmdirSync(path.join(f.custody, LOCK));
+    const resumed = fencedFactory(f.options, classifier).advance();
+    assert.equal(resumed.status, "advanced");
+    assert.equal(resumed.operation_performed, true);
+    assert.deepEqual(readHigh(f), HIGH_2);
+    assert.equal(fs.statSync(slot.file).ino, inode);
+    assert.equal(fs.readdirSync(fenceDir(f)).length, 1);
+    console.log("interrupted_commit_prior_retained_with_permanent_fence=true");
+    console.log("stale_private_lock_blocks_unqualified_replay=true");
+    console.log("fixture_only_reviewed_lock_reconciliation_allows_exact_replay=true");
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+}
+// A conflicting next from the SAME prior shares the permanent slot. It must
+// never overwrite the existing record or publish a different high-water.
+{
+  const f = makeFixture("permanent-conflict");
+  try {
+    privateFence(f);
+    const alternative = buildBuyVoidCustodyLaunchHighWaterV2({
+      source_composition_id: SOURCE, sequence: 3,
+      generation: "0x" + "99".repeat(32),
+      tip_sha256: "sha256:" + "88".repeat(32),
+      journal_prefix_sha256: "sha256:" + "77".repeat(32),
+    });
+    const foreign = fenceFile(f, alternative);
+    const ours = fenceFile(f);
+    assert.equal(foreign.file, ours.file);
+    assert.ok(!foreign.plan.record_bytes.equals(ours.plan.record_bytes));
+    const stored = persistFence({
+      configured_fence_directory: fenceDir(f),
+      record_bytes: foreign.plan.record_bytes,
+    });
+    assert.equal(stored.status, "created");
+    const inode = fs.statSync(foreign.file).ino;
+    const blocked = fencedFactory(f.options, classifier).advance();
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.operation_performed, false);
+    assert.deepEqual(readHigh(f), HIGH_1);
+    assert.deepEqual(fs.readFileSync(foreign.file), foreign.plan.record_bytes);
+    assert.equal(fs.statSync(foreign.file).ino, inode);
+    assert.equal(fs.statSync(path.join(f.custody, LOCK)).isDirectory(), true);
+    console.log("competing_successor_from_same_prior_holds_without_rollback=true");
+    console.log("permanent_foreign_slot_inode_bytes_preserved=true");
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+}
+// No implicit mkdir of privileged storage; missing preprovisioned private
+// fence directory must HOLD before any high-water record is replaced.
+{
+  const f = makeFixture("fence-unprovisioned");
+  try {
+    const failed = fencedFactory(f.options, classifier).advance();
+    assert.equal(failed.ok, false);
+    assert.equal(failed.operation_performed, false);
+    assert.deepEqual(readHigh(f), HIGH_1);
+    assert.equal(fs.existsSync(fenceDir(f)), false);
+    console.log("preprovisioned_fence_storage_required=true");
+  } finally { fs.rmSync(f.root, { recursive: true, force: true }); }
+}
+assert.equal(AUTH.source_only_unmounted, true);
+assert.equal(AUTH.production_allocation_mutation_ready, false);
+console.log("permanent_fence_writer_production_qualification=false");
+console.log("VOID_BUY_VOID_CUSTODY_PERMANENT_FENCED_LOCKED_ADVANCE_V1_GREEN");

@@ -1,0 +1,99 @@
+name: VOID custody permanently fenced locked advance source-only v1
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "src/economic/buy_void_custody_locked_advance_v1.mjs"
+      - "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs"
+      - "src/economic/buy_void_custody_high_water_fence_storage_v1.mjs"
+      - "scripts/prove_buy_void_custody_permanent_fenced_locked_advance_v1.mjs"
+      - "scripts/prove_buy_void_custody_permanent_fenced_cross_process_v1.mjs"
+      - ".github/workflows/buy-void-custody-permanent-fenced-locked-advance-v1.yml"
+      - "docs/architecture/buy-void-custody-permanent-fenced-locked-advance-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: custody-permanent-fenced-locked-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Pin exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Qualify immutable checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Qualify executable source and all inherited regressions
+        run: |
+          set -euo pipefail
+          for p in             src/economic/buy_void_custody_launch_high_water_writer_v1.mjs             src/economic/buy_void_custody_locked_advance_v1.mjs             src/economic/buy_void_custody_high_water_transition_fence_v1.mjs             src/economic/buy_void_custody_high_water_fence_storage_v1.mjs             scripts/prove_buy_void_custody_permanent_fenced_locked_advance_v1.mjs             scripts/prove_buy_void_custody_permanent_fenced_cross_process_v1.mjs
+          do node --check "$p"; done
+          node scripts/prove_buy_void_custody_high_water_exclusive_lock_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_owned_temp_cleanup_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_locked_advance_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_locked_actual_writer_v1.mjs >/dev/null
+          node scripts/prove_buy_void_custody_permanent_fenced_locked_advance_v1.mjs             > "permanent-fence-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_custody_permanent_fenced_cross_process_v1.mjs             >> "permanent-fence-${{ matrix.node }}.txt"
+          for marker in             'durable_same_prior_fence_before_actual_writer_rename=true'             'interrupted_commit_prior_retained_with_permanent_fence=true'             'fixture_only_reviewed_lock_reconciliation_allows_exact_replay=true'             'competing_successor_from_same_prior_holds_without_rollback=true'             'preprovisioned_fence_storage_required=true'             'actual_two_os_processes_one_high_water_successor=true'             'no_fence_overwrite_or_rollback=true'             'production_allocation_mutation_ready=false'             'VOID_BUY_VOID_CUSTODY_PERMANENT_FENCED_CROSS_PROCESS_V1_GREEN'
+          do grep -Fx "$marker" "permanent-fence-${{ matrix.node }}.txt"; done
+      - name: Upload deterministic source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: permanent-fenced-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: permanent-fence-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Guard change hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: permanent-fenced-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require three matching source-only receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "proof/permanent-fence-$node.txt"; done
+          cmp proof/permanent-fence-22.txt proof/permanent-fence-24.txt
+          cmp proof/permanent-fence-22.txt proof/permanent-fence-26.txt
+          echo VOID_BUY_VOID_CUSTODY_PERMANENT_FENCED_THREE_NODE_GREEN
+          echo "runtime_custody_service_mounted=false"
+          echo "presale_activation=false"
+          echo "funds_moved=false"

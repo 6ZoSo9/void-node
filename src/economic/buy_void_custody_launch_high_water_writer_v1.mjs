@@ -7,6 +7,9 @@ import {
   classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2,
 } from "./buy_void_custody_launch_authority_v2.mjs";
 
+import { buildBuyVoidCustodyHighWaterTransitionFenceV1 } from "./buy_void_custody_high_water_transition_fence_v1.mjs";
+import { createOnlyBuyVoidCustodyHighWaterFenceRecordV1 } from "./buy_void_custody_high_water_fence_storage_v1.mjs";
+
 export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1 =
   "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1";
 
@@ -582,7 +585,7 @@ function atomicAdvance(
     fs.closeSync(fd);
     fd = -1;
 
-    if (typeof beforeReplaceHook === "function") beforeReplaceHook();
+    if (typeof beforeReplaceHook === "function") beforeReplaceHook(expectedCurrent, nextBytes);
 
     const reobserved = observedBytes(evidence);
     if (!sameObservation(expectedObservation, reobserved)) {
@@ -755,6 +758,79 @@ export function createBuyVoidCustodyLaunchHighWaterWriterV1(rawOptions) {
     authority:
       VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1,
   });
+}
+
+// This directory is preprovisioned as 0700 by the custody principal. The
+// source-only writer never creates, reaps or unlinks a permanent fence slot.
+export const VOID_BUY_VOID_CUSTODY_PERMANENT_FENCE_DIRECTORY_V1 =
+  ".void-buy-void-custody-permanent-fences-v1";
+
+function makePermanentFenceHookV1(options, testAfterFence = null) {
+  const fenceDirectory = path.join(
+    options.custody_root, VOID_BUY_VOID_CUSTODY_PERMANENT_FENCE_DIRECTORY_V1,
+  );
+  return (priorBytes, nextBytes) => {
+    if (!Buffer.isBuffer(priorBytes) || !Buffer.isBuffer(nextBytes)) {
+      fail("permanent_fence_bytes_invalid");
+    }
+    const plan = buildBuyVoidCustodyHighWaterTransitionFenceV1({
+      prior_high_water_bytes: Buffer.from(priorBytes),
+      next_high_water_bytes: Buffer.from(nextBytes),
+    });
+    if (plan.status !== "transition" || plan.transition_required !== true ||
+        !Buffer.isBuffer(plan.record_bytes)) {
+      fail("permanent_fence_transition_invalid");
+    }
+    const stored = createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
+      configured_fence_directory: fenceDirectory,
+      record_bytes: Buffer.from(plan.record_bytes),
+    });
+    if (!stored || !["created", "exists_same_transition"].includes(stored.status) ||
+        stored.record_durable_observation !== true ||
+        stored.stored_record_sha256 !== plan.record_sha256 ||
+        stored.transition_slot_id !== plan.transition_slot_id ||
+        stored.high_water_mutated !== false ||
+        stored.production_allocation_mutation_ready !== false) {
+      fail("permanent_fence_storage_unqualified");
+    }
+    if (typeof testAfterFence === "function") {
+      testAfterFence(
+        Buffer.from(priorBytes),
+        Buffer.from(nextBytes),
+        Buffer.from(plan.record_bytes),
+      );
+    }
+  };
+}
+
+function createPermanentlyFencedWriterV1(options, classifier, testHook = null) {
+  const beforeRename = makePermanentFenceHookV1(options, testHook);
+  return Object.freeze({
+    inspect() { return runWriter(options, classifier, false); },
+    advance() { return runWriter(options, classifier, true, beforeRename); },
+    authority: VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1,
+  });
+}
+
+// NOT a mounted production entrypoint. Caller path/UID, exclusive lock,
+// lease and signature qualifications remain separate launch admission gates.
+export function createBuyVoidCustodyLaunchHighWaterPermanentlyFencedWriterV1(rawOptions) {
+  return createPermanentlyFencedWriterV1(
+    normalizeOptions(rawOptions),
+    classifyBuyVoidCustodyLaunchAuthorityObservedBytesV2,
+  );
+}
+
+export function testOnlyCreateBuyVoidCustodyPermanentlyFencedWriterV1(
+  rawOptions, classifier, afterFenceHook = null,
+) {
+  if (typeof classifier !== "function" ||
+      (afterFenceHook !== null && typeof afterFenceHook !== "function")) {
+    fail("permanent_fence_test_hook_invalid");
+  }
+  return createPermanentlyFencedWriterV1(
+    normalizeOptions(rawOptions), classifier, afterFenceHook,
+  );
 }
 
 export function createBuyVoidCustodyLaunchHighWaterWriterFromEnvV1(

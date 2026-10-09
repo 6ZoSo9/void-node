@@ -1,6 +1,8 @@
 import { types as utilTypes } from "node:util";
 import {
   createBuyVoidCustodyLaunchHighWaterWriterV1,
+  createBuyVoidCustodyLaunchHighWaterPermanentlyFencedWriterV1,
+  testOnlyCreateBuyVoidCustodyPermanentlyFencedWriterV1,
 } from "./buy_void_custody_launch_high_water_writer_v1.mjs";
 import {
   withBuyVoidCustodyHighWaterExclusiveLockV1,
@@ -169,4 +171,32 @@ export function testOnlyCreateBuyVoidCustodyLockedAdvanceV1(
     inspect: inspect.value,
     advance: advance.value,
   }));
+}
+
+// SOURCE ONLY. Compose permanent prior-state fence, synchronous high-water
+// writer and private exclusive lock. No installed custody service or launcher.
+export function createBuyVoidCustodyPermanentlyFencedLockedAdvanceV1(
+  trustedStartupConfig,
+) {
+  const config = snapshotTrustedConfig(trustedStartupConfig);
+  return compose(
+    config,
+    createBuyVoidCustodyLaunchHighWaterPermanentlyFencedWriterV1(config),
+  );
+}
+
+// Actual writer plus test-only classifier and post-fence interruption seam.
+// This is NOT a path for production callers or untrusted supplied authority.
+export function testOnlyCreateBuyVoidCustodyPermanentlyFencedLockedAdvanceV1(
+  fixtureConfig,
+  classifier,
+  afterFenceHook = null,
+) {
+  const config = snapshotTrustedConfig(fixtureConfig);
+  const writer = testOnlyCreateBuyVoidCustodyPermanentlyFencedWriterV1(
+    config,
+    classifier,
+    afterFenceHook,
+  );
+  return compose(config, writer);
 }

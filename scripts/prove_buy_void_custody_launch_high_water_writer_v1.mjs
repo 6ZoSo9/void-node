@@ -21,7 +21,7 @@ const WRITER =
 const CLASSIFIER =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_WRITER_BLOB =
-  "8d44f6651b9210f7cb1a5ac3f895ce18d0890fb5";
+  "cbf320e127c41e328961e6c843aadefff9326791";
 const EXPECTED_CLASSIFIER_BLOB =
   "223ebdb8317009228094b8ebecef19dc37d87a91";
 const HIGH_WATER_NAME =

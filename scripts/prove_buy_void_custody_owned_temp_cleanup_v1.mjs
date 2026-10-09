@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 // same-filesystem fixture. No real custody path or customer file is touched.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WRITER = "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs";
-const EXPECTED_WRITER_BLOB = "8d44f6651b9210f7cb1a5ac3f895ce18d0890fb5";
+const EXPECTED_WRITER_BLOB = "cbf320e127c41e328961e6c843aadefff9326791";
 const HIGH_WATER_NAME = "buy-void-custody-launch-high-water-v2.json";
 const STATIC_PID = 41872;
 const STATIC_NONCE = "55".repeat(8);

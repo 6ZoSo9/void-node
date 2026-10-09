@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WRITER = "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs";
-const EXPECTED_WRITER_GIT_BLOB = "8d44f6651b9210f7cb1a5ac3f895ce18d0890fb5";
+const EXPECTED_WRITER_GIT_BLOB = "cbf320e127c41e328961e6c843aadefff9326791";
 const text = fs.readFileSync(path.join(ROOT, WRITER), "utf8");
 const bytes = Buffer.from(text);
 const blob = crypto.createHash("sha1")
