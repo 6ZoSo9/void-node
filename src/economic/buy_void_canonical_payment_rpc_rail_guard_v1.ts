@@ -153,16 +153,19 @@ function snapshotCanonicalPaymentRpcPolicyV1(
     return held("canonical_payment_rpc_policy_invalid");
   }
 
-  return Object.freeze({
+  const normalizedPolicy: BuyVoidPaymentRpcObserverPolicyV1 = {
     enabled,
-    source_chain: sourceChain,
-    chain_id: chainId,
+    source_chain: sourceChain as "base" | "ethereum",
+    chain_id: chainId as string | number,
     rpc_url: rpcUrl,
-    ...(timeoutMs !== undefined ? { timeout_ms: timeoutMs } : {}),
-    ...(maxResponseBytes !== undefined
-      ? { max_response_bytes: maxResponseBytes }
+    ...(timeoutMs !== undefined
+      ? { timeout_ms: timeoutMs as string | number }
       : {}),
-  });
+    ...(maxResponseBytes !== undefined
+      ? { max_response_bytes: maxResponseBytes as string | number }
+      : {}),
+  };
+  return Object.freeze(normalizedPolicy);
 }
 
 function snapshotCanonicalPaymentRequestIdentityV1(
