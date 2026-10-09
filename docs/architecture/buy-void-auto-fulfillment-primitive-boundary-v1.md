@@ -16,8 +16,11 @@ Predecessor source blob:
 Primitive-only repair source blob:
 `7c2ca19bde43b13df36bd06c946ad96130fe5d05`.
 
-Current plain-data snapshot successor blob:
+Initial generic plain-data snapshot blob:
 `3f10035412f6a52eebe4c4855b8f18072d452f47`.
+
+Current selected-field snapshot blob:
+`0784bd1a2a05c2ccb92b29ad425ad43a1cff2b3d`.
 
 ## Repair
 
@@ -26,11 +29,14 @@ strings before trimming or case normalization.
 
 Integer-like receipt/verifier values accept only reviewed primitive `bigint | number | string` forms. `min_confirmations_by_chain` is stricter: the policy type is `Record<string, number>`, so it requires a positive safe integer number and rejects string/bigint aliases. USDC/VOID decimal quantities accept primitive strings or finite numbers.
 
-Before those semantic checks, the decision now takes a bounded detached snapshot
-of the entire reviewed input. The snapshot rejects Proxy objects before traps,
-accessor/hidden properties before getter execution, cycles, custom object/array
-prototypes, symbols, sparse arrays, and excessive depth/nodes/keys/array/text
-sizes. Only the detached frozen data is used afterward.
+Before those semantic checks, the decision now snapshots only the reviewed
+authority surface: request fields, verified-event/verifier fields, policy fields
+and maps for normalized allowlisted chains, plus bounded prior-claim fields and
+their unsigned instructions. Unknown caller properties are never enumerated.
+The snapshot rejects Proxy objects before traps, accessor/hidden properties
+before getter execution, custom object/array prototypes, symbols, sparse arrays,
+oversized allowlists/prior-claim arrays and oversized reviewed text. Only the
+detached frozen selected data is used afterward.
 
 The decision additionally:
 
@@ -59,7 +65,10 @@ produce the exact same canonical approved decision and instruction.
 
 The proof also requires top-level/request/payment-verifier Proxy inputs,
 request/policy-map/prior-claim accessors, a revoked array Proxy and a custom
-request prototype to HOLD with caller getters/traps unexecuted.
+request prototype to HOLD with caller getters/traps unexecuted. It further
+proves irrelevant top-level/request/policy-map getters are ignored without
+enumeration, oversized allowlists/prior-claim arrays HOLD before descriptor
+allocation, and oversized reviewed text HOLDs at snapshot admission.
 
 Node 22/24/26 must emit byte-identical proof receipts.
 
