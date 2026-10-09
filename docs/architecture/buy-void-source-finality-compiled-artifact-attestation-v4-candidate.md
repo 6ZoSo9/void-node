@@ -82,3 +82,27 @@ payment-verifier source blob `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
 Candidate derivation requires that exact parent to be an ancestor and requires
 zero reviewed-source/build-input drift from that source-stack head through
 current HEAD.
+
+
+## Current integration rollover — payment RPC deadline
+
+The current integration source anchor is
+`3533626d7167c98ba8d65d2c423b460b1a3199fc`.
+
+Relative to historical compiled V3, this candidate now treats three reviewed
+compiled artifacts as intentionally changed:
+
+- `buy_void_source_finality_generation_provenance_v6.js`;
+- `buy_void_payment_rpc_observer_v1.js`;
+- `buy_void_verified_payment_v2.js`.
+
+The payment observer source is exact Git blob
+`0073818ad6f6418e895bf794024c9d678b3bef86`, retained through reviewed source
+commit `9df9648f546eb9320259eae1d3930a7c132a6511`. V6 source manifest blob is
+`e7ac4c296930587e7b7ec415e57bb18190c88962`; the resulting reviewed-source
+digest is expected to derive as
+`ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
+
+Candidate authority remains false until fresh cross-Node compiled bytes are
+derived and separately locked. Historical V3 bytes are immutable evidence, not
+repinned acceptance.
