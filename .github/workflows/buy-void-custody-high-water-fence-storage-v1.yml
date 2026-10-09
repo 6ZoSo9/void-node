@@ -1,0 +1,119 @@
+name: VOID custody create-only high-water fence storage v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_high_water_fence_storage_v1.mjs"
+      - "scripts/prove_buy_void_custody_high_water_fence_storage_v1.mjs"
+      - ".github/workflows/buy-void-custody-high-water-fence-storage-v1.yml"
+      - "docs/architecture/buy-void-custody-high-water-fence-storage-v1.md"
+      - "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-fence-storage-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22,24,26]
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require exact checkout SHA
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Install reviewed Node major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Check static JS syntax
+        run: |
+          node --check src/economic/buy_void_custody_high_water_fence_storage_v1.mjs
+          node --check scripts/prove_buy_void_custody_high_water_fence_storage_v1.mjs
+
+      - name: Prove competing processes and permanent unowned records
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_high_water_fence_storage_v1.mjs \
+            | tee "fence-storage-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_CUSTODY_CREATE_ONLY_FENCE_STORAGE_V1_SYNTHETIC_GREEN' \
+            'two_competing_successors_share_one_slot=true' \
+            'cross_process_exactly_one_created=true' \
+            'losing_writer_preserves_winning_record=true' \
+            'same_record_replay_idempotent=true' \
+            'corrupt_record_never_deleted=true' \
+            'symlink_slot_never_followed=true' \
+            'private_fence_directory_required=true' \
+            'record_fsync_failure_keeps_permanent_slot=true' \
+            'high_water_writer_integration=false' \
+            'cross_process_high_water_rename_serialization_verified=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "fence-storage-${{ matrix.node }}.txt"
+          done
+
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+      - name: Upload exact-runner synthetic receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-fence-storage-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: fence-storage-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  cross-node:
+    needs: synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download all three candidate receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-fence-storage-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+
+      - name: Require exactly matched proofs from Node 22 24 26
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/fence-storage-$v.txt"; done
+          cmp receipts/fence-storage-22.txt receipts/fence-storage-24.txt
+          cmp receipts/fence-storage-22.txt receipts/fence-storage-26.txt
+          echo "VOID_CUSTODY_FENCE_STORAGE_THREE_NODE_SYNTHETIC_GREEN"
+          echo "real_high_water_writer_fence_integrated=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"
