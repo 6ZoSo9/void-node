@@ -1558,11 +1558,77 @@ const CANONICAL_EVENT_MAX_NODES_V1 = 8192;
 const CANONICAL_EVENT_MAX_KEYS_V1 = 16384;
 const CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1 = 8192;
 const CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1 = 1024 * 1024;
+const CANONICAL_EVENT_MAX_JSON_BYTES_V1 = LEDGER_MAX_BYTES - 1;
 
 type CanonicalEventBudgetV1 = {
+  bytes: number;
   nodes: number;
   keys: number;
 };
+
+function canonicalJsonStringByteLengthV1(value: string): number {
+  let bytes = 2;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (
+      code === 0x22 ||
+      code === 0x5c ||
+      code === 0x08 ||
+      code === 0x09 ||
+      code === 0x0a ||
+      code === 0x0c ||
+      code === 0x0d
+    ) {
+      bytes += 2;
+      continue;
+    }
+    if (code <= 0x1f) {
+      bytes += 6;
+      continue;
+    }
+    if (code <= 0x7f) {
+      bytes += 1;
+      continue;
+    }
+    if (code <= 0x7ff) {
+      bytes += 2;
+      continue;
+    }
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next =
+        index + 1 < value.length ? value.charCodeAt(index + 1) : -1;
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        bytes += 6;
+      }
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      bytes += 6;
+      continue;
+    }
+    bytes += 3;
+  }
+  return bytes;
+}
+
+function addCanonicalEventBytesV1(
+  budget: CanonicalEventBudgetV1,
+  bytes: number,
+): void {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    fail("buy_void_verified_payment_allocation_event_byte_budget_invalid");
+  }
+  budget.bytes += bytes;
+  if (
+    !Number.isSafeInteger(budget.bytes) ||
+    budget.bytes > CANONICAL_EVENT_MAX_JSON_BYTES_V1
+  ) {
+    fail("buy_void_verified_payment_allocation_event_size_exceeded");
+  }
+}
 
 function detachedCanonicalJsonValueV1(
   value: unknown,
@@ -1578,17 +1644,30 @@ function detachedCanonicalJsonValueV1(
     fail("buy_void_verified_payment_allocation_event_node_count_exceeded");
   }
 
-  if (value === null || typeof value === "boolean") return value;
+  if (value === null) {
+    addCanonicalEventBytesV1(budget, 4);
+    return null;
+  }
+  if (typeof value === "boolean") {
+    addCanonicalEventBytesV1(budget, value ? 4 : 5);
+    return value;
+  }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
       fail("buy_void_verified_payment_allocation_event_number_invalid");
     }
+    const encoded = Object.is(value, -0) ? "0" : String(value);
+    addCanonicalEventBytesV1(budget, encoded.length);
     return value;
   }
   if (typeof value === "string") {
     if (value.length > CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1) {
       fail("buy_void_verified_payment_allocation_event_text_size_exceeded");
     }
+    addCanonicalEventBytesV1(
+      budget,
+      canonicalJsonStringByteLengthV1(value),
+    );
     return value;
   }
   if (!value || typeof value !== "object") {
@@ -1611,6 +1690,10 @@ function detachedCanonicalJsonValueV1(
       ) {
         fail("buy_void_verified_payment_allocation_event_array_invalid");
       }
+      addCanonicalEventBytesV1(
+        budget,
+        2 + Math.max(0, value.length - 1),
+      );
       const clone: any[] = [];
       // Prevent ambient Array.prototype.toJSON from executing when these
       // detached bytes are serialized now or rechecked downstream.
@@ -1652,6 +1735,7 @@ function detachedCanonicalJsonValueV1(
     // records cannot inherit Object.prototype.toJSON or inherited accessors.
     const clone: Record<string, any> = Object.create(null);
     let localKeys = 0;
+    addCanonicalEventBytesV1(budget, 2);
     for (const key in value) {
       if (!Object.hasOwn(value, key)) continue;
       localKeys += 1;
@@ -1662,6 +1746,13 @@ function detachedCanonicalJsonValueV1(
       ) {
         fail("buy_void_verified_payment_allocation_event_key_count_exceeded");
       }
+      if (localKeys > 1) {
+        addCanonicalEventBytesV1(budget, 1);
+      }
+      addCanonicalEventBytesV1(
+        budget,
+        canonicalJsonStringByteLengthV1(key) + 1,
+      );
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (
         !descriptor ||
@@ -1711,9 +1802,14 @@ function canonicalVerifiedPaymentEventV1(value: any): {
     fail("buy_void_verified_payment_allocation_event_serialization_invalid");
   }
 
+  const canonicalBudget: CanonicalEventBudgetV1 = {
+    bytes: 0,
+    nodes: 0,
+    keys: 0,
+  };
   const detached = detachedCanonicalJsonValueV1(
     value,
-    { nodes: 0, keys: 0 },
+    canonicalBudget,
     new WeakSet<object>(),
     0,
   );
@@ -1730,6 +1826,16 @@ function canonicalVerifiedPaymentEventV1(value: any): {
     json = serialized;
   } catch {
     fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  const serializedBytes = Buffer.byteLength(json, "utf8");
+  if (
+    serializedBytes !== canonicalBudget.bytes ||
+    canonicalBudget.bytes > CANONICAL_EVENT_MAX_JSON_BYTES_V1
+  ) {
+    fail(
+      "buy_void_verified_payment_allocation_event_serialization_budget_mismatch",
+    );
   }
 
   const line = Buffer.from(json + "\n", "utf8");
