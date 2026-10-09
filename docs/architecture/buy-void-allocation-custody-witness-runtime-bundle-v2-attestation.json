@@ -1,0 +1,36 @@
+{
+  "schema": "void_buy_void_allocation_custody_witness_runtime_bundle_v2_attestation_v1",
+  "marker": "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_V2_ATTESTATION",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate": {
+    "script_path": "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_v2_candidate.mjs",
+    "script_git_blob_sha1": "f2ae443062d5d87670c5fab9aaf2e2fb1caa6510",
+    "evidence_sha256": "6647673c5c23cb8c90a89acaf31dee85da1cea546ab377dec127bf7217252141",
+    "source_stack_head": "b0f7189af0d29769ec701bd590e0df81b23b5c07"
+  },
+  "predecessor": {
+    "manifest_id": "voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7",
+    "manifest_sha256": "sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2",
+    "bakery_lock_sha256": "sha256:7c7a6b92c1a88b14d325d331700a2bd19a0068630ae0094c65b2dcc6a25a9994"
+  },
+  "accepted_v2": {
+    "manifest_id": "voidwfb2_7d7573c8a105473997c0fb7442842ec58f010cebab0c9497c86bd9dcb62c248f",
+    "manifest_sha256": "sha256:ec3b126d0c4c406d60f2bce01d08d463a0e06553e2980bc2812e5e487a42ad0d",
+    "bakery_lock_source_git_blob_sha1": "9bd47abb857368d928c0ca289766cdf3571629ba",
+    "bakery_lock_artifact_sha256": "sha256:47e80dfffa0cd1fd97169f9d63e836c9dbf52461aaafafdf10499b5cf91fd3ca",
+    "changed_runtime_paths": [
+      "dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+    ],
+    "runtime_file_count": 8,
+    "runtime_edge_count": 11,
+    "dynamic_import_count": 0,
+    "require_call_count": 0,
+    "runtime_bundle_manifest_accepted": true
+  },
+  "live_nimo_installed": false,
+  "runtime_integration": false,
+  "protected_high_water_custody_proven": false,
+  "production_gate_ready": false,
+  "funds_movement": false
+}
