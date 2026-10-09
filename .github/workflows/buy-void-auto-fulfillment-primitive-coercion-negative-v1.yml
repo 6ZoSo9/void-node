@@ -1,0 +1,119 @@
+name: VOID Buy VOID auto fulfillment primitive coercion negative v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_primitive_coercion_negative_v1.ts"
+      - "docs/architecture/buy-void-auto-fulfillment-primitive-coercion-negative-v1.md"
+      - ".github/workflows/buy-void-auto-fulfillment-primitive-coercion-negative-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-auto-fulfillment-primitive-negative-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact negative witness head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build reviewed source
+        run: npm run build
+
+      - name: Reproduce structural coercion
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_auto_fulfillment_primitive_coercion_negative_v1.ts \
+            | tee "auto-fulfillment-primitive-negative-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_AUTO_FULFILLMENT_PRIMITIVE_COERCION_NEGATIVE_V1_REPRODUCED' \
+            'primitive_control_approved=true' \
+            'approved_wrong_type_case_count=28' \
+            'approved_wrong_types_byte_equivalent=true' \
+            'canonical_identity_wrong_type_case_count=3' \
+            'canonical_identity_wrong_types_accepted=true' \
+            'duplicate_claim_wrong_type_case_count=3' \
+            'malformed_prior_claims_accepted_as_duplicate=true' \
+            'production_payment_authority_ready=false' \
+            'source_modified=false' \
+            'rpc_used=false' \
+            'filesystem_write=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "auto-fulfillment-primitive-negative-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload negative evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-auto-fulfillment-primitive-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: auto-fulfillment-primitive-negative-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [reproduce]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download negative receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-auto-fulfillment-primitive-negative-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical Node 22 24 26 reproduction
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/auto-fulfillment-primitive-negative-node-$v.txt"
+          done
+          cmp evidence/auto-fulfillment-primitive-negative-node-22.txt evidence/auto-fulfillment-primitive-negative-node-24.txt
+          cmp evidence/auto-fulfillment-primitive-negative-node-22.txt evidence/auto-fulfillment-primitive-negative-node-26.txt
+          echo "VOID_BUY_VOID_AUTO_FULFILLMENT_PRIMITIVE_COERCION_NEGATIVE_CROSS_NODE_GREEN"
+          echo "defect_reproduced=true"
+          echo "production_payment_authority_ready=false"
+          echo "funds_moved=false"
