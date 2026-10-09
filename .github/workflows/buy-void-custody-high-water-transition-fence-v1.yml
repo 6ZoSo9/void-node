@@ -1,0 +1,129 @@
+name: VOID Buy VOID custody create-only transition fence v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs"
+      - "scripts/prove_buy_void_custody_high_water_transition_fence_v1.mjs"
+      - "docs/architecture/buy-void-custody-high-water-transition-fence-v1.md"
+      - ".github/workflows/buy-void-custody-high-water-transition-fence-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-transition-fence-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check source and proof
+        run: |
+          node --check src/economic/buy_void_custody_high_water_transition_fence_v1.mjs
+          node --check scripts/prove_buy_void_custody_high_water_transition_fence_v1.mjs
+
+      - name: Prove create-only transition fence and recovery semantics
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_high_water_transition_fence_v1.mjs \
+            | tee "transition-fence-node-${{ matrix.node }}.txt"
+          for invariant in \
+            'VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_V1_GREEN' \
+            'same_prior_competing_successors_share_one_slot=true' \
+            'prior_authority_bound_by_exact_digest_only=true' \
+            'prior_lineage_metadata_not_duplicated=true' \
+            'different_successor_existing_slot_conflicts=true' \
+            'create_only_record_never_deleted=true' \
+            'crash_before_high_water_write_resumes_exact_transition=true' \
+            'exact_next_high_water_replay_is_committed=true' \
+            'unexpected_current_high_water_holds=true' \
+            'bootstrap_transition_recoverable=true' \
+            'bootstrap_slot_global_across_source_compositions=true' \
+            'same_state_noop_requires_no_fence=true' \
+            'rollback_same_sequence_conflict_cross_source_hold=true' \
+            'tampered_or_noncanonical_fence_record_rejected=true' \
+            'array_wrapped_authority_strings_rejected=true' \
+            'removable_lock_required=false' \
+            'lock_release_fsync_dependency=false' \
+            'filesystem_write_implemented=false' \
+            'custody_reserve_method_enabled=false' \
+            'custody_recover_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$invariant" "transition-fence-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-custody-transition-fence-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: transition-fence-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-custody-transition-fence-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./transition-fence
+
+      - name: Require byte-identical Node 22 24 26 evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "transition-fence/transition-fence-node-$v.txt"
+          done
+          cmp transition-fence/transition-fence-node-22.txt transition-fence/transition-fence-node-24.txt
+          cmp transition-fence/transition-fence-node-22.txt transition-fence/transition-fence-node-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_CROSS_NODE_GREEN"
+          echo "fence_record_deletion_allowed=false"
+          echo "filesystem_write_implemented=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_movement=false"
