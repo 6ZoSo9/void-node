@@ -110,11 +110,13 @@ is pinned to Git blob `f591f7407d9afc2cf77e0f90923aa11b4817fd4e`.
 
 The scoped GitHub workflow separately typechecks/builds this composed
 checkout on Node 22/24/26 **without starting a server**, runs the inert
-proof, and requires byte-equal reports from all three versions. The
-pre-serialization budget is a source-level resource boundary only; the
-dispatcher remains unmounted and does not claim that a later HTTP/router
-integration has supplied the same already-bounded DTO contract or qualified
-live customer history.
+proof, and requires byte-equal reports from all three versions. After any
+current-main or parent-stack reconciliation, prior component GREEN is not
+inherited: fresh pull-request checks must bind the new exact head before
+release review. The pre-serialization budget is a source-level resource
+boundary only; the dispatcher remains unmounted and does not claim that a
+later HTTP/router integration has supplied the same already-bounded DTO
+contract or qualified live customer history.
 
 ## Remaining release gates
 
