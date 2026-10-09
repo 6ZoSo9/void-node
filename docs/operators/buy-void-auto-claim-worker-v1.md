@@ -25,6 +25,14 @@ A mismatched, aliased, case-folded, padded, hex, boolean, object or otherwise
 noncanonical chain ID is held **before any RPC call and before any claim-journal
 mutation**. The request source chain must exactly match the admitted rail.
 
+At worker entry, the request plus worker/observer/verification/fulfillment
+policies are copied once through a bounded plain-data snapshot. Proxy objects,
+accessors, executable `toJSON`, cycles, exotic prototypes, sparse arrays and
+oversized structures are rejected before RPC. All post-RPC verification and
+claim construction consumes only those frozen snapshots, so caller mutation
+during asynchronous observation cannot change delivery address, amount,
+source rail, verification allowlists, fulfillment rate, or pool policy.
+
 After that guard, the RPC observer permits only:
 
 - `eth_chainId`
@@ -61,7 +69,10 @@ A request over the worker amount cap, on the wrong status, without a bound
 transaction hash, on a noncanonical or mismatched chain rail, without a final
 receipt, or outside any existing payment or fulfillment policy is held without
 mutation. In particular, a Base request paired with chain ID `1` never reaches
-the RPC transport or creates the fulfillment-claim root.
+the RPC transport or creates the fulfillment-claim root. Request/policy
+accessors and Proxies are rejected without invocation/traps, and mutation of
+the original request or policy objects after the first RPC call cannot poison
+the eventual claim because those originals are no longer authoritative.
 
 ## Result boundary
 
