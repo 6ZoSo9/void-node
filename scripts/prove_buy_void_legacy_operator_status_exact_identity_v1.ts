@@ -11,7 +11,7 @@ import {
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const EXPECTED_WRITER_BLOB="cfd4743103682f20c4b174e1c87aba0458590d12";
+const EXPECTED_WRITER_BLOB="f591f7407d9afc2cf77e0f90923aa11b4817fd4e";
 const source=fs.readFileSync(path.join(ROOT,"src/economic/buy_void_verified_payment_capacity_admission_v1.ts"));
 const blob=crypto.createHash("sha1")
   .update(Buffer.from("blob "+source.length+"\0","utf8")).update(source).digest("hex");
@@ -27,6 +27,8 @@ assert.ok(writer.includes("buy_void_operator_event_capacity_status_changed_durin
 assert.ok(text.includes("utilTypes.isProxy(value)"));
 assert.ok(text.includes("Object.create(null)"));
 assert.ok(text.includes('Object.defineProperty(clone, "toJSON"'));
+assert.ok(text.includes("CANONICAL_EVENT_MAX_JSON_BYTES_V1"));
+assert.ok(text.includes("serializedBytes !== canonicalBudget.bytes"));
 assert.ok(writer.indexOf('fail("buy_void_operator_event_capacity_status_noncanonical")') <
   writer.indexOf("fs.mkdirSync(requestDir"),"status admission must precede filesystem mutation");
 assert.equal(writer.includes('JSON.stringify(event) + "\\n"'),false,
@@ -255,6 +257,44 @@ try {
   assert.equal(nestedGetterCalls,0);
   assert.equal(fs.existsSync(nestedGetterRoot),false);
 
+  // Aggregate JSON size is bounded before full serialization, not merely
+  // per field. Reuse one 1 MiB control-character string so the input fixture
+  // stays compact while its escaped JSON representation would exceed 64 MiB.
+  const aggregateRoot=path.join(temp,"aggregate-byte-budget-root");
+  const escapedChunk="\u0000".repeat(1024*1024);
+  const aggregateEvent={
+    request_id:REQUEST_ID,
+    operator_status:"reviewed",
+    marked_at_ms:129,
+    detail:{
+      chunks:Array.from({length:11},()=>escapedChunk),
+    },
+  };
+  const originalStringify=JSON.stringify;
+  let aggregateStringifyCalls=0;
+  try {
+    JSON.stringify=((...args:Parameters<typeof JSON.stringify>)=>{
+      aggregateStringifyCalls+=1;
+      return originalStringify(...args);
+    }) as typeof JSON.stringify;
+    await assert.rejects(
+      ()=>writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event:aggregateEvent,
+        request:makeReq(),
+        request_dir:aggregateRoot,
+        with_launch_authority_mutation:noopLaunch,
+        read_sale_state:noopSale,
+      }),
+      /buy_void_verified_payment_allocation_event_size_exceeded/u,
+    );
+  } finally {
+    JSON.stringify=originalStringify;
+  }
+  assert.equal(aggregateStringifyCalls,0,
+    "aggregate oversize reached full JSON serialization");
+  assert.equal(fs.existsSync(aggregateRoot),false,
+    "aggregate oversize mutated filesystem");
+
   // Exercise the ACTUAL descriptor-bound capacity census on synthetic
   // private JSONL files; no RPC, signer, live ledger or wallet is involved.
   const ledger=path.join(temp,"capacity-only");
@@ -300,6 +340,7 @@ try {
   console.log("inherited_prototype_toJSON_not_invoked=true");
   console.log("nested_toJSON_rejected_without_invocation=true");
   console.log("nested_accessor_rejected_without_invocation=true");
+  console.log("aggregate_json_budget_holds_before_serialization=true");
   console.log("legacy_recount_rejects_trimmed_verified_alias=true");
   console.log("canonical_reviewed_and_rejected_still_nonpayment=true");
   console.log("canonical_verified_capacity_recount_preserved=true");
