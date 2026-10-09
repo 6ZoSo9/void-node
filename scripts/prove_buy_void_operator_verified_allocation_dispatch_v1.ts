@@ -12,6 +12,10 @@ import {
 } from "../src/economic/buy_void_operator_verified_allocation_dispatch_v1.js";
 
 const IDX_PATH = "src/index.ts";
+const DISPATCH_PATH =
+  "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
+const EXPECTED_DISPATCH_GIT_BLOB =
+  "967d18c74bdea52dd1e2342931b7f418e5aee614";
 const FROZEN_ROUTER_GIT_BLOB = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
   "496715e7ae2941663908976a4a3f4efd7c6199cf";
@@ -323,8 +327,14 @@ await assert.rejects(
   /buy_void_operator_allocation_dispatch_allocation_roots_not_configured/u,
 );
 
-const newPath = "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
-const dispatchSource = fs.readFileSync(newPath, "utf8");
+const newPath = DISPATCH_PATH;
+const dispatchBytes = fs.readFileSync(newPath);
+assert.equal(
+  gitBlob(dispatchBytes),
+  EXPECTED_DISPATCH_GIT_BLOB,
+  "exact reviewed dispatcher source drift",
+);
+const dispatchSource = dispatchBytes.toString("utf8");
 const tree = ts.createSourceFile(newPath, dispatchSource,
   ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 assert.equal(tree.parseDiagnostics.length, 0);
@@ -377,6 +387,7 @@ assert.match(writerBytes.toString("utf8"),
   /export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1/u);
 
 console.log("VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_GREEN");
+console.log("reviewed_dispatcher_source_blob=" + EXPECTED_DISPATCH_GIT_BLOB);
 console.log("verified_payment_plan_selects_allocation_handoff=true");
 console.log("nonpayment_plan_preserves_status_writer=true");
 console.log("canonical_operator_status_closed_enum=true");
