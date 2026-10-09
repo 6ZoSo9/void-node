@@ -83,7 +83,7 @@ uses **inert, in-memory JSON** only: immutable snapshots, caller `toJSON`
 and property-accessor rejection without invocation, Proxy rejection without
 executing `ownKeys`/descriptor traps, a 4 MiB text adversary
 that must HOLD before full `JSON.stringify`, deep nesting that must HOLD at
-the structural depth gate, a 5,000-key object that must stop at the key-count
+the structural depth gate, a 2,049-key object that must stop at the key-count
 gate without constructing a complete descriptor table or JSON string, a sparse
 array that must not fall through to inherited index lookup, synthetic
 `Object.prototype.toJSON` and `Array.prototype.toJSON` hooks that must never
@@ -149,4 +149,3 @@ Any other absolute path, swapped root, nested root, relative path, or filesystem
 root remains HOLD. This is a source-level anti-miswiring constraint only; it
 does not prove the installed service owns those roots or grant the web process
 direct write authority.
-
