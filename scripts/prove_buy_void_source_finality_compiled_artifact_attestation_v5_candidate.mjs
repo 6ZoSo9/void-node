@@ -7,25 +7,25 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const MARKER =
-  "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4";
+  "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5";
 const SOURCE_STACK_HEAD =
-  "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c";
+  "3533626d7167c98ba8d65d2c423b460b1a3199fc";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH =
-  "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
+  "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json";
 const PREDECESSOR_MANIFEST_PATH =
-  "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json";
+  "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json";
 const PREDECESSOR_MANIFEST_GIT_BLOB_SHA1 =
-  "d6e97784c5d8be93713e733628c7d1ef746bb5c7";
+  "a07f2e9b03958a58280c4d940fe49097a9413af5";
 const PREDECESSOR_COMPILED_ARTIFACT_GENERATION_SHA256 =
-  "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add";
+  "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06";
 const EXPECTED_VERIFIER_SOURCE_GIT_BLOB_SHA1 =
   "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 // Derive-only evidence. Verifier artifact SHA-256/byte count cannot be
 // declared accepted until cross-Node review and a locked successor manifest.
-const COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V4 = false;
+const COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V5 = false;
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "7266c03d8874207ed3fda0f814d0a7a53d429c25";
+  "e7ac4c296930587e7b7ec415e57bb18190c88962";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
 const EXPECTED_INPUT_BLOBS = Object.freeze({
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
@@ -52,7 +52,7 @@ const PREDECESSOR_UNCHANGED_PATHS = Object.freeze([
   "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
   "dist/economic/buy_void_source_finality_authority_v2.js",
   "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
-  "dist/economic/buy_void_payment_rpc_observer_v1.js",
+  "dist/economic/buy_void_verified_payment_v2.js",
 ]);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -296,9 +296,9 @@ async function derive() {
     artifacts,
   }), "utf8"));
   return Object.freeze({
-    schema: "void_buy_void_source_finality_compiled_artifact_attestation_v4",
+    schema: "void_buy_void_source_finality_compiled_artifact_attestation_v5",
     marker: MARKER,
-    version: 4,
+    version: 5,
     repository: "6ZoSo9/void-node",
     source_stack_head: SOURCE_STACK_HEAD,
     predecessor,
@@ -312,10 +312,10 @@ async function derive() {
       tsconfig_build_git_blob_sha1: EXPECTED_INPUT_BLOBS["tsconfig.build.json"],
       source_finality_sources_changed: true,
       change_reason:
-        "native_usdc_checkout_token_binding_and_source_finality_v6",
+        "payment_rpc_total_deadline_success_settlement_and_v6_source_identity",
       changed_source_paths: Object.freeze([
         "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
-        "src/economic/buy_void_verified_payment_v2.ts",
+        "src/economic/buy_void_payment_rpc_observer_v1.ts",
       ]),
     }),
     reviewed_source_generation: Object.freeze({
@@ -329,7 +329,7 @@ async function derive() {
     predecessor_unchanged_artifact_paths: PREDECESSOR_UNCHANGED_PATHS,
     changed_artifact_paths: Object.freeze([
       "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
-      "dist/economic/buy_void_verified_payment_v2.js",
+      "dist/economic/buy_void_payment_rpc_observer_v1.js",
     ]),
     predecessor_common_artifact_bytes_match: true,
     verified_payment_v2_source_git_blob_sha1:
@@ -342,7 +342,7 @@ async function derive() {
     compiled_artifact_generation_sha256: generation,
     derivation_node_majors: DERIVATION_NODE_MAJORS,
     compiled_artifact_generation_verified:
-      COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V4,
+      COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V5,
     deployed_artifact_generation_verified: false,
     runtime_mount_authority: false,
     production_source_finality_authority_ready: false,
@@ -439,7 +439,7 @@ function provePinnedReaderAdversaries() {
 
     clean();
     assert.equal(readPinnedFile(file, "synthetic", 64).toString(), "SAFE!!");
-    console.log("V4_CANDIDATE_DESCRIPTOR_BINDING_AND_BOUNDED_READ_GREEN");
+    console.log("V5_CANDIDATE_DESCRIPTOR_BINDING_AND_BOUNDED_READ_GREEN");
     console.log("same_size_path_replacement_rejected=true");
     console.log("postread_visible_path_replacement_rejected=true");
     console.log("concurrent_growth_read_bytes_at_most_pinned_plus_one=true");
@@ -457,7 +457,7 @@ if (args.length === 1 && args[0] === "--self-test") {
   process.exit(0);
 }
 if (args.length !== 1 || args[0] !== "--derive") {
-  fail("v4_candidate_derivation_only_not_locked_or_production_authority");
+  fail("v5_candidate_derivation_only_not_locked_or_production_authority");
 }
 const candidate = await derive();
 assert.equal(candidate.compiled_artifact_generation_verified, false);

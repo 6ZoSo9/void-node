@@ -3,7 +3,7 @@
   "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V4",
   "version": 4,
   "repository": "6ZoSo9/void-node",
-  "source_stack_head": "3533626d7167c98ba8d65d2c423b460b1a3199fc",
+  "source_stack_head": "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c",
   "predecessor": {
     "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
     "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
@@ -19,16 +19,15 @@
     "package_json_git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
     "tsconfig_build_git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb",
     "source_finality_sources_changed": true,
-    "change_reason": "native_usdc_checkout_payment_rpc_deadline_and_source_finality_v6",
+    "change_reason": "native_usdc_checkout_token_binding_and_source_finality_v6",
     "changed_source_paths": [
       "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
-      "src/economic/buy_void_payment_rpc_observer_v1.ts",
       "src/economic/buy_void_verified_payment_v2.ts"
     ]
   },
   "reviewed_source_generation": {
     "marker": "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6",
-    "reviewed_source_files_sha256": "ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1",
+    "reviewed_source_files_sha256": "95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426",
     "verified_source_file_count": 5
   },
   "entry_artifact": "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
@@ -37,7 +36,7 @@
     {
       "path": "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
       "bytes": 15937,
-      "sha256": "7de38c3ca8f3c2275e57862e9abdd7cc23a37a7d98adbd7afc261c99aa4e7e0e"
+      "sha256": "2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a"
     },
     {
       "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -56,8 +55,8 @@
     },
     {
       "path": "dist/economic/buy_void_payment_rpc_observer_v1.js",
-      "bytes": 15167,
-      "sha256": "9f4f5ee85972777e639dea89abf0c8337576525335ed982be3eb1bfe86c93db3"
+      "bytes": 12270,
+      "sha256": "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89"
     },
     {
       "path": "dist/economic/buy_void_verified_payment_v2.js",
@@ -68,18 +67,18 @@
   "predecessor_unchanged_artifact_paths": [
     "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
     "dist/economic/buy_void_source_finality_authority_v2.js",
-    "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js"
+    "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+    "dist/economic/buy_void_payment_rpc_observer_v1.js"
   ],
   "changed_artifact_paths": [
     "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
-    "dist/economic/buy_void_payment_rpc_observer_v1.js",
     "dist/economic/buy_void_verified_payment_v2.js"
   ],
   "predecessor_common_artifact_bytes_match": true,
   "verified_payment_v2_source_git_blob_sha1": "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac",
   "verified_payment_v2_artifact_sha256": "7d419bafa54c5a004416e224ee03131455a073600ca2c8d423d9fa40ab431ef2",
-  "reviewed_source_finality_v6_source_git_blob_sha1": "e7ac4c296930587e7b7ec415e57bb18190c88962",
-  "compiled_artifact_generation_sha256": "2795a591588aeb31d5f144a3a128079b05f29a3d712a182dd7071452687aa203",
+  "reviewed_source_finality_v6_source_git_blob_sha1": "7266c03d8874207ed3fda0f814d0a7a53d429c25",
+  "compiled_artifact_generation_sha256": "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06",
   "derivation_node_majors": [
     22,
     24,

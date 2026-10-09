@@ -9,23 +9,24 @@ on:
       - "src/economic/buy_void_source_finality_authority_v2.ts"
       - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
       - "src/economic/buy_void_payment_rpc_observer_v1.ts"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.build.json"
-      - "scripts/copy_void_runtime_js_v1.mjs"
-      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
-      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.yml"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  derive:
+  preserve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -38,103 +39,71 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Bind exact checkout
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Build exact repository artifacts
-        run: npm run build
-
-      - name: Adversarial pinned descriptor read proof
-        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --self-test
-
-      - name: Derive V4 candidate only
+      - name: Prove immutable compiled V4 history
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --derive > "v4-candidate-${{ matrix.node }}.json"
-          node --input-type=module -e '
-            import fs from "node:fs";
-            import assert from "node:assert/strict";
-            const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            assert.equal(j.schema, "void_buy_void_source_finality_compiled_artifact_attestation_v4");
-            assert.equal(j.source_stack_head, "3533626d7167c98ba8d65d2c423b460b1a3199fc");
-            assert.equal(j.verified_payment_v2_source_git_blob_sha1, "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac");
-            assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1, "e7ac4c296930587e7b7ec415e57bb18190c88962");
-            assert.equal(j.reviewed_source_generation.marker, "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6");
-            assert.equal(j.artifact_count, 6);
-            assert.equal(j.artifacts.length, 6);
-            assert.equal(j.compiled_artifact_generation_verified, false);
-            assert.equal(j.deployed_artifact_generation_verified, false);
-            assert.equal(j.runtime_mount_authority, false);
-            assert.equal(j.production_source_finality_authority_ready, false);
-            console.log("V4_CANDIDATE_NODE_SHAPE_AND_HOLD_GREEN");
-          ' "v4-candidate-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs             | tee "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_script_blob_preserved=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_manifest_blob_preserved=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_and_lock_generation_equal=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_acceptance=false'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_acceptance=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_rederived_against_current_source=false'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false'             "historical-v4-${{ matrix.node }}.txt"
 
-      - name: Verify candidate cannot claim locked acceptance
-        run: |
-          set -euo pipefail
-          if node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs > v4-acceptance-attempt.stderr 2>&1; then
-            echo "UNEXPECTED_ACCEPTANCE" >&2
-            exit 1
-          fi
-          grep -F 'v4_candidate_derivation_only_not_locked_or_production_authority' v4-acceptance-attempt.stderr
-          rm -f v4-acceptance-attempt.stderr
-
-      - name: Upload derivation evidence
+      - name: Upload historical V4 preservation receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-v4-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: v4-candidate-${{ matrix.node }}.json
+          name: buy-void-historical-v4-candidate-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: historical-v4-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
 
-      - name: Committed-range diff hygiene
+      - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi
 
   cross-node:
-    needs: [derive]
+    needs: [preserve]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Download exactly three derivation outputs
+      - name: Download V4 preservation receipts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-v4-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-historical-v4-candidate-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: ./v4-candidates
+          path: ./historical-v4
 
-      - name: Require byte-identical V4 derivation across Node 22, 24, 26
+      - name: Require exact Node 22 24 26 preservation evidence
         run: |
           set -euo pipefail
-          for v in 22 24 26; do test -s "v4-candidates/v4-candidate-$v.json"; done
-          cmp v4-candidates/v4-candidate-22.json v4-candidates/v4-candidate-24.json
-          cmp v4-candidates/v4-candidate-22.json v4-candidates/v4-candidate-26.json
-          node --input-type=module -e '
-            import fs from "node:fs";
-            import crypto from "node:crypto";
-            const bytes = fs.readFileSync("v4-candidates/v4-candidate-22.json");
-            const j = JSON.parse(bytes);
-            if (j.compiled_artifact_generation_verified !== false ||
-                j.production_source_finality_authority_ready !== false) process.exit(1);
-            console.log("V4_CANDIDATE_CROSS_NODE_EXACT_BYTES_GREEN");
-            console.log("v4_candidate_sha256=" + crypto.createHash("sha256").update(bytes).digest("hex"));
-            console.log("v4_candidate_generation=" + j.compiled_artifact_generation_sha256);
-            console.log("v4_candidate_acceptance=false");
-          '
+          for v in 22 24 26; do
+            test -s "historical-v4/historical-v4-$v.txt"
+          done
+          cmp historical-v4/historical-v4-22.txt historical-v4/historical-v4-24.txt
+          cmp historical-v4/historical-v4-22.txt historical-v4/historical-v4-26.txt
+          echo "VOID_BUY_VOID_HISTORICAL_COMPILED_V4_CROSS_NODE_GREEN"
+          echo "historical_v4_rederived_against_current_source=false"
+          echo "funds_moved=false"

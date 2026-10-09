@@ -7,9 +7,7 @@ runtime V6 bridge #2638 at exact source parent
 `3533626d7167c98ba8d65d2c423b460b1a3199fc`.
 
 Historical enforcement V1/V4 and source-finality V3/V5 attestations remain
-immutable predecessor evidence. The source-finality compiled V4 manifest named
-below is the separately reviewed current successor evidence; historical V4
-identities are not rewritten.
+immutable. They are predecessor evidence, not values to repin.
 
 Current source identities bound by the candidate:
 
@@ -20,9 +18,9 @@ Current source identities bound by the candidate:
 - finalized V2 verifier:
   `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
 - current locked compiled V4 manifest:
-  `03e31b1fe739e110f54eebad3c028adf908a21bf`;
+  `a07f2e9b03958a58280c4d940fe49097a9413af5`;
 - locked compiled generation:
-  `2795a591588aeb31d5f144a3a128079b05f29a3d712a182dd7071452687aa203`.
+  `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`.
 
 The old enforcement V4 set
 `854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b`
@@ -144,3 +142,15 @@ transaction, Chain-2050/WC mutation, inventory/treasury/liquidity, presale
 activation or funds movement is performed here.
 
 **PROTECT THE CORE.**
+
+
+## Current V6 source-anchor successor
+
+The enforcement V5 candidate now binds current V6 source integration commit
+`3533626d7167c98ba8d65d2c423b460b1a3199fc` and V6 source blob
+`e7ac4c296930587e7b7ec415e57bb18190c88962`. That V6 source advances its
+reviewed payment-observer identity after bounded total-response deadline
+hardening. This does **not** rewrite the historical locked compiled-V4 manifest
+or its generation `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`;
+those remain immutable predecessor evidence. The candidate still derives a new,
+unaccepted enforcement V5 closure from the current reviewed source stack.
