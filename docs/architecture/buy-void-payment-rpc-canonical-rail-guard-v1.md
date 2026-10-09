@@ -33,11 +33,24 @@ and an **unmounted** adapter `observeBuyVoidCanonicalRailPaymentV1`.
 The classifier binds `source_chain` to its unique numeric/string
 decimal chain ID, refuses aliases, fractional/negative/zero/hex,
 wrong-typed values or disabled policies, and runs *before any transport
-or RPC operation*. The adapter additionally binds request
-`source_chain` to the selected rail, then delegates unchanged to
-the reviewed V1 observer/transport and its receipt verification.
-No new RPC parser, credential, signing, ledger, provider, or receipt
-schema is introduced.
+or RPC operation*.
+
+The adapter first snapshots the server-controlled RPC policy into one frozen,
+plain primitive object. Proxy policies and accessors are rejected before their
+traps/getters can execute; unknown policy keys and non-primitive transport
+configuration are rejected. The canonical rail check and the legacy observer
+then consume the **same policy snapshot**, closing a validate-then-reread
+TOCTOU.
+
+It separately snapshots the caller payment-observation identity to exact own
+primitive `source_chain` and `tx_hash` data properties. Request Proxies,
+accessors and aliases are rejected before RPC. The same frozen request identity
+is passed to the legacy observer, so mutation of the original request or policy
+after admission cannot relabel the chain, change the transaction hash or
+redirect the RPC URL seen by the observer.
+
+No new RPC parser, credential, signing, ledger, provider, or receipt schema is
+introduced.
 
 The synthetic proof:
 - Binds exact Git blobs of both reviewed V1 observer and new guard.
@@ -49,15 +62,22 @@ The synthetic proof:
 - Proves Base=8453 and Ethereum=1 are accepted with integer or exact
   decimal-string IDs, their synthetic receipt chain IDs observed by
   the original V1 observer, and no other RPC methods called.
-- Requires 20 intentionally malformed rail/policy combinations and
-  mismatched request rail to HOLD before any provider call.
+- Requires malformed rail/policy combinations and mismatched request rail to
+  HOLD before any provider call.
+- Proves policy getters and Proxy traps are rejected without invocation.
+- Proves request identity getters and Proxy traps are rejected without
+  invocation.
+- Mutates the original policy and request during the first synthetic RPC call
+  and proves the observer still uses the admitted Base/8453 URL policy and the
+  original transaction hash from the frozen snapshots.
 - Runs independently on Node 22, 24 and 26 after exact source build,
   preserving byte-identical deterministic output receipts.
 
 ## Boundary: NOT current production integration
 
-This guard is **not mounted into `src/index.ts`**, and does not alter
-the full current-main [integration #2675](https://github.com/6ZoSo9/void-node/pull/2675).
+This guard is **not mounted into `src/index.ts`**. It is now carried by the
+full current-main [integration #2675](https://github.com/6ZoSo9/void-node/pull/2675)
+as source-only evidence, without changing the mounted operator route.
 The V6 finality adapter already binds canonical chain IDs, and
 none of these synthetic observations are a source-quorum or verified
 payment authorization. Any future real route adoption must be
