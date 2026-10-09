@@ -112,8 +112,45 @@ try {
   assert.match(workflowSource, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD/);
   assert.match(workflowSource, /target\.txt/);
   assert.match(workflowSource, /target_head_reached=true/);
-  assert.match(workflowSource, /VOID_PUBLIC_CHECKPOINT_RESTORE:\\s*'1'/);
+  assert.match(workflowSource, /VOID_PUBLIC_CHECKPOINT_RESTORE:\s*'1'/);
   assert.match(workflowSource, /test ! -e "\\$DATA_DIR"/);
+  assert.match(workflowSource, /timeout-minutes:\s*55/);
+  assert.match(
+    workflowSource,
+    /VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS:\s*'1800000'/,
+  );
+  assert.match(
+    workflowSource,
+    /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS:\s*'2400'/,
+  );
+  assert.match(
+    workflowSource,
+    /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS:\s*'30'/,
+  );
+  assert.match(
+    workflowSource,
+    /seq 1 "\\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"/,
+  );
+  assert.match(
+    workflowSource,
+    /sleep "\\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"/,
+  );
+  const jobBudgetSeconds = 55 * 60;
+  const restoreBudgetSeconds = 1800000 / 1000;
+  const restoreToNodeReadyMarginSeconds = 5 * 60;
+  const readinessWaitSeconds = 2400;
+  const postReadyGraceSeconds = 30;
+  const preStartBudgetSeconds = 10 * 60;
+  assert.ok(
+    restoreBudgetSeconds + restoreToNodeReadyMarginSeconds <
+      readinessWaitSeconds,
+    "restore budget must finish before acceptance readiness budget",
+  );
+  assert.ok(
+    readinessWaitSeconds + postReadyGraceSeconds + preStartBudgetSeconds <
+      jobBudgetSeconds,
+    "job budget must exceed pre-start + readiness + post-ready grace",
+  );
   assert.doesNotMatch(
     workflowSource,
     /mkdir -p outside-machine-evidence "\\$DATA_DIR"/,
@@ -129,6 +166,11 @@ try {
   console.log("workflow_checks_target_before_initial_and_grace_acceptance=true");
   console.log("fresh_acceptance_requests_checkpoint_restore=true");
   console.log("checkpoint_restore_data_dir_precreated=false");
+  console.log("checkpoint_restore_timeout_ms=1800000");
+  console.log("acceptance_readiness_wait_seconds=2400");
+  console.log("post_ready_grace_seconds=30");
+  console.log("restore_timeout_plus_start_margin_lt_readiness_wait=true");
+  console.log("prestart_plus_readiness_plus_grace_lt_job_timeout=true");
   console.log(`${MARKER}_GREEN`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

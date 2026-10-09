@@ -92,12 +92,24 @@ jobs:
           VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: ${{ inputs.manifest_url }}
           VOID_PUBLIC_BOOTSTRAP_REQUIRE: '1'
           VOID_PUBLIC_CHECKPOINT_RESTORE: '1'
+          # Keep restore timeout strictly below the acceptance wait. The job
+          # also retains explicit setup/start/grace margin inside 55 minutes.
+          VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS: '1800000'
+          VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS: '2400'
+          VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS: '30'
           DATA_DIR: ${{ runner.temp }}/void-public-bootstrap-data
         run: |
           set -Eeuo pipefail
           umask 077
           test "${#VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL}" -le 2048
           [[ "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD" =~ ^[1-9][0-9]*$ ]]
+          [[ "$VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS" =~ ^[1-9][0-9]*$ ]]
+          [[ "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]]
+          [[ "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS" =~ ^[1-9][0-9]*$ ]]
+          # Reviewed timing hierarchy: 30m restore + 5m node-start margin < 40m wait;
+          # 40m wait + 30s grace + 10m pre-start allowance < 55m job ceiling.
+          test "$((VOID_PUBLIC_CHECKPOINT_RESTORE_TOTAL_TIMEOUT_MS / 1000 + 300))" -lt "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"
+          test "$((VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS + VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS + 600))" -lt "$((55 * 60))"
           rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
           mkdir -p outside-machine-evidence
           test ! -e "$DATA_DIR"
@@ -117,7 +129,7 @@ jobs:
           trap cleanup EXIT INT TERM
 
           GREEN=0
-          for _ in $(seq 1 2400); do
+          for _ in $(seq 1 "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS"); do
             if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY"; then
               if node scripts/void_public_bootstrap_outside_machine_target_v1.mjs check-ready                   --ready "$READY"                   --target-head "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD"                   >/dev/null
               then
@@ -143,7 +155,7 @@ jobs:
           grep -F 'VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1_ACTIVE' "$LOG"
           grep -F 'direct_remote_fetch_from_node=false' "$LOG"
 
-          sleep 30
+          sleep "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"
           kill -0 "$PID"
           curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY_AFTER_GRACE"
           node scripts/void_public_bootstrap_outside_machine_target_v1.mjs check-ready             --ready "$READY_AFTER_GRACE"             --target-head "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD"
