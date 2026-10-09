@@ -311,15 +311,9 @@ function frozenJsonSnapshot(
     hold(label + "_serialization_budget_mismatch");
   }
 
-  let clone: any;
-  try {
-    clone = JSON.parse(raw);
-  } catch {
-    hold(label + "_invalid_json");
-  }
-  if (!clone || typeof clone !== "object" || Array.isArray(clone)) {
-    hold(label + "_invalid_json");
-  }
+  // Keep the already-validated detached representation. Parsing the JSON back
+  // would recreate ordinary Object/Array prototypes and could reintroduce
+  // ambient prototype toJSON authority before downstream persistence.
   function freezeDeep(item: any): any {
     if (item && typeof item === "object" && !Object.isFrozen(item)) {
       for (const nested of Object.values(item)) freezeDeep(nested);
@@ -327,7 +321,7 @@ function frozenJsonSnapshot(
     }
     return item;
   }
-  return freezeDeep(clone) as Readonly<Record<string, any>>;
+  return freezeDeep(detached) as Readonly<Record<string, any>>;
 }
 
 function absolutePrivateRoot(value: unknown): string {
