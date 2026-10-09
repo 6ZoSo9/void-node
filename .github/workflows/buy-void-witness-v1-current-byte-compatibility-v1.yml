@@ -1,0 +1,95 @@
+name: VOID witness actual V1-to-current byte compatibility evidence v1
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_witness_v1_current_byte_compatibility_v1.mjs"
+      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - ".github/workflows/buy-void-witness-v1-current-byte-compatibility-v1.yml"
+      - "docs/architecture/buy-void-witness-v1-current-byte-compatibility-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: buy-witness-v1-current-equivalence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact current source generation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject unexpected branch snapshot
+        env:
+          CHECKED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CHECKED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Select independently pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install reviewed build dependencies without lifecycle hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact reviewed witness runtime
+        run: npm run build
+      - name: Prove original candidate's negative loader guards
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_witness_v1_current_byte_compatibility_v1.mjs
+          node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test > /dev/null
+      - name: Verify true V1 source-commit and runtime digest equivalence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_witness_v1_current_byte_compatibility_v1.mjs --prove > "witness-source-compatibility-${{ matrix.node }}.json"
+          node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); for(const [k,v] of Object.entries({source_files_identical_to_true_v1_source_commit:8,build_inputs_identical_to_true_v1_source_commit:7,compiled_runtime_file_sha256_identical_to_frozen_v1:8,production_current_source_generation_accepted:false,historical_v1_receipt_rebound_to_current_generation:false,installed_nimo_witness_verified:false,real_payment_acceptance:false,presale_activation:false,funds_moved:false})) { if(x[k]!==v)throw Error("compatibility proof invalid: "+k); }' "witness-source-compatibility-${{ matrix.node }}.json"
+      - name: Upload exact-head deterministic read-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: witness-v1-source-compatibility-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: witness-source-compatibility-${{ matrix.node }}.json
+          retention-days: 1
+          if-no-files-found: error
+      - name: Guard source-diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: source-compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Read three exact-head evidence artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: witness-v1-source-compatibility-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Reject nondeterministic compiler or source-digest mismatch
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "receipts/witness-source-compatibility-$node.json"; done
+          cmp receipts/witness-source-compatibility-22.json receipts/witness-source-compatibility-24.json
+          cmp receipts/witness-source-compatibility-22.json receipts/witness-source-compatibility-26.json
+          echo VOID_BUY_VOID_WITNESS_V1_CURRENT_BYTE_COMPATIBILITY_THREE_NODE_GREEN
+          echo "source_only_evidence=true"
+          echo "historical_v1_receipt_rebound_to_current_generation=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"
