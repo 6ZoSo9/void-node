@@ -23,7 +23,7 @@ import {
 const SOURCE =
   "src/economic/buy_void_custody_launch_authority_v2.mjs";
 const EXPECTED_SOURCE_BLOB =
-  "04bba7fdd951a2854f943a6e4d51c78a00cafce4";
+  "8daef632d7ec740d44cc9abf089cce1c1a92f886";
 
 function gitBlob(bytes) {
   return crypto.createHash("sha1")
@@ -143,7 +143,7 @@ async function signedReceipt({
     source_composition_id: SOURCE_COMPOSITION,
     activation_signer: activation.address.toLowerCase(),
     sovereign_signer: sovereign.address.toLowerCase(),
-    activation_nonce: "0x" + nonceByte.repeat(64),
+    activation_nonce: "0x" + nonceByte.repeat(32),
     activation_generation: generation,
     generation_tip_sha256: tip,
     activated_at_ms: activatedAt,
