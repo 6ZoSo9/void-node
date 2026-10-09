@@ -8,7 +8,7 @@ import {
 } from "../src/economic/buy_void_payment_rpc_observer_v1.js";
 
 const EXPECTED_SOURCE_BLOB =
-  "ad3796b62aa26fbd44a81b1d610f0f2095c9b391";
+  "06e31412e893fd18f5675ea1420f1fa2e6139fba";
 
 function gitBlob(bytes: Buffer): string {
   return crypto.createHash("sha1")
@@ -40,7 +40,7 @@ assert.equal(authority.filesystem_write, false);
 assert.equal(authority.runtime_route_mount, false);
 assert.equal(authority.money_movement, false);
 
-type Mode = "valid" | "jsonp" | "wrong-id" | "oversize" | "drip";
+type Mode = "valid" | "jsonp" | "wrong-id" | "oversize" | "aborted" | "drip";
 let mode: Mode = "valid";
 let requestCount = 0;
 let dripTicks = 0;
@@ -89,6 +89,13 @@ const server = http.createServer((req, res) => {
         id: parsed.id,
         result: "x".repeat(512),
       }));
+      return;
+    }
+
+    if (mode === "aborted") {
+      res.writeHead(200, {"content-type": "application/json"});
+      res.write('{"jsonrpc":"2.0"');
+      setTimeout(() => res.destroy(), 20).unref?.();
       return;
     }
 
@@ -141,7 +148,7 @@ try {
     source_chain: "base",
     chain_id: 8453,
     rpc_url: url,
-    timeout_ms: 120,
+    timeout_ms: 300,
     max_response_bytes: 128,
   });
   assert.equal("reason" in transport, false);
@@ -173,6 +180,12 @@ try {
     /payment_observer_rpc_response_too_large/u,
   );
 
+  mode = "aborted";
+  await assert.rejects(
+    () => transport.call({method: "eth_chainId", params: []}),
+    /payment_observer_rpc_response_aborted/u,
+  );
+
   mode = "drip";
   const started = Date.now();
   await assert.rejects(
@@ -189,7 +202,7 @@ try {
     "drip fixture did not exercise active response traffic",
   );
 
-  assert.equal(requestCount, 5);
+  assert.equal(requestCount, 6);
 
   console.log("VOID_BUY_VOID_PAYMENT_RPC_TOTAL_DEADLINE_V1_GREEN");
   console.log("observer_source_blob=" + EXPECTED_SOURCE_BLOB);
@@ -197,6 +210,7 @@ try {
   console.log("application_jsonp_rejected=true");
   console.log("wrong_json_rpc_id_rejected=true");
   console.log("oversize_response_rejected=true");
+  console.log("premature_response_abort_rejected=true");
   console.log("drip_feed_total_deadline_enforced=true");
   console.log("inactivity_timeout_only=false");
   console.log("external_rpc_contact=false");
