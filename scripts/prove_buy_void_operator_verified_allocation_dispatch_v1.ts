@@ -48,6 +48,10 @@ function input(overrides: Record<string, any> = {}): any {
 
 const authority =
   VOID_BUY_VOID_OPERATOR_VERIFIED_ALLOCATION_DISPATCH_AUTHORITY_V1;
+assert.equal(authority.bounded_plain_data_snapshot_required, true);
+assert.equal(authority.pre_serialization_resource_bound_verified, true);
+assert.equal(authority.caller_accessor_or_tojson_authority, false);
+
 for (const key of [
   "mounted_operator_route_verified",
   "operator_principal_authenticated",
@@ -211,17 +215,83 @@ for (const status of [
 let serializeCount = 0;
 {
   const event = {
+    request_id: "synthetic-r1",
+    operator_status: "payment_verified",
     toJSON() {
       serializeCount++;
       return {
         request_id: "synthetic-r1",
-        operator_status: serializeCount === 1 ? "payment_verified" : "reviewed",
+        operator_status: "payment_verified",
       };
     },
   };
-  const plan = planBuyVoidOperatorAllocationDispatchV1(input({event}));
-  assert.equal(serializeCount, 1);
-  assert.equal(plan.kind, "verified_payment_allocation_handoff");
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({event})),
+    /buy_void_operator_allocation_dispatch_event_unsupported_value/u,
+  );
+  assert.equal(serializeCount, 0, "event toJSON must not execute");
+}
+
+{
+  let getterReads = 0;
+  const event:any = {
+    request_id: "synthetic-r1",
+    operator_status: "payment_verified",
+  };
+  Object.defineProperty(event, "padding", {
+    enumerable: true,
+    get() {
+      getterReads++;
+      return "X".repeat(4 * 1024 * 1024);
+    },
+  });
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({event})),
+    /buy_void_operator_allocation_dispatch_event_accessor_or_nondata_property/u,
+  );
+  assert.equal(getterReads, 0, "event getter must not execute");
+}
+
+{
+  const originalStringify = JSON.stringify;
+  let stringifyCalls = 0;
+  try {
+    JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
+      stringifyCalls++;
+      return originalStringify(...args);
+    }) as typeof JSON.stringify;
+    assert.throws(
+      () => planBuyVoidOperatorAllocationDispatchV1(input({
+        event: {
+          request_id: "synthetic-r1",
+          operator_status: "payment_verified",
+          padding: "Y".repeat(4 * 1024 * 1024),
+        },
+      })),
+      /buy_void_operator_allocation_dispatch_event_text_size_exceeded/u,
+    );
+  } finally {
+    JSON.stringify = originalStringify;
+  }
+  assert.equal(stringifyCalls, 0,
+    "oversize caller data must HOLD before full JSON serialization");
+}
+
+{
+  const event:any = {
+    request_id: "synthetic-r1",
+    operator_status: "payment_verified",
+  };
+  let cursor = event;
+  for (let depth = 0; depth < 32; depth++) {
+    const child:any = {};
+    cursor.nested = child;
+    cursor = child;
+  }
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({event})),
+    /buy_void_operator_allocation_dispatch_event_depth_exceeded/u,
+  );
 }
 
 for (const [reason, overrides] of [
@@ -245,7 +315,7 @@ for (const [reason, overrides] of [
   const cyc:any = {request_id:"synthetic-r1",operator_status:"payment_verified"};
   cyc.self = cyc;
   assert.throws(() => planBuyVoidOperatorAllocationDispatchV1(
-    input({event:cyc})), /serialization_failed/u);
+    input({event:cyc})), /event_depth_exceeded/u);
 }
 await assert.rejects(
   () => dispatchBuyVoidOperatorEventWithAllocationRequiredV1(
@@ -316,7 +386,10 @@ console.log("invalid_status_cannot_reach_legacy_writer=true");
 console.log("missing_invalid_or_aliased_private_roots_fail_closed=true");
 console.log("exact_canonical_allocation_roots_required=true");
 console.log("immutable_event_and_request_snapshots=true");
-console.log("stateful_event_toJSON_read_once=true");
+console.log("caller_toJSON_rejected_without_invocation=true");
+console.log("caller_accessor_rejected_without_invocation=true");
+console.log("oversize_text_holds_before_full_json_serialization=true");
+console.log("deep_nesting_holds_before_json_serialization=true");
 console.log("server_control_properties_read_once=true");
 console.log("dispatch_calls_allocation_writer_only_on_verified_branch=true");
 console.log("mounted_operator_legacy_payment_only_producer_observed=true");
