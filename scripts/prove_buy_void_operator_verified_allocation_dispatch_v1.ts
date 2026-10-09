@@ -15,7 +15,7 @@ const IDX_PATH = "src/index.ts";
 const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
-  "ac80a8e99ce6f163c2eed004b76f5f89affe2275";
+  "36544de43be6ea0cc845d876b259789a76b15806";
 const FROZEN_ROUTER_GIT_BLOB = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
   "496715e7ae2941663908976a4a3f4efd7c6199cf";
@@ -324,6 +324,48 @@ let serializeCount = 0;
   );
 }
 
+{
+  const event:any = {
+    request_id: "synthetic-r1",
+    operator_status: "payment_verified",
+  };
+  for (let index = 0; index < 5000; index++) {
+    event["k" + index] = index;
+  }
+  const originalStringify = JSON.stringify;
+  let stringifyCalls = 0;
+  try {
+    JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
+      stringifyCalls++;
+      return originalStringify(...args);
+    }) as typeof JSON.stringify;
+    assert.throws(
+      () => planBuyVoidOperatorAllocationDispatchV1(input({event})),
+      /buy_void_operator_allocation_dispatch_event_key_count_exceeded/u,
+    );
+  } finally {
+    JSON.stringify = originalStringify;
+  }
+  assert.equal(stringifyCalls, 0,
+    "excess key count must HOLD before full JSON serialization");
+}
+
+{
+  const sparse:any[] = [];
+  sparse.length = 2;
+  sparse[0] = "present";
+  assert.throws(
+    () => planBuyVoidOperatorAllocationDispatchV1(input({
+      event: {
+        request_id: "synthetic-r1",
+        operator_status: "payment_verified",
+        sparse,
+      },
+    })),
+    /buy_void_operator_allocation_dispatch_event_accessor_or_nondata_property/u,
+  );
+}
+
 for (const [reason, overrides] of [
   ["missing roots", {allocation_ledger_root:undefined}],
   ["empty roots", {allocation_high_water_root:""}],
@@ -429,6 +471,8 @@ console.log("caller_accessor_rejected_without_invocation=true");
 console.log("caller_proxy_rejected_without_traps=true");
 console.log("oversize_text_holds_before_full_json_serialization=true");
 console.log("deep_nesting_holds_before_json_serialization=true");
+console.log("excess_key_count_holds_before_json_serialization=true");
+console.log("sparse_array_inherited_lookup_forbidden=true");
 console.log("server_control_properties_read_once=true");
 console.log("dispatch_calls_allocation_writer_only_on_verified_branch=true");
 console.log("mounted_operator_legacy_payment_only_producer_observed=true");
