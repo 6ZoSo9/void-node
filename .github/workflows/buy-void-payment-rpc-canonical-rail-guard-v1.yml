@@ -61,6 +61,7 @@ jobs:
             ethereum_mainnet_chain_id_1_required=true \
             wrong_chain_id_held_before_RPC=true \
             mismatched_request_chain_held_before_RPC=true \
+            disabled_policy_held_before_RPC=true \
             policy_accessor_rejected_without_invocation=true \
             policy_proxy_rejected_without_traps=true \
             direct_classifier_policy_accessor_rejected_without_invocation=true \
