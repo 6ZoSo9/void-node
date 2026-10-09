@@ -60,6 +60,8 @@ that choice: injected `prior_sequence`, `prior_generation`, or
 The parser revalidates:
 
 - exact closed key order/schema;
+- every authority-bearing digest, slot ID and generation as an actual primitive
+  string; array/object values that merely stringify to valid text are rejected;
 - canonical JSON bytes;
 - slot ID derivation;
 - exact next byte digest/base64;
@@ -119,7 +121,9 @@ source testing and writes no fixture state. It proves:
   permanent slot and conflicting exact records HOLD;
 - exact same-state replay requires no transition fence;
 - rollback, same-sequence conflict and source-composition change fail;
-- tampered slot/digest and noncanonical record bytes fail.
+- tampered slot/digest and noncanonical record bytes fail;
+- array-wrapped source-composition/generation/digest fields in either the
+  high-water input or permanent fence record fail before becoming authority.
 
 The focused workflow runs the same proof on Node 22, 24 and 26 and requires
 byte-identical receipts.
