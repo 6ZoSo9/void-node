@@ -30,6 +30,13 @@ lock proofs also run in the new Node 22/24/26 workflow. The proof does not
 claim cross-filesystem atomicity, a deployed custody service, recovery for
 stale/uncertain locks, or completed payment-allocation production wiring.
 
+An additional integration proof runs the **actual high-water writer** and
+the actual exclusive lock under private OS-temporary journal, receipt and
+high-water fixtures, with the writer's existing test-only classifier hook.
+It requires monotonic advance, pre-classification contention rejection,
+idempotent replay and a precommit failure that retains the lock and old
+high-water for explicit recovery. This does not use real custody state.
+
 Strict HOLD remains for real reserve/recover and sales. Runtime and cross-UID
 authenticated IPC, privileged server-only startup path custody, true durable
 crash recovery and launch receipt eligibility still need independent review.

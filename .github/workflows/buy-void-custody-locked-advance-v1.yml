@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_custody_high_water_exclusive_lock_v1.mjs"
       - "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs"
       - "scripts/prove_buy_void_custody_owned_temp_cleanup_v1.mjs"
+      - "scripts/prove_buy_void_custody_locked_actual_writer_v1.mjs"
       - "scripts/prove_buy_void_custody_locked_advance_v1.mjs"
       - "scripts/prove_buy_void_custody_high_water_exclusive_lock_v1.mjs"
       - ".github/workflows/buy-void-custody-locked-advance-v1.yml"
@@ -46,6 +47,7 @@ jobs:
           node scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs > /dev/null
           node scripts/prove_buy_void_custody_owned_temp_cleanup_v1.mjs > /dev/null
           node scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs > /dev/null
+          node scripts/prove_buy_void_custody_locked_actual_writer_v1.mjs > /dev/null
           node scripts/prove_buy_void_custody_locked_advance_v1.mjs |
             tee "locked-advance-${{ matrix.node }}.txt"
           grep -Fx "production_authority_false=true" "locked-advance-${{ matrix.node }}.txt"
