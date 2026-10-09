@@ -100,7 +100,7 @@ import { Metrics } from "./metrics.js";
 import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
-import g from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";
+import evaluateBuyVoidManualFulfilledConfirmedStateGateV1 from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";
 import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
 import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT
 import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
@@ -18838,7 +18838,7 @@ if (!found) {
 }
 
 try{
-const r = await g(
+const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(
   found,id,operator_status,note,void_delivery_tx_hash,
   __voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,
   (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
