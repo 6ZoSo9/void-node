@@ -138,7 +138,7 @@ function snapshotCanonicalPaymentRpcPolicyV1(
   }
 
   if (
-    enabled !== true ||
+    typeof enabled !== "boolean" ||
     (sourceChain !== "base" && sourceChain !== "ethereum") ||
     (typeof chainId !== "string" && typeof chainId !== "number") ||
     typeof rpcUrl !== "string" ||
@@ -201,13 +201,9 @@ function snapshotCanonicalPaymentRequestIdentityV1(
   }) as BuyVoidRequestV1;
 }
 
-export function classifyBuyVoidCanonicalPaymentRpcRailV1(
-  policy: unknown,
+function classifyCanonicalPaymentRpcPolicySnapshotV1(
+  value: BuyVoidPaymentRpcObserverPolicyV1,
 ): BuyVoidCanonicalPaymentRpcRailDecisionV1 {
-  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
-    return held("canonical_payment_rpc_policy_invalid");
-  }
-  const value = policy as Record<string, unknown>;
   if (value.enabled !== true) {
     return held("canonical_payment_rpc_policy_disabled");
   }
@@ -232,6 +228,14 @@ export function classifyBuyVoidCanonicalPaymentRpcRailV1(
   });
 }
 
+export function classifyBuyVoidCanonicalPaymentRpcRailV1(
+  policy: unknown,
+): BuyVoidCanonicalPaymentRpcRailDecisionV1 {
+  const snapshot = snapshotCanonicalPaymentRpcPolicyV1(policy);
+  if ("reason" in snapshot) return snapshot;
+  return classifyCanonicalPaymentRpcPolicySnapshotV1(snapshot);
+}
+
 export async function observeBuyVoidCanonicalRailPaymentV1(input: {
   request: BuyVoidRequestV1;
   policy: BuyVoidPaymentRpcObserverPolicyV1;
@@ -247,7 +251,7 @@ export async function observeBuyVoidCanonicalRailPaymentV1(input: {
     snapshotCanonicalPaymentRequestIdentityV1(input?.request);
   if ("reason" in requestSnapshot) return requestSnapshot;
 
-  const rail = classifyBuyVoidCanonicalPaymentRpcRailV1(policySnapshot);
+  const rail = classifyCanonicalPaymentRpcPolicySnapshotV1(policySnapshot);
   if (rail.ok === false) return rail;
 
   // A request cannot relabel the canonical source rail. This is not an
