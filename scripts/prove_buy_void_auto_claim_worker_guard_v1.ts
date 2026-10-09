@@ -66,6 +66,7 @@ for (const required of [
   "automatic_delivery_started: false",
   "signing_performed: false",
   "transaction_broadcast: false",
+  "payment_observer_rpc_total_deadline_exceeded",
 ]) {
   assert.equal(source.includes(required), true, `missing source wall: ${required}`);
 }
@@ -78,8 +79,6 @@ for (const forbidden of [
   /eth_sendTransaction/i,
   /signTransaction/i,
   /sendRawTransaction/i,
-  /setInterval\s*\(/,
-  /setTimeout\s*\(/,
   /app\.(?:post|put|patch|delete)\s*\(/,
   /router\.(?:post|put|patch|delete)\s*\(/,
   /process\.env/,
@@ -88,6 +87,17 @@ for (const forbidden of [
   /spawn\s*\(/,
 ]) {
   assert.equal(forbidden.test(source), false, `forbidden source pattern: ${forbidden}`);
+}
+
+for (const forbidden of [
+  /setInterval\s*\(/,
+  /setTimeout\s*\(/,
+]) {
+  assert.equal(
+    forbidden.test(worker),
+    false,
+    `auto-claim worker scheduling forbidden: ${forbidden}`,
+  );
 }
 
 assert.equal(observer.includes('from "node:fs"'), false);
