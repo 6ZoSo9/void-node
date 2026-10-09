@@ -15,7 +15,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = "src/economic/buy_void_payment_rpc_observer_v1.ts";
-const EXPECTED_SOURCE_BLOB = "e78b8511a6c049182d7c0e1ae1af320744f57cf7";
+const EXPECTED_SOURCE_BLOB = "ad47f67b894ea6b145003a33ee8154c1a1b87e2f";
 const rpcMethod = "eth_blockNumber";
 const rpcParams = [];
 const blob = bytes => crypto.createHash("sha1")
