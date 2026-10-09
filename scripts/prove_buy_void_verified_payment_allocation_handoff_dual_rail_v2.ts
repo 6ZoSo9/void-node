@@ -99,10 +99,10 @@ function decimal(units){
 }
 async function saleState(f){
   const req=fs.readFileSync(path.join(f.requestDir,REQUEST),"utf8")
-    .trim().split("\n").filter(Boolean).map(JSON.parse);
+    .trim().split("\n").filter(Boolean).map((line: string) => JSON.parse(line));
   const quote=new Map(req.map(r=>[String(r.request_id),BigInt(r.quoted_void)*MICRO]));
   const event=fs.readFileSync(path.join(f.requestDir,EVENT),"utf8")
-    .trim().split("\n").filter(Boolean).map(JSON.parse);
+    .trim().split("\n").filter(Boolean).map((line: string) => JSON.parse(line));
   const verifiedIds=new Set(event.filter(e=>e.operator_status==="payment_verified")
     .map(e=>String(e.request_id)));
   let reserved=0n;for(const id of verifiedIds)reserved+=quote.get(id)||0n;
@@ -138,7 +138,7 @@ try {
   // The handoff response intentionally exposes a record ID, not full ledger
   // contents. Inspect the REAL durable reservation rows for chain identity.
   const reservations=fs.readFileSync(path.join(both.ledgerRoot,LEDGER),"utf8")
-    .trim().split("\n").filter(Boolean).map(JSON.parse);
+    .trim().split("\n").filter(Boolean).map((line: string) => JSON.parse(line));
   assert.deepEqual(
     reservations.map(r=>r.canonical_payment_identity).sort(),
     ["voidpay1:base:"+SAME_TX+":7","voidpay1:ethereum:"+SAME_TX+":7"].sort(),
