@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 
 import {
   withBuyVoidFilesystemBakeryLockAsyncV1,
@@ -1553,6 +1553,146 @@ function microTextV1(units: bigint): string {
   return fraction ? whole + "." + fraction : whole.toString();
 }
 
+const CANONICAL_EVENT_MAX_DEPTH_V1 = 32;
+const CANONICAL_EVENT_MAX_NODES_V1 = 8192;
+const CANONICAL_EVENT_MAX_KEYS_V1 = 16384;
+const CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1 = 8192;
+const CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1 = 1024 * 1024;
+
+type CanonicalEventBudgetV1 = {
+  nodes: number;
+  keys: number;
+};
+
+function detachedCanonicalJsonValueV1(
+  value: unknown,
+  budget: CanonicalEventBudgetV1,
+  ancestors: WeakSet<object>,
+  depth: number,
+): any {
+  if (depth > CANONICAL_EVENT_MAX_DEPTH_V1) {
+    fail("buy_void_verified_payment_allocation_event_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > CANONICAL_EVENT_MAX_NODES_V1) {
+    fail("buy_void_verified_payment_allocation_event_node_count_exceeded");
+  }
+
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      fail("buy_void_verified_payment_allocation_event_number_invalid");
+    }
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value.length > CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1) {
+      fail("buy_void_verified_payment_allocation_event_text_size_exceeded");
+    }
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    fail("buy_void_verified_payment_allocation_event_value_unsupported");
+  }
+  if (utilTypes.isProxy(value)) {
+    fail("buy_void_verified_payment_allocation_event_proxy_forbidden");
+  }
+  if (ancestors.has(value)) {
+    fail("buy_void_verified_payment_allocation_event_cycle_forbidden");
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (
+        prototype !== Array.prototype ||
+        value.length > CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1
+      ) {
+        fail("buy_void_verified_payment_allocation_event_array_invalid");
+      }
+      const clone: any[] = [];
+      // Prevent ambient Array.prototype.toJSON from executing when these
+      // detached bytes are serialized now or rechecked downstream.
+      Object.defineProperty(clone, "toJSON", {
+        value: undefined,
+        enumerable: false,
+        writable: false,
+        configurable: false,
+      });
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor =
+          Object.getOwnPropertyDescriptor(value, String(index));
+        if (
+          !descriptor ||
+          !Object.hasOwn(descriptor, "value") ||
+          descriptor.enumerable !== true
+        ) {
+          fail(
+            "buy_void_verified_payment_allocation_event_accessor_or_sparse_value",
+          );
+        }
+        clone.push(
+          detachedCanonicalJsonValueV1(
+            descriptor.value,
+            budget,
+            ancestors,
+            depth + 1,
+          ),
+        );
+      }
+      return clone;
+    }
+
+    if (prototype !== Object.prototype && prototype !== null) {
+      fail("buy_void_verified_payment_allocation_event_nonplain_object");
+    }
+
+    // Never serialize the caller object itself. Null-prototype detached
+    // records cannot inherit Object.prototype.toJSON or inherited accessors.
+    const clone: Record<string, any> = Object.create(null);
+    let localKeys = 0;
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      localKeys += 1;
+      budget.keys += 1;
+      if (
+        localKeys > CANONICAL_EVENT_MAX_KEYS_V1 ||
+        budget.keys > CANONICAL_EVENT_MAX_KEYS_V1
+      ) {
+        fail("buy_void_verified_payment_allocation_event_key_count_exceeded");
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (
+        !descriptor ||
+        !Object.hasOwn(descriptor, "value") ||
+        descriptor.enumerable !== true
+      ) {
+        fail(
+          "buy_void_verified_payment_allocation_event_accessor_or_nondata_property",
+        );
+      }
+      if (key === "toJSON") {
+        fail("buy_void_verified_payment_allocation_event_tojson_forbidden");
+      }
+      Object.defineProperty(clone, key, {
+        value: detachedCanonicalJsonValueV1(
+          descriptor.value,
+          budget,
+          ancestors,
+          depth + 1,
+        ),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return clone;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 function deepFreezeJsonValueV1(value: any): any {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) {
     return value;
@@ -1567,9 +1707,23 @@ function canonicalVerifiedPaymentEventV1(value: any): {
   event: Readonly<Record<string, any>>;
   line: Buffer;
 } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  const detached = detachedCanonicalJsonValueV1(
+    value,
+    { nodes: 0, keys: 0 },
+    new WeakSet<object>(),
+    0,
+  );
+  if (!detached || typeof detached !== "object" || Array.isArray(detached)) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
   let json: string;
   try {
-    const serialized = JSON.stringify(value);
+    const serialized = JSON.stringify(detached);
     if (typeof serialized !== "string") {
       fail("buy_void_verified_payment_allocation_event_serialization_invalid");
     }
@@ -1583,17 +1737,8 @@ function canonicalVerifiedPaymentEventV1(value: any): {
     fail("buy_void_verified_payment_allocation_event_serialization_invalid");
   }
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
-  }
-
-  const event = deepFreezeJsonValueV1(parsed) as Readonly<Record<string, any>>;
+  const event =
+    deepFreezeJsonValueV1(detached) as Readonly<Record<string, any>>;
   const rebound = Buffer.from(JSON.stringify(event) + "\n", "utf8");
   if (!rebound.equals(line)) {
     fail("buy_void_verified_payment_allocation_event_canonical_roundtrip_mismatch");
