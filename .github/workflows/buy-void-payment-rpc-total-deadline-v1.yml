@@ -58,11 +58,14 @@ jobs:
             | tee "buy-void-rpc-deadline-node-${{ matrix.node }}.txt"
           for proof in \
             slow_drip_total_wall_clock_deadline_enforced=true \
+            event_loop_starvation_total_deadline_enforced=true \
             oversized_rpc_response_rejected=true \
             premature_rpc_response_rejected=true \
             mismatched_response_id_rejected=true \
             forged_non2xx_result_rejected=true \
             non_json_content_type_rejected=true \
+            json_prefix_media_type_rejected=true \
+            mixed_result_error_envelope_rejected=true \
             only_synthetic_loopback_http=true \
             production_payment_authority_ready=false \
             wallet_or_signer_access=false \
