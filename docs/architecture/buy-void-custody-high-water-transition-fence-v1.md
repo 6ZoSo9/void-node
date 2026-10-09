@@ -24,16 +24,18 @@ Every high-water mutation is defined by:
 - exact next custody high-water bytes;
 - one source-composition ID embedded in the canonical V2 high-water record.
 
-The transition slot ID is derived only from:
-
-- the transition-fence domain marker;
-- source-composition ID; and
-- exact prior high-water SHA-256, or a bootstrap sentinel.
+The transition slot ID is derived from the transition-fence domain plus the
+exact prior high-water identity. For an existing high-water, the slot binds the
+source-composition ID and exact prior SHA-256; that digest already commits to
+the complete canonical prior bytes. For bootstrap there is no prior state, so
+the slot uses one **global bootstrap sentinel** and deliberately does not include
+the proposed source composition.
 
 It deliberately does **not** include the proposed successor.
 
 Therefore every competing successor from the same prior custody state maps to
-the same permanent slot. The first create-only record decides the only allowed
+the same permanent slot, and every competing first successor from an absent
+bootstrap state also collides on one global bootstrap slot. The first create-only record decides the only allowed
 successor for that prior state. A different later proposal encounters the same
 slot with different exact record bytes and must HOLD.
 
@@ -113,6 +115,8 @@ source testing and writes no fixture state. It proves:
 - exact committed next state is idempotently recognized;
 - an unrelated observed current high-water fails closed;
 - bootstrap is recoverable from absent current state;
+- different source compositions competing from absent bootstrap derive the same
+  permanent slot and conflicting exact records HOLD;
 - exact same-state replay requires no transition fence;
 - rollback, same-sequence conflict and source-composition change fail;
 - tampered slot/digest and noncanonical record bytes fail.
