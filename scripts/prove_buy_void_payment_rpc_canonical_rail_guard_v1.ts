@@ -21,13 +21,13 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OBSERVER = "src/economic/buy_void_payment_rpc_observer_v1.ts";
 const EXPECTED_OBSERVER_GIT_BLOB =
-  "e78b8511a6c049182d7c0e1ae1af320744f57cf7";
+  "ad47f67b894ea6b145003a33ee8154c1a1b87e2f";
 const bytes = fs.readFileSync(path.join(ROOT, OBSERVER));
 const gitBlob = crypto.createHash("sha1")
   .update(Buffer.from("blob " + bytes.byteLength + "\0", "utf8"))
   .update(bytes).digest("hex");
 assert.equal(gitBlob, EXPECTED_OBSERVER_GIT_BLOB,
-  "historical reviewed total-deadline observer source must not drift");
+  "repaired reviewed total-deadline observer source must not drift");
 const GUARD_SOURCE = "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts";
 const EXPECTED_GUARD_GIT_BLOB = "b5e1a4288889e8c63c6cbe651ebdf41446fd6813";
 const guardBytes = fs.readFileSync(path.join(ROOT, GUARD_SOURCE));
