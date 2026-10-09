@@ -19,6 +19,8 @@ export const VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1 =
     pre_rpc_chain_policy_binding: true,
     policy_snapshot_once_before_guard_and_transport: true,
     policy_accessors_or_proxy_allowed: false,
+    request_payment_identity_snapshot_once: true,
+    request_accessors_or_proxy_allowed: false,
     imported_legacy_transport_retained: true,
     observed_provider_honesty_verified: false,
     production_payment_authority_ready: false,
@@ -163,6 +165,42 @@ function snapshotCanonicalPaymentRpcPolicyV1(
   });
 }
 
+function snapshotCanonicalPaymentRequestIdentityV1(
+  request: unknown,
+): BuyVoidRequestV1 | BuyVoidCanonicalPaymentRpcRailHeldV1 {
+  if (
+    !request ||
+    typeof request !== "object" ||
+    Array.isArray(request) ||
+    utilTypes.isProxy(request)
+  ) {
+    return held("canonical_payment_rpc_request_invalid");
+  }
+  const proto = Object.getPrototypeOf(request);
+  if (proto !== Object.prototype && proto !== null) {
+    return held("canonical_payment_rpc_request_invalid");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(request);
+  const source = descriptors.source_chain;
+  const tx = descriptors.tx_hash;
+  if (
+    !source ||
+    source.enumerable !== true ||
+    !Object.hasOwn(source, "value") ||
+    (source.value !== "base" && source.value !== "ethereum") ||
+    !tx ||
+    tx.enumerable !== true ||
+    !Object.hasOwn(tx, "value") ||
+    typeof tx.value !== "string"
+  ) {
+    return held("canonical_payment_rpc_request_invalid");
+  }
+  return Object.freeze({
+    source_chain: source.value,
+    tx_hash: tx.value,
+  }) as BuyVoidRequestV1;
+}
+
 export function classifyBuyVoidCanonicalPaymentRpcRailV1(
   policy: unknown,
 ): BuyVoidCanonicalPaymentRpcRailDecisionV1 {
@@ -205,19 +243,24 @@ export async function observeBuyVoidCanonicalRailPaymentV1(input: {
     snapshotCanonicalPaymentRpcPolicyV1(input?.policy);
   if ("reason" in policySnapshot) return policySnapshot;
 
+  const requestSnapshot =
+    snapshotCanonicalPaymentRequestIdentityV1(input?.request);
+  if ("reason" in requestSnapshot) return requestSnapshot;
+
   const rail = classifyBuyVoidCanonicalPaymentRpcRailV1(policySnapshot);
   if (rail.ok === false) return rail;
 
   // A request cannot relabel the canonical source rail. This is not an
   // allocation/presale authority check; the original request must still be
   // independently bound to durable checkout and exact native USDC bytes.
-  if (input?.request?.source_chain !== rail.source_chain) {
+  if (requestSnapshot.source_chain !== rail.source_chain) {
     return held("canonical_payment_rpc_request_chain_mismatch", rail.chain_id);
   }
 
+  const transport = input?.transport;
   return observeBuyVoidPaymentV1({
-    request: input.request,
+    request: requestSnapshot,
     policy: policySnapshot,
-    ...(input.transport ? { transport: input.transport } : {}),
+    ...(transport ? { transport } : {}),
   });
 }
