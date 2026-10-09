@@ -4,13 +4,13 @@
 
 This Draft derives an **unaccepted enforcement V5 candidate** from current
 runtime V6 bridge #2638 at exact stabilized source parent
-`f627cad6bc07a6ad3ebe7cbd946723316fcd0567`.
+`22a30e3ffad6047a472488104c769140bd050878`.
 
 The predecessor V6 source parent
 `3533626d7167c98ba8d65d2c423b460b1a3199fc` remains historical evidence. The
 current successor first adopted deterministic `RUN npm ci` at `eeef850affd912a0d1e019bfac2d681b38ea24ed`,
 then composed the reviewed auto-fulfillment plain-data/primitive boundary at
-`f627cad6bc07a6ad3ebe7cbd946723316fcd0567`. The three finality source fingerprints listed below remain
+`22a30e3ffad6047a472488104c769140bd050878`. The three finality source fingerprints listed below remain
 byte-identical; the candidate diff boundary now follows the exact current
 runtime closure instead of certifying the older auto-fulfillment bytes.
 
@@ -22,9 +22,9 @@ Current source identities bound by the candidate:
 - execution preflight:
   `b61615c8b928a95c33100878ca70aa147abad103`;
 - V6 source-finality:
-  `e7ac4c296930587e7b7ec415e57bb18190c88962`;
+  `d371b1b08d2afc383d5e4ad831464752843791a3`;
 - finalized V2 verifier:
-  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`;
+  `550ede02fc0b7d6874c324af58b5ef9c5591b311`;
 - current locked compiled V4 manifest:
   `a07f2e9b03958a58280c4d940fe49097a9413af5`;
 - locked compiled generation:
@@ -155,8 +155,8 @@ activation or funds movement is performed here.
 ## Current V6 source-anchor successor
 
 The enforcement V5 candidate now binds current stabilized integration commit
-`f627cad6bc07a6ad3ebe7cbd946723316fcd0567` and V6 source blob
-`e7ac4c296930587e7b7ec415e57bb18190c88962`. That V6 source advances its
+`22a30e3ffad6047a472488104c769140bd050878` and V6 source blob
+`d371b1b08d2afc383d5e4ad831464752843791a3`. That V6 source advances its
 reviewed payment-observer identity after bounded total-response deadline
 hardening. This does **not** rewrite the historical locked compiled-V4 manifest
 or its generation `7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06`;

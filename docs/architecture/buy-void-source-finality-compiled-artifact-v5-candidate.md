@@ -24,10 +24,10 @@ production source-finality authority.
 The reviewed payment RPC observer later gained bounded total-response deadline
 and success-settlement deadline enforcement. V6 source-finality provenance then
 advanced its reviewed payment-observer identity at merge
-`3533626d7167c98ba8d65d2c423b460b1a3199fc`.
+`22a30e3ffad6047a472488104c769140bd050878`.
 
 Current reviewed V6 source Git blob:
-`e7ac4c296930587e7b7ec415e57bb18190c88962`.
+`d371b1b08d2afc383d5e4ad831464752843791a3`.
 
 This means current compiled bytes are no longer the historical V4 generation.
 Re-deriving V4 against newer source would rewrite history. V5 is therefore the
@@ -45,11 +45,13 @@ The V5 transition allows only these source/artifact changes from V4:
 
 - `src/economic/buy_void_source_finality_generation_provenance_v6.ts`;
 - `src/economic/buy_void_payment_rpc_observer_v1.ts`;
+- `src/economic/buy_void_verified_payment_v2.ts`;
 - their corresponding compiled artifacts.
 
-The authenticated composition V3, finality authority V2, source-chain RPC
-adapter and verified-payment V2 compiled artifacts must remain byte-identical to
-V4.
+The authenticated composition V3, finality authority V2 and source-chain RPC
+adapter compiled artifacts must remain byte-identical to V4. Verified-payment
+V2 is an explicit successor artifact because the authority boundary now rejects
+structural coercion, Proxy/accessor execution and unbounded reviewed inputs.
 
 The candidate always reports:
 
