@@ -53,6 +53,12 @@ jobs:
           set -euo pipefail
           node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts \
             | tee "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'pre_serialization_plain_data_bound=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'caller_toJSON_rejected_without_invocation=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'caller_accessor_rejected_without_invocation=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'caller_proxy_rejected_without_traps=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'oversize_text_holds_before_full_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
+          grep -Fx 'deep_nesting_holds_before_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'mounted_verified_allocation_dispatch=false' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'payment_or_allocation_append_performed=false' "dispatch-node-${{ matrix.node }}.txt"
           grep -Fx 'presale_activation=false' "dispatch-node-${{ matrix.node }}.txt"
