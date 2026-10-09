@@ -18701,19 +18701,6 @@ setInterval(refresh, 10000);
       };
     }
 
-    async function __voidBuyVoidRpcV1(chainCfg:any, method:string, params:any[]){
-      const rpc = String(chainCfg?.rpc_url || "").trim();
-      if (!rpc) throw new Error(String(chainCfg?.rpc_env || "rpc_url") + "_not_configured");
-      const r = await fetch(rpc, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params })
-      });
-      const j:any = await r.json();
-      if (j.error) throw new Error(String(j.error.message || JSON.stringify(j.error)));
-      return j.result;
-    }
-
     // VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1
     app.post("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
 if (!__voidBuyVoidOperatorMutationIntentV1(req,res)) return;
@@ -18776,9 +18763,10 @@ if(!finality.ok||finality.payment_verified_transition_ready!==true)return res.st
 const verifiedEvent:any=finality.canonical_verified_payment_event;
 event={...verifiedEvent,ok:true,note:"Ethereum USDC receipt/log + canonical source finality verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verifiedEvent.payment_verifier,source_finality_gate_marker:finality.marker,canonical_payment_identity:finality.canonical_payment_identity,payment_key_sha256:finality.payment_key_sha256},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
 }else{
-const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt",[tx]);
-if(!receipt)return res.status(404).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"payment_tx_receipt_not_found",tx_hash:tx});
-const currentBlock:any=await __voidBuyVoidRpcV1(chainCfg,"eth_blockNumber",[]);
+const po:any=await import("./economic/buy_void_payment_rpc_observer_v1.js");
+const observed:any=await po.observeBuyVoidPaymentV1({request:found,policy:{enabled:true,source_chain:"base",chain_id:8453,rpc_url:chainCfg.rpc_url,timeout_ms:process.env.VOID_BUY_VOID_SOURCE_FINALITY_RPC_TIMEOUT_MS,max_response_bytes:process.env.VOID_BUY_VOID_SOURCE_FINALITY_RPC_MAX_RESPONSE_BYTES}});
+if(!observed.ok){const s=observed.reason==="payment_receipt_not_found"?404:502;return res.status(s).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:observed.reason,tx_hash:tx,request_id:id,...(observed.detail?{detail:observed.detail}:{})})}
+const receipt:any=observed.receipt,currentBlock:any=observed.current_block_number;
 const v:any=await import("./economic/buy_void_verified_payment_v2.js");
 const verified=v.buildBuyVoidVerifiedPaymentEventV2({request:found,receipt,policy:{allowed_chains:[chainCfg.chain],usdc_contract_by_chain:{[chainCfg.chain]:chainCfg.usdc_contract},receive_address_by_chain:{[chainCfg.chain]:cfg.receive_address},current_block_number_by_chain:{[chainCfg.chain]:currentBlock}}});
 if(!verified.ok)return res.status(400).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:verified.reason,tx_hash:tx,request_id:id,...(verified.detail?{detail:verified.detail}:{})});
