@@ -255,16 +255,29 @@ function journalLines(journalBytes) {
   } catch {
     fail("generation_journal_utf8_invalid");
   }
-  const lines = text.endsWith("\n")
-    ? text.slice(0, -1).split("\n")
-    : text.split("\n");
+  if (!text.endsWith("\n")) {
+    fail("generation_journal_noncanonical");
+  }
+  const lines = text.slice(0, -1).split("\n");
   if (lines.length < 1 || lines.some((line) => line.length < 1)) {
     fail("generation_journal_lines_invalid");
+  }
+  for (const line of lines) {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      fail("generation_journal_json_invalid");
+    }
+    if (JSON.stringify(event) !== line) {
+      fail("generation_journal_noncanonical");
+    }
   }
   return lines;
 }
 
 function activeJournalState(journalBytes) {
+  journalLines(journalBytes);
   let state;
   try {
     state = classifyBuyLaunchGenerationJournalV1(journalBytes);
