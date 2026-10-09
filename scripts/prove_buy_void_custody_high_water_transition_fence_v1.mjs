@@ -17,7 +17,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE=
   "src/economic/buy_void_custody_high_water_transition_fence_v1.mjs";
 const EXPECTED_SOURCE_BLOB=
-  "0424facd99b1f8fd7f29d1c860fdaa04ad2e6e8c";
+  "cbb1cfed61a514b094e358c488021d017cfa211f";
 const PARENT_LOCK_BLOB=
   "90543eccebad8efe1d5299a318d1d894dba9cd00";
 
@@ -108,7 +108,14 @@ assert.equal(
   parsed12.record.transition_slot_id,
   transition12.transition_slot_id,
 );
-assert.equal(parsed12.record.prior_sequence,1);
+assert.match(
+  parsed12.record.prior_high_water_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(
+  Object.prototype.hasOwnProperty.call(parsed12.record,"prior_sequence"),
+  false,
+);
 assert.equal(parsed12.record.next_sequence,3);
 assert.ok(parsed12.next_high_water_bytes.equals(h2));
 
@@ -196,9 +203,10 @@ const bootstrapParsed=parseBuyVoidCustodyHighWaterTransitionFenceV1(
   bootstrap.record_bytes,
 );
 assert.equal(bootstrapParsed.record.prior_high_water_sha256,null);
-assert.equal(bootstrapParsed.record.prior_sequence,0);
-assert.equal(bootstrapParsed.record.prior_generation,null);
-assert.equal(bootstrapParsed.record.prior_tip_sha256,null);
+assert.equal(
+  Object.prototype.hasOwnProperty.call(bootstrapParsed.record,"prior_sequence"),
+  false,
+);
 const bootstrapResume=classifyBuyVoidCustodyHighWaterTransitionRecoveryV1({
   fence_record_bytes:bootstrap.record_bytes,
   observed_current_high_water_bytes:null,
@@ -279,6 +287,7 @@ console.log("VOID_BUY_VOID_CUSTODY_HIGH_WATER_TRANSITION_FENCE_V1_GREEN");
 console.log("source_git_blob="+EXPECTED_SOURCE_BLOB);
 console.log("reviewed_removable_lock_parent_blob="+PARENT_LOCK_BLOB);
 console.log("same_prior_competing_successors_share_one_slot=true");
+console.log("prior_authority_bound_by_exact_digest_only=true");
 console.log("different_successor_existing_slot_conflicts=true");
 console.log("create_only_record_never_deleted=true");
 console.log("crash_before_high_water_write_resumes_exact_transition=true");
