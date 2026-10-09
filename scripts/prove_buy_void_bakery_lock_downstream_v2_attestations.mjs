@@ -105,6 +105,16 @@ function read(relativePath, maxBytes = 2 * 1024 * 1024) {
 
 function executeCandidateBytes(scriptBytes, scriptPath) {
   const exactPath = path.resolve(ROOT, scriptPath);
+  const authenticatedText = scriptBytes.toString("utf8");
+  // Node strips a leading hashbang when executing a file. --eval does not.
+  // Normalize only that already-authenticated first line; all executable
+  // candidate bytes after the hashbang remain exactly the reviewed bytes.
+  let evaluatedText = authenticatedText;
+  if (authenticatedText.startsWith("#!")) {
+    const newline = authenticatedText.indexOf("\n");
+    assert.ok(newline >= 0, "authenticated candidate hashbang missing newline");
+    evaluatedText = authenticatedText.slice(newline + 1);
+  }
   const prelude =
     "import.meta.url = " + JSON.stringify(pathToFileURL(exactPath).href) + ";\n" +
     "process.argv = [process.execPath, " + JSON.stringify(exactPath) +
@@ -114,7 +124,7 @@ function executeCandidateBytes(scriptBytes, scriptPath) {
     [
       "--input-type=module",
       "--eval",
-      prelude + scriptBytes.toString("utf8"),
+      prelude + evaluatedText,
     ],
     {
       // ESM eval resolves the candidate's static ../dist and ../tools imports
@@ -328,7 +338,7 @@ const nativeAttestation = {
 };
 exactCommitted(NATIVE_MANIFEST, nativeAttestation);
 
-console.log("VOID_BUY_VOID_BAKERY_LOCK_DOWNSTREAM_V2_ATTESTATIONS_GREEN");
+console.log("VOID_BUY_VOID_BAKERY_LOCK_DOWNSTREAM_V2_ATTESTATIONS_GREEN");\nconsole.log("authenticated_candidate_hashbang_normalized=true");
 console.log(
   "custody_runtime_bundle_manifest_id=" +
     custodyAttestation.accepted_v2.manifest_id,
