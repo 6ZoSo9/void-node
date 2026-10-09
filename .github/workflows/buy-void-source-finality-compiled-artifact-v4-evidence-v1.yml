@@ -56,6 +56,9 @@ jobs:
           set -euo pipefail
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs --derive \
             > "$RUNNER_TEMP/v4-rederived.json"
+          echo "VOID_V4_REDERIVED_CANDIDATE_JSON_BEGIN"
+          cat "$RUNNER_TEMP/v4-rederived.json"
+          echo "VOID_V4_REDERIVED_CANDIDATE_JSON_END"
           cmp "$RUNNER_TEMP/v4-rederived.json" \
             docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json
 
