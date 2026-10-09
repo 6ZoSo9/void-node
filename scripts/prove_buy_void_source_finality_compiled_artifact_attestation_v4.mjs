@@ -12,24 +12,24 @@ const MANIFEST_PATH =
 const CANDIDATE_SCRIPT =
   "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs";
 const EXPECTED_CANDIDATE_SCRIPT_GIT_BLOB_SHA1 =
-  "6f0e243e69471bd276a8be49bcac3db474db95db";
+  "1fb96f6c707dcbd8682a32b31ebdf5aa3ca56af4";
 const EXPECTED_CANDIDATE_JSON_SHA256 =
-  "49727e4329b09d33a311a56787c8b42e265b26bfd2bb2fd7deb7de2cac3eb7c0";
+  "43808d0c1d304fa8ccd34490725a46b760541e0e20c33eb9dae6ac219f7f6dc2";
 const EXPECTED_COMPILED_GENERATION_SHA256 =
-  "2795a591588aeb31d5f144a3a128079b05f29a3d712a182dd7071452687aa203";
+  "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06";
 const EXPECTED_REVIEWED_SOURCE_SHA256 =
-  "ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1";
+  "95cf8959cfef04accc4715cb310f9b975f1011d27bf9ef0b0d7aefaaeb17a426";
 const EXPECTED_SOURCE_STACK_HEAD =
-  "3533626d7167c98ba8d65d2c423b460b1a3199fc";
+  "4423740a1bbcc1f08bed7b3ce83d18d8b2b5c92c";
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "e7ac4c296930587e7b7ec415e57bb18190c88962";
+  "7266c03d8874207ed3fda0f814d0a7a53d429c25";
 const EXPECTED_V2_SOURCE_GIT_BLOB_SHA1 =
   "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
 const EXPECTED_ARTIFACTS = Object.freeze([
   Object.freeze({
     path: "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
     bytes: 15937,
-    sha256: "7de38c3ca8f3c2275e57862e9abdd7cc23a37a7d98adbd7afc261c99aa4e7e0e",
+    sha256: "2f4af845031530ca3bad0fa3c17512cf659219b32aa0137f58c48d242bf84b5a",
   }),
   Object.freeze({
     path: "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -48,8 +48,8 @@ const EXPECTED_ARTIFACTS = Object.freeze([
   }),
   Object.freeze({
     path: "dist/economic/buy_void_payment_rpc_observer_v1.js",
-    bytes: 15167,
-    sha256: "9f4f5ee85972777e639dea89abf0c8337576525335ed982be3eb1bfe86c93db3",
+    bytes: 12270,
+    sha256: "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89",
   }),
   Object.freeze({
     path: "dist/economic/buy_void_verified_payment_v2.js",
