@@ -1,0 +1,111 @@
+name: VOID Buy VOID original witness V1 collision audit v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_original_witness_v1_collision_audit_v1.mjs"
+      - "docs/architecture/buy-void-original-witness-v1-collision-audit-v1.md"
+      - ".github/workflows/buy-void-original-witness-v1-collision-audit-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  historical-immutability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged review source with original Git history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove checkout head
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Reproduce seven negative original-record falsifications
+        run: node scripts/prove_buy_void_original_witness_v1_collision_audit_v1.mjs --self-test
+      - name: Derive immutable original and amended source identity evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_original_witness_v1_collision_audit_v1.mjs --audit > original-witness-v1-audit-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_original_witness_v1_provenance_collision_audit_v1");
+            assert.equal(j.original_record_git_blob_sha1,"d2e84643c9f4d76c642c7e07d4ea2bf1634035e4");
+            assert.equal(j.amended_v1_contract_git_blob_sha1,"d0f80d3b50e3dcc46c1f58dc4bd0a73b7875db56");
+            assert.equal(j.original_v1_manifest_id_reused_over_different_executable,true);
+            assert.equal(j.unchanged_executable_file_count,7);
+            assert.deepEqual(j.changed_source_line_numbers,[13,57]);
+            assert.equal(j.negative_falsifications_rejected,7);
+            assert.equal(j.changed_file.path,"dist/economic/buy_void_auto_fulfillment_v1.js");
+            for(const key of ["historical_v1_receipt_current_generation_equivalence",
+              "historical_v1_source_generation_accepted",
+              "existing_v1_manifest_reinterpretation_authorized",
+              "installed_nimo_witness_verified","source_v2_accepted",
+              "production_allocation_mutation_ready","presale_activation",
+              "funds_moved"])assert.equal(j[key],false,key);
+            console.log("ORIGINAL_WITNESS_V1_PROVENANCE_CONFLICT_SAFELY_HELD");
+          ' original-witness-v1-audit-${{ matrix.node }}.json
+      - name: Upload readonly original V1 audit receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: original-witness-v1-audit-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: original-witness-v1-audit-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 2
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE:-}" ] && [ -n "${HEAD:-}" ]; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [historical-immutability]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download all three immutable-source audit receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: original-witness-v1-audit-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./historical-evidence
+      - name: Require byte-identical V1 history on Node 22 24 26
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "historical-evidence/original-witness-v1-audit-$n.json"; done
+          cmp historical-evidence/original-witness-v1-audit-22.json historical-evidence/original-witness-v1-audit-24.json
+          cmp historical-evidence/original-witness-v1-audit-22.json historical-evidence/original-witness-v1-audit-26.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const b=fs.readFileSync("historical-evidence/original-witness-v1-audit-22.json");
+            console.log("VOID_ORIGINAL_WITNESS_V1_THREE_NODE_IMMUTABILITY_GREEN");
+            console.log("historical_audit_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+            console.log("v1_original_receipt_rebound_to_newer_bytes=false");
+            console.log("production_allocation_mutation_ready=false");
+            console.log("presale_activation=false");
+          '
