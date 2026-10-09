@@ -148,7 +148,11 @@ export function createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
 }={}){
   if(!Buffer.isBuffer(record_bytes)||record_bytes.length<1||
     record_bytes.length>MAX)fail("record_bytes_invalid");
-  const parsed=parseBuyVoidCustodyHighWaterTransitionFenceV1(record_bytes);
+  // The Buffer argument belongs to the caller and can change while file
+  // operations occur. Bind the parsed record, O_EXCL write, replay, final
+  // byte comparison and reported digest to this one PRIVATE copy.
+  const verifiedRecordBytes=Buffer.from(record_bytes);
+  const parsed=parseBuyVoidCustodyHighWaterTransitionFenceV1(verifiedRecordBytes);
   const slotId=parsed.record.transition_slot_id;
   if(!SLOT.test(slotId))fail("transition_slot_invalid");
   const file=slotId+".json";
@@ -166,7 +170,7 @@ export function createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
       // No deletion/overwrite, even of an invalid/partial existing slot.
       const existing=readPinnedRecord(dir,file);
       const classification=classifyBuyVoidCustodyHighWaterTransitionFenceSlotV1({
-        expected_record_bytes:record_bytes,observed_record_bytes:existing,
+        expected_record_bytes:verifiedRecordBytes,observed_record_bytes:existing,
       });
       if(classification.status!=="exists_same_transition")fail("slot_conflict");
       // Bring an existing matching slot into this process's durable
@@ -179,7 +183,7 @@ export function createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
         fs.fsyncSync(observedFd);
       }finally{closeOrFail(observedFd,"existing_fence");}
       fs.fsyncSync(dir.fd);
-      if(!readPinnedRecord(dir,file).equals(record_bytes))fail("replay_changed");
+      if(!readPinnedRecord(dir,file).equals(verifiedRecordBytes))fail("replay_changed");
       return Object.freeze({
         status:"exists_same_transition",created:false,
         transition_slot_id:slotId,
@@ -191,13 +195,13 @@ export function createOnlyBuyVoidCustodyHighWaterFenceRecordV1({
     }
     // Once created, never unlink even if a later step fails: partial or
     // ambiguous records are a permanent recovery HOLD, never silently reaped.
-    writeAll(fd,record_bytes);
+    writeAll(fd,verifiedRecordBytes);
     fs.fsyncSync(fd);
     closeOrFail(fd,"new_fence");
     fd=-1;
     fs.fsyncSync(dir.fd);
     stillPinned(dir);
-    if(!readPinnedRecord(dir,file).equals(record_bytes))fail("postwrite_mismatch");
+    if(!readPinnedRecord(dir,file).equals(verifiedRecordBytes))fail("postwrite_mismatch");
     durable=true;
     return Object.freeze({
       status:"created",created:true,

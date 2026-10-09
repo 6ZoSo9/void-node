@@ -390,7 +390,7 @@ async function proveSameSizePathReplacement(): Promise<void> {
   }
 }
 
-async function proveCallerEventSerializedOnce(): Promise<void> {
+async function proveCallerEventToJsonNotInvoked(): Promise<void> {
   const fixture = setup();
   let serializationCount = 0;
   const candidate = {
@@ -413,8 +413,8 @@ async function proveCallerEventSerializedOnce(): Promise<void> {
     assert.equal(result.ok, true);
     assert.equal(
       serializationCount,
-      1,
-      "caller payment event must be serialized exactly once",
+      0,
+      "caller payment event toJSON must not execute during detached snapshot",
     );
     const durable = fs.readFileSync(
       path.join(fixture.requestDir, "operator-events.jsonl"),
@@ -446,7 +446,7 @@ async function proveCallerEventSerializedOnce(): Promise<void> {
 }
 
 await provePositive();
-await proveCallerEventSerializedOnce();
+await proveCallerEventToJsonNotInvoked();
 
 await provePreappendHold(
   "forged_verifier_buyer",
@@ -478,7 +478,7 @@ await proveSameSizePathReplacement();
 
 console.log("VOID_BUY_VOID_PAYMENT_ALLOCATION_PREAPPEND_HARDENING_V1_GREEN");
 console.log("valid_payment_append_allocation_sidecar=true");
-console.log("caller_payment_event_serialized_exactly_once=true");
+console.log("caller_payment_event_toJSON_not_invoked=true");
 console.log("validated_payment_jsonl_equals_fsynced_bytes=true");
 console.log("forged_buyer_holds_before_payment_fsync=true");
 console.log("altered_caller_holds_before_payment_fsync=true");

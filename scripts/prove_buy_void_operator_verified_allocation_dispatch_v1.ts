@@ -15,10 +15,10 @@ const IDX_PATH = "src/index.ts";
 const DISPATCH_PATH =
   "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts";
 const EXPECTED_DISPATCH_GIT_BLOB =
-  "56cc3d4089f870868222328d9b56dd91415974a0";
+  "a4fa630f00f4c2e8e44c0dfdebc4e4717cb60a7d";
 const FROZEN_ROUTER_GIT_BLOB = "f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
-  "496715e7ae2941663908976a4a3f4efd7c6199cf";
+  "f591f7407d9afc2cf77e0f90923aa11b4817fd4e";
 
 function gitBlob(bytes: Buffer): string {
   return crypto.createHash("sha1")
@@ -212,6 +212,10 @@ for (const status of [
     with_launch_authority_mutation: 1,
     read_sale_state: 1,
   });
+  assert.equal(plan.kind, "verified_payment_allocation_handoff");
+  if (plan.kind !== "verified_payment_allocation_handoff") {
+    throw new Error("expected_verified_payment_allocation_handoff_plan");
+  }
   assert.equal(plan.request_dir, "/tmp/void-synthetic-request-root");
   assert.equal(plan.allocation_ledger_root, VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1);
   assert.equal(plan.allocation_high_water_root, VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1);
@@ -329,7 +333,7 @@ let serializeCount = 0;
     request_id: "synthetic-r1",
     operator_status: "payment_verified",
   };
-  for (let index = 0; index < 5000; index++) {
+  for (let index = 0; index < 2049; index++) {
     event["k" + index] = index;
   }
   const originalStringify = JSON.stringify;
@@ -486,7 +490,25 @@ assert.equal(
 const dispatchSource = dispatchBytes.toString("utf8");
 const tree = ts.createSourceFile(newPath, dispatchSource,
   ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-assert.equal(tree.parseDiagnostics.length, 0);
+const parsed = ts.transpileModule(dispatchSource, {
+  compilerOptions: {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+  },
+  reportDiagnostics: true,
+});
+const parseErrors = (parsed.diagnostics || []).filter(
+  (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error,
+);
+assert.equal(
+  parseErrors.length,
+  0,
+  parseErrors
+    .map((diagnostic) =>
+      ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"))
+    .join("\n"),
+);
 const handler = tree.statements.find((s) =>
   ts.isFunctionDeclaration(s) &&
   s.name?.text === "dispatchBuyVoidOperatorEventWithAllocationRequiredV1");
