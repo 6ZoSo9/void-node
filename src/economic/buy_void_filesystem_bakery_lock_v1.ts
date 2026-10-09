@@ -161,7 +161,7 @@ function atomicWriteJson(
       value && typeof value === "object" && !Array.isArray(value)
         ? Object.assign(Object.create(null), value)
         : value;
-    fs.writeFileSync(descriptor, `${JSON.stringify(detached)}\\n`, "utf8");
+    fs.writeFileSync(descriptor, `${JSON.stringify(detached)}\n`, "utf8");
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
