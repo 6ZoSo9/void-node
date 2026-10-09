@@ -1,0 +1,123 @@
+name: VOID frozen witness V1 restoration proof
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs"
+      - ".github/workflows/buy-void-frozen-witness-v1-restoration-v1.yml"
+      - "docs/architecture/buy-void-frozen-witness-v1-restoration-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-original-history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged head and original Git history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact head
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node from independent proof matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check without npm or private network
+        run: node --check scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs
+      - name: Reject seven amended V1 identity falsifications
+        run: node scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs --self-test
+      - name: Derive exact archived V1 receipt with V2 authority false
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs --check \
+            > frozen-witness-v1-node-${{ matrix.node }}.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_original_witness_v1_restoration_proof_v1");
+            assert.equal(j.original_source_git_blob_sha1,"d2e84643c9f4d76c642c7e07d4ea2bf1634035e4");
+            assert.equal(j.working_source_restored_to_original_v1,true);
+            assert.deepEqual(j.historical_v1_integrated_source_diff_lines,[13,57]);
+            assert.equal(j.tampered_historical_contracts_rejected,7);
+            for(const k of ["current_auto_fulfillment_equal_to_original_v1",
+                            "original_v1_receipt_authorizes_current_runtime",
+                            "original_v1_receipt_reinterpretation_authorized",
+                            "source_v2_accepted","installed_nimo_witness_authenticated",
+                            "production_allocation_mutation_ready","presale_activation",
+                            "funds_movement"])assert.equal(j[k],false,k);
+            console.log("FROZEN_V1_RESTORED_NEVER_REINTERPRETED_GREEN");
+          ' frozen-witness-v1-node-${{ matrix.node }}.json
+      - name: Deny implicit execution mode
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_frozen_witness_v1_restoration_v1.mjs > "$RUNNER_TEMP/forbidden.log" 2>&1; then
+            echo "UNEXPECTED_ORIGINAL_V1_AUTHORITY" >&2
+            exit 1
+          fi
+          grep -F "read_only_witness_v1_restoration_proof_requires_explicit_mode" "$RUNNER_TEMP/forbidden.log"
+      - name: Upload original V1 source evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: frozen-witness-v1-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: frozen-witness-v1-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Scoped diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [restore-original-history]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exactly pinned historical proof files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: frozen-witness-v1-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Prove byte-identical Node 22 24 26 frozen source identity
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "evidence/frozen-witness-v1-node-$v.json"; done
+          cmp evidence/frozen-witness-v1-node-22.json evidence/frozen-witness-v1-node-24.json
+          cmp evidence/frozen-witness-v1-node-22.json evidence/frozen-witness-v1-node-26.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            const bytes=fs.readFileSync("evidence/frozen-witness-v1-node-22.json");
+            const j=JSON.parse(bytes);
+            if(j.source_v2_accepted!==false ||
+               j.production_allocation_mutation_ready!==false ||
+               j.presale_activation!==false)process.exit(1);
+            console.log("VOID_ORIGINAL_V1_RESTORATION_CROSS_NODE_EXACT_BYTES_GREEN");
+            console.log("receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("historical_id_reinterpreted=false");
+            console.log("new_generation_accepted=false");
+          '
