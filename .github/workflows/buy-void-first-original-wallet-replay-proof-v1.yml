@@ -1,0 +1,100 @@
+name: VOID Buy original first-wallet proof successor v1
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
+      - ".github/workflows/buy-void-first-original-wallet-replay-proof-v1.yml"
+      - "docs/architecture/buy-void-first-original-wallet-replay-proof-v1.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: first-original-wallet-replay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact current PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact commit head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Reproducibly install/build exact source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Run original first-wallet crash and custody reserve adversaries
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs
+          node --check scripts/prove_buy_void_custody_reserve_plan_v1.mjs
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "crash-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_custody_reserve_plan_v1.mjs > "reserve-${{ matrix.node }}.txt"
+          node -e 'const fs=require("node:fs");const assert=require("node:assert/strict");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));assert.equal(r.original_first_delivery_lineage_required,true);assert.equal(r.current_replay_source_blob_sha1,"0a74a3652081c3e142d0b887676771a7ac148f32");for(const k of ["actual_durable_payment_fsync_verified","verified_capacity_and_request_locks_held","protected_high_water_custody_verified","allocation_publication_integrated","exactly_once_allocation_production_ready","presale_activation","funds_moved"])assert.equal(r[k],false,k);console.log("current_replay_binding_and_historic_HOLDs_verified=true")' "crash-${{ matrix.node }}.json"
+          grep -Fx "first_original_delivery_lineage_required=true" "reserve-${{ matrix.node }}.txt"
+          grep -Fx "production_allocation_mutation_ready=false" "reserve-${{ matrix.node }}.txt"
+          grep -Fx "funds_moved=false" "reserve-${{ matrix.node }}.txt"
+      - name: Preserve deterministic proof receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: original-wallet-proof-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            crash-${{ matrix.node }}.json
+            reserve-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: original-wallet-proof-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require byte-identical Node 22/24/26 receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "proof/crash-$node.json"
+            test -s "proof/reserve-$node.txt"
+          done
+          cmp proof/crash-22.json proof/crash-24.json
+          cmp proof/crash-22.json proof/crash-26.json
+          cmp proof/reserve-22.txt proof/reserve-24.txt
+          cmp proof/reserve-22.txt proof/reserve-26.txt
+          echo VOID_FIRST_ORIGINAL_WALLET_REPLAY_PROOF_CROSS_NODE_GREEN
+          echo presale_activation=false
+          echo funds_moved=false
