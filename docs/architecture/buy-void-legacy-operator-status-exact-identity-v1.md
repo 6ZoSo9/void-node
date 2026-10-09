@@ -26,12 +26,16 @@ existing code is modified:
   `fulfilled`, or `rejected`. Status accessors are rejected from their
   property descriptor without invoking the getter, and an event-level
   `toJSON` property is rejected before serialization.
-- Only after that non-executable status admission does the writer serialize
-  the event exactly once into a detached, deep-frozen snapshot. The serialized
-  snapshot must retain the exact admitted status, and the same snapshot bytes
-  are used for persistence. Case, whitespace, status objects, accessors,
-  event-level `toJSON`, and unknown values fail before request-directory
-  creation, append or sidecar publication.
+- Only after that non-executable status admission does the writer create a
+  callback-free detached JSON snapshot. It rejects Proxy inputs, non-plain
+  object prototypes, enumerable accessors, executable/nested `toJSON`,
+  unsupported values, cycles, excessive depth/nodes/keys/array length and
+  oversize text before serializing caller data. Detached objects use a null
+  prototype and detached arrays shadow inherited `toJSON`, so ambient
+  `Object.prototype.toJSON` or `Array.prototype.toJSON` cannot rewrite the
+  validated event. The same detached snapshot bytes are used for persistence.
+  Case, whitespace, status objects, executable JSON hooks and unknown values
+  fail before request-directory creation, append or sidecar publication.
 - The existing strict capacity recount requires operator-event status
   to be a nonempty, unpadded **string**; no row is silently converted
   from a whitespace alias into a verified-capacity obligation.
@@ -52,10 +56,13 @@ with malformed statuses. It asserts no filesystem root is created before
 the invalid input fails, including a synthetic status object whose `toString`
 and `toJSON` disagree.
 
-It also exercises two executable-caller adversaries against the actual writer:
-a stateful `operator_status` getter must be rejected **without invocation**,
-and a top-level event `toJSON()` that could synthesize a different status must
-also be rejected without invocation. Neither case may create the request root.
+It also exercises executable-caller adversaries against the actual writer:
+a stateful `operator_status` getter and top-level event `toJSON()` must be
+rejected without invocation; nested `toJSON` and nested accessors must likewise
+HOLD before filesystem mutation. Synthetic non-enumerable
+`Object.prototype.toJSON` and `Array.prototype.toJSON` hooks are installed
+and restored around an actual disposable `reviewed` append; neither hook may
+execute and the durable row must remain exactly `reviewed`.
 
 It separately exercises `testOnlyReadStrictCapacityCensusV1` against
 private OS-temp `requests.jsonl` and `operator-events.jsonl`:
