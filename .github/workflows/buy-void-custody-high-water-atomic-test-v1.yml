@@ -1,0 +1,111 @@
+name: VOID Buy VOID custody high-water synthetic fsync v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_custody_high_water_atomic_test_v1.mjs"
+      - "docs/architecture/buy-void-custody-high-water-atomic-test-v1.md"
+      - ".github/workflows/buy-void-custody-high-water-atomic-test-v1.yml"
+      - "src/economic/buy_void_custody_launch_authority_v2.mjs"
+      - "src/economic/buy_void_custody_launch_observed_read_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fault-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies for V2 canonical serializer
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run synthetic-only crash-stage and antirollback tests
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_custody_high_water_atomic_test_v1.mjs
+          node scripts/prove_buy_void_custody_high_water_atomic_test_v1.mjs \
+            --self-test --with-v2 > "high-water-fault-node-${{ matrix.node }}.txt"
+          for expected in \
+            'synthetic_fault_points=5' \
+            'pre_rename_faults_leave_previous_bytes=true' \
+            'post_rename_pre_dirfsync_not_acknowledged=true' \
+            'synthetic_rollback_same_sequence_conflict_and_cross_source_hold=true' \
+            'synthetic_idempotent_retry_no_extra_write=true' \
+            'real_power_loss_durability_verified=false' \
+            'cross_uid_exclusive_serialization_verified=false' \
+            'dual_signed_launch_receipt_verified=false' \
+            'cross_file_atomic_snapshot_verified=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$expected" "high-water-fault-node-${{ matrix.node }}.txt"
+          done
+      - name: Unauthenticated invocation must not become a writer
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_custody_high_water_atomic_test_v1.mjs > "$RUNNER_TEMP/rejected" 2>&1; then
+            echo "UNEXPECTED_WRITER" >&2
+            exit 1
+          fi
+          grep -F "test_only_no_production_writer_mode" "$RUNNER_TEMP/rejected"
+      - name: Upload only inert test receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-hw-atomic-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: high-water-fault-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Whitespace hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE:-}" ] && [ -n "${HEAD:-}" ]; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [fault-test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download all exact-head fault-model receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-hw-atomic-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require byte-identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/high-water-fault-node-$v.txt"; done
+          cmp receipts/high-water-fault-node-22.txt receipts/high-water-fault-node-24.txt
+          cmp receipts/high-water-fault-node-22.txt receipts/high-water-fault-node-26.txt
+          echo "VOID_BUY_VOID_HIGH_WATER_ATOMIC_SYNTHETIC_CROSS_NODE_GREEN"
+          echo "production_custody_high_water_write_performed=false"
+          echo "production_allocation_mutation_ready=false"
