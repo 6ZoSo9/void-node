@@ -2,6 +2,7 @@ import type {
   BuyVoidRequestV1,
   BuyVoidVerifiedPaymentEventV1,
 } from "./buy_void_auto_fulfillment_v1.js";
+import { types as utilTypes } from "node:util";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_V2";
@@ -22,6 +23,10 @@ const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+const MAX_SNAPSHOT_TEXT_CODE_UNITS_V2 = 1024 * 1024;
+const MAX_ALLOWED_CHAINS_V2 = 32;
+const MAX_RECEIPT_LOGS_V2 = 4096;
+const MAX_LOG_TOPICS_V2 = 16;
 // Current coupled checkout uses chain-native USDC, not an env-chosen ERC-20.
 const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
   base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -135,6 +140,270 @@ function held(
   };
 }
 
+
+type BuyVoidDataFieldSnapshotV2 = Readonly<{
+  present: boolean;
+  value: unknown;
+}>;
+
+function plainDataRecordV2(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    utilTypes.isProxy(value) ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function ownDataFieldV2(
+  recordValue: Record<string, unknown>,
+  key: string,
+): BuyVoidDataFieldSnapshotV2 | null {
+  const descriptor = Object.getOwnPropertyDescriptor(recordValue, key);
+  if (!descriptor) {
+    return Object.freeze({ present: false, value: undefined });
+  }
+  if (
+    descriptor.enumerable !== true ||
+    !Object.hasOwn(descriptor, "value")
+  ) {
+    return null;
+  }
+  if (
+    typeof descriptor.value === "string" &&
+    descriptor.value.length > MAX_SNAPSHOT_TEXT_CODE_UNITS_V2
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    present: true,
+    value: descriptor.value,
+  });
+}
+
+function snapshotSelectedDataRecordV2(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, unknown> | null {
+  const recordValue = plainDataRecordV2(value);
+  if (!recordValue) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const field = ownDataFieldV2(recordValue, key);
+    if (!field) return null;
+    if (field.present) out[key] = field.value;
+  }
+  return out;
+}
+
+function snapshotDataArrayV2(
+  value: unknown,
+  maxItems: number,
+): readonly unknown[] | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    utilTypes.isProxy(value) ||
+    !Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    return null;
+  }
+  const length = value.length;
+  if (
+    !Number.isSafeInteger(maxItems) ||
+    maxItems < 0 ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > maxItems
+  ) {
+    return null;
+  }
+  const out: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      value,
+      String(index),
+    );
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      return null;
+    }
+    if (
+      typeof descriptor.value === "string" &&
+      descriptor.value.length > MAX_SNAPSHOT_TEXT_CODE_UNITS_V2
+    ) {
+      return null;
+    }
+    out.push(descriptor.value);
+  }
+  return Object.freeze(out);
+}
+
+function snapshotDataMapV2(
+  value: unknown,
+  keys: readonly string[],
+): Readonly<Record<string, unknown>> | null {
+  const recordValue = plainDataRecordV2(value);
+  if (!recordValue) return null;
+  const out: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const field = ownDataFieldV2(recordValue, key);
+    if (!field) return null;
+    if (field.present) out[key] = field.value;
+  }
+  return Object.freeze(out);
+}
+
+const REQUEST_SNAPSHOT_KEYS_V2 = Object.freeze([
+  "request_id",
+  "source_chain",
+  "tx_hash",
+  "delivery_address",
+  "receive_address",
+  "usdc_amount",
+  "quoted_void",
+  "payment_chain",
+  "payment_chain_id",
+  "usdc_contract",
+  "payment_instructions",
+  "launch_authority",
+]);
+
+const PAYMENT_INSTRUCTION_KEYS_V2 = Object.freeze([
+  "send_chain",
+  "send_chain_id",
+  "token_contract",
+  "token_decimals",
+  "send_to",
+  "send_from",
+]);
+
+function snapshotRequestV2(
+  value: unknown,
+): BuyVoidVerifiedPaymentRequestV2 | null {
+  const selected = snapshotSelectedDataRecordV2(
+    value,
+    REQUEST_SNAPSHOT_KEYS_V2,
+  );
+  if (!selected) return null;
+  if (Object.hasOwn(selected, "payment_instructions")) {
+    const instructions = snapshotSelectedDataRecordV2(
+      selected.payment_instructions,
+      PAYMENT_INSTRUCTION_KEYS_V2,
+    );
+    if (!instructions) return null;
+    selected.payment_instructions = Object.freeze(instructions);
+  }
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidVerifiedPaymentRequestV2;
+}
+
+function snapshotPolicyV2(
+  value: unknown,
+): BuyVoidVerifiedPaymentPolicyV2 | null {
+  const selected = snapshotSelectedDataRecordV2(value, [
+    "allowed_chains",
+    "usdc_contract_by_chain",
+    "receive_address_by_chain",
+    "current_block_number_by_chain",
+  ]);
+  if (!selected) return null;
+
+  if (Object.hasOwn(selected, "allowed_chains")) {
+    const allowed = snapshotDataArrayV2(
+      selected.allowed_chains,
+      MAX_ALLOWED_CHAINS_V2,
+    );
+    if (!allowed) return null;
+    selected.allowed_chains = allowed;
+  }
+  const reviewedChains = Array.isArray(selected.allowed_chains)
+    ? [...new Set(
+        selected.allowed_chains
+          .map((value) => normalizeChain(value))
+          .filter(Boolean),
+      )]
+    : [];
+  for (const key of [
+    "usdc_contract_by_chain",
+    "receive_address_by_chain",
+    "current_block_number_by_chain",
+  ]) {
+    if (!Object.hasOwn(selected, key)) continue;
+    const map = snapshotDataMapV2(selected[key], reviewedChains);
+    if (!map) return null;
+    selected[key] = map;
+  }
+
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidVerifiedPaymentPolicyV2;
+}
+
+const RECEIPT_LOG_KEYS_V2 = Object.freeze([
+  "address",
+  "topics",
+  "data",
+  "logIndex",
+  "transactionHash",
+  "blockNumber",
+  "removed",
+]);
+
+function snapshotReceiptV2(
+  value: unknown,
+): BuyVoidTransactionReceiptV2 | null {
+  const selected = snapshotSelectedDataRecordV2(value, [
+    "status",
+    "transactionHash",
+    "blockNumber",
+    "logs",
+  ]);
+  if (!selected) return null;
+  if (Object.hasOwn(selected, "logs")) {
+    const rawLogs = snapshotDataArrayV2(
+      selected.logs,
+      MAX_RECEIPT_LOGS_V2,
+    );
+    if (!rawLogs) return null;
+    const logs: Readonly<Record<string, unknown>>[] = [];
+    for (const rawLog of rawLogs) {
+      const log = snapshotSelectedDataRecordV2(
+        rawLog,
+        RECEIPT_LOG_KEYS_V2,
+      );
+      if (!log) return null;
+      if (Object.hasOwn(log, "topics")) {
+        const topics = snapshotDataArrayV2(
+          log.topics,
+          MAX_LOG_TOPICS_V2,
+        );
+        if (!topics) return null;
+        log.topics = topics;
+      }
+      logs.push(Object.freeze(log));
+    }
+    selected.logs = Object.freeze(logs);
+  }
+  return Object.freeze(
+    selected,
+  ) as unknown as BuyVoidTransactionReceiptV2;
+}
+
 function normalizeChain(value: unknown): string {
   if (typeof value !== "string") return "";
   const raw = value.trim().toLowerCase();
@@ -160,9 +429,7 @@ function exactCheckoutInteger(value: unknown, expected: number): boolean {
 }
 
 function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
+  return plainDataRecordV2(value);
 }
 
 function normalizeHash(value: unknown): string {
@@ -230,10 +497,27 @@ function receiptSucceeded(value: unknown): boolean {
 export function buildBuyVoidVerifiedPaymentEventV2(
   input: BuildBuyVoidVerifiedPaymentInputV2,
 ): BuyVoidVerifiedPaymentDecisionV2 {
-  const request = input?.request;
-  const receipt = input?.receipt;
-  const policy = input?.policy;
-  if (!request || !receipt || !policy) return held("missing_input");
+  if (!input) return held("missing_input");
+  const envelope = snapshotSelectedDataRecordV2(input, [
+    "request",
+    "receipt",
+    "policy",
+  ]);
+  if (!envelope) return held("payment_input_not_plain_data");
+
+  const rawRequest = envelope.request;
+  const rawReceipt = envelope.receipt;
+  const rawPolicy = envelope.policy;
+  if (!rawRequest || !rawReceipt || !rawPolicy) {
+    return held("missing_input");
+  }
+
+  const request = snapshotRequestV2(rawRequest);
+  const receipt = snapshotReceiptV2(rawReceipt);
+  const policy = snapshotPolicyV2(rawPolicy);
+  if (!request || !receipt || !policy) {
+    return held("payment_input_not_plain_data");
+  }
 
   if (typeof request.request_id !== "string") {
     return held("invalid_request_id");
