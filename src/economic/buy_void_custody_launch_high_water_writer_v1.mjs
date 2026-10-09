@@ -21,6 +21,9 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_AUTHORITY_V1 =
     arbitrary_bytes_write: false,
     bootstrap_write_enabled: false,
     high_water_advance_write_enabled: true,
+    inspect_temp_cleanup_enabled: false,
+    unowned_temp_cleanup_enabled: false,
+    cross_process_exclusive_writer_fence_verified: false,
     atomic_single_file_publication: true,
     directory_fsync: true,
     exact_postcheck: true,
@@ -50,9 +53,6 @@ const MAX_HIGH_WATER_BYTES = 16 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
-const TEMP_RE =
-  /^\.buy-void-custody-launch-high-water-v2\.json\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
-
 function fail(reason) {
   throw new Error("custody_launch_high_water_writer_" + reason);
 }
@@ -249,13 +249,24 @@ function openPinnedDirectory(directoryPath, custody, reason) {
     fail(reason + "_open_failed");
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("open_directory_cleanup"); }
     }
   }
 }
 
+// Closing an already-disposable descriptor is best-effort, but a failure
+// must never disappear silently. Expose a fixed, path-free marker without
+// disturbing an already-recorded publication/mutation result.
+function recordFdCloseFailureV1(stage) {
+  process.stderr.write(
+    "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_FD_CLOSE_FAILURE_V1 stage=" +
+      stage + "\n",
+  );
+}
 function closePinned(directory) {
-  try { fs.closeSync(directory.fd); } catch {}
+  try { fs.closeSync(directory.fd); }
+  catch { recordFdCloseFailureV1("close_pinned_directory"); }
 }
 
 function assertPinnedVisible(directory, reason) {
@@ -515,29 +526,10 @@ function canonicalCandidate(decision) {
   return bytes;
 }
 
-function cleanupTemps(directory) {
-  assertPinnedVisible(directory, "custody_root");
-  let changed = false;
-  for (const name of fs.readdirSync(directory.proc_path)) {
-    if (!name.startsWith("." + HIGH_WATER_NAME + ".tmp-")) continue;
-    if (!TEMP_RE.test(name)) fail("temp_name_invalid");
-    const target = path.join(directory.proc_path, name);
-    const stat = fs.lstatSync(target, { bigint: true });
-    validateReadFile(
-      stat,
-      MAX_HIGH_WATER_BYTES,
-      "temp_file_invalid",
-      true,
-    );
-    fs.unlinkSync(target);
-    changed = true;
-  }
-  if (changed) {
-    fs.fsyncSync(directory.fd);
-    assertPinnedVisible(directory, "custody_root");
-  }
-}
-
+// A temp may belong to another writer between fsync and fixed-name rename.
+// Inspections and advances NEVER unlink unknown temps by name. Only the
+// owner of an O_EXCL-created temp may remove that exact temp on failure.
+// Recovery/reclamation needs a separately reviewed exclusive custody fence.
 function writeAll(fd, bytes) {
   let offset = 0;
   while (offset < bytes.length) {
@@ -562,7 +554,6 @@ function atomicAdvance(
   onRenamed,
 ) {
   if (!Buffer.isBuffer(expectedCurrent)) fail("current_high_water_missing");
-  cleanupTemps(evidence.custodyDirectory);
   const tempName =
     "." + HIGH_WATER_NAME + ".tmp-" + String(process.pid) + "-" +
     crypto.randomBytes(8).toString("hex");
@@ -616,7 +607,8 @@ function atomicAdvance(
     return published;
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); }
+      catch { recordFdCloseFailureV1("temp_write_cleanup"); }
     }
     if (!renamed) {
       try {
@@ -682,7 +674,6 @@ function runWriter(options, classifier, mutate, beforeReplaceHook = null) {
   let evidence = null;
   try {
     evidence = openEvidence(options);
-    cleanupTemps(evidence.custodyDirectory);
     const before = observedBytes(evidence);
     const decision = classifier(before);
     if (
@@ -817,6 +808,9 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_CONTRACT_V1 =
     high_water_filename: HIGH_WATER_NAME,
     bootstrap_write_enabled: false,
     high_water_advance_write_enabled: true,
+    inspect_temp_cleanup_enabled: false,
+    unowned_temp_cleanup_enabled: false,
+    cross_process_exclusive_writer_fence_verified: false,
     startup_configured_paths: true,
     request_selected_paths: false,
     arbitrary_path_write: false,
