@@ -1,86 +1,88 @@
-# VOID witness runtime executable-byte compatibility: frozen V1 versus current integration
+# Nimo witness original V1 versus unaccepted current V2 — exact lineage correction
 
-## Correct the historical comparison baseline
+## Why this correction is required
 
-The immutable **V1 witness manifest source-generation commit** is
-`f627cad6bc07a6ad3ebe7cbd946723316fcd0567`, not
-`e390424c1d31cd87dcf3551cc0d2d610a24e12f8`.
-The latter was the historical comparison baseline chosen by the earlier
-[Draft #2718](https://github.com/6ZoSo9/void-node/pull/2718) derived V2
-candidate, which truthfully observed one different
-`buy_void_auto_fulfillment_v1.ts` source file **relative to e390**.
-That result is not evidence of a changed executable **relative to the
-source generation actually recorded in the frozen V1 manifest**.
+An earlier read-only GitHub Draft [#2728](https://github.com/6ZoSo9/void-node/pull/2728)
+incorrectly reported **8/8 source and 8/8 compiled compatibility with original frozen
+V1**. Its green proof read the **modified integration V1 alias** Git blob
+`d0f80d3b50e3dcc46c1f58dc4bd0a73b7875db56` and treated that file as the
+original V1 manifest. The two contracts carry the **same historical**
+`voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7`
+manifest ID and digest, but **not the same source-generation identity or
+auto-fulfillment compiled bytes**.
 
-An independent exact-Git-object comparison shows that **all eight witness
-runtime source files and seven build inputs** are byte-identical between
-the correct `f627cad6...` V1 source commit and current
-`884edc6e82bd505a83e51a44b38f7e318431f314`.
-The original V1 frozen manifest contract source Git blob
-`d0f80d3b50e3dcc46c1f58dc4bd0a73b7875db56`
-also remains unchanged. Current is a strict descendant of V1's source
-commit, but ancestry alone is **not** a witness acceptance receipt.
+The actual original frozen V1 contract is Git blob
+`d2e84643c9f4d76c642c7e07d4ea2bf1634035e4`, at repository commit
+`f627cad6bc07a6ad3ebe7cbd946723316fcd0567`. **That file explicitly
+names `e390424c1d31cd87dcf3551cc0d2d610a24e12f8` as its reviewed
+witness runtime SOURCE generation** and pins the original installed
+auto-fulfillment SHA256
+`ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6`.
 
-## Independent compiled runtime equivalence proof
+The integration V1 alias, Git blob `d0f80d3c...`, changed **exactly two
+source lines** under the same manifest ID: the census source commit became
+`f627cad6...` and the compiled auto-fulfillment hash became
+`119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c`.
+The alias is **not a valid reissue of immutable original V1 evidence**.
 
-On each Node 22/24/26 runner, the exact PR head is checked out at full
-Git depth and the reviewed TypeScript dependencies compiled with no
-installer/lifecycle authority. The existing exact-head, derive-only V2
-candidate script (Git blob `3c25a46818eace3f989b75466013cc7c4cec1362`)
-is rerun, and a new independent checker:
+## Correct source and binary truth
 
-1. Reads the original exact frozen V1 qualification source and extracts
-   the **actual V1 source commit** and frozen eight file identities.
-2. Uses `git rev-parse COMMIT:path` to bind **all eight** witness source
-   Git blobs between V1's actual source commit and current integration.
-3. Repeats the comparison for all **seven** reviewed compiler/build inputs,
-   checks their Git blob identities against the newly generated candidate,
-   and checks the exact TypeScript 5.9.3 compiler file hashes.
-4. Requires the newly compiled eight runtime SHA-256 values **and installed
-   path strings** to match the frozen V1 manifest file list byte-for-byte,
-   and requires the previously reviewed eleven relative module edges.
-5. Rejects a wrong source commit, modified runtime SHA-256, altered runtime
-   install path or caller-invented `runtime_bundle_identity_accepted=true`.
-6. Emits only deterministic read-only compatibility evidence, compared
-   across three independent Node versions and retained as a CI artifact.
+The latest reviewed integration runtime generation
+`884edc6e82bd505a83e51a44b38f7e318431f314` has:
 
-The independently retrieved Node 22 V2 derivation already shows exact
-matching SHA-256 values for **all eight compiled runtime files**.
-The new workflow is required to prove the same claim afresh on its own
-exact head. Old exact V1 manifest ID remains
-`voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7`,
-SHA-256
-`sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2`.
-The earlier unaccepted V2 candidate ID remains
-`voidwfb2_b1cf93ea36879332d2745294b8aab1b261d5e7c13522af681db8d390254df73d`.
+- **7/8 identical source Git blobs** against genuine original V1 SOURCE
+  commit `e390424c...`; the changed source is
+  `src/economic/buy_void_auto_fulfillment_v1.ts`, old Git blob
+  `1ac1ad6213be83f1aa8261a554caa91544fe5e09` versus current
+  `b7c963b1d55f000d82ad82289b31107b432503de`.
+- **7/7 identical pinned build inputs**, verified by Git commit and actual
+  compiled candidate source.
+- **7/8 identical compiled file SHA256 identities** against the original
+  frozen V1 manifest. Its installed auto-fulfillment file was 14,860 bytes
+  with SHA256 `ae15c56f...`; current proposed V2 is 26,226 bytes with
+  SHA256 `119a08db...`.
+- **8/8 compiled file hashes matching the invalidly reused INTEGRATION V1
+  alias**. This last result explains the old green check, but does **not**
+  establish original V1 binary compatibility.
 
-## Strict distinction: identical files do NOT grant new authority
+The source-only [#2718](https://github.com/6ZoSo9/void-node/pull/2718)
+V2 candidate, [#2732](https://github.com/6ZoSo9/void-node/pull/2732)
+proposed V2 lock, and [#2736](https://github.com/6ZoSo9/void-node/pull/2736)
+inactive TAR package distinguish these actual versions. The operator-provided
+read-only Nimo census reports **installed original V1 8/8**, **proposed V2 7/8**.
+The verified offline TAR SHA256 is
+`656357f5ed98da324e205ca85085fa4b72d9289f8e2c2b7d5d43eb8e082c87c6`
+and its **eight payload files are all reviewed V2 bytes**; the TAR remains
+inert and **unaccepted**.
 
-This proof is **not a newly signed, installed, accepted or promoted witness
-manifest**. The historical V1 `source_commit` is immutable. A current
-integration generation cannot borrow a previous-generation operator
-authorization, SSH transport receipt or installation witness even if its
-reviewed executable closure is byte-identical. All of these remain false:
+## Corrected executable proof
 
-`production_current_source_generation_accepted=false`
-`historical_v1_receipt_rebound_to_current_generation=false`
-`installed_nimo_witness_verified=false`
-`installed_files_read=false`
-`signed_operator_acceptance=false`
-`production_allocation_mutation_ready=false`
-`presale_activation=false`
-`funds_moved=false`.
+This Draft keeps the same file names and exact-head Node 22/24/26 workflow
+but corrects the semantic assertions. The revised proof:
 
-The responsible next step is review of this compatibility evidence and
-the **original** installed witness/host identity, then an explicit
-current-generation source acceptance/host attestation as a distinct
-operator-controlled ceremony. Do not edit V1 manifest constants or
-pretend the old `voidwfb1_` identity is current. Do not enable the
-real `payment_verified -> allocation_reserved` custody writer,
-live presale, WC/VOID pool or money movement from this source-only proof.
+1. Independently reads the **original V1 contract from historical Git commit**
+   `f627cad6...`, requiring exact Git blob `d2e84643...`, without trusting
+   the changed working-branch V1 alias.
+2. Separately pins the working integrated V1 alias `d0f80d3...`, checks
+   that **only historical source lines 13 and 57** differ, and rejects any
+   further alias rewrite.
+3. Verifies both original and alias source-commit constants, both original
+   and current auto-fulfillment hashes, and exact seven source/build matches
+   plus one explicitly identified source+binary mismatch.
+4. Independently derives the unaccepted current V2 candidate and requires
+   7/8 hashes against **real V1**, 8/8 against **integration alias**.
+5. Rejects malicious source generation, runtime SHA, installed path,
+   false-green runtime identity and an attempted old-auto hash substitution.
+6. Emits all-false runtime/install/payment/market/funds authority and
+   byte-identical cross-Node receipts.
 
-This task reads repository source and hosted disposable CI builds only.
-It performs no host SSH, Nimo service install, privileged IPC, signer,
-wallet, buyer record, Chain-2050/WC or funds operation.
+A green source-compatibility **difference proof** never authorizes a
+witness-generation migration. There is no acceptance receipt, root-owned
+V2 installed binary, authenticated Nimo principal, V2 service approval,
+cross-UID custody IPC, durable verified-payment→allocation line, or public
+WC/VOID activation. Historical V1 bytes and the user's installed Nimo
+bundle remain **untouched**. No host-side action, install, extraction,
+service restart, buyer record, signer, wallet, blockchain transaction,
+market inventory, treasury, or funds movement.
 
 **PROTECT THE CORE.**

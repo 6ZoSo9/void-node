@@ -1,4 +1,4 @@
-name: VOID witness actual V1-to-current byte compatibility evidence v1
+name: VOID witness original frozen V1 vs current V2 difference proof v1
 on:
   pull_request:
     paths:
@@ -48,11 +48,11 @@ jobs:
           set -euo pipefail
           node --check scripts/prove_buy_void_witness_v1_current_byte_compatibility_v1.mjs
           node scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs --self-test > /dev/null
-      - name: Verify true V1 source-commit and runtime digest equivalence
+      - name: Verify immutable V1 source and actual 7-of-8 V2 runtime divergence
         run: |
           set -euo pipefail
           node scripts/prove_buy_void_witness_v1_current_byte_compatibility_v1.mjs --prove > "witness-source-compatibility-${{ matrix.node }}.json"
-          node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); for(const [k,v] of Object.entries({source_files_identical_to_true_v1_source_commit:8,build_inputs_identical_to_true_v1_source_commit:7,compiled_runtime_file_sha256_identical_to_frozen_v1:8,production_current_source_generation_accepted:false,historical_v1_receipt_rebound_to_current_generation:false,installed_nimo_witness_verified:false,real_payment_acceptance:false,presale_activation:false,funds_moved:false})) { if(x[k]!==v)throw Error("compatibility proof invalid: "+k); }' "witness-source-compatibility-${{ matrix.node }}.json"
+          node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); for(const [k,v] of Object.entries({original_source_files_equal_current:7,original_build_inputs_equal_current:7,compiled_runtime_hashes_equal_original_frozen_v1:7,compiled_runtime_hashes_equal_integrated_v1_alias:8,original_v1_and_v2_compiled_bundles_identical:false,runtime_bundle_identity_accepted:false,production_current_source_generation_accepted:false,historical_v1_receipt_rebound_to_current_generation:false,installed_nimo_v2_verified:false,real_payment_acceptance:false,presale_activation:false,funds_moved:false})) { if(x[k]!==v)throw Error("compatibility proof invalid: "+k); }' "witness-source-compatibility-${{ matrix.node }}.json"
       - name: Upload exact-head deterministic read-only evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -88,7 +88,7 @@ jobs:
           for node in 22 24 26; do test -s "receipts/witness-source-compatibility-$node.json"; done
           cmp receipts/witness-source-compatibility-22.json receipts/witness-source-compatibility-24.json
           cmp receipts/witness-source-compatibility-22.json receipts/witness-source-compatibility-26.json
-          echo VOID_BUY_VOID_WITNESS_V1_CURRENT_BYTE_COMPATIBILITY_THREE_NODE_GREEN
+          echo VOID_BUY_VOID_WITNESS_V1_V2_DISTINCT_GENERATION_THREE_NODE_GREEN
           echo "source_only_evidence=true"
           echo "historical_v1_receipt_rebound_to_current_generation=false"
           echo "production_allocation_mutation_ready=false"
