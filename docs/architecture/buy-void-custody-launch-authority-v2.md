@@ -46,6 +46,8 @@ carry no authority by themselves.
 The source checks:
 
 - exact active generation-journal chain semantics;
+- exact newline-terminated canonical JSONL bytes for every generation event,
+  matching the existing publisher's `JSON.stringify(event)` representation;
 - exact source-composition identity;
 - exact live activation receipt schema and receipt ID;
 - activation-controller EIP-712 signature;
@@ -106,8 +108,9 @@ It proves:
   classifier-ready;
 - journal rollback below that high-water fails;
 - an alternate same-sequence branch fails;
-- a raw-byte mutation of an already accepted historical journal prefix fails
-  even when the parsed event semantics are unchanged;
+- noncanonical raw journal bytes fail before bootstrap/high-water evaluation;
+- a custody high-water carrying the wrong raw-prefix digest fails even when
+  its sequence/generation/event-tip fields otherwise match;
 - an old signed receipt cannot authorize a new active generation;
 - a forged activation signature fails;
 - the production entry point remains HOLD on the current source generation
