@@ -12,6 +12,10 @@ const FILES = Object.freeze({
     "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs",
     "1fb96f6c707dcbd8682a32b31ebdf5aa3ca56af4",
   ],
+  v4_candidate_doc: [
+    "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md",
+    "ddd7709e1c86ce5395968e5dc5b5014a065e22e6",
+  ],
   v4_candidate_evidence: [
     "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json",
     "4a97da9816ca28bc107822a32cd7ada42bdf5540",
@@ -129,6 +133,7 @@ assert.match(
 console.log("VOID_BUY_VOID_HISTORICAL_COMPILED_V4_PRESERVATION_V1_GREEN");
 console.log("historical_v3_manifest_blob_preserved=true");
 console.log("historical_v4_candidate_script_blob_preserved=true");
+console.log("historical_v4_candidate_doc_blob_preserved=true");
 console.log("historical_v4_candidate_evidence_blob_preserved=true");
 console.log("historical_v4_locked_manifest_blob_preserved=true");
 console.log("historical_v4_candidate_and_lock_generation_equal=true");
