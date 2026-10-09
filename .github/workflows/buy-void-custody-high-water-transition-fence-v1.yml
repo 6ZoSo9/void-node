@@ -66,6 +66,7 @@ jobs:
             'exact_next_high_water_replay_is_committed=true' \
             'unexpected_current_high_water_holds=true' \
             'bootstrap_transition_recoverable=true' \
+            'bootstrap_slot_global_across_source_compositions=true' \
             'same_state_noop_requires_no_fence=true' \
             'rollback_same_sequence_conflict_cross_source_hold=true' \
             'tampered_or_noncanonical_fence_record_rejected=true' \
