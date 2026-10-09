@@ -1,3 +1,4 @@
+import { types as utilTypes } from "node:util";
 import type { BuyVoidRequestV1 } from "./buy_void_auto_fulfillment_v1.js";
 import {
   observeBuyVoidPaymentV1,
@@ -16,6 +17,8 @@ export const VOID_BUY_VOID_CANONICAL_PAYMENT_RPC_RAIL_GUARD_AUTHORITY_V1 =
     independent_rail_policy_required: true,
     no_caller_supplied_chain_aliases: true,
     pre_rpc_chain_policy_binding: true,
+    policy_snapshot_once_before_guard_and_transport: true,
+    policy_accessors_or_proxy_allowed: false,
     imported_legacy_transport_retained: true,
     observed_provider_honesty_verified: false,
     production_payment_authority_ready: false,
@@ -69,6 +72,97 @@ const held = (
  * It does not establish an honest RPC provider, source finality, or deployed
  * payment authority. The existing provider/receipt checks remain mandatory.
  */
+const POLICY_KEYS = Object.freeze([
+  "enabled",
+  "source_chain",
+  "chain_id",
+  "rpc_url",
+  "timeout_ms",
+  "max_response_bytes",
+] as const);
+
+function snapshotCanonicalPaymentRpcPolicyV1(
+  policy: unknown,
+): BuyVoidPaymentRpcObserverPolicyV1 | BuyVoidCanonicalPaymentRpcRailHeldV1 {
+  if (
+    !policy ||
+    typeof policy !== "object" ||
+    Array.isArray(policy) ||
+    utilTypes.isProxy(policy)
+  ) {
+    return held("canonical_payment_rpc_policy_invalid");
+  }
+  const proto = Object.getPrototypeOf(policy);
+  if (proto !== Object.prototype && proto !== null) {
+    return held("canonical_payment_rpc_policy_invalid");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(policy);
+  const own = Reflect.ownKeys(descriptors);
+  if (own.some((key) => typeof key !== "string")) {
+    return held("canonical_payment_rpc_policy_invalid");
+  }
+  if (
+    own.some((key) => !POLICY_KEYS.includes(key as typeof POLICY_KEYS[number]))
+  ) {
+    return held("canonical_payment_rpc_policy_invalid");
+  }
+  const read = (key: typeof POLICY_KEYS[number]): unknown => {
+    const descriptor = descriptors[key];
+    if (!descriptor) return undefined;
+    if (
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      throw new Error("canonical_payment_rpc_policy_accessor_forbidden");
+    }
+    return descriptor.value;
+  };
+
+  let enabled: unknown;
+  let sourceChain: unknown;
+  let chainId: unknown;
+  let rpcUrl: unknown;
+  let timeoutMs: unknown;
+  let maxResponseBytes: unknown;
+  try {
+    enabled = read("enabled");
+    sourceChain = read("source_chain");
+    chainId = read("chain_id");
+    rpcUrl = read("rpc_url");
+    timeoutMs = read("timeout_ms");
+    maxResponseBytes = read("max_response_bytes");
+  } catch {
+    return held("canonical_payment_rpc_policy_accessor_forbidden");
+  }
+
+  if (
+    enabled !== true ||
+    (sourceChain !== "base" && sourceChain !== "ethereum") ||
+    (typeof chainId !== "string" && typeof chainId !== "number") ||
+    typeof rpcUrl !== "string" ||
+    rpcUrl.length < 1 ||
+    (timeoutMs !== undefined &&
+      typeof timeoutMs !== "string" &&
+      typeof timeoutMs !== "number") ||
+    (maxResponseBytes !== undefined &&
+      typeof maxResponseBytes !== "string" &&
+      typeof maxResponseBytes !== "number")
+  ) {
+    return held("canonical_payment_rpc_policy_invalid");
+  }
+
+  return Object.freeze({
+    enabled: true,
+    source_chain: sourceChain,
+    chain_id: chainId,
+    rpc_url: rpcUrl,
+    ...(timeoutMs !== undefined ? { timeout_ms: timeoutMs } : {}),
+    ...(maxResponseBytes !== undefined
+      ? { max_response_bytes: maxResponseBytes }
+      : {}),
+  });
+}
+
 export function classifyBuyVoidCanonicalPaymentRpcRailV1(
   policy: unknown,
 ): BuyVoidCanonicalPaymentRpcRailDecisionV1 {
@@ -107,7 +201,11 @@ export async function observeBuyVoidCanonicalRailPaymentV1(input: {
 }): Promise<
   BuyVoidPaymentObservationDecisionV1 | BuyVoidCanonicalPaymentRpcRailHeldV1
 > {
-  const rail = classifyBuyVoidCanonicalPaymentRpcRailV1(input?.policy);
+  const policySnapshot =
+    snapshotCanonicalPaymentRpcPolicyV1(input?.policy);
+  if ("reason" in policySnapshot) return policySnapshot;
+
+  const rail = classifyBuyVoidCanonicalPaymentRpcRailV1(policySnapshot);
   if (rail.ok === false) return rail;
 
   // A request cannot relabel the canonical source rail. This is not an
@@ -119,7 +217,7 @@ export async function observeBuyVoidCanonicalRailPaymentV1(input: {
 
   return observeBuyVoidPaymentV1({
     request: input.request,
-    policy: input.policy,
+    policy: policySnapshot,
     ...(input.transport ? { transport: input.transport } : {}),
   });
 }
