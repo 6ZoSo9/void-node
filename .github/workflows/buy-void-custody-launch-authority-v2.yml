@@ -76,6 +76,8 @@ jobs:
             'stale_generation_receipt_rejected=true' \
             'forged_activation_signature_rejected=true' \
             'operator_home_anchor_dependency=false' \
+            'classifier_filesystem_io=false' \
+            'classifier_userInfo_dependency=false' \
             'observed_bytes_not_caller_authority=true' \
             'production_source_gate_ready=false' \
             'custody_high_water_write_performed=false' \
