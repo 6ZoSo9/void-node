@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import * as http from "node:http";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
@@ -26,10 +27,11 @@ const nativePreEnd = index.indexOf("let event:any;", nativePreStart);
 const nativePostStart = index.indexOf('if(!nativeEqual(event?.payment_verifier?.usdc_contract,nativeUsdc))', nativePreEnd);
 const nativePostEnd = index.indexOf("if(!__blo(found))", nativePostStart);
 const nativeWrite = index.indexOf("await __voidWriteBuyVoidOperatorEventV1(event,found);", nativePostEnd);
-const nativeReceipt = index.indexOf('const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt"', nativePreEnd);
+const baseObserver = index.indexOf('observeBuyVoidPaymentV1({request:found,policy:{enabled:true,source_chain:"base",chain_id:8453', nativePreEnd);
 const nativeEthereum = index.indexOf('runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env})', nativePreEnd);
 assert(nativePreStart > 0 && nativePreEnd > nativePreStart);
-assert(nativeReceipt > nativePreEnd && nativeEthereum > nativePreEnd, "policy must bind before either chain RPC path");
+assert(baseObserver > nativePreEnd && nativeEthereum > nativePreEnd, "policy must bind before either bounded chain observation path");
+assert.equal(index.includes("__voidBuyVoidRpcV1"), false, "retired ad-hoc payment RPC helper must stay absent");
 assert(nativePostStart > nativePreEnd && nativePostEnd > nativePostStart && nativeWrite > nativePostEnd,
   "verified event token must bind before durable admission");
 const nativePreflight = vm.runInNewContext(
@@ -164,6 +166,99 @@ for (const [chain, canonical] of [["base",baseNativeUsdc],["ethereum",ethereumNa
 assertNativePolicyHold(nativeRequest("polygon",baseNativeUsdc),
   nativePolicy("polygon",baseNativeUsdc), "unknown_chain_never_inherits_ethereum_policy");
 
+// The Base operator route delegates all provider HTTP to the reviewed bounded
+// payment transport. Exercise its trust boundary against disposable loopback
+// responders; no real chain/provider/customer data is contacted.
+const {
+  createBuyVoidPaymentHttpTransportV1,
+} = await import("../dist/economic/buy_void_payment_rpc_observer_v1.js");
+
+async function withRpcServer(handler, run) {
+  const server = http.createServer(handler);
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  try {
+    return await run(`http://127.0.0.1:${address.port}/`);
+  } finally {
+    if (typeof server.closeAllConnections === "function") {
+      server.closeAllConnections();
+    }
+    await new Promise(resolve => server.close(() => resolve()));
+  }
+}
+
+function boundedTransport(url, overrides = {}) {
+  const transport = createBuyVoidPaymentHttpTransportV1({
+    enabled: true,
+    source_chain: "base",
+    chain_id: 8453,
+    rpc_url: url,
+    timeout_ms: 100,
+    max_response_bytes: 1024,
+    ...overrides,
+  });
+  assert.equal("reason" in transport, false);
+  return transport;
+}
+
+async function expectTransportFailure(handler, expected, overrides = {}) {
+  await withRpcServer(handler, async url => {
+    const transport = boundedTransport(url, overrides);
+    await assert.rejects(
+      transport.call({ method: "eth_blockNumber", params: [] }),
+      error => String(error?.message || error) === expected,
+      expected,
+    );
+  });
+}
+
+await withRpcServer((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, async url => {
+  const value = await boundedTransport(url).call({
+    method: "eth_blockNumber",
+    params: [],
+  });
+  assert.equal(value, "0x65");
+});
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    result: "x".repeat(4096),
+  }));
+}, "payment_observer_rpc_response_too_large", {
+  max_response_bytes: 512,
+});
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(503, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, "payment_observer_rpc_http_status");
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 2, result: "0x65" }));
+}, "payment_observer_rpc_envelope_mismatch");
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, "payment_observer_rpc_content_type_invalid");
+
+await expectTransportFailure((_req, _res) => {
+  // Intentionally do not answer; the reviewed client-owned timeout must abort.
+}, "payment_observer_rpc_timeout", {
+  timeout_ms: 50,
+});
+
 const coupledLaunchGate = read(
   "src/economic/buy_void_coupled_launch_gate_v1.mjs",
 );
@@ -194,6 +289,10 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1"));
 assert.ok(index.includes('import("./economic/buy_void_verified_payment_v2.js")'));
+assert.ok(index.includes('import("./economic/buy_void_payment_rpc_observer_v1.js")'));
+assert.ok(index.includes("observeBuyVoidPaymentV1({request:found"));
+assert.equal(index.includes("async function __voidBuyVoidRpcV1"), false);
+assert.equal(index.includes('fetch(rpc, {'), false);
 assert.ok(index.includes("buildBuyVoidVerifiedPaymentEventV2"));
 assert.ok(index.includes('"eth_blockNumber"'));
 assert.ok(index.includes("current_block_number_by_chain"));
