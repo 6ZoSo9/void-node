@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 
   assert.ok(
     source.includes(
-      'import g from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";',
+      'import evaluateBuyVoidManualFulfilledConfirmedStateGateV1 from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";',
     ),
     "missing extracted manual-fulfilled confirmed-state gate import",
   );
@@ -102,8 +102,15 @@ async function main(): Promise<void> {
   const routeText = routeCall.getText(sf);
 
   assert.ok(
-    routeText.includes("const r = await g("),
-    "manual mark route does not invoke the extracted confirmed-state gate",
+    routeText.includes(
+      "const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(",
+    ),
+    "manual mark route does not invoke the explicit confirmed-state gate",
+  );
+  assert.doesNotMatch(
+    routeText,
+    /\bawait\s+g\s*\(/u,
+    "manual mark route must not call the attach-scope globalThis alias",
   );
 
   assertNoSyntacticDiagnostics(helperFile, helperSource);
@@ -263,8 +270,6 @@ function listBuyVoidConfirmedStatesV1(rootDir) {
 }
 
 ${gateFunctionText}
-const g = evaluateBuyVoidManualFulfilledConfirmedStateGateV1;
-
 ${routeText};
 
 globalThis.__voidCallManualMark = async function(input) {
