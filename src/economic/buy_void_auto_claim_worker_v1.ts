@@ -15,11 +15,13 @@ import {
   type BuyVoidVerifiedPaymentPolicyV2,
 } from "./buy_void_verified_payment_v2.js";
 import {
-  observeBuyVoidPaymentV1,
   type BuyVoidPaymentObservationReadyV1,
   type BuyVoidPaymentRpcObserverPolicyV1,
   type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
+import {
+  observeBuyVoidCanonicalRailPaymentV1,
+} from "./buy_void_canonical_payment_rpc_rail_guard_v1.js";
 
 export const VOID_BUY_VOID_AUTO_CLAIM_WORKER_V1 =
   "VOID_BUY_VOID_AUTO_CLAIM_WORKER_V1";
@@ -34,6 +36,8 @@ export const VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1 = {
   exact_confirmation_required: true,
   server_controlled_policy: true,
   rpc_read_via_observer: true,
+  canonical_payment_rpc_rail_guard_required: true,
+  noncanonical_chain_id_reaches_rpc: false,
   filesystem_read_via_claim_journal: true,
   filesystem_write_on_apply: true,
   request_journal_write: false,
@@ -270,17 +274,29 @@ export async function runBuyVoidAutoClaimWorkerV1(input: {
     );
   }
 
-  const observation = await observeBuyVoidPaymentV1({
+  const observation = await observeBuyVoidCanonicalRailPaymentV1({
     request: input.request,
     policy: input.observer_policy,
     ...(input.transport ? { transport: input.transport } : {}),
   });
   if ("reason" in observation) {
+    const detail =
+      "detail" in observation &&
+      observation.detail &&
+      typeof observation.detail === "object"
+        ? observation.detail as Record<string, unknown>
+        : "expected_chain_id" in observation &&
+            observation.expected_chain_id
+          ? {
+              expected_chain_id:
+                observation.expected_chain_id,
+            }
+          : undefined;
     return held(
       "payment_observation",
       input.apply === true,
       observation.reason,
-      observation.detail,
+      detail,
     );
   }
 
