@@ -42,8 +42,8 @@ const baseInput = {
 
 type Plan = ReturnType<typeof planBuyVoidAllocationReservationV1>;
 function requireOk(decision: Plan) {
-  assert.equal(decision.ok, true, decision.ok ? "" : decision.reason);
-  if (!decision.ok) throw Error(decision.reason);
+  assert.equal(decision.ok, true, "expected approved reservation");
+  if (!decision.ok) throw Error("allocation reservation unexpectedly held");
   return decision;
 }
 function requireHeld(decision: Plan, reason: string) {
