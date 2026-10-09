@@ -66,6 +66,11 @@ for (const required of [
   "observeBuyVoidCanonicalRailPaymentV1",
   "canonical_payment_rpc_rail_guard_required: true",
   "noncanonical_chain_id_reaches_rpc: false",
+  "request_and_policy_snapshot_once: true",
+  "caller_accessor_or_proxy_authority: false",
+  "post_observation_caller_mutation_authority: false",
+  "snapshotAutoClaimInvocationV1",
+  "utilTypes.isProxy",
   "buildBuyVoidVerifiedPaymentEventV2",
   "decideBuyVoidAutoFulfillmentV1",
   "listBuyVoidFulfillmentJournalClaimsV1",
@@ -160,6 +165,9 @@ console.log("VOID_BUY_VOID_AUTO_CLAIM_WORKER_GUARD_V1_GREEN");
 console.log("source_file_count=3");
 console.log("canonical_payment_rpc_rail_guard_required=1");
 console.log("legacy_observer_direct_worker_call=0");
+console.log("request_policy_snapshot_once=1");
+console.log("caller_accessor_or_proxy_authority=0");
+console.log("post_observation_caller_mutation_authority=0");
 console.log("proof_file_count=2");
 console.log("runtime_integration_modified=0");
 console.log("src_index_modified=0");
