@@ -100,7 +100,7 @@ for nonpayment statuses.
 
 The proof also pins the **existing composed operator router's**
 `src/index.ts` exact Git blob
-`f0c1292f26cbe3f9c6bc64dfc824cd616a9a7048`, confirms its
+`193227620943bde40630eec5d60bcc480595887b`, confirms its
 POST-only verification/mark mutation routes and operator intent helper,
 and explicitly verifies the mounted event writer still calls the old
 payment-only API. Therefore
