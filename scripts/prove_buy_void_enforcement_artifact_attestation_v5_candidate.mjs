@@ -321,13 +321,21 @@ export function deriveBuyVoidEnforcementArtifactAttestationV5Candidate() {
   assert.equal(compiledV4.deployed_artifact_generation_verified,false);
   assert.equal(compiledV4.production_source_finality_authority_ready,false);
   runReviewedGitV1(["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],ROOT);
-  runReviewedGitV1(["diff","--quiet","--no-ext-diff","--no-textconv",
-    SOURCE_HEAD,"HEAD","--",
-    "src/economic","package.json","package-lock.json","tsconfig.json","tsconfig.build.json",
-    "scripts/copy_void_runtime_js_v1.mjs",
-    "scripts/retire_saveblock_periodic_rewriters_v1.mjs","Dockerfile",
-  ],ROOT);
   const artifacts=closedArtifacts();
+  const sourceRuntimeInputs=[
+    ...new Set([
+      ...artifacts.map(a=>
+        a.path.replace(/^dist\\//u,"src/").replace(/\\.js$/u,".ts")),
+      ...INPUTS,
+    ]),
+  ].sort();
+  // Bind exactly the statically reachable enforcement source closure plus
+  // reviewed build inputs. Unrelated economic source may evolve without
+  // silently entering enforcement authority.
+  runReviewedGitV1([
+    "diff","--quiet","--no-ext-diff","--no-textconv",
+    SOURCE_HEAD,"HEAD","--",...sourceRuntimeInputs,
+  ],ROOT);
   const dynamicTools=artifacts.flatMap(module=>
     module.dynamic_tool_import_specifiers.map(specifier=>({
       importer_artifact:module.path,
@@ -341,8 +349,7 @@ export function deriveBuyVoidEnforcementArtifactAttestationV5Candidate() {
       b.importer_artifact+"|"+b.tool_specifier,"en")
   );
   assert.ok(dynamicTools.length>=1,"expected hidden dynamic import boundary not identified");
-  const inputs=[...new Set([...artifacts.map(a=>a.path.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts")),...INPUTS])]
-    .sort().map(record);
+  const inputs=sourceRuntimeInputs.map(record);
   const old=new Map(previousV1.artifacts.map(a=>[a.path,a]));
   const now=new Map(artifacts.map(a=>[a.path,a]));
   const removed=[...old.keys()].filter(k=>!now.has(k)).sort();
