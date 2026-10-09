@@ -204,6 +204,14 @@ function detachedBoundedJsonValueV1(
 
     addSnapshotBytesV1(budget, 2 + Math.max(0, value.length - 1), label);
     const clone: any[] = [];
+    // JSON.stringify performs a toJSON property lookup even on arrays.
+    // Shadow any ambient Array.prototype.toJSON hook on the detached clone.
+    Object.defineProperty(clone, "toJSON", {
+      value: undefined,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
     for (let index = 0; index < value.length; index += 1) {
       const descriptor =
         Object.getOwnPropertyDescriptor(value, String(index));
@@ -232,7 +240,9 @@ function detachedBoundedJsonValueV1(
   // Iterate enumerable own string keys without first allocating a complete
   // key/descriptor table. Non-enumerable and Symbol properties are irrelevant
   // to the detached JSON representation; inherited keys are ignored.
-  const clone: Record<string, any> = {};
+  // Null prototype prevents ambient Object.prototype.toJSON or accessors
+  // from becoming serialization authority after validation.
+  const clone: Record<string, any> = Object.create(null);
   let ownKeyCount = 0;
   addSnapshotBytesV1(budget, 2, label);
   for (const key in value) {
@@ -345,9 +355,12 @@ export function planBuyVoidOperatorAllocationDispatchV1(
   const readSaleState = input?.read_sale_state;
   const event = frozenJsonSnapshot(rawEvent, "event");
   const request = frozenJsonSnapshot(rawRequest, "request");
-  const requestId = String(event.request_id || "");
+  const requestId = event.request_id;
+  const requestRequestId = request.request_id;
   const operatorStatus = canonicalOperatorStatusV1(event.operator_status);
-  if (!requestId || requestId !== String(request.request_id || "") ||
+  if (typeof requestId !== "string" || !requestId ||
+      typeof requestRequestId !== "string" ||
+      requestId !== requestRequestId ||
       !operatorStatus ||
       typeof requestDir !== "string" || !requestDir.trim() ||
       typeof withLaunchAuthorityMutation !== "function" ||
