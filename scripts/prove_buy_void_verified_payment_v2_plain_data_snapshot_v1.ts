@@ -10,7 +10,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="src/economic/buy_void_verified_payment_v2.ts";
-const EXPECTED_SOURCE_BLOB="21420412cc9b3cf9d415e179151eb973dda07131";
+const EXPECTED_SOURCE_BLOB="550ede02fc0b7d6874c324af58b5ef9c5591b311";
 const PREDECESSOR_SOURCE_BLOB="0df94fb35681f358318416fe6c48f3b794cd6074";
 
 function gitBlob(bytes:Buffer):string {
@@ -44,6 +44,11 @@ const arrayIsArrayIndex=source.indexOf("!Array.isArray(value)",arraySnapshotInde
 assert.ok(arraySnapshotIndex>=0 && arrayProxyIndex>arraySnapshotIndex &&
   arrayIsArrayIndex>arrayProxyIndex,
   "array Proxy must be rejected before Array.isArray/prototype inspection");
+assert.equal(
+  source.includes("Object.getOwnPropertyDescriptors(value)"),
+  false,
+  "V2 snapshots must not allocate full caller-object descriptor tables",
+);
 
 const txHash="0x"+"a".repeat(64);
 const delivery="0x"+"1".repeat(40);
@@ -312,7 +317,7 @@ console.log("array_proxy_rejected_before_isarray=true");
 console.log("nested_policy_map_accessor_rejected=true");
 console.log("nested_payment_instruction_accessor_rejected=true");
 console.log("allowed_chain_array_bound_precedes_descriptors=true");
-console.log("receipt_log_array_bound_precedes_descriptors=true");
+console.log("receipt_log_array_bound_precedes_descriptors=true");\nconsole.log("full_array_descriptor_tables_allocated=false");
 console.log("unreviewed_policy_map_getter_not_enumerated=true");
 console.log("oversize_reviewed_text_held=true");
 console.log("null_prototype_plain_records_supported=true");
