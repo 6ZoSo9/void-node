@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/void-buy-allocation-custody-service-v1.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-service-contract-v1.json"
       - "scripts/prove_void_buy_allocation_custody_service_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-service-v1.md"
@@ -61,7 +62,9 @@ jobs:
           npm run build
 
       - name: Syntax-check custody service
-        run: node --check tools/void-buy-allocation-custody-service-v1.mjs
+        run: |
+          node --check tools/void-buy-allocation-custody-service-v1.mjs
+          node --check src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs
 
       - name: Prove custody service contract
         run: node scripts/prove_void_buy_allocation_custody_service_v1.mjs

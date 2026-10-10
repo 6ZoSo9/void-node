@@ -564,6 +564,108 @@ async function decision(f, method, request) {
   }
 }
 
+// Inserted into the EXISTING custody service proof, before its final source checks.
+// Only private, disposable fixtures created by fixture() are inspected here.
+{
+  const f = fixture();
+  const ledgerFile = path.join(f.ledgerRoot, LEDGER_NAME);
+  const highFile = path.join(f.custodyRoot, HIGH_WATER_NAME);
+  let cases = 0;
+  const checkHeld = async () => {
+    const result = await decision(f, "inspect", {});
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "allocation_custody_service_observation_unqualified");
+    assert.equal(result.operation_performed, false);
+    assert.equal(result.funds_movement, false);
+    assert.equal(result.record_count, null);
+    cases++;
+  };
+  try {
+    // Observe the real integrated open calls: no write-capable descriptor.
+    const originalOpen = fs.openSync;
+    let descriptorRelativeOpens = 0;
+    try {
+      fs.openSync = function(target, flags, ...rest) {
+        assert.equal(typeof flags, "number");
+        assert.equal(flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR |
+          fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_APPEND), 0);
+        if (String(target).startsWith("/proc/self/fd/")) descriptorRelativeOpens++;
+        return originalOpen.call(fs, target, flags, ...rest);
+      };
+      const control = requireOk(await decision(f, "inspect", {}));
+      assert.equal(control.record_count, 0);
+      assert.equal(control.operation_performed, false);
+      assert.equal(control.funds_movement, false);
+      cases++;
+    } finally {
+      fs.openSync = originalOpen;
+    }
+    assert.ok(descriptorRelativeOpens >= 2, "canonical descriptor observer not used");
+
+    for (const file of [ledgerFile, highFile]) {
+      for (const mode of [0o400, 0o644]) {
+        fs.chmodSync(file, mode);
+        try { await checkHeld(); }
+        finally { fs.chmodSync(file, 0o600); }
+      }
+      const saved = file + ".saved";
+      fs.renameSync(file, saved);
+      try {
+        await checkHeld();
+        fs.symlinkSync(saved, file);
+        try { await checkHeld(); }
+        finally { fs.unlinkSync(file); }
+        fs.linkSync(saved, file);
+        try { await checkHeld(); }
+        finally { fs.unlinkSync(file); }
+      } finally {
+        fs.renameSync(saved, file);
+      }
+    }
+    fs.chmodSync(f.ledgerRoot, 0o750);
+    try { await checkHeld(); }
+    finally { fs.chmodSync(f.ledgerRoot, 0o700); }
+
+    for (const bytes of [Buffer.alloc(0), Buffer.alloc(4097, 32)]) {
+      fs.writeFileSync(highFile, bytes);
+      try { await checkHeld(); }
+      finally { fs.writeFileSync(highFile, f.genesisHighWater); }
+    }
+    // This sparse fixture must be refused before a full 64 MiB read.
+    fs.truncateSync(ledgerFile, 64 * 1024 * 1024 + 1);
+    try { await checkHeld(); }
+    finally { fs.truncateSync(ledgerFile, 0); }
+
+    const nested = path.join(f.ledgerRoot, "nested-custody");
+    fs.mkdirSync(nested, { mode: 0o700 });
+    const nestedFixture = {
+      ...f, options: { ...f.options, custody_root: nested },
+    };
+    const nestedResult = await decision(nestedFixture, "inspect", {});
+    assert.equal(nestedResult.ok, false);
+    assert.equal(nestedResult.reason, "allocation_custody_service_observation_unqualified");
+    assert.equal(nestedResult.operation_performed, false);
+    cases++;
+
+    // Imports and inspect do not recover pre-existing publication intentions.
+    const intent = path.join(f.ledgerRoot, INTENT_NAME);
+    fs.writeFileSync(intent, "untrusted-pending-intent\n", { mode: 0o600 });
+    const restored = requireOk(await decision(f, "inspect", {}));
+    assert.equal(restored.status, "inspected");
+    assert.equal(restored.record_count, 0);
+    assert.equal(restored.operation_performed, false);
+    assert.equal(fs.readFileSync(intent, "utf8"), "untrusted-pending-intent\n");
+    assert.equal(fs.readFileSync(ledgerFile, "utf8"), "");
+    assert.equal(fs.readFileSync(highFile, "utf8"), f.genesisHighWater);
+    cases++;
+    assert.equal(cases, 17);
+    console.log("custody_inspection_descriptor_reader_cases=17");
+    console.log("custody_inspection_reserve_recover_authority=false");
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
 const source = sourceBytes.toString("utf8");
 assert.doesNotMatch(source, /ledger_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /custody_root\s*:\s*envelope/u);
