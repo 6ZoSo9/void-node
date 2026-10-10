@@ -1,5 +1,26 @@
 # Buy VOID first-original buyer + hardened dispatcher source composition
 
+## Current V4/V3 successor reconciliation — October 10, 2026
+
+This section supersedes the historical source-generation description below for
+the current cumulative review. Frozen crash V1/V2/V3 and first-original handoff
+V2 remain byte-identical and are required to refuse the current replay source.
+The current accepted source-only tuple is:
+
+- replay binding Git blob `435ed6000caad046f48fb318fbc7c865393f3b6c`;
+- preappend plain-input Git blob `4fbf115830dde01930631e73fea856abe0cceafa`;
+- allocation ledger Git blob `66617a89d5ad9f81b5a21d98cca55fcda6902a80`;
+- crash V4 proof Git blob `3f91404c8f5b6897b0781455564b4ec26b480c03`;
+- first-original handoff V3 proof Git blob `d31f8cbb85ed17c9937baf3c9725a6fae22cc829`;
+- unchanged dispatcher source/proof blobs `0e27a76e...` / `e58bf39f...`.
+
+The successor workflow performs locked Node 22/24/26 builds, authenticates the
+complete tuple, requires predecessor refusals, runs crash V4, the real temporary-
+filesystem first-original handoff V3, and the hardened dispatcher proof, then
+requires byte-identical no-authority receipts. This remains source-only: mounted
+dispatch, installed cross-UID custody, payment acceptance, presale activation,
+and funds movement are false.
+
 ## Reviewed source ancestry — unmerged
 
 This Draft combines two reviewed **source-only** predecessor lines without
@@ -84,3 +105,13 @@ or funds action occurs.
 The candidate also runs the **actual current** `prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs` on all Node 22/24/26 source-proven heads, in addition to requiring the frozen V1 proof to continue rejecting the newly reviewed replay source generation. The V2 script is pinned at Git blob `d42148523c44d95d3b87236ade22cfb92dcb5bee`. Its original-buyer wallet, late-backfill, replay, double-allocation, synthetic publication-phase and 10m VOID boundary assertions remain intact; the workflow independently checks its positive receipt fields and that every production/funds authority is false.
 
 This unifies the extra crash V2 regression covered in competing Draft #2745 into this exact-first-original/dispatcher composition without changing the payment source, custodian, historical V1 bytes or real route. Neither V2 synthetic success nor cross-node CI is a production crash recovery/first fsync/witness qualification.
+
+## Current dispatcher-router successor — October 10, 2026
+
+Frozen dispatcher proof V1 remains byte-identical and must reject the merged
+router generation. Current dispatcher proof V2 is `5050498f600efd7d5c83af214f75663a66685d6e` and
+binds `src/index.ts` `1fde828c97175560f98ab070af33eefc595f8002`. It re-runs the complete dispatcher and
+mounted route-slice assertions after the independently qualified seal-first
+startup transformation. The mounted operator route remains payment-only;
+verified allocation dispatch, customer payment acceptance and funds movement
+remain false.

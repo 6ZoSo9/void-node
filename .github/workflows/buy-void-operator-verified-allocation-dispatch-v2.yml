@@ -1,0 +1,130 @@
+name: VOID Buy VOID operator verified-allocation dispatch V2
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
+      - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v1.md"
+      - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v2.md"
+      - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v1.yml"
+      - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v2.yml"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/index.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build source without running node
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Authenticate exact current and frozen source tuple
+        run: |
+          set -euo pipefail
+          test "$(git hash-object src/index.ts)" = "1fde828c97175560f98ab070af33eefc595f8002"
+          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "0e27a76e777c326d2d9e2b1550b7f2979fca9abb"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "f591f7407d9afc2cf77e0f90923aa11b4817fd4e"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
+          test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs)" = "033018d6caee821b370001d558fcfb81edda48f1"
+      - name: Reprove exact seal-first router ancestry
+        run: node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs
+      - name: Frozen dispatcher V1 must refuse current router
+        run: |
+          set -euo pipefail
+          if node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > "$RUNNER_TEMP/frozen-v1.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_DISPATCH_V1_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -F 'mounted router generation drift' "$RUNNER_TEMP/frozen-v1.txt"
+      - name: Prove current dispatcher V2 and mounted HOLD
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts \
+            | tee "dispatch-v2-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V2_GREEN' \
+            'frozen_dispatcher_v1_proof_unchanged=true' \
+            'reviewed_router_source_blob=1fde828c97175560f98ab070af33eefc595f8002' \
+            'outer_input_proxy_rejected_without_traps=true' \
+            'outer_input_getter_rejected_without_invocation=true' \
+            'outer_input_root_getter_rejected_without_invocation=true' \
+            'outer_input_unreviewed_keys_and_toJSON_rejected=true' \
+            'dispatch_calls_allocation_writer_only_on_verified_branch=true' \
+            'mounted_operator_legacy_payment_only_producer_observed=true' \
+            'mounted_verified_allocation_dispatch=false' \
+            'payment_or_allocation_append_performed=false' \
+            'presale_activation=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "dispatch-v2-node-${{ matrix.node }}.txt"
+          done
+      - name: Upload exact-head source-only proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-verified-allocation-dispatch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dispatch-v2-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three exact-head V2 outputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-verified-allocation-dispatch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Require exact Node 22 24 26 byte equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "evidence/dispatch-v2-node-$v.txt"; done
+          cmp evidence/dispatch-v2-node-22.txt evidence/dispatch-v2-node-24.txt
+          cmp evidence/dispatch-v2-node-22.txt evidence/dispatch-v2-node-26.txt
+          echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V2_CROSS_NODE_GREEN"
+          echo "frozen_dispatcher_v1_proof_unchanged=true"
+          echo "mounted_operator_route_verified=false"
+          echo "production_gate_ready=false"
+          echo "funds_moved=false"
