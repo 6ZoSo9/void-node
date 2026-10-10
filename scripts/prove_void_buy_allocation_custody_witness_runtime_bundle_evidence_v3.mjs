@@ -48,7 +48,7 @@ assert.equal(baseline.live_nimo_installed, false);
 assert.equal(baseline.verified_payment_to_allocation_mounted, false);
 assert.equal(baseline.custody_reserve_or_recover_enabled, false);
 assert.equal(baseline.presale_activation, false);
-assert.equal(baseline.funds_moved, false);
+assert.equal(baseline.funds_movement, false);
 
 assert.throws(
   () =>
