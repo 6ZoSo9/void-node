@@ -1,0 +1,109 @@
+name: VOID Buy VOID original buyer own-index history V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_first_original_own_array_history_v1.mjs"
+      - ".github/workflows/buy-void-first-original-own-array-history-v1.yml"
+      - "docs/architecture/buy-void-first-original-own-array-history-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-own-array-history-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact review branch SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify reviewed checkout and source blob
+        env:
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "160294d74aefeac8275a882ed97a8a955701ec20"
+      - name: Set up known Node major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and compile current source
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Prove existing first-buyer and verified-allocation replay regressions
+        run: node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
+      - name: Falsify ambient Array prototype replay history omissions
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_first_original_own_array_history_v1.mjs \
+            | tee "first-buyer-array-${{ matrix.node }}.txt"
+          for key in \
+            VOID_FIRST_BUYER_REPLAY_OWN_ARRAY_HISTORY_V1_GREEN \
+            first_snapshot_not_elided_by_ambient_map=true \
+            first_snapshot_not_elided_by_ambient_iterator=true \
+            conflicting_rail_alias_rejected_under_ambient_every_some=true \
+            extra_launch_authority_rejected_under_ambient_sort=true \
+            malicious_map_positive_control_invocations=1 \
+            real_replay_or_allocation_writer_called=false \
+            production_allocation_authority=false \
+            presale_activation=false \
+            funds_movement=false
+          do grep -Fx "$key" "first-buyer-array-${{ matrix.node }}.txt"; done
+      - name: Require clean tracked source and commit diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --check "$BASE_SHA" "$REVIEW_HEAD"
+      - name: Preserve exact-head synthetic transcript
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-first-buyer-own-array-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: first-buyer-array-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact three-node results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-first-buyer-own-array-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Require identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "evidence/first-buyer-array-$n.txt"; done
+          cmp evidence/first-buyer-array-22.txt evidence/first-buyer-array-24.txt
+          cmp evidence/first-buyer-array-22.txt evidence/first-buyer-array-26.txt
+          echo "VOID_BUY_VOID_FIRST_ORIGINAL_OWN_HISTORY_CROSS_NODE_GREEN"
+          echo "production_payment_allocation_authority=false"
