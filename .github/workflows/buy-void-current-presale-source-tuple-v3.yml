@@ -11,7 +11,6 @@ on:
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts"
-      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
@@ -53,18 +52,13 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "d33adb6d84fc96a9f65acbf319391c5d771f3a2d"
-          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)" = "7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "0fe46360aafce095123b6e25265c3dc300e52e41"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs)" = "5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51"
       - name: Require predecessor refusals and current successor success
         run: |
           set -euo pipefail
-          for spec in \
-            "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts|exact reviewed dispatcher source drift" \
-            "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts|reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts" \
-            "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs|reviewed_source_blob_drift:src/economic/buy_void_preappend_plain_input_v1.ts" \
-            "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts|reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+          for spec in             "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts|exact reviewed dispatcher source drift"             "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts|reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts"             "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs|reviewed_source_blob_drift:src/economic/buy_void_preappend_plain_input_v1.ts"             "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts|reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
           do
             proof="${spec%%|*}"
             marker="${spec#*|}"
@@ -78,6 +72,10 @@ jobs:
             set -e
             test "$status" -eq 1
             grep -Fq "$marker" "$log"
+            if [[ "$proof" == *dual_rail_v2.ts ]]; then
+              grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$log"
+              grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$log"
+            fi
           done
           node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
           node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs
@@ -91,11 +89,12 @@ jobs:
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'frozen_dual_rail_v2_proof_unchanged=true' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'actual_live_provider_finality_verified=false' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'mounted_verified_allocation_dispatch=false' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'funds_movement=false' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'production_gate_ready=false' handoff-${{ matrix.node }}.txt
           grep -Fxq 'mounted_verified_allocation_dispatch=false' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'funds_moved=false' dispatch-${{ matrix.node }}.txt
-          grep -Fxq 'mounted_verified_allocation_dispatch=false' dualrail-${{ matrix.node }}.txt
-          grep -Fxq 'funds_movement=false' dualrail-${{ matrix.node }}.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: current-presale-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
