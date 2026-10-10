@@ -128,6 +128,27 @@ def home_descriptor(home):
     return fd
 
 
+
+def assert_stage_visible(homefd, stagefd, home, stage_name):
+    # The named home/stage paths must still identify the held descriptors,
+    # including AFTER os.walk and exact member reads, not only at open.
+    home_opened = os.fstat(homefd)
+    home_visible = os.lstat(home)
+    if (not stat.S_ISDIR(home_visible.st_mode) or
+            stat.S_ISLNK(home_visible.st_mode) or
+            not exact_file(home_opened, home_visible)):
+        hold("home_directory_rebound")
+    stage_opened = os.fstat(stagefd)
+    stage_visible = os.stat(
+        stage_name, dir_fd=homefd, follow_symlinks=False)
+    if (not stat.S_ISDIR(stage_visible.st_mode) or
+            stat.S_ISLNK(stage_visible.st_mode) or
+            stage_visible.st_uid != os.getuid() or
+            (stage_visible.st_mode & 0o7777) != 0o700 or
+            not exact_file(stage_opened, stage_visible)):
+        hold("stage_root_rebound")
+
+
 def private_directory(fd, label, create=False):
     if create:
         os.mkdir(label, 0o700, dir_fd=fd)
@@ -215,6 +236,7 @@ def inspect_stage(parent, stage_name=STAGE_NAME):
     try:
         rootfd = private_directory(pfd, stage_name)
         try:
+            assert_stage_visible(pfd, rootfd, parent, stage_name)
             parent_path = os.path.join(parent, stage_name)
             expected_paths = {PREFIX + name for name, _, _ in EXPECTED}
             wanted_dirs = set()
@@ -268,6 +290,8 @@ def inspect_stage(parent, stage_name=STAGE_NAME):
                 finally:
                     for opened in reversed(fds):
                         os.close(opened)
+            # The visible stage/home paths may have changed during os.walk.
+            assert_stage_visible(pfd, rootfd, parent, stage_name)
         finally:
             os.close(rootfd)
     finally:
@@ -283,6 +307,7 @@ def report(kind, count=10):
                   original_v1_paths_opened=False,
                   original_v1_mutated=False,
                   v2_private_user_stage_reviewed=kind in ("stage", "inspect-stage"),
+                  stage_root_rebinding_rejected=(kind == "self-test"),
                   installed_v2_accepted=False,
                   dedicated_principal_authenticated=False,
                   custody_reserve_enabled=False,
@@ -330,6 +355,34 @@ def selftest(raw):
                 hold("test_unfsynced_intermediate_directory")
         if inspect_stage(temp, "stage") != 10:
             hold("selftest_stage_missing")
+
+        # After enumeration, rename the stage and leave a symlink pointing
+        # to the same valid files. The held stagefd still has perfect bytes;
+        # the visible stage pathname is now a different type and must HOLD.
+        native_walk = os.walk
+        relocated = parent / "stage-path-race-moved"
+        def swap_after_enumeration(top, *a, **kw):
+            listing = list(native_walk(top, *a, **kw))
+            os.rename(stage, relocated)
+            os.symlink(relocated, stage)
+            yield from listing
+        try:
+            with mock.patch.object(os, "walk",
+                                   side_effect=swap_after_enumeration):
+                try:
+                    inspect_stage(temp, "stage")
+                except ValueError as exc:
+                    if str(exc) != "nimo_v2_private_stage_stage_root_rebound":
+                        raise
+                else:
+                    hold("test_stage_root_rebinding_accepted")
+        finally:
+            if stage.is_symlink():
+                stage.unlink()
+            if relocated.exists():
+                os.rename(relocated, stage)
+        if inspect_stage(temp, "stage") != 10:
+            hold("test_rebound_stage_fixture_not_restored")
         try:
             stage_into(raw, temp, "stage")
             hold("test_existing_stage_accepted")

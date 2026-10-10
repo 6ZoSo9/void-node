@@ -54,6 +54,11 @@ symlink, changed inode, extra file, wrong mode/owner or hash HOLDS.
 No automatic repair/deletion of a partially staged directory is performed.
 
 `--inspect-stage` is independently read-only, checks all ten bytes and
+**revalidates the named home and top-level stage directory against their
+held descriptors before and after its full traversal**. Even a same-UID
+rename that leaves perfect file contents under an alias cannot qualify a
+rebound top-level path. The updated disposable self-test exercises that
+rename-plus-symlink race at the enumeration/FD boundary. It also checks
 directory/inode/mode boundaries again, and never accepts the staged bundle
 as root-owned or executable production code. Even when `--stage` succeeds,
 the new files remain **user-owned** and **nonactivated** in the home
@@ -61,7 +66,8 @@ directory; they are NOT installed V2 witness files.
 
 `--self-test` creates and deletes only disposable OS-temp fixtures.
 It verifies changed padding, appended bytes, one-bit changes, repeat-stage
-rejection and private staged-file tampering. Missing intermediate
+rejection, private staged-file tampering, and stage-root rebinding.
+Missing intermediate
 parent-directory fsync is separately checked in the same disposable fixture. The dedicated low-cost Node24
 workflow compiles source, uses the existing #2741 exact TAR builder to
 produce the reviewed archive, runs real `--plan` and `--self-test`, and

@@ -55,6 +55,7 @@ jobs:
                   d=json.load(handle)
               assert d["marker"]=="VOID_NIMO_V2_PRIVATE_STAGE_V1"
               assert d["mode"]==mode
+              assert d["stage_root_rebinding_rejected"] is (mode=="self-test")
               assert d["verified_review_file_count"]==10
               assert d["exact_review_tar_bytes"]==256000
               assert d["exact_review_tar_sha256"]=="656357f5ed98da324e205ca85085fa4b72d9289f8e2c2b7d5d43eb8e082c87c6"
