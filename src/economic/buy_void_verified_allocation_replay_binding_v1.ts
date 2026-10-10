@@ -63,6 +63,13 @@ const POOL = BigInt(ECONOMICS.canonical_presale_max_void) * MICRO;
 const RATE_NUMERATOR = BigInt(ECONOMICS.rate_void_units_numerator);
 const RATE_DENOMINATOR = BigInt(ECONOMICS.rate_void_units_denominator);
 const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+// Snapshot the native parse/prototype functions at module load. JSON.parse
+// normally makes ordinary objects that inherit Object.prototype. A polluted
+// Object.prototype.delivery_address or launch_authority could otherwise
+// *invent* an original request field absent from the authenticated JSONL
+// bytes while JSON.stringify still reports an unchanged canonical line.
+const PARSE_JSON_ROW_NATIVE_V1 = JSON.parse;
+const SET_PARSED_JSON_PROTO_NATIVE_V1 = Object.setPrototypeOf;
 
 export type BuyVoidVerifiedAllocationReplayDecisionV1 = Readonly<{
   ok: boolean;
@@ -261,6 +268,18 @@ function exactOwnFieldsV1(
   }
   return true;
 }
+// JSONL replay rows are untrusted plain bytes, not ambient JS objects.
+// Null-prototype every decoded object AND array before checking canonical
+// bytes or any original-buyer/payment field. This also prevents inherited
+// toJSON hooks from running during the later canonical JSON.stringify.
+function parseDetachedJsonRowV1(line: string): unknown {
+  return PARSE_JSON_ROW_NATIVE_V1(line, (_field: string, value: unknown) => {
+    if (value !== null && typeof value === "object") {
+      SET_PARSED_JSON_PROTO_NATIVE_V1(value, null);
+    }
+    return value;
+  });
+}
 function rows(bytes: Buffer, label: string): HistoryRow[] {
   const detached = detachedJsonlBytesV1(bytes, label);
   if (detached.length === 0) return [];
@@ -288,7 +307,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
     const line = UTF8.decode(lineBytes);
     if (!line) fail(label + "_empty_row");
     let value: unknown;
-    try { value = JSON.parse(line); } catch { fail(label + "_json_invalid"); }
+    try { value = parseDetachedJsonRowV1(line); } catch { fail(label + "_json_invalid"); }
     if (!isRow(value) || JSON.stringify(value) !== line) fail(label + "_noncanonical_row");
     Object.defineProperty(parsed, String(rowIndex), {
       value: { row: value, exactLine: line },

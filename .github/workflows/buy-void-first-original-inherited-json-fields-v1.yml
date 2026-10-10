@@ -1,0 +1,124 @@
+name: VOID Buy VOID first-original null-prototype JSONL V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_first_original_inherited_json_fields_v1.mjs"
+      - "docs/architecture/buy-void-first-original-inherited-json-fields-v1.md"
+      - ".github/workflows/buy-void-first-original-inherited-json-fields-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-first-original-null-proto-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
+
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Locked install without package scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build actual replay classifier
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Falsify inherited original buyer fields with actual compiled classifier
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_first_original_inherited_json_fields_v1.mjs \
+            | tee "first-original-inherited-json-node-${{ matrix.node }}.txt"
+          for expected in \
+            "VOID_BUY_VOID_FIRST_ORIGINAL_INHERITED_JSON_FIELDS_V1_GREEN" \
+            "original_wallet_inheritance_refused=true" \
+            "original_native_usdc_inheritance_refused=true" \
+            "original_launch_receipt_inheritance_refused=true" \
+            "original_request_id_inheritance_refused=true" \
+            "object_inherited_getters_executed=0" \
+            "object_inherited_toJSON_executed=0" \
+            "array_inherited_toJSON_executed=0" \
+            "canonical_positive_lineage_unchanged=true" \
+            "payment_or_allocation_append_performed=false" \
+            "production_gate_ready=false" \
+            "funds_moved=false"
+          do
+            grep -Fx "$expected" "first-original-inherited-json-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload compact proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-inherited-json-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: first-original-inherited-json-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exactly three receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-inherited-json-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proofs
+      - name: Require byte-identical 22 24 26 evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "proofs/first-original-inherited-json-node-$v.txt"
+          done
+          cmp proofs/first-original-inherited-json-node-22.txt proofs/first-original-inherited-json-node-24.txt
+          cmp proofs/first-original-inherited-json-node-22.txt proofs/first-original-inherited-json-node-26.txt
+          echo "VOID_FIRST_ORIGINAL_INHERITED_JSON_THREE_NODE_GREEN"
+          echo "buyer_or_payment_allocation_mutation=false"
+          echo "presale_activation=false"
