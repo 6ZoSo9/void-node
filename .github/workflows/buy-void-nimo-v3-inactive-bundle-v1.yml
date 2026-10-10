@@ -1,0 +1,141 @@
+name: VOID Nimo V3 inactive exact-wire bundle v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
+      - "docs/architecture/buy-void-nimo-v3-inactive-bundle-v1.md"
+      - ".github/workflows/buy-void-nimo-v3-inactive-bundle-v1.yml"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: \${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact current witness runtime
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
+            | tee nimo-v3-source-\${{ matrix.node }}.txt
+          grep -Fxq 'candidate_manifest_id=voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454' \
+            nimo-v3-source-\${{ matrix.node }}.txt
+          grep -Fxq 'candidate_v3_installed_on_nimo=false' \
+            nimo-v3-source-\${{ matrix.node }}.txt
+      - name: Package and independently inspect exact canonical archive
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py
+          stage="$(mktemp -d)"
+          chmod 0700 "$stage"
+          trap 'rm -rf -- "$stage"' EXIT
+          python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
+            --package "$stage/void-nimo-v3-inactive.tar" \
+            | tee receipt-\${{ matrix.node }}.json
+          python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
+            --inspect-archive "$stage/void-nimo-v3-inactive.tar" \
+            | tee inspect-\${{ matrix.node }}.json
+          python3 - "receipt-\${{ matrix.node }}.json" "inspect-\${{ matrix.node }}.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1],encoding="utf-8"))
+          b=json.load(open(sys.argv[2],encoding="utf-8"))
+          assert a["marker"]==b["marker"]=="VOID_NIMO_V3_INACTIVE_BUNDLE_V1"
+          assert a["candidate_manifest_id"]==b["candidate_manifest_id"]=="voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454"
+          assert a["archive_sha256"]==b["archive_sha256"]
+          assert a["archive_bytes"]==b["archive_bytes"]
+          assert a["runtime_files_exact"]==b["runtime_files_exact"]==8
+          assert a["canonical_wire_bytes"] is b["canonical_wire_bytes"] is True
+          for key in (
+              "installed_nimo_v3_accepted",
+              "authenticated_custody_principal_verified",
+              "verified_payment_to_allocation_mounted",
+              "presale_activation",
+              "funds_moved",
+          ):
+              assert a[key] is b[key] is False
+          PY
+          cp "$stage/void-nimo-v3-inactive.tar" \
+            "void-nimo-v3-inactive-node-\${{ matrix.node }}.tar"
+      - name: Reject archive byte tampering
+        run: |
+          set -euo pipefail
+          cp "void-nimo-v3-inactive-node-\${{ matrix.node }}.tar" tampered.tar
+          python3 - tampered.tar <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1])
+          b=bytearray(p.read_bytes())
+          b[-1] ^= 1
+          p.write_bytes(b)
+          PY
+          if python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
+            --inspect-archive "$PWD/tampered.tar" > tampered.txt 2>&1; then
+            echo UNEXPECTED_TAMPER_ACCEPTANCE >&2
+            exit 1
+          fi
+          grep -Fq 'archive_noncanonical_wire_bytes' tampered.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v3-inactive-\${{ github.event.pull_request.head.sha || github.sha }}-node-\${{ matrix.node }}
+          path: |
+            receipt-\${{ matrix.node }}.json
+            inspect-\${{ matrix.node }}.json
+            void-nimo-v3-inactive-node-\${{ matrix.node }}.tar
+          if-no-files-found: error
+          retention-days: 1
+      - run: git diff --check
+
+  compare:
+    needs: [package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-v3-inactive-\${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+      - name: Require byte-identical Node 22 24 26 archives and receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/receipt-$v.json"
+            test -s "evidence/inspect-$v.json"
+            test -s "evidence/void-nimo-v3-inactive-node-$v.tar"
+          done
+          cmp evidence/receipt-22.json evidence/receipt-24.json
+          cmp evidence/receipt-22.json evidence/receipt-26.json
+          cmp evidence/inspect-22.json evidence/inspect-24.json
+          cmp evidence/inspect-22.json evidence/inspect-26.json
+          cmp evidence/void-nimo-v3-inactive-node-22.tar evidence/void-nimo-v3-inactive-node-24.tar
+          cmp evidence/void-nimo-v3-inactive-node-22.tar evidence/void-nimo-v3-inactive-node-26.tar
+          cat evidence/receipt-22.json
+          echo VOID_NIMO_V3_INACTIVE_EXACT_WIRE_CROSS_NODE_GREEN
+          echo installed_nimo_v3_accepted=false
+          echo presale_activation=false
+          echo funds_moved=false
