@@ -44,6 +44,9 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = "$qualified_main"
 
+          git config user.name "VOID Repository Bot"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+
           set +e
           git merge --no-commit --no-ff "$qualified_main"
           merge_rc=$?
@@ -88,8 +91,6 @@ jobs:
           git diff --cached --check
           test -z "$(git diff --name-only --diff-filter=U)"
 
-          git config user.name "VOID Repository Bot"
-          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
           git commit -m "merge(public,econ): reconcile seal-first startup with presale integration"
 
           test "$(git rev-parse HEAD^1)" = "$GITHUB_SHA"
