@@ -224,14 +224,21 @@ function detachedBoundedJsonValueV1(
           descriptor.enumerable !== true) {
         hold(label + "_accessor_or_nondata_property");
       }
-      clone.push(
-        detachedBoundedJsonValueV1(
-          descriptor.value,
-          label,
-          budget,
-          depth + 1,
-        ),
+      // Own-index definition bypasses inherited Array.prototype numeric
+      // setters and a replaced Array.prototype.push. Both can otherwise
+      // mutate event bytes or run ambient code before payment admission.
+      const detached = detachedBoundedJsonValueV1(
+        descriptor.value,
+        label,
+        budget,
+        depth + 1,
       );
+      Object.defineProperty(clone, String(index), {
+        value: detached,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return clone;
   }
