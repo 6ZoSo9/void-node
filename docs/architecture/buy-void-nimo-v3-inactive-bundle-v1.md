@@ -51,4 +51,3 @@ Even a successful private stage is **not** an installation or acceptance:
 `verified_payment_to_allocation_mounted=false`,
 `custody_reserve_or_recover_enabled=false`,
 `presale_activation=false`, and `funds_moved=false`.
-
