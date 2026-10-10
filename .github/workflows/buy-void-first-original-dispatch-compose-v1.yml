@@ -1,15 +1,22 @@
-name: VOID Buy VOID first-original buyer and dispatcher composition v1
+name: VOID Buy VOID first-original buyer and dispatcher composition v2
 
 on:
   pull_request:
     paths:
       - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
       - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v1.yml"
+      - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v2.yml"
       - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v1.md"
+      - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v2.md"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
       - ".github/workflows/buy-void-first-original-dispatch-compose-v1.yml"
       - "docs/architecture/buy-void-first-original-dispatch-compose-v1.md"
       - "package.json"
@@ -63,9 +70,13 @@ jobs:
             import crypto from "node:crypto";
             const pins = new Map([
               ["src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts","0e27a76e777c326d2d9e2b1550b7f2979fca9abb"],
+              ["scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts","5050498f600efd7d5c83af214f75663a66685d6e"],
               ["scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts","e58bf39fadc25123771481608fad2a61a8f3133f"],
-              ["src/economic/buy_void_verified_allocation_replay_binding_v1.ts","0a74a3652081c3e142d0b887676771a7ac148f32"],
+              ["src/economic/buy_void_verified_allocation_replay_binding_v1.ts","435ed6000caad046f48fb318fbc7c865393f3b6c"],
+              ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts","d31f8cbb85ed17c9937baf3c9725a6fae22cc829"],
               ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts","9fb39172afa09e49c11d72ff376e9af2d99a4101"],
+              ["src/economic/buy_void_preappend_plain_input_v1.ts","4fbf115830dde01930631e73fea856abe0cceafa"],
+              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs","3f91404c8f5b6897b0781455564b4ec26b480c03"],
               ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs","d42148523c44d95d3b87236ade22cfb92dcb5bee"],
               ["src/economic/buy_void_verified_payment_capacity_admission_v1.ts","f591f7407d9afc2cf77e0f90923aa11b4817fd4e"],
             ]);
@@ -76,28 +87,43 @@ jobs:
             }
             console.log("BUY_VOID_ORIGINAL_DISPATCH_EXACT_SOURCE_TUPLE_GREEN");
           '
-      - name: Frozen historical buyer crash proof must still HOLD
+      - name: Frozen historical crash and handoff proofs must still HOLD
         run: |
-          set -euo pipefail
-          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "$RUNNER_TEMP/historic.txt" 2>&1; then
-            echo "UNEXPECTED_V1_REISSUE" >&2
+set -euo pipefail
+for v in 1 2 3; do
+  log="$RUNNER_TEMP/historic-crash-$v.txt"
+  if node "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v$v.mjs" > "$log" 2>&1; then
+    echo "UNEXPECTED_FROZEN_CRASH_V${v}_REISSUE" >&2
+    exit 1
+  fi
+  grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$log"
+done
+if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > "$RUNNER_TEMP/historic-handoff-v2.txt" 2>&1; then
+  echo "UNEXPECTED_FROZEN_HANDOFF_V2_REISSUE" >&2
+  exit 1
+fi
+grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historic-handoff-v2.txt"
+          if node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > "$RUNNER_TEMP/historic-dispatch-v1.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_DISPATCH_V1_REISSUE" >&2
             exit 1
           fi
-          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historic.txt"
-      - name: Current first-original crash/replay V2 must pass; frozen V1 stays rejected
+          grep -F 'mounted router generation drift' "$RUNNER_TEMP/historic-dispatch-v1.txt"
+      - name: Current first-original crash/replay V4 must pass; frozen V1/V2/V3 stay rejected
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \
-            > "$RUNNER_TEMP/current-crash-v2.json"
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs \
+            > "$RUNNER_TEMP/current-crash-v4.json"
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             const receipt=JSON.parse(fs.readFileSync(
-              process.env.RUNNER_TEMP+"/current-crash-v2.json","utf8"));
+              process.env.RUNNER_TEMP+"/current-crash-v4.json","utf8"));
             assert.equal(receipt.marker,
-              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2");
+              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4");
             for(const key of [
               "frozen_historical_V1_proof_unchanged",
+              "frozen_historical_V2_proof_unchanged",
+              "frozen_historical_V3_proof_unchanged",
               "late_buyer_wallet_backfill_verified_allocation_rejected",
               "changed_original_buyer_wallet_rejected",
               "late_tx_and_receive_with_original_wallet_positive",
@@ -123,9 +149,12 @@ jobs:
       - name: Hardened dispatcher outer input proof
         run: |
           set -euo pipefail
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts \
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts \
             | tee "$RUNNER_TEMP/dispatch.txt"
           for marker in \
+            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V2_GREEN' \
+            'frozen_dispatcher_v1_proof_unchanged=true' \
+            'reviewed_router_source_blob=1fde828c97175560f98ab070af33eefc595f8002' \
             'outer_input_proxy_rejected_without_traps=true' \
             'outer_input_getter_rejected_without_invocation=true' \
             'outer_input_root_getter_rejected_without_invocation=true' \
@@ -139,13 +168,13 @@ jobs:
           do
             grep -Fx "$marker" "$RUNNER_TEMP/dispatch.txt"
           done
-      - name: Real temp filesystem first-original buyer handoff V2 proof
+      - name: Real temp filesystem first-original buyer handoff V3 proof
         run: |
           set -euo pipefail
-          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \
             | tee "$RUNNER_TEMP/handoff.txt"
           for marker in \
-            'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN' \
+            'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN' \
             'first_original_missing_absent_null_empty_preappend_held=true' \
             'forged_matching_allocation_replay_held=true' \
             'valid_original_late_tx_receiver_preserves_deterministic_allocation=true' \
@@ -162,11 +191,13 @@ jobs:
           node --input-type=module -e '
             import fs from "node:fs";
             const receipt={
-              schema:"void_buy_void_first_original_buyer_dispatch_source_composition_v1",
-              version:1,
+              schema:"void_buy_void_first_original_buyer_dispatch_source_composition_v2",
+              version:2,
               reviewed_dispatch_source_git_blob_sha1:"0e27a76e777c326d2d9e2b1550b7f2979fca9abb",
-              reviewed_first_original_buyer_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32",
-              reviewed_real_handoff_proof_git_blob_sha1:"9fb39172afa09e49c11d72ff376e9af2d99a4101",
+              reviewed_dispatch_proof_git_blob_sha1:"5050498f600efd7d5c83af214f75663a66685d6e",
+              frozen_dispatch_v1_proof_unchanged:true,
+              reviewed_first_original_buyer_git_blob_sha1:"435ed6000caad046f48fb318fbc7c865393f3b6c",
+              reviewed_real_handoff_proof_git_blob_sha1:"d31f8cbb85ed17c9937baf3c9725a6fae22cc829",
               outer_input_proxy_getter_negative_proven:true,
               original_wallet_absent_null_empty_preappend_held:true,
               forged_existing_allocation_wallet_backfill_held:true,
@@ -225,7 +256,7 @@ jobs:
               if (key.endsWith("_verified") || key.endsWith("_ready") ||
                   key==="presale_activation" || key==="funds_movement") assert.equal(val,false,key);
             }
-            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_DISPATCH_COMPOSE_THREE_NODE_GREEN");
+            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_DISPATCH_COMPOSE_V2_THREE_NODE_GREEN");
             console.log("source_receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
             console.log("actual_mounted_dispatcher_verified=false");
             console.log("real_funds_moved=false");
