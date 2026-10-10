@@ -106,7 +106,7 @@ const REQUIREMENTS = Object.freeze([
   ["same_uid_joint_rollback_excluded", "HOLD_SAME_UID_JOINT_ROLLBACK"],
 ]);
 
-const CANDIDATE = Object.freeze({
+const PRE_INSPECTION_CANDIDATE = Object.freeze({
   candidate_only: true,
   installable_unit_generated: false,
   systemd_manager: "system",
@@ -177,6 +177,45 @@ const CANDIDATE = Object.freeze({
   storage_root_owner_gid_observed: 981,
   independent_custody_proven: false,
   production_gate_ready: false,
+});
+
+// This is a new diagnostic candidate, not a reissue of the old source tuple.
+// Preserve the full earlier candidate and the Oct 7 observation independently.
+const CANDIDATE = Object.freeze({
+  ...PRE_INSPECTION_CANDIDATE,
+  source_review_generation: "descriptor-inspection-20261010",
+  source_review_ref: "c7e5993bb5fd4d8fb402762a56925a9ce9e25518",
+  predecessor_candidate: PRE_INSPECTION_CANDIDATE,
+  service_source_sha256:
+    "sha256:fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88",
+  service_contract_sha256:
+    "sha256:676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5",
+  top_level_source_imports: Object.freeze([
+    ...PRE_INSPECTION_CANDIDATE.top_level_source_imports,
+    "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+  ]),
+  inspection_dependency: Object.freeze({
+    source: "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+    source_git_blob: "1bf88a403b1012ac00edaf634c5ed237a898043c",
+    source_sha256:
+      "sha256:a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979",
+    static_imports: Object.freeze([
+      "node:crypto", "node:fs", "node:path", "node:util",
+    ]),
+  }),
+  inspection_runtime_requirements: Object.freeze({
+    platform: "linux",
+    nonroot_uid: true,
+    proc_self_fd: true,
+    canonical_simple_component_paths: true,
+    separate_nonnested_roots: true,
+    root_permission_bits: "0700",
+    file_permission_bits: "0600",
+    files_single_link: true,
+    read_window_only: true,
+    host_qualified: false,
+    cross_root_atomic_snapshot_proven: false,
+  }),
 });
 
 function canonicalJson(value) {
