@@ -1,0 +1,90 @@
+name: VOID Nimo V2 unprivileged inactive stage v1
+on:
+  pull_request:
+    paths:
+      - "scripts/void_nimo_v2_private_stage_v1.py"
+      - "scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py"
+      - "docs/architecture/buy-void-nimo-v2-private-stage-v1.md"
+      - ".github/workflows/buy-void-nimo-v2-private-stage-v1.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nimo-v2-private-stage-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind the actual proposed head and untouched original tree
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Build reviewed source without lifecycle scripts
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Inspect exact inactive source archive and rehearse user-only stage
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/void_nimo_v2_private_stage_v1.py
+          stage="$(mktemp -d)"
+          chmod 0700 "$stage"
+          trap 'rm -rf -- "$stage"' EXIT
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py --package "$stage/void-nimo-v2-inactive.tar" > /dev/null
+          python3 scripts/prove_buy_void_nimo_v2_inactive_bundle_v1.py --inspect-archive "$stage/void-nimo-v2-inactive.tar" > /dev/null
+          python3 scripts/void_nimo_v2_private_stage_v1.py --plan "$stage/void-nimo-v2-inactive.tar" > plan.txt
+          python3 scripts/void_nimo_v2_private_stage_v1.py --self-test "$stage/void-nimo-v2-inactive.tar" > negative.txt
+          python3 - <<'PY'
+          import json
+          for file,mode in (("plan.txt","plan"),("negative.txt","self-test")):
+              with open(file,encoding="utf-8") as handle:
+                  d=json.load(handle)
+              assert d["marker"]=="VOID_NIMO_V2_PRIVATE_STAGE_V1"
+              assert d["mode"]==mode
+              assert d["verified_review_file_count"]==10
+              assert d["exact_review_tar_bytes"]==256000
+              assert d["exact_review_tar_sha256"]=="656357f5ed98da324e205ca85085fa4b72d9289f8e2c2b7d5d43eb8e082c87c6"
+              for key in ("original_v1_paths_opened","original_v1_mutated",
+                          "installed_v2_accepted","dedicated_principal_authenticated",
+                          "custody_reserve_enabled","payment_to_allocation_authorized",
+                          "presale_activation","funds_moved"):
+                  assert d[key] is False,key
+          PY
+          # Run a malicious archive through the real CLI: no stage is created.
+          python3 - "$stage" <<'PY'
+          import pathlib,subprocess,sys
+          root=pathlib.Path(sys.argv[1])
+          original=(root/"void-nimo-v2-inactive.tar").read_bytes()
+          tool="scripts/void_nimo_v2_private_stage_v1.py"
+          for label,raw in (("appended",original+b"x"),
+                            ("padding",original[:-1]+b"Z")):
+              candidate=root/(label+".tar")
+              candidate.write_bytes(raw)
+              r=subprocess.run([sys.executable,"-I","-B",tool,
+                                "--plan",str(candidate)],
+                               capture_output=True,text=True,timeout=10)
+              assert r.returncode==2,label
+              assert "VOID_NIMO_V2_PRIVATE_STAGE_V1_HOLD" in r.stderr,label
+          PY
+          # The staging tool has no sudo, socket, SSH or service operation.
+          ! grep -En '^[[:space:]]*(import subprocess|from subprocess|os\\.system\\(|subprocess\\.)' scripts/void_nimo_v2_private_stage_v1.py
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+          echo VOID_NIMO_V2_UNPRIVILEGED_INACTIVE_STAGE_PROOF_GREEN
+          echo original_v1_mutated=false
+          echo installed_v2_accepted=false
+          echo presale_activation=false
+          echo funds_moved=false
