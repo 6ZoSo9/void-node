@@ -230,6 +230,148 @@ assert.equal(
   false,
 );
 
+// Native Buffer properties are not authority over the bytes being admitted.
+// These cases exercise both public entry points, not a replacement planner.
+function requireExactBufferReplay(buffer: Buffer, label: string): void {
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(buffer);
+  if (classified.ok === false) throw Error(label + ": classification held");
+  assert.equal(classified.ok, true, label);
+  assert.equal(classified.record_count, 1, label);
+  assert.equal(classified.tip_hash, first.record.allocation_record_hash, label);
+  const planned = requireOk(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: buffer,
+  }));
+  assert.equal(planned.status, "idempotent", label);
+  assert.equal(planned.next_ledger_jsonl, canonicalFirst, label);
+}
+
+for (const key of [
+  "valueOf", "length", "byteLength", "byteOffset", "buffer", "toString",
+  "constructor", Symbol.iterator, Symbol.toPrimitive,
+]) {
+  let calls = 0;
+  const buffer = Buffer.from(canonicalFirst, "utf8");
+  Object.defineProperty(buffer, key, {
+    configurable: true,
+    get() { calls++; throw Error("caller_buffer_getter_executed"); },
+  });
+  requireExactBufferReplay(buffer, String(key));
+  assert.equal(calls, 0, "Buffer own getter executed: " + String(key));
+}
+for (const returnsOtherBytes of [false, true]) {
+  let calls = 0;
+  const buffer = Buffer.from(canonicalFirst, "utf8");
+  Object.defineProperty(buffer, "valueOf", {
+    value() {
+      calls++;
+      if (returnsOtherBytes) return Buffer.alloc(0);
+      throw Error("caller_buffer_valueOf_executed");
+    },
+  });
+  requireExactBufferReplay(buffer, "own valueOf");
+  assert.equal(calls, 0, "Buffer valueOf executed");
+}
+{
+  let calls = 0;
+  const buffer = Buffer.from(canonicalFirst, "utf8");
+  Object.defineProperty(buffer, "length", { get() { calls++; return 0; } });
+  requireExactBufferReplay(buffer, "false zero length");
+  assert.equal(calls, 0, "Buffer length getter executed");
+}
+{
+  const padded = Buffer.concat([
+    Buffer.from("prefix"), Buffer.from(canonicalFirst), Buffer.from("suffix"),
+  ]);
+  const view = padded.subarray(6, padded.length - 6);
+  requireExactBufferReplay(view, "nonzero-offset view");
+  const detached = requireOk(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: view,
+  }));
+  padded.fill(0);
+  assert.equal(detached.next_ledger_jsonl, canonicalFirst);
+}
+{
+  let calls = 0;
+  const prototype = Object.create(Buffer.prototype);
+  Object.defineProperty(prototype, "valueOf", {
+    get() { calls++; throw Error("inherited_buffer_callback"); },
+  });
+  const buffer = Buffer.from(canonicalFirst);
+  Object.setPrototypeOf(buffer, prototype);
+  requireHeld(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: buffer,
+  }), "allocation_reservation_input_not_plain_data");
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(buffer);
+  if (classified.ok === true) throw Error("custom Buffer prototype admitted");
+  assert.equal(classified.ok, false);
+  assert.equal(classified.reason, "allocation_reservation_ledger_not_plain_data");
+  assert.equal(calls, 0, "inherited Buffer hook executed");
+}
+{
+  let calls = 0;
+  const oversize = Buffer.alloc(64 * 1024 * 1024 + 1);
+  Object.defineProperty(oversize, "length", { get() { calls++; return 0; } });
+  requireHeld(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: oversize,
+  }), "allocation_reservation_ledger_too_large");
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(oversize);
+  if (classified.ok === true) throw Error("oversized Buffer admitted");
+  assert.equal(classified.ok, false);
+  assert.equal(classified.reason, "allocation_reservation_ledger_too_large");
+  assert.equal(calls, 0, "size admission trusted caller length");
+}
+
+// A legitimate empty native Buffer still represents the empty ledger.
+{
+  const empty = Buffer.alloc(0);
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(empty);
+  if (classified.ok === false) throw Error("empty native Buffer held");
+  assert.equal(classified.record_count, 0);
+  const planned = requireOk(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: empty,
+  }));
+  assert.equal(planned.next_ledger_jsonl, canonicalFirst);
+}
+// The standard Buffer prototype can have an inherited valueOf hook too.
+{
+  const descriptor = Object.getOwnPropertyDescriptor(Buffer.prototype, "valueOf");
+  const buffer = Buffer.from(canonicalFirst);
+  let calls = 0;
+  try {
+    Object.defineProperty(Buffer.prototype, "valueOf", {
+      configurable: true,
+      value() { calls++; throw Error("ambient_buffer_valueOf_executed"); },
+    });
+    requireExactBufferReplay(buffer, "inherited standard Buffer valueOf");
+    assert.equal(calls, 0, "inherited standard Buffer hook executed");
+  } finally {
+    if (descriptor) Object.defineProperty(Buffer.prototype, "valueOf", descriptor);
+    else delete (Buffer.prototype as any).valueOf;
+  }
+}
+// A detached former view must HOLD, not become an empty ledger.
+{
+  const backing = new ArrayBuffer(8);
+  const buffer = Buffer.from(backing);
+  structuredClone(backing, { transfer: [backing] });
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(buffer);
+  assert.equal(classified.ok, false, "detached Buffer became an empty ledger");
+  const planned = planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: buffer,
+  });
+  assert.equal(planned.ok, false, "detached Buffer admitted to planner");
+}
+{
+  const revocable = Proxy.revocable(Buffer.from(canonicalFirst), {});
+  revocable.revoke();
+  const classified = classifyBuyVoidAllocationReservationLedgerV1(revocable.proxy);
+  if (classified.ok === true) throw Error("revoked Buffer Proxy admitted");
+  assert.equal(classified.reason, "allocation_reservation_ledger_not_plain_data");
+  requireHeld(planBuyVoidAllocationReservationV1({
+    ...baseInput, ledger_jsonl: revocable.proxy,
+  }), "allocation_reservation_input_not_plain_data");
+}
+
 console.log("VOID_BUY_VOID_ALLOCATION_LEDGER_PLAIN_DATA_V1_GREEN");
 console.log("canonical_record_jsonl_unchanged=true");
 console.log("idempotent_buffer_replay_unchanged=true");
@@ -242,3 +384,6 @@ console.log("ambient_Object_toJSON_executed=false");
 console.log("production_allocation_mutation_ready=false");
 console.log("wallet_or_signer_access=false");
 console.log("funds_moved=false");
+console.log("native_buffer_hook_calls=0");
+console.log("native_buffer_exact_replay_preserved=true");
+console.log("detached_buffer_rejected=true");

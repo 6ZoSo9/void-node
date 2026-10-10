@@ -74,6 +74,34 @@ const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 const MICRO = 1_000_000n;
 const MAX_AMOUNT_TEXT_CHARS = 32;
 
+// Read and copy native Buffer internal slots, never caller-owned JS hooks.
+// Deliberately reject subclass/custom-prototype views before prototype traversal.
+const ALLOCATION_BUFFER_PROTOTYPE_V1 = Buffer.prototype;
+const ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+)!.get!;
+const ALLOCATION_TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
+
+function isNativeAllocationBufferV1(value: unknown): value is Buffer {
+  return !utilTypes.isProxy(value) &&
+    utilTypes.isUint8Array(value) &&
+    Object.getPrototypeOf(value) === ALLOCATION_BUFFER_PROTOTYPE_V1;
+}
+
+function detachedAllocationBufferV1(value: Buffer): Buffer {
+  const length = Reflect.apply(
+    ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, value, [],
+  ) as number;
+  if (length > MAX_LEDGER_BYTES) {
+    throw new Error("allocation_reservation_ledger_too_large");
+  }
+  const bytes = Buffer.alloc(length);
+  // TypedArray.set's typed-array source path ignores valueOf, length,
+  // iterator, constructor, and buffer properties on the caller's object.
+  Reflect.apply(ALLOCATION_TYPED_ARRAY_SET_V1, bytes, [value]);
+  return bytes;
+}
+
 const RECORD_KEYS = Object.freeze([
   "activation_generation",
   "activation_receipt_id",
@@ -279,13 +307,9 @@ function detachedAllocationDataV1(
         if (Buffer.byteLength(value, "utf8") > MAX_LEDGER_BYTES) {
           throw new Error("allocation_reservation_ledger_too_large");
         }
-      } else if (Buffer.isBuffer(value)) {
-        if (value.length > MAX_LEDGER_BYTES) {
-          throw new Error("allocation_reservation_ledger_too_large");
-        }
-        // Never retain an externally mutable byte array for classification
-        // and then read that same array again while building next JSONL.
-        value = Buffer.from(value);
+      } else if (isNativeAllocationBufferV1(value)) {
+        // Bound and detach the actual view bytes without executing JS hooks.
+        value = detachedAllocationBufferV1(value);
       } else {
         throw new Error(failure);
       }
@@ -997,11 +1021,8 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
         throw new Error("allocation_reservation_ledger_too_large");
       }
       bytes = Buffer.from(ledger, "utf8");
-    } else if (Buffer.isBuffer(ledger)) {
-      if (ledger.length > MAX_LEDGER_BYTES) {
-        throw new Error("allocation_reservation_ledger_too_large");
-      }
-      bytes = Buffer.from(ledger);
+    } else if (isNativeAllocationBufferV1(ledger)) {
+      bytes = detachedAllocationBufferV1(ledger);
     } else {
       throw new Error("allocation_reservation_ledger_not_plain_data");
     }
