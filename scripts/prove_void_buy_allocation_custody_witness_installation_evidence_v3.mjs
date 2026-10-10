@@ -843,7 +843,7 @@ for (const configStat of [
           },
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_v3_file_invalid/u,
   );
 }
 
@@ -870,7 +870,7 @@ for (const configStat of [
           },
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_v3_file_invalid/u,
   );
 }
 
@@ -885,7 +885,7 @@ for (const configStat of [
           badParentChains: [target],
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_v3_file_invalid/u,
   );
 }
 
@@ -1059,8 +1059,8 @@ for (const badContext of [
   };
   assert.throws(
     () => collect(makeIo({ files: badFiles })),
-    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
-    "handler byte drift must HOLD at the stronger runtime-bundle gate before V2 installation classification",
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_v3_file_invalid/u,
+    "handler byte drift must HOLD at the stronger V3 runtime-bundle gate before V2 support classification",
   );
 }
 
