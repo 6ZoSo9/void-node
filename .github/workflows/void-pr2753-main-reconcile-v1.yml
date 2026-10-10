@@ -1,0 +1,260 @@
+name: VOID PR2753 main reconciliation v1
+
+on:
+  push:
+    branches:
+      - ren/buy-void-first-original-v6-current-main-joint-review-20261009
+    paths:
+      - .github/workflows/void-pr2753-main-reconcile-v1.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-pr2753-main-reconcile-v1
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact reconciliation trigger
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Merge qualified bootstrap main and prove combined source
+        env:
+          EXPECTED_BRANCH: ren/buy-void-first-original-v6-current-main-joint-review-20261009
+          EXPECTED_BRANCH_HEAD: 5c8ce0f1a2dc7f45e522bcbd513ae3f4872117bc
+          EXPECTED_MAIN: 13b43dd68bb80ae975f1fc0ac7edcd50b1d8b714
+          OLD_BRANCH_INDEX_BLOB: 240414e313f44f80d57f4e349be2f1ab3d72fe66
+          OLD_MAIN_INDEX_BLOB: 0e3361ef8d4e6f3d7a9e428d14db64281afc21fe
+          BOOTSTRAP_ONLY_INDEX_BLOB: 510c5194a8cacf1c3e0ff22824aded0c28651dc1
+          WORKFLOW_PATH: .github/workflows/void-pr2753-main-reconcile-v1.yml
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test "$GITHUB_REF_NAME" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_BRANCH_HEAD"
+          test "$(git diff --name-only "$EXPECTED_BRANCH_HEAD" HEAD)" = "$WORKFLOW_PATH"
+          test "$(git hash-object "$EXPECTED_BRANCH_HEAD:src/index.ts" 2>/dev/null || true)" = "" || true
+          test "$(git rev-parse "$EXPECTED_BRANCH_HEAD:src/index.ts")" = "$OLD_BRANCH_INDEX_BLOB"
+
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+
+          set +e
+          git merge --no-commit --no-ff "$EXPECTED_MAIN"
+          merge_rc=$?
+          set -e
+          test "$merge_rc" -ne 0
+
+          conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected_conflicts="$(printf '%s\n' \
+            runtime/canonical-producer-self-http-guard-v1.cjs \
+            scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs \
+            | sort)"
+          test "$conflicts" = "$expected_conflicts"
+
+          git checkout --ours -- \
+            runtime/canonical-producer-self-http-guard-v1.cjs \
+            scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+          import subprocess
+
+          expected_head = os.environ["EXPECTED_BRANCH_HEAD"]
+          predecessor = subprocess.check_output(
+              ["git", "show", f"{expected_head}:src/index.ts"]
+          ).decode("utf-8")
+          current = Path("src/index.ts").read_text(encoding="utf-8")
+
+          old_helper = (
+              "/* Optional legacy helper (safe to keep for scripts/tests) */\n"
+              "const __apiSegStore =\n"
+              "new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 } as any);"
+          )
+          new_helper = (
+              "/* Bind legacy helper after Node's inherited-seal admission. */\n"
+              "let __apiSegStore: SegStore | null = null;"
+          )
+          if predecessor.count(old_helper) != 1:
+              raise SystemExit("unexpected predecessor eager-SegStore occurrence count")
+
+          expected = predecessor.replace(old_helper, new_helper)
+          schedule = '  if (process.env.VOID_SKIP_AUTOREPAIR === "1") {'
+          schedule_pos = expected.find(schedule)
+          boot_marker = "  /* ---------- boot node ---------- */"
+          schedule_end = expected.find(boot_marker, schedule_pos)
+          if schedule_pos < 0 or schedule_end <= schedule_pos:
+              raise SystemExit("could not isolate predecessor repair branch")
+          repair_branch = expected[schedule_pos:schedule_end]
+          if repair_branch.count("autoRepairDataDir(DATA_DIR") != 1:
+              raise SystemExit("unexpected repair branch identity")
+          expected = expected[:schedule_pos] + expected[schedule_end:]
+
+          ctor_tail = (
+              "    udpSwarmAllowNonPublicEndpoint:\n"
+              "      udpSwarmRuntimeConfig.allow_nonpublic_endpoints,\n"
+              "  });"
+          )
+          ctor_pos = expected.find("  const node = new Node(P2P_PORT, kp, {")
+          ctor_end = expected.find(ctor_tail, ctor_pos)
+          if ctor_pos < 0 or ctor_end < ctor_pos:
+              raise SystemExit("could not isolate predecessor Node constructor")
+          ctor_end += len(ctor_tail)
+          expected = (
+              expected[:ctor_end]
+              + "\n  __apiSegStore = node.store;\n"
+              + repair_branch
+              + expected[ctor_end:]
+          )
+
+          if current != expected:
+              raise SystemExit(
+                  "automatic src/index.ts merge is not the exact qualified "
+                  "presale predecessor plus the two seal-first startup hunks"
+              )
+          PY
+
+          combined_blob="$(git hash-object src/index.ts)"
+          combined_size="$(wc -c < src/index.ts | tr -d ' ')"
+          test "$combined_blob" != "$OLD_BRANCH_INDEX_BLOB"
+          test "$combined_blob" != "$BOOTSTRAP_ONLY_INDEX_BLOB"
+          test "$combined_size" -le 3852487
+          export combined_blob combined_size
+
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+
+          old_branch = os.environ["OLD_BRANCH_INDEX_BLOB"]
+          old_main = os.environ["OLD_MAIN_INDEX_BLOB"]
+          bootstrap_only = os.environ["BOOTSTRAP_ONLY_INDEX_BLOB"]
+          combined = os.environ["combined_blob"]
+          combined_size = os.environ["combined_size"]
+          expected_head = os.environ["EXPECTED_BRANCH_HEAD"]
+
+          for raw in (
+              "runtime/canonical-producer-self-http-guard-v1.cjs",
+              "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs",
+          ):
+              path = Path(raw)
+              text = path.read_text(encoding="utf-8")
+              if text.count(old_branch) != 1:
+                  raise SystemExit(f"unexpected old source pin count in {raw}")
+              path.write_text(text.replace(old_branch, combined), encoding="utf-8")
+
+          proof_path = Path("scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs")
+          proof = proof_path.read_text(encoding="utf-8")
+          replacements = {
+              f'const OLD_HEAD="ba853a4bfb237701504225ddba615f7b46eeb991";':
+                  f'const OLD_HEAD="{expected_head}";',
+              f'const OLD_BLOB="{old_main}";': f'const OLD_BLOB="{old_branch}";',
+              f'const NEW_BLOB="{bootstrap_only}";': f'const NEW_BLOB="{combined}";',
+          }
+          for before, after in replacements.items():
+              if proof.count(before) != 1:
+                  raise SystemExit(f"unexpected seal-first proof pin count: {before}")
+              proof = proof.replace(before, after)
+          proof_path.write_text(proof, encoding="utf-8")
+
+          doc_path = Path("docs/architecture/void-public-checkpoint-seal-first-startup-v1.md")
+          doc = doc_path.read_text(encoding="utf-8")
+          old_section = """## Exact source fix on the existing public-bootstrap diagnostic Draft
+
+This is an additive correction on the already-open
+[#2748](https://github.com/6ZoSo9/void-node/pull/2748); it does not open
+another public proof PR and does not overwrite the existing fast-fatal log
+diagnostic. On that exact parent, `src/index.ts` was still frozen as Git
+blob `0e3361ef8d4e6f3d7a9e428d14db64281afc21fe`.
+"""
+          new_section = f"""## Exact source fix retained through presale integration
+
+The startup correction merged through
+[#2748](https://github.com/6ZoSo9/void-node/pull/2748). The cumulative
+presale integration predecessor is exact commit `{expected_head}` with
+`src/index.ts` Git blob `{old_branch}`. The combined source is required to
+be that complete predecessor plus only the same two seal-first startup
+hunks described below; the economic and operator changes are not rewritten.
+"""
+          if doc.count(old_section) != 1:
+              raise SystemExit("unexpected architecture predecessor section")
+          doc = doc.replace(old_section, new_section)
+
+          old_identity = """The original `src/index.ts` **3,852,487-byte hard ceiling is unchanged**;
+the proposed new Git blob is `510c5194a8cacf1c3e0ff22824aded0c28651dc1`,
+**3,852,455 bytes**. The review proof compares the complete new bytes
+against an independent reconstruction from frozen original `main`,
+rejecting any extra source change.
+"""
+          new_identity = f"""The original `src/index.ts` **3,852,487-byte hard ceiling is unchanged**;
+the cumulative combined Git blob is `{combined}`, **{combined_size} bytes**.
+The review proof compares the complete combined bytes against an independent
+reconstruction from the exact presale predecessor, rejecting any change
+beyond the two reviewed startup hunks.
+"""
+          if doc.count(old_identity) != 1:
+              raise SystemExit("unexpected architecture source identity section")
+          doc = doc.replace(old_identity, new_identity)
+
+          old_hold = """This source Draft is **not merged/deployed** and has not demonstrated actual
+checkpoint restoration acceptance in a running node. It does not grant
+wallet/key/signer, customer allocation, payment, runtime service/host, validator,
+Chain-2050/WC, presale/market, liquidity or funds action. Merging and any
+external dispatch require a separate reviewed owner decision; **do not**
+alter the public seal, replay historical checkpoints over untrusted bytes,
+or treat successful synthetic tests as external acceptance.
+"""
+          new_hold = """The startup correction is merged in source, but this cumulative presale
+integration is **not deployed** and has not demonstrated a fresh external
+checkpoint restoration acceptance on its final merged generation. It does
+not grant wallet/key/signer, customer allocation, payment, runtime
+service/host, validator, Chain-2050/WC, presale/market, liquidity or funds
+action. **Do not** alter the public seal, replay historical checkpoints over
+untrusted bytes, or treat successful synthetic tests as external acceptance.
+"""
+          if doc.count(old_hold) != 1:
+              raise SystemExit("unexpected architecture HOLD section")
+          doc_path.write_text(doc.replace(old_hold, new_hold), encoding="utf-8")
+          PY
+
+          git add -- \
+            src/index.ts \
+            runtime/canonical-producer-self-http-guard-v1.cjs \
+            scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs \
+            scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs \
+            docs/architecture/void-public-checkpoint-seal-first-startup-v1.md
+
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+          node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs
+          npm run typecheck
+          npm run build
+
+          rm -- "$WORKFLOW_PATH"
+          git add -A
+          git diff --cached --check
+          test -z "$(git status --porcelain=v1 | awk '$1 ~ /U/ || $2 ~ /U/ {print}')"
+
+          git config user.name "VOID Repository Bot"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+          git commit -m "merge(public,econ): reconcile seal-first startup with presale integration"
+
+          test "$(git rev-parse HEAD^1)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^2)" = "$EXPECTED_MAIN"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_BRANCH" | awk '{print $1}')" = "$GITHUB_SHA"
+          git push origin "HEAD:refs/heads/$EXPECTED_BRANCH"
