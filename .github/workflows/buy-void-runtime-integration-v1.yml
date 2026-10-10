@@ -9,8 +9,7 @@ on:
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
-      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
-      - "scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs"
+      - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
   pull_request:
     paths:
@@ -18,8 +17,7 @@ on:
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
-      - "scripts/prove_buy_void_witness_runtime_bundle_v2_candidate.mjs"
-      - "scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs"
+      - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
 
 concurrency:
@@ -94,15 +92,17 @@ jobs:
                 set -e
                 test "$frozen_status" -eq 1
                 grep -Fq 'reviewed runtime bundle file bytes changed: dist/economic/buy_void_auto_fulfillment_v1.js' "$RUNNER_TEMP/frozen-witness-v1-hold.txt"
-                node scripts/prove_buy_void_nimo_witness_v2_proposed_lock_v1.mjs --prove > "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
-                grep -Fxq 'original_v1_contract_git_blob_verified=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
-                grep -Fxq 'current_v2_exact_eight_runtime_hashes_verified=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
-                grep -Fxq 'runtime_bundle_identity_accepted=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
-                grep -Fxq 'installed_v2_host_qualified=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                node scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs --prove > "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'original_frozen_v1_git_blob_preserved=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'integration_rewritten_v1_alias_not_accepted=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'current_source_and_build_inputs_exact=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'current_v2_eight_compiled_runtime_files_exact=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'v2_compiled_candidate_only=true' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'installed_nimo_v2_verified=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
                 grep -Fxq 'production_payment_authority_ready=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
                 grep -Fxq 'production_allocation_mutation_ready=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
                 grep -Fxq 'presale_activation=false' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
-                grep -Fxq 'VOID_BUY_VOID_NIMO_WITNESS_V2_PROPOSED_LOCK_V1_GREEN' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
+                grep -Fxq 'VOID_BUY_VOID_NIMO_ORIGINAL_V1_CURRENT_V2_BOUNDARY_GREEN' "$RUNNER_TEMP/current-witness-v2-unaccepted.txt"
                 echo 'VOID_BUY_VOID_HISTORICAL_WITNESS_V1_HELD_CURRENT_V2_UNACCEPTED_GREEN'
                 continue
                 ;;
