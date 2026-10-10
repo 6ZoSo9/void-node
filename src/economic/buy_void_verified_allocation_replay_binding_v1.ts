@@ -3,6 +3,7 @@ import { TextDecoder, types as utilTypes } from "node:util";
 
 import { canonicalBuyVoidPaymentIdentityV1 } from "./buy_void_auto_fulfillment_v1.js";
 import { classifyBuyVoidAllocationReservationLedgerV1 } from "./buy_void_allocation_reservation_ledger_v1.js";
+import { snapshotBuyVoidPreappendPlainInputV1 } from "./buy_void_preappend_plain_input_v1.js";
 import { VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1 =
@@ -581,36 +582,19 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
   allocation_jsonl: Buffer;
 }): BuyVoidPreappendVerifiedPaymentLineageDecisionV1 {
   try {
-    if (
-      !isRow(input) ||
-      Object.keys(input).sort().join("|") !==
-        [
-          "allocation_jsonl",
-          "event",
-          "prior_operator_events_jsonl",
-          "request",
-          "requests_jsonl",
-        ].sort().join("|") ||
-      !isRow(input.request) ||
-      !isRow(input.event) ||
-      !Buffer.isBuffer(input.requests_jsonl) ||
-      !Buffer.isBuffer(input.prior_operator_events_jsonl) ||
-      !Buffer.isBuffer(input.allocation_jsonl)
-    ) {
-      fail("preappend_lineage_input_shape_invalid");
-    }
-
-    // Snapshot the immutable-looking byte evidence before Buffer.concat or
-    // Buffer.from can trust a caller-overridden length, and before either
-    // validator can observe inconsistent request/operator histories.
+    // Snapshot the fixed five-field input through own data descriptors.
+    // Caller Proxies/getters/toJSON must never execute while deriving the
+    // hypothetical durable payment line or reading original buyer fields.
+    // The resulting null-prototype JSON objects retain ordinary key order.
+    const detachedInput = snapshotBuyVoidPreappendPlainInputV1(input);
     const requestHistory =
-      detachedJsonlBytesV1(input.requests_jsonl, "requests");
+      detachedJsonlBytesV1(detachedInput.requests_jsonl, "requests");
     const priorOperatorHistory =
-      detachedJsonlBytesV1(input.prior_operator_events_jsonl, "operator_events");
+      detachedJsonlBytesV1(detachedInput.prior_operator_events_jsonl, "operator_events");
     const allocationHistory =
-      detachedJsonlBytesV1(input.allocation_jsonl, "allocation");
-    const candidateRequest = input.request;
-    const candidateEvent = input.event;
+      detachedJsonlBytesV1(detachedInput.allocation_jsonl, "allocation");
+    const candidateRequest = detachedInput.request;
+    const candidateEvent = detachedInput.event;
 
     const requestId = field(
       candidateEvent.request_id,
