@@ -1,10 +1,11 @@
-name: VOID Buy VOID custody reserve source plan v1
+name: VOID Buy VOID frozen V1 HOLD and current reserve V2
 
 on:
   pull_request:
     paths:
       - "src/economic/buy_void_custody_reserve_plan_v1.mjs"
       - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v2.mjs"
       - ".github/workflows/buy-void-custody-reserve-plan-v1.yml"
       - "docs/architecture/buy-void-custody-reserve-plan-v1.md"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
@@ -64,14 +65,24 @@ jobs:
           set -euo pipefail
           node --check src/economic/buy_void_custody_reserve_plan_v1.mjs
           node --check scripts/prove_buy_void_custody_reserve_plan_v1.mjs
+          node --check scripts/prove_buy_void_custody_reserve_plan_v2.mjs
 
-      - name: Prove custody-side reserve plan remains source-only
+      - name: Require historical V1 refusal and current original-buyer V2 source-only acceptance
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_custody_reserve_plan_v1.mjs \
+          if node scripts/prove_buy_void_custody_reserve_plan_v1.mjs > "$RUNNER_TEMP/frozen-v1.txt" 2>&1; then
+            echo "UNEXPECTED_HISTORICAL_V1_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'dependency drift: src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/frozen-v1.txt"
+          node scripts/prove_buy_void_custody_reserve_plan_v2.mjs \
             | tee "custody-reserve-plan-node-${{ matrix.node }}.txt"
           for invariant in \
-            'VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V1_PROOF_GREEN' \
+            'VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V2_REVIEW_GREEN' \
+            'frozen_V1_proof_git_blob_unchanged=true' \
+            'first_original_wallet_missing_absent_null_empty_held=true' \
+            'later_wallet_backfill_with_matching_allocation_held=true' \
+            'original_wallet_with_late_tx_and_receive_allowed=true' \
             'exact_source_and_dependency_blobs_verified=true' \
             'durable_verified_payment_replay_semantics_reused=true' \
             'canonical_allocation_planner_reused=true' \
