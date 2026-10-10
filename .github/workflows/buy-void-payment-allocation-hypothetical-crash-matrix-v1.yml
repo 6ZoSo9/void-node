@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - "scripts/prove_buy_void_allocation_input_crash_compatibility_v1.mjs"
       - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v1.yml"
       - "docs/architecture/buy-void-payment-allocation-hypothetical-crash-matrix-v1.md"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
@@ -54,13 +55,18 @@ jobs:
       - name: Exercise purely in-memory payment to allocation crash cuts
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs \
+          node scripts/prove_buy_void_allocation_input_crash_compatibility_v1.mjs \
             > allocation-crash-matrix-${{ matrix.node }}.json
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V1");
+            assert.equal(j.marker,"VOID_BUY_VOID_ALLOCATION_INPUT_CRASH_COMPATIBILITY_V1");
+            assert.equal(j.historical_v1_refused_current_ledger,true);
+            assert.equal(j.historical_v1_proof_git_blob,"1a8db260a134ad438366d5b7660f926768c98a79");
+            assert.equal(j.current_allocation_source_git_blob,"66617a89d5ad9f81b5a21d98cca55fcda6902a80");
+            assert.equal(j.compatibility_edition_git_blob,"5c0fec10d2aa7cbdebd88eb25106a13311d6858a");
+            assert.equal(j.insufficient_inventory_reason_checked,true);
             assert.equal(j.source_only,true);
             assert.equal(j.original_source_github_head,"f7c894eb2ff8f378b2f0a906192cc1a0602e1d24");
             assert.deepEqual(j.observed_publication_phases,["intent_only","ledger_committed","complete"]);
