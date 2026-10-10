@@ -85,12 +85,15 @@ jobs:
                 # changed current compiled auto-fulfillment bytes. Preserve
                 # both SHA pins and prove its specific mismatch explicitly.
                 test "$(git hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)" = "d2e84643c9f4d76c642c7e07d4ea2bf1634035e4"
-                test "$(sha256sum dist/economic/buy_void_auto_fulfillment_v1.js | cut -d ' ' -f1)" = "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c"
                 frozen_v1_log="$RUNNER_TEMP/buy-void-frozen-nimo-v1-current-mismatch.log"
                 if ./node_modules/.bin/tsx "$proof" > "$frozen_v1_log" 2>&1; then
                   echo "ERROR: frozen V1 unexpectedly accepted changed current witness bytes" >&2
                   exit 1
                 fi
+                # Frozen V1's unchanged proof builds locally when compiled
+                # artifacts are missing, so only check current bytes AFTER it
+                # has made its mandatory mismatched-generation decision.
+                test "$(sha256sum dist/economic/buy_void_auto_fulfillment_v1.js | cut -d ' ' -f1)" = "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c"
                 grep -F "reviewed runtime bundle file bytes changed: dist/economic/buy_void_auto_fulfillment_v1.js" "$frozen_v1_log"
                 grep -F "sha256:ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6" "$frozen_v1_log"
                 grep -F "sha256:119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c" "$frozen_v1_log"
