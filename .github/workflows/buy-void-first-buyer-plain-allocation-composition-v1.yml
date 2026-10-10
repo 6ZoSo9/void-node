@@ -4,6 +4,7 @@ on:
     paths:
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_custody_reserve_plan_v1.mjs"
       - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
       - "scripts/prove_buy_void_allocation_reservation_plain_data_v1.ts"
       - "scripts/prove_buy_void_first_buyer_allocation_composition_v1.mjs"
@@ -54,6 +55,11 @@ jobs:
           grep -Fx "VOID_BUY_VOID_FIRST_BUYER_ALLOCATION_PLAIN_COMPOSITION_V1_GREEN" "buyer-allocation-${{ matrix.node }}.txt"
           grep -Fx "customer_ledger_mutation=false" "buyer-allocation-${{ matrix.node }}.txt"
           grep -Fx "production_allocation_mutation_ready=false" "buyer-allocation-${{ matrix.node }}.txt"
+          grep -Fx "custody_reserve_snapshot_real_public_entry_tested=true" "buyer-allocation-${{ matrix.node }}.txt"
+          grep -Fx "oversized_untrusted_byte_views_held_before_copy=true" "buyer-allocation-${{ matrix.node }}.txt"
+          grep -Fx "caller_hooks_proxies_accessors_unexecuted=true" "buyer-allocation-${{ matrix.node }}.txt"
+          grep -Fx "shared_detached_and_custom_prototype_buffers_held=true" "buyer-allocation-${{ matrix.node }}.txt"
+          grep -Fx "signed_launch_and_allocation_custody_authority_false=true" "buyer-allocation-${{ matrix.node }}.txt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: first-buyer-allocation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}

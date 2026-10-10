@@ -60,39 +60,75 @@ const PRODUCTION_INPUT_KEYS=Object.freeze([
   "requests_jsonl",
 ]);
 
+// Capture native view operations once; caller properties are not byte authority.
+const BUFFER_PROTOTYPE=Buffer.prototype;
+const TYPED_ARRAY_PROTOTYPE=Object.getPrototypeOf(Uint8Array.prototype);
+const VIEW_LENGTH=Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE,"length").get;
+const VIEW_BUFFER=Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE,"buffer").get;
+const VIEW_VALUES=TYPED_ARRAY_PROTOTYPE.values;
+const VIEW_SET=TYPED_ARRAY_PROTOTYPE.set;
+const ALLOC_PRIVATE=Buffer.alloc;
+const APPLY=Reflect.apply;
+const INPUT_BYTE_LIMITS=Object.freeze({
+  requests_jsonl:MAX_JSONL_BYTES,
+  operator_events_jsonl:MAX_JSONL_BYTES,
+  allocation_jsonl:MAX_JSONL_BYTES,
+  activation_receipt_bytes:MAX_RECEIPT_BYTES,
+  generation_journal_bytes:64*1024,
+  custody_high_water_bytes:16*1024,
+});
+const BUFFER_SHADOW_KEYS=Object.freeze([
+  "length","byteLength","byteOffset","buffer","valueOf","toString","constructor",
+  Symbol.iterator,Symbol.toPrimitive,
+]);
+
 function snapshotProductionInput(raw){
-  if(!raw||typeof raw!=="object"||Array.isArray(raw)||utilTypes.isProxy(raw)||
-     ![Object.prototype,null].includes(Object.getPrototypeOf(raw))){
-    return null;
-  }
-  const descriptors=Object.getOwnPropertyDescriptors(raw);
-  const keys=Reflect.ownKeys(descriptors);
-  const expected=[...PRODUCTION_INPUT_KEYS].sort();
-  if(keys.some(key=>typeof key!=="string")||keys.length!==expected.length||
-     keys.slice().sort().some((key,index)=>key!==expected[index])){
-    return null;
-  }
-  const out=Object.create(null);
-  for(const key of PRODUCTION_INPUT_KEYS){
-    const descriptor=descriptors[key];
-    if(!descriptor||descriptor.enumerable!==true||
-       !Object.hasOwn(descriptor,"value")){
-      return null;
+  try{
+    // Proxy detection precedes even Array.isArray: a revoked Proxy must HOLD.
+    if(!raw||typeof raw!=="object"||utilTypes.isProxy(raw)||Array.isArray(raw)||
+       ![Object.prototype,null].includes(Object.getPrototypeOf(raw)))return null;
+    const keys=Reflect.ownKeys(raw);
+    if(keys.length!==PRODUCTION_INPUT_KEYS.length||
+       keys.some(key=>typeof key!=="string")||
+       keys.sort().some((key,index)=>key!==PRODUCTION_INPUT_KEYS[index]))return null;
+
+    // Admit all six views and their actual sizes before allocating any payload.
+    const admitted=[];
+    for(const key of PRODUCTION_INPUT_KEYS){
+      const descriptor=Object.getOwnPropertyDescriptor(raw,key);
+      if(!descriptor||descriptor.enumerable!==true||
+         !Object.hasOwn(descriptor,"value"))return null;
+      const value=descriptor.value;
+      if(key==="request_id"){
+        if(typeof value!=="string")return null;
+        admitted.push({key,value,length:null});
+        continue;
+      }
+      if(utilTypes.isProxy(value)||!utilTypes.isUint8Array(value)||
+         Object.getPrototypeOf(value)!==BUFFER_PROTOTYPE||
+         BUFFER_SHADOW_KEYS.some(name=>Object.hasOwn(value,name)))return null;
+      const backing=APPLY(VIEW_BUFFER,value,[]);
+      if(utilTypes.isSharedArrayBuffer(backing))return null;
+      // This native operation validates detached/out-of-bounds views without
+      // consulting the caller's iterator, constructor or indexed properties.
+      APPLY(VIEW_VALUES,value,[]);
+      const length=APPLY(VIEW_LENGTH,value,[]);
+      if(!Number.isSafeInteger(length)||length<0||length>INPUT_BYTE_LIMITS[key])return null;
+      admitted.push({key,value,length});
     }
-    const value=descriptor.value;
-    if(key==="request_id"){
-      if(typeof value!=="string")return null;
+    const out=Object.create(null);
+    for(const {key,value,length} of admitted){
+      const copy=length===null?value:ALLOC_PRIVATE(length);
+      if(length!==null)APPLY(VIEW_SET,copy,[value]);
       Object.defineProperty(out,key,{
-        value,enumerable:true,writable:false,configurable:false,
+        value:copy,enumerable:true,writable:false,configurable:false,
       });
-      continue;
     }
-    if(!Buffer.isBuffer(value))return null;
-    Object.defineProperty(out,key,{
-      value:Buffer.from(value),enumerable:true,writable:false,configurable:false,
-    });
+    return Object.freeze(out);
+  }catch{
+    // No malformed view or copy failure may escape the public HOLD contract.
+    return null;
   }
-  return Object.freeze(out);
 }
 
 function held(reason){

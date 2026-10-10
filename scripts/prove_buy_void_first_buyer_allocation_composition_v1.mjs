@@ -5,9 +5,15 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  planBuyVoidCustodyReserveFromObservedBytesV1,
+  VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_AUTHORITY_V1,
+} from "../src/economic/buy_void_custody_reserve_plan_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LOCKED = Object.freeze([
+  ["src/economic/buy_void_custody_reserve_plan_v1.mjs",
+    "31993eb100997dd98cb54bfa654555f6d5b064e1"],
   ["src/economic/buy_void_verified_allocation_replay_binding_v1.ts",
     "895a429ec7a2ef554552cdaa821731d7a645a701"],
   ["src/economic/buy_void_allocation_reservation_ledger_v1.ts",
@@ -85,6 +91,136 @@ prove("first_original_wallet_verified_replay", [
   "funds_movement=false",
 ]);
 
+
+// The actual public reserve-planner intake is tested without a production
+// receipt, network, paid customer or any real filesystem access.
+const reserveAuthority = VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_AUTHORITY_V1;
+for (const field of [
+  "source_only_planner","verified_payment_replay_classifier_reused",
+  "canonical_allocation_planner_reused","custody_launch_v2_classifier_reused",
+]) assert.equal(reserveAuthority[field],true,field);
+for (const field of [
+  "filesystem_read","filesystem_write","allocation_write",
+  "custody_reserve_method_enabled","custody_recover_method_enabled",
+  "runtime_integration","production_allocation_mutation_ready",
+  "presale_activation","funds_movement",
+]) assert.equal(reserveAuthority[field],false,field);
+
+const reserveFields=Object.freeze({
+  request_id:"buyvoid_a_aaaaaaaa",
+  requests_jsonl:Buffer.from("{}\n"),
+  operator_events_jsonl:Buffer.from("{}\n"),
+  allocation_jsonl:Buffer.alloc(0),
+  generation_journal_bytes:Buffer.from("{}\n"),
+  activation_receipt_bytes:Buffer.from("{}\n"),
+  custody_high_water_bytes:Buffer.from("{}\n"),
+});
+function reserveResult(candidate) {
+  const result=planBuyVoidCustodyReserveFromObservedBytesV1(candidate);
+  assert.equal(result.ready,false);
+  assert.equal(result.status,"held");
+  assert.equal(result.operation_performed,false);
+  assert.equal(result.filesystem_write,false);
+  assert.equal(result.allocation_write,false);
+  assert.equal(result.custody_reserve_method_enabled,false);
+  assert.equal(result.custody_recover_method_enabled,false);
+  assert.equal(result.production_allocation_mutation_ready,false);
+  assert.equal(result.funds_movement,false);
+  return result;
+}
+function refused(candidate) {
+  const result=reserveResult(candidate);
+  assert.equal(result.reason,"input_not_plain_data",
+    "unexpected admission of caller-controlled bytes");
+}
+function nativeButUnsigned(candidate) {
+  const result=reserveResult(candidate);
+  assert.notEqual(result.reason,"input_not_plain_data",
+    "native caller bytes did not pass the bounded private snapshot");
+}
+// Normal native Buffers (including an offset view and empty native buffer)
+// must reach the existing signed-launch HOLD; no new positive authority.
+nativeButUnsigned(reserveFields);
+nativeButUnsigned({...reserveFields,allocation_jsonl:Buffer.from("padding").subarray(7)});
+nativeButUnsigned(Object.assign(Object.create(null),reserveFields));
+const origRequestBytes=Buffer.from(reserveFields.requests_jsonl);
+reserveResult(reserveFields);
+assert.deepEqual(reserveFields.requests_jsonl,origRequestBytes);
+
+// All six limits are checked before any caller bytes can be copied into
+// the private snapshot. These intentionally over-limit native Buffers
+// contain no customer/payment data.
+for(const [field,max] of Object.entries({
+  requests_jsonl:64*1024*1024,
+  operator_events_jsonl:64*1024*1024,
+  allocation_jsonl:64*1024*1024,
+  activation_receipt_bytes:64*1024,
+  generation_journal_bytes:64*1024,
+  custody_high_water_bytes:16*1024,
+})) {
+  refused({...reserveFields,[field]:Buffer.alloc(max+1)});
+}
+
+// Value/trap providers are never allowed to run at the snapshot boundary.
+let callbackReads=0;
+const inputAccessor={...reserveFields};
+Object.defineProperty(inputAccessor,"operator_events_jsonl",{
+  enumerable:true,
+  get(){callbackReads++;throw new Error("caller_accessor_executed");},
+});
+refused(inputAccessor);
+const outerProxy=new Proxy(reserveFields,{
+  ownKeys(){callbackReads++;throw new Error("outer_proxy_executed");},
+  getPrototypeOf(){callbackReads++;throw new Error("outer_proxy_executed");},
+});
+refused(outerProxy);
+const innerProxy=new Proxy(Buffer.from("{}\n"),{
+  get(){callbackReads++;throw new Error("buffer_proxy_executed");},
+  getPrototypeOf(){callbackReads++;throw new Error("buffer_proxy_executed");},
+});
+refused({...reserveFields,requests_jsonl:innerProxy});
+const revoked=Proxy.revocable(Buffer.from("{}\n"),{});
+revoked.revoke();
+refused({...reserveFields,allocation_jsonl:revoked.proxy});
+const accessorBuffer=Buffer.from("{}\n");
+Object.defineProperty(accessorBuffer,"length",{
+  configurable:true,
+  get(){callbackReads++;throw new Error("length_accessor_executed");},
+});
+refused({...reserveFields,requests_jsonl:accessorBuffer});
+const spoofedBuffer=Buffer.from("{}\n");
+Object.defineProperty(spoofedBuffer,"toString",{
+  configurable:true,
+  get(){callbackReads++;throw new Error("string_hook_executed");},
+});
+refused({...reserveFields,requests_jsonl:spoofedBuffer});
+assert.equal(callbackReads,0,"executable caller surfaces never evaluated");
+refused({...reserveFields,production_gate_ready:true});
+refused({...reserveFields,now_ms:1800000000000});
+refused({...reserveFields,[Symbol("hidden_green")]:true});
+
+// Shared, detached and custom-prototype views do not qualify as private
+// owner-owned native inputs even if Buffer.isBuffer says otherwise.
+const sharedBuffer=Buffer.from(new SharedArrayBuffer(16));
+refused({...reserveFields,requests_jsonl:sharedBuffer});
+const transfer=new ArrayBuffer(16);
+const staleBuffer=Buffer.from(transfer);
+structuredClone(transfer,{transfer:[transfer]});
+refused({...reserveFields,requests_jsonl:staleBuffer});
+const exoticBuffer=Buffer.from("{}\n");
+Object.setPrototypeOf(exoticBuffer,Object.create(Buffer.prototype));
+refused({...reserveFields,requests_jsonl:exoticBuffer});
+
+const boundedReserveReceipt=[
+  "custody_reserve_snapshot_real_public_entry_tested=true",
+  "oversized_untrusted_byte_views_held_before_copy=true",
+  "native_offset_and_empty_buffers_admitted_to_unsigned_HOLD=true",
+  "caller_hooks_proxies_accessors_unexecuted=true",
+  "shared_detached_and_custom_prototype_buffers_held=true",
+  "caller_greens_and_clock_rejected=true",
+  "signed_launch_and_allocation_custody_authority_false=true",
+];
+
 const receipt = [
   "VOID_BUY_VOID_FIRST_BUYER_ALLOCATION_PLAIN_COMPOSITION_V1_GREEN",
   "verified_replay_source_blob=895a429ec7a2ef554552cdaa821731d7a645a701",
@@ -101,4 +237,4 @@ const receipt = [
   "presale_activation=false",
   "funds_movement=false",
 ];
-process.stdout.write(receipt.join("\n") + "\n");
+process.stdout.write([...receipt,...boundedReserveReceipt].join("\n") + "\n");
