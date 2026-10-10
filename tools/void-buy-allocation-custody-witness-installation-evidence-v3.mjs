@@ -129,6 +129,54 @@ const AUTHORIZED_KEYS_ROOT = "/etc/ssh/authorized_keys";
 const FORCED_COMMAND =
   'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v2.json';
 
+const REVIEWED_THREE_KEY_AUTHORIZATION_SET_V1 = Object.freeze({
+  authorized_keys_sha256:
+    "sha256:82cf34c8c2ff28a29103d050f081cff21f9beb0fbad04ec2d6d4de212c49afe4",
+  first_two_prefix_sha256:
+    "sha256:bac998dcfc1331a8182b17cbac524502a5fe4678979cc3ff9c47f9f18d7925f0",
+  entries: Object.freeze([
+    Object.freeze({
+      role: "buy_void_witness_v2",
+      line_sha256:
+        "sha256:264214689c2faf0fa58b4d0f6b2e27b4e4853053ff35ba47f388fd69783e06da",
+      forced_command_sha256:
+        "sha256:46d3476854cbb8ffdfb9355b0410d15d3a4601561cba33bf583edaf8bb2cf86f",
+      public_key_fingerprint:
+        "SHA256:ljAGCFvjfW4MWnOT2FD2TML5JuyvzvVpwMnK9wDMQ4o",
+      comment: "",
+      marker: "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
+      target:
+        "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+    }),
+    Object.freeze({
+      role: "replay_external_witness_v1",
+      line_sha256:
+        "sha256:879ce63bce8b3198765eb975e89d04b2ff6b9bf5f43b6953f24ceb63eb1c4c17",
+      forced_command_sha256:
+        "sha256:54670eac401c100d8ddb1069458acc6dbe548bcd536802c54134e8e7c2a7876a",
+      public_key_fingerprint:
+        "SHA256:1VXibMOmQpJBi4lQixEAdTAsGdigHIV0wrXdnWDYSPg",
+      comment: "void-replay-external-witness-v1",
+      marker: "VOID_BUY_VOID_REPLAY_EXTERNAL_WITNESS_FORCED_COMMAND_V1=1",
+      target:
+        "/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs",
+    }),
+    Object.freeze({
+      role: "replay_compare_only_v1",
+      line_sha256:
+        "sha256:ff461ee8ef30973293e4435e2b25f773b442aa94b561bde85dfb3289b491b342",
+      forced_command_sha256:
+        "sha256:98133e6f5da88976d5af232878ba4d5ee8a77751734e48f29f18eb0894adc518",
+      public_key_fingerprint:
+        "SHA256:8NrrP3xxlMTcJEDYgNE+8DWMm1Z6zxFW5FpHWdk0EGI",
+      comment: "void-replay-compare-only-v1",
+      marker: "VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1",
+      target:
+        "/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs",
+    }),
+  ]),
+});
+
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_EXECUTABLE_BYTES = 256 * 1024 * 1024;
 const MAX_CONFIG_BYTES = 256 * 1024;
@@ -733,54 +781,208 @@ function parsePublicKeyBlob(text, allowComment) {
   });
 }
 
+function openSshSha256Fingerprint(blob) {
+  return (
+    "SHA256:" +
+    crypto
+      .createHash("sha256")
+      .update(blob)
+      .digest("base64")
+      .replace(/=+$/u, "")
+  );
+}
+
+function parseRestrictedAuthorizedKeyLine(line) {
+  const match =
+    /^restrict,command="((?:\\.|[^"])*)" ssh-ed25519 ([A-Za-z0-9+/]+={0,2})(?: ([^\r\n]*))?$/u.exec(
+      line,
+    );
+  if (!match) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+  let forcedCommand = "";
+  for (let index = 0; index < match[1].length; index += 1) {
+    const character = match[1][index];
+    if (character !== "\\") {
+      forcedCommand += character;
+      continue;
+    }
+    const escaped = match[1][index + 1];
+    if (escaped !== "\\" && escaped !== '"') {
+      fail("witness_installation_evidence_authorized_keys_invalid");
+    }
+    forcedCommand += escaped;
+    index += 1;
+  }
+  const canonicalEscaped = forcedCommand
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"');
+  if (canonicalEscaped !== match[1]) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+  const publicKey = parsePublicKeyBlob(
+    "ssh-ed25519 " + match[2],
+    false,
+  );
+  return Object.freeze({
+    forced_command: forcedCommand,
+    forced_command_sha256: sha256Id(forcedCommand),
+    public_key: publicKey,
+    public_key_fingerprint:
+      openSshSha256Fingerprint(publicKey.blob),
+    comment: match[3] || "",
+    line_sha256: sha256Id(Buffer.from(line + "\n", "utf8")),
+  });
+}
+
+function classifyAuthorizedKeysSetV3(
+  bytes,
+  expectedClientKeySha256,
+  reviewedThreeKeySet = REVIEWED_THREE_KEY_AUTHORIZATION_SET_V1,
+) {
+  const text = bytes.toString("utf8");
+  if (!text.endsWith("\n")) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+  const lines = text.slice(0, -1).split("\n");
+  if (lines.some((line) => !line)) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+  const parsed = Object.freeze(
+    lines.map((line) => parseRestrictedAuthorizedKeyLine(line)),
+  );
+  const first = parsed[0];
+  if (
+    !first ||
+    first.forced_command !== FORCED_COMMAND ||
+    first.forced_command_sha256 !== sha256Id(FORCED_COMMAND) ||
+    first.public_key.sha256 !== expectedClientKeySha256 ||
+    first.comment !== ""
+  ) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+
+  if (lines.length === 1) {
+    return Object.freeze({
+      parent_key: first,
+      authorization_set: Object.freeze({
+        generation: "historical_single_v2",
+        entry_count: 1,
+        authorized_keys_sha256: sha256Id(bytes),
+        first_two_prefix_sha256: null,
+        entries: Object.freeze([
+          Object.freeze({
+            role: "buy_void_witness_v2",
+            line_sha256: first.line_sha256,
+            forced_command_sha256: first.forced_command_sha256,
+            public_key_fingerprint: first.public_key_fingerprint,
+            comment: first.comment,
+          }),
+        ]),
+      }),
+    });
+  }
+
+  if (lines.length !== 3) {
+    fail("witness_installation_evidence_authorized_keys_invalid");
+  }
+  if (
+    sha256Id(bytes) !== reviewedThreeKeySet.authorized_keys_sha256 ||
+    sha256Id(
+      Buffer.from(lines.slice(0, 2).join("\n") + "\n", "utf8"),
+    ) !== reviewedThreeKeySet.first_two_prefix_sha256 ||
+    !Array.isArray(reviewedThreeKeySet.entries) ||
+    reviewedThreeKeySet.entries.length !== 3
+  ) {
+    fail("witness_installation_evidence_authorized_keys_set_invalid");
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    const actual = parsed[index];
+    const expected = reviewedThreeKeySet.entries[index];
+    if (
+      actual.line_sha256 !== expected.line_sha256 ||
+      actual.forced_command_sha256 !== expected.forced_command_sha256 ||
+      actual.public_key_fingerprint !== expected.public_key_fingerprint ||
+      actual.comment !== expected.comment ||
+      !actual.forced_command.includes(expected.marker) ||
+      !actual.forced_command.includes(expected.target)
+    ) {
+      fail("witness_installation_evidence_authorized_keys_set_invalid");
+    }
+  }
+
+  return Object.freeze({
+    parent_key: first,
+    authorization_set: Object.freeze({
+      generation: "reviewed_three_key_v1",
+      entry_count: 3,
+      authorized_keys_sha256: sha256Id(bytes),
+      first_two_prefix_sha256:
+        reviewedThreeKeySet.first_two_prefix_sha256,
+      entries: Object.freeze(
+        parsed.map((entry, index) =>
+          Object.freeze({
+            role: reviewedThreeKeySet.entries[index].role,
+            line_sha256: entry.line_sha256,
+            forced_command_sha256: entry.forced_command_sha256,
+            public_key_fingerprint: entry.public_key_fingerprint,
+            comment: entry.comment,
+          }),
+        ),
+      ),
+    }),
+  });
+}
+
+export function testOnlyClassifyBuyVoidWitnessAuthorizedKeysSetV3(
+  bytes,
+  expectedClientKeySha256,
+  reviewedThreeKeySet,
+) {
+  return classifyAuthorizedKeysSetV3(
+    Buffer.from(bytes),
+    expectedClientKeySha256,
+    reviewedThreeKeySet,
+  );
+}
+
 function authorizedKeyEvidence(io, remoteUser, expectedClientKeySha256) {
   const file = AUTHORIZED_KEYS_ROOT + "/" + remoteUser;
   const observed = inspectFixedFile(io, file, 64 * 1024);
-  const text = observed.bytes.toString("utf8");
-  if (!text.endsWith("\n") || text.slice(0, -1).includes("\n")) {
-    fail("witness_installation_evidence_authorized_keys_invalid");
-  }
-  const escapedCommand = FORCED_COMMAND
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"');
-  const prefix =
-    'restrict,command="' + escapedCommand + '" ssh-ed25519 ';
-  if (!text.startsWith(prefix)) {
-    fail("witness_installation_evidence_authorized_keys_invalid");
-  }
-  const keyToken = text.slice(prefix.length, -1);
-  if (!keyToken || /\s/u.test(keyToken)) {
-    fail("witness_installation_evidence_authorized_keys_invalid");
-  }
-  const publicKey = parsePublicKeyBlob("ssh-ed25519 " + keyToken, false);
-  if (publicKey.sha256 !== expectedClientKeySha256) {
-    fail("witness_installation_evidence_client_key_mismatch");
-  }
+  const classified = classifyAuthorizedKeysSetV3(
+    observed.bytes,
+    expectedClientKeySha256,
+  );
+  const parentKey = classified.parent_key;
   return Object.freeze({
-    authorized_keys_path: file,
-    authorized_keys_uid: observed.uid,
-    authorized_keys_gid: observed.gid,
-    authorized_keys_mode: observed.mode,
-    authorized_keys_nlink: observed.nlink,
-    authorized_keys_regular_file: observed.regular_file,
-    authorized_keys_symlink: observed.symlink,
-    authorized_keys_root_owned_nonwritable_parent_chain:
-      observed.root_owned_nonwritable_parent_chain,
-    line_sha256: sha256Id(observed.bytes),
-    key_algorithm: publicKey.algorithm,
-    public_key_sha256: publicKey.sha256,
-    restrict: true,
-    forced_command: FORCED_COMMAND,
-    forced_command_present: true,
-    forced_command_sha256: sha256Id(FORCED_COMMAND),
-    environment_options: Object.freeze([]),
-    permit_pty: false,
-    permit_agent_forwarding: false,
-    permit_port_forwarding: false,
-    permit_x11_forwarding: false,
-    permit_user_rc: false,
-    caller_selected_command: false,
-    caller_selected_path: false,
+    qualification: Object.freeze({
+      authorized_keys_path: file,
+      authorized_keys_uid: observed.uid,
+      authorized_keys_gid: observed.gid,
+      authorized_keys_mode: observed.mode,
+      authorized_keys_nlink: observed.nlink,
+      authorized_keys_regular_file: observed.regular_file,
+      authorized_keys_symlink: observed.symlink,
+      authorized_keys_root_owned_nonwritable_parent_chain:
+        observed.root_owned_nonwritable_parent_chain,
+      line_sha256: parentKey.line_sha256,
+      key_algorithm: parentKey.public_key.algorithm,
+      public_key_sha256: parentKey.public_key.sha256,
+      restrict: true,
+      forced_command: parentKey.forced_command,
+      forced_command_present: true,
+      forced_command_sha256: parentKey.forced_command_sha256,
+      environment_options: Object.freeze([]),
+      permit_pty: false,
+      permit_agent_forwarding: false,
+      permit_port_forwarding: false,
+      permit_x11_forwarding: false,
+      permit_user_rc: false,
+      caller_selected_command: false,
+      caller_selected_path: false,
+    }),
+    authorization_set: classified.authorization_set,
   });
 }
 
@@ -1473,11 +1675,12 @@ function collectOnce(config, io, observedAtMs) {
     io,
     config.transport_policy_sha256,
   );
-  const authorizedKey = authorizedKeyEvidence(
+  const authorizedKeyObservation = authorizedKeyEvidence(
     io,
     policy.remote_user,
     policy.client_public_key_sha256,
   );
+  const authorizedKey = authorizedKeyObservation.qualification;
   const sshd = sshdEvidence(
     io,
     policy.remote_user,
@@ -1555,6 +1758,7 @@ function collectOnce(config, io, observedAtMs) {
     evidence,
     qualification,
     runtime_bundle_receipt: runtimeBundle,
+    authorization_set: authorizedKeyObservation.authorization_set,
     sshd_connection_context: config.sshd_connection_context,
     host,
     host_key: hostKey,
@@ -1597,6 +1801,8 @@ function collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV3(
       canonicalJson(second.witness_identity) ||
     canonicalJson(first.runtime_bundle_receipt) !==
       canonicalJson(second.runtime_bundle_receipt) ||
+    canonicalJson(first.authorization_set) !==
+      canonicalJson(second.authorization_set) ||
     canonicalJson(first.sshd_connection_context) !==
       canonicalJson(second.sshd_connection_context)
   ) {
@@ -1641,6 +1847,7 @@ function collectStableBuyVoidAllocationCustodyWitnessInstallationEvidenceV3(
       second.runtime_bundle_receipt.collector_receipt_sha256,
     v3_runtime_bundle_qualification_observed: true,
     v3_runtime_bundle_evidence_collector_observed: true,
+    authorized_keys_authorization_set: second.authorization_set,
     host_identity: second.host,
     witness_storage: second.witness,
     witness_identity_path:

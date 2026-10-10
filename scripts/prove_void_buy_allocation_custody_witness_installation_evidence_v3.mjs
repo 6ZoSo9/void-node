@@ -12,6 +12,7 @@ import {
   collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV3,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidencePackageV2,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV3,
+  testOnlyClassifyBuyVoidWitnessAuthorizedKeysSetV3,
   testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV3,
 } from "../tools/void-buy-allocation-custody-witness-installation-evidence-v3.mjs";
 import {
@@ -286,6 +287,148 @@ const authorizedKeysBytes = Buffer.from(
     "\n",
   "utf8",
 );
+
+function openSshFingerprint(blob) {
+  return (
+    "SHA256:" +
+    crypto
+      .createHash("sha256")
+      .update(blob)
+      .digest("base64")
+      .replace(/=+$/u, "")
+  );
+}
+
+function restrictedAuthorizedKeyLine(command, blob, comment = "") {
+  const escaped = command
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"');
+  return (
+    'restrict,command="' +
+    escaped +
+    '" ssh-ed25519 ' +
+    blob.toString("base64") +
+    (comment ? " " + comment : "") +
+    "\n"
+  );
+}
+
+const replayExternalKeyBlob = sshEd25519Blob(0x33);
+const compareOnlyKeyBlob = sshEd25519Blob(0x44);
+const replayExternalCommand =
+  '/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_EXTERNAL_WITNESS_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND="${SSH_ORIGINAL_COMMAND-}" /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs --config=/etc/void/buy-void-allocation-custody-witness-live-read-replay-external-forced-command-v1.json';
+const compareOnlyCommand =
+  '/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 SSH_ORIGINAL_COMMAND="${SSH_ORIGINAL_COMMAND-}" /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs';
+
+const syntheticThreeKeyBytes = Buffer.from(
+  restrictedAuthorizedKeyLine(FORCED_COMMAND, clientKeyBlob) +
+    restrictedAuthorizedKeyLine(
+      replayExternalCommand,
+      replayExternalKeyBlob,
+      "void-replay-external-witness-v1",
+    ) +
+    restrictedAuthorizedKeyLine(
+      compareOnlyCommand,
+      compareOnlyKeyBlob,
+      "void-replay-compare-only-v1",
+    ),
+  "utf8",
+);
+const syntheticThreeKeyLines =
+  syntheticThreeKeyBytes.toString("utf8").trimEnd().split("\n");
+const syntheticReviewedAuthorizationSet = Object.freeze({
+  authorized_keys_sha256: sha256Id(syntheticThreeKeyBytes),
+  first_two_prefix_sha256: sha256Id(
+    Buffer.from(syntheticThreeKeyLines.slice(0, 2).join("\n") + "\n"),
+  ),
+  entries: Object.freeze([
+    Object.freeze({
+      role: "buy_void_witness_v2",
+      line_sha256: sha256Id(
+        Buffer.from(syntheticThreeKeyLines[0] + "\n"),
+      ),
+      forced_command_sha256: sha256Id(FORCED_COMMAND),
+      public_key_fingerprint: openSshFingerprint(clientKeyBlob),
+      comment: "",
+      marker: "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
+      target:
+        "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+    }),
+    Object.freeze({
+      role: "replay_external_witness_v1",
+      line_sha256: sha256Id(
+        Buffer.from(syntheticThreeKeyLines[1] + "\n"),
+      ),
+      forced_command_sha256: sha256Id(replayExternalCommand),
+      public_key_fingerprint: openSshFingerprint(replayExternalKeyBlob),
+      comment: "void-replay-external-witness-v1",
+      marker: "VOID_BUY_VOID_REPLAY_EXTERNAL_WITNESS_FORCED_COMMAND_V1=1",
+      target:
+        "/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs",
+    }),
+    Object.freeze({
+      role: "replay_compare_only_v1",
+      line_sha256: sha256Id(
+        Buffer.from(syntheticThreeKeyLines[2] + "\n"),
+      ),
+      forced_command_sha256: sha256Id(compareOnlyCommand),
+      public_key_fingerprint: openSshFingerprint(compareOnlyKeyBlob),
+      comment: "void-replay-compare-only-v1",
+      marker: "VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1",
+      target:
+        "/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs",
+    }),
+  ]),
+});
+
+const syntheticThreeKey = testOnlyClassifyBuyVoidWitnessAuthorizedKeysSetV3(
+  syntheticThreeKeyBytes,
+  clientKeySha,
+  syntheticReviewedAuthorizationSet,
+);
+assert.equal(
+  syntheticThreeKey.authorization_set.generation,
+  "reviewed_three_key_v1",
+);
+assert.equal(syntheticThreeKey.authorization_set.entry_count, 3);
+assert.equal(
+  syntheticThreeKey.parent_key.forced_command,
+  FORCED_COMMAND,
+);
+assert.equal(
+  syntheticThreeKey.parent_key.public_key.sha256,
+  clientKeySha,
+);
+for (const replacement of [
+  Buffer.from(
+    syntheticThreeKeyLines[1] +
+      "\n" +
+      syntheticThreeKeyLines[0] +
+      "\n" +
+      syntheticThreeKeyLines[2] +
+      "\n",
+    "utf8",
+  ),
+  Buffer.from(
+    syntheticThreeKeyBytes
+      .toString("utf8")
+      .replace(
+        "void-replay-compare-only-v1",
+        "void-replay-compare-only-vX",
+      ),
+    "utf8",
+  ),
+]) {
+  assert.throws(
+    () =>
+      testOnlyClassifyBuyVoidWitnessAuthorizedKeysSetV3(
+        replacement,
+        clientKeySha,
+        syntheticReviewedAuthorizationSet,
+      ),
+    /witness_installation_evidence_authorized_keys/u,
+  );
+}
 const hostKeyBytes = Buffer.from(
   "ssh-ed25519 " + hostKeyBlob.toString("base64") + " nimo\n",
   "utf8",
@@ -681,6 +824,18 @@ assert.equal(
 assert.match(baseline.collector_receipt_sha256, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(baseline.host_key_observed, true);
 assert.equal(baseline.authorized_client_key_observed, true);
+assert.equal(
+  baseline.authorized_keys_authorization_set.generation,
+  "historical_single_v2",
+);
+assert.equal(
+  baseline.authorized_keys_authorization_set.entry_count,
+  1,
+);
+assert.equal(
+  baseline.authorized_keys_authorization_set.entries[0].role,
+  "buy_void_witness_v2",
+);
 assert.equal(baseline.effective_sshd_policy_observed, true);
 assert.deepEqual(
   baseline.sshd_connection_context,
@@ -1261,6 +1416,23 @@ assert.match(
   source,
   /collectBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceV3/u,
 );
+for (const commitment of [
+  "82cf34c8c2ff28a29103d050f081cff21f9beb0fbad04ec2d6d4de212c49afe4",
+  "bac998dcfc1331a8182b17cbac524502a5fe4678979cc3ff9c47f9f18d7925f0",
+  "264214689c2faf0fa58b4d0f6b2e27b4e4853053ff35ba47f388fd69783e06da",
+  "879ce63bce8b3198765eb975e89d04b2ff6b9bf5f43b6953f24ceb63eb1c4c17",
+  "ff461ee8ef30973293e4435e2b25f773b442aa94b561bde85dfb3289b491b342",
+  "46d3476854cbb8ffdfb9355b0410d15d3a4601561cba33bf583edaf8bb2cf86f",
+  "54670eac401c100d8ddb1069458acc6dbe548bcd536802c54134e8e7c2a7876a",
+  "98133e6f5da88976d5af232878ba4d5ee8a77751734e48f29f18eb0894adc518",
+  "SHA256:ljAGCFvjfW4MWnOT2FD2TML5JuyvzvVpwMnK9wDMQ4o",
+  "SHA256:1VXibMOmQpJBi4lQixEAdTAsGdigHIV0wrXdnWDYSPg",
+  "SHA256:8NrrP3xxlMTcJEDYgNE+8DWMm1Z6zxFW5FpHWdk0EGI",
+]) {
+  assert.ok(source.includes(commitment), commitment);
+}
+assert.match(source, /reviewed_three_key_v1/u);
+assert.match(source, /authorized_keys_authorization_set/u);
 assert.doesNotMatch(
   source,
   /classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV3/u,
@@ -1296,6 +1468,10 @@ console.log(
 );
 console.log("read_only_host_observation=true");
 console.log("root_owned_authorization_policy_observed=true");
+console.log("historical_single_v2_authorization_preserved=true");
+console.log("reviewed_three_key_authorization_set_supported=true");
+console.log("reviewed_three_key_authorization_order_bound=true");
+console.log("reviewed_three_key_authorization_commitments_bound=true");
 console.log("effective_sshd_policy_observed=true");
 console.log("sshd_connection_context_bound=true");
 console.log("live_sshd_connection_context_proven=false");
