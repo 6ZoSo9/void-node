@@ -140,6 +140,16 @@ jobs:
           deadline_s="$((start_s + VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS))"
           GREEN=0
           while :; do
+            # The wrapper PID can survive Node constructor failure, so an
+            # inherited checkpoint seal exception is a terminal HOLD here.
+            # Scan only a bounded log tail. Never echo raw node-log data.
+            if test -f "$LOG" &&
+               tail -c 65536 "$LOG" |
+                 grep -F 'Error: VOID_SEGSTORE_PATH_CONFINEMENT_V1: inherited proc-fd content seal mismatch' >/dev/null
+            then
+              echo 'VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_STARTUP_CONTENT_SEAL_HOLD_V1' >&2
+              exit 2
+            fi
             now_s="$(monotonic_seconds)"
             remaining_s=$((deadline_s - now_s))
             if (( remaining_s <= 0 )); then

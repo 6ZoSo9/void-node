@@ -1,0 +1,104 @@
+name: VOID public checkpoint seal-first startup v1
+
+on:
+  pull_request:
+    paths:
+      - "src/index.ts"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs"
+      - "docs/architecture/void-public-checkpoint-seal-first-startup-v1.md"
+      - ".github/workflows/void-public-checkpoint-seal-first-startup-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-checkpoint-seal-startup-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head without retained credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout identity and cleanliness
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove seal-first real-source startup order and failure isolation
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs \
+            | tee checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          grep -Fx "failed_inherited_node_admission_schedules_no_repair=true" \
+            checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          grep -Fx "normal_repair_runs_only_after_node_constructor=true" \
+            checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          grep -Fx "outside_machine_acceptance_proven=false" \
+            checkpoint-seal-startup-node-${{ matrix.node }}.txt
+      - name: Typecheck and compile full node on reviewed Node 24
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Upload no-funds synthetic startup receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-seal-startup-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 2
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-seal-startup-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require byte-identical Node 22 24 26 proof receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "receipts/checkpoint-seal-startup-node-$v.txt"
+          done
+          cmp receipts/checkpoint-seal-startup-node-22.txt receipts/checkpoint-seal-startup-node-24.txt
+          cmp receipts/checkpoint-seal-startup-node-22.txt receipts/checkpoint-seal-startup-node-26.txt
+          grep -Fx "outside_machine_acceptance_proven=false" receipts/checkpoint-seal-startup-node-22.txt
+          echo "VOID_CHECKPOINT_SEAL_FIRST_STARTUP_THREE_NODE_BYTES_GREEN"
+          echo "real_host_or_checkpoint_mutation=false"
