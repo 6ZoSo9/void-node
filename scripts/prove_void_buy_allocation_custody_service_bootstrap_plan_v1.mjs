@@ -7,17 +7,35 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1,
+  VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
   VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_AUTHORITY_V1,
   VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
   classifyBuyAllocationCustodyServiceBootstrapPlanV1,
+  classifyBuyAllocationCustodyServiceBootstrapPlanV2,
 } from "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tool = path.resolve(here, "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs");
 const source = readFileSync(tool, "utf8");
 const fixture = VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1;
-const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
-assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV2(fixture);
+const historicalV1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
+const frozenV1Digest =
+  "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348";
+assert.equal(historicalV1.schema,"void.buy.allocation.custody.bootstrap.plan.v1");
+assert.equal(historicalV1.marker,VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+assert.equal(historicalV1.version,1);
+assert.equal(historicalV1.plan_sha256,frozenV1Digest);
+assert.equal(historicalV1.status,"HOLD_SOURCE_ONLY");
+assert.equal(historicalV1.production_gate_ready,false);
+assert.equal(historicalV1.candidate.source_review_generation,undefined);
+assert.equal(historicalV1.candidate.service_source_sha256,
+  "sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d");
+assert.equal(decision.schema,"void.buy.allocation.custody.bootstrap.plan.v2");
+assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2);
+assert.equal(decision.version,2);
+assert.equal(decision.predecessor_v1_plan_sha256,frozenV1Digest);
+assert.deepEqual(decision.candidate.predecessor_candidate,historicalV1.candidate);
 assert.equal(decision.status, "HOLD_SOURCE_ONLY");
 assert.equal(decision.observation_trusted_as_authority, false);
 assert.equal(decision.source_head_verified_against_remote, false);
@@ -525,7 +543,7 @@ const candidateAllTrue = { ...fixture };
 for (const [key, value] of Object.entries(candidateAllTrue)) {
   if (typeof value === "boolean") candidateAllTrue[key] = true;
 }
-const forged = classifyBuyAllocationCustodyServiceBootstrapPlanV1(candidateAllTrue);
+const forged = classifyBuyAllocationCustodyServiceBootstrapPlanV2(candidateAllTrue);
 assert.deepEqual(forged.reported_missing_requirements, []);
 assert.equal(forged.status, "HOLD_SOURCE_ONLY");
 assert.equal(forged.observation_trusted_as_authority, false);
@@ -545,7 +563,7 @@ const absentSocketWrite = {
   socket_parent_namespace_write_exception_proven: false,
 };
 assert.deepEqual(
-  classifyBuyAllocationCustodyServiceBootstrapPlanV1(absentSocketWrite)
+  classifyBuyAllocationCustodyServiceBootstrapPlanV2(absentSocketWrite)
     .reported_missing_requirements,
   ["HOLD_SOCKET_PARENT_WRITABLE_NAMESPACE_EXCEPTION"],
 );
@@ -556,13 +574,13 @@ const absentSeparation = {
   public_runtime_direct_storage_write_denied_observed: false,
 };
 assert.deepEqual(
-  classifyBuyAllocationCustodyServiceBootstrapPlanV1(absentSeparation)
+  classifyBuyAllocationCustodyServiceBootstrapPlanV2(absentSeparation)
     .reported_missing_requirements,
   ["HOLD_SEPARATE_STORAGE_DOMAINS_NOT_OBSERVED", "HOLD_PUBLIC_RUNTIME_DIRECT_WRITE_NOT_DENIED"],
 );
 
 const reversedKeys = Object.fromEntries(Object.entries(fixture).reverse());
-assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256, decision.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV2(reversedKeys).plan_sha256, decision.plan_sha256);
 
 for (const bad of [
   {},
@@ -573,13 +591,13 @@ for (const bad of [
   Object.create({ ...fixture }),
   new Proxy({ ...fixture }, {}),
 ]) {
-  assert.throws(() => classifyBuyAllocationCustodyServiceBootstrapPlanV1(bad));
+  assert.throws(() => classifyBuyAllocationCustodyServiceBootstrapPlanV2(bad));
 }
 const accessed = { ...fixture };
 Object.defineProperty(accessed, "runtime_service_control_denial_proven", {
   get() { throw new Error("getter_executed"); }, enumerable: true,
 });
-assert.throws(() => classifyBuyAllocationCustodyServiceBootstrapPlanV1(accessed),
+assert.throws(() => classifyBuyAllocationCustodyServiceBootstrapPlanV2(accessed),
   /custody_bootstrap_plan_observation_accessor_rejected/u);
 
 const run = (args) => spawnSync(process.execPath, [tool, ...args], {
@@ -587,14 +605,19 @@ const run = (args) => spawnSync(process.execPath, [tool, ...args], {
 });
 const plan = run(["--plan"]);
 assert.equal(plan.status, 0, plan.stderr);
-assert.deepEqual(JSON.parse(plan.stdout), decision);
+assert.deepEqual(JSON.parse(plan.stdout), historicalV1);
 const defaultPlan = run([]);
 assert.equal(defaultPlan.status, 0, defaultPlan.stderr);
-assert.deepEqual(JSON.parse(defaultPlan.stdout), decision);
+assert.equal(defaultPlan.stdout, plan.stdout, "unchanged original V1 CLI bytes");
+const v2Plan = run(["--plan-v2"]);
+assert.equal(v2Plan.status,0,v2Plan.stderr);
+assert.deepEqual(JSON.parse(v2Plan.stdout),decision);
+assert.notEqual(v2Plan.stdout,plan.stdout);
+assert.equal(JSON.parse(v2Plan.stdout).predecessor_v1_plan_sha256,frozenV1Digest);
 const help = run(["--help"]);
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /no --apply/u);
-for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"]]) {
+for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"], ["--plan-v2", "--apply"], ["--plan-v3"]]) {
   const refused = run(args);
   assert.equal(refused.status, 2, JSON.stringify({args, stderr: refused.stderr}));
   assert.equal(refused.stdout, "");
@@ -620,15 +643,23 @@ const canonical = v => {
 const { plan_sha256, ...body } = decision;
 const exactId = "sha256:" + createHash("sha256").update(canonical(body)).digest("hex");
 assert.equal(plan_sha256, exactId);
-const historicalBody = { ...body, candidate: decision.candidate.predecessor_candidate };
+const {plan_sha256: preservedV1Sha,...historicalBody}=historicalV1;
 assert.equal(
   "sha256:" + createHash("sha256").update(canonical(historicalBody)).digest("hex"),
-  "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348",
-  "entire pre-inspection candidate and Oct7 observation must remain historical",
+  frozenV1Digest,
+  "full original V1 candidate and Oct7 observation must remain identical",
 );
-assert.notEqual(plan_sha256, "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348");
+assert.equal(preservedV1Sha,frozenV1Digest);
+assert.equal(decision.predecessor_v1_plan_sha256,preservedV1Sha);
+assert.notEqual(plan_sha256,preservedV1Sha);
+assert.equal(decision.candidate.source_review_generation,"descriptor-inspection-20261010");
 
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1_SOURCE_GREEN");
+console.log("frozen_v1_plan_sha256="+historicalV1.plan_sha256);
+console.log("frozen_v1_cli_exact_stdout_preserved=true");
+console.log("diagnostic_v2_marker_schema_version_distinct=true");
+console.log("v2_predecessor_v1_digest_bound=true");
+console.log("v2_production_authority=false");
 console.log("inspection_dependency_review_cases=" + readerCases);
 console.log("inspection_reader_source_and_imports_bound=true");
 console.log("historical_bootstrap_candidate_preserved=true");

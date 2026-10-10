@@ -7,6 +7,11 @@ import path from "node:path";
 export const VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1 =
   "VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1";
 
+// New service-inspection diagnostic generation. Never replace V1 output
+// under the original marker/schema, which is historical evidence.
+export const VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2 =
+  "VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2";
+
 export const VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_AUTHORITY_V1 =
   Object.freeze({
     source_only_plan: true,
@@ -295,7 +300,7 @@ export function classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw) {
     observed_local_source_head: observed.local_source_head,
     observed_remote_tracking_head: observed.remote_tracking_head,
     reported_missing_requirements: Object.freeze(holds),
-    candidate: CANDIDATE,
+    candidate: PRE_INSPECTION_CANDIDATE,
     executable_unit_emitted: false,
     independent_custody_proven: false,
     production_gate_ready: false,
@@ -308,20 +313,44 @@ export function classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw) {
   });
 }
 
+// V2 retains the fully frozen V1 classifier, sample and digest as predecessor
+// evidence. Its own marker/schema/version identify a NEW, untrusted source
+// inspection generation. No host evidence, executable closure or install is
+// inferred from either body.
+export function classifyBuyAllocationCustodyServiceBootstrapPlanV2(raw) {
+  const v1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw);
+  const { plan_sha256: v1Digest, ...prior } = v1;
+  const body = Object.freeze({
+    ...prior,
+    schema: "void.buy.allocation.custody.bootstrap.plan.v2",
+    marker: VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
+    version: 2,
+    candidate: CANDIDATE,
+    predecessor_v1_plan_sha256: v1Digest,
+  });
+  return Object.freeze({
+    ...body,
+    plan_sha256: "sha256:" + createHash("sha256")
+      .update(canonicalJson(body), "utf8").digest("hex"),
+  });
+}
+
 function main() {
   const mode = process.argv[2] ?? "--plan";
   if (mode === "--help" && process.argv.length === 3) {
-    process.stdout.write("VOID Buy allocation custody bootstrap candidate v1; --plan only, no --apply.\n");
+    process.stdout.write("VOID Buy allocation custody bootstrap: --plan (original V1), --plan-v2 (inspection), no --apply.\n");
     return;
   }
-  if (mode !== "--plan" || process.argv.length > 3) {
+  if ((mode !== "--plan" && mode !== "--plan-v2") ||
+      process.argv.length !== (process.argv[2] === undefined ? 2 : 3)) {
     process.stderr.write("HOLD: invalid mode; no install, no --apply, no mutation.\n");
     process.exitCode = 2;
     return;
   }
-  const plan = classifyBuyAllocationCustodyServiceBootstrapPlanV1(
-    VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
-  );
+  const observation = VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1;
+  const plan = mode === "--plan"
+    ? classifyBuyAllocationCustodyServiceBootstrapPlanV1(observation)
+    : classifyBuyAllocationCustodyServiceBootstrapPlanV2(observation);
   process.stdout.write(JSON.stringify(plan, null, 2) + "\n");
 }
 

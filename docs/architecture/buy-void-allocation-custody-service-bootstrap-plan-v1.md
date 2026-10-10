@@ -5,8 +5,18 @@ Marker: `VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1`
 Status: **source-only candidate / production HOLD**. This package is a reviewed
 installation *planning contract*, not a service installer. It creates no
 systemd unit, socket, Polkit policy, directory, lock, receipt, wallet operation,
-transaction or public economic authority. The sole CLI operation is `--plan`.
-`--apply`, `--install` and other mutation-like modes fail closed with exit 2.
+transaction or public economic authority.
+
+The historical `--plan` (also no argument) is the **original frozen V1**
+schema/marker/version and original candidate. Its October 7 example has
+the exact historical canonical plan digest
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+The distinct read-only `--plan-v2` mode reports the later
+`descriptor-inspection-20261010` service/reader source evidence under a
+NEW V2 schema/marker/version; its `predecessor_v1_plan_sha256` refers back
+to the original V1 digest, but does not make either digest an attestation.
+`--apply`, `--install`, invalid combinations, and mutation-like modes
+fail closed with exit 2. Neither planning mode installs anything.
 
 ## Problem it resolves at the planning layer
 

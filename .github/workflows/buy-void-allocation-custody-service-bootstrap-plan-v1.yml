@@ -58,11 +58,31 @@ jobs:
           node --check scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs
           node scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs
 
-      - name: Plan remains HOLD
+      - name: Original V1 byte identity and new V2 diagnostic both remain HOLD
         run: |
           set -euo pipefail
-          node tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs --plan > /tmp/void-custody-plan.json
-          node -e 'const p=require("/tmp/void-custody-plan.json");if(p.status!=="HOLD_SOURCE_ONLY"||p.production_gate_ready!==false||p.candidate.requested_exec_start!==null||p.executable_unit_emitted!==false)process.exit(2)'
+          node tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs --plan > "$RUNNER_TEMP/original-v1.json"
+          node tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs --plan-v2 > "$RUNNER_TEMP/inspection-v2.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const one=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            const two=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+            assert.equal(one.schema,"void.buy.allocation.custody.bootstrap.plan.v1");
+            assert.equal(one.version,1);
+            assert.equal(one.plan_sha256,"sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348");
+            assert.equal(two.schema,"void.buy.allocation.custody.bootstrap.plan.v2");
+            assert.equal(two.version,2);
+            assert.equal(two.predecessor_v1_plan_sha256,one.plan_sha256);
+            assert.equal(two.candidate.source_review_generation,"descriptor-inspection-20261010");
+            for(const p of [one,two]) {
+              assert.equal(p.status,"HOLD_SOURCE_ONLY");
+              assert.equal(p.production_gate_ready,false);
+              assert.equal(p.candidate.requested_exec_start,null);
+              assert.equal(p.executable_unit_emitted,false);
+            }
+            console.log("VOID_BOOTSTRAP_V1_FROZEN_V2_DIAGNOSTIC_GREEN");
+          ' "$RUNNER_TEMP/original-v1.json" "$RUNNER_TEMP/inspection-v2.json"
 
       - name: Diff hygiene
         env:
