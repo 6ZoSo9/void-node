@@ -7,6 +7,7 @@ on:
     paths:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "scripts/void_nimo_v3_two_file_admission_readonly_v1.py"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-nimo-v3-inactive-bundle-v1.md"
@@ -20,6 +21,7 @@ on:
     paths:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "scripts/void_nimo_v3_two_file_admission_readonly_v1.py"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-nimo-v3-inactive-bundle-v1.md"
@@ -120,6 +122,24 @@ jobs:
           PY
           cp "$stage/void-nimo-v3-inactive.tar" \
             "void-nimo-v3-inactive-node-${{ matrix.node }}.tar"
+      - name: Prove read-only two-file admission and current three-key policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object scripts/void_nimo_v3_two_file_admission_readonly_v1.py)" = "943c02dde93e1c4b1a98e715b2a61d7d6c7e56c0"
+          python3 -m py_compile scripts/void_nimo_v3_two_file_admission_readonly_v1.py
+          python3 scripts/void_nimo_v3_two_file_admission_readonly_v1.py --self-test \
+            | tee nimo-v3-admission-${{ matrix.node }}.json
+          python3 - "nimo-v3-admission-${{ matrix.node }}.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert r["marker"] == "VOID_NIMO_V3_TWO_FILE_ADMISSION_READONLY_V1"
+          assert r["mode"] == "self-test"
+          assert r["pure_policy_cases_passed"] == 9
+          for key in ("filesystem_writes","host_files_accessed","installed_v3_accepted",
+                      "presale_activation","funds_moved"):
+              assert r[key] is False, key
+          PY
       - name: Reject archive byte tampering
         run: |
           set -euo pipefail
@@ -146,6 +166,7 @@ jobs:
             inspect-${{ matrix.node }}.json
             stage-plan-${{ matrix.node }}.json
             stage-self-test-${{ matrix.node }}.json
+            nimo-v3-admission-${{ matrix.node }}.json
             void-nimo-v3-inactive-node-${{ matrix.node }}.tar
           if-no-files-found: error
           retention-days: 1
@@ -167,10 +188,13 @@ jobs:
           for v in 22 24 26; do
             test -s "evidence/receipt-$v.json"
             test -s "evidence/inspect-$v.json"
+            test -s "evidence/nimo-v3-admission-$v.json"
             test -s "evidence/void-nimo-v3-inactive-node-$v.tar"
           done
           cmp evidence/receipt-22.json evidence/receipt-24.json
           cmp evidence/receipt-22.json evidence/receipt-26.json
+          cmp evidence/nimo-v3-admission-22.json evidence/nimo-v3-admission-24.json
+          cmp evidence/nimo-v3-admission-22.json evidence/nimo-v3-admission-26.json
           cmp evidence/inspect-22.json evidence/inspect-24.json
           cmp evidence/inspect-22.json evidence/inspect-26.json
           cmp evidence/void-nimo-v3-inactive-node-22.tar evidence/void-nimo-v3-inactive-node-24.tar
