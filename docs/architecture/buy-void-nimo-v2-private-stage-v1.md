@@ -45,8 +45,11 @@ The opt-in `--stage` refuses root/setuid execution. It only creates a
 `void-nimo-v2-inactive-review-20261009` directly beneath the invoking
 unprivileged account's registered home directory. It writes exclusively
 under that directory, with descriptor-relative `O_EXCL|O_NOFOLLOW`
-opens, mode-0444 payloads, file+directory fsync and exact post-stage
-revalidation. An already-existing stage, partial stage, changed TAR,
+opens, mode-0444 payloads, file fsync plus **each newly-created
+intermediate directory's parent fsync**, and final stage/home directory
+fsync before exact post-stage revalidation. The disposable self-test
+instruments real fsync calls and requires inode coverage of every
+intermediate directory, not just the leaf payload directories. An already-existing stage, partial stage, changed TAR,
 symlink, changed inode, extra file, wrong mode/owner or hash HOLDS.
 No automatic repair/deletion of a partially staged directory is performed.
 
@@ -58,7 +61,8 @@ directory; they are NOT installed V2 witness files.
 
 `--self-test` creates and deletes only disposable OS-temp fixtures.
 It verifies changed padding, appended bytes, one-bit changes, repeat-stage
-rejection and private staged-file tampering. The dedicated low-cost Node24
+rejection and private staged-file tampering. Missing intermediate
+parent-directory fsync is separately checked in the same disposable fixture. The dedicated low-cost Node24
 workflow compiles source, uses the existing #2741 exact TAR builder to
 produce the reviewed archive, runs real `--plan` and `--self-test`, and
 requires all authority fields false.

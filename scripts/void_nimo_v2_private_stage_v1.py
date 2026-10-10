@@ -15,6 +15,7 @@ import pwd
 import stat
 import tarfile
 import tempfile
+from unittest import mock
 
 SCHEMA = "VOID_NIMO_V2_PRIVATE_STAGE_V1"
 STAGE_NAME = "void-nimo-v2-inactive-review-20261009"
@@ -144,12 +145,20 @@ def ensure_path(rootfd, names):
     fd = rootfd
     try:
         for name in names:
+            created = False
             try:
                 os.mkdir(name, 0o700, dir_fd=fd)
+                created = True
             except FileExistsError:
                 pass
-            fd = private_directory(fd, name)
+            parentfd = fd
+            fd = private_directory(parentfd, name)
             opened.append(fd)
+            if created:
+                # Each newly created directory entry must be persisted by
+                # fsync of its PARENT directory. Fsyncing only its leaf files
+                # and the final top-level stage does not prove that chain.
+                os.fsync(parentfd)
         return opened
     except Exception:
         for item in reversed(opened):
@@ -298,7 +307,27 @@ def selftest(raw):
                 raise
     with tempfile.TemporaryDirectory(prefix="void-nimo-private-stage-test-") as temp:
         os.chmod(temp, 0o700)
-        stage_into(raw, temp, "stage")
+        # Record actual directory fsyncs for disposable private fixtures.
+        # Missing fsync of any newly-linked intermediate parent is a HOLD.
+        native_fsync = os.fsync
+        synced_dirs = set()
+
+        def record_fsync(fd):
+            st = os.fstat(fd)
+            if stat.S_ISDIR(st.st_mode):
+                synced_dirs.add((st.st_dev, st.st_ino))
+            return native_fsync(fd)
+
+        with mock.patch.object(os, "fsync", side_effect=record_fsync):
+            stage_into(raw, temp, "stage")
+        parent = Path(temp)
+        stage = parent / "stage"
+        directories = [parent, stage]
+        directories.extend(p for p in stage.rglob("*") if p.is_dir())
+        for directory in directories:
+            st = directory.stat(follow_symlinks=False)
+            if (st.st_dev, st.st_ino) not in synced_dirs:
+                hold("test_unfsynced_intermediate_directory")
         if inspect_stage(temp, "stage") != 10:
             hold("selftest_stage_missing")
         try:
