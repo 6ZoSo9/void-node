@@ -69,3 +69,28 @@ but insufficient for taking payment or releasing any VOID.
 Leave Draft/unmerged. No deployed host/service, customer/private ledger,
 wallet/signer/keys, transaction, Chain2050/WC, treasury/inventory/liquidity,
 coupled WC/VOID opening or funds movement. **PROTECT THE CORE.**
+
+## Reviewed dual-rail V3 successor (frozen V2 preserved)
+
+The source-only current-generation dual-rail proof
+`scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts`
+(immutable Git blob `0fe46360aafce095123b6e25265c3dc300e52e41`)
+reuses the historical V2 dual-rail's actual temporary-filesystem tests:
+separate Base/Ethereum canonical transaction identities, two durable
+synthetic payment/allocation rows, exact idempotent replay, missing original
+Ethereum wallet refusals, cross-rail aliasing, nonnative-contract rejection
+and late-tx/receiver acceptance. Only current replay/ledger source Git
+identities replace the frozen V2 source tuple; old proof V2 remains unchanged
+at `7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b` and MUST refuse new
+replay source `435ed6000caad046f48fb318fbc7c865393f3b6c` versus historical
+`0a74a3652081c3e142d0b887676771a7ac148f32`.
+
+The existing current-presale Node22/24/26 CI workflow now proves this V3
+and requires its complete transcript to match byte-for-byte across Nodes,
+in addition to current dispatcher V3, handoff V4, crash matrix V5 and their
+frozen-source negative controls. Broad Runtime Integration similarly requires
+frozen dual-rail V2's exact source mismatch and separately runs V3.
+
+**No live payment finality, installed operator or Nimo custody principal,
+protected high-water, production dispatcher mounting, coupled VOID/WC launch
+or funds authority is implied by synthetic temporary filesystem tests.**
