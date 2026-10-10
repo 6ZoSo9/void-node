@@ -29,7 +29,7 @@ jobs:
       - name: Decode and run guarded author with current lease
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: 36ac9843cb1ef259858003eed6f7c791b885e48b
+          EXPECTED_PARENT: 5a12234dac9525840d3bb898396f3812148ededa
           EXPECTED_MAIN: ae87314f7b25b23e5ae1251eec7101dda8a1e0a9
           PRESERVED_NIMO_V3: 8cd91951bb7f43d953d4e4c86e2d8360fd7a0427
           NIMO_V3_PARENT: b672df7bd21971cc2e8c60261d853db67bcd3205
@@ -98,26 +98,25 @@ jobs:
               raise SystemExit(
                   f"crash preappend author marker count={len(marker_lines)}"
               )
-          marker_index = marker_lines[0]
-          function_index = next(
-              (
-                  i
-                  for i in range(marker_index, -1, -1)
-                  if lines[i].lstrip().startswith("def replace_once(")
-              ),
-              -1,
-          )
-          if function_index < 0:
-              raise SystemExit("replace_once helper not found before crash marker")
+          function_lines = [
+              i
+              for i, line in enumerate(lines)
+              if line.lstrip().startswith("def replace_once(")
+          ]
+          if len(function_lines) != 1:
+              raise SystemExit(
+                  f"replace_once helper count={len(function_lines)}"
+              )
+          function_index = function_lines[0]
           function_indent = len(lines[function_index]) - len(lines[function_index].lstrip())
-          function_end = marker_index
-          for i in range(function_index + 1, marker_index):
+          function_end = -1
+          for i in range(function_index + 1, len(lines)):
               stripped = lines[i].strip()
               indent = len(lines[i]) - len(lines[i].lstrip())
               if stripped and indent <= function_indent:
                   function_end = i
                   break
-          else:
+          if function_end < 0:
               raise SystemExit("replace_once helper end not found")
           block = lines[function_index:function_end]
           if sum(line.strip() == "if count != 1:" for line in block) != 1:
