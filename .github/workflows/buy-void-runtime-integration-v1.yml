@@ -93,8 +93,10 @@ jobs:
                 historical_status=$?
                 set -e
                 test "$historical_status" -eq 1
-                grep -Fq 'mounted router generation drift' "$RUNNER_TEMP/$(basename "$proof").hold"
-                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_HELD=$proof"
+                grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V1_HELD=$proof"
                 continue
                 ;;
               scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)
@@ -104,7 +106,9 @@ jobs:
                 set -e
                 test "$historical_status" -eq 1
                 grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
-                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_HELD=$proof"
+                grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V2_HELD=$proof"
                 continue
                 ;;
               scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)
