@@ -61,7 +61,7 @@ jobs:
             echo "UNEXPECTED_HISTORICAL_V1_REISSUE" >&2
             exit 1
           fi
-          grep -F 'dependency drift: src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/v1-historical.txt"
+          grep -F 'custody reserve plan source drift' "$RUNNER_TEMP/v1-historical.txt"
       - name: Preserve V2 exact identity and prove bounded V3 source semantics
         shell: bash
         run: |
