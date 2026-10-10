@@ -1,0 +1,172 @@
+name: VOID Buy VOID cross-UID capacity exclusive lock v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - ".github/workflows/buy-void-cross-uid-capacity-exclusive-lock-v1.yml"
+      - "docs/architecture/buy-void-cross-uid-capacity-exclusive-lock-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-cross-uid-capacity-lock-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  linux-cross-uid:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax and ordinary adversaries
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+          node --check scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+          node scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs             | tee "cross-uid-capacity-ordinary-${{ matrix.node }}.txt"
+          for marker in             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1_GREEN'             'create_only_kernel_lock=true'             'callback_failure_retains_lock=true'             'ambient_tojson_not_claim_authority=true'             'shared_directory_mode_03770_required=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'presale_activation=false'             'funds_movement=false'
+          do
+            grep -Fx "$marker" "cross-uid-capacity-ordinary-${{ matrix.node }}.txt"
+          done
+
+      - name: Actual two-UID Linux serialization and stale-owner boundary
+        run: |
+          set -euo pipefail
+          WEB="voidweblock${{ matrix.node }}"
+          CUST="voidcustlock${{ matrix.node }}"
+          GRP="voidipclock${{ matrix.node }}"
+          sudo groupadd "$GRP"
+          sudo useradd -M -N -g "$GRP" -s /bin/bash "$WEB"
+          sudo useradd -M -N -g "$GRP" -s /bin/bash "$CUST"
+
+          WEB_UID="$(id -u "$WEB")"
+          CUST_UID="$(id -u "$CUST")"
+          GID="$(getent group "$GRP" | cut -d: -f3)"
+          ROOT="/tmp/void-cross-uid-capacity-${{ github.run_id }}-${{ matrix.node }}"
+          LOG="$ROOT/critical.log"
+          LOCK="$ROOT/.void-buy-void-cross-uid-capacity-exclusive-lock-v1.json"
+          NODE="$(command -v node)"
+          PROOF="$(realpath scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs)"
+
+          sudo install -d -m 3770 -o "$CUST" -g "$GRP" "$ROOT"
+          sudo install -m 0660 -o "$CUST" -g "$GRP" /dev/null "$LOG"
+
+          sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web success 5000             > "cross-uid-web-${{ matrix.node }}.txt" &
+          P1=$!
+          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody success 5000             > "cross-uid-custody-${{ matrix.node }}.txt" &
+          P2=$!
+          wait "$P1"
+          wait "$P2"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-web-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-${{ matrix.node }}.txt"
+          test ! -e "$LOCK"
+          sudo cat "$LOG" > "cross-uid-log-${{ matrix.node }}.txt"
+          node "$PROOF" --verify-log "cross-uid-log-${{ matrix.node }}.txt"             | tee "cross-uid-mutual-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_TWO_PROCESS_MUTUAL_EXCLUSION_GREEN'             "cross-uid-mutual-${{ matrix.node }}.txt"
+
+          sudo truncate -s 0 "$LOG"
+          sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web-fail fail 3000             > "cross-uid-web-fail-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_RETAINED_FAILURE_GREEN'             "cross-uid-web-fail-${{ matrix.node }}.txt"
+          test -f "$LOCK"
+
+          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-reap success 3000             > "cross-uid-custody-reap-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-reap-${{ matrix.node }}.txt"
+          test ! -e "$LOCK"
+
+          sudo truncate -s 0 "$LOG"
+          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-fail fail 3000             > "cross-uid-custody-fail-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_RETAINED_FAILURE_GREEN'             "cross-uid-custody-fail-${{ matrix.node }}.txt"
+          test -f "$LOCK"
+
+          sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web-hold expect-foreign-stale 3000             > "cross-uid-web-hold-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_FOREIGN_STALE_HELD_GREEN'             "cross-uid-web-hold-${{ matrix.node }}.txt"
+          test -f "$LOCK"
+
+          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-self-reap success 3000             > "cross-uid-custody-self-reap-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-self-reap-${{ matrix.node }}.txt"
+          test ! -e "$LOCK"
+
+          printf '%s\n'             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_TWO_UID_GREEN'             'web_and_custody_mutual_exclusion=true'             'custody_owner_reaps_stale_web_claim=true'             'web_cannot_reap_stale_custody_claim=true'             'custody_reaps_own_stale_claim=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'funds_movement=false'             | tee "cross-uid-capacity-kernel-${{ matrix.node }}.txt"
+
+          sudo rm -rf "$ROOT"
+
+      - name: Committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+      - name: Upload proof receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-cross-uid-capacity-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            cross-uid-capacity-ordinary-${{ matrix.node }}.txt
+            cross-uid-capacity-kernel-${{ matrix.node }}.txt
+            cross-uid-mutual-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [linux-cross-uid]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact-node receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-cross-uid-capacity-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+
+      - name: Require byte-identical public receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "proof/cross-uid-capacity-ordinary-$node.txt"
+            test -s "proof/cross-uid-capacity-kernel-$node.txt"
+            test -s "proof/cross-uid-mutual-$node.txt"
+          done
+          cmp proof/cross-uid-capacity-ordinary-22.txt proof/cross-uid-capacity-ordinary-24.txt
+          cmp proof/cross-uid-capacity-ordinary-22.txt proof/cross-uid-capacity-ordinary-26.txt
+          cmp proof/cross-uid-capacity-kernel-22.txt proof/cross-uid-capacity-kernel-24.txt
+          cmp proof/cross-uid-capacity-kernel-22.txt proof/cross-uid-capacity-kernel-26.txt
+          cmp proof/cross-uid-mutual-22.txt proof/cross-uid-mutual-24.txt
+          cmp proof/cross-uid-mutual-22.txt proof/cross-uid-mutual-26.txt
+          echo "VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_THREE_NODE_GREEN"
+          echo "production_runtime_mounted=false"
+          echo "production_gate_ready=false"
+          echo "funds_moved=false"
