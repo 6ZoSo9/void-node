@@ -1,0 +1,145 @@
+name: VOID Buy VOID Nimo V3 runtime bundle qualification v3
+
+on:
+  push:
+    branches:
+      - ren/nimo-v3-runtime-bundle-qualification-v3-20261010
+    paths:
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts"
+      - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v3.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts"
+      - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v3.mjs"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.yml"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    paths:
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts"
+      - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v3.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts"
+      - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v3.mjs"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build exact runtime
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Preserve exact unaccepted V3 candidate
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
+            | tee candidate-${{ matrix.node }}.txt
+          grep -Fxq 'candidate_manifest_id=voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454' \
+            candidate-${{ matrix.node }}.txt
+          grep -Fxq 'candidate_v3_installed_on_nimo=false' \
+            candidate-${{ matrix.node }}.txt
+          grep -Fxq 'presale_activation=false' candidate-${{ matrix.node }}.txt
+          grep -Fxq 'funds_moved=false' candidate-${{ matrix.node }}.txt
+
+      - name: Prove separate V3 runtime qualification
+        run: |
+          set -euo pipefail
+          npx --no-install tsx \
+            scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts \
+            | tee qualification-${{ matrix.node }}.txt
+          grep -Fxq \
+            'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V3_GREEN' \
+            qualification-${{ matrix.node }}.txt
+          grep -Fxq 'historical_v1_blob_preserved=true' qualification-${{ matrix.node }}.txt
+          grep -Fxq 'proposed_v2_lock_preserved=true' qualification-${{ matrix.node }}.txt
+          grep -Fxq 'unaccepted_candidate_record_rewritten=false' qualification-${{ matrix.node }}.txt
+
+      - name: Prove V3 runtime evidence collector
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v3.mjs \
+            | tee evidence-${{ matrix.node }}.txt
+          grep -Fxq \
+            'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_EVIDENCE_V3_GREEN' \
+            evidence-${{ matrix.node }}.txt
+          grep -Fxq 'double_census_match=true' evidence-${{ matrix.node }}.txt
+          grep -Fxq 'live_nimo_installed=false' evidence-${{ matrix.node }}.txt
+          grep -Fxq 'presale_activation=false' evidence-${{ matrix.node }}.txt
+          grep -Fxq 'funds_moved=false' evidence-${{ matrix.node }}.txt
+
+      - run: git diff --check
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v3-runtime-qualification-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            candidate-${{ matrix.node }}.txt
+            qualification-${{ matrix.node }}.txt
+            evidence-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-v3-runtime-qualification-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+      - name: Require byte-identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for kind in candidate qualification evidence; do
+            for v in 22 24 26; do
+              test -s "evidence/$kind-$v.txt"
+            done
+            cmp "evidence/$kind-22.txt" "evidence/$kind-24.txt"
+            cmp "evidence/$kind-22.txt" "evidence/$kind-26.txt"
+          done
+          cat evidence/qualification-22.txt
+          cat evidence/evidence-22.txt
+          echo VOID_BUY_VOID_NIMO_V3_RUNTIME_BUNDLE_CROSS_NODE_GREEN
+          echo live_nimo_installed=false
+          echo verified_payment_to_allocation_mounted=false
+          echo presale_activation=false
+          echo funds_moved=false
