@@ -26,11 +26,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Decode and run guarded author with exact lease
+      - name: Decode and run guarded author with current lease
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: b672df7bd21971cc2e8c60261d853db67bcd3205
+          EXPECTED_PARENT: 9b89bc96a2ce7cddb34377abbd6159103e8bf458
           EXPECTED_MAIN: ae87314f7b25b23e5ae1251eec7101dda8a1e0a9
+          PRESERVED_NIMO_V3: 8cd91951bb7f43d953d4e4c86e2d8360fd7a0427
+          NIMO_V3_PARENT: b672df7bd21971cc2e8c60261d853db67bcd3205
           STAGER: .github/workflows/void-pr2761-current-presale-successor-author-v1.yml
           PAYLOAD_COMMIT: b672df7bd21971cc2e8c60261d853db67bcd3205
         shell: bash
@@ -42,6 +44,17 @@ jobs:
           test "$(git diff --name-only "$EXPECTED_PARENT" HEAD)" = "$STAGER"
           test "$(git ls-remote origin "refs/heads/$EXPECTED_BRANCH" | awk '{print $1}')" = "$GITHUB_SHA"
           test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse "$PRESERVED_NIMO_V3^")" = "$NIMO_V3_PARENT"
+
+          expected_nimo_paths="$({ printf '%s\n' \
+            .github/workflows/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.yml \
+            .github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.yml \
+            .github/workflows/buy-void-runtime-integration-v1.yml \
+            docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md \
+            scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs; } | sort)"
+          actual_nimo_paths="$(git diff --name-only "$NIMO_V3_PARENT" "$PRESERVED_NIMO_V3" | sort)"
+          test "$actual_nimo_paths" = "$expected_nimo_paths"
+          git merge-base --is-ancestor "$PRESERVED_NIMO_V3" HEAD
 
           git show "$PAYLOAD_COMMIT:$STAGER" > "$RUNNER_TEMP/original-author-workflow.yml"
           python3 - <<'PY'
@@ -50,18 +63,21 @@ jobs:
           import base64
           import gzip
           from pathlib import Path
-          import re
 
           source = Path("${{ runner.temp }}/original-author-workflow.yml").read_text(
               encoding="utf-8"
           )
-          match = re.search(
-              r"printf '%s' '([A-Za-z0-9+/=]+)' \\| base64 -d \\| gzip -d",
-              source,
-          )
-          if match is None:
-              raise SystemExit("guarded author payload not found in exact predecessor")
-          payload = gzip.decompress(base64.b64decode(match.group(1), validate=True))
+          prefix = "printf '%s' '"
+          suffix = "' | base64 -d | gzip -d"
+          start = source.find(prefix)
+          if start < 0:
+              raise SystemExit("guarded author payload prefix missing")
+          start += len(prefix)
+          end = source.find(suffix, start)
+          if end <= start:
+              raise SystemExit("guarded author payload suffix missing")
+          encoded = source[start:end]
+          payload = gzip.decompress(base64.b64decode(encoded, validate=True))
           target = Path("${{ runner.temp }}/author.sh")
           target.write_bytes(payload)
           target.chmod(0o700)
