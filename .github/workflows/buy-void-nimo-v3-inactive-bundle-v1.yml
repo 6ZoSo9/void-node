@@ -43,12 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: \${{ matrix.node }}
+          node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build exact current witness runtime
         run: |
@@ -56,11 +56,11 @@ jobs:
           npm run typecheck
           npm run build
           node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
-            | tee nimo-v3-source-\${{ matrix.node }}.txt
+            | tee nimo-v3-source-${{ matrix.node }}.txt
           grep -Fxq 'candidate_manifest_id=voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454' \
-            nimo-v3-source-\${{ matrix.node }}.txt
+            nimo-v3-source-${{ matrix.node }}.txt
           grep -Fxq 'candidate_v3_installed_on_nimo=false' \
-            nimo-v3-source-\${{ matrix.node }}.txt
+            nimo-v3-source-${{ matrix.node }}.txt
       - name: Package and independently inspect exact canonical archive
         run: |
           set -euo pipefail
@@ -70,11 +70,11 @@ jobs:
           trap 'rm -rf -- "$stage"' EXIT
           python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
             --package "$stage/void-nimo-v3-inactive.tar" \
-            | tee receipt-\${{ matrix.node }}.json
+            | tee receipt-${{ matrix.node }}.json
           python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
             --inspect-archive "$stage/void-nimo-v3-inactive.tar" \
-            | tee inspect-\${{ matrix.node }}.json
-          python3 - "receipt-\${{ matrix.node }}.json" "inspect-\${{ matrix.node }}.json" <<'PY'
+            | tee inspect-${{ matrix.node }}.json
+          python3 - "receipt-${{ matrix.node }}.json" "inspect-${{ matrix.node }}.json" <<'PY'
           import json,sys
           a=json.load(open(sys.argv[1],encoding="utf-8"))
           b=json.load(open(sys.argv[2],encoding="utf-8"))
@@ -94,11 +94,11 @@ jobs:
               assert a[key] is b[key] is False
           PY
           cp "$stage/void-nimo-v3-inactive.tar" \
-            "void-nimo-v3-inactive-node-\${{ matrix.node }}.tar"
+            "void-nimo-v3-inactive-node-${{ matrix.node }}.tar"
       - name: Reject archive byte tampering
         run: |
           set -euo pipefail
-          cp "void-nimo-v3-inactive-node-\${{ matrix.node }}.tar" tampered.tar
+          cp "void-nimo-v3-inactive-node-${{ matrix.node }}.tar" tampered.tar
           python3 - tampered.tar <<'PY'
           from pathlib import Path
           import sys
@@ -115,11 +115,11 @@ jobs:
           grep -Fq 'archive_noncanonical_wire_bytes' tampered.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: nimo-v3-inactive-\${{ github.event.pull_request.head.sha || github.sha }}-node-\${{ matrix.node }}
+          name: nimo-v3-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: |
-            receipt-\${{ matrix.node }}.json
-            inspect-\${{ matrix.node }}.json
-            void-nimo-v3-inactive-node-\${{ matrix.node }}.tar
+            receipt-${{ matrix.node }}.json
+            inspect-${{ matrix.node }}.json
+            void-nimo-v3-inactive-node-${{ matrix.node }}.tar
           if-no-files-found: error
           retention-days: 1
       - run: git diff --check
@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: nimo-v3-inactive-\${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: nimo-v3-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: evidence
       - name: Require byte-identical Node 22 24 26 archives and receipts
