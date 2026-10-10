@@ -1,4 +1,4 @@
-name: VOID PR2761 first-original dispatcher V4 diagnostic v2
+name: VOID PR2761 first-original dispatcher V4 diagnostic v3
 
 on:
   push:
@@ -13,13 +13,13 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: void-pr2761-first-original-dispatch-v4-diagnostic-v2
+  group: void-pr2761-first-original-dispatch-v4-diagnostic-v3
   cancel-in-progress: false
 
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout exact diagnostic commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -28,11 +28,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Reproduce author phase without publishing
+      - name: Reproduce corrected author and proof phases without publishing
         id: reproduce
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: d934e1c362bfe191b138c75164fa7d7ccfd737ee
+          EXPECTED_PARENT: 151f5a068abee677225fbaf84386f4dec6e96ee3
           STAGER: .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
         shell: bash
         run: |
@@ -58,27 +58,114 @@ jobs:
               line[10:] if line.startswith("          ") else line
               for line in lines
           ) + "\n"
+
+          old = 'workflow = replace_once(workflow, old_frozen, new_frozen, "frozen predecessor step")\n'
+          new = '''frozen_start = workflow.find("      - name: Frozen historical buyer crash proof must still HOLD\\n")
+          frozen_end = workflow.find("      - name: Current first-original crash/replay V2 must pass; frozen V1 stays rejected\\n", frozen_start)
+          if frozen_start < 0 or frozen_end <= frozen_start:
+              raise SystemExit("frozen predecessor structural markers missing")
+          workflow = workflow[:frozen_start] + new_frozen + workflow[frozen_end:]
+          '''
+          if body.count(old) != 1:
+              raise SystemExit(f"author patch target count={body.count(old)}")
+          body = body.replace(old, new)
           Path("/tmp/void-pr2761-author.py").write_text(body, encoding="utf-8")
           PY
 
           set +e
-          python3 /tmp/void-pr2761-author.py > /tmp/author.log 2>&1
+          {
+            echo "phase=author"
+            python3 /tmp/void-pr2761-author.py
+
+            echo "phase=workflow_postfix"
+            python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/buy-void-first-original-dispatch-compose-v1.yml")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"\n'
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"\n'
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
+              1,
+          )
+          text = text.replace(
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
+              1,
+          )
+          text = text.replace(
+              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \\\n'
+              '            > "$RUNNER_TEMP/current-crash-v4.json"',
+              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs \\\n'
+              '            > "$RUNNER_TEMP/current-crash-v4.json"',
+              1,
+          )
+          text = text.replace(
+              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \\\n'
+              '            | tee "$RUNNER_TEMP/handoff.txt"',
+              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \\\n'
+              '            | tee "$RUNNER_TEMP/handoff.txt"',
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+
+            echo "phase=install"
+            npm ci --ignore-scripts --no-audit --no-fund
+            echo "phase=typecheck"
+            npm run typecheck
+            echo "phase=build"
+            npm run build
+
+            echo "phase=frozen_handoff_v2_refusal"
+            if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > /tmp/frozen-handoff-v2.txt 2>&1; then
+              echo "UNEXPECTED_FROZEN_HANDOFF_V2_ACCEPTANCE" >&2
+              exit 1
+            fi
+            grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' /tmp/frozen-handoff-v2.txt
+
+            echo "phase=crash_v4"
+            node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs > /tmp/crash-v4.json
+            grep -F '"marker": "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4"' /tmp/crash-v4.json
+
+            echo "phase=handoff_v3"
+            ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts | tee /tmp/handoff-v3.txt
+            grep -Fx 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN' /tmp/handoff-v3.txt
+            grep -Fx 'frozen_first_original_v2_proof_unchanged=true' /tmp/handoff-v3.txt
+            grep -Fx 'production_gate_ready=false' /tmp/handoff-v3.txt
+            grep -Fx 'funds_movement=false' /tmp/handoff-v3.txt
+
+            echo "phase=dispatcher"
+            node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts | tee /tmp/dispatch.txt
+            grep -Fx 'mounted_verified_allocation_dispatch=false' /tmp/dispatch.txt
+            grep -Fx 'funds_moved=false' /tmp/dispatch.txt
+
+            echo "phase=diff"
+            git diff --check
+            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V3_GREEN"
+          } > /tmp/phase.log 2>&1
           rc=$?
           set -e
 
           {
-            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V2"
+            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V3"
             echo "head=$GITHUB_SHA"
-            echo "author_rc=$rc"
+            echo "phase_rc=$rc"
             echo "changed_paths_begin"
             git status --short
             echo "changed_paths_end"
-            echo "author_log_begin"
-            cat /tmp/author.log
-            echo "author_log_end"
+            echo "phase_log_tail_begin"
+            tail -n 180 /tmp/phase.log
+            echo "phase_log_tail_end"
           } | tee /tmp/diagnostic.txt
 
-          echo "author_rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "phase_rc=$rc" >> "$GITHUB_OUTPUT"
 
       - name: Publish bounded diagnostic to PR 2761
         if: always()
@@ -90,22 +177,18 @@ jobs:
           set -Eeuo pipefail
           test -f /tmp/diagnostic.txt
           bytes="$(wc -c < /tmp/diagnostic.txt | tr -d ' ')"
-          test "$bytes" -le 20000
-
+          test "$bytes" -le 30000
           {
-            printf 'Guarded V4 rebind diagnostic for `%s`:\n\n```text\n' "$GITHUB_SHA"
+            printf 'Guarded V4 successor diagnostic for `%s`:\n\n```text\n' "$GITHUB_SHA"
             cat /tmp/diagnostic.txt
             printf '\n```\n\nNo source publication, branch rewrite, host mutation, payment, or funds action occurred.\n'
           } > /tmp/comment.md
-
           jq -n --rawfile body /tmp/comment.md '{body:$body}' > /tmp/comment.json
-          gh api --method POST "/repos/$REPOSITORY/issues/2761/comments" \
-            --input /tmp/comment.json >/dev/null
-          echo "VOID_PR2761_DIAGNOSTIC_COMMENT_PUBLISHED_V2"
+          gh api --method POST "/repos/$REPOSITORY/issues/2761/comments" --input /tmp/comment.json >/dev/null
 
       - name: Preserve fail-closed result
         if: always()
         shell: bash
         run: |
           set -Eeuo pipefail
-          test "${{ steps.reproduce.outputs.author_rc }}" = "0"
+          test "${{ steps.reproduce.outputs.phase_rc }}" = "0"
