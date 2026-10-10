@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
+import * as http from "node:http";
 import path from "node:path";
+import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import {
-  derive as deriveBuyVoidEnforcementArtifactAttestationV1,
-} from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
-import {
-  deriveBuyVoidEnforcementArtifactAttestationV4,
-} from "./prove_buy_void_enforcement_artifact_attestation_v4.mjs";
+  deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
+} from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
@@ -18,6 +16,251 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
+
+// Execute the exact two new route guards in an isolated VM with only inert
+// synthetic inputs; no RPC, wallet, filesystem or payment writer is supplied.
+const nativePreStart = index.indexOf('const nativeUsdc=chainCfg.chain==="base"?');
+const nativePreEnd = index.indexOf("let event:any;", nativePreStart);
+const nativePostStart = index.indexOf('if(!nativeEqual(event?.payment_verifier?.usdc_contract,nativeUsdc))', nativePreEnd);
+const nativePostEnd = index.indexOf("if(!__blo(found))", nativePostStart);
+const nativeWrite = index.indexOf("await __voidWriteBuyVoidOperatorEventV1(event,found);", nativePostEnd);
+const baseObserver = index.indexOf('observeBuyVoidPaymentV1({request:found,policy:{enabled:true,source_chain:"base",chain_id:8453', nativePreEnd);
+const nativeEthereum = index.indexOf('runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env})', nativePreEnd);
+assert(nativePreStart > 0 && nativePreEnd > nativePreStart);
+assert(baseObserver > nativePreEnd && nativeEthereum > nativePreEnd, "policy must bind before either bounded chain observation path");
+assert.equal(index.includes("__voidBuyVoidRpcV1"), false, "retired ad-hoc payment RPC helper must stay absent");
+assert(nativePostStart > nativePreEnd && nativePostEnd > nativePostStart && nativeWrite > nativePostEnd,
+  "verified event token must bind before durable admission");
+const nativePreflight = vm.runInNewContext(
+  `(found,chainCfg,cfg,res)=>{\n${index.slice(nativePreStart,nativePreEnd)}\nreturn nativeUsdc;}`,
+  Object.create(null), { timeout: 1000 },
+);
+const nativeEqualStart = index.indexOf("const nativeEqual=(value,expected)=>", nativePreStart);
+const nativeEqualEnd = index.indexOf("\n", nativeEqualStart);
+assert(nativeEqualStart > nativePreStart && nativeEqualEnd < nativePreEnd);
+const nativePostflight = vm.runInNewContext(
+  `(event,nativeUsdc,res)=>{\n${index.slice(nativeEqualStart,nativeEqualEnd)}\n${index.slice(nativePostStart,nativePostEnd)}\nreturn null;}`,
+  Object.create(null), { timeout: 1000 },
+);
+const baseNativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const ethereumNativeUsdc = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const nativeReceiver = "0x" + "8".repeat(40);
+const nativeSender = "0x" + "7".repeat(40);
+const nativeResponse = () => ({
+  status(code) { return { json(body) { return { http_status: code, body }; } }; },
+});
+const nativeRequest = (chain, token) => {
+  const chainId = chain === "base" ? 8453 : chain === "ethereum" ? 1 : 0;
+  return {
+    source_chain: chain,
+    payment_chain: chain,
+    payment_chain_id: chainId,
+    usdc_contract: token,
+    receive_address: nativeReceiver,
+    delivery_address: nativeSender,
+    payment_instructions: {
+      send_chain: chain,
+      send_chain_id: chainId,
+      token_contract: token,
+      token_decimals: 6,
+      send_to: nativeReceiver,
+      send_from: nativeSender,
+    },
+  };
+};
+const nativePolicy = (chain, token) => ({ ok: true, chain, usdc_contract: token });
+const nativeConfig = { receive_address: nativeReceiver };
+function assertNativePolicyHold(found, chainCfg, reason) {
+  const out = nativePreflight(found, chainCfg, nativeConfig, nativeResponse());
+  assert.equal(out?.http_status, 409, reason);
+  assert.equal(out?.body?.ok, false, reason);
+  assert.equal(out?.body?.error, "request_native_usdc_policy_mismatch", reason);
+}
+function assertPaymentInstructionHold(found, chainCfg, reason, cfg = nativeConfig) {
+  const out = nativePreflight(found, chainCfg, cfg, nativeResponse());
+  assert.equal(out?.http_status, 409, reason);
+  assert.equal(out?.body?.ok, false, reason);
+  assert.equal(out?.body?.error, "request_payment_instructions_policy_mismatch", reason);
+}
+for (const [chain, canonical] of [["base",baseNativeUsdc],["ethereum",ethereumNativeUsdc]]) {
+  const validRequest = nativeRequest(chain, canonical);
+  const validPolicy = nativePolicy(chain, canonical);
+  assert.equal(nativePreflight(validRequest, validPolicy, nativeConfig, nativeResponse()), canonical);
+  assert.equal(
+    nativePreflight(nativeRequest(chain,canonical.toUpperCase()),validPolicy,nativeConfig,nativeResponse()),
+    canonical,
+    "EVM contracts are case-insensitive",
+  );
+  assertNativePolicyHold(nativeRequest(chain, "0x" + "1".repeat(40)), validPolicy, chain + "_arbitrary_erc20_request");
+  assertNativePolicyHold(validRequest, nativePolicy(chain, "0x" + "2".repeat(40)), chain + "_arbitrary_erc20_server_policy");
+  assertNativePolicyHold(
+    { ...validRequest, payment_instructions: { ...validRequest.payment_instructions, token_contract:"0x" + "3".repeat(40) } },
+    validPolicy,
+    chain + "_original_payment_instructions_token_mismatch",
+  );
+  assertNativePolicyHold({ ...validRequest, source_chain: undefined }, validPolicy, chain + "_absent_explicit_chain");
+  assertNativePolicyHold(
+    { ...validRequest, payment_chain: chain === "base" ? "ethereum" : "base" },
+    validPolicy,
+    chain + "_conflicting_chain_alias",
+  );
+
+  const otherChainId = chain === "base" ? 1 : 8453;
+  assertPaymentInstructionHold({ ...validRequest, payment_chain_id: otherChainId }, validPolicy, chain + "_payment_chain_id_mismatch");
+  assertPaymentInstructionHold({ ...validRequest, payment_chain_id: String(validRequest.payment_chain_id) }, validPolicy, chain + "_payment_chain_id_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain: chain === "base" ? "ethereum" : "base" },
+  }, validPolicy, chain + "_instruction_chain_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain_id: otherChainId },
+  }, validPolicy, chain + "_instruction_chain_id_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_chain_id: String(validRequest.payment_chain_id) },
+  }, validPolicy, chain + "_instruction_chain_id_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, token_decimals: 18 },
+  }, validPolicy, chain + "_token_decimals_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, token_decimals: "6" },
+  }, validPolicy, chain + "_token_decimals_wrong_type");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_to: "0x" + "9".repeat(40) },
+  }, validPolicy, chain + "_instruction_receiver_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    payment_instructions: { ...validRequest.payment_instructions, send_from: "0x" + "6".repeat(40) },
+  }, validPolicy, chain + "_instruction_sender_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    receive_address: "0x" + "5".repeat(40),
+  }, validPolicy, chain + "_request_receiver_mismatch");
+  assertPaymentInstructionHold({
+    ...validRequest,
+    delivery_address: "0x" + "4".repeat(40),
+  }, validPolicy, chain + "_request_sender_mismatch");
+  assertPaymentInstructionHold(
+    validRequest,
+    validPolicy,
+    chain + "_policy_receiver_mismatch",
+    { receive_address: "0x" + "3".repeat(40) },
+  );
+
+  assert.equal(nativePostflight({ payment_verifier: { usdc_contract: canonical } },canonical,nativeResponse()),null);
+  for (const event of [null, {}, {payment_verifier:{}},
+                        {payment_verifier:{usdc_contract:"0x" + "4".repeat(40)}}]) {
+    const out = nativePostflight(event,canonical,nativeResponse());
+    assert.equal(out?.http_status,409,chain + "_event_contract_not_proven");
+    assert.equal(out?.body?.ok,false);
+    assert.equal(out?.body?.error,"verified_native_usdc_contract_mismatch");
+  }
+}
+assertNativePolicyHold(nativeRequest("polygon",baseNativeUsdc),
+  nativePolicy("polygon",baseNativeUsdc), "unknown_chain_never_inherits_ethereum_policy");
+
+// The Base operator route delegates all provider HTTP to the reviewed bounded
+// payment transport. Exercise its trust boundary against disposable loopback
+// responders; no real chain/provider/customer data is contacted.
+const {
+  createBuyVoidPaymentHttpTransportV1,
+} = await import("../dist/economic/buy_void_payment_rpc_observer_v1.js");
+
+async function withRpcServer(handler, run) {
+  const server = http.createServer(handler);
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  try {
+    return await run(`http://127.0.0.1:${address.port}/`);
+  } finally {
+    if (typeof server.closeAllConnections === "function") {
+      server.closeAllConnections();
+    }
+    await new Promise(resolve => server.close(() => resolve()));
+  }
+}
+
+function boundedTransport(url, overrides = {}) {
+  const transport = createBuyVoidPaymentHttpTransportV1({
+    enabled: true,
+    source_chain: "base",
+    chain_id: 8453,
+    rpc_url: url,
+    timeout_ms: 100,
+    max_response_bytes: 1024,
+    ...overrides,
+  });
+  assert.equal("reason" in transport, false);
+  return transport;
+}
+
+async function expectTransportFailure(handler, expected, overrides = {}) {
+  await withRpcServer(handler, async url => {
+    const transport = boundedTransport(url, overrides);
+    await assert.rejects(
+      transport.call({ method: "eth_blockNumber", params: [] }),
+      error => {
+        const message = String(error?.message || error);
+        return expected instanceof RegExp
+          ? expected.test(message)
+          : message === expected;
+      },
+      String(expected),
+    );
+  });
+}
+
+await withRpcServer((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, async url => {
+  const value = await boundedTransport(url).call({
+    method: "eth_blockNumber",
+    params: [],
+  });
+  assert.equal(value, "0x65");
+});
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    result: "x".repeat(4096),
+  }));
+}, "payment_observer_rpc_response_too_large", {
+  max_response_bytes: 512,
+});
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(503, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, "payment_observer_rpc_http_status");
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 2, result: "0x65" }));
+}, "payment_observer_rpc_envelope_mismatch");
+
+await expectTransportFailure((_req, res) => {
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "0x65" }));
+}, "payment_observer_rpc_content_type_invalid");
+
+await expectTransportFailure((_req, _res) => {
+  // Intentionally do not answer; the reviewed client-owned timeout must abort.
+}, /payment_observer_rpc_(?:timeout|total_deadline_exceeded)/, {
+  timeout_ms: 50,
+});
+
 const coupledLaunchGate = read(
   "src/economic/buy_void_coupled_launch_gate_v1.mjs",
 );
@@ -36,17 +279,6 @@ const verifiedPaymentV2 = read(
   "src/economic/buy_void_verified_payment_v2.ts",
 );
 assert.ok(Buffer.byteLength(index, "utf8") <= 3852487, "src/index.ts size ceiling");
-const canonical = value => JSON.stringify(value, (_key, item) =>
-  item && typeof item === "object" && !Array.isArray(item)
-    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
-    : item,
-);
-const sha256 = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
-const gitBlobSha1 = bytes => crypto.createHash("sha1")
-  .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
-  .update(bytes)
-  .digest("hex");
-
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
 assert.ok(
@@ -59,6 +291,10 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1"));
 assert.ok(index.includes('import("./economic/buy_void_verified_payment_v2.js")'));
+assert.ok(index.includes('import("./economic/buy_void_payment_rpc_observer_v1.js")'));
+assert.ok(index.includes("observeBuyVoidPaymentV1({request:found"));
+assert.equal(index.includes("async function __voidBuyVoidRpcV1"), false);
+assert.equal(index.includes('fetch(rpc, {'), false);
 assert.ok(index.includes("buildBuyVoidVerifiedPaymentEventV2"));
 assert.ok(index.includes('"eth_blockNumber"'));
 assert.ok(index.includes("current_block_number_by_chain"));
@@ -444,71 +680,79 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  const manifest =
-    deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
-  const expectedSuccessor =
-    deriveBuyVoidEnforcementArtifactAttestationV4(ROOT);
-  const committedSuccessor = JSON.parse(read(
+  // The immutable V1 enforcement scanner's historical external-import
+  // allowlist is NOT a verifier for the current native-USDC V2 generation.
+  // Current runtime closure is derived only by the bounded, explicitly
+  // UNACCEPTED V5 scanner; preserve older predecessor bytes separately.
+  const currentCandidate =
+    deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
+  const historicalV4 = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
-  assert.deepEqual(
-    committedSuccessor,
-    expectedSuccessor,
-    "committed enforcement V4 successor must match current closure",
+
+  assert.equal(
+    historicalV4.marker,
+    "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V4",
+  );
+  assert.equal(historicalV4.version, 4);
+  assert.equal(
+    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
+    "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
+  );
+  // Archived CI artifact from the reviewed current V5 source: one old
+  // V4 runtime entry is removed and exactly one V6 entry is introduced.
+  // Both statements are checked against the *derived graph*, never
+  // fabricated by repinning the immutable historical V4 manifest.
+  assert.deepEqual(currentCandidate.delta_from_historical_v1.removed_paths, [
+    "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
+  ]);
+  assert.deepEqual(currentCandidate.delta_from_historical_v1.added_paths, [
+    "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+  ]);
+  assert.ok(
+    currentCandidate.delta_from_historical_v1.changed_paths.includes(
+      "dist/economic/buy_void_verified_payment_v2.js",
+    ),
+    "reviewed native-USDC V2 changed compiled identity must be explicit",
+  );
+
+  assert.equal(
+    currentCandidate.source_runtime_parent,
+    "22a30e3ffad6047a472488104c769140bd050878",
   );
   assert.equal(
-    committedSuccessor.current_enforcement.enforcement_artifact_set_sha256,
-    manifest.enforcement_artifact_set_sha256,
-    "runtime integration must bind the V4-attested current enforcement closure",
-  );
-  const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
-  const lockBytes = fs.readFileSync(
-    path.join(ROOT, "src/economic/buy_void_filesystem_bakery_lock_v1.ts"),
-  );
-  const next = structuredClone(manifest);
-  const dockerInput = next.inputs.find(entry => entry.path === "Dockerfile");
-  assert.ok(dockerInput);
-  dockerInput.bytes = dockerBytes.length;
-  dockerInput.sha256 = sha256(dockerBytes);
-  dockerInput.git_blob_sha1 = gitBlobSha1(dockerBytes);
-  const lockInput = next.inputs.find(
-    entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-  );
-  assert.ok(lockInput);
-  lockInput.bytes = lockBytes.length;
-  lockInput.sha256 = sha256(lockBytes);
-  lockInput.git_blob_sha1 = gitBlobSha1(lockBytes);
-  const body = structuredClone(next);
-  delete body.enforcement_artifact_set_sha256;
-  const nextSetSha256 = sha256(Buffer.from(canonical(body), "utf8"));
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.bytes, dockerInput.bytes);
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.sha256, dockerInput.sha256);
-  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.git_blob_sha1, dockerInput.git_blob_sha1);
-  assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.bytes,
-    lockInput.bytes,
+    currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,
+    "d9e391bb058132b83a4eeaec00797e41dab9fa26",
   );
   assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.sha256,
-    lockInput.sha256,
+    currentCandidate.predecessor.historical_v4_enforcement_set_sha256,
+    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
   );
+  assert.ok(
+    currentCandidate.closed_runtime_artifacts.some(
+      entry =>
+        entry.path ===
+        "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+    ),
+  );
+  assert.equal(currentCandidate.candidate_identity_accepted, false);
+  assert.equal(currentCandidate.dynamic_tool_execution_identity_verified, false);
+  assert.equal(currentCandidate.dynamic_tool_transitive_closure_verified, false);
+  assert.equal(currentCandidate.complete_executable_closure_verified, false);
+  assert.equal(currentCandidate.deployed_artifact_generation_verified, false);
+  assert.equal(currentCandidate.runtime_mount_authority, false);
   assert.equal(
-    manifest.inputs.find(
-      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-    )?.git_blob_sha1,
-    lockInput.git_blob_sha1,
+    currentCandidate.production_source_finality_authority_ready,
+    false,
   );
-  assert.equal(manifest.enforcement_artifact_set_sha256, nextSetSha256);
-  console.log(`attestation_docker_bytes=${dockerInput.bytes}`);
-  console.log(`attestation_docker_sha256=${dockerInput.sha256}`);
-  console.log(`attestation_docker_git_blob_sha1=${dockerInput.git_blob_sha1}`);
-  console.log(`attestation_next_set_sha256=${nextSetSha256}`);
-  console.log("enforcement_v1_predecessor_immutable=true");
-  console.log("current_enforcement_v3_successor_bound=true");
+  assert.equal(currentCandidate.presale_activation, false);
+  assert.equal(currentCandidate.funds_movement, false);
+
+  console.log("historical_enforcement_v4_predecessor_immutable=true");
+  console.log("current_enforcement_v5_candidate_derived=true");
+  console.log("current_enforcement_v5_candidate_acceptance=false");
+  console.log("complete_executable_closure_verified=false");
 }
+console.log("native_usdc_request_and_verified_event_policy_held=true");
 console.log("funds_movement=false");
 console.log("runtime_activation_performed=false");

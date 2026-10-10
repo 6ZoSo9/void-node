@@ -100,7 +100,7 @@ import { Metrics } from "./metrics.js";
 import "./http/participant_wallet_native_v1.js"; // VOID_DIST_START_ESM_IMPORT_GUARD_V1
 import "./economic/wc_public_capability_v1.js"; // VOID_WC_PUBLIC_CAPABILITY_V1
 import "./economic/buy_void_runtime_integration_v1.js"; // VOID_BUY_VOID_RUNTIME_INTEGRATION_V1
-import g from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";
+import evaluateBuyVoidManualFulfilledConfirmedStateGateV1 from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";
 import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator_submit_intent_runtime_integration_v1.js"; // VOID_VALIDATOR_SUBMIT_INTENT_RUNTIME_INTEGRATION_V1
 import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT
 import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
@@ -18525,19 +18525,7 @@ small{color:#94a3b8}
       return out;
     }
 
-    function __voidBuyVoidOperatorLocalOnlyV1(req:any,res:any){
-      const host = String(req.headers?.host || "");
-      const remote = String(req.socket?.remoteAddress || "");
-      const localHost = host.startsWith("127.0.0.1:") || host.startsWith("localhost:");
-      const localRemote = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
-      if (localHost || localRemote) return true;
-      res.status(403).json({
-        schema: "void_buy_void_operator_auth_v1",
-        ok: false,
-        error: "operator_queue_local_only"
-      });
-      return false;
-    }
+    const __boi=require("./economic/buy_void_operator_local_intent_v1"),__voidBuyVoidOperatorShellLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalShellV1,__voidBuyVoidOperatorLocalOnlyV1=__boi.authorizeBuyVoidOperatorLocalReadV1,__voidBuyVoidOperatorMutationIntentV1=__boi.authorizeBuyVoidOperatorMutationV1;
 
     // VOID_BUY_VOID_OPERATOR_MARK_V1
     async function __voidReadBuyVoidOperatorEventsV1(){
@@ -18585,7 +18573,7 @@ small{color:#94a3b8}
 
     // VOID_BUY_VOID_OPERATOR_PAGE_V1
     app.get("/__void/buy-void/operator", async (req:any,res:any)=>{
-      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+      if (!__voidBuyVoidOperatorShellLocalOnlyV1(req,res)) return;
 
       res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -18615,93 +18603,20 @@ small{color:#94a3b8}
 <div id="queue"></div>
 </main>
 <script>
-async function j(url){ const r = await fetch(url); return await r.json(); }
+let ot=prompt("Operator capability:")||"";async function j(url){const r=await fetch(url,{headers:{authorization:"Bearer "+ot}});return await r.json()}async function m(url){const r=await fetch(url,{method:"POST",headers:{authorization:"Bearer "+ot,"x-void-operator-intent":"VOID_BUY_VOID_OPERATOR_MUTATION_V1"}});return await r.json()}
 
-function esc(x){
-  return String(x == null ? "" : x).replace(/[&<>"']/g, function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c];
-  });
-}
+function esc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]})}
 
 // VOID_BUY_VOID_OPERATOR_PAGE_FULFILL_TX_PROMPT_V1
 // VOID_BUY_VOID_OPERATOR_PAGE_VERIFY_PAYMENT_BUTTON_V1
-async function verifyPayment(id){
-  const out = await j("/__void/buy-void/operator/verify-payment.json?id=" + encodeURIComponent(id));
-  alert(out.ok ? "Payment verified" : JSON.stringify(out));
-  refresh();
-}
+async function verifyPayment(id){const out=await m("/__void/buy-void/operator/verify-payment.json?id="+encodeURIComponent(id));alert(out.ok?"Payment verified":JSON.stringify(out));refresh()}
+async function markReq(id,status){const note=prompt("Operator note for "+status+":",status);if(note===null)return;let voidTx="";if(status==="fulfilled"){voidTx=prompt("VOID delivery tx hash required for fulfillment:","0x");if(voidTx===null)return;voidTx=voidTx.trim()}let url="/__void/buy-void/operator/mark.json?id="+encodeURIComponent(id)+"&status="+encodeURIComponent(status)+"&note="+encodeURIComponent(note);if(status==="fulfilled")url+="&void_tx_hash="+encodeURIComponent(voidTx);const out=await m(url);alert(out.ok?"Marked "+status:JSON.stringify(out));refresh()}
 
-async function markReq(id, status){
-  const note = prompt("Operator note for " + status + ":", status);
-  if (note === null) return;
+function renderReq(r){const id=esc(r.request_id),tx=esc(r.tx_hash||""),status=esc(r.effective_status||r.status||"");return '<div class="card"><h3>'+id+'</h3><p><span class="badge">'+status+'</span><span class="badge">'+esc(r.usdc_amount)+' USDC</span><span class="badge">'+esc(r.quoted_void)+' VOID</span></p><p><b>Delivery:</b> '+esc(r.delivery_address||"")+'</p><p><b>TX:</b> '+(tx||'<small>none</small>')+'</p><button data-id="'+id+'" onclick="verifyPayment(this.dataset.id)">Verify payment</button><button class="review" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'reviewed\\')">Mark reviewed</button><button class="fulfill" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'fulfilled\\')">Mark fulfilled</button><button class="reject" data-id="'+id+'" onclick="markReq(this.dataset.id,\\'rejected\\')">Reject</button><pre>'+esc(JSON.stringify(r,null,2))+'</pre></div>'}
 
-  let voidTx = "";
-  if (status === "fulfilled") {
-    voidTx = prompt("VOID delivery tx hash required for fulfillment:", "0x");
-    if (voidTx === null) return;
-    voidTx = voidTx.trim();
-  }
+function renderBucket(name,arr){return '<section class="card"><h2>'+esc(name)+' ('+arr.length+')</h2>'+(arr.length?arr.map(renderReq).join(""):'<p><small>empty</small></p>')+'</section>'}
 
-  let url = "/__void/buy-void/operator/mark.json?id=" + encodeURIComponent(id) +
-    "&status=" + encodeURIComponent(status) +
-    "&note=" + encodeURIComponent(note);
-
-  if (status === "fulfilled") {
-    url += "&void_tx_hash=" + encodeURIComponent(voidTx);
-  }
-
-  const out = await j(url);
-  alert(out.ok ? "Marked " + status : JSON.stringify(out));
-  refresh();
-}
-
-function renderReq(r){
-  const id = esc(r.request_id);
-  const tx = esc(r.tx_hash || "");
-  const status = esc(r.effective_status || r.status || "");
-  return '<div class="card">' +
-    '<h3>' + id + '</h3>' +
-    '<p><span class="badge">' + status + '</span><span class="badge">' + esc(r.usdc_amount) + ' USDC</span><span class="badge">' + esc(r.quoted_void) + ' VOID</span></p>' +
-    '<p><b>Delivery:</b> ' + esc(r.delivery_address || "") + '</p>' +
-    '<p><b>TX:</b> ' + (tx || '<small>none</small>') + '</p>' +
-    '<button onclick="verifyPayment(\\'' + id + '\\')">Verify payment</button>' +
-    '<button class="review" onclick="markReq(\\'' + id + '\\',\\'reviewed\\')">Mark reviewed</button>' +
-    '<button class="fulfill" onclick="markReq(\\'' + id + '\\',\\'fulfilled\\')">Mark fulfilled</button>' +
-    '<button class="reject" onclick="markReq(\\'' + id + '\\',\\'rejected\\')">Reject</button>' +
-    '<pre>' + esc(JSON.stringify(r, null, 2)) + '</pre>' +
-    '</div>';
-}
-
-function renderBucket(name, arr){
-  return '<section class="card"><h2>' + esc(name) + ' (' + arr.length + ')</h2>' +
-    (arr.length ? arr.map(renderReq).join("") : '<p><small>empty</small></p>') +
-    '</section>';
-}
-
-async function refresh(){
-  const q = await j("/__void/buy-void/operator/queue.json");
-  const c = q.counts || {};
-  const s = q.sale_state || {};
-  document.getElementById("summary").innerHTML =
-    '<h2>Summary</h2>' +
-    '<p><span class="badge">total ' + esc(c.total || 0) + '</span>' +
-    '<span class="badge">awaiting ' + esc(c.awaiting_payment || 0) + '</span>' +
-    '<span class="badge">tx submitted ' + esc(c.tx_submitted || 0) + '</span>' +
-    '<span class="badge">payment verified ' + esc(c.payment_verified || 0) + '</span>' +
-    '<span class="badge">reviewed ' + esc(c.reviewed || 0) + '</span>' +
-    '<span class="badge">fulfilled ' + esc(c.fulfilled || 0) + '</span>' +
-    '<span class="badge">rejected ' + esc(c.rejected || 0) + '</span></p>' +
-    '<p>Raised: $' + esc(s.raised_usdc_so_far || 0) + ' USDC • Remaining: ' + esc(s.remaining_void || 0) + ' VOID • Sold out: ' + esc(s.sold_out) + '</p>';
-
-  const r = q.requests || {};
-  document.getElementById("queue").innerHTML =
-    renderBucket("Awaiting payment", r.awaiting_payment || []) +
-    renderBucket("TX submitted", r.tx_submitted || []) +
-    renderBucket("Payment verified", r.payment_verified || []) +
-    renderBucket("Reviewed", r.reviewed || []) +
-    renderBucket("Fulfilled", r.fulfilled || []) +
-    renderBucket("Rejected", r.rejected || []);
-}
+async function refresh(){const q=await j("/__void/buy-void/operator/queue.json"),c=q.counts||{},s=q.sale_state||{};document.getElementById("summary").innerHTML='<h2>Summary</h2><p><span class="badge">total '+esc(c.total||0)+'</span><span class="badge">awaiting '+esc(c.awaiting_payment||0)+'</span><span class="badge">tx submitted '+esc(c.tx_submitted||0)+'</span><span class="badge">payment verified '+esc(c.payment_verified||0)+'</span><span class="badge">reviewed '+esc(c.reviewed||0)+'</span><span class="badge">fulfilled '+esc(c.fulfilled||0)+'</span><span class="badge">rejected '+esc(c.rejected||0)+'</span></p><p>Raised: $'+esc(s.raised_usdc_so_far||0)+' USDC • Remaining: '+esc(s.remaining_void||0)+' VOID • Sold out: '+esc(s.sold_out)+'</p>';const r=q.requests||{};document.getElementById("queue").innerHTML=renderBucket("Awaiting payment",r.awaiting_payment||[])+renderBucket("TX submitted",r.tx_submitted||[])+renderBucket("Payment verified",r.payment_verified||[])+renderBucket("Reviewed",r.reviewed||[])+renderBucket("Fulfilled",r.fulfilled||[])+renderBucket("Rejected",r.rejected||[])}
 
 refresh();
 setInterval(refresh, 10000);
@@ -18787,160 +18702,154 @@ setInterval(refresh, 10000);
       };
     }
 
-    async function __voidBuyVoidRpcV1(chainCfg:any, method:string, params:any[]){
-      const rpc = String(chainCfg?.rpc_url || "").trim();
-      if (!rpc) throw new Error(String(chainCfg?.rpc_env || "rpc_url") + "_not_configured");
-      const r = await fetch(rpc, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc:"2.0", id:1, method, params })
-      });
-      const j:any = await r.json();
-      if (j.error) throw new Error(String(j.error.message || JSON.stringify(j.error)));
-      return j.result;
-    }
-
     // VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1
-    app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
-      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+    app.post("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
+if (!__voidBuyVoidOperatorMutationIntentV1(req,res)) return;
 
-      try {
-        const id = String((req.query || {}).id || "").trim();
-        const requests = await __voidReadBuyVoidRequestsV1();
-        const found = requests.find((r:any)=>String(r.request_id || "") === id);
+try {
+const id = String((req.query || {}).id || "").trim();
+const requests = await __voidReadBuyVoidRequestsV1();
+const found = requests.find((r:any)=>String(r.request_id || "") === id);
 
-        if (!found) {
-          return res.status(404).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "buy_void_request_not_found",
-            request_id: id
-          });
-        }
-        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
+if (!found) {
+return res.status(404).json({
+  schema: "void_buy_void_payment_verifier_v1",
+  ok: false,
+  error: "buy_void_request_not_found",
+  request_id: id
+});
+}
+if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
 
-        const tx = String(found.tx_hash || "").trim();
-        if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "request_has_no_valid_payment_tx_hash",
-            request_id: id
-          });
-        }
+const tx = String(found.tx_hash || "").trim();
+if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
+return res.status(400).json({
+  schema: "void_buy_void_payment_verifier_v1",
+  ok: false,
+  error: "request_has_no_valid_payment_tx_hash",
+  request_id: id
+});
+}
 
-        const cfg:any = __voidBuyVoidConfigV1();
-        if (!cfg.payment_ready) {
-          return res.status(503).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "buy_void_receive_address_not_configured"
-          });
-        }
+const cfg:any = __voidBuyVoidConfigV1();
+if (!cfg.payment_ready) {
+return res.status(503).json({
+  schema: "void_buy_void_payment_verifier_v1",
+  ok: false,
+  error: "buy_void_receive_address_not_configured"
+});
+}
 
-        const chainCfg:any = __voidBuyVoidPaymentChainV1(found.source_chain || found.chain || "base");
-        if (!chainCfg.ok) {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: chainCfg.error,
-            source_chain: chainCfg.chain,
-            supported_chains: chainCfg.supported_chains
-          });
-        }
+const chainCfg:any = __voidBuyVoidPaymentChainV1(found.source_chain || found.chain || "base");
+if (!chainCfg.ok) {
+return res.status(400).json({
+  schema: "void_buy_void_payment_verifier_v1",
+  ok: false,
+  error: chainCfg.error,
+  source_chain: chainCfg.chain,
+  supported_chains: chainCfg.supported_chains
+});
+}
 
-        let event:any;
-        if(chainCfg.chain==="ethereum"){
-          const ef:any=await import("./economic/buy_void_ethereum_public_checkout_finality_gate_v1.js");
-          const finality:any=await ef.runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env});
-          if(!finality.ok||finality.payment_verified_transition_ready!==true)return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"ethereum_source_finality_hold",reason:String(finality.reason||"ethereum_source_finality_not_authoritative"),tx_hash:tx,request_id:id});
-          const verifiedEvent:any=finality.canonical_verified_payment_event;
-          event={...verifiedEvent,ok:true,note:"Ethereum USDC receipt/log + canonical source finality verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verifiedEvent.payment_verifier,source_finality_gate_marker:finality.marker,canonical_payment_identity:finality.canonical_payment_identity,payment_key_sha256:finality.payment_key_sha256},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
-        }else{
-          const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt",[tx]);
-          if(!receipt)return res.status(404).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"payment_tx_receipt_not_found",tx_hash:tx});
-          const currentBlock:any=await __voidBuyVoidRpcV1(chainCfg,"eth_blockNumber",[]);
-          const v:any=await import("./economic/buy_void_verified_payment_v2.js");
-          const verified=v.buildBuyVoidVerifiedPaymentEventV2({request:found,receipt,policy:{allowed_chains:[chainCfg.chain],usdc_contract_by_chain:{[chainCfg.chain]:chainCfg.usdc_contract},receive_address_by_chain:{[chainCfg.chain]:cfg.receive_address},current_block_number_by_chain:{[chainCfg.chain]:currentBlock}}});
-          if(!verified.ok)return res.status(400).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:verified.reason,tx_hash:tx,request_id:id,...(verified.detail?{detail:verified.detail}:{})});
-          event={...verified.event,ok:true,note:"USDC receipt/log verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verified.event.payment_verifier,rpc_env:chainCfg.rpc_env,receipt_status:receipt.status},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
-        }
+const nativeUsdc=chainCfg.chain==="base"?"0x833589fcd6edb6e08f4c7c32d4f71b54bda02913":chainCfg.chain==="ethereum"?"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48":"";
+const nativeEqual=(value,expected)=>typeof value==="string"&&value.trim().toLowerCase()===expected;
+if(!nativeUsdc||!nativeEqual(found.source_chain,chainCfg.chain)||!nativeEqual(found.payment_chain,chainCfg.chain)||![found.usdc_contract,found.payment_instructions?.token_contract,chainCfg.usdc_contract].every(value=>nativeEqual(value,nativeUsdc)))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_native_usdc_policy_mismatch"});
+const ci=chainCfg.chain==="base"?8453:chainCfg.chain==="ethereum"?1:0,pi=found.payment_instructions;
+if(!ci||found.payment_chain_id!==ci||!pi||!nativeEqual(pi.send_chain,chainCfg.chain)||pi.send_chain_id!==ci||pi.token_decimals!==6||!nativeEqual(pi.send_to,cfg.receive_address)||!nativeEqual(pi.send_to,found.receive_address)||!nativeEqual(pi.send_from,found.delivery_address))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_payment_instructions_policy_mismatch"});
+let event:any;
+if(chainCfg.chain==="ethereum"){
+const ef:any=await import("./economic/buy_void_ethereum_public_checkout_finality_gate_v1.js");
+const finality:any=await ef.runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({request:found,env:process.env});
+if(!finality.ok||finality.payment_verified_transition_ready!==true)return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"ethereum_source_finality_hold",reason:String(finality.reason||"ethereum_source_finality_not_authoritative"),tx_hash:tx,request_id:id});
+const verifiedEvent:any=finality.canonical_verified_payment_event;
+event={...verifiedEvent,ok:true,note:"Ethereum USDC receipt/log + canonical source finality verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verifiedEvent.payment_verifier,source_finality_gate_marker:finality.marker,canonical_payment_identity:finality.canonical_payment_identity,payment_key_sha256:finality.payment_key_sha256},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
+}else{
+const po:any=await import("./economic/buy_void_payment_rpc_observer_v1.js");
+const observed:any=await po.observeBuyVoidPaymentV1({request:found,policy:{enabled:true,source_chain:"base",chain_id:8453,rpc_url:chainCfg.rpc_url,timeout_ms:process.env.VOID_BUY_VOID_SOURCE_FINALITY_RPC_TIMEOUT_MS,max_response_bytes:process.env.VOID_BUY_VOID_SOURCE_FINALITY_RPC_MAX_RESPONSE_BYTES}});
+if(!observed.ok){const s=observed.reason==="payment_receipt_not_found"?404:502;return res.status(s).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:observed.reason,tx_hash:tx,request_id:id,...(observed.detail?{detail:observed.detail}:{})})}
+const receipt:any=observed.receipt,currentBlock:any=observed.current_block_number;
+const v:any=await import("./economic/buy_void_verified_payment_v2.js");
+const verified=v.buildBuyVoidVerifiedPaymentEventV2({request:found,receipt,policy:{allowed_chains:[chainCfg.chain],usdc_contract_by_chain:{[chainCfg.chain]:chainCfg.usdc_contract},receive_address_by_chain:{[chainCfg.chain]:cfg.receive_address},current_block_number_by_chain:{[chainCfg.chain]:currentBlock}}});
+if(!verified.ok)return res.status(400).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:verified.reason,tx_hash:tx,request_id:id,...(verified.detail?{detail:verified.detail}:{})});
+event={...verified.event,ok:true,note:"USDC receipt/log verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verified.event.payment_verifier,rpc_env:chainCfg.rpc_env,receipt_status:receipt.status},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
+}
 
-        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
-        await __voidWriteBuyVoidOperatorEventV1(event,found);
+if(!nativeEqual(event?.payment_verifier?.usdc_contract,nativeUsdc))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"verified_native_usdc_contract_mismatch"});
+if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
+await __voidWriteBuyVoidOperatorEventV1(event,found);
 
-        res.json({
-          schema: "void_buy_void_payment_verifier_v1",
-          ok: true,
-          verified: true,
-          event,
-          request: found
-        });
-      } catch(e:any) {
-        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_duplicate_guard_");
-        res.status(held?409:500).json({
-          schema: "void_buy_void_payment_verifier_v1",
-          ok: false,
-          error: held?m:"payment_verifier_failed",
-          message: m
-        });
-      }
-    });
+res.json({
+schema: "void_buy_void_payment_verifier_v1",
+ok: true,
+verified: true,
+event,
+request: found
+});
+} catch(e:any) {
+const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_duplicate_guard_");
+res.status(held?409:500).json({
+schema: "void_buy_void_payment_verifier_v1",
+ok: false,
+error: held?m:"payment_verifier_failed",
+message: m
+});
+}
+});
 
-    app.get("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
-      if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
+app.post("/__void/buy-void/operator/mark.json", async (req:any,res:any)=>{
+if (!__voidBuyVoidOperatorMutationIntentV1(req,res)) return;
 
-      const q:any = req.query || {};
-      const id = String(q.id || "").trim();
-      const operator_status = String(q.status || "").trim().toLowerCase();
-      const note = String(q.note || "").trim().slice(0, 240);
-      // VOID_BUY_VOID_FULFILLMENT_RECEIPT_V1
-      const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
+const q:any = req.query || {};
+const id = String(q.id || "").trim();
+const operator_status = String(q.status || "").trim().toLowerCase();
+const note = String(q.note || "").trim().slice(0, 240);
+// VOID_BUY_VOID_FULFILLMENT_RECEIPT_V1
+const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
 
-      // VOID_BUY_VOID_FULFILLMENT_TX_HASH_GUARD_V1
-      const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
+// VOID_BUY_VOID_FULFILLMENT_TX_HASH_GUARD_V1
+const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
 
-      if (!id || !allowed.has(operator_status)) {
-        return res.status(400).json({
-          schema: "void_buy_void_operator_mark_v1",
-          ok: false,
-          error: "invalid_operator_mark",
-          allowed_statuses: Array.from(allowed)
-        });
-      }
+if (!id || !allowed.has(operator_status)) {
+  return res.status(400).json({
+    schema: "void_buy_void_operator_mark_v1",
+    ok: false,
+    error: "invalid_operator_mark",
+    allowed_statuses: Array.from(allowed)
+  });
+}
 
-      if (operator_status === "fulfilled" && !/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
-        return res.status(400).json({
-          schema: "void_buy_void_operator_mark_v1",
-          ok: false,
-          error: "fulfilled_requires_valid_void_delivery_tx_hash",
-          hint: "pass void_tx_hash=0x..."
-        });
-      }
+if (operator_status === "fulfilled" && !/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
+  return res.status(400).json({
+    schema: "void_buy_void_operator_mark_v1",
+    ok: false,
+    error: "fulfilled_requires_valid_void_delivery_tx_hash",
+    hint: "pass void_tx_hash=0x..."
+  });
+}
 
-      const requests = await __voidReadBuyVoidRequestsV1();
-      const found = requests.find((r:any)=>String(r.request_id || "") === id);
-      if (!found) {
-        return res.status(404).json({
-          schema: "void_buy_void_operator_mark_v1",
-          ok: false,
-          error: "buy_void_request_not_found",
-          request_id: id
-        });
-      }
+const requests = await __voidReadBuyVoidRequestsV1();
+const found = requests.find((r:any)=>String(r.request_id || "") === id);
+if (!found) {
+  return res.status(404).json({
+    schema: "void_buy_void_operator_mark_v1",
+    ok: false,
+    error: "buy_void_request_not_found",
+    request_id: id
+  });
+}
 
-      try{
-      const r = await g(
-        found,id,operator_status,note,void_delivery_tx_hash,
-        __voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,
-        (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
-      );
-      if(!r.ok)return res.status(r.status_code).json(r.body);
-      return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.body,request:found});
-      }catch(e:any){const x=String(e?.message||"");return res.status(x==="request_launch_authority_expired_or_superseded"?409:500).json({schema:"void_buy_void_operator_mark_v1",ok:false,error:x==="request_launch_authority_expired_or_superseded"?x:"operator_mark_failed",request_id:id})}
-    });
+try{
+const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(
+  found,id,operator_status,note,void_delivery_tx_hash,
+  __voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,
+  (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
+);
+if(!r.ok)return res.status(r.status_code).json(r.body);
+return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.body,request:found});
+}catch(e:any){const x=String(e?.message||"");return res.status(x==="request_launch_authority_expired_or_superseded"?409:500).json({schema:"void_buy_void_operator_mark_v1",ok:false,error:x==="request_launch_authority_expired_or_superseded"?x:"operator_mark_failed",request_id:id})}
+});
 
-    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
+    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,mutationIntent:__voidBuyVoidOperatorMutationIntentV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());

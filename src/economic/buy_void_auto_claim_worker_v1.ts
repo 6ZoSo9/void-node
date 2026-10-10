@@ -1,3 +1,4 @@
+import { types as utilTypes } from "node:util";
 import {
   decideBuyVoidAutoFulfillmentV1,
   type BuyVoidAutoFulfillmentDecisionV1,
@@ -15,11 +16,13 @@ import {
   type BuyVoidVerifiedPaymentPolicyV2,
 } from "./buy_void_verified_payment_v2.js";
 import {
-  observeBuyVoidPaymentV1,
   type BuyVoidPaymentObservationReadyV1,
   type BuyVoidPaymentRpcObserverPolicyV1,
   type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
+import {
+  observeBuyVoidCanonicalRailPaymentV1,
+} from "./buy_void_canonical_payment_rpc_rail_guard_v1.js";
 
 export const VOID_BUY_VOID_AUTO_CLAIM_WORKER_V1 =
   "VOID_BUY_VOID_AUTO_CLAIM_WORKER_V1";
@@ -34,6 +37,11 @@ export const VOID_BUY_VOID_AUTO_CLAIM_WORKER_AUTHORITY_V1 = {
   exact_confirmation_required: true,
   server_controlled_policy: true,
   rpc_read_via_observer: true,
+  canonical_payment_rpc_rail_guard_required: true,
+  noncanonical_chain_id_reaches_rpc: false,
+  request_and_policy_snapshot_once: true,
+  caller_accessor_or_proxy_authority: false,
+  post_observation_caller_mutation_authority: false,
   filesystem_read_via_claim_journal: true,
   filesystem_write_on_apply: true,
   request_journal_write: false,
@@ -135,6 +143,307 @@ function held(
     reason,
     ...(detail ? { detail } : {}),
   };
+}
+
+const AUTO_CLAIM_SNAPSHOT_MAX_DEPTH_V1 = 12;
+const AUTO_CLAIM_SNAPSHOT_MAX_NODES_V1 = 4096;
+const AUTO_CLAIM_SNAPSHOT_MAX_KEYS_V1 = 4096;
+const AUTO_CLAIM_SNAPSHOT_MAX_ARRAY_ITEMS_V1 = 4096;
+const AUTO_CLAIM_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1 = 256 * 1024;
+
+type AutoClaimSnapshotBudgetV1 = {
+  nodes: number;
+  keys: number;
+};
+
+function snapshotAutoClaimPlainDataV1(
+  value: unknown,
+  label: string,
+  budget: AutoClaimSnapshotBudgetV1,
+  active: WeakSet<object>,
+  depth: number,
+): any {
+  if (depth > AUTO_CLAIM_SNAPSHOT_MAX_DEPTH_V1) {
+    throw new Error(label + "_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > AUTO_CLAIM_SNAPSHOT_MAX_NODES_V1) {
+    throw new Error(label + "_node_count_exceeded");
+  }
+
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(label + "_number_invalid");
+    }
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value.length > AUTO_CLAIM_SNAPSHOT_MAX_TEXT_CODE_UNITS_V1) {
+      throw new Error(label + "_text_too_large");
+    }
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    throw new Error(label + "_value_invalid");
+  }
+  if (utilTypes.isProxy(value)) {
+    throw new Error(label + "_proxy_forbidden");
+  }
+  if (active.has(value)) {
+    throw new Error(label + "_cycle_forbidden");
+  }
+
+  active.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (
+        Object.getPrototypeOf(value) !== Array.prototype ||
+        value.length > AUTO_CLAIM_SNAPSHOT_MAX_ARRAY_ITEMS_V1
+      ) {
+        throw new Error(label + "_array_invalid");
+      }
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      const own = Reflect.ownKeys(descriptors);
+      if (
+        own.some((key) => typeof key !== "string") ||
+        own.length !== value.length + 1
+      ) {
+        throw new Error(label + "_array_shape_invalid");
+      }
+      const out: any[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (
+          !descriptor ||
+          descriptor.enumerable !== true ||
+          !Object.hasOwn(descriptor, "value")
+        ) {
+          throw new Error(label + "_array_accessor_or_hole_forbidden");
+        }
+        out.push(
+          snapshotAutoClaimPlainDataV1(
+            descriptor.value,
+            label,
+            budget,
+            active,
+            depth + 1,
+          ),
+        );
+      }
+      return Object.freeze(out);
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error(label + "_prototype_invalid");
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const own = Reflect.ownKeys(descriptors);
+    if (own.some((key) => typeof key !== "string")) {
+      throw new Error(label + "_symbol_key_forbidden");
+    }
+    budget.keys += own.length;
+    if (budget.keys > AUTO_CLAIM_SNAPSHOT_MAX_KEYS_V1) {
+      throw new Error(label + "_key_count_exceeded");
+    }
+    const out: Record<string, unknown> = Object.create(null);
+    for (const key of own as string[]) {
+      const descriptor = descriptors[key];
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value") ||
+        key === "toJSON"
+      ) {
+        throw new Error(label + "_accessor_or_tojson_forbidden");
+      }
+      Object.defineProperty(out, key, {
+        value: snapshotAutoClaimPlainDataV1(
+          descriptor.value,
+          label,
+          budget,
+          active,
+          depth + 1,
+        ),
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
+    }
+    return Object.freeze(out);
+  } finally {
+    active.delete(value);
+  }
+}
+
+function snapshotAutoClaimJsonObjectV1<T>(
+  value: unknown,
+  label: string,
+): Readonly<T> {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    throw new Error(label + "_invalid");
+  }
+  return snapshotAutoClaimPlainDataV1(
+    value,
+    label,
+    { nodes: 0, keys: 0 },
+    new WeakSet<object>(),
+    0,
+  ) as Readonly<T>;
+}
+
+function snapshotAutoClaimInvocationV1(
+  input: unknown,
+): Readonly<{
+  request: BuyVoidAutoClaimRequestV1;
+  root_dir: string;
+  worker_policy: BuyVoidAutoClaimWorkerPolicyV1;
+  observer_policy: BuyVoidPaymentRpcObserverPolicyV1;
+  verification_policy: BuyVoidVerifiedPaymentPolicyV2;
+  fulfillment_policy: BuyVoidAutoFulfillmentPolicyV1;
+  apply: boolean;
+  confirmation: unknown;
+  now_ms: number | undefined;
+  transport: BuyVoidPaymentRpcTransportV1 | undefined;
+}> {
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    utilTypes.isProxy(input)
+  ) {
+    throw new Error("auto_claim_invocation_invalid");
+  }
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error("auto_claim_invocation_invalid");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  const allowed = new Set([
+    "request",
+    "root_dir",
+    "worker_policy",
+    "observer_policy",
+    "verification_policy",
+    "fulfillment_policy",
+    "apply",
+    "confirmation",
+    "now_ms",
+    "transport",
+  ]);
+  const required = [
+    "request",
+    "root_dir",
+    "worker_policy",
+    "observer_policy",
+    "verification_policy",
+    "fulfillment_policy",
+  ];
+  const own = Reflect.ownKeys(descriptors);
+  if (
+    own.some((key) => typeof key !== "string" || !allowed.has(key)) ||
+    required.some((key) => !Object.hasOwn(descriptors, key))
+  ) {
+    throw new Error("auto_claim_invocation_invalid");
+  }
+  const read = (key: string): unknown => {
+    const descriptor = descriptors[key];
+    if (!descriptor) return undefined;
+    if (
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      throw new Error("auto_claim_invocation_accessor_forbidden");
+    }
+    return descriptor.value;
+  };
+
+  const rootDir = read("root_dir");
+  const apply = read("apply");
+  const confirmation = read("confirmation");
+  const nowMs = read("now_ms");
+  const transport = read("transport");
+  if (
+    typeof rootDir !== "string" ||
+    rootDir.trim().length < 1 ||
+    (apply !== undefined && typeof apply !== "boolean") ||
+    (confirmation !== undefined && typeof confirmation !== "string") ||
+    (nowMs !== undefined &&
+      (!Number.isSafeInteger(nowMs) || Number(nowMs) <= 0))
+  ) {
+    throw new Error("auto_claim_invocation_invalid");
+  }
+
+  if (transport !== undefined) {
+    if (
+      !transport ||
+      typeof transport !== "object" ||
+      utilTypes.isProxy(transport)
+    ) {
+      throw new Error("auto_claim_transport_invalid");
+    }
+    const transportPrototype = Object.getPrototypeOf(transport);
+    if (transportPrototype && utilTypes.isProxy(transportPrototype)) {
+      throw new Error("auto_claim_transport_invalid");
+    }
+    const callDescriptor =
+      Object.getOwnPropertyDescriptor(transport, "call") ||
+      (
+        transportPrototype
+          ? Object.getOwnPropertyDescriptor(transportPrototype, "call")
+          : undefined
+      );
+    if (
+      !callDescriptor ||
+      !Object.hasOwn(callDescriptor, "value") ||
+      typeof callDescriptor.value !== "function"
+    ) {
+      throw new Error("auto_claim_transport_invalid");
+    }
+  }
+
+  return Object.freeze({
+    request: snapshotAutoClaimJsonObjectV1<BuyVoidAutoClaimRequestV1>(
+      read("request"),
+      "auto_claim_request",
+    ) as BuyVoidAutoClaimRequestV1,
+    root_dir: rootDir,
+    worker_policy:
+      snapshotAutoClaimJsonObjectV1<BuyVoidAutoClaimWorkerPolicyV1>(
+        read("worker_policy"),
+        "auto_claim_worker_policy",
+      ) as BuyVoidAutoClaimWorkerPolicyV1,
+    observer_policy:
+      snapshotAutoClaimJsonObjectV1<BuyVoidPaymentRpcObserverPolicyV1>(
+        read("observer_policy"),
+        "auto_claim_observer_policy",
+      ) as BuyVoidPaymentRpcObserverPolicyV1,
+    verification_policy:
+      snapshotAutoClaimJsonObjectV1<BuyVoidVerifiedPaymentPolicyV2>(
+        read("verification_policy"),
+        "auto_claim_verification_policy",
+      ) as BuyVoidVerifiedPaymentPolicyV2,
+    fulfillment_policy:
+      snapshotAutoClaimJsonObjectV1<BuyVoidAutoFulfillmentPolicyV1>(
+        read("fulfillment_policy"),
+        "auto_claim_fulfillment_policy",
+      ) as BuyVoidAutoFulfillmentPolicyV1,
+    apply: apply === true,
+    confirmation,
+    now_ms: nowMs as number | undefined,
+    transport: transport as BuyVoidPaymentRpcTransportV1 | undefined,
+  });
 }
 
 function decimalToUnits(
@@ -248,15 +557,26 @@ export async function runBuyVoidAutoClaimWorkerV1(input: {
   now_ms?: number;
   transport?: BuyVoidPaymentRpcTransportV1;
 }): Promise<BuyVoidAutoClaimWorkerDecisionV1> {
+  let snapshot: ReturnType<typeof snapshotAutoClaimInvocationV1>;
+  try {
+    snapshot = snapshotAutoClaimInvocationV1(input);
+  } catch {
+    return held(
+      "worker_policy",
+      false,
+      "auto_claim_input_snapshot_invalid",
+    );
+  }
+
   const workerHold = validateWorkerPolicy(
-    input?.request,
-    input?.worker_policy,
+    snapshot.request,
+    snapshot.worker_policy,
   );
   if (workerHold) return workerHold;
 
   if (
-    input.apply === true &&
-    String(input.confirmation || "") !==
+    snapshot.apply &&
+    String(snapshot.confirmation || "") !==
       VOID_BUY_VOID_AUTO_CLAIM_CONFIRMATION_V1
   ) {
     return held(
@@ -270,51 +590,63 @@ export async function runBuyVoidAutoClaimWorkerV1(input: {
     );
   }
 
-  const observation = await observeBuyVoidPaymentV1({
-    request: input.request,
-    policy: input.observer_policy,
-    ...(input.transport ? { transport: input.transport } : {}),
+  const observation = await observeBuyVoidCanonicalRailPaymentV1({
+    request: snapshot.request,
+    policy: snapshot.observer_policy,
+    ...(snapshot.transport ? { transport: snapshot.transport } : {}),
   });
   if ("reason" in observation) {
+    const detail =
+      "detail" in observation &&
+      observation.detail &&
+      typeof observation.detail === "object"
+        ? observation.detail as Record<string, unknown>
+        : "expected_chain_id" in observation &&
+            observation.expected_chain_id
+          ? {
+              expected_chain_id:
+                observation.expected_chain_id,
+            }
+          : undefined;
     return held(
       "payment_observation",
-      input.apply === true,
+      snapshot.apply,
       observation.reason,
-      observation.detail,
+      detail,
     );
   }
 
-  const chain = String(input.request.source_chain || "")
+  const chain = String(snapshot.request.source_chain || "")
     .trim()
     .toLowerCase();
   const verificationPolicy: BuyVoidVerifiedPaymentPolicyV2 = {
-    ...input.verification_policy,
+    ...snapshot.verification_policy,
     current_block_number_by_chain: {
-      ...(input.verification_policy
+      ...(snapshot.verification_policy
         ?.current_block_number_by_chain || {}),
       [chain]: observation.current_block_number,
     },
   };
 
   const verification = buildBuyVoidVerifiedPaymentEventV2({
-    request: input.request,
+    request: snapshot.request,
     receipt: observation.receipt,
     policy: verificationPolicy,
   });
   if ("reason" in verification) {
     return held(
       "payment_verification",
-      input.apply === true,
+      snapshot.apply,
       verification.reason,
       verification.detail,
     );
   }
 
-  if (input.apply !== true) {
+  if (!snapshot.apply) {
     let priorClaims;
     try {
       priorClaims = listBuyVoidFulfillmentJournalClaimsV1(
-        input.root_dir,
+        snapshot.root_dir,
       ).map((intent) => intent.claim);
     } catch (error) {
       return held(
@@ -330,9 +662,9 @@ export async function runBuyVoidAutoClaimWorkerV1(input: {
     }
 
     const admission = decideBuyVoidAutoFulfillmentV1({
-      request: input.request,
+      request: snapshot.request,
       verified_payment_event: verification.event,
-      policy: input.fulfillment_policy,
+      policy: snapshot.fulfillment_policy,
       prior_claims: priorClaims,
     });
     if ("reason" in admission) {
@@ -360,11 +692,11 @@ export async function runBuyVoidAutoClaimWorkerV1(input: {
   let journal: BuyVoidFulfillmentJournalDecisionV1;
   try {
     journal = claimBuyVoidFulfillmentJournalV1({
-      root_dir: input.root_dir,
-      request: input.request,
+      root_dir: snapshot.root_dir,
+      request: snapshot.request,
       verified_payment_event: verification.event,
-      policy: input.fulfillment_policy,
-      now_ms: input.now_ms,
+      policy: snapshot.fulfillment_policy,
+      now_ms: snapshot.now_ms,
     });
   } catch (error) {
     return held(

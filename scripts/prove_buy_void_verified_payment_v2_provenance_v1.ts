@@ -190,7 +190,172 @@ expectHeld(
   "receive_address_binding_mismatch",
 );
 
+// Bound checkout token, configured verifier token and receipt token must agree
+// on fixed native USDC, independently of the caller-supplied policy address.
+const BASE_NATIVE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const ETH_NATIVE_USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const checkoutRequest = (
+  chain: "base" | "ethereum",
+  chainId: 8453 | 1,
+  token: string,
+) => ({
+  ...request,
+  source_chain: chain,
+  payment_chain: chain,
+  payment_chain_id: chainId,
+  usdc_contract: token,
+  payment_instructions: {
+    send_chain: chain,
+    send_chain_id: chainId,
+    token_contract: token,
+    token_decimals: 6,
+    send_to: receiver,
+    send_from: delivery,
+  },
+  launch_authority: { marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1" },
+});
+const checkout = checkoutRequest("base", 8453, BASE_NATIVE_USDC);
+const canonicalPolicy: BuyVoidVerifiedPaymentPolicyV2 = {
+  ...policy(),
+  usdc_contract_by_chain: { base: BASE_NATIVE_USDC },
+};
+const canonicalReceipt = receipt({
+  logs: [matchingLog({ address: BASE_NATIVE_USDC })],
+});
+const nativeBase = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: checkout, receipt: canonicalReceipt, policy: canonicalPolicy,
+}));
+assert.equal(nativeBase.event.payment_verifier.chain, "base");
+assert.equal(nativeBase.event.payment_verifier.usdc_contract, BASE_NATIVE_USDC);
+
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: checkout, receipt: receipt(), policy: policy(),
+}), "verified_payment_policy_original_usdc_mismatch");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, usdc_contract: usdc },
+  receipt: receipt(), policy: policy(),
+}), "original_request_non_native_usdc_contract");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...request, launch_authority: checkout.launch_authority },
+  receipt: canonicalReceipt, policy: canonicalPolicy,
+}), "original_request_usdc_contract_missing_or_invalid");
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: { ...checkout, usdc_contract: undefined },
+  receipt: canonicalReceipt, policy: canonicalPolicy,
+}), "original_request_usdc_contract_missing_or_invalid");
+
+for (const partialCheckoutEvidence of [
+  { payment_chain: "base" },
+  { payment_chain_id: 8453 },
+  {
+    payment_instructions: {
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: BASE_NATIVE_USDC,
+      token_decimals: 6,
+      send_to: receiver,
+      send_from: delivery,
+    },
+  },
+]) {
+  expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+    request: {
+      ...request,
+      ...partialCheckoutEvidence,
+    },
+    receipt: receipt(),
+    policy: policy(),
+  }), "original_request_usdc_contract_missing_or_invalid");
+}
+
+for (const [patch, reason] of [
+  [{ payment_chain: "ethereum" }, "original_request_payment_chain_mismatch"],
+  [{ payment_chain: undefined }, "original_request_payment_chain_mismatch"],
+  [{ payment_chain_id: 1 }, "original_request_payment_chain_id_mismatch"],
+  [{ payment_chain_id: "8453" }, "original_request_payment_chain_id_mismatch"],
+  // An own property with undefined is rejected at the plain-data snapshot,
+  // before checkout-field semantic checks. Preserve that earlier HOLD.
+  [{ payment_instructions: undefined },
+    "payment_input_not_plain_data"],
+  [{ payment_instructions: { ...checkout.payment_instructions, send_chain: "ethereum" } },
+    "original_request_payment_instruction_chain_mismatch"],
+  [{ payment_instructions: { ...checkout.payment_instructions, send_chain_id: 1 } },
+    "original_request_payment_instruction_chain_id_mismatch"],
+  [{ payment_instructions: { ...checkout.payment_instructions, send_chain_id: "8453" } },
+    "original_request_payment_instruction_chain_id_mismatch"],
+  [{ payment_instructions: { ...checkout.payment_instructions, token_contract: usdc } },
+    "original_request_payment_instruction_token_mismatch"],
+  [{ payment_instructions: { ...checkout.payment_instructions, token_decimals: 18 } },
+    "original_request_payment_instruction_decimals_mismatch"],
+  [{ payment_instructions: { ...checkout.payment_instructions, token_decimals: "6" } },
+    "original_request_payment_instruction_decimals_mismatch"],
+  [{ payment_instructions: {
+      ...checkout.payment_instructions,
+      send_to: "0x" + "4".repeat(40),
+    } },
+    "original_request_payment_instruction_receive_mismatch"],
+  [{ payment_instructions: {
+      ...checkout.payment_instructions,
+      send_from: "0x" + "5".repeat(40),
+    } },
+    "original_request_payment_instruction_sender_mismatch"],
+] as const) {
+  expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+    request: { ...checkout, ...patch },
+    receipt: canonicalReceipt,
+    policy: canonicalPolicy,
+  }), reason);
+}
+
+// An actually ABSENT payment_instructions property is different from an
+// own undefined value: it passes plain-data snapshotting but fails the
+// independent coupled-checkout instructions requirement. Preserve both.
+const { payment_instructions: omittedPaymentInstructions, ...withoutInstructions } =
+  checkout;
+void omittedPaymentInstructions;
+expectHeld(buildBuyVoidVerifiedPaymentEventV2({
+  request: withoutInstructions,
+  receipt: canonicalReceipt,
+  policy: canonicalPolicy,
+}), "original_request_payment_instructions_missing_or_invalid");
+
+const caseInsensitiveNative = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: {
+    ...checkout,
+    usdc_contract: BASE_NATIVE_USDC.toUpperCase(),
+    payment_instructions: {
+      ...checkout.payment_instructions,
+      token_contract: BASE_NATIVE_USDC.toUpperCase(),
+    },
+  },
+  receipt: canonicalReceipt,
+  policy: canonicalPolicy,
+}));
+assert.equal(caseInsensitiveNative.event.payment_verifier.usdc_contract, BASE_NATIVE_USDC);
+
+// Ethereum payment-log shape does not replace independent Ethereum finality.
+const ethereumCheckout = checkoutRequest("ethereum", 1, ETH_NATIVE_USDC);
+const nativeEthereum = requireVerified(buildBuyVoidVerifiedPaymentEventV2({
+  request: ethereumCheckout,
+  receipt: receipt({ logs: [matchingLog({ address: ETH_NATIVE_USDC })] }),
+  policy: {
+    allowed_chains: ["ethereum"],
+    usdc_contract_by_chain: { ethereum: ETH_NATIVE_USDC },
+    receive_address_by_chain: { ethereum: receiver },
+    current_block_number_by_chain: { ethereum: "0x65" },
+  },
+}));
+assert.equal(nativeEthereum.event.payment_verifier.chain, "ethereum");
+assert.equal(nativeEthereum.event.payment_verifier.usdc_contract, ETH_NATIVE_USDC);
+
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_PROVENANCE_V1_GREEN");
+console.log("native_usdc_checkout_config_receipt_consistency=true");
+console.log("non_native_config_cannot_verify_native_checkout=true");
+console.log("missing_or_wrong_original_coupled_token_holds=true");
+console.log("original_checkout_payment_instructions_fully_bound=true");
+console.log("partial_checkout_evidence_cannot_downgrade_to_legacy=true");
+console.log("checkout_chain_ids_and_token_decimals_type_exact=true");
+console.log("ethereum_payment_log_not_finality=true");
 console.log("removed_log_rejected=true");
 console.log("per_log_transaction_hash_bound=true");
 console.log("per_log_block_number_bound=true");

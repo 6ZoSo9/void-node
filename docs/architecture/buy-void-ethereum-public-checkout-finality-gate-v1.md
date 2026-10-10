@@ -36,7 +36,7 @@ an identity-misconfigured process from accepting a payment that the later
 pre-attempt bridge would necessarily HOLD.
 
 Payment-instruction readiness and the pre-attempt bridge share one strict
-classifier over the canonical V5 finality capability authority. The classifier
+classifier over the canonical V6 finality capability authority. The classifier
 requires the full reviewed-success contract, not a hand-picked subset:
 runtime source reads enabled with runtime source writes forbidden, caller
 generation assertions forbidden, reviewed-source verification, authenticated
@@ -48,7 +48,7 @@ therefore cannot expose
 Ethereum payment instructions while the later bridge would still be forced to
 HOLD.
 
-Current V5 deliberately reports:
+Current V6 deliberately reports:
 
 ```text
 source_generation_verified_on_success=false
@@ -100,10 +100,10 @@ internally with
 `buildBuyVoidVerifiedPaymentEventV2(...)`, derives the exact
 `voidpay1:ethereum:<tx_hash>:<log_index>` identity from that rebuilt event,
 and then invokes
-`observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly for the
+`observeBuyVoidSourceFinalityGenerationProvenanceV6(...)` directly for the
 separate finalized-head authority.
 
-A production-ready result additionally requires the same complete V5
+A production-ready result additionally requires the same complete V6
 capability classifier used by payment-instruction readiness, plus the exact
 runtime observation bindings below:
 
@@ -116,21 +116,21 @@ runtime observation bindings below:
   is exactly false;
 - the internally rebuilt V2 event's transaction/log/block, token, payer,
   receiver, delivery and amount fields re-bound to the independently generated
-  V5 finality observation;
+  V6 finality observation;
 - the V2 latest-head confirmation count comes only from the internal canonical
-  rebuild, while V5 finalized-head confirmations remain a distinct clock; the
+  rebuild, while V6 finalized-head confirmations remain a distinct clock; the
   two counts are not required to be numerically equal;
 - the finalized-head count must meet the exact server-controlled Ethereum rail
-  `min_confirmations` policy that was passed into the canonical V5 observer;
+  `min_confirmations` policy that was passed into the canonical V6 observer;
 - freshly rebound payment-key SHA-256;
 - reviewed source files;
 - authenticated transport identity;
 - observation generated inside the reviewed composition;
 - same-provider consistency and provider consistency;
 - one end-to-end total operation deadline spanning both the latest-head payment
-  observation and the V5 finalized-head observation; the latest-head transport
+  observation and the V6 finalized-head observation; the latest-head transport
   recomputes the remaining budget before every RPC call, each call timeout is
-  capped by that remaining budget, and V5 receives only the still-remaining
+  capped by that remaining budget, and V6 receives only the still-remaining
   total budget;
 - source generation;
 - deployed artifact generation;
@@ -147,14 +147,14 @@ is constructed from the same server-controlled Ethereum rail policy and is
 deadline-bound: before each RPC it refreshes the monotonic remaining budget and
 sets that call's timeout to the smaller of the reviewed per-request timeout and
 the remaining end-to-end budget. After the latest-head stage, only the remaining
-budget is passed into V5, and the bridge rechecks the outer deadline before any
+budget is passed into V6, and the bridge rechecks the outer deadline before any
 ready result. Thus the sequential latest-head and finalized-head stages cannot
 each consume a fresh full `total_timeout_ms`.
 
 It also returns the exact internally rebuilt canonical V2 event for any later
 reviewed persistence composition. The function refuses
-before any RPC when the current process source identity, server policy, or V5
-capability is unavailable/not production-ready. Current V5 authority deliberately keeps
+before any RPC when the current process source identity, server policy, or V6
+capability is unavailable/not production-ready. Current V6 authority deliberately keeps
 source/deployed generation, remote provider identity, ancestry, quorum, and
 production authority false, so a correctly identified current process still
 returns HOLD **before making RPC calls**.
@@ -251,7 +251,7 @@ non-authoritative observations remain HOLD and cannot reserve inventory.
 ## Authority boundary
 
 This module may cause read-only RPC activity through the canonical payment
-observer and V5 request-level finality composition or, after an execution attempt
+observer and V6 request-level finality composition or, after an execution attempt
 exists, through the existing canonical source-finality execution preflight.
 Current pre-attempt production authority is false, so the bridge fails before
 either production RPC observation.

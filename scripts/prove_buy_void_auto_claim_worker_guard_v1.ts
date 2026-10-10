@@ -11,6 +11,10 @@ const workerPath = path.join(
   root,
   "src/economic/buy_void_auto_claim_worker_v1.ts",
 );
+const railGuardPath = path.join(
+  root,
+  "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts",
+);
 const workflowPath = path.join(
   root,
   ".github/workflows/buy-void-auto-claim-worker-v1.yml",
@@ -23,6 +27,7 @@ const documentationPath = path.join(
 for (const file of [
   observerPath,
   workerPath,
+  railGuardPath,
   workflowPath,
   documentationPath,
 ]) {
@@ -31,9 +36,10 @@ for (const file of [
 
 const observer = fs.readFileSync(observerPath, "utf8");
 const worker = fs.readFileSync(workerPath, "utf8");
+const railGuard = fs.readFileSync(railGuardPath, "utf8");
 const workflow = fs.readFileSync(workflowPath, "utf8");
 const documentation = fs.readFileSync(documentationPath, "utf8");
-const source = `${observer}\n${worker}`;
+const source = `${observer}\n${railGuard}\n${worker}`;
 
 for (const required of [
   '"VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_V1"',
@@ -57,7 +63,14 @@ for (const required of [
   "request_journal_write: false",
   "inventory_decrement: false",
   '"payment_submitted_pending_manual_review"',
-  "observeBuyVoidPaymentV1",
+  "observeBuyVoidCanonicalRailPaymentV1",
+  "canonical_payment_rpc_rail_guard_required: true",
+  "noncanonical_chain_id_reaches_rpc: false",
+  "request_and_policy_snapshot_once: true",
+  "caller_accessor_or_proxy_authority: false",
+  "post_observation_caller_mutation_authority: false",
+  "snapshotAutoClaimInvocationV1",
+  "utilTypes.isProxy",
   "buildBuyVoidVerifiedPaymentEventV2",
   "decideBuyVoidAutoFulfillmentV1",
   "listBuyVoidFulfillmentJournalClaimsV1",
@@ -66,6 +79,7 @@ for (const required of [
   "automatic_delivery_started: false",
   "signing_performed: false",
   "transaction_broadcast: false",
+  "payment_observer_rpc_total_deadline_exceeded",
 ]) {
   assert.equal(source.includes(required), true, `missing source wall: ${required}`);
 }
@@ -78,8 +92,6 @@ for (const forbidden of [
   /eth_sendTransaction/i,
   /signTransaction/i,
   /sendRawTransaction/i,
-  /setInterval\s*\(/,
-  /setTimeout\s*\(/,
   /app\.(?:post|put|patch|delete)\s*\(/,
   /router\.(?:post|put|patch|delete)\s*\(/,
   /process\.env/,
@@ -90,14 +102,37 @@ for (const forbidden of [
   assert.equal(forbidden.test(source), false, `forbidden source pattern: ${forbidden}`);
 }
 
+for (const forbidden of [
+  /setInterval\s*\(/,
+  /setTimeout\s*\(/,
+]) {
+  assert.equal(
+    forbidden.test(worker),
+    false,
+    `auto-claim worker scheduling forbidden: ${forbidden}`,
+  );
+}
+
 assert.equal(observer.includes('from "node:fs"'), false);
+assert.equal(railGuard.includes('from "node:fs"'), false);
 assert.equal(worker.includes('from "node:fs"'), false);
+assert.equal(
+  worker.includes("observeBuyVoidPaymentV1({"),
+  false,
+  "worker must not call legacy observer directly",
+);
+assert.equal(
+  worker.includes("observeBuyVoidCanonicalRailPaymentV1({"),
+  true,
+  "worker must call canonical rail observer",
+);
 assert.equal(worker.includes('from "node:http"'), false);
 assert.equal(worker.includes('from "node:https"'), false);
 assert.equal(source.includes("src/index.ts"), false);
 
 for (const required of [
   "src/economic/buy_void_payment_rpc_observer_v1.ts",
+  "src/economic/buy_void_canonical_payment_rpc_rail_guard_v1.ts",
   "src/economic/buy_void_auto_claim_worker_v1.ts",
   "scripts/prove_buy_void_auto_claim_worker_v1.ts",
   "scripts/prove_buy_void_auto_claim_worker_guard_v1.ts",
@@ -127,7 +162,12 @@ for (const required of [
 }
 
 console.log("VOID_BUY_VOID_AUTO_CLAIM_WORKER_GUARD_V1_GREEN");
-console.log("source_file_count=2");
+console.log("source_file_count=3");
+console.log("canonical_payment_rpc_rail_guard_required=1");
+console.log("legacy_observer_direct_worker_call=0");
+console.log("request_policy_snapshot_once=1");
+console.log("caller_accessor_or_proxy_authority=0");
+console.log("post_observation_caller_mutation_authority=0");
 console.log("proof_file_count=2");
 console.log("runtime_integration_modified=0");
 console.log("src_index_modified=0");

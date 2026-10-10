@@ -6,6 +6,7 @@ import {
 // VOID_BUY_VOID_REQUEST_TX_HASH_BINDING_V1
 
 type LocalOnly = (req: any, res: any) => boolean;
+type MutationIntent = (req: any, res: any) => boolean;
 type ReadRequests = () => Promise<any[]>;
 type PersistRequest = (request: any) => Promise<any>;
 type RequestLaunchAuthorityReady = (request: any) => boolean;
@@ -13,6 +14,7 @@ type RequestLaunchAuthorityReady = (request: any) => boolean;
 export function installBuyVoidRequestTxHashBindingV1(input: {
   app: any;
   localOnly: LocalOnly;
+  mutationIntent: MutationIntent;
   readRequests: ReadRequests;
   persistRequest: PersistRequest;
   requestLaunchAuthorityReady: RequestLaunchAuthorityReady;
@@ -21,6 +23,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
   const {
     app,
     localOnly,
+    mutationIntent,
     readRequests,
     persistRequest,
     requestLaunchAuthorityReady,
@@ -90,7 +93,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
   app.post(
     "/__void/buy-void/operator/request/tx-hash.json",
     async (req: any, res: any) => {
-      if (!localOnly(req, res)) return;
+      if (!mutationIntent(req, res)) return;
 
       try {
         const body = (req.body || {}) as any;

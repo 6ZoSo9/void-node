@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 
 import {
   withBuyVoidFilesystemBakeryLockAsyncV1,
@@ -622,8 +622,15 @@ function readStrictCapacityLedgerV1(
   const verifiedIds = new Set<string>();
   for (const row of eventRows) {
     const requestId = String(row.request_id || "").trim();
-    const status = String(row.operator_status || "").trim();
-    if (!REQUEST_ID.test(requestId) || !status) {
+    // Do not silently normalize a ledger row into an accepted payment
+    // obligation. A historical "payment_verified " row previously bypassed
+    // the legacy writer's exact comparison and was counted as verified here.
+    const status = row.operator_status;
+    if (typeof status !== "string" || !status ||
+        status !== status.trim()) {
+      fail("buy_void_verified_payment_capacity_operator_status_noncanonical");
+    }
+    if (!REQUEST_ID.test(requestId)) {
       fail("buy_void_verified_payment_capacity_operator_event_invalid");
     }
     if (status !== "payment_verified") continue;
@@ -1003,7 +1010,7 @@ function recoverPaymentVerifiedSidecarsV1(
       const verified = rows.filter(
         (row) =>
           String(row.request_id || "").trim() === requestId &&
-          String(row.operator_status || "").trim() === "payment_verified",
+          row.operator_status === "payment_verified",
       );
       if (verified.length < 1) {
         fail("buy_void_verified_payment_capacity_verified_event_missing");
@@ -1348,8 +1355,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
             strictBefore.operator_events.some(
               (row) =>
                 String(row.request_id || "").trim() === requestId &&
-                String(row.operator_status || "").trim() ===
-                  "payment_verified" &&
+                row.operator_status === "payment_verified" &&
                 JSON.stringify(row) === candidateLine,
             );
           if (!exactHistoricalEvent) {
@@ -1547,6 +1553,237 @@ function microTextV1(units: bigint): string {
   return fraction ? whole + "." + fraction : whole.toString();
 }
 
+const CANONICAL_EVENT_MAX_DEPTH_V1 = 32;
+const CANONICAL_EVENT_MAX_NODES_V1 = 8192;
+const CANONICAL_EVENT_MAX_KEYS_V1 = 16384;
+const CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1 = 8192;
+const CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1 = 1024 * 1024;
+const CANONICAL_EVENT_MAX_JSON_BYTES_V1 = LEDGER_MAX_BYTES - 1;
+
+type CanonicalEventBudgetV1 = {
+  bytes: number;
+  nodes: number;
+  keys: number;
+};
+
+function canonicalJsonStringByteLengthV1(value: string): number {
+  let bytes = 2;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (
+      code === 0x22 ||
+      code === 0x5c ||
+      code === 0x08 ||
+      code === 0x09 ||
+      code === 0x0a ||
+      code === 0x0c ||
+      code === 0x0d
+    ) {
+      bytes += 2;
+      continue;
+    }
+    if (code <= 0x1f) {
+      bytes += 6;
+      continue;
+    }
+    if (code <= 0x7f) {
+      bytes += 1;
+      continue;
+    }
+    if (code <= 0x7ff) {
+      bytes += 2;
+      continue;
+    }
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next =
+        index + 1 < value.length ? value.charCodeAt(index + 1) : -1;
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        bytes += 6;
+      }
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      bytes += 6;
+      continue;
+    }
+    bytes += 3;
+  }
+  return bytes;
+}
+
+function addCanonicalEventBytesV1(
+  budget: CanonicalEventBudgetV1,
+  bytes: number,
+): void {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    fail("buy_void_verified_payment_allocation_event_byte_budget_invalid");
+  }
+  budget.bytes += bytes;
+  if (
+    !Number.isSafeInteger(budget.bytes) ||
+    budget.bytes > CANONICAL_EVENT_MAX_JSON_BYTES_V1
+  ) {
+    fail("buy_void_verified_payment_allocation_event_size_exceeded");
+  }
+}
+
+function detachedCanonicalJsonValueV1(
+  value: unknown,
+  budget: CanonicalEventBudgetV1,
+  ancestors: WeakSet<object>,
+  depth: number,
+): any {
+  if (depth > CANONICAL_EVENT_MAX_DEPTH_V1) {
+    fail("buy_void_verified_payment_allocation_event_depth_exceeded");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > CANONICAL_EVENT_MAX_NODES_V1) {
+    fail("buy_void_verified_payment_allocation_event_node_count_exceeded");
+  }
+
+  if (value === null) {
+    addCanonicalEventBytesV1(budget, 4);
+    return null;
+  }
+  if (typeof value === "boolean") {
+    addCanonicalEventBytesV1(budget, value ? 4 : 5);
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      fail("buy_void_verified_payment_allocation_event_number_invalid");
+    }
+    const encoded = Object.is(value, -0) ? "0" : String(value);
+    addCanonicalEventBytesV1(budget, encoded.length);
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value.length > CANONICAL_EVENT_MAX_TEXT_CODE_UNITS_V1) {
+      fail("buy_void_verified_payment_allocation_event_text_size_exceeded");
+    }
+    addCanonicalEventBytesV1(
+      budget,
+      canonicalJsonStringByteLengthV1(value),
+    );
+    return value;
+  }
+  if (!value || typeof value !== "object") {
+    fail("buy_void_verified_payment_allocation_event_value_unsupported");
+  }
+  if (utilTypes.isProxy(value)) {
+    fail("buy_void_verified_payment_allocation_event_proxy_forbidden");
+  }
+  if (ancestors.has(value)) {
+    fail("buy_void_verified_payment_allocation_event_cycle_forbidden");
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (
+        prototype !== Array.prototype ||
+        value.length > CANONICAL_EVENT_MAX_ARRAY_ITEMS_V1
+      ) {
+        fail("buy_void_verified_payment_allocation_event_array_invalid");
+      }
+      addCanonicalEventBytesV1(
+        budget,
+        2 + Math.max(0, value.length - 1),
+      );
+      const clone: any[] = [];
+      // Prevent ambient Array.prototype.toJSON from executing when these
+      // detached bytes are serialized now or rechecked downstream.
+      Object.defineProperty(clone, "toJSON", {
+        value: undefined,
+        enumerable: false,
+        writable: false,
+        configurable: false,
+      });
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor =
+          Object.getOwnPropertyDescriptor(value, String(index));
+        if (
+          !descriptor ||
+          !Object.hasOwn(descriptor, "value") ||
+          descriptor.enumerable !== true
+        ) {
+          fail(
+            "buy_void_verified_payment_allocation_event_accessor_or_sparse_value",
+          );
+        }
+        clone.push(
+          detachedCanonicalJsonValueV1(
+            descriptor.value,
+            budget,
+            ancestors,
+            depth + 1,
+          ),
+        );
+      }
+      return clone;
+    }
+
+    if (prototype !== Object.prototype && prototype !== null) {
+      fail("buy_void_verified_payment_allocation_event_nonplain_object");
+    }
+
+    // Never serialize the caller object itself. Null-prototype detached
+    // records cannot inherit Object.prototype.toJSON or inherited accessors.
+    const clone: Record<string, any> = Object.create(null);
+    let localKeys = 0;
+    addCanonicalEventBytesV1(budget, 2);
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue;
+      localKeys += 1;
+      budget.keys += 1;
+      if (
+        localKeys > CANONICAL_EVENT_MAX_KEYS_V1 ||
+        budget.keys > CANONICAL_EVENT_MAX_KEYS_V1
+      ) {
+        fail("buy_void_verified_payment_allocation_event_key_count_exceeded");
+      }
+      if (localKeys > 1) {
+        addCanonicalEventBytesV1(budget, 1);
+      }
+      addCanonicalEventBytesV1(
+        budget,
+        canonicalJsonStringByteLengthV1(key) + 1,
+      );
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (
+        !descriptor ||
+        !Object.hasOwn(descriptor, "value") ||
+        descriptor.enumerable !== true
+      ) {
+        fail(
+          "buy_void_verified_payment_allocation_event_accessor_or_nondata_property",
+        );
+      }
+      if (key === "toJSON") {
+        fail("buy_void_verified_payment_allocation_event_tojson_forbidden");
+      }
+      Object.defineProperty(clone, key, {
+        value: detachedCanonicalJsonValueV1(
+          descriptor.value,
+          budget,
+          ancestors,
+          depth + 1,
+        ),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return clone;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 function deepFreezeJsonValueV1(value: any): any {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) {
     return value;
@@ -1561,9 +1798,28 @@ function canonicalVerifiedPaymentEventV1(value: any): {
   event: Readonly<Record<string, any>>;
   line: Buffer;
 } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
+  const canonicalBudget: CanonicalEventBudgetV1 = {
+    bytes: 0,
+    nodes: 0,
+    keys: 0,
+  };
+  const detached = detachedCanonicalJsonValueV1(
+    value,
+    canonicalBudget,
+    new WeakSet<object>(),
+    0,
+  );
+  if (!detached || typeof detached !== "object" || Array.isArray(detached)) {
+    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
+  }
+
   let json: string;
   try {
-    const serialized = JSON.stringify(value);
+    const serialized = JSON.stringify(detached);
     if (typeof serialized !== "string") {
       fail("buy_void_verified_payment_allocation_event_serialization_invalid");
     }
@@ -1572,22 +1828,23 @@ function canonicalVerifiedPaymentEventV1(value: any): {
     fail("buy_void_verified_payment_allocation_event_serialization_invalid");
   }
 
+  const serializedBytes = Buffer.byteLength(json, "utf8");
+  if (
+    serializedBytes !== canonicalBudget.bytes ||
+    canonicalBudget.bytes > CANONICAL_EVENT_MAX_JSON_BYTES_V1
+  ) {
+    fail(
+      "buy_void_verified_payment_allocation_event_serialization_budget_mismatch",
+    );
+  }
+
   const line = Buffer.from(json + "\n", "utf8");
   if (line.length < 3 || line.length > LEDGER_MAX_BYTES) {
     fail("buy_void_verified_payment_allocation_event_serialization_invalid");
   }
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    fail("buy_void_verified_payment_allocation_event_serialization_invalid");
-  }
-
-  const event = deepFreezeJsonValueV1(parsed) as Readonly<Record<string, any>>;
+  const event =
+    deepFreezeJsonValueV1(detached) as Readonly<Record<string, any>>;
   const rebound = Buffer.from(JSON.stringify(event) + "\n", "utf8");
   if (!rebound.equals(line)) {
     fail("buy_void_verified_payment_allocation_event_canonical_roundtrip_mismatch");
@@ -2242,7 +2499,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   const event = input?.event;
   const request = input?.request;
   const requestDirRaw = String(input?.request_dir || "").trim();
-  const requestId = String(event?.request_id || "").trim();
   if (
     !event ||
     typeof event !== "object" ||
@@ -2250,19 +2506,58 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     !request ||
     typeof request !== "object" ||
     Array.isArray(request) ||
-    !REQUEST_ID.test(requestId) ||
-    requestId !== String(request?.request_id || "").trim() ||
     !requestDirRaw ||
     typeof input?.with_launch_authority_mutation !== "function" ||
     typeof input?.read_sale_state !== "function"
   ) {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
+
+  // Status authority must already be a primitive own data property.
+  // Do not invoke an accessor or let an event-level toJSON synthesize a
+  // different status during serialization.
+  const statusDescriptor =
+    Object.getOwnPropertyDescriptor(event, "operator_status");
+  const toJsonDescriptor =
+    Object.getOwnPropertyDescriptor(event, "toJSON");
+  if (
+    !statusDescriptor ||
+    !Object.hasOwn(statusDescriptor, "value") ||
+    typeof statusDescriptor.value !== "string" ||
+    !["payment_verified", "reviewed", "fulfilled", "rejected"]
+      .includes(statusDescriptor.value) ||
+    toJsonDescriptor !== undefined
+  ) {
+    fail("buy_void_operator_event_capacity_status_noncanonical");
+  }
+  const admittedOperatorStatus = statusDescriptor.value;
+
+  // Serialize exactly once before choosing the payment/nonpayment path. The
+  // detached bytes are the only bytes that may be persisted.
+  const canonicalOperatorEvent =
+    canonicalVerifiedPaymentEventV1(event);
+  const operatorEvent = canonicalOperatorEvent.event;
+  const operatorEventLine = canonicalOperatorEvent.line;
+  const requestId = String(operatorEvent.request_id || "").trim();
+  if (
+    !REQUEST_ID.test(requestId) ||
+    requestId !== String(request?.request_id || "").trim()
+  ) {
+    fail("buy_void_operator_event_capacity_writer_input_invalid");
+  }
+
+  // Re-bind the serialized snapshot to the exact primitive status admitted
+  // above. A mutation during serialization therefore HOLDs rather than
+  // changing which writer owns the row.
+  const operatorStatus = operatorEvent.operator_status;
+  if (operatorStatus !== admittedOperatorStatus) {
+    fail("buy_void_operator_event_capacity_status_changed_during_snapshot");
+  }
+
   const requestDir = path.resolve(requestDirRaw);
   fs.mkdirSync(requestDir, { recursive: true });
 
-  const paymentVerified =
-    String(event.operator_status || "") === "payment_verified";
+  const paymentVerified = operatorStatus === "payment_verified";
 
   if (!paymentVerified) {
     return withBuyVoidTerminalCloseoutRequestLockV1(
@@ -2273,7 +2568,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       () => {
         fs.appendFileSync(
           path.join(requestDir, "operator-events.jsonl"),
-          JSON.stringify(event) + "\n",
+          operatorEventLine,
         );
         fs.writeFileSync(
           path.join(
@@ -2281,20 +2576,18 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
             "operator-event-" +
               requestId +
               "-" +
-              String(event.marked_at_ms || "") +
+              String(operatorEvent.marked_at_ms || "") +
               ".json",
           ),
-          JSON.stringify(event, null, 2),
+          JSON.stringify(operatorEvent, null, 2),
         );
         return { ok: true, dir: requestDir };
       },
     );
   }
 
-  const canonicalPayment =
-    canonicalVerifiedPaymentEventV1(event);
-  const paymentEvent = canonicalPayment.event;
-  const paymentEventLine = canonicalPayment.line;
+  const paymentEvent = operatorEvent;
+  const paymentEventLine = operatorEventLine;
   if (
     String(paymentEvent.request_id || "").trim() !== requestId ||
     String(paymentEvent.operator_status || "") !== "payment_verified"

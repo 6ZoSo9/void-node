@@ -1,23 +1,14 @@
-name: VOID Buy VOID source-finality compiled artifact attestation v3
+name: VOID Buy VOID historical compiled V3 and current V4 successor
 
 on:
   pull_request:
     paths:
       - "src/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.build.json"
-      - "scripts/copy_void_runtime_js_v1.mjs"
-      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.md"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.md"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
       - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
 
@@ -31,12 +22,11 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24, 26]
-
     steps:
       - name: Check out exact PR head
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -45,57 +35,38 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Bind exact checkout and immutable V3/V4 manifests
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json)" =             "d6e97784c5d8be93713e733628c7d1ef746bb5c7"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "a07f2e9b03958a58280c4d940fe49097a9413af5"
+          test "$(git hash-object scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs)" =             "1fb96f6c707dcbd8682a32b31ebdf5aa3ca56af4"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Build exact repository artifacts
-        run: npm run build
-
-      - name: Derive source-finality compiled artifact rollover v3
+      - name: Preserve historical V3 and V4 only
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs --derive \
-            > "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs             | tee "historical-v3-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v3_manifest_blob_preserved=true'             "historical-v3-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_manifest_blob_preserved=true'             "historical-v3-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_rederived_against_current_source=false'             "historical-v3-v4-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false'             "historical-v3-v4-${{ matrix.node }}.txt"
 
-      - name: Upload v3 derivation evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Verify committed v3 attestation
-        run: |
-          set -euo pipefail
-          cmp "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json" \
-            docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
-
-      - name: Prove reviewed source-file V5 binding
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5.ts
-
-      - name: Preserve V3 authenticated composition
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
-
-      - name: Committed-range diff hygiene
+      - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi

@@ -1,0 +1,146 @@
+name: VOID Buy VOID custody inspect nonmutating regression v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs"
+      - "scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs"
+      - ".github/workflows/buy-void-custody-inspect-nonmutating-v1.yml"
+      - "docs/architecture/buy-void-custody-inspect-nonmutating-v1.md"
+      - "src/economic/buy_void_custody_launch_authority_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-inspect-nonmutating-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Exact-head checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove immutable checkout SHA
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node from exact matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Locked dependency installation (no lifecycle scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reprove original high-water writer safety contract
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs \
+            | tee "custody-original-${{ matrix.node }}.txt"
+          grep -Fx "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1_GREEN" \
+            "custody-original-${{ matrix.node }}.txt"
+          grep -Fx "advance_persisted=true" "custody-original-${{ matrix.node }}.txt"
+          grep -Fx "production_allocation_mutation_ready=false" "custody-original-${{ matrix.node }}.txt"
+      - name: Verify inspector cannot unlink temp or interrupt staged high-water rename
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs
+          node scripts/prove_buy_void_custody_inspect_nonmutating_v1.mjs \
+            | tee "custody-inspect-nonmutating-${{ matrix.node }}.txt"
+          for marker in \
+            'READ_ONLY_INSPECT_RETAINS_PRIVATE_TEMP_POSITIVE_GREEN' \
+            'inspect_unlink_and_fsync_forbidden=true' \
+            'INSPECT_DOES_NOT_INTERRUPT_ACTIVE_WRITER_POSITIVE_GREEN' \
+            'inspector_preserved_fsynced_active_temp=true' \
+            'advance_persisted_high_water=true' \
+            'unowned_temp_survives_advance=true' \
+            'cross_process_exclusive_writer_fence_verified=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "custody-inspect-nonmutating-${{ matrix.node }}.txt"
+          done
+      - name: Expose close failures without overwriting custody mutation truth
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs
+          node scripts/prove_buy_void_custody_fd_close_visibility_v1.mjs \
+            | tee "custody-fd-close-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_FD_CLOSE_VISIBILITY_V1_GREEN' \
+            'source_git_blob_verified=true' \
+            'all_three_close_failure_stages_visible=true' \
+            'raw_empty_catch_count=0' \
+            'failed_fd_close_emits_fixed_diagnostic=true' \
+            'close_failure_does_not_override_prior_mutation_truth=true' \
+            'production_allocation_mutation_ready=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "custody-fd-close-${{ matrix.node }}.txt"
+          done
+      - name: Committed whitespace hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+      - name: Upload isolated result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-custody-inspect-nonmutating-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            custody-original-${{ matrix.node }}.txt
+            custody-inspect-nonmutating-${{ matrix.node }}.txt
+            custody-fd-close-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three distinct proof receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-custody-inspect-nonmutating-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Compare byte-for-byte Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "proof/custody-original-$node.txt"
+            test -s "proof/custody-inspect-nonmutating-$node.txt"
+            test -s "proof/custody-fd-close-$node.txt"
+          done
+          cmp proof/custody-original-22.txt proof/custody-original-24.txt
+          cmp proof/custody-original-22.txt proof/custody-original-26.txt
+          cmp proof/custody-inspect-nonmutating-22.txt proof/custody-inspect-nonmutating-24.txt
+          cmp proof/custody-inspect-nonmutating-22.txt proof/custody-inspect-nonmutating-26.txt
+          cmp proof/custody-fd-close-22.txt proof/custody-fd-close-24.txt
+          cmp proof/custody-fd-close-22.txt proof/custody-fd-close-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_INSPECT_NONMUTATING_THREE_NODE_GREEN"
+          echo "exclusive_high_water_writer_fence_verified=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"

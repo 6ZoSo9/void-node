@@ -6,9 +6,9 @@ import fs from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 
-const OLD_HEAD="ba853a4bfb237701504225ddba615f7b46eeb991";
-const OLD_BLOB="0e3361ef8d4e6f3d7a9e428d14db64281afc21fe";
-const NEW_BLOB="510c5194a8cacf1c3e0ff22824aded0c28651dc1";
+const OLD_HEAD="5c8ce0f1a2dc7f45e522bcbd513ae3f4872117bc";
+const OLD_BLOB="240414e313f44f80d57f4e349be2f1ab3d72fe66";
+const NEW_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
 const previous=execFileSync("git",["show",OLD_HEAD+":src/index.ts"],{maxBuffer:8*1024*1024});
 const current=fs.readFileSync("src/index.ts");
 function gitBlob(b){return crypto.createHash("sha1").update(

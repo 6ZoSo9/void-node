@@ -17,7 +17,7 @@ const INPUTS = ['package.json', 'package-lock.json', 'tsconfig.json', 'tsconfig.
   'scripts/copy_void_runtime_js_v1.mjs', 'scripts/retire_saveblock_periodic_rewriters_v1.mjs',
   'Dockerfile'];
 const EXTERNALS = new Set(['express', 'ethers', 'node:crypto', 'node:fs', 'node:path',
-  'node:http', 'node:https', 'node:perf_hooks', 'node:url']);
+  'node:http', 'node:https', 'node:perf_hooks', 'node:url', 'node:util']);
 export const canonical = value => JSON.stringify(value, function (_key, item) {
   return item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(k => [k, item[k]])) : item;

@@ -1,0 +1,114 @@
+name: VOID Buy VOID first-original V6 joint-main reconciliation v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-first-original-v6-joint-main-reconcile-v1.yml'
+      - 'docs/architecture/buy-void-first-original-v6-joint-main-reconcile-v1.md'
+      - 'scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs'
+      - 'scripts/test_buy_void_joint_main_ancestry_v1.py'
+      - '.github/workflows/void-checkpoint-restore-node-init-seal-v1.yml'
+      - '.github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml'
+      - 'scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs'
+      - 'scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs'
+      - 'src/node_core.ts'
+      - 'src/economic/**'
+      - 'src/index.ts'
+      - 'scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs'
+      - 'scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs'
+      - 'scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts'
+      - 'scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-first-original-joint-main-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  exact-ancestry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # Verify the immutable joining event, not a future tip's immediate parents.
+      REVIEWED_JOIN: cff927e850dfc078419be06a468aa77c6c1f41c3
+    steps:
+      - name: Checkout exact unmerged candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact PR head and both reviewed parents
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          git merge-base --is-ancestor "$REVIEWED_JOIN" HEAD
+          test "$(git show -s --format=%P "$REVIEWED_JOIN")" = \
+            "4350c87181cb44dce28b66eb691bdbc26dd68551 8696309719a88a5f06345b13701092ab3bdc9ceb"
+          git merge-base --is-ancestor "ba853a4bfb237701504225ddba615f7b46eeb991" HEAD
+          git merge-base --is-ancestor "f94fa806a4889477b67887e91c162f4d4ca62055" HEAD
+          git merge-base --is-ancestor "8696309719a88a5f06345b13701092ab3bdc9ceb" HEAD
+          echo "VOID_FIRST_ORIGINAL_V6_CURRENT_MAIN_EXACT_ANCESTRY_GREEN"
+      - name: Require exactly two metadata additions and one mode-only repair
+        run: |
+          set -euo pipefail
+          git diff --name-status "${REVIEWED_JOIN}^1" "$REVIEWED_JOIN" > "$RUNNER_TEMP/buyer-delta.txt"
+          printf 'A\t.github/workflows/buy-void-first-original-v6-joint-main-reconcile-v1.yml\nA\tdocs/architecture/buy-void-first-original-v6-joint-main-reconcile-v1.md\nM\tscripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs\n' > "$RUNNER_TEMP/expected-delta.txt"
+          cmp "$RUNNER_TEMP/expected-delta.txt" "$RUNNER_TEMP/buyer-delta.txt"
+          proof=scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs
+          test "$(git rev-parse "${REVIEWED_JOIN}^1:$proof")" = "47064b1daa20a52236ceeb394e3bf409eba61463"
+          test "$(git rev-parse HEAD:"$proof")" = "47064b1daa20a52236ceeb394e3bf409eba61463"
+          test "$(git rev-parse "${REVIEWED_JOIN}^2:$proof")" = "47064b1daa20a52236ceeb394e3bf409eba61463"
+          test "$(git ls-tree "${REVIEWED_JOIN}^1" -- "$proof" | awk '{print $1}')" = "100644"
+          test "$(git ls-tree "${REVIEWED_JOIN}^2" -- "$proof" | awk '{print $1}')" = "100755"
+          test "$(git ls-tree HEAD -- "$proof" | awk '{print $1}')" = "100755"
+          git diff --check "${REVIEWED_JOIN}^1" "$REVIEWED_JOIN"
+          git diff --check "$REVIEWED_JOIN" HEAD
+          echo "VOID_FIRST_ORIGINAL_EXECUTABLE_MODE_ONLY_REPAIR_GREEN"
+      - name: Require canonical checkpoint source blobs unchanged from current main
+        run: |
+          set -euo pipefail
+          check_blob() {
+            test "$(git rev-parse "HEAD:$1")" = "$2"
+          }
+          check_blob ".github/workflows/void-checkpoint-restore-node-init-seal-v1.yml" "2a4248adbdc3274292736f871fa61294eaae37e0"
+          check_blob ".github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml" "30cce5558ccc131e88193aa3c761367a0ae9baf8"
+          check_blob "scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs" "930c7787f830f9c8f6a3abd328e217e79b5f5aec"
+          check_blob "scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs" "47064b1daa20a52236ceeb394e3bf409eba61463"
+          check_blob "scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs" "a3389c814f9dc9c763e7623f2708183e85700b9d"
+          check_blob "src/node_core.ts" "f4385b68b786570044adf4b36429e98e888b7749"
+          git diff --quiet "${REVIEWED_JOIN}^2" HEAD -- \
+            .github/workflows/void-checkpoint-restore-node-init-seal-v1.yml \
+            .github/workflows/void-public-bootstrap-outside-machine-acceptance-v1.yml \
+            scripts/prove_void_checkpoint_restore_node_init_seal_v1.mjs \
+            scripts/prove_void_public_bootstrap_outside_machine_target_v1.mjs \
+            scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs src/node_core.ts
+          echo "VOID_CURRENT_MAIN_CHECKPOINT_SIX_PATHS_BYTE_MODE_GREEN"
+      - name: Preserve first-original buyer/payment/dispatch lineage
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = \
+            "0a74a3652081c3e142d0b887676771a7ac148f32"
+          test "$(git rev-parse HEAD:src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = \
+            "0e27a76e777c326d2d9e2b1550b7f2979fca9abb"
+          for p in \
+            scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs \
+            scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs \
+            scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts \
+            scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts
+          do
+            git cat-file -e "HEAD:$p"
+            git diff --quiet "$REVIEWED_JOIN" HEAD -- "$p"
+          done
+          git diff --quiet "${REVIEWED_JOIN}^1" HEAD -- src/economic src/index.ts \
+            scripts/prove_buy_void_custody_reserve_plan_v2_original_wallet.mjs \
+            scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2_original_wallet.mjs
+          echo "VOID_FIRST_ORIGINAL_BUYER_PROOFS_PRESERVED_NO_PRODUCTION_MUTATION_GREEN"
+      - name: Regression test the workflow against disposable Git histories
+        run: python3 scripts/test_buy_void_joint_main_ancestry_v1.py

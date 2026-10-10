@@ -1,0 +1,145 @@
+name: VOID Buy VOID custody launch authority V2 source v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_launch_authority_v2.mjs"
+      - "scripts/prove_buy_void_custody_launch_authority_v2.mjs"
+      - "docs/architecture/buy-void-custody-launch-authority-v2.md"
+      - ".github/workflows/buy-void-custody-launch-authority-v2.yml"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-launch-authority-v2-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax-check source-only classifier and proof
+        run: |
+          node --check src/economic/buy_void_custody_launch_authority_v2.mjs
+          node --check scripts/prove_buy_void_custody_launch_authority_v2.mjs
+
+      - name: Prove cross-UID signed journal and custody high-water boundary
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_launch_authority_v2.mjs \
+            | tee "custody-launch-v2-node-${{ matrix.node }}.txt"
+          for invariant in \
+            'VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2_SOURCE_PROOF_GREEN' \
+            'dual_signed_activation_receipt_verified=true' \
+            'shared_generation_journal_verified=true' \
+            'custody_private_high_water_required=true' \
+            'missing_high_water_bootstrap_HOLD=true' \
+            'generation_advance_requires_high_water_update=true' \
+            'custody_high_water_rollback_rejected=true' \
+            'same_sequence_fork_rejected=true' \
+            'noncanonical_journal_bytes_rejected=true' \
+            'high_water_prefix_digest_mismatch_rejected=true' \
+            'stale_generation_receipt_rejected=true' \
+            'forged_activation_signature_rejected=true' \
+            'forged_sovereign_signature_rejected=true' \
+            'invalid_receipt_candidate_high_water_absent=true' \
+            'caller_supplied_clock_authority=false' \
+            'trusted_server_clock_required=true' \
+            'operator_home_anchor_dependency=false' \
+            'classifier_filesystem_io=false' \
+            'classifier_userInfo_dependency=false' \
+            'observed_bytes_not_caller_authority=true' \
+            'production_source_gate_ready=false' \
+            'custody_high_water_write_performed=false' \
+            'custody_reserve_method_enabled=false' \
+            'custody_recover_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'payment_or_allocation_append_performed=false' \
+            'service_or_permission_mutation=false' \
+            'wallet_or_production_signer_access=false' \
+            'chain_or_wc_mutation=false' \
+            'presale_or_market_activation=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$invariant" "custody-launch-v2-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-custody-launch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-launch-v2-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-custody-launch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./custody-launch-v2
+
+      - name: Require byte-identical Node 22 24 26 evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "custody-launch-v2/custody-launch-v2-node-$v.txt"
+          done
+          cmp custody-launch-v2/custody-launch-v2-node-22.txt custody-launch-v2/custody-launch-v2-node-24.txt
+          cmp custody-launch-v2/custody-launch-v2-node-22.txt custody-launch-v2/custody-launch-v2-node-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_LAUNCH_AUTHORITY_V2_CROSS_NODE_GREEN"
+          echo "custody_high_water_writer_implemented=false"
+          echo "custody_reserve_method_enabled=false"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_movement=false"

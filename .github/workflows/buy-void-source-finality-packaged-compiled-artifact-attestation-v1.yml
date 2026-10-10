@@ -1,4 +1,4 @@
-name: VOID Buy VOID packaged compiled artifact attestation v1
+name: VOID Buy VOID historical package preservation and stopped-image successor
 
 on:
   pull_request:
@@ -9,27 +9,13 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.build.json"
-      - "scripts/copy_void_runtime_js_v1.mjs"
-      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs"
-      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs"
-      - "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs"
-      - "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs"
-      - "scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs"
-      - "scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.md"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
-      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.md"
-      - "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json"
-      - "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json"
-      - "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json"
-      - "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json"
-      - "scripts/prove_buy_void_source_finality_packaged_compiled_artifact_attestation_v1.mjs"
-      - "docs/architecture/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.md"
-      - "docs/architecture/buy-void-source-finality-packaged-compiled-artifact-attestation-v1-review-checklist.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
+      - "scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+      - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
       - ".github/workflows/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
 
@@ -41,9 +27,9 @@ permissions:
   contents: read
 
 jobs:
-  preserve-compiled-generation:
+  compiled-successor:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -57,41 +43,45 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Bind checkout and historical compiled V3/V4
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json)" =             "d6e97784c5d8be93713e733628c7d1ef746bb5c7"
+          test "$(git hash-object docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json)" =             "a07f2e9b03958a58280c4d940fe49097a9413af5"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Build exact repository artifacts
-        run: npm run build
-
-      - name: Preserve current compiled artifact generation v3
+      - name: Preserve historical compiled V4 without current-source execution
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs             | tee "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_acceptance=true'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_rederived_against_current_source=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_deployed_artifact_generation_verified=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false'             "packaged-historical-v4-${{ matrix.node }}.txt"
 
-      - name: Committed-range diff hygiene
+      - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
           else
-            git diff --check HEAD^ HEAD
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
           fi
 
-  prove-production-image-package:
+  stopped-image-successor:
+    needs: [compiled-successor]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Check out exact PR head
@@ -101,67 +91,74 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout identity
+      - name: Set up Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Reprove source-only package and inert loader boundaries
+        run: |
+          npm run build
+          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs --self-test
+          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --self-test
+          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --derive             > "$RUNNER_TEMP/inert-loader.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/inert-loader.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.exact_compiled_factory_executed_with_inert_tool,true);
+          assert.equal(j.real_saga_module_imported,false);
+          assert.equal(j.real_saga_module_executed,false);
+          assert.equal(j.real_saga_exports_invoked,false);
+          assert.equal(j.stopped_image_runtime_loader_qualified,false);
+          assert.equal(j.packaged_image_generation_accepted,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.accepted_enforcement_v5,false);
+          assert.equal(j.presale_activation,false);
+          assert.equal(j.funds_moved,false);
+          console.log("INERT_COMPILED_LOADER_NO_PACKAGE_AUTHORITY_GREEN=true");
+          NODE
+
+      - name: Build and inspect stopped image only
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
-
-      - name: Guard against container execution in this proof
         run: |
           set -euo pipefail
-          ! grep -E '(^|[[:space:]])docker[[:space:]]+(run|start|exec)([[:space:]]|$)' \
-            .github/workflows/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.yml
-
-      - name: Build normal production Docker image
-        run: |
-          set -euo pipefail
-          docker build --tag "void-node-packaged-attestation:${GITHUB_SHA}" .
-
-      - name: Extract compiled artifacts from stopped container and verify
-        run: |
-          set -euo pipefail
-          IMAGE="void-node-packaged-attestation:${GITHUB_SHA}"
-          CID="$(docker create "$IMAGE")"
-          cleanup() {
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          docker build --iidfile "$RUNNER_TEMP/package-successor-image-id" .
+          IMAGE_ID="$(cat "$RUNNER_TEMP/package-successor-image-id")"
+          [[ "$IMAGE_ID" =~ ^sha256:[a-f0-9]{64}$ ]]
+          CID="$(docker create "$IMAGE_ID")"
+          cleanup() { docker rm "$CID" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
-
           test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
           test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
-
-          mkdir -p packaged-root/dist
-          docker cp "$CID:/app/dist/economic" packaged-root/dist/economic
-
+          test "$(docker inspect --format '{{json .Mounts}}' "$CID")" = "[]"
+          ROOT="$RUNNER_TEMP/stopped-root"
+          mkdir -p "$ROOT/dist/economic"
+          docker cp "$CID:/app/dist/economic/buy_void_erc20_execution_composition_v1.js"             "$ROOT/dist/economic/"
+          docker cp "$CID:/app/tools" "$ROOT/tools"
+          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs             --stopped-root "$ROOT" > "$RUNNER_TEMP/stopped-package.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/stopped-package.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.stopped_image_saga_byte_identity_verified,true);
+          assert.equal(j.unreviewed_broadcaster_and_custodian_absent,true);
+          assert.equal(j.real_saga_module_imported,false);
+          assert.equal(j.real_saga_module_executed,false);
+          assert.equal(j.executed_saga_loader_qualified,false);
+          assert.equal(j.image_generation_accepted,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.runtime_mount_authority,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.presale_activation,false);
+          assert.equal(j.funds_movement,false);
+          console.log("STOPPED_IMAGE_SUCCESSOR_NO_DEPLOYMENT_AUTHORITY_GREEN=true");
+          NODE
           test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
           test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
-
-          # The V3 verifier reads the exact host dist/ closure. Build host
-          # artifacts only after the immutable stopped image has already been
-          # constructed/extracted, so this cannot influence packaged bytes.
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm run build
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v4.mjs \
-            --packaged-root "$PWD/packaged-root" \
-            | tee buy-void-source-finality-packaged-compiled-artifact-attestation.log
-
-      - name: Upload packaged artifact evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: buy-void-source-finality-packaged-compiled-artifact-attestation-${{ github.event.pull_request.head.sha || github.sha }}
-          path: buy-void-source-finality-packaged-compiled-artifact-attestation.log
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Committed-range diff hygiene
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
-            git diff --check "$BASE_SHA" "$HEAD_SHA"
-          else
-            git diff --check HEAD^ HEAD
-          fi

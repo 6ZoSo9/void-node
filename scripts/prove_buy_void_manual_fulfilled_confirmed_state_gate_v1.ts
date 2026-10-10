@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 
   assert.ok(
     source.includes(
-      'import g from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";',
+      'import evaluateBuyVoidManualFulfilledConfirmedStateGateV1 from "./economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.js";',
     ),
     "missing extracted manual-fulfilled confirmed-state gate import",
   );
@@ -81,7 +81,7 @@ async function main(): Promise<void> {
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.expression.getText(sf) === "app" &&
-      node.expression.name.text === "get" &&
+      node.expression.name.text === "post" &&
       node.arguments.length >= 2 &&
       (ts.isStringLiteral(node.arguments[0]) ||
         ts.isNoSubstitutionTemplateLiteral(node.arguments[0])) &&
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     ts.forEachChild(node, visit);
   }
   visit(sf);
-  assert.equal(candidates.length, 1, "expected one exact manual mark GET route");
+  assert.equal(candidates.length, 1, "expected one exact manual mark POST route");
 
   const routeCall = candidates[0];
   const callback = routeCall.arguments.find(
@@ -102,8 +102,15 @@ async function main(): Promise<void> {
   const routeText = routeCall.getText(sf);
 
   assert.ok(
-    routeText.includes("const r = await g("),
-    "manual mark route does not invoke the extracted confirmed-state gate",
+    routeText.includes(
+      "const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(",
+    ),
+    "manual mark route does not invoke the explicit confirmed-state gate",
+  );
+  assert.doesNotMatch(
+    routeText,
+    /\bawait\s+g\s*\(/u,
+    "manual mark route must not call the attach-scope globalThis alias",
   );
 
   assertNoSyntacticDiagnostics(helperFile, helperSource);
@@ -194,7 +201,7 @@ async function main(): Promise<void> {
   const synthetic = `
 const __routes = new Map();
 const app = {
-  get(route, ...handlers) {
+  post(route, ...handlers) {
     __routes.set(route, handlers[handlers.length - 1]);
   },
 };
@@ -210,7 +217,7 @@ let __operatorEventReadCalls = 0;
 let __operatorEventApplyCalls = 0;
 let __localGateCalls = 0;
 
-function __voidBuyVoidOperatorLocalOnlyV1(_req, _res) {
+function __voidBuyVoidOperatorMutationIntentV1(_req, _res) {
   __localGateCalls += 1;
   return true;
 }
@@ -263,8 +270,6 @@ function listBuyVoidConfirmedStatesV1(rootDir) {
 }
 
 ${gateFunctionText}
-const g = evaluateBuyVoidManualFulfilledConfirmedStateGateV1;
-
 ${routeText};
 
 globalThis.__voidCallManualMark = async function(input) {

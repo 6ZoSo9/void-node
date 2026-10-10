@@ -15,7 +15,25 @@ journal can be written.
 
 ## Authority boundary
 
-The RPC observer permits only:
+Before the worker can call the RPC observer, the canonical payment-rail guard
+must accept the exact source-chain/chain-ID pair:
+
+- Base mainnet = `8453`;
+- Ethereum mainnet = `1`.
+
+A mismatched, aliased, case-folded, padded, hex, boolean, object or otherwise
+noncanonical chain ID is held **before any RPC call and before any claim-journal
+mutation**. The request source chain must exactly match the admitted rail.
+
+At worker entry, the request plus worker/observer/verification/fulfillment
+policies are copied once through a bounded plain-data snapshot. Proxy objects,
+accessors, executable `toJSON`, cycles, exotic prototypes, sparse arrays and
+oversized structures are rejected before RPC. All post-RPC verification and
+claim construction consumes only those frozen snapshots, so caller mutation
+during asynchronous observation cannot change delivery address, amount,
+source rail, verification allowlists, fulfillment rate, or pool policy.
+
+After that guard, the RPC observer permits only:
 
 - `eth_chainId`
 - `eth_getTransactionReceipt`
@@ -40,16 +58,21 @@ The caller supplies:
 
 - a worker policy with `enabled: true`, the exact accepted request status, and a
   maximum VOID amount in six-decimal units;
-- a payment observer policy with the source chain, expected chain ID, and
-  server-controlled RPC URL;
+- a payment observer policy with the exact canonical source-chain/chain-ID
+  pair and server-controlled RPC URL;
 - the existing verified-payment policy;
 - the existing automatic-fulfillment policy, including confirmation depth,
   USDC and receiver allowlists, deterministic rate, and bounded remaining pool
   value.
 
 A request over the worker amount cap, on the wrong status, without a bound
-transaction hash, on the wrong chain, without a final receipt, or outside any
-existing payment or fulfillment policy is held without mutation.
+transaction hash, on a noncanonical or mismatched chain rail, without a final
+receipt, or outside any existing payment or fulfillment policy is held without
+mutation. In particular, a Base request paired with chain ID `1` never reaches
+the RPC transport or creates the fulfillment-claim root. Request/policy
+accessors and Proxies are rejected without invocation/traps, and mutation of
+the original request or policy objects after the first RPC call cannot poison
+the eventual claim because those originals are no longer authoritative.
 
 ## Result boundary
 

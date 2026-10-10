@@ -23,10 +23,10 @@ import {
   type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
-  observeBuyVoidSourceFinalityGenerationProvenanceV5,
-} from "./buy_void_source_finality_generation_provenance_v5.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6,
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
+  observeBuyVoidSourceFinalityGenerationProvenanceV6,
+} from "./buy_void_source_finality_generation_provenance_v6.js";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1";
@@ -41,7 +41,7 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
   Object.freeze({
     server_controlled_policy_required: true,
     immutable_process_source_identity_required: true,
-    pre_attempt_request_level_v5_bridge: true,
+    pre_attempt_request_level_v6_bridge: true,
     pre_attempt_verified_payment_rebuilt_internally: true,
     caller_supplied_verified_payment_event_authority: false,
     canonical_source_finality_preflight_required: true,
@@ -185,7 +185,7 @@ export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
   canonical_verified_payment_event: BuyVoidVerifiedPaymentEventV2;
   caller_supplied_verified_payment_event_authority: false;
   source_finality_marker:
-    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5;
+    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6;
   process_source_identity_verified: true;
   reviewed_source_files_verified: true;
   authenticated_transport_identity_verified: true;
@@ -538,7 +538,7 @@ function classifyEthereumPreAttemptObservationV1(input: {
     !observation ||
     observation.ok !== true ||
     observation.marker !==
-      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5 ||
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6 ||
     observation.source_chain !== "ethereum" ||
     observation.evm_chain_id !== "1" ||
     String(observation.transaction_hash || "").toLowerCase() !==
@@ -753,7 +753,7 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
   }
 
   const capability =
-    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6;
   if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return readinessHeld(
       "ethereum_source_finality_capability_not_ready",
@@ -913,7 +913,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   }
 
   const capability =
-    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6;
   if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return preAttemptHeld(
       "ethereum_pre_attempt_source_finality_capability_not_ready",
@@ -1037,7 +1037,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   }
 
   const observation =
-    await observeBuyVoidSourceFinalityGenerationProvenanceV5({
+    await observeBuyVoidSourceFinalityGenerationProvenanceV6({
       request: input.request,
       policy: {
         source_finality_policy: {
@@ -1116,7 +1116,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     canonical_verified_payment_event: canonicalVerifiedPaymentEvent,
     caller_supplied_verified_payment_event_authority: false,
     source_finality_marker:
-      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
     process_source_identity_verified: true,
     reviewed_source_files_verified: true,
     authenticated_transport_identity_verified: true,

@@ -21,13 +21,14 @@ The failed runner did not independently capture the exact pre/post
 directory change, so the directory-creation link remains a source-grounded
 explanation, **not** a directly observed filesystem diff.
 
-## Exact source fix on the existing public-bootstrap diagnostic Draft
+## Exact source fix retained through presale integration
 
-This is an additive correction on the already-open
-[#2748](https://github.com/6ZoSo9/void-node/pull/2748); it does not open
-another public proof PR and does not overwrite the existing fast-fatal log
-diagnostic. On that exact parent, `src/index.ts` was still frozen as Git
-blob `0e3361ef8d4e6f3d7a9e428d14db64281afc21fe`.
+The startup correction merged through
+[#2748](https://github.com/6ZoSo9/void-node/pull/2748). The cumulative
+presale integration predecessor is exact commit `5c8ce0f1a2dc7f45e522bcbd513ae3f4872117bc` with
+`src/index.ts` Git blob `240414e313f44f80d57f4e349be2f1ab3d72fe66`. The combined source is
+required to be that complete predecessor plus only the same two seal-first
+startup hunks; the economic and operator changes are not rewritten.
 
 The minimal source change performs only two operations:
 
@@ -46,10 +47,10 @@ The minimal source change performs only two operations:
    checkpoint seal verifier or filesystem write logic is removed.
 
 The original `src/index.ts` **3,852,487-byte hard ceiling is unchanged**;
-the proposed new Git blob is `510c5194a8cacf1c3e0ff22824aded0c28651dc1`,
-**3,852,455 bytes**. The review proof compares the complete new bytes
-against an independent reconstruction from frozen original `main`,
-rejecting any extra source change.
+the cumulative combined Git blob is `1fde828c97175560f98ab070af33eefc595f8002`, **3852282 bytes**.
+The review proof compares the complete combined bytes against an independent
+reconstruction from the exact presale predecessor, rejecting any change
+beyond the two reviewed startup hunks.
 
 ## Synthetic tests — never real checkpoint mutation
 
@@ -68,12 +69,12 @@ ready/gap=0, checkpoint trust, live txroot and post-ready grace.
 
 ## Remaining HOLD
 
-This source Draft is **not merged/deployed** and has not demonstrated actual
-checkpoint restoration acceptance in a running node. It does not grant
-wallet/key/signer, customer allocation, payment, runtime service/host, validator,
-Chain-2050/WC, presale/market, liquidity or funds action. Merging and any
-external dispatch require a separate reviewed owner decision; **do not**
-alter the public seal, replay historical checkpoints over untrusted bytes,
-or treat successful synthetic tests as external acceptance.
+The startup correction is merged in source, but this cumulative presale
+integration is **not deployed** and has not demonstrated a fresh external
+checkpoint restoration acceptance on its final merged generation. It does
+not grant wallet/key/signer, customer allocation, payment, runtime
+service/host, validator, Chain-2050/WC, presale/market, liquidity or funds
+action. **Do not** alter the public seal, replay historical checkpoints over
+untrusted bytes, or treat successful synthetic tests as external acceptance.
 
 **PROTECT THE CORE.**

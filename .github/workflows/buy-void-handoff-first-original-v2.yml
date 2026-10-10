@@ -1,0 +1,171 @@
+name: VOID Buy VOID handoff first-original buyer V2
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - ".github/workflows/buy-void-handoff-first-original-v2.yml"
+      - "docs/architecture/buy-void-handoff-first-original-v2.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-handoff-first-original-v2-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact source identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without package scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build source-only actual handoff inputs
+        run: npm run build
+      - name: Historical V1 source identity must still HOLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "$RUNNER_TEMP/historical-v1.txt" 2>&1; then
+            echo "UNEXPECTED_HISTORICAL_V1_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historical-v1.txt"
+      - name: Preserve exact new V2 replay proof
+        run: node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs
+      - name: Exercise actual original handoff and V2 buyer chronology on OS temp ledgers
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \
+            | tee "handoff-first-original-v2-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN' \
+            'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN' \
+            'original_handoff_v1_proof_blob_immutable=true' \
+            'first_original_missing_absent_null_empty_preappend_held=true' \
+            'forged_matching_allocation_replay_held=true' \
+            'valid_original_late_tx_receiver_preserves_deterministic_allocation=true' \
+            'durable_payment_event_reappend=false' \
+            'real_temp_filesystem_used=true' \
+            'runtime_integration=false' \
+            'protected_high_water_custody_proven=false' \
+            'production_gate_ready=false' \
+            'presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "handoff-first-original-v2-${{ matrix.node }}.txt"
+          done
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import crypto from "node:crypto";
+            import assert from "node:assert/strict";
+            const output=fs.readFileSync(process.argv[1],"utf8");
+            const source=fs.readFileSync("scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts");
+            const blob=b=>crypto.createHash("sha1")
+              .update(Buffer.from("blob "+b.length+"\0")).update(b).digest("hex");
+            assert.ok(output.includes("first_original_missing_absent_null_empty_preappend_held=true"));
+            const receipt={
+              schema:"void_buy_void_handoff_first_original_v2_source_qualification",
+              version:2,
+              frozen_original_handoff_proof_git_blob_sha1:"6d6a8b0efee8bc2d4e7f402bf7bd4b9e4ed4ac3a",
+              reviewed_first_original_wallet_source_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32",
+              new_handoff_v2_proof_git_blob_sha1:blob(source),
+              first_original_missing_variants_rejected:3,
+              matching_allocation_wallet_backfill_rejected:3,
+              original_valid_wallet_late_tx_receiver_preserved:true,
+              real_temp_filesystem_synthetic_only:true,
+              historical_v1_reissued:false,
+              runtime_integration:false,
+              protected_high_water_custody_proven:false,
+              production_gate_ready:false,
+              presale_activation:false,
+              funds_movement:false
+            };
+            fs.writeFileSync(process.argv[2],JSON.stringify(receipt,null,2)+"\n");
+          ' "handoff-first-original-v2-${{ matrix.node }}.txt" \
+            "handoff-first-original-v2-${{ matrix.node }}.json"
+      - name: Upload deterministic source-only handoff evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-handoff-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: handoff-first-original-v2-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 2
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download exact three Node review receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-handoff-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require exact byte-identical V2 receipts and monetary HOLD
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "receipts/handoff-first-original-v2-$n.json"; done
+          cmp receipts/handoff-first-original-v2-22.json receipts/handoff-first-original-v2-24.json
+          cmp receipts/handoff-first-original-v2-22.json receipts/handoff-first-original-v2-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const bytes=fs.readFileSync("receipts/handoff-first-original-v2-22.json");
+            const r=JSON.parse(bytes);
+            assert.equal(r.first_original_missing_variants_rejected,3);
+            assert.equal(r.matching_allocation_wallet_backfill_rejected,3);
+            for(const key of ["historical_v1_reissued","runtime_integration",
+              "protected_high_water_custody_proven","production_gate_ready",
+              "presale_activation","funds_movement"]) assert.equal(r[key],false,key);
+            console.log("VOID_BUY_VOID_HANDOFF_FIRST_ORIGINAL_V2_CROSS_NODE_GREEN");
+            console.log("review_receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+            console.log("production_gate_ready=false");
+          '

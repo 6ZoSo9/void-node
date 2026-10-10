@@ -2,7 +2,7 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
-RUN npm ci || yarn || pnpm i
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -41,6 +41,7 @@ COPY --from=build \
   /app/tools/void-economic-intent-ttl-caps-policy-v1.mjs \
   /app/tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs \
   ./tools/
+COPY --from=build /app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs ./tools/
 COPY --from=build \
   /app/ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json \
   /app/ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json \
