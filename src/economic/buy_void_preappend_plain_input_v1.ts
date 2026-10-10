@@ -88,7 +88,14 @@ function copyValue(
         if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) {
           hold(label);
         }
-        result[i] = copyValue(descriptor.value, label, state, depth + 1);
+        // Never assign into an array hole: an ambient Array.prototype
+        // numeric setter could execute or suppress this own index. Defining
+        // an own data slot bypasses inherited setters while retaining the
+        // exact JSON index order and frozen snapshot semantics.
+        Object.defineProperty(result, String(i), {
+          value: copyValue(descriptor.value, label, state, depth + 1),
+          enumerable: true, writable: false, configurable: false,
+        });
       }
       return Object.freeze(result);
     } finally {
