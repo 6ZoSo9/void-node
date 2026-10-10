@@ -84,6 +84,9 @@ jobs:
             assert.equal(r.initial_buyer_wallet_missing_variants_rejected,3);
             assert.equal(r.exact_replay_idempotent,true);
             assert.equal(r.next_allocation_record_count,1);
+            assert.equal(r.inventory_units_after_synthetic_sellout,"0");
+            assert.equal(r.valid_oversell_rejected_for_insufficient_inventory,true);
+            assert.equal(r.malformed_oversell_input_rejected_for_distinct_plain_data_reason,true);
             assert.deepEqual(r.observed_publication_phases,["intent_only","ledger_committed","complete"]);
             for(const key of ["proposed_allocation_mutated","actual_durable_payment_fsync_verified",
               "verified_capacity_and_request_locks_held","independently_proven_original_request",

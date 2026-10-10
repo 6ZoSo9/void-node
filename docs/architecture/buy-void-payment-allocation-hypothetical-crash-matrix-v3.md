@@ -51,6 +51,29 @@ durable payment, operator capacity/request serialization, protected custody
 high-water, Nimo witness, deployment or on-chain allocation. All those
 real-world authorities remain FALSE.
 
+## Genuine finite-capacity rejection, not a malformed-input false positive
+
+The original V3 synthetic sell-out had a misspelled *extra* key,
+`payment_verified_receipt_ref`. The canonical planner expects exactly
+`verified_payment_receipt_ref`, and the plain-data snapshot rightly rejects
+unknown extra keys. Thus the former `excess.ok=false` check could pass
+**without ever reaching the finite-inventory test**. This was a defect in the
+test fixture, **not evidence that runtime capacity is bypassed**.
+
+The review successor supplies only the canonical `verified_payment_receipt_ref`
+and now specifically asserts
+`excess.reason === "allocation_reservation_remaining_inventory_insufficient"`
+against an otherwise valid request after the synthetic 10-million-VOID pool is
+completely allocated. A deliberate malformed-extra-key control separately
+requires `allocation_reservation_input_not_plain_data`. These two distinct
+failure reasons must never be confused. Two true receipt fields bind that
+behavior in the Node 22/24/26 matrix.
+
+This is a source-only proof of the **pure planner's** finite cap; it is
+not evidence that a production process held its shared capacity lock,
+fsynced payment or allocation entries, had valid native-USDC finality,
+or safely recovered custody after a real crash.
+
 ## Deliberately remaining blockers
 
 This is a NEW reviewed **candidate**, not a rewrite of old V1/V2 witnesses

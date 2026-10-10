@@ -348,15 +348,28 @@ const full = ok(classifyBuyVoidAllocationReservationLedgerV1(
   soldOut.next_ledger_jsonl),"valid");
 assert.equal(full.remaining_void,"0");
 assert.equal(full.reserved_void_total,"10000000");
-const excess=plan({
+// Verify the EXACT capacity reason, not merely a rejection of malformed test
+// inputs. The old V3 fixture spelled a noncanonical extra top-level key
+// "payment_verified_receipt_ref", causing an unrelated plain-data rejection.
+const validOversellInput = {
   ledger_jsonl:soldOut.next_ledger_jsonl,request_id:"buyvoid_c_cccccccc",
   source_chain:"base",payment_transaction_hash:tx("c"),payment_log_index:"9",
   buyer_delivery_wallet:address("5"),quote_void_amount:"2",
-  quote_usdc_amount:"1",payment_verified_receipt_ref:receipt("5"),
+  quote_usdc_amount:"1",verified_payment_receipt_ref:receipt("5"),
   payment_verified_event_sha256:receipt("e"),created_at_ms:1800000000004,
+};
+const malformedOversell = plan({
+  ...validOversellInput, payment_verified_receipt_ref:receipt("5"),
 });
+assert.equal(malformedOversell.ok,false);
+assert.equal(malformedOversell.status,"held");
+assert.equal(malformedOversell.reason,
+  "allocation_reservation_input_not_plain_data");
+const excess=plan(validOversellInput);
 assert.equal(excess.ok,false);
 assert.equal(excess.status,"held");
+assert.equal(excess.reason,
+  "allocation_reservation_remaining_inventory_insufficient");
 
 // A green synthetic matrix means ONLY the pure source contracts are internally
 // composable for fixed fixtures. No fsync / original-history / custody proof,
@@ -389,6 +402,8 @@ const report = Object.freeze({
   next_allocation_record_count:1,
   inventory_units_after_first:"9999994",
   inventory_units_after_synthetic_sellout:"0",
+  valid_oversell_rejected_for_insufficient_inventory:true,
+  malformed_oversell_input_rejected_for_distinct_plain_data_reason:true,
   exact_replay_idempotent:true,
   conflicting_identity_rejected:true,
   malformed_or_orphan_history_rejected:true,
