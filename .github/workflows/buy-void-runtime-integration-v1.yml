@@ -25,7 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - id: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -33,7 +34,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts
+      - id: install
+        run: npm ci --ignore-scripts
       - name: Focused Buy VOID TypeScript
         run: |
           ./node_modules/.bin/tsc \
@@ -95,5 +97,11 @@ jobs:
             sudo rm -rf -- "$VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY"
           fi
           rm -f "$RUNNER_TEMP/postgres-runtime-proof-key.pem"
-      - run: npm run build
-      - run: git diff --check
+      # Preserve independent diagnostics without masking an earlier proof failure.
+      # Do not start these steps after cancellation or failed prerequisites.
+      - name: Build after proof failures
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - name: Diff hygiene after proof failures
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        run: git diff --check
