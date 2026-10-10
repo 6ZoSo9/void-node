@@ -21,13 +21,14 @@ The machine-readable reviewed contract is:
 
 The contract binds the exact service source SHA-256:
 
-`sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
+`sha256:4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18`
 
 ## Authority split
 
 The service is created with server-controlled configuration:
 
 - Unix socket path;
+- durable Buy VOID request/payment-history root;
 - canonical allocation-ledger root;
 - protected high-water/intent custody root; and
 - Unix socket group GID.
@@ -35,10 +36,20 @@ The service is created with server-controlled configuration:
 None of those paths or identities are accepted from an IPC request.
 
 The service uses the merged #2433 ledger classifier and #2442
-ledger/high-water binding **for read-only inspection**. The #2446 publication
-state machine and #2451 crash-recoverable writer remain separate synthetic
-proof dependencies; neither is imported or called by this IPC service while
-payment provenance is unbound.
+ledger/high-water binding **for read-only inspection**. On `reserve`, it also
+uses the server-configured request root with the descriptor-bound custody
+payment-ledger observer and canonical verified-payment/allocation replay
+classifier. The caller's green flags and receipt-shaped fields are not payment
+authority: the service must independently observe the durable request and
+`payment_verified` bytes and bind the caller's event digest to that exact
+durable replay result.
+
+The #2446 publication state machine and #2451 crash-recoverable writer remain
+separate dependencies; neither is imported or called by this IPC service.
+This lane closes the source-level durable-payment provenance read seam only.
+It does **not** establish cross-UID permissions, a shared payment-capacity
+serialization lease, signed launch-authority planning inside custody, or
+allocation mutation authority.
 
 The public caller cannot submit an arbitrary file path, arbitrary high-water
 generation, arbitrary next-ledger byte string, or arbitrary bytes-to-file
@@ -48,26 +59,31 @@ operation.
 
 The request envelope is exact-schema and accepts only three methods.
 
-### `reserve` — default HOLD
+### `reserve` — provenance-bound, mutation HOLD
 
 The reviewed IPC envelope still accepts the exact reserve request schema, but
-its source implementation **does not authorize reservations**. Caller-supplied
-green flags and receipt/digest-shaped strings do not prove an accepted,
-fsynced `payment_verified` event. A syntactically valid request receives
-`allocation_custody_service_verified_payment_provenance_not_bound` with
-`operation_performed=false`, and invokes no allocation planner, writer or
-recovery operation.
+its source implementation **does not authorize reservations**. The
+server-configured request root is descriptor-read on each reserve attempt and
+the exact durable request/payment history is replayed against the protected
+allocation ledger. A caller event digest must identify the exact replay-bound
+`payment_verified` line. Caller-supplied green flags, amount fields, launch
+fields and receipt-shaped strings remain non-authoritative.
 
-A later independently reviewed integration must descriptor-bind the canonical
-durable request and payment-event history, verify identity, amount, destination,
-source chain, log index and launch generation, and serialize the resulting
-allocation under the existing verified-payment capacity/duplicate boundary.
-No request-controlled boolean or environment override can bypass this HOLD.
-The pure planner and writer remain separately available for synthetic proof.
-Any later operator recovery must independently bind and validate the durable
-payment provenance of each pending intent before publication. This is
-containment, not live payment-provenance readiness.
+If durable payment provenance is absent or malformed, the request HOLDs before
+the capacity boundary. If the provenance is valid but the caller digest does
+not identify that exact event, the request HOLDs with
+`allocation_custody_service_caller_payment_event_digest_mismatch`. If the
+durable provenance is valid and the digest matches, the request advances only
+to `allocation_custody_service_payment_capacity_lock_not_bound`, still with
+`operation_performed=false` and no allocation writer/recovery call.
 
+That final HOLD is intentional. The existing verified-payment capacity bakery
+queue is private to the ordinary runtime UID and exposes no cross-UID
+verifiable lease to the custody UID. A later reviewed integration must place
+payment append and custody allocation in one independently verifiable
+serialization domain, bind signed launch authority inside custody, then reuse
+the canonical planner and protected writer. No caller-controlled boolean can
+bypass this boundary.
 ### `recover`
 
 The request object must be empty.
@@ -134,9 +150,12 @@ effective systemd policy remain separately reviewed operator gates.
 
 ## Socket ownership
 
-On explicit service start, the already-existing socket parent and both custody
-roots must be direct, private directories owned by the service UID. The service
-does not bootstrap those directories.
+On explicit service start, the already-existing socket parent and both private
+allocation/custody roots must be direct directories owned by the service UID
+with the reviewed modes. The request-history root is separately
+server-configured and descriptor-walked read-only; this source lane does not
+claim its live cross-UID permissions are qualified. The service does not
+bootstrap any of these directories.
 
 After bind, the service sets the socket to mode `0660` and to the reviewed IPC
 group GID supplied by server configuration. The designated-host collector must
@@ -204,8 +223,11 @@ The proof uses temporary private roots only. It covers:
 - exact service-source SHA-256 binding;
 - exact contract shape;
 - clean inspection;
-- forged caller-authority reserve HOLD with unchanged ledger/high-water/intent;
+- forged/no-durable-payment reserve HOLD with unchanged ledger/high-water/intent;
 - repeat unverified reserve HOLD;
+- descriptor-bound durable `payment_verified` replay reaching only the
+  `payment_capacity_lock_not_bound` HOLD;
+- caller digest mismatch HOLD after otherwise valid durable payment provenance;
 - clean `recover` method HOLD without writes;
 - forged reserve and explicit recovery both unable to commit a pre-existing,
   syntactically valid but unverified publication intent;
@@ -221,7 +243,11 @@ The proof uses temporary private roots only. It covers:
 
 ## Next gate
 
-After exact-head hosted GREEN, the existing host-evidence collector may be
-reconciled to current main and completed against this reviewed service
-contract. Live systemd installation/start, mount/permission setup and
-service-control authorization evidence remain separate operator gates.
+After exact-head hosted GREEN, the next source gate is the shared cross-UID
+payment-capacity serialization protocol plus signed launch/planner composition
+inside custody. Only after that source boundary is reviewed should reserve or
+recover import the protected publication writer.
+
+Live systemd installation/start, cross-UID read permissions, authenticated
+operator/custody principals, mount/permission setup and service-control
+authorization evidence remain separate operator gates.
