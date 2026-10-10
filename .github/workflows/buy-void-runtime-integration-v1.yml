@@ -127,6 +127,16 @@ jobs:
                 echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
                 continue
                 ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DUAL_RAIL_HELD=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)
                 # Frozen V1 source and manifest MUST remain unchanged. It
                 # refuses the current hardened allocation ledger first.
