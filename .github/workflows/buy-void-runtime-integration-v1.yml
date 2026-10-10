@@ -86,6 +86,44 @@ jobs:
           for proof in scripts/prove_buy_void_*.ts
           do
             case "$proof" in
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts|scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)
+                # Preserve both frozen dispatcher identities and require their
+                # known rejection of the independently reviewed NEW dispatcher.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").historical-hold" 2>&1
+                frozen_status=$?
+                set -e
+                test "$frozen_status" -eq 1
+                grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").historical-hold"
+                grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").historical-hold"
+                grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").historical-hold"
+                echo "VOID_HISTORICAL_DISPATCHER_SOURCE_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts)
+                # Frozen V2 original-buyer handoff must not become valid merely
+                # because its later replay-source generation exists.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").historical-hold" 2>&1
+                frozen_status=$?
+                set -e
+                test "$frozen_status" -eq 1
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").historical-hold"
+                echo "VOID_HISTORICAL_ORIGINAL_HANDOFF_V2_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)
+                # Frozen V3 original-buyer handoff must refuse the new
+                # inherited-array-index preappend source generation.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").historical-hold" 2>&1
+                frozen_status=$?
+                set -e
+                test "$frozen_status" -eq 1
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts' "$RUNNER_TEMP/$(basename "$proof").historical-hold"
+                echo "VOID_HISTORICAL_ORIGINAL_HANDOFF_V3_HELD=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)
                 # Frozen V1 source and manifest MUST remain unchanged. It
                 # refuses the current hardened allocation ledger first.
@@ -121,7 +159,9 @@ jobs:
                 continue
                 ;;
             esac
+            echo "VOID_BUY_VOID_CURRENT_SOURCE_PROOF_BEGIN=$proof"
             ./node_modules/.bin/tsx "$proof"
+            echo "VOID_BUY_VOID_CURRENT_SOURCE_PROOF_PASSED=$proof"
           done
       - name: Remove disposable PostgreSQL factory credentials
         if: always()
