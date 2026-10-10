@@ -218,6 +218,39 @@ const INSPECTION_CANDIDATE_V2 = Object.freeze({
   }),
 });
 
+
+// Distinct successor for the payment-provenance source seam. V1/V2 remain
+// historical evidence and are never rewritten to today's source tuple.
+const PROVENANCE_CANDIDATE_V3 = Object.freeze({
+  ...INSPECTION_CANDIDATE_V2,
+  source_review_generation: "payment-provenance-bind-20261010",
+  source_review_ref: "5ed7dae3b4f799cde7d106d59f99a88eda753065",
+  predecessor_candidate: INSPECTION_CANDIDATE_V2,
+  service_source_sha256:
+    "sha256:4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18",
+  service_contract_sha256:
+    "sha256:664c98528a05200c110ed27d4940b36d169a70e5e1da331bbcba77d52056465f",
+  top_level_source_imports: Object.freeze([
+    ...INSPECTION_CANDIDATE_V2.top_level_source_imports,
+    "../dist/economic/buy_void_verified_allocation_replay_binding_v1.js",
+    "../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs",
+  ]),
+  payment_inspection_dependency: Object.freeze({
+    source: "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs",
+    source_git_blob: "7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325",
+    source_sha256:
+      "sha256:a4d5882e61e702b45f7a07b2e73bd9276979301649c7fe387a7c0c5f3198eb9c",
+    static_imports: Object.freeze([
+      "node:fs", "node:path", "node:util",
+    ]),
+  }),
+  request_root_candidate: null,
+  request_root_live_path_qualified: false,
+  cross_uid_read_permissions_qualified: false,
+  payment_capacity_lock_verified: false,
+  reserve_method_enabled: false,
+});
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
@@ -331,20 +364,44 @@ export function classifyBuyAllocationCustodyServiceBootstrapPlanV2(raw) {
   });
 }
 
+
+export const VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3 =
+  "VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3";
+
+export function classifyBuyAllocationCustodyServiceBootstrapPlanV3(raw) {
+  const v2 = classifyBuyAllocationCustodyServiceBootstrapPlanV2(raw);
+  const { plan_sha256: historicalV2Digest, ...v2Body } = v2;
+  const body = Object.freeze({
+    ...v2Body,
+    schema: "void.buy.allocation.custody.bootstrap.plan.v3",
+    marker: VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3,
+    version: 3,
+    historical_v2_plan_sha256: historicalV2Digest,
+    candidate: PROVENANCE_CANDIDATE_V3,
+  });
+  return Object.freeze({
+    ...body,
+    plan_sha256: "sha256:" + createHash("sha256")
+      .update(canonicalJson(body), "utf8").digest("hex"),
+  });
+}
+
 function main() {
   const mode = process.argv[2] ?? "--plan";
   if (mode === "--help" && process.argv.length === 3) {
-    process.stdout.write("VOID Buy allocation custody bootstrap: --plan (historical V1), --plan-v2 (inspected-service diagnostic); no --apply.\n");
+    process.stdout.write("VOID Buy allocation custody bootstrap: --plan (historical V1), --plan-v2 (inspection diagnostic), --plan-v3 (payment-provenance diagnostic); no --apply.\n");
     return;
   }
-  if (!["--plan", "--plan-v2"].includes(mode) || process.argv.length > 3) {
+  if (!["--plan", "--plan-v2", "--plan-v3"].includes(mode) || process.argv.length > 3) {
     process.stderr.write("HOLD: invalid mode; no install, no --apply, no mutation.\n");
     process.exitCode = 2;
     return;
   }
-  const classifier = mode === "--plan-v2"
-    ? classifyBuyAllocationCustodyServiceBootstrapPlanV2
-    : classifyBuyAllocationCustodyServiceBootstrapPlanV1;
+  const classifier = mode === "--plan-v3"
+    ? classifyBuyAllocationCustodyServiceBootstrapPlanV3
+    : mode === "--plan-v2"
+      ? classifyBuyAllocationCustodyServiceBootstrapPlanV2
+      : classifyBuyAllocationCustodyServiceBootstrapPlanV1;
   const plan = classifier(
     VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
   );
