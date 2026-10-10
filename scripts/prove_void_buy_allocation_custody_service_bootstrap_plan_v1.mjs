@@ -10,14 +10,33 @@ import {
   VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_AUTHORITY_V1,
   VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
   classifyBuyAllocationCustodyServiceBootstrapPlanV1,
+  classifyBuyAllocationCustodyServiceBootstrapPlanV2,
+  VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
 } from "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tool = path.resolve(here, "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs");
 const source = readFileSync(tool, "utf8");
 const fixture = VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1;
-const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
-assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+const historicalV1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
+const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV2(fixture);
+assert.equal(historicalV1.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+assert.equal(historicalV1.schema, "void.buy.allocation.custody.bootstrap.plan.v1");
+assert.equal(historicalV1.version, 1);
+assert.equal(historicalV1.plan_sha256,
+  "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348");
+const historicalV1Wire = JSON.stringify(historicalV1, null, 2) + "\n";
+assert.equal(Buffer.byteLength(historicalV1Wire, "utf8"), 5898,
+  "historical V1 output length must remain unchanged");
+assert.equal(createHash("sha256").update(historicalV1Wire).digest("hex"),
+  "db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf",
+  "historical V1 output must remain byte-identical");
+assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2);
+assert.equal(decision.schema, "void.buy.allocation.custody.bootstrap.plan.v2");
+assert.equal(decision.version, 2);
+assert.equal(decision.historical_v1_plan_sha256, historicalV1.plan_sha256);
+assert.deepEqual(decision.candidate.predecessor_candidate, historicalV1.candidate);
+assert.notEqual(decision.plan_sha256, historicalV1.plan_sha256);
 assert.equal(decision.status, "HOLD_SOURCE_ONLY");
 assert.equal(decision.observation_trusted_as_authority, false);
 assert.equal(decision.source_head_verified_against_remote, false);
@@ -72,20 +91,22 @@ assert.deepEqual(decision.candidate.service_policy_target.ReadWritePaths, [
 ]);
 assert.equal(
   decision.candidate.service_source_sha256,
-  "sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d",
+  "sha256:fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88",
 );
 assert.equal(
   decision.candidate.service_contract_sha256,
-  "sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477",
+  "sha256:676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5",
 );
 assert.deepEqual(decision.candidate.top_level_source_imports, [
   "../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
   "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+  "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
 ]);
 
 // Fail closed when a future security repair changes the checked-out service's
-// compiled imports without rebinding the untrusted bootstrap candidate.
-// This checks top-level specifiers only; it does NOT qualify transitive code.
+// imports without reviewing a distinct untrusted bootstrap candidate.
+// The service and its source reader are checked; compiled transitives and
+// installed executable protection remain unqualified.
 const serviceSource = readFileSync(path.resolve(
   here, "../tools/void-buy-allocation-custody-service-v1.mjs",
 ), "utf8");
@@ -251,6 +272,83 @@ const expectedCompiledImports = [
   ...decision.candidate.top_level_source_imports,
 ].sort();
 assert.deepEqual(observedCompiledImports(serviceSource), expectedCompiledImports);
+// Inspect the new source dependency as text. Never evaluate either module.
+// A service hash alone cannot bind a changed dependency at an unchanged path.
+const readerPath = "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs";
+const readerSource = readFileSync(path.resolve(here, "..", readerPath), "utf8");
+const expectedReader = Object.freeze({
+  source: readerPath,
+  source_git_blob: "1bf88a403b1012ac00edaf634c5ed237a898043c",
+  source_sha256:
+    "sha256:a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979",
+  static_imports: ["node:crypto", "node:fs", "node:path", "node:util"],
+});
+assert.equal(decision.candidate.source_review_generation, "descriptor-inspection-20261010");
+assert.equal(decision.candidate.source_review_ref, "c7e5993bb5fd4d8fb402762a56925a9ce9e25518");
+assert.deepEqual(decision.candidate.inspection_runtime_requirements, {
+  platform: "linux", nonroot_uid: true, proc_self_fd: true,
+  canonical_simple_component_paths: true, separate_nonnested_roots: true,
+  root_permission_bits: "0700", file_permission_bits: "0600",
+  files_single_link: true, read_window_only: true,
+  host_qualified: false, cross_root_atomic_snapshot_proven: false,
+});
+function requireReaderIdentity(text, record) {
+  assert.deepEqual(record, expectedReader, "exact inspection dependency record required");
+  assert.equal(sourceSha256(text), record.source_sha256, "inspection dependency bytes drift");
+  const bytes = Buffer.from(text, "utf8");
+  assert.equal(createHash("sha1").update("blob " + bytes.length + "\0")
+    .update(bytes).digest("hex"), record.source_git_blob, "inspection dependency Git blob drift");
+  assert.deepEqual(observedCompiledImports(text), record.static_imports,
+    "inspection dependency static imports drift");
+}
+requireReaderIdentity(readerSource, decision.candidate.inspection_dependency);
+assert.equal(Object.isFrozen(decision.candidate.inspection_dependency), true);
+assert.equal(Object.isFrozen(decision.candidate.inspection_dependency.static_imports), true);
+assert.equal(Object.isFrozen(decision.candidate.inspection_runtime_requirements), true);
+let readerCases = 1;
+// Independent parser checks still detect dependency changes even without
+// relying on the complete-file hash mismatch of these in-memory fixtures.
+for (const changed of [
+  readerSource.replace('import fs from "node:fs";', 'import fs from "node:tls";'),
+  readerSource.replace('import fs from "node:fs";', ''),
+  readerSource + '\nimport "./unreviewed-reader.mjs"\n',
+  readerSource + '\nimport "unreviewed-reader-package"\n',
+  readerSource + '\nexport { default as extra } from "./unreviewed-reader.mjs"\n',
+]) {
+  assert.notEqual(changed, readerSource);
+  assert.throws(() => requireReaderIdentity(changed, expectedReader),
+    /inspection dependency bytes drift/u);
+  assert.notDeepEqual(observedCompiledImports(changed), expectedReader.static_imports);
+  readerCases++;
+}
+// Same import graph does not make changed executable bytes equivalent.
+assert.throws(() => requireReaderIdentity(readerSource + '\n// changed bytes\n', expectedReader),
+  /inspection dependency bytes drift/u);
+readerCases++;
+for (const record of [
+  { ...expectedReader, source: "src/economic/other-reader.mjs" },
+  { ...expectedReader, source_sha256: "sha256:" + "0".repeat(64) },
+  { ...expectedReader, source_git_blob: "0".repeat(40) },
+  { ...expectedReader, static_imports: expectedReader.static_imports.slice(1) },
+]) {
+  assert.throws(() => requireReaderIdentity(readerSource, record),
+    /exact inspection dependency record required/u);
+  readerCases++;
+}
+const withoutReaderImport = serviceSource.replace(
+  /^import\s*\{[^;]*\}\s*from\s*["']\.\.\/src\/economic\/buy_void_custody_allocation_roots_observed_read_v1\.mjs["'];/mu,
+  "",
+);
+assert.notEqual(withoutReaderImport, serviceSource);
+assert.notDeepEqual(observedCompiledImports(withoutReaderImport), expectedCompiledImports);
+readerCases++;
+for (const [text, expected] of [[readerSource, expectedReader.static_imports],
+  [serviceSource, expectedCompiledImports]]) {
+  assert.deepEqual(observedCompiledImports(text + '\nthrow new Error("must_not_evaluate");\n'), expected);
+  readerCases++;
+}
+assert.equal(readerCases, 14);
+
 const changedImport = serviceSource.replace(
   "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
   "../dist/economic/unreviewed_high_water_v1.js",
@@ -399,6 +497,7 @@ if (Number(process.versions.node.split(".")[0]) === 24) {
     /custody_bootstrap_plan_import_metadata_hold/u,
     "simulated early Node24 must reject nonempty linker extra.attributes",
   );
+  assert.deepEqual(observedCompiledImports(readerSource, true), expectedReader.static_imports);
   earlyNode24LinkerTested = true;
 }
 
@@ -482,7 +581,10 @@ assert.deepEqual(
 );
 
 const reversedKeys = Object.fromEntries(Object.entries(fixture).reverse());
-assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256, decision.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256,
+  historicalV1.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV2(reversedKeys).plan_sha256,
+  decision.plan_sha256);
 
 for (const bad of [
   {},
@@ -507,14 +609,19 @@ const run = (args) => spawnSync(process.execPath, [tool, ...args], {
 });
 const plan = run(["--plan"]);
 assert.equal(plan.status, 0, plan.stderr);
-assert.deepEqual(JSON.parse(plan.stdout), decision);
+assert.equal(plan.stdout, historicalV1Wire);
+assert.deepEqual(JSON.parse(plan.stdout), historicalV1);
 const defaultPlan = run([]);
 assert.equal(defaultPlan.status, 0, defaultPlan.stderr);
-assert.deepEqual(JSON.parse(defaultPlan.stdout), decision);
+assert.equal(defaultPlan.stdout, historicalV1Wire);
+assert.deepEqual(JSON.parse(defaultPlan.stdout), historicalV1);
+const inspectedV2Cli = run(["--plan-v2"]);
+assert.equal(inspectedV2Cli.status, 0, inspectedV2Cli.stderr);
+assert.deepEqual(JSON.parse(inspectedV2Cli.stdout), decision);
 const help = run(["--help"]);
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /no --apply/u);
-for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"]]) {
+for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"], ["--plan-v2", "--apply"], ["--plan-v2", "extra"]]) {
   const refused = run(args);
   assert.equal(refused.status, 2, JSON.stringify({args, stderr: refused.stderr}));
   assert.equal(refused.stdout, "");
@@ -540,8 +647,27 @@ const canonical = v => {
 const { plan_sha256, ...body } = decision;
 const exactId = "sha256:" + createHash("sha256").update(canonical(body)).digest("hex");
 assert.equal(plan_sha256, exactId);
+const { plan_sha256: historicalId, ...historicalBody } = historicalV1;
+assert.equal(
+  "sha256:" + createHash("sha256").update(canonical(historicalBody)).digest("hex"),
+  historicalId,
+  "entire original pre-inspection candidate and Oct7 observation must remain historical",
+);
+assert.notEqual(plan_sha256, historicalId);
+const v2AllTrue = classifyBuyAllocationCustodyServiceBootstrapPlanV2(candidateAllTrue);
+assert.equal(v2AllTrue.production_gate_ready, false);
+assert.equal(v2AllTrue.status, "HOLD_SOURCE_ONLY");
+assert.equal(v2AllTrue.executable_unit_emitted, false);
+assert.deepEqual(v2AllTrue.authority, historicalV1.authority);
 
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1_SOURCE_GREEN");
+console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2_SOURCE_GREEN");
+console.log("historical_v1_cli_bytes_unchanged=true");
+console.log("diagnostic_v2_schema_marker_version_distinct=true");
+console.log("inspection_dependency_review_cases=" + readerCases);
+console.log("inspection_reader_source_and_imports_bound=true");
+console.log("historical_bootstrap_candidate_preserved=true");
+console.log("inspection_runtime_requirements_host_qualified=false");
 console.log("source_only=true");
 console.log("operator_snapshot_untrusted=true");
 console.log("plan_digest_authenticated=false");

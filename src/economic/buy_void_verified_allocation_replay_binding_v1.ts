@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 
 import { canonicalBuyVoidPaymentIdentityV1 } from "./buy_void_auto_fulfillment_v1.js";
 import { classifyBuyVoidAllocationReservationLedgerV1 } from "./buy_void_allocation_reservation_ledger_v1.js";
+import { snapshotBuyVoidPreappendPlainInputV1 } from "./buy_void_preappend_plain_input_v1.js";
 import { VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1 =
@@ -178,10 +179,62 @@ function txHash(value: unknown, optional = false): string {
 
 // A caller-supplied Buffer is NOT proof of descriptor custody or fsync. This
 // classifier only binds the byte history that a later trusted reader provides.
+// A caller-owned Buffer can shadow .length with an own data property/getter,
+// or be a Proxy that forwards Buffer.isBuffer while altering its apparent size.
+// Buffer.from(callerBuffer) also trusts the shadowed length. Use intrinsic typed
+// array slots to bound and DETACH a snapshot before making replay decisions.
+const TYPED_ARRAY_PROTO_V1 = Object.getPrototypeOf(Uint8Array.prototype);
+const TYPED_ARRAY_LENGTH_GETTER_V1 =
+  Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "length")?.get;
+const TYPED_ARRAY_BUFFER_GETTER_V1 =
+  Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "buffer")?.get;
+const TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
+
+function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
+  const invalid = () => fail(label + "_bytes_invalid");
+  if (
+    utilTypes.isProxy(value) ||
+    !Buffer.isBuffer(value) ||
+    Object.getPrototypeOf(value) !== Buffer.prototype ||
+    Object.getOwnPropertyDescriptor(value, "length") ||
+    Object.getOwnPropertyDescriptor(value, "byteLength") ||
+    Object.getOwnPropertyDescriptor(value, "buffer") ||
+    !TYPED_ARRAY_LENGTH_GETTER_V1 ||
+    !TYPED_ARRAY_BUFFER_GETTER_V1
+  ) invalid();
+
+  let count: number;
+  let backing: ArrayBufferLike;
+  try {
+    count = Reflect.apply(TYPED_ARRAY_LENGTH_GETTER_V1!, value, []) as number;
+    backing = Reflect.apply(
+      TYPED_ARRAY_BUFFER_GETTER_V1!, value, [],
+    ) as ArrayBufferLike;
+  } catch {
+    return invalid();
+  }
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 0 ||
+    count > MAX_JSONL_BYTES ||
+    utilTypes.isSharedArrayBuffer(backing)
+  ) invalid();
+  try {
+    // Slice with zero output bytes deliberately probes for a detached buffer:
+    // a detached prior-event Buffer must not silently become empty history.
+    Reflect.apply(ArrayBuffer.prototype.slice, backing, [0, 0]);
+    const detached = Buffer.alloc(count);
+    Reflect.apply(TYPED_ARRAY_SET_V1, detached, [value, 0]);
+    return detached;
+  } catch {
+    return invalid();
+  }
+}
+
 function rows(bytes: Buffer, label: string): HistoryRow[] {
-  if (!Buffer.isBuffer(bytes) || bytes.length > MAX_JSONL_BYTES) fail(label + "_bytes_invalid");
-  if (bytes.length === 0) return [];
-  const text = UTF8.decode(bytes);
+  const detached = detachedJsonlBytesV1(bytes, label);
+  if (detached.length === 0) return [];
+  const text = UTF8.decode(detached);
   if (!text.endsWith("\n") || text.includes("\r")) fail(label + "_truncated_or_noncanonical");
   const lines = text.slice(0, -1).split("\n");
   if (lines.length > MAX_ROWS) fail(label + "_too_many_rows");
@@ -410,8 +463,11 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     // UTF-8. No decoded/sanitized history may stand in for supplied bytes.
     // This also rejects CRLF, duplicate JSON members and noncanonical rows
     // before canonical #2433 allocation hashes and inventory are checked.
-    rows(input.allocation_jsonl, "allocation");
-    const allocation = classifyBuyVoidAllocationReservationLedgerV1(input.allocation_jsonl);
+    const allocationHistory =
+      detachedJsonlBytesV1(input.allocation_jsonl, "allocation");
+    rows(allocationHistory, "allocation");
+    const allocation =
+      classifyBuyVoidAllocationReservationLedgerV1(allocationHistory);
     if (allocation.ok === false) fail("allocation_history_" + allocation.reason);
     let allocatedMicro = 0n;
     let matched: (typeof allocation.records)[number] | null = null;
@@ -526,27 +582,19 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
   allocation_jsonl: Buffer;
 }): BuyVoidPreappendVerifiedPaymentLineageDecisionV1 {
   try {
-    if (
-      !isRow(input) ||
-      Object.keys(input).sort().join("|") !==
-        [
-          "allocation_jsonl",
-          "event",
-          "prior_operator_events_jsonl",
-          "request",
-          "requests_jsonl",
-        ].sort().join("|") ||
-      !isRow(input.request) ||
-      !isRow(input.event) ||
-      !Buffer.isBuffer(input.requests_jsonl) ||
-      !Buffer.isBuffer(input.prior_operator_events_jsonl) ||
-      !Buffer.isBuffer(input.allocation_jsonl)
-    ) {
-      fail("preappend_lineage_input_shape_invalid");
-    }
-
-    const candidateRequest = input.request;
-    const candidateEvent = input.event;
+    // Snapshot the fixed five-field input through own data descriptors.
+    // Caller Proxies/getters/toJSON must never execute while deriving the
+    // hypothetical durable payment line or reading original buyer fields.
+    // The resulting null-prototype JSON objects retain ordinary key order.
+    const detachedInput = snapshotBuyVoidPreappendPlainInputV1(input);
+    const requestHistory =
+      detachedJsonlBytesV1(detachedInput.requests_jsonl, "requests");
+    const priorOperatorHistory =
+      detachedJsonlBytesV1(detachedInput.prior_operator_events_jsonl, "operator_events");
+    const allocationHistory =
+      detachedJsonlBytesV1(detachedInput.allocation_jsonl, "allocation");
+    const candidateRequest = detachedInput.request;
+    const candidateEvent = detachedInput.event;
 
     const requestId = field(
       candidateEvent.request_id,
@@ -560,15 +608,19 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
       JSON.stringify(candidateEvent) + "\n",
       "utf8",
     );
+    const proposedLength = priorOperatorHistory.length + eventLine.length;
+    if (proposedLength > MAX_JSONL_BYTES) {
+      fail("operator_events_bytes_invalid");
+    }
     const proposedOperatorEvents = Buffer.concat([
-      Buffer.from(input.prior_operator_events_jsonl),
+      priorOperatorHistory,
       eventLine,
-    ]);
+    ], proposedLength);
     const replay = classifyBuyVoidVerifiedAllocationReplayBindingV1({
       request_id: requestId,
-      requests_jsonl: Buffer.from(input.requests_jsonl),
+      requests_jsonl: requestHistory,
       operator_events_jsonl: proposedOperatorEvents,
-      allocation_jsonl: Buffer.from(input.allocation_jsonl),
+      allocation_jsonl: allocationHistory,
     });
     const eventSha = sha(eventLine);
     if (
@@ -586,7 +638,7 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     // Reuse the same canonical chronology parser rather than selecting a
     // caller-chosen or merely latest JSON row.
     const requests = requestState(
-      rows(input.requests_jsonl, "requests"),
+      rows(requestHistory, "requests"),
     );
     const original = requests.get(requestId);
     if (

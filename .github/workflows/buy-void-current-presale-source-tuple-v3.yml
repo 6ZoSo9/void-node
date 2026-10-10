@@ -1,0 +1,131 @@
+name: VOID Buy VOID current presale source tuple V3
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs"
+      - "scripts/prove_buy_void_dispatch_own_array_index_v1.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
+      - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - ".github/workflows/buy-void-runtime-integration-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and authenticate exact tuple
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f"
+          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "d33adb6d84fc96a9f65acbf319391c5d771f3a2d"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "0fe46360aafce095123b6e25265c3dc300e52e41"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs)" = "5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51"
+      - name: Require predecessor refusals and current successor success
+        run: |
+          set -euo pipefail
+          for spec in             "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts|exact reviewed dispatcher source drift"             "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts|reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts"             "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs|reviewed_source_blob_drift:src/economic/buy_void_preappend_plain_input_v1.ts"             "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts|reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+          do
+            proof="${spec%%|*}"
+            marker="${spec#*|}"
+            log="$RUNNER_TEMP/$(basename "$proof").hold"
+            set +e
+            case "$proof" in
+              *.ts) node --import tsx "$proof" >"$log" 2>&1 ;;
+              *) node "$proof" >"$log" 2>&1 ;;
+            esac
+            status=$?
+            set -e
+            test "$status" -eq 1
+            grep -Fq "$marker" "$log"
+            if [[ "$proof" == *dual_rail_v2.ts ]]; then
+              grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$log"
+              grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$log"
+            fi
+          done
+          node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
+          node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs > crash-${{ matrix.node }}.json
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > handoff-${{ matrix.node }}.txt
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts > dispatch-${{ matrix.node }}.txt
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > dualrail-${{ matrix.node }}.txt
+          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V5' crash-${{ matrix.node }}.json
+          grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' handoff-${{ matrix.node }}.txt
+          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V3_GREEN' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'frozen_dual_rail_v2_proof_unchanged=true' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'actual_live_provider_finality_verified=false' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'mounted_verified_allocation_dispatch=false' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'funds_movement=false' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'production_gate_ready=false' handoff-${{ matrix.node }}.txt
+          grep -Fxq 'mounted_verified_allocation_dispatch=false' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'funds_moved=false' dispatch-${{ matrix.node }}.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: current-presale-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            crash-${{ matrix.node }}.json
+            handoff-${{ matrix.node }}.txt
+            dispatch-${{ matrix.node }}.txt
+            dualrail-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - run: git diff --check
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: current-presale-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+      - run: |
+          set -euo pipefail
+          for kind in crash handoff dispatch dualrail; do
+            ext=json
+            test "$kind" = crash || ext=txt
+            cmp "evidence/$kind-22.$ext" "evidence/$kind-24.$ext"
+            cmp "evidence/$kind-22.$ext" "evidence/$kind-26.$ext"
+          done
+          echo VOID_BUY_VOID_CURRENT_PRESALE_SOURCE_TUPLE_V3_CROSS_NODE_GREEN
+          echo dual_rail_handoff_current_v3_proven=true
+          echo production_gate_ready=false
+          echo presale_activation=false
+          echo funds_moved=false

@@ -1,4 +1,4 @@
-name: VOID Buy VOID custody reserve first-original buyer V2
+name: VOID Buy VOID custody reserve bounded V3 with frozen V1/V2 refusals
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ on:
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
       - "scripts/prove_buy_void_custody_reserve_plan_v2.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v3.mjs"
       - "docs/architecture/buy-void-custody-reserve-plan-v2.md"
       - ".github/workflows/buy-void-custody-reserve-first-original-v2.yml"
       - "package.json"
@@ -19,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buy-void-custody-reserve-v2-${{ github.event.pull_request.number || github.run_id }}
+  group: buy-void-custody-reserve-v3-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -60,16 +61,25 @@ jobs:
             echo "UNEXPECTED_HISTORICAL_V1_REISSUE" >&2
             exit 1
           fi
-          grep -F 'dependency drift: src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/v1-historical.txt"
-      - name: Prove first-original buyer V2 custody reserve source semantics
+          grep -F 'custody reserve plan source drift' "$RUNNER_TEMP/v1-historical.txt"
+      - name: Preserve V2 exact identity and prove bounded V3 source semantics
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_custody_reserve_plan_v2.mjs \
-            | tee "custody-reserve-v2-${{ matrix.node }}.txt"
+          if node scripts/prove_buy_void_custody_reserve_plan_v2.mjs > "$RUNNER_TEMP/v2-frozen.txt" 2>&1; then
+            echo "UNEXPECTED_HISTORICAL_V2_SOURCE_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'custody reserve plan source drift' "$RUNNER_TEMP/v2-frozen.txt"
+          node scripts/prove_buy_void_custody_reserve_plan_v3.mjs \
+            | tee "custody-reserve-v3-${{ matrix.node }}.txt"
           for marker in \
-            'VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V2_REVIEW_GREEN' \
+            'VOID_BUY_VOID_CUSTODY_RESERVE_PLAN_V3_BOUNDARY_GREEN' \
             'frozen_V1_proof_git_blob_unchanged=true' \
+            'bounded_native_observed_bytes_before_copy=true' \
+            'shared_detached_shadowed_and_custom_buffer_views_rejected=true' \
+            'caller_executable_buffer_hook_invoked=false' \
+            'production_signed_launch_HOLD_preserved=true' \
             'first_original_wallet_missing_absent_null_empty_held=true' \
             'later_wallet_backfill_with_matching_allocation_held=true' \
             'original_wallet_with_late_tx_and_receive_allowed=true' \
@@ -80,23 +90,30 @@ jobs:
             'production_allocation_mutation_ready=false' \
             'funds_moved=false'
           do
-            grep -Fx "$marker" "custody-reserve-v2-${{ matrix.node }}.txt"
+            grep -Fx "$marker" "custody-reserve-v3-${{ matrix.node }}.txt"
           done
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import crypto from "node:crypto";
             import fs from "node:fs";
             const content=fs.readFileSync(process.argv[1],"utf8");
-            const proof=fs.readFileSync("scripts/prove_buy_void_custody_reserve_plan_v2.mjs");
+            const proof=fs.readFileSync("scripts/prove_buy_void_custody_reserve_plan_v3.mjs");
+            const v2=fs.readFileSync("scripts/prove_buy_void_custody_reserve_plan_v2.mjs");
             const gblob=b=>crypto.createHash("sha1").update(
               Buffer.from("blob "+b.length+"\0")).update(b).digest("hex");
             assert.ok(content.includes("first_original_wallet_missing_absent_null_empty_held=true"));
+            assert.equal(gblob(v2),"ae68f2829c4f1e9ab89ea4f91d290133fab63407",
+              "frozen historical V2 source proof changed");
             const result={
-              schema:"void_buy_void_custody_reserve_first_original_v2_review",
-              version:2,
+              schema:"void_buy_void_custody_reserve_first_original_v3_review",
+              version:3,
               frozen_v1_source_git_blob_sha1:"94596835ee781f1dcfd42ab79787787868c31841",
-              successor_replay_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32",
-              v2_proof_git_blob_sha1:gblob(proof),
+              successor_replay_git_blob_sha1:"895a429ec7a2ef554552cdaa821731d7a645a701",
+              successor_allocation_git_blob_sha1:"66617a89d5ad9f81b5a21d98cca55fcda6902a80",
+              current_reserve_source_git_blob_sha1:"31993eb100997dd98cb54bfa654555f6d5b064e1",
+              v3_proof_git_blob_sha1:gblob(proof),
+              frozen_v2_proof_git_blob_sha1:gblob(v2),
+              historical_v2_reissued:false,
               original_buyer_missing_variants_rejected:3,
               matching_allocation_backfill_rejected:true,
               late_tx_and_receive_preserve_valid_original_buyer:true,
@@ -107,14 +124,14 @@ jobs:
               presale_activation:false,funds_movement:false
             };
             fs.writeFileSync(process.argv[2],JSON.stringify(result,null,2)+"\n");
-            console.log("CUSTODY_RESERVE_V2_SYNTHETIC_EVIDENCE_NOT_PRODUCTION_GREEN");
-          ' "custody-reserve-v2-${{ matrix.node }}.txt" \
-            "custody-reserve-v2-${{ matrix.node }}.json"
+            console.log("CUSTODY_RESERVE_V3_SYNTHETIC_EVIDENCE_NOT_PRODUCTION_GREEN");
+          ' "custody-reserve-v3-${{ matrix.node }}.txt" \
+            "custody-reserve-v3-${{ matrix.node }}.json"
       - name: Upload source-only evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: custody-reserve-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: custody-reserve-v2-${{ matrix.node }}.json
+          name: custody-reserve-first-original-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-reserve-v3-${{ matrix.node }}.json
           retention-days: 2
           if-no-files-found: error
       - name: Range whitespace checks
@@ -137,27 +154,36 @@ jobs:
       - name: Download all three versioned receipts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: custody-reserve-first-original-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: custody-reserve-first-original-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           path: ./receipts
           merge-multiple: true
       - name: Require exact cross-Node byte identity and launch HOLD
         run: |
           set -euo pipefail
-          for v in 22 24 26; do test -s "receipts/custody-reserve-v2-$v.json"; done
-          cmp receipts/custody-reserve-v2-22.json receipts/custody-reserve-v2-24.json
-          cmp receipts/custody-reserve-v2-22.json receipts/custody-reserve-v2-26.json
+          for v in 22 24 26; do test -s "receipts/custody-reserve-v3-$v.json"; done
+          cmp receipts/custody-reserve-v3-22.json receipts/custody-reserve-v3-24.json
+          cmp receipts/custody-reserve-v3-22.json receipts/custody-reserve-v3-26.json
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             import crypto from "node:crypto";
-            const bytes=fs.readFileSync("receipts/custody-reserve-v2-22.json");
+            const bytes=fs.readFileSync("receipts/custody-reserve-v3-22.json");
             const j=JSON.parse(bytes);
             for (const field of ["descriptor_bound_reads","custody_reserve_method_enabled",
               "allocation_write","production_allocation_mutation_ready",
               "presale_activation","funds_movement"]) assert.equal(j[field],false,field);
             assert.equal(j.original_buyer_missing_variants_rejected,3);
             assert.equal(j.historical_v1_reissued,false);
-            console.log("CUSTODY_RESERVE_FIRST_ORIGINAL_V2_CROSS_NODE_GREEN");
+            assert.equal(j.historical_v2_reissued,false);
+            assert.equal(j.successor_replay_git_blob_sha1,
+              "895a429ec7a2ef554552cdaa821731d7a645a701");
+            assert.equal(j.successor_allocation_git_blob_sha1,
+              "66617a89d5ad9f81b5a21d98cca55fcda6902a80");
+            assert.equal(j.current_reserve_source_git_blob_sha1,
+              "31993eb100997dd98cb54bfa654555f6d5b064e1");
+            assert.equal(j.frozen_v2_proof_git_blob_sha1,
+              "ae68f2829c4f1e9ab89ea4f91d290133fab63407");
+            console.log("CUSTODY_RESERVE_FIRST_ORIGINAL_V3_CROSS_NODE_GREEN");
             console.log("review_receipt_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
             console.log("production_allocation_mutation_ready=false");
           '

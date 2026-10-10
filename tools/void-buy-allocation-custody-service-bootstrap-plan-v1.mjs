@@ -106,7 +106,7 @@ const REQUIREMENTS = Object.freeze([
   ["same_uid_joint_rollback_excluded", "HOLD_SAME_UID_JOINT_ROLLBACK"],
 ]);
 
-const CANDIDATE = Object.freeze({
+const PRE_INSPECTION_CANDIDATE = Object.freeze({
   candidate_only: true,
   installable_unit_generated: false,
   systemd_manager: "system",
@@ -177,6 +177,45 @@ const CANDIDATE = Object.freeze({
   storage_root_owner_gid_observed: 981,
   independent_custody_proven: false,
   production_gate_ready: false,
+});
+
+// This is a new diagnostic candidate, not a reissue of the old source tuple.
+// Preserve the full earlier candidate and the Oct 7 observation independently.
+const INSPECTION_CANDIDATE_V2 = Object.freeze({
+  ...PRE_INSPECTION_CANDIDATE,
+  source_review_generation: "descriptor-inspection-20261010",
+  source_review_ref: "c7e5993bb5fd4d8fb402762a56925a9ce9e25518",
+  predecessor_candidate: PRE_INSPECTION_CANDIDATE,
+  service_source_sha256:
+    "sha256:fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88",
+  service_contract_sha256:
+    "sha256:676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5",
+  top_level_source_imports: Object.freeze([
+    ...PRE_INSPECTION_CANDIDATE.top_level_source_imports,
+    "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+  ]),
+  inspection_dependency: Object.freeze({
+    source: "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+    source_git_blob: "1bf88a403b1012ac00edaf634c5ed237a898043c",
+    source_sha256:
+      "sha256:a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979",
+    static_imports: Object.freeze([
+      "node:crypto", "node:fs", "node:path", "node:util",
+    ]),
+  }),
+  inspection_runtime_requirements: Object.freeze({
+    platform: "linux",
+    nonroot_uid: true,
+    proc_self_fd: true,
+    canonical_simple_component_paths: true,
+    separate_nonnested_roots: true,
+    root_permission_bits: "0700",
+    file_permission_bits: "0600",
+    files_single_link: true,
+    read_window_only: true,
+    host_qualified: false,
+    cross_root_atomic_snapshot_proven: false,
+  }),
 });
 
 function canonicalJson(value) {
@@ -256,7 +295,7 @@ export function classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw) {
     observed_local_source_head: observed.local_source_head,
     observed_remote_tracking_head: observed.remote_tracking_head,
     reported_missing_requirements: Object.freeze(holds),
-    candidate: CANDIDATE,
+    candidate: PRE_INSPECTION_CANDIDATE,
     executable_unit_emitted: false,
     independent_custody_proven: false,
     production_gate_ready: false,
@@ -269,18 +308,44 @@ export function classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw) {
   });
 }
 
+// The Oct 7 plan is immutable V1 evidence. The inspected-service tuple is
+// a distinct diagnostic V2 interface, never a silent V1 reissue.
+export const VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2 =
+  "VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2";
+
+export function classifyBuyAllocationCustodyServiceBootstrapPlanV2(raw) {
+  const v1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(raw);
+  const { plan_sha256: historicalDigest, ...v1Body } = v1;
+  const body = Object.freeze({
+    ...v1Body,
+    schema: "void.buy.allocation.custody.bootstrap.plan.v2",
+    marker: VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
+    version: 2,
+    historical_v1_plan_sha256: historicalDigest,
+    candidate: INSPECTION_CANDIDATE_V2,
+  });
+  return Object.freeze({
+    ...body,
+    plan_sha256: "sha256:" + createHash("sha256")
+      .update(canonicalJson(body), "utf8").digest("hex"),
+  });
+}
+
 function main() {
   const mode = process.argv[2] ?? "--plan";
   if (mode === "--help" && process.argv.length === 3) {
-    process.stdout.write("VOID Buy allocation custody bootstrap candidate v1; --plan only, no --apply.\n");
+    process.stdout.write("VOID Buy allocation custody bootstrap: --plan (historical V1), --plan-v2 (inspected-service diagnostic); no --apply.\n");
     return;
   }
-  if (mode !== "--plan" || process.argv.length > 3) {
+  if (!["--plan", "--plan-v2"].includes(mode) || process.argv.length > 3) {
     process.stderr.write("HOLD: invalid mode; no install, no --apply, no mutation.\n");
     process.exitCode = 2;
     return;
   }
-  const plan = classifyBuyAllocationCustodyServiceBootstrapPlanV1(
+  const classifier = mode === "--plan-v2"
+    ? classifyBuyAllocationCustodyServiceBootstrapPlanV2
+    : classifyBuyAllocationCustodyServiceBootstrapPlanV1;
+  const plan = classifier(
     VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
   );
   process.stdout.write(JSON.stringify(plan, null, 2) + "\n");

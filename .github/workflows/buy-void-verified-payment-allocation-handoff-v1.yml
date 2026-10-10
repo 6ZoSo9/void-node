@@ -15,6 +15,7 @@ on:
       - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"
       - "docs/architecture/buy-void-verified-payment-allocation-handoff-v1.md"
       - ".github/workflows/buy-void-verified-payment-allocation-handoff-v1.yml"
       - "package.json"
@@ -81,29 +82,52 @@ jobs:
       - name: Preserve verified allocation replay lineage
         run: node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
 
-      - name: Preserve frozen V1 rejection and prove current V2 crash specification
+      - name: Preserve frozen V1/V2 rejection and prove current V3 crash specification
         run: |
           set -euo pipefail
-          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs \
-               > "$RUNNER_TEMP/frozen-handoff-v1.log" 2>&1; then
-            echo "UNEXPECTED_HISTORICAL_CRASH_V1_REISSUE" >&2
-            exit 1
-          fi
-          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' \
-            "$RUNNER_TEMP/frozen-handoff-v1.log"
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \
-            > "$RUNNER_TEMP/current-handoff-v2.json"
+          # Both historical editions check allocation before replay. Preserve their
+          # bytes and require that exact generation refusal, not just any failure.
+          for version in 1 2; do
+            proof="scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v$version.mjs"
+            case "$version" in
+              1) expected_blob="1a8db260a134ad438366d5b7660f926768c98a79" ;;
+              2) expected_blob="d42148523c44d95d3b87236ade22cfb92dcb5bee" ;;
+            esac
+            test "$(git hash-object -- "$proof")" = "$expected_blob"
+            log="$RUNNER_TEMP/frozen-handoff-v$version.log"
+            status=0
+            node "$proof" > "$log" 2>&1 || status=$?
+            test "$status" -eq 1
+            grep -F 'AssertionError [ERR_ASSERTION]: reviewed_source_blob_drift:src/economic/buy_void_allocation_reservation_ledger_v1.ts' "$log"
+            grep -F "actual: '66617a89d5ad9f81b5a21d98cca55fcda6902a80'" "$log"
+            grep -F "expected: 'c3fc204710a9189723651cfeb6ffc52b1aa049db'" "$log"
+          done
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs \
+            > "$RUNNER_TEMP/current-handoff-v3.json"
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
             assert.equal(result.marker,
-              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2");
+              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V3");
             assert.equal(result.reviewed_current_replay_source_blob_sha1,
-              "0a74a3652081c3e142d0b887676771a7ac148f32");
+              "895a429ec7a2ef554552cdaa821731d7a645a701");
             assert.equal(result.frozen_predecessor_crash_proof_git_blob_sha1,
               "1a8db260a134ad438366d5b7660f926768c98a79");
             assert.equal(result.frozen_historical_V1_proof_unchanged, true);
+            assert.equal(result.source_only, true);
+            assert.equal(result.reviewed_combined_source_head,
+              "452ac177df4ac63d53cac36ba10216ff68495a77");
+            assert.equal(result.reviewed_current_allocation_source_blob_sha1,
+              "66617a89d5ad9f81b5a21d98cca55fcda6902a80");
+            assert.equal(result.frozen_historical_V2_proof_git_blob_sha1,
+              "d42148523c44d95d3b87236ade22cfb92dcb5bee");
+            assert.equal(result.frozen_historical_V2_proof_unchanged, true);
+            assert.equal(result.forged_prior_event_buffer_length_rejected, true);
+            assert.equal(result.forged_allocation_buffer_length_does_not_erase_idempotent_reservation, true);
+            assert.equal(result.inventory_units_after_synthetic_sellout, "0");
+            assert.equal(result.valid_oversell_rejected_for_insufficient_inventory, true);
+            assert.equal(result.malformed_oversell_input_rejected_for_distinct_plain_data_reason, true);
             assert.equal(result.initial_buyer_wallet_missing_variants_rejected, 3);
             assert.equal(result.late_buyer_wallet_backfill_verified_allocation_rejected, true);
             assert.equal(result.changed_original_buyer_wallet_rejected, true);
@@ -127,8 +151,8 @@ jobs:
               "presale_activation",
               "funds_moved",
             ]) assert.equal(result[field], false, field);
-            console.log("VOID_BUY_VOID_HANDOFF_FROZEN_V1_HOLD_CURRENT_V2_GREEN");
-          ' "$RUNNER_TEMP/current-handoff-v2.json"
+            console.log("VOID_BUY_VOID_HANDOFF_FROZEN_V1_V2_HOLD_CURRENT_V3_GREEN");
+          ' "$RUNNER_TEMP/current-handoff-v3.json"
 
       - name: Verify source tree cleanliness
         run: test -z "$(git status --porcelain=v1)"

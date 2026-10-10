@@ -10,6 +10,10 @@ import {
 import {
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
 } from "../dist/economic/buy_void_allocation_reservation_high_water_v1.js";
+import {
+  observeBuyVoidCustodyAllocationRootsReadOnlyV1,
+} from "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs";
+
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1 =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1";
 
@@ -61,11 +65,6 @@ const RESPONSE_SCHEMA =
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const RESPONSE_TIMEOUT_MS = 5_000;
-const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
-const MAX_HIGH_WATER_BYTES = 4096;
-const LEDGER_NAME = "allocation-reservations-v1.jsonl";
-const HIGH_WATER_NAME = "allocation-reservation-high-water-v1.json";
-const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 
 const ENVELOPE_KEYS = Object.freeze([
   "schema",
@@ -216,64 +215,6 @@ function assertDirectDirectory(
   if (expectedGid !== null && stat.gid !== expectedGid) fail(code);
 }
 
-function readBoundedFile(root, name, maximum, allowEmpty, code) {
-  assertDirectDirectory(root, code + "_root");
-  const file = path.join(root, name);
-  const beforePath = fs.lstatSync(file, { bigint: true });
-  if (
-    !beforePath.isFile() ||
-    beforePath.isSymbolicLink() ||
-    beforePath.nlink !== 1n ||
-    beforePath.size < (allowEmpty ? 0n : 1n) ||
-    beforePath.size > BigInt(maximum) ||
-    (
-      typeof process.getuid === "function" &&
-      beforePath.uid !== BigInt(process.getuid())
-    ) ||
-    (Number(beforePath.mode) & 0o077) !== 0
-  ) {
-    fail(code);
-  }
-  const fd = fs.openSync(file, fs.constants.O_RDONLY | O_NOFOLLOW);
-  try {
-    const before = fs.fstatSync(fd, { bigint: true });
-    if (
-      !before.isFile() ||
-      before.nlink !== 1n ||
-      before.dev !== beforePath.dev ||
-      before.ino !== beforePath.ino ||
-      before.size !== beforePath.size
-    ) {
-      fail(code);
-    }
-    const size = Number(before.size);
-    const bytes = Buffer.alloc(size);
-    let offset = 0;
-    while (offset < size) {
-      const count = fs.readSync(fd, bytes, offset, size - offset, offset);
-      if (count <= 0) fail(code + "_short_read");
-      offset += count;
-    }
-    const after = fs.fstatSync(fd, { bigint: true });
-    const afterPath = fs.lstatSync(file, { bigint: true });
-    if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs ||
-      before.ctimeNs !== after.ctimeNs ||
-      after.dev !== afterPath.dev ||
-      after.ino !== afterPath.ino ||
-      after.size !== afterPath.size
-    ) {
-      fail(code + "_changed_during_read");
-    }
-    return bytes;
-  } finally {
-    fs.closeSync(fd);
-  }
-}
-
 function held(reason) {
   const raw = String(reason || "allocation_custody_service_held").trim();
   const safe =
@@ -358,20 +299,26 @@ function normalizeOptions(raw) {
 }
 
 function readAuthorityState(options) {
-  const ledger = readBoundedFile(
-    options.ledger_root,
-    LEDGER_NAME,
-    MAX_LEDGER_BYTES,
-    true,
-    "allocation_custody_service_ledger_invalid",
-  );
-  const highWater = readBoundedFile(
-    options.custody_root,
-    HIGH_WATER_NAME,
-    MAX_HIGH_WATER_BYTES,
-    false,
-    "allocation_custody_service_high_water_invalid",
-  );
+  // Reuse the existing paired descriptor observer rather than reopening
+  // independent paths. These are server options, never request fields.
+  // A stable read window is NOT a cross-root atomic snapshot or write lease.
+  const observed = observeBuyVoidCustodyAllocationRootsReadOnlyV1({
+    ledger_root: options.ledger_root,
+    high_water_root: options.custody_root,
+  });
+  if (
+    observed?.observed !== true ||
+    observed.status !== "observed" ||
+    observed.operation_performed !== false ||
+    observed.filesystem_write !== false ||
+    observed.cross_root_atomic_snapshot_proven !== false ||
+    !Buffer.isBuffer(observed.allocation_jsonl) ||
+    !Buffer.isBuffer(observed.allocation_high_water_bytes)
+  ) {
+    fail("allocation_custody_service_observation_unqualified");
+  }
+  const ledger = observed.allocation_jsonl;
+  const highWater = observed.allocation_high_water_bytes;
   const ledgerDecision =
     classifyBuyVoidAllocationReservationLedgerV1(ledger);
   if (ledgerDecision.ok !== true) {

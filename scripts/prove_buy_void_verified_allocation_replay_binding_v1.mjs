@@ -515,6 +515,94 @@ malformedUtf8Allocation[allocationIdOffset] = 0xff;
 hold(scan([request], [event], malformedUtf8Allocation),
   /encoded data was not valid for encoding utf-8/iu);
 
+// Security regression: caller Buffers must not be able to shadow native
+// length and hide an already-verified, fsynced operator event during replay.
+// This is all synthetic memory; no real request/payment or ledger is opened.
+{
+  // A forged zero .length previously let Buffer.from(priorEvents) silently
+  // drop the already-durable event so a duplicate could be "ready" again.
+  const originalPriorEvents = buf([event]);
+  const hiddenPriorEvents = Buffer.from(originalPriorEvents);
+  Object.defineProperty(hiddenPriorEvents, "length", {
+    value: 0, configurable: true,
+  });
+  const result = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: hiddenPriorEvents,
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  hold(result, /operator_events_bytes_invalid/u);
+
+  let getterCalls = 0;
+  const getterPriorEvents = Buffer.from(originalPriorEvents);
+  Object.defineProperty(getterPriorEvents, "length", {
+    configurable: true,
+    get() { getterCalls++; return 0; },
+  });
+  hold(classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: getterPriorEvents,
+    allocation_jsonl: Buffer.alloc(0),
+  }), /operator_events_bytes_invalid/u);
+  assert.equal(getterCalls, 0, "length getter must never execute");
+
+  const shadowRequests = buf([request]);
+  Object.defineProperty(shadowRequests, "length", {
+    value: 0, configurable: true,
+  });
+  hold(mutate({ requests_jsonl: shadowRequests }), /requests_bytes_invalid/u);
+
+  // Proxies must hold without ever invoking their caller-provided traps,
+  // even though Node's Buffer.isBuffer reports true for a Buffer Proxy.
+  let proxyTraps = 0;
+  const proxied = new Proxy(buf([request]), {
+    get() { proxyTraps++; throw Error("unexpected Buffer proxy getter"); },
+    getPrototypeOf() {
+      proxyTraps++; throw Error("unexpected Buffer prototype trap");
+    },
+  });
+  hold(mutate({ requests_jsonl: proxied }), /requests_bytes_invalid/u);
+  assert.equal(proxyTraps, 0, "Buffer Proxy traps must not execute");
+
+  const accessorBytes = buf([request]);
+  Object.defineProperty(accessorBytes, "buffer", {
+    configurable: true,
+    get() {
+      getterCalls++; throw Error("unexpected caller buffer getter");
+    },
+  });
+  hold(mutate({ requests_jsonl: accessorBytes }), /requests_bytes_invalid/u);
+  assert.equal(getterCalls, 0, "Buffer backing getter must never execute");
+
+  // A shared backing could mutate during a supposed immutable snapshot.
+  const sharedBytes = Buffer.from(new SharedArrayBuffer(8));
+  hold(mutate({ requests_jsonl: sharedBytes }), /requests_bytes_invalid/u);
+
+  // Transferring an ArrayBuffer leaves a zero-length detached view which
+  // otherwise looks like legitimate "no prior rows" after length inspection.
+  const detachedBytes = Buffer.from(new ArrayBuffer(8));
+  const toDetach = detachedBytes.buffer;
+  structuredClone(toDetach, { transfer: [toDetach] });
+  hold(mutate({ requests_jsonl: detachedBytes }), /requests_bytes_invalid/u);
+
+  // Valid unchanged bytes and the original first-buyer scenario still pass.
+  gap(mutate({ requests_jsonl: buf([request]) }));
+  const originalReady = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  assert.equal(originalReady.ok, true, originalReady.reason);
+  assert.equal(originalReady.status, "ready");
+  assert.equal(originalReady.operation_performed, false);
+}
+
 // This workflow supports manual dispatch, where pull_request base/head are
 // both absent; the committed last-commit check is explicit, not empty revs.
 const workflowText = readFileSync(
@@ -551,6 +639,9 @@ console.log("nonconsecutive_stale_request_snapshot_replay_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");
 console.log("allocation_raw_utf8_and_canonical_jsonl_checked=true");
+console.log("buffer_intrinsic_length_and_detached_copy_required=true");
+console.log("caller_buffer_length_override_cannot_hide_prior_payment=true");
+console.log("buffer_proxy_getter_shared_and_detached_intake_held=true");
 console.log("manual_dispatch_diff_revision_fallback_checked=true");
 console.log("descriptor_custody_or_payment_fsync_claimed=false");
 console.log("allocation_write_or_runtime_activation=false");
