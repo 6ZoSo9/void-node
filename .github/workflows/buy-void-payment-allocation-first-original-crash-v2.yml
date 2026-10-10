@@ -1,15 +1,18 @@
-name: VOID Buy VOID original buyer crash replay V2 successor
+name: VOID Buy VOID original buyer crash V1 V2 history and current V5
 
 on:
   pull_request:
     paths:
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
+      - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts"
       - "docs/architecture/buy-void-payment-allocation-first-original-crash-v2.md"
       - ".github/workflows/buy-void-payment-allocation-first-original-crash-v2.yml"
-      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
-      - "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts"
-      - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.build.json"
@@ -37,7 +40,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify checkout SHA and clean working tree
+      - name: Bind checkout identity and clean original source
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -48,54 +51,61 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
-      - name: Install locked dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Typecheck and compile current original-wallet binding
+      - name: Locked install and current source compilation
         run: |
           set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
           npm run typecheck
           npm run build
-      - name: Preserve original buyer replay classifier first-row falsifications
+      - name: Preserve original buyer replay first-row falsifications
         run: node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
-      - name: Prove actual filesystem payment fsync allocation crash recovery
+      - name: Preserve inert actual-filesystem handoff proof
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts
-      - name: Verify frozen V1 historical identity STILL rejects new source generation
+      - name: Frozen crash V1 and V2 MUST reject the first changed ledger source
         run: |
           set -euo pipefail
-          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs \
-               > "$RUNNER_TEMP/frozen-v1.stdout" 2> "$RUNNER_TEMP/frozen-v1.stderr"; then
-            echo "UNEXPECTED_HISTORICAL_CRASH_V1_IDENTITY_ACCEPTED" >&2
-            exit 1
-          fi
-          grep -F "reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts" \
-            "$RUNNER_TEMP/frozen-v1.stderr"
-          echo "FROZEN_HISTORICAL_CRASH_V1_REJECTS_SOURCE_DRIFT_GREEN"
-      - name: Prove V2 initial-buyer-wallet crash matrix is fail closed
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "66617a89d5ad9f81b5a21d98cca55fcda6902a80"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs)" = "1a8db260a134ad438366d5b7660f926768c98a79"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs)" = "d42148523c44d95d3b87236ade22cfb92dcb5bee"
+          for version in 1 2; do
+            if node "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v$version.mjs" \
+              > "$RUNNER_TEMP/frozen-crash-v$version.stdout" \
+              2> "$RUNNER_TEMP/frozen-crash-v$version.stderr"; then
+              echo "UNEXPECTED_FROZEN_CRASH_V${version}_ACCEPTANCE" >&2
+              exit 1
+            fi
+            grep -F "reviewed_source_blob_drift:src/economic/buy_void_allocation_reservation_ledger_v1.ts" \
+              "$RUNNER_TEMP/frozen-crash-v$version.stderr"
+            echo "FROZEN_HISTORICAL_CRASH_V${version}_FIRST_LEDGER_DRIFT_HOLD_GREEN"
+          done
+      - name: Derive current generation V5 synthetic original-buyer crash matrix
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \
-            > "buyer-crash-v2-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs \
+            > "buyer-crash-v5-${{ matrix.node }}.json"
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2");
-            assert.equal(j.reviewed_current_replay_source_blob_sha1,
-              "0a74a3652081c3e142d0b887676771a7ac148f32");
-            assert.equal(j.frozen_predecessor_crash_proof_git_blob_sha1,
-              "1a8db260a134ad438366d5b7660f926768c98a79");
-            assert.equal(j.source_runtime_generation_commit,
-              "7da490d56556ab98b5515f5eba53bf6a8f118203");
+            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V5");
+            assert.equal(j.reviewed_combined_source_head,"e33959c711902cc30d61ac2b0e74caa4673a87e9");
+            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"66617a89d5ad9f81b5a21d98cca55fcda6902a80");
+            assert.equal(j.reviewed_current_replay_source_blob_sha1,"435ed6000caad046f48fb318fbc7c865393f3b6c");
+            assert.equal(j.reviewed_current_preappend_source_blob_sha1,"945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f");
+            assert.equal(j.frozen_predecessor_crash_proof_git_blob_sha1,"1a8db260a134ad438366d5b7660f926768c98a79");
             assert.equal(j.frozen_historical_V1_proof_unchanged,true);
-            assert.equal(j.initial_buyer_wallet_missing_variants_rejected,3);
+            assert.equal(j.frozen_historical_V2_proof_unchanged,true);
+            assert.equal(j.frozen_historical_V3_proof_unchanged,true);
+            assert.equal(j.frozen_historical_V4_proof_unchanged,true);
+            assert.equal(j.forged_prior_event_buffer_length_rejected,true);
+            assert.equal(j.forged_allocation_buffer_length_does_not_erase_idempotent_reservation,true);
+            assert.equal(j.valid_oversell_rejected_for_insufficient_inventory,true);
+            assert.equal(j.malformed_oversell_input_rejected_for_distinct_plain_data_reason,true);
             assert.equal(j.late_buyer_wallet_backfill_verified_allocation_rejected,true);
             assert.equal(j.changed_original_buyer_wallet_rejected,true);
-            assert.equal(j.late_tx_and_receive_with_original_wallet_positive,true);
             assert.equal(j.exact_replay_idempotent,true);
-            assert.deepEqual(j.observed_publication_phases,
-              ["intent_only","ledger_committed","complete"]);
-            for(const key of ["proposed_allocation_mutated",
-              "actual_durable_payment_fsync_verified",
+            assert.deepEqual(j.observed_publication_phases,["intent_only","ledger_committed","complete"]);
+            for(const key of ["actual_durable_payment_fsync_verified",
               "verified_capacity_and_request_locks_held",
               "independently_proven_original_request",
               "protected_high_water_custody_verified",
@@ -104,16 +114,16 @@ jobs:
               "signer_or_wallet_access",
               "production_source_finality_authority_ready",
               "presale_activation","funds_moved"])assert.equal(j[key],false,key);
-            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_BUYER_CRASH_V2_GREEN");
-            console.log("production_activation=false");
-          ' "buyer-crash-v2-${{ matrix.node }}.json"
-      - name: Upload exact-node evidence
+            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_BUYER_CRASH_V5_SOURCE_ONLY_GREEN");
+            console.log("production_payment_allocation_authority=false");
+          ' "buyer-crash-v5-${{ matrix.node }}.json"
+      - name: Upload three independent current V5 receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-original-wallet-crash-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: buyer-crash-v2-${{ matrix.node }}.json
-          retention-days: 1
+          name: buy-void-original-buyer-current-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: buyer-crash-v5-${{ matrix.node }}.json
           if-no-files-found: error
+          retention-days: 1
       - name: Committed diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -131,27 +141,32 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Download all independent source-only crash reports
+      - name: Download three exact-head V5 crash receipts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-original-wallet-crash-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-original-buyer-current-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./buyer-crash
-      - name: Require exact Node 22 24 26 byte equality
+      - name: Require exact Node 22 24 26 bytes and continued production HOLD
         run: |
           set -euo pipefail
-          for v in 22 24 26; do test -s "buyer-crash/buyer-crash-v2-$v.json"; done
-          cmp buyer-crash/buyer-crash-v2-22.json buyer-crash/buyer-crash-v2-24.json
-          cmp buyer-crash/buyer-crash-v2-22.json buyer-crash/buyer-crash-v2-26.json
+          for v in 22 24 26; do test -s "buyer-crash/buyer-crash-v5-$v.json"; done
+          cmp buyer-crash/buyer-crash-v5-22.json buyer-crash/buyer-crash-v5-24.json
+          cmp buyer-crash/buyer-crash-v5-22.json buyer-crash/buyer-crash-v5-26.json
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
             import crypto from "node:crypto";
-            const raw=fs.readFileSync("buyer-crash/buyer-crash-v2-22.json");
-            const j=JSON.parse(raw);
-            assert.equal(j.late_buyer_wallet_backfill_verified_allocation_rejected,true);
+            const bytes=fs.readFileSync("buyer-crash/buyer-crash-v5-22.json");
+            const j=JSON.parse(bytes);
+            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V5");
+            assert.equal(j.frozen_historical_V2_proof_unchanged,true);
+            assert.equal(j.actual_durable_payment_fsync_verified,false);
+            assert.equal(j.protected_high_water_custody_verified,false);
             assert.equal(j.exactly_once_allocation_production_ready,false);
-            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_BUYER_CRASH_V2_CROSS_NODE_GREEN");
-            console.log("raw_report_sha256="+crypto.createHash("sha256").update(raw).digest("hex"));
+            assert.equal(j.presale_activation,false);
+            assert.equal(j.funds_moved,false);
+            console.log("VOID_BUY_VOID_FIRST_ORIGINAL_BUYER_V5_THREE_NODE_GREEN");
+            console.log("raw_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
             console.log("real_payment_or_allocation_performed=false");
           '
