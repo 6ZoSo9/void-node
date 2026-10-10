@@ -6,6 +6,7 @@ on:
       - ren/nimo-v3-inactive-exact-tar-stage-v1-20261010
     paths:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v3_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-nimo-v3-inactive-bundle-v1.md"
@@ -18,6 +19,7 @@ on:
   pull_request:
     paths:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v3_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-nimo-v3-inactive-bundle-v1.md"
@@ -74,6 +76,29 @@ jobs:
           python3 scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py \
             --inspect-archive "$stage/void-nimo-v3-inactive.tar" \
             | tee inspect-${{ matrix.node }}.json
+          python3 -m py_compile scripts/void_nimo_v3_private_stage_v1.py
+          python3 scripts/void_nimo_v3_private_stage_v1.py \
+            --plan "$stage/void-nimo-v3-inactive.tar" \
+            | tee stage-plan-${{ matrix.node }}.json
+          python3 scripts/void_nimo_v3_private_stage_v1.py \
+            --self-test "$stage/void-nimo-v3-inactive.tar" \
+            | tee stage-self-test-${{ matrix.node }}.json
+          python3 - "stage-plan-${{ matrix.node }}.json" "stage-self-test-${{ matrix.node }}.json" <<'PY'
+          import json,sys
+          for path,mode in ((sys.argv[1],"plan"),(sys.argv[2],"self-test")):
+              d=json.load(open(path,encoding="utf-8"))
+              assert d["marker"]=="VOID_NIMO_V3_PRIVATE_STAGE_V1"
+              assert d["mode"]==mode
+              assert d["archive_bytes"]==256000
+              assert d["archive_sha256"]=="5063297be5469385113041da31962d465350607dafffe25784e3b4888e7f6900"
+              assert d["candidate_manifest_id"]=="voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454"
+              assert d["runtime_files_exact"]==8
+              assert d["installed_nimo_v3_accepted"] is False
+              assert d["authenticated_custody_principal_verified"] is False
+              assert d["verified_payment_to_allocation_mounted"] is False
+              assert d["presale_activation"] is False
+              assert d["funds_moved"] is False
+          PY
           python3 - "receipt-${{ matrix.node }}.json" "inspect-${{ matrix.node }}.json" <<'PY'
           import json,sys
           a=json.load(open(sys.argv[1],encoding="utf-8"))
@@ -119,6 +144,8 @@ jobs:
           path: |
             receipt-${{ matrix.node }}.json
             inspect-${{ matrix.node }}.json
+            stage-plan-${{ matrix.node }}.json
+            stage-self-test-${{ matrix.node }}.json
             void-nimo-v3-inactive-node-${{ matrix.node }}.tar
           if-no-files-found: error
           retention-days: 1
