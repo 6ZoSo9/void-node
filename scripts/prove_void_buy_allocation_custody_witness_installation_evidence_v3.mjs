@@ -625,9 +625,9 @@ assert.equal(
 );
 assert.equal(
   installationPackage.schema,
-  "void_buy_void_allocation_custody_witness_installation_evidence_package_v1",
+  "void_buy_void_allocation_custody_witness_installation_evidence_package_v2",
 );
-assert.equal(installationPackage.version, 1);
+assert.equal(installationPackage.version, 2);
 assert.deepEqual(installationPackage.installation_receipt, baseline);
 assert.equal(
   installationPackage.installation_normalized_qualification_sha256,
