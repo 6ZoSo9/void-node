@@ -1,4 +1,4 @@
-name: VOID PR2761 first-original dispatcher V4 diagnostic v1
+name: VOID PR2761 first-original dispatcher V4 diagnostic v2
 
 on:
   push:
@@ -10,9 +10,10 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 concurrency:
-  group: void-pr2761-first-original-dispatch-v4-diagnostic-v1
+  group: void-pr2761-first-original-dispatch-v4-diagnostic-v2
   cancel-in-progress: false
 
 jobs:
@@ -31,7 +32,7 @@ jobs:
         id: reproduce
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: 8a2ea4688c693540e6733276410fae3efbccf377
+          EXPECTED_PARENT: d934e1c362bfe191b138c75164fa7d7ccfd737ee
           STAGER: .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
         shell: bash
         run: |
@@ -66,7 +67,7 @@ jobs:
           set -e
 
           {
-            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V1"
+            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V2"
             echo "head=$GITHUB_SHA"
             echo "author_rc=$rc"
             echo "changed_paths_begin"
@@ -90,8 +91,17 @@ jobs:
           test -f /tmp/diagnostic.txt
           bytes="$(wc -c < /tmp/diagnostic.txt | tr -d ' ')"
           test "$bytes" -le 20000
-          body="$(printf 'Guarded V4 rebind diagnostic for `%s`:\n\n```text\n%s\n```\n\nNo source publication, branch rewrite, host mutation, payment, or funds action occurred.' "$GITHUB_SHA" "$(cat /tmp/diagnostic.txt)")"
-          gh api --method POST "/repos/$REPOSITORY/issues/2761/comments" -f body="$body" >/dev/null
+
+          {
+            printf 'Guarded V4 rebind diagnostic for `%s`:\n\n```text\n' "$GITHUB_SHA"
+            cat /tmp/diagnostic.txt
+            printf '\n```\n\nNo source publication, branch rewrite, host mutation, payment, or funds action occurred.\n'
+          } > /tmp/comment.md
+
+          jq -n --rawfile body /tmp/comment.md '{body:$body}' > /tmp/comment.json
+          gh api --method POST "/repos/$REPOSITORY/issues/2761/comments" \
+            --input /tmp/comment.json >/dev/null
+          echo "VOID_PR2761_DIAGNOSTIC_COMMENT_PUBLISHED_V2"
 
       - name: Preserve fail-closed result
         if: always()
