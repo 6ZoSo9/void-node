@@ -752,10 +752,12 @@ async function decision(f, method, request) {
     const nestedFixture = {
       ...f, options: { ...f.options, custody_root: nested },
     };
-    const nestedResult = await decision(nestedFixture, "inspect", {});
-    assert.equal(nestedResult.ok, false);
-    assert.equal(nestedResult.reason, "allocation_custody_service_observation_unqualified");
-    assert.equal(nestedResult.operation_performed, false);
+    await assert.rejects(
+      () => decision(nestedFixture, "inspect", {}),
+      /allocation_custody_service_paths_not_separated/u,
+    );
+    assert.equal(fs.readFileSync(ledgerFile, "utf8"), "");
+    assert.equal(fs.readFileSync(highFile, "utf8"), f.genesisHighWater);
     cases++;
 
     // Imports and inspect do not recover pre-existing publication intentions.
