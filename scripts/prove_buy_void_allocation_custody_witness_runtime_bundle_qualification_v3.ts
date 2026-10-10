@@ -122,13 +122,13 @@ assert.equal(ok.funds_movement, false);
   expectHeld(value, /witness_runtime_bundle_v3_identity_invalid/u);
 }
 {
-  const value = fixture();
+  const value: any = fixture();
   value.files[4].sha256 =
     "sha256:af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f";
   expectHeld(value, /witness_runtime_bundle_v3_file_invalid/u);
 }
 {
-  const value = fixture();
+  const value: any = fixture();
   value.files[5].sha256 =
     "sha256:ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6";
   expectHeld(value, /witness_runtime_bundle_v3_file_invalid/u);
