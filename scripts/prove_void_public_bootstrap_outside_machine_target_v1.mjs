@@ -133,6 +133,8 @@ try {
   assert.match(workflowSource, /--max-time "\$curl_max_s"/);
   assert.match(workflowSource, /timeout -k 1s "\$remaining_s" node/);
   assert.match(workflowSource, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/);
+  assert.match(workflowSource, /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_STARTUP_CONTENT_SEAL_HOLD_V1/);
+  assert.match(workflowSource, /tail -c 65536 "\$LOG"/);
   assert.match(
     workflowSource,
     /sleep "\$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_GRACE_SECONDS"/,
@@ -205,6 +207,60 @@ try {
     assert.ok(Date.now() - started < 7_500, scenario + " overshot bounded fixture");
   }
 
+  // Run the actual workflow loop against synthetic fatal logs and inert
+  // command stubs. The wrapper PID is still alive in these fixtures.
+  const startupSealError = "Error: VOID_SEGSTORE_PATH_CONFINEMENT_V1: " +
+    "inherited proc-fd content seal mismatch expected=" +
+    "a".repeat(64) + " actual=" + "b".repeat(64);
+  const startupSealMarker = "VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_STARTUP_CONTENT_SEAL_HOLD_V1";
+  for (const [scenario, initialLog, curlStub, exitStatus] of [
+    ["seal_error_preexisting", startupSealError + "\n",
+      "#!/bin/sh\nprintf '{}\\n'\n", 2],
+    ["seal_error_after_first_failed_curl", "",
+      "#!/bin/sh\nprintf '%s\\n' '" + startupSealError +
+      "' >> \"$LOG\"\nexit 28\n", 2],
+    ["nonfatal_warning_does_not_hold",
+      "Warning: VOID_SEGSTORE_PATH_CONFINEMENT_V1: inherited proc-fd content seal mismatch\n",
+      "#!/bin/sh\nprintf '{}\\n'\n", 0],
+  ]) {
+    fs.writeFileSync(path.join(tmp, "node.log"), initialLog, { mode: 0o600 });
+    fs.writeFileSync(fakeCurl, curlStub, { mode: 0o700 });
+    const started = Date.now();
+    const observed = spawnSync("bash", [
+      "-c", "set -Eeuo pipefail\n" + waitBody +
+        '\nprintf "accepted=%s\\n" "$GREEN"\n',
+    ], {
+      cwd: tmp,
+      encoding: "utf8",
+      timeout: 7_000,
+      env: {
+        PATH: fakeBin + ":" + process.env.PATH,
+        PID: String(process.pid),
+        READY: path.join(tmp, "ready.json"),
+        LOG: path.join(tmp, "node.log"),
+        VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_WAIT_SECONDS: "3",
+        VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD: "1951058",
+      },
+    });
+    assert.equal(observed.error, undefined, scenario);
+    assert.equal(observed.status, exitStatus, scenario + ": " + observed.stderr);
+    assert.ok(Date.now() - started < 6_500, scenario + " exceeded bounded test");
+    if (exitStatus === 2) {
+      assert.ok(observed.stderr.includes(startupSealMarker),
+        scenario + ": no early startup HOLD");
+      assert.doesNotMatch(observed.stderr,
+        /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_READY_DEADLINE_EXCEEDED_V1/,
+        scenario);
+      assert.equal(observed.stderr.includes(startupSealError), false,
+        scenario + ": raw node error should stay in sanitized evidence");
+    } else {
+      assert.match(observed.stdout, /accepted=1/, scenario);
+      assert.doesNotMatch(observed.stderr,
+        /VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_STARTUP_CONTENT_SEAL_HOLD_V1/,
+        scenario);
+    }
+  }
+
   assert.doesNotMatch(workflowSource, /Number\(body\.head\) <= 0\) process\.exit\(1\)/);
 
   console.log("verified_remote_manifest_identity_bound=true");
@@ -220,6 +276,10 @@ try {
   console.log("acceptance_readiness_wait_seconds=2400");
   console.log("acceptance_wait_real_elapsed_monotonic_bound=true");
   console.log("slow_ready_and_late_success_deadline_adversaries_hold=true");
+  console.log("fatal_seal_rejection_fails_before_40_minute_deadline=true");
+  console.log("fatal_seal_detected_before_or_after_first_poll=true");
+  console.log("nonfatal_seal_warning_is_not_a_fatal_exception=true");
+  console.log("raw_node_log_not_echoed_by_fail_fast_guard=true");
   console.log("post_ready_grace_seconds=30");
   console.log("restore_timeout_plus_start_margin_lt_readiness_wait=true");
   console.log("prestart_plus_readiness_plus_grace_lt_job_timeout=true");
