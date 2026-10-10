@@ -189,6 +189,7 @@ const TYPED_ARRAY_LENGTH_GETTER_V1 =
 const TYPED_ARRAY_BUFFER_GETTER_V1 =
   Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "buffer")?.get;
 const TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
+const TYPED_ARRAY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
 
 function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
   const invalid = () => fail(label + "_bytes_invalid");
@@ -263,24 +264,40 @@ function exactOwnFieldsV1(
 function rows(bytes: Buffer, label: string): HistoryRow[] {
   const detached = detachedJsonlBytesV1(bytes, label);
   if (detached.length === 0) return [];
-  const text = UTF8.decode(detached);
-  if (!text.endsWith("\n") || text.includes("\r")) fail(label + "_truncated_or_noncanonical");
-  const lines = text.slice(0, -1).split("\n");
-  if (lines.length > MAX_ROWS) fail(label + "_too_many_rows");
-  // A swapped Array.prototype.map can elide the earliest buyer snapshot.
-  // Preserve every own row slot, bypassing inherited numeric setters too.
-  const parsed: HistoryRow[] = new Array(lines.length);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = ownArrayIndexV1(lines, index, label + "_history_slot_invalid");
-    if (typeof line !== "string" || !line) fail(label + "_empty_row");
+  // Validate the entire UTF-8 stream first, preserving the original fatal
+  // decoder boundary even when a malformed later row follows a valid row.
+  UTF8.decode(detached);
+  if (detached[detached.length - 1] !== 0x0a) {
+    fail(label + "_truncated_or_noncanonical");
+  }
+  // A mutable String.prototype.split/slice/endsWith can suppress R0 before
+  // any Array own-slot checks. Frame each row using the detached byte indices;
+  // never consult a string prototype to select the first buyer snapshot.
+  const parsed: HistoryRow[] = [];
+  let rowStart = 0;
+  let rowIndex = 0;
+  for (let cursor = 0; cursor < detached.length; cursor += 1) {
+    const octet = detached[cursor];
+    if (octet === 0x0d) fail(label + "_truncated_or_noncanonical");
+    if (octet !== 0x0a) continue;
+    if (rowIndex >= MAX_ROWS) fail(label + "_too_many_rows");
+    if (cursor === rowStart) fail(label + "_empty_row");
+    const lineBytes = Reflect.apply(
+      TYPED_ARRAY_SUBARRAY_V1, detached, [rowStart, cursor],
+    ) as Uint8Array;
+    const line = UTF8.decode(lineBytes);
+    if (!line) fail(label + "_empty_row");
     let value: unknown;
     try { value = JSON.parse(line); } catch { fail(label + "_json_invalid"); }
     if (!isRow(value) || JSON.stringify(value) !== line) fail(label + "_noncanonical_row");
-    Object.defineProperty(parsed, String(index), {
+    Object.defineProperty(parsed, String(rowIndex), {
       value: { row: value, exactLine: line },
       enumerable: true, writable: false, configurable: false,
     });
+    rowIndex += 1;
+    rowStart = cursor + 1;
   }
+  if (rowStart !== detached.length) fail(label + "_truncated_or_noncanonical");
   return parsed;
 }
 
