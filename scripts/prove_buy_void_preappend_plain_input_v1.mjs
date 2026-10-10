@@ -88,7 +88,7 @@ assert.equal(ordinary.status, "ready");
 assert.equal(ordinary.operation_performed, false);
 assert.equal(ordinary.payment_verified_event_sha256, expectedEventSha);
 assert.equal(ordinary.authority.production_gate_ready, false);
-assert.equal(ordinary.authority.independently_proven_event_fsync, false);
+assert.equal(ordinary.authority.payment_verified_append, false);
 assert.equal(ordinary.authority.allocation_write, false);
 assert.equal(ordinary.authority.funds_movement, false);
 
