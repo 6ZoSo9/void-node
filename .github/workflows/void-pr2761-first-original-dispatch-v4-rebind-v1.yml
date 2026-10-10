@@ -1,4 +1,4 @@
-name: VOID PR2761 first-original dispatcher V4 rebind v1
+name: VOID PR2761 first-original dispatcher V4 diagnostic v1
 
 on:
   push:
@@ -8,39 +8,37 @@ on:
       - .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
 
 concurrency:
-  group: void-pr2761-first-original-dispatch-v4-rebind-v1
+  group: void-pr2761-first-original-dispatch-v4-diagnostic-v1
   cancel-in-progress: false
 
 jobs:
-  rebind:
+  diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - name: Checkout exact staging commit
+      - name: Checkout exact diagnostic commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Author and publish reviewed successor
+      - name: Reproduce author phase without publishing
+        id: reproduce
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: 5313dbee1f57cc8e8f7d1e8295b1a1e88de85d7c
+          EXPECTED_PARENT: 8a2ea4688c693540e6733276410fae3efbccf377
           STAGER: .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
         shell: bash
         run: |
           set -Eeuo pipefail
-
           test "$GITHUB_REF_NAME" = "$EXPECTED_BRANCH"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only "$EXPECTED_PARENT" HEAD)" = "$STAGER"
-
-          git config user.name "VOID Repository Bot"
-          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -62,83 +60,42 @@ jobs:
           Path("/tmp/void-pr2761-author.py").write_text(body, encoding="utf-8")
           PY
 
-          python3 /tmp/void-pr2761-author.py
+          set +e
+          python3 /tmp/void-pr2761-author.py > /tmp/author.log 2>&1
+          rc=$?
+          set -e
 
-          python3 - <<'PY'
-          from pathlib import Path
+          {
+            echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_DIAGNOSTIC_V1"
+            echo "head=$GITHUB_SHA"
+            echo "author_rc=$rc"
+            echo "changed_paths_begin"
+            git status --short
+            echo "changed_paths_end"
+            echo "author_log_begin"
+            cat /tmp/author.log
+            echo "author_log_end"
+          } | tee /tmp/diagnostic.txt
 
-          path = Path(".github/workflows/buy-void-first-original-dispatch-compose-v1.yml")
-          text = path.read_text(encoding="utf-8")
+          echo "author_rc=$rc" >> "$GITHUB_OUTPUT"
 
-          text = text.replace(
-              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"\n'
-              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
-              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"\n'
-              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
-              1,
-          )
-          text = text.replace(
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"\n'
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"\n'
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
-              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
-              1,
-          )
-          text = text.replace(
-              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \\\n'
-              '            > "$RUNNER_TEMP/current-crash-v4.json"',
-              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs \\\n'
-              '            > "$RUNNER_TEMP/current-crash-v4.json"',
-              1,
-          )
-          text = text.replace(
-              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \\\n'
-              '            | tee "$RUNNER_TEMP/handoff.txt"',
-              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \\\n'
-              '            | tee "$RUNNER_TEMP/handoff.txt"',
-              1,
-          )
-          path.write_text(text, encoding="utf-8")
-          PY
+      - name: Publish bounded diagnostic to PR 2761
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f /tmp/diagnostic.txt
+          bytes="$(wc -c < /tmp/diagnostic.txt | tr -d ' ')"
+          test "$bytes" -le 20000
+          body="$(printf 'Guarded V4 rebind diagnostic for `%s`:\n\n```text\n%s\n```\n\nNo source publication, branch rewrite, host mutation, payment, or funds action occurred.' "$GITHUB_SHA" "$(cat /tmp/diagnostic.txt)")"
+          gh api --method POST "/repos/$REPOSITORY/issues/2761/comments" -f body="$body" >/dev/null
 
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm run typecheck
-          npm run build
-
-          if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > /tmp/frozen-handoff-v2.txt 2>&1; then
-            echo "UNEXPECTED_FROZEN_HANDOFF_V2_ACCEPTANCE" >&2
-            exit 1
-          fi
-          grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' /tmp/frozen-handoff-v2.txt
-
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs > /tmp/crash-v4.json
-          grep -F '"marker": "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4"' /tmp/crash-v4.json
-
-          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts | tee /tmp/handoff-v3.txt
-          grep -Fx 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN' /tmp/handoff-v3.txt
-          grep -Fx 'frozen_first_original_v2_proof_unchanged=true' /tmp/handoff-v3.txt
-          grep -Fx 'production_gate_ready=false' /tmp/handoff-v3.txt
-          grep -Fx 'funds_movement=false' /tmp/handoff-v3.txt
-
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts | tee /tmp/dispatch.txt
-          grep -Fx 'mounted_verified_allocation_dispatch=false' /tmp/dispatch.txt
-          grep -Fx 'funds_moved=false' /tmp/dispatch.txt
-
-          rm -- "$STAGER"
-          git add -A
-          git diff --cached --check
-
-          expected_paths="$({ printf '%s\n' \
-            .github/workflows/buy-void-first-original-dispatch-compose-v1.yml \
-            docs/architecture/buy-void-first-original-dispatch-compose-v1.md \
-            scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \
-            "$STAGER"; } | sort)"
-          actual_paths="$(git diff --cached --name-only | sort)"
-          test "$actual_paths" = "$expected_paths"
-
-          git commit -m "test(econ): advance first-original dispatcher composition to V4"
-          test "$(git rev-parse HEAD^)" = "$GITHUB_SHA"
-          test "$(git ls-remote origin "refs/heads/$EXPECTED_BRANCH" | awk '{print $1}')" = "$GITHUB_SHA"
-          git push origin "HEAD:refs/heads/$EXPECTED_BRANCH"
+      - name: Preserve fail-closed result
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "${{ steps.reproduce.outputs.author_rc }}" = "0"
