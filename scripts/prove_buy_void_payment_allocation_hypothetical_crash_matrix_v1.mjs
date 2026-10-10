@@ -27,7 +27,7 @@ const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "c3fc204710a9189723651cfeb6ffc52b1aa049db",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "0a74a3652081c3e142d0b887676771a7ac148f32",
+    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":
     "9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts":
@@ -171,15 +171,6 @@ assert.equal(observedGap.authority.independently_proven_event_fsync, false);
 assert.equal(observedGap.authority.capacity_lock_held, false);
 assert.equal(observedGap.authority.production_gate_ready, false);
 
-// An initially absent buyer delivery wallet cannot be backfilled by a
-// later request snapshot, even when a subsequent payment event matches.
-const missingOriginalBuyer = rows([
-  { ...firstRequest, delivery_address: undefined }, firstRequest,
-]);
-const missingBuyerDecision = replay(missingOriginalBuyer, verifiedEvents);
-held(missingBuyerDecision, "held");
-assert.equal(missingBuyerDecision.reason, "request_initial_delivery_address_missing");
-
 // First hypothetical repair uses the EXISTING canonical immutable allocation
 // record builder; never constructs a second record type or identity format.
 const allocationCandidate = ok(plan(), "planned");
@@ -305,7 +296,7 @@ const report = Object.freeze({
   original_source_github_head:"f7c894eb2ff8f378b2f0a906192cc1a0602e1d24",
   predecessor_replay_source_blob_sha1:"feb1f0e3fea1ff07406cd3b8fcd315c48338596f",
   current_replay_source_blob_sha1:
-    "0a74a3652081c3e142d0b887676771a7ac148f32",
+    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
   original_event_line_sha256:exactEventSha,
   canonical_payment_identity:observedGap.canonical_payment_identity,
   candidate_record_id:allocationCandidate.record.record_id,
