@@ -1,6 +1,16 @@
 name: VOID Buy VOID current presale source tuple V3 — review only
 
 on:
+  # Read-only exact-branch qualification remains possible while this
+  # stacked PR has a merge conflict and pull_request checks cannot run.
+  # This push trigger is scoped to this one review branch and proof files.
+  push:
+    branches:
+      - ren/current-presale-source-tuple-v3-transparent-review-20261010
+    paths:
+      - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts"
+      - ".github/workflows/buy-void-runtime-integration-v1.yml"
   pull_request:
     paths:
       - "src/economic/buy_void_preappend_plain_input_v1.ts"
