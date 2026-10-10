@@ -5,8 +5,29 @@ Marker: `VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1`
 Status: **source-only candidate / production HOLD**. This package is a reviewed
 installation *planning contract*, not a service installer. It creates no
 systemd unit, socket, Polkit policy, directory, lock, receipt, wallet operation,
-transaction or public economic authority. The sole CLI operation is `--plan`.
-`--apply`, `--install` and other mutation-like modes fail closed with exit 2.
+transaction or public economic authority. Its read-only CLI operations are
+`--plan` (the historical October 7 V1 plan) and `--plan-v2` (the inspected-service
+diagnostic V2). `--apply`, `--install` and other mutation-like modes fail closed
+with exit 2.
+
+## Versioned planning identity — October 10, 2026
+
+The original V1 plan is independently retrievable using no argument or `--plan`.
+It retains schema `void.buy.allocation.custody.bootstrap.plan.v1`, the V1 marker,
+`version=1`, all original source/contract imports, **5,898 output bytes**, and
+original plan digest
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+Its exact formatted wire SHA-256 is
+`db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf`.
+The source proof asserts both identities and byte-for-byte CLI preservation.
+
+The inspected-service candidate is obtained **only** using `--plan-v2`.
+It has its own `.v2` schema, V2 marker, `version=2`, and a separately computed
+plan digest; its `historical_v1_plan_sha256` field binds the unchanged V1
+predecessor. It preserves the newer inspection-service, contract and reader
+source pins and complete static import checks. Both plans remain
+`HOLD_SOURCE_ONLY`: neither generates `ExecStart`, installs a service, accepts
+payment, authorizes custody writes or constitutes host attestation.
 
 ## Problem it resolves at the planning layer
 

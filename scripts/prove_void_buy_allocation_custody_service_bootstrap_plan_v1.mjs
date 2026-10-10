@@ -10,14 +10,33 @@ import {
   VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_AUTHORITY_V1,
   VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1,
   classifyBuyAllocationCustodyServiceBootstrapPlanV1,
+  classifyBuyAllocationCustodyServiceBootstrapPlanV2,
+  VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
 } from "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tool = path.resolve(here, "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs");
 const source = readFileSync(tool, "utf8");
 const fixture = VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1;
-const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
-assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+const historicalV1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
+const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV2(fixture);
+assert.equal(historicalV1.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
+assert.equal(historicalV1.schema, "void.buy.allocation.custody.bootstrap.plan.v1");
+assert.equal(historicalV1.version, 1);
+assert.equal(historicalV1.plan_sha256,
+  "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348");
+const historicalV1Wire = JSON.stringify(historicalV1, null, 2) + "\n";
+assert.equal(Buffer.byteLength(historicalV1Wire, "utf8"), 5898,
+  "historical V1 output length must remain unchanged");
+assert.equal(createHash("sha256").update(historicalV1Wire).digest("hex"),
+  "db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf",
+  "historical V1 output must remain byte-identical");
+assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2);
+assert.equal(decision.schema, "void.buy.allocation.custody.bootstrap.plan.v2");
+assert.equal(decision.version, 2);
+assert.equal(decision.historical_v1_plan_sha256, historicalV1.plan_sha256);
+assert.deepEqual(decision.candidate.predecessor_candidate, historicalV1.candidate);
+assert.notEqual(decision.plan_sha256, historicalV1.plan_sha256);
 assert.equal(decision.status, "HOLD_SOURCE_ONLY");
 assert.equal(decision.observation_trusted_as_authority, false);
 assert.equal(decision.source_head_verified_against_remote, false);
@@ -562,7 +581,10 @@ assert.deepEqual(
 );
 
 const reversedKeys = Object.fromEntries(Object.entries(fixture).reverse());
-assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256, decision.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256,
+  historicalV1.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV2(reversedKeys).plan_sha256,
+  decision.plan_sha256);
 
 for (const bad of [
   {},
@@ -587,14 +609,19 @@ const run = (args) => spawnSync(process.execPath, [tool, ...args], {
 });
 const plan = run(["--plan"]);
 assert.equal(plan.status, 0, plan.stderr);
-assert.deepEqual(JSON.parse(plan.stdout), decision);
+assert.equal(plan.stdout, historicalV1Wire);
+assert.deepEqual(JSON.parse(plan.stdout), historicalV1);
 const defaultPlan = run([]);
 assert.equal(defaultPlan.status, 0, defaultPlan.stderr);
-assert.deepEqual(JSON.parse(defaultPlan.stdout), decision);
+assert.equal(defaultPlan.stdout, historicalV1Wire);
+assert.deepEqual(JSON.parse(defaultPlan.stdout), historicalV1);
+const inspectedV2Cli = run(["--plan-v2"]);
+assert.equal(inspectedV2Cli.status, 0, inspectedV2Cli.stderr);
+assert.deepEqual(JSON.parse(inspectedV2Cli.stdout), decision);
 const help = run(["--help"]);
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /no --apply/u);
-for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"]]) {
+for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"], ["--plan-v2", "--apply"], ["--plan-v2", "extra"]]) {
   const refused = run(args);
   assert.equal(refused.status, 2, JSON.stringify({args, stderr: refused.stderr}));
   assert.equal(refused.stdout, "");
@@ -620,15 +647,23 @@ const canonical = v => {
 const { plan_sha256, ...body } = decision;
 const exactId = "sha256:" + createHash("sha256").update(canonical(body)).digest("hex");
 assert.equal(plan_sha256, exactId);
-const historicalBody = { ...body, candidate: decision.candidate.predecessor_candidate };
+const { plan_sha256: historicalId, ...historicalBody } = historicalV1;
 assert.equal(
   "sha256:" + createHash("sha256").update(canonical(historicalBody)).digest("hex"),
-  "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348",
-  "entire pre-inspection candidate and Oct7 observation must remain historical",
+  historicalId,
+  "entire original pre-inspection candidate and Oct7 observation must remain historical",
 );
-assert.notEqual(plan_sha256, "sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348");
+assert.notEqual(plan_sha256, historicalId);
+const v2AllTrue = classifyBuyAllocationCustodyServiceBootstrapPlanV2(candidateAllTrue);
+assert.equal(v2AllTrue.production_gate_ready, false);
+assert.equal(v2AllTrue.status, "HOLD_SOURCE_ONLY");
+assert.equal(v2AllTrue.executable_unit_emitted, false);
+assert.deepEqual(v2AllTrue.authority, historicalV1.authority);
 
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1_SOURCE_GREEN");
+console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2_SOURCE_GREEN");
+console.log("historical_v1_cli_bytes_unchanged=true");
+console.log("diagnostic_v2_schema_marker_version_distinct=true");
 console.log("inspection_dependency_review_cases=" + readerCases);
 console.log("inspection_reader_source_and_imports_bound=true");
 console.log("historical_bootstrap_candidate_preserved=true");
