@@ -47,8 +47,11 @@ assert.equal(
 const frozenV2ProofBytes = fs.readFileSync(
   "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts",
 );
-assert.equal(gitBlob(frozenV2ProofBytes), FROZEN_DISPATCH_PROOF_V2_GIT_BLOB,
-  "immutable dispatcher V2 proof changed");
+assert.equal(
+  gitBlob(frozenV2ProofBytes),
+  FROZEN_DISPATCH_PROOF_V2_GIT_BLOB,
+  "immutable dispatcher V2 proof changed",
+);
 
 function input(overrides: Record<string, any> = {}): any {
   return {

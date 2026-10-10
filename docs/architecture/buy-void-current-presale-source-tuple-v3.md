@@ -1,96 +1,40 @@
-# Current Buy VOID presale source proof V3 — transparent review successor
+# Current Buy VOID presale source tuple V3
 
-This Draft is stacked on the cumulative [#2761](https://github.com/6ZoSo9/void-node/pull/2761)
-at checked source head `b672df7bd21971cc2e8c60261d853db67bcd3205`.
-This is **review evidence only**, not a production presale activation.
+This successor binds the cumulative source at `e33959c711902cc30d61ac2b0e74caa4673a87e9` after both
+inherited-array setter repairs. Accepted predecessor proofs remain
+byte-identical and are required to refuse the changed source.
 
-## Why a transparent successor is required
+Current source identities:
 
-The branch's one-shot author workflow
-`.github/workflows/void-pr2761-current-presale-successor-author-v1.yml`
-embedded 20,149 decoded bytes of gzip/base64 shell and requested GitHub
-`contents:write`. The exact [push run #38075176705](https://github.com/6ZoSo9/void-node/actions/runs/38075176705)
-failed before generating anything: `author.sh: line 3: EXPECTED_BRANCH:
-unbound variable`. The required `EXPECTED_BRANCH`, `EXPECTED_PARENT`,
-and `STAGER` values were not supplied. Its design also would push a new
-commit from CI without separately completed PR-head workflows. The narrow
-replacement in this Draft deletes only that failed opaque auto-author
-workflow and adds fully readable Git-tracked source successors and a
-**read-only** review workflow. It never performs a CI push.
+- preappend plain-input: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`;
+- operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
+- dispatcher V3 proof: `df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f`;
+- first-original handoff V4 proof: `d33adb6d84fc96a9f65acbf319391c5d771f3a2d`;
+- crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`.
 
-## Three historical proof successors
+The mounted operator route remains payment-only. Custody reserve/recover,
+installed Nimo V2, real payment acceptance, presale activation and funds
+movement remain false.
 
-All predecessor proof source blobs remain unmodified and are checked at
-runtime. The new source exact tuple is:
+## Dual-rail V3 synthetic handoff binding — October 10
 
-- Preappend `src/economic/buy_void_preappend_plain_input_v1.ts`
-  Git blob `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`.
-- Operator allocation dispatcher
-  `src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts`
-  Git blob `eb4fb37c6073415228b312663c45a99d5015c727`.
-- Dispatcher proof V3 (new): Git blob
-  `5c5e105b87d4ba4cbc39c0e027c11ac20352a437`;
-  historical V1 and V2 remain byte-for-byte frozen and must HOLD when
-  applied to the successor.
-- First-original handoff proof V4 (new): Git blob
-  `d33adb6d84fc96a9f65acbf319391c5d771f3a2d`;
-  historical V2/V3 remain frozen and mismatched-source HOLD applies.
-- Crash matrix proof V5 (new): Git blob
-  `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
-  historical V1/V2/V3/V4 remain frozen. It pins combined source last-change
-  commit `e33959c711902cc30d61ac2b0e74caa4673a87e9` and preserves
-  all production/money authority flags false.
+The current source successor
+`scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts`,
+Git blob `0fe46360aafce095123b6e25265c3dc300e52e41`, is added without
+changing runtime, wallet or customer source. It binds the current verified
+allocation replay source `435ed6000caad046f48fb318fbc7c865393f3b6c`
+and reservation ledger `66617a89d5ad9f81b5a21d98cca55fcda6902a80`.
 
-## Hosted independent qualification
+The historical dual-rail V2 proof is unchanged (Git blob
+`7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b`), and both current
+workflows require it to reject the successor's changed replay identity.
+The new proof uses disposable local files, separate synthetic Base and
+Ethereum payment identities, idempotent replay, original-buyer and native
+contract refusals. The existing Node22/24/26 source-tuple workflow compares
+four independent receipts (crash, original-buyer, dispatcher and dual-rail)
+byte-for-byte across all three versions.
 
-One new exact-head Node **22/24/26** workflow checks tracked Git hashes,
-installs dependencies with npm scripts disabled, typechecks and builds the
-actual source tree, requires three predecessor proofs to reject the changed
-source at their documented error markers, runs both preappend and dispatch
-inherited-array security regressions, then exercises each new successor
-against inert synthetic buyer/payment/allocation inputs. A downstream
-three-node job compares all receipt bytes, not only pass/fail messages.
-
-`permissions: contents: read` and `persist-credentials: false` prohibit
-automatic GitHub branch pushes in this workflow. The old hidden auto-author
-file is absent in the candidate tree, checked explicitly in CI.
-
-## What remains unproven
-
-This is **not** requalification of the frozen source/compiled/Nimo witness
-identities, original durable request origin, externally finalized native
-USDC payment, installed Nimo V2 authenticated transport, protected custody
-high-water, real capacity-serialized fsync of
-`payment_verified → allocation_reserved` or crash recovery. The currently
-mounted operator action is payment-only; custody reserve and recover still
-return explicit HOLD. An inert current-generation source tuple is necessary
-but insufficient for taking payment or releasing any VOID.
-
-Leave Draft/unmerged. No deployed host/service, customer/private ledger,
-wallet/signer/keys, transaction, Chain2050/WC, treasury/inventory/liquidity,
-coupled WC/VOID opening or funds movement. **PROTECT THE CORE.**
-
-## Reviewed dual-rail V3 successor (frozen V2 preserved)
-
-The source-only current-generation dual-rail proof
-`scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts`
-(immutable Git blob `0fe46360aafce095123b6e25265c3dc300e52e41`)
-reuses the historical V2 dual-rail's actual temporary-filesystem tests:
-separate Base/Ethereum canonical transaction identities, two durable
-synthetic payment/allocation rows, exact idempotent replay, missing original
-Ethereum wallet refusals, cross-rail aliasing, nonnative-contract rejection
-and late-tx/receiver acceptance. Only current replay/ledger source Git
-identities replace the frozen V2 source tuple; old proof V2 remains unchanged
-at `7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b` and MUST refuse new
-replay source `435ed6000caad046f48fb318fbc7c865393f3b6c` versus historical
-`0a74a3652081c3e142d0b887676771a7ac148f32`.
-
-The existing current-presale Node22/24/26 CI workflow now proves this V3
-and requires its complete transcript to match byte-for-byte across Nodes,
-in addition to current dispatcher V3, handoff V4, crash matrix V5 and their
-frozen-source negative controls. Broad Runtime Integration similarly requires
-frozen dual-rail V2's exact source mismatch and separately runs V3.
-
-**No live payment finality, installed operator or Nimo custody principal,
-protected high-water, production dispatcher mounting, coupled VOID/WC launch
-or funds authority is implied by synthetic temporary filesystem tests.**
+No live chain finality or customer receipt, signer, installed Nimo witness,
+separate custody-UID authority, payment-to-allocation routed dispatch,
+independent high-water durability, WC/VOID market, or funds are qualified.
+These remain HOLD until separately authorized, installed and accepted.
