@@ -6,9 +6,9 @@ Status: **source-only candidate / production HOLD**. This package is a reviewed
 installation *planning contract*, not a service installer. It creates no
 systemd unit, socket, Polkit policy, directory, lock, receipt, wallet operation,
 transaction or public economic authority. Its read-only CLI operations are
-`--plan` (the historical October 7 V1 plan) and `--plan-v2` (the inspected-service
-diagnostic V2). `--apply`, `--install` and other mutation-like modes fail closed
-with exit 2.
+`--plan` (the historical October 7 V1 plan), `--plan-v2` (the inspected-service
+diagnostic V2), and `--plan-v3` (the payment-provenance diagnostic V3).
+`--apply`, `--install` and other mutation-like modes fail closed with exit 2.
 
 ## Versioned planning identity — October 10, 2026
 
@@ -25,9 +25,18 @@ The inspected-service candidate is obtained **only** using `--plan-v2`.
 It has its own `.v2` schema, V2 marker, `version=2`, and a separately computed
 plan digest; its `historical_v1_plan_sha256` field binds the unchanged V1
 predecessor. It preserves the newer inspection-service, contract and reader
-source pins and complete static import checks. Both plans remain
-`HOLD_SOURCE_ONLY`: neither generates `ExecStart`, installs a service, accepts
-payment, authorizes custody writes or constitutes host attestation.
+source pins and complete static import checks.
+
+The payment-provenance successor is obtained **only** using `--plan-v3`. It has
+its own `.v3` schema, V3 marker, `version=3`, and
+`historical_v2_plan_sha256` binding the unchanged V2 predecessor. V3 pins the
+current service/contract tuple and the added descriptor-bound payment-history
+reader. It explicitly keeps the live request-root path, cross-UID read
+permissions, payment-capacity lock, and reserve mutation unqualified.
+
+All three plans remain `HOLD_SOURCE_ONLY`: none generates `ExecStart`, installs
+a service, accepts payment, authorizes custody writes or constitutes host
+attestation.
 
 ## Problem it resolves at the planning layer
 
@@ -103,17 +112,25 @@ or fake their later runtime evidence by marking a planning boolean `true`.
 
 ## Critical executable-closure prerequisite
 
-The current diagnostic generation `descriptor-inspection-20261010` references
-service source at `c7e5993bb5fd4d8fb402762a56925a9ce9e25518`. It retains
-the **two compiled** ESM modules from `dist/economic`:
+The historical V2 diagnostic generation `descriptor-inspection-20261010`
+references service source at
+`c7e5993bb5fd4d8fb402762a56925a9ce9e25518`. The current V3 diagnostic
+generation is `payment-provenance-bind-20261010`, rooted in reviewed branch
+state `5ed7dae3b4f799cde7d106d59f99a88eda753065`.
+
+V3 retains the **two historical compiled** ESM modules from `dist/economic`
+and adds the canonical verified-payment/allocation replay classifier:
 
 ~~~text
 buy_void_allocation_reservation_ledger_v1.js
 buy_void_allocation_reservation_high_water_v1.js
+buy_void_verified_allocation_replay_binding_v1.js
 ~~~
 
-It also imports the existing source reader
-`../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs`.
+It also imports the existing allocation-root reader
+`../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs`
+and the descriptor-bound payment-history reader
+`../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs`.
 Its remaining **static** ESM imports are exactly the reviewed built-ins
 `node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
 The source-only proof uses Node's ESM parser to compare **every static module
@@ -145,11 +162,11 @@ pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ec
 and contract
 `service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.
 
-The new candidate records service SHA-256
+The V2 candidate records service SHA-256
 `fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88`
 and contract SHA-256
 `676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5`.
-The reader is independently pinned to Git blob
+The allocation-root reader is independently pinned to Git blob
 `1bf88a403b1012ac00edaf634c5ed237a898043c` and SHA-256
 `a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979`.
 Its complete static import list is exactly `node:crypto`, `node:fs`,
@@ -157,13 +174,24 @@ Its complete static import list is exactly `node:crypto`, `node:fs`,
 The proof parses this reader without evaluation and tests missing/substituted
 service edges, changed reader bytes, and expanded reader dependencies.
 
-`predecessor_candidate` preserves the entire previous planning candidate.
-Replacing only the candidate in the current sample output with that preserved
-object reconstructs the original plan digest
+The V3 candidate separately pins current service SHA-256
+`4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18`
+and contract SHA-256
+`664c98528a05200c110ed27d4940b36d169a70e5e1da331bbcba77d52056465f`.
+The payment-history reader is pinned to Git blob
+`7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325` and SHA-256
+`a4d5882e61e702b45f7a07b2e73bd9276979301649c7fe387a7c0c5f3198eb9c`,
+with exact static imports `node:fs`, `node:path`, and `node:util`.
+The proof parses it without evaluation and rejects changed bytes or dependency
+expansion.
+
+Each successor preserves its complete predecessor candidate. V2 retains V1;
+V3 retains V2 and also carries `historical_v2_plan_sha256`. The original V1
+plan digest remains
 `sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
-The Oct7 observation and its interpretation are unchanged. The current plan
-gets a different digest; no prior receipt or witness identity is reassigned.
-This is a revision of an unaccepted diagnostic candidate, not an installer.
+The October 7 observation and its interpretation are unchanged. Each successor
+gets a distinct digest; no prior receipt or witness identity is reassigned.
+These are revisions of unaccepted diagnostic candidates, not installers.
 
 The reader's deployment requirements are now explicit planning data: nonroot
 Linux execution, accessible procfs `/proc/self/fd`, canonical simple-component
@@ -173,8 +201,11 @@ existing `mode & 0777` checks, not an additional assertion about special bits.
 `host_qualified=false` and `cross_root_atomic_snapshot_proven=false` remain
 mandatory. Nothing observes or changes an installed host to satisfy them.
 
-The IPC `reserve` and `recover` methods remain provenance-HOLD, and the service
-does not load the allocation publication writer. The two compiled modules
+The IPC `reserve` method now independently binds durable payment provenance,
+but remains mutation-HOLD at
+`allocation_custody_service_payment_capacity_lock_not_bound`. `recover`
+remains provenance-HOLD, and the service does not load the allocation
+publication writer or canonical allocation planner. The compiled modules
 may have their own transitive runtime imports: neither this top-level
 census nor a checksum of the untrusted candidate plan proves a protected
 executable closure, signed provenance or qualified host custody. Copying source
