@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$REVIEW_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "160294d74aefeac8275a882ed97a8a955701ec20"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "3fe371726bd4e2a9de61675ee868bf26d26d9a15"
       - name: Set up known Node major
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -64,6 +64,7 @@ jobs:
             VOID_FIRST_BUYER_REPLAY_OWN_ARRAY_HISTORY_V1_GREEN \
             first_snapshot_not_elided_by_ambient_map=true \
             first_snapshot_not_elided_by_ambient_iterator=true \
+            duplicate_exact_history_remains_held_under_poisoned_iterator=true \
             conflicting_rail_alias_rejected_under_ambient_every_some=true \
             extra_launch_authority_rejected_under_ambient_sort=true \
             malicious_map_positive_control_invocations=1 \

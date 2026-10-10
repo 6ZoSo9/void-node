@@ -40,6 +40,9 @@ const firstBuyerBytes=Buffer.from(
   JSON.stringify(initial)+"\n"+JSON.stringify(request)+"\n","utf8"
 );
 const completeBuyerBytes=Buffer.from(JSON.stringify(request)+"\n","utf8");
+const duplicateHistoryBytes=Buffer.from(
+  JSON.stringify(request)+"\n"+JSON.stringify(request)+"\n","utf8"
+);
 const eventBytes=Buffer.from(JSON.stringify(event)+"\n","utf8");
 const conflictBytes=Buffer.from(
   JSON.stringify({...request,payment_chain:"ethereum"})+"\n","utf8"
@@ -66,6 +69,7 @@ function held(result,expected) {
   assert.equal(result.authority.production_gate_ready,false);
 }
 held(classify(firstBuyerBytes),/request_initial_delivery_address_missing/u);
+held(classify(duplicateHistoryBytes),/request_history_duplicate_snapshot/u);
 const normal=classify(completeBuyerBytes);
 assert.equal(normal.ok,false);
 assert.equal(normal.status,"verified_allocation_missing");
@@ -121,11 +125,21 @@ try {
         iteratorTrap++;
         return [this[1]][Symbol.iterator]();
       }
+      if(this.length===1 && typeof this[0]==="string" &&
+         this[0].includes(request.request_id) &&
+         this[0].startsWith("{")){
+        iteratorTrap++;
+        return [][Symbol.iterator]();
+      }
       return Reflect.apply(originals.iterator.value,this,[]);
     }
   });
   held(classify(firstBuyerBytes),/request_initial_delivery_address_missing/u);
-  assert.equal(iteratorTrap,0,"untrusted replay iterator was invoked");
+  held(classify(duplicateHistoryBytes),/request_history_duplicate_snapshot/u);
+  assert.equal(iteratorTrap,0,"untrusted replay or Set constructor iterator was invoked");
+  const droppedExactLine=Array.from([JSON.stringify(request)]);
+  assert.equal(droppedExactLine.length,0,"iterator control must remove one-row Set input");
+  assert.equal(iteratorTrap,1,"iterator control not armed");
   restore();
 
   Object.defineProperty(Array.prototype,"every",{
@@ -156,6 +170,7 @@ assert.equal(classify(firstBuyerBytes).reason,
 console.log("VOID_FIRST_BUYER_REPLAY_OWN_ARRAY_HISTORY_V1_GREEN");
 console.log("first_snapshot_not_elided_by_ambient_map=true");
 console.log("first_snapshot_not_elided_by_ambient_iterator=true");
+console.log("duplicate_exact_history_remains_held_under_poisoned_iterator=true");
 console.log("conflicting_rail_alias_rejected_under_ambient_every_some=true");
 console.log("extra_launch_authority_rejected_under_ambient_sort=true");
 console.log("malicious_map_positive_control_invocations=1");

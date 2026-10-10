@@ -28,7 +28,10 @@ The successor uses `ownArrayIndexV1` with exact own DATA descriptors
 to parse each split JSONL row into the same ordinal slot, avoiding
 `Array.prototype.map`, `push`, iterators, and inherited numeric setters.
 Request, verified-payment event, and allocation history traversal use
-indexed own slots. The immutable launch-authority nine-key shape and
+indexed own slots. Initial exact-line duplicate tracking uses a direct
+`Set.add(exactLine)` instead of `new Set([exactLine])`, which would
+consume an ambient Array.prototype iterator and could silently omit its
+first duplicate-evidence member. The immutable launch-authority nine-key shape and
 top-level classifier input shape use exact `Reflect.ownKeys` comparisons,
 not inherited `sort`. Fixed dual-rail aliases use direct Boolean
 comparisons instead of `some`/`every`.
@@ -38,9 +41,11 @@ an original request lacking a buyer wallet, a later backfill and a matching
 synthetic USDC verified event. The original missing buyer must still
 HOLD when an attacker swaps `Array.prototype.map` or
 `Array.prototype[Symbol.iterator]` to discard the first history row.
-A separate source-chain alias mismatch must HOLD even with corrupted
-`every/some`, and a forged extra launch-authority key must HOLD with
-corrupted `sort`. The proof also verifies an intact request's original
+The regression also checks that identical historical request snapshots
+remain rejected when an injected Array iterator would otherwise suppress
+the one-member `Set` constructor iterable. A separate source-chain alias
+mismatch must HOLD even with corrupted `every/some`, and a forged extra
+launch-authority key must HOLD with corrupted `sort`. The proof also verifies an intact request's original
 missing-allocation classification and restores every native prototype
 descriptor in `finally`.
 

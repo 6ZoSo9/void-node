@@ -360,7 +360,11 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
         initialLaunchAuthorityQualified: authority !== null,
         sourceAliasesQualified: aliasesQualified,
       });
-      previousLines.set(id, new Set([exactLine]));
+      // Construct duplicate-evidence membership without invoking an
+      // ambient Array.prototype iterator on a one-element literal.
+      const firstSeen = new Set<string>();
+      firstSeen.add(exactLine);
+      previousLines.set(id, firstSeen);
       continue;
     }
     const seen = previousLines.get(id);
