@@ -17,7 +17,7 @@ const SOURCE="src/economic/buy_void_custody_reserve_plan_v1.mjs";
 const EXPECTED_SOURCE_BLOB="c8ce5546fbe9a801161adbd7218888500ce346c9";
 const PINS=Object.freeze({
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "970e686cd96b43d496c44acb4ff343a5e61e26c5",
+    "0a74a3652081c3e142d0b887676771a7ac148f32",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "c3fc204710a9189723651cfeb6ffc52b1aa049db",
   "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts":
@@ -189,6 +189,15 @@ assert.equal(again.idempotent,true);
 assert.equal(again.next_ledger_jsonl,first.next_ledger_jsonl);
 assert.equal(again.allocation_record_id,first.allocation_record_id);
 
+// A wallet added in a later request snapshot cannot retroactively qualify
+// an original buyer request that did not identify a delivery address.
+const originalWithoutDelivery=Object.freeze({
+  ...request,delivery_address:undefined,
+});
+requireHeld(testOnlyPlanBuyVoidCustodyReserveV1({
+  ...base,requests_jsonl:buf([originalWithoutDelivery,request]),
+}),/request_initial_delivery_address_missing/u);
+
 const mismatchedLaunchRequest={
   ...request,
   launch_authority:{
@@ -300,6 +309,7 @@ console.log("signed_launch_v2_classifier_called_by_production_entry=true");
 console.log("planned_then_idempotent_exact_ledger=true");
 console.log("request_launch_lineage_mismatch_held=true");
 console.log("prior_verified_allocation_gap_held=true");
+console.log("original_buyer_delivery_wallet_required=true");
 console.log("production_input_exact_plain_data=true");
 console.log("production_byte_inputs_detached=true");
 console.log("activation_receipt_size_bounded=true");
