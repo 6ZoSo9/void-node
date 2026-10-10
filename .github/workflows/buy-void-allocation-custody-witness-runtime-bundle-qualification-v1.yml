@@ -14,6 +14,8 @@ on:
       - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.md"
       - "docs/architecture/buy-void-allocation-custody-witness-installation-qualification-v2.md"
       - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.yml"
@@ -30,6 +32,8 @@ on:
       - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.md"
       - "docs/architecture/buy-void-allocation-custody-witness-installation-qualification-v2.md"
       - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.yml"
@@ -42,13 +46,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run build
-      - run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
+      - name: Require original frozen V1 to refuse changed ledger source
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts \
+            > "$RUNNER_TEMP/frozen-original-v1.txt" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          grep -Fq 'reviewed runtime bundle file bytes changed: dist/economic/buy_void_allocation_reservation_ledger_v1.js' "$RUNNER_TEMP/frozen-original-v1.txt"
+          grep -Fq 'sha256:af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f' "$RUNNER_TEMP/frozen-original-v1.txt"
+          grep -Fq 'sha256:97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0' "$RUNNER_TEMP/frozen-original-v1.txt"
+          echo "VOID_ORIGINAL_WITNESS_V1_HISTORICAL_REFUSAL_GREEN"
+      - name: Prove independently derived current unaccepted V3
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs
+          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
+            | tee "$RUNNER_TEMP/nimo-v3-reviewed.txt"
+          grep -Fxq 'VOID_BUY_VOID_NIMO_COMBINED_V3_UNACCEPTED_SOURCE_GREEN' "$RUNNER_TEMP/nimo-v3-reviewed.txt"
+          grep -Fxq 'other_v2_runtime_files_unchanged=7/7' "$RUNNER_TEMP/nimo-v3-reviewed.txt"
+          grep -Fxq 'candidate_v3_installed_on_nimo=false' "$RUNNER_TEMP/nimo-v3-reviewed.txt"
+          grep -Fxq 'production_gate_ready=false' "$RUNNER_TEMP/nimo-v3-reviewed.txt"
       - run: npx tsx scripts/prove_buy_void_allocation_custody_witness_installation_qualification_v2.ts
       - run: npm run typecheck
       - run: git diff --check

@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs"
       - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
@@ -83,8 +84,52 @@ jobs:
       - name: Prove installed runtime-bundle evidence collector
         run: node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 
-      - name: Preserve canonical runtime-bundle qualification
-        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
+      - name: Preserve exact historical V1 failure on changed allocation ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts \
+            > "$RUNNER_TEMP/frozen-witness-v1.txt" 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 1
+          grep -Fq 'reviewed runtime bundle file bytes changed: dist/economic/buy_void_allocation_reservation_ledger_v1.js' "$RUNNER_TEMP/frozen-witness-v1.txt"
+          grep -Fq 'sha256:af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f' "$RUNNER_TEMP/frozen-witness-v1.txt"
+          grep -Fq 'sha256:97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0' "$RUNNER_TEMP/frozen-witness-v1.txt"
+          echo "VOID_FROZEN_NIMO_V1_RUNTIME_CORRECTLY_HELD_CURRENT_LEDGER"
+
+      - name: Prove independently identified unaccepted V3 source/runtime closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs
+          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
+            | tee "nimo-v3-unaccepted-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_NIMO_COMBINED_V3_UNACCEPTED_SOURCE_GREEN' \
+            'source_build_unchanged_since_v2=14/15' \
+            'other_v2_runtime_files_unchanged=7/7' \
+            'six_candidate_mutation_controls_hold=true' \
+            'original_frozen_v1_identity_preserved=true' \
+            'reviewed_v2_source_lock_preserved=true' \
+            'candidate_v3_installed_on_nimo=false' \
+            'authenticated_custody_principal_verified=false' \
+            'verified_payment_to_allocation_mounted=false' \
+            'production_gate_ready=false' \
+            'presale_activation=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "nimo-v3-unaccepted-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Upload proposed V3 source-only proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v3-unaccepted-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: nimo-v3-unaccepted-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Typecheck repository
         run: npm run typecheck
@@ -96,3 +141,27 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  compare-v3:
+    name: Compare three unaccepted V3 source/compiled receipts
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact-head Node22/24/26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-v3-unaccepted-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./candidate-receipts
+      - name: Require raw three-version byte agreement
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "candidate-receipts/nimo-v3-unaccepted-node-$v.txt"; done
+          cmp candidate-receipts/nimo-v3-unaccepted-node-22.txt candidate-receipts/nimo-v3-unaccepted-node-24.txt
+          cmp candidate-receipts/nimo-v3-unaccepted-node-22.txt candidate-receipts/nimo-v3-unaccepted-node-26.txt
+          echo "VOID_NIMO_V3_COMBINED_SOURCE_CROSS_NODE_GREEN"
+          echo "installed_nimo_v3_accepted=false"
+          echo "production_gate_ready=false"
+          echo "funds_moved=false"
