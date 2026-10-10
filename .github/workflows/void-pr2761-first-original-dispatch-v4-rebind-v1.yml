@@ -1,0 +1,153 @@
+name: VOID PR2761 first-original dispatcher V4 publish v1
+
+on:
+  push:
+    branches:
+      - ren/buy-void-preappend-detached-json-v1-20261010
+    paths:
+      - .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-pr2761-first-original-dispatch-v4-publish-v1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact publishing commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Author prove and publish current successor
+        env:
+          EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
+          EXPECTED_PARENT: d954bb5e3ede44d96b4377a708e26e48db407081
+          STAGER: .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REF_NAME" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git diff --name-only "$EXPECTED_PARENT" HEAD)" = "$STAGER"
+          git config user.name "VOID Repository Bot"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          source = subprocess.check_output([
+              "git", "show",
+              "5313dbee1f57cc8e8f7d1e8295b1a1e88de85d7c:.github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml",
+          ]).decode("utf-8")
+          opener = "          python3 - <<'PY'\n"
+          closer = "\n          PY\n"
+          start = source.index(opener) + len(opener)
+          end = source.index(closer, start)
+          lines = source[start:end].splitlines()
+          body = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in lines
+          ) + "\n"
+          old = 'workflow = replace_once(workflow, old_frozen, new_frozen, "frozen predecessor step")\n'
+          new = '''frozen_start = workflow.find("      - name: Frozen historical buyer crash proof must still HOLD\\n")
+          frozen_end = workflow.find("      - name: Current first-original crash/replay V2 must pass; frozen V1 stays rejected\\n", frozen_start)
+          if frozen_start < 0 or frozen_end <= frozen_start:
+              raise SystemExit("frozen predecessor structural markers missing")
+          workflow = workflow[:frozen_start] + new_frozen + workflow[frozen_end:]
+          '''
+          if body.count(old) != 1:
+              raise SystemExit(f"author patch target count={body.count(old)}")
+          Path("/tmp/void-pr2761-author.py").write_text(body.replace(old, new), encoding="utf-8")
+          PY
+
+          python3 /tmp/void-pr2761-author.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/buy-void-first-original-dispatch-compose-v1.yml")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"\n'
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"\n'
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
+              1,
+          )
+          text = text.replace(
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"',
+              1,
+          )
+          text = text.replace(
+              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs \\\n'
+              '            > "$RUNNER_TEMP/current-crash-v4.json"',
+              '          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs \\\n'
+              '            > "$RUNNER_TEMP/current-crash-v4.json"',
+              1,
+          )
+          text = text.replace(
+              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts \\\n'
+              '            | tee "$RUNNER_TEMP/handoff.txt"',
+              '          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \\\n'
+              '            | tee "$RUNNER_TEMP/handoff.txt"',
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+          if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > /tmp/frozen-handoff-v2.txt 2>&1; then
+            echo "UNEXPECTED_FROZEN_HANDOFF_V2_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' /tmp/frozen-handoff-v2.txt
+
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs > /tmp/crash-v4.json
+          grep -F '"marker": "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4"' /tmp/crash-v4.json
+
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts | tee /tmp/handoff-v3.txt
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN' /tmp/handoff-v3.txt
+          grep -Fx 'frozen_first_original_v2_proof_unchanged=true' /tmp/handoff-v3.txt
+          grep -Fx 'production_gate_ready=false' /tmp/handoff-v3.txt
+          grep -Fx 'funds_movement=false' /tmp/handoff-v3.txt
+
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts | tee /tmp/dispatch.txt
+          grep -Fx 'mounted_verified_allocation_dispatch=false' /tmp/dispatch.txt
+          grep -Fx 'funds_moved=false' /tmp/dispatch.txt
+
+          git diff --check
+          rm -- "$STAGER"
+          git add -A
+          git diff --cached --check
+
+          expected_paths="$({ printf '%s\n' \
+            .github/workflows/buy-void-first-original-dispatch-compose-v1.yml \
+            docs/architecture/buy-void-first-original-dispatch-compose-v1.md \
+            scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \
+            "$STAGER"; } | sort)"
+          actual_paths="$(git diff --cached --name-only | sort)"
+          test "$actual_paths" = "$expected_paths"
+
+          git commit -m "test(econ): advance first-original dispatcher composition to V4"
+          test "$(git rev-parse HEAD^)" = "$GITHUB_SHA"
+          remote_head="$(git ls-remote origin "refs/heads/$EXPECTED_BRANCH" | awk '{print $1}')"
+          test "$remote_head" = "$GITHUB_SHA"
+          git push origin "HEAD:refs/heads/$EXPECTED_BRANCH"
+          echo "VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_PUBLISHED"

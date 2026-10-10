@@ -5,8 +5,29 @@ Marker: `VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1`
 Status: **source-only candidate / production HOLD**. This package is a reviewed
 installation *planning contract*, not a service installer. It creates no
 systemd unit, socket, Polkit policy, directory, lock, receipt, wallet operation,
-transaction or public economic authority. The sole CLI operation is `--plan`.
-`--apply`, `--install` and other mutation-like modes fail closed with exit 2.
+transaction or public economic authority. Its read-only CLI operations are
+`--plan` (the historical October 7 V1 plan) and `--plan-v2` (the inspected-service
+diagnostic V2). `--apply`, `--install` and other mutation-like modes fail closed
+with exit 2.
+
+## Versioned planning identity — October 10, 2026
+
+The original V1 plan is independently retrievable using no argument or `--plan`.
+It retains schema `void.buy.allocation.custody.bootstrap.plan.v1`, the V1 marker,
+`version=1`, all original source/contract imports, **5,898 output bytes**, and
+original plan digest
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+Its exact formatted wire SHA-256 is
+`db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf`.
+The source proof asserts both identities and byte-for-byte CLI preservation.
+
+The inspected-service candidate is obtained **only** using `--plan-v2`.
+It has its own `.v2` schema, V2 marker, `version=2`, and a separately computed
+plan digest; its `historical_v1_plan_sha256` field binds the unchanged V1
+predecessor. It preserves the newer inspection-service, contract and reader
+source pins and complete static import checks. Both plans remain
+`HOLD_SOURCE_ONLY`: neither generates `ExecStart`, installs a service, accepts
+payment, authorizes custody writes or constitutes host attestation.
 
 ## Problem it resolves at the planning layer
 
@@ -82,15 +103,18 @@ or fake their later runtime evidence by marking a planning boolean `true`.
 
 ## Critical executable-closure prerequisite
 
-The canonical custody service after merged security patch #2606 imports
-exactly **two compiled** ESM modules from `dist/economic`:
+The current diagnostic generation `descriptor-inspection-20261010` references
+service source at `c7e5993bb5fd4d8fb402762a56925a9ce9e25518`. It retains
+the **two compiled** ESM modules from `dist/economic`:
 
 ~~~text
 buy_void_allocation_reservation_ledger_v1.js
 buy_void_allocation_reservation_high_water_v1.js
 ~~~
 
-Its other **static** ESM imports are exactly the reviewed built-ins
+It also imports the existing source reader
+`../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs`.
+Its remaining **static** ESM imports are exactly the reviewed built-ins
 `node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
 The source-only proof uses Node's ESM parser to compare **every static module
 specifier** against that explicit complete allowlist. It rejects new relative
@@ -116,14 +140,42 @@ across all ECMAScript line terminators (LF, CR, U+2028 and U+2029).
 The legacy linker census must agree with the parser's static dependency
 list; unsupported majors, unreviewed metadata or mismatch HOLD. Synthetic adversaries cover each
 case. An independent full service-byte digest also detects changes that a
-parser might not enumerate. The current source
+parser might not enumerate. The preserved **pre-inspection** candidate
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
 and contract
 `service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.
 
-The IPC `reserve` and `recover` methods remain provenance-HOLD, and this
-two-import source does not load the allocation publication writer. Those two
-modules may have their own transitive runtime imports: neither this top-level
+The new candidate records service SHA-256
+`fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88`
+and contract SHA-256
+`676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5`.
+The reader is independently pinned to Git blob
+`1bf88a403b1012ac00edaf634c5ed237a898043c` and SHA-256
+`a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979`.
+Its complete static import list is exactly `node:crypto`, `node:fs`,
+`node:path`, and `node:util`; no further local or package import is admitted.
+The proof parses this reader without evaluation and tests missing/substituted
+service edges, changed reader bytes, and expanded reader dependencies.
+
+`predecessor_candidate` preserves the entire previous planning candidate.
+Replacing only the candidate in the current sample output with that preserved
+object reconstructs the original plan digest
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+The Oct7 observation and its interpretation are unchanged. The current plan
+gets a different digest; no prior receipt or witness identity is reassigned.
+This is a revision of an unaccepted diagnostic candidate, not an installer.
+
+The reader's deployment requirements are now explicit planning data: nonroot
+Linux execution, accessible procfs `/proc/self/fd`, canonical simple-component
+paths, separate nonnested roots, owner-private root/file permission bits
+`0700`/`0600`, and single-link files. Permission bits here mean the reader's
+existing `mode & 0777` checks, not an additional assertion about special bits.
+`host_qualified=false` and `cross_root_atomic_snapshot_proven=false` remain
+mandatory. Nothing observes or changes an installed host to satisfy them.
+
+The IPC `reserve` and `recover` methods remain provenance-HOLD, and the service
+does not load the allocation publication writer. The two compiled modules
+may have their own transitive runtime imports: neither this top-level
 census nor a checksum of the untrusted candidate plan proves a protected
 executable closure, signed provenance or qualified host custody. Copying source
 from a mutable `/home/zoso/dev/void-node` checkout does **not** bind the
@@ -259,13 +311,13 @@ The proof rejects accessor/proxy/extra-key/caller-authority injections, verifies
 missing-host-gate diagnosis, confirms an all-true forged observation still
 cannot authorize production, requires an unresolved exact `ExecStart`, rejects
 `--apply`/`--install` modes, and checks the no-mutation authority contract.
-It also checks that the checked-out custody service's **top-level compiled
-ESM import specifiers** exactly match the frozen candidate list; removal or
-substitution causes proof failure, not silent deployment-plan reuse. This is
-not a review of transitive imports, not protected-executable qualification,
-and not host or payment authority. The #2604/#2606 reserve/recovery HOLD
-patches change that import list; rebind this plan to the reviewed final
-service source and compiled closure before promoting any host bootstrap.
+It also checks every static service import and the exact source reader bytes
+and imports. Removal or substitution causes proof failure, not silent reuse.
+The original parser, metadata, loader, CLI, observation and no-authority tests
+remain, with 14 additional dependency-review controls. This covers the newly
+imported reader, not the complete compiled transitive closure, protected
+executable installation, or host/payment authority. Review that full closure
+before any later host bootstrap; a source-only test cannot grant permission.
 All planned outcomes retain `production_gate_ready=false`.
 
 **PROTECT THE CORE.**
