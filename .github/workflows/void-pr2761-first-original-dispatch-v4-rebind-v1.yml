@@ -1,0 +1,303 @@
+name: VOID PR2761 first-original dispatcher V4 rebind v1
+
+on:
+  push:
+    branches:
+      - ren/buy-void-preappend-detached-json-v1-20261010
+    paths:
+      - .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: void-pr2761-first-original-dispatch-v4-rebind-v1
+  cancel-in-progress: false
+
+jobs:
+  rebind:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact staging commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Author current handoff successor and composition proof
+        env:
+          EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
+          EXPECTED_PARENT: 480173e7e44924cde38b4f8cddaa23284a882df0
+          STAGER: .github/workflows/void-pr2761-first-original-dispatch-v4-rebind-v1.yml
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test "$GITHUB_REF_NAME" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git diff --name-only "$EXPECTED_PARENT" HEAD)" = "$STAGER"
+
+          git config user.name "VOID Repository Bot"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          from pathlib import Path
+
+          def git_blob(data: bytes) -> str:
+              return hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+
+          def require_blob(path: Path, expected: str) -> bytes:
+              data = path.read_bytes()
+              actual = git_blob(data)
+              if actual != expected:
+                  raise SystemExit(f"blob mismatch {path}: {actual} != {expected}")
+              return data
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one occurrence, found {count}")
+              return text.replace(old, new)
+
+          v2_path = Path("scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts")
+          v3_path = Path("scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts")
+          workflow_path = Path(".github/workflows/buy-void-first-original-dispatch-compose-v1.yml")
+          doc_path = Path("docs/architecture/buy-void-first-original-dispatch-compose-v1.md")
+
+          if v3_path.exists():
+              raise SystemExit("V3 handoff successor already exists")
+
+          v2 = require_blob(v2_path, "9fb39172afa09e49c11d72ff376e9af2d99a4101").decode()
+          require_blob(Path("scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"),
+                       "3f91404c8f5b6897b0781455564b4ec26b480c03")
+          require_blob(Path("src/economic/buy_void_verified_allocation_replay_binding_v1.ts"),
+                       "435ed6000caad046f48fb318fbc7c865393f3b6c")
+          require_blob(Path("src/economic/buy_void_preappend_plain_input_v1.ts"),
+                       "4fbf115830dde01930631e73fea856abe0cceafa")
+          require_blob(Path("src/economic/buy_void_allocation_reservation_ledger_v1.ts"),
+                       "66617a89d5ad9f81b5a21d98cca55fcda6902a80")
+          require_blob(Path("src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"),
+                       "0e27a76e777c326d2d9e2b1550b7f2979fca9abb")
+          require_blob(Path("scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"),
+                       "e58bf39fadc25123771481608fad2a61a8f3133f")
+          require_blob(Path("src/economic/buy_void_verified_payment_capacity_admission_v1.ts"),
+                       "f591f7407d9afc2cf77e0f90923aa11b4817fd4e")
+          require_blob(workflow_path, "e5eb834b443d3da1f49a794342708cb271250c79")
+          require_blob(doc_path, "454b4b5d29815a034500e64c723ba61c9189e9fc")
+
+          v3 = replace_once(
+              v2,
+              "// First-original buyer V2 successor for the REAL source-only payment→allocation",
+              "// First-original buyer V3 successor for the REAL source-only payment→allocation",
+              "V3 header",
+          )
+          v3 = replace_once(
+              v3,
+              '  "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":\n    "0a74a3652081c3e142d0b887676771a7ac148f32",',
+              '  "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":\n    "435ed6000caad046f48fb318fbc7c865393f3b6c",\n'
+              '  "src/economic/buy_void_preappend_plain_input_v1.ts":\n    "4fbf115830dde01930631e73fea856abe0cceafa",',
+              "current replay and preappend closure",
+          )
+          v3 = replace_once(
+              v3,
+              '  "src/economic/buy_void_allocation_reservation_ledger_v1.ts":\n    "c3fc204710a9189723651cfeb6ffc52b1aa049db",',
+              '  "src/economic/buy_void_allocation_reservation_ledger_v1.ts":\n    "66617a89d5ad9f81b5a21d98cca55fcda6902a80",',
+              "current allocation source",
+          )
+          v3 = replace_once(
+              v3,
+              'const frozen=fs.readFileSync(path.join(ROOT,\n  "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"));',
+              'const frozenV2Handoff=fs.readFileSync(path.join(ROOT,\n'
+              '  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"));\n'
+              'assert.equal(gitBlob(frozenV2Handoff),\n'
+              '  "9fb39172afa09e49c11d72ff376e9af2d99a4101",\n'
+              '  "immutable first-original V2 handoff proof changed");\n'
+              'const frozen=fs.readFileSync(path.join(ROOT,\n'
+              '  "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"));',
+              "frozen V2 handoff identity",
+          )
+          v3 = replace_once(
+              v3,
+              'console.log("VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN");',
+              'console.log("VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN");\n'
+              'console.log("frozen_first_original_v2_proof_unchanged=true");',
+              "V3 terminal marker",
+          )
+          v3_path.write_text(v3, encoding="utf-8")
+          v3_blob = git_blob(v3_path.read_bytes())
+
+          workflow = workflow_path.read_text(encoding="utf-8")
+          workflow = replace_once(
+              workflow,
+              "name: VOID Buy VOID first-original buyer and dispatcher composition v1",
+              "name: VOID Buy VOID first-original buyer and dispatcher composition v2",
+              "workflow name",
+          )
+          workflow = replace_once(
+              workflow,
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"',
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"\n'
+              '      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"',
+              "handoff trigger closure",
+          )
+          workflow = replace_once(
+              workflow,
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"',
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"\n'
+              '      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"\n'
+              '      - "src/economic/buy_void_preappend_plain_input_v1.ts"',
+              "crash and preappend trigger closure",
+          )
+          workflow = workflow.replace(
+              'src/economic/buy_void_verified_allocation_replay_binding_v1.ts","0a74a3652081c3e142d0b887676771a7ac148f32"',
+              'src/economic/buy_void_verified_allocation_replay_binding_v1.ts","435ed6000caad046f48fb318fbc7c865393f3b6c"',
+          )
+          workflow = replace_once(
+              workflow,
+              '              ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts","9fb39172afa09e49c11d72ff376e9af2d99a4101"],',
+              f'              ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts","{v3_blob}"],\n'
+              '              ["scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts","9fb39172afa09e49c11d72ff376e9af2d99a4101"],\n'
+              '              ["src/economic/buy_void_preappend_plain_input_v1.ts","4fbf115830dde01930631e73fea856abe0cceafa"],',
+              "current handoff tuple",
+          )
+          workflow = replace_once(
+              workflow,
+              '              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs","d42148523c44d95d3b87236ade22cfb92dcb5bee"],',
+              '              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs","3f91404c8f5b6897b0781455564b4ec26b480c03"],\n'
+              '              ["scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs","d42148523c44d95d3b87236ade22cfb92dcb5bee"],',
+              "current crash tuple",
+          )
+          old_frozen = '''      - name: Frozen historical buyer crash proof must still HOLD
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs > "$RUNNER_TEMP/historic.txt" 2>&1; then
+            echo "UNEXPECTED_V1_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historic.txt"
+'''
+          new_frozen = '''      - name: Frozen historical crash and handoff proofs must still HOLD
+        run: |
+          set -euo pipefail
+          for v in 1 2 3; do
+            log="$RUNNER_TEMP/historic-crash-$v.txt"
+            if node "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v$v.mjs" > "$log" 2>&1; then
+              echo "UNEXPECTED_FROZEN_CRASH_V${v}_REISSUE" >&2
+              exit 1
+            fi
+            grep -F 'reviewed_source_blob_drift:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$log"
+          done
+          if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > "$RUNNER_TEMP/historic-handoff-v2.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_HANDOFF_V2_REISSUE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/historic-handoff-v2.txt"
+'''
+          workflow = replace_once(workflow, old_frozen, new_frozen, "frozen predecessor step")
+          workflow = workflow.replace(
+              "Current first-original crash/replay V2 must pass; frozen V1 stays rejected",
+              "Current first-original crash/replay V4 must pass; frozen V1/V2/V3 stay rejected",
+          )
+          workflow = workflow.replace(
+              "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs",
+              "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs",
+              1,
+          )
+          workflow = workflow.replace("current-crash-v2.json", "current-crash-v4.json")
+          workflow = workflow.replace(
+              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V2",
+              "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4",
+          )
+          workflow = replace_once(
+              workflow,
+              '              "frozen_historical_V1_proof_unchanged",',
+              '              "frozen_historical_V1_proof_unchanged",\n'
+              '              "frozen_historical_V2_proof_unchanged",\n'
+              '              "frozen_historical_V3_proof_unchanged",',
+              "V4 frozen receipt fields",
+          )
+          workflow = workflow.replace(
+              "Real temp filesystem first-original buyer handoff V2 proof",
+              "Real temp filesystem first-original buyer handoff V3 proof",
+          )
+          workflow = workflow.replace(
+              "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts",
+              "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts",
+              1,
+          )
+          workflow = workflow.replace(
+              "VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V2_GREEN",
+              "VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN",
+          )
+          workflow = workflow.replace(
+              'schema:"void_buy_void_first_original_buyer_dispatch_source_composition_v1"',
+              'schema:"void_buy_void_first_original_buyer_dispatch_source_composition_v2"',
+          )
+          workflow = workflow.replace("version:1", "version:2", 1)
+          workflow = workflow.replace(
+              'reviewed_first_original_buyer_git_blob_sha1:"0a74a3652081c3e142d0b887676771a7ac148f32"',
+              'reviewed_first_original_buyer_git_blob_sha1:"435ed6000caad046f48fb318fbc7c865393f3b6c"',
+          )
+          workflow = workflow.replace(
+              'reviewed_real_handoff_proof_git_blob_sha1:"9fb39172afa09e49c11d72ff376e9af2d99a4101"',
+              f'reviewed_real_handoff_proof_git_blob_sha1:"{v3_blob}"',
+          )
+          workflow_path.write_text(workflow, encoding="utf-8")
+
+          doc = doc_path.read_text(encoding="utf-8")
+          insertion = f'''\n## Current V4/V3 successor reconciliation — October 10, 2026\n\nThis section supersedes the historical source-generation description below for\nthe current cumulative review. Frozen crash V1/V2/V3 and first-original handoff\nV2 remain byte-identical and are required to refuse the current replay source.\nThe current accepted source-only tuple is:\n\n- replay binding Git blob `435ed6000caad046f48fb318fbc7c865393f3b6c`;\n- preappend plain-input Git blob `4fbf115830dde01930631e73fea856abe0cceafa`;\n- allocation ledger Git blob `66617a89d5ad9f81b5a21d98cca55fcda6902a80`;\n- crash V4 proof Git blob `3f91404c8f5b6897b0781455564b4ec26b480c03`;\n- first-original handoff V3 proof Git blob `{v3_blob}`;\n- unchanged dispatcher source/proof blobs `0e27a76e...` / `e58bf39f...`.\n\nThe successor workflow performs locked Node 22/24/26 builds, authenticates the\ncomplete tuple, requires predecessor refusals, runs crash V4, the real temporary-\nfilesystem first-original handoff V3, and the hardened dispatcher proof, then\nrequires byte-identical no-authority receipts. This remains source-only: mounted\ndispatch, installed cross-UID custody, payment acceptance, presale activation,\nand funds movement are false.\n'''
+          marker = "\n## Reviewed source ancestry — unmerged\n"
+          doc = replace_once(doc, marker, insertion + marker, "architecture successor section")
+          doc_path.write_text(doc, encoding="utf-8")
+
+          print("VOID_PR2761_FIRST_ORIGINAL_DISPATCH_V4_REBIND_AUTHORED")
+          print(f"handoff_v3_blob={v3_blob}")
+          PY
+
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+          if ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts > /tmp/frozen-handoff-v2.txt 2>&1; then
+            echo "UNEXPECTED_FROZEN_HANDOFF_V2_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -F 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' /tmp/frozen-handoff-v2.txt
+
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs > /tmp/crash-v4.json
+          grep -F '"marker": "VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V4"' /tmp/crash-v4.json
+
+          ./node_modules/.bin/tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \
+            | tee /tmp/handoff-v3.txt
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V3_GREEN' /tmp/handoff-v3.txt
+          grep -Fx 'frozen_first_original_v2_proof_unchanged=true' /tmp/handoff-v3.txt
+          grep -Fx 'production_gate_ready=false' /tmp/handoff-v3.txt
+          grep -Fx 'funds_movement=false' /tmp/handoff-v3.txt
+
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts \
+            | tee /tmp/dispatch.txt
+          grep -Fx 'mounted_verified_allocation_dispatch=false' /tmp/dispatch.txt
+          grep -Fx 'funds_moved=false' /tmp/dispatch.txt
+
+          rm -- "$STAGER"
+          git add -A
+          git diff --cached --check
+
+          expected_paths="$({ printf '%s\n' \
+            .github/workflows/buy-void-first-original-dispatch-compose-v1.yml \
+            docs/architecture/buy-void-first-original-dispatch-compose-v1.md \
+            scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts \
+            "$STAGER"; } | sort)"
+          actual_paths="$(git diff --cached --name-only | sort)"
+          test "$actual_paths" = "$expected_paths"
+
+          git commit -m "test(econ): advance first-original dispatcher composition to V4"
+          test "$(git rev-parse HEAD^)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_BRANCH" | awk '{print $1}')" = "$GITHUB_SHA"
+          git push origin "HEAD:refs/heads/$EXPECTED_BRANCH"
