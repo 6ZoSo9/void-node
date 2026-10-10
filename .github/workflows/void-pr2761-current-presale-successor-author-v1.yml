@@ -29,7 +29,7 @@ jobs:
       - name: Decode and run guarded author with current lease
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: 20be11279bc5ce593e054582c4b3c1b906f3530d
+          EXPECTED_PARENT: 1abd4a55d632d23fb7eb0af65ca0391966ca331a
           EXPECTED_MAIN: ae87314f7b25b23e5ae1251eec7101dda8a1e0a9
           PRESERVED_NIMO_V3: 8cd91951bb7f43d953d4e4c86e2d8360fd7a0427
           NIMO_V3_PARENT: b672df7bd21971cc2e8c60261d853db67bcd3205
@@ -130,6 +130,90 @@ jobs:
           )
           path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           print("VOID_PR2761_CRASH_PREAPPEND_DUAL_IDENTITY_AUTHOR_PATCHED")
+          PY
+
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          from pathlib import Path
+
+          path = Path("${{ runner.temp }}/author.sh")
+          source = path.read_text(encoding="utf-8")
+          start_marker = 'runtime_path = Path(".github/workflows/buy-void-runtime-integration-v1.yml")'
+          end_marker = 'runtime_path.write_text(runtime, encoding="utf-8")'
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit("runtime author section start missing")
+          end = source.find(end_marker, start)
+          if end < 0:
+              raise SystemExit("runtime author section end missing")
+          end += len(end_marker)
+
+          replacement = """runtime_path = Path(".github/workflows/buy-void-runtime-integration-v1.yml")
+          runtime = runtime_path.read_text(encoding="utf-8")
+          loop_anchor = '          for proof in scripts/prove_buy_void_*.ts\\n          do\\n            case "$proof" in\\n'
+          if runtime.count(loop_anchor) != 1:
+              raise SystemExit(f"runtime loop anchor count={runtime.count(loop_anchor)}")
+          historical_cases = '''              scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'mounted router generation drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
+                continue
+                ;;
+          '''
+          runtime = runtime.replace(
+              loop_anchor,
+              '          for proof in scripts/prove_buy_void_*.ts\\n'
+              '          do\\n'
+              '            echo "VOID_BUY_VOID_PROOF_STACK_BEGIN=$proof"\\n'
+              '            case "$proof" in\\n'
+              + historical_cases,
+          )
+          current_line = '            ./node_modules/.bin/tsx "$proof"\\n'
+          if runtime.count(current_line) != 1:
+              raise SystemExit(f"runtime default proof line count={runtime.count(current_line)}")
+          runtime = runtime.replace(
+              current_line,
+              current_line + '            echo "VOID_BUY_VOID_PROOF_STACK_GREEN=$proof"\\n',
+          )
+          runtime_path.write_text(runtime, encoding="utf-8")"""
+          source = source[:start] + replacement + source[end:]
+          path.write_text(source, encoding="utf-8")
+          print("VOID_PR2761_RUNTIME_STACK_CURRENT_STRUCTURE_AUTHOR_PATCHED")
           PY
 
           bash -n "$RUNNER_TEMP/author.sh"
