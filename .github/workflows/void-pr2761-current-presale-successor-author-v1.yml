@@ -29,7 +29,7 @@ jobs:
       - name: Decode and run guarded author with current lease
         env:
           EXPECTED_BRANCH: ren/buy-void-preappend-detached-json-v1-20261010
-          EXPECTED_PARENT: 5a12234dac9525840d3bb898396f3812148ededa
+          EXPECTED_PARENT: 20be11279bc5ce593e054582c4b3c1b906f3530d
           EXPECTED_MAIN: ae87314f7b25b23e5ae1251eec7101dda8a1e0a9
           PRESERVED_NIMO_V3: 8cd91951bb7f43d953d4e4c86e2d8360fd7a0427
           NIMO_V3_PARENT: b672df7bd21971cc2e8c60261d853db67bcd3205
@@ -98,50 +98,36 @@ jobs:
               raise SystemExit(
                   f"crash preappend author marker count={len(marker_lines)}"
               )
-          function_lines = [
-              i
-              for i, line in enumerate(lines)
-              if line.lstrip().startswith("def replace_once(")
+
+          diagnostic_lines = [
+              i for i, line in enumerate(lines) if "expected one occurrence" in line
           ]
-          if len(function_lines) != 1:
+          if len(diagnostic_lines) != 1:
               raise SystemExit(
-                  f"replace_once helper count={len(function_lines)}"
+                  f"replace diagnostic count={len(diagnostic_lines)}"
               )
-          function_index = function_lines[0]
-          function_indent = len(lines[function_index]) - len(lines[function_index].lstrip())
-          function_end = -1
-          for i in range(function_index + 1, len(lines)):
-              stripped = lines[i].strip()
-              indent = len(lines[i]) - len(lines[i].lstrip())
-              if stripped and indent <= function_indent:
-                  function_end = i
-                  break
-          if function_end < 0:
-              raise SystemExit("replace_once helper end not found")
-          block = lines[function_index:function_end]
-          if sum(line.strip() == "if count != 1:" for line in block) != 1:
-              raise SystemExit("replace_once count guard shape changed")
-          if sum("expected one occurrence" in line for line in block) != 1:
-              raise SystemExit("replace_once diagnostic shape changed")
-          rewritten: list[str] = []
-          for line in block:
-              if line.strip() == "if count != 1:":
-                  indent_text = line[: len(line) - len(line.lstrip())]
-                  rewritten.append(
-                      indent_text
-                      + 'expected = 2 if label == "crash preappend identity" else 1'
-                  )
-                  rewritten.append(indent_text + "if count != expected:")
-              elif "expected one occurrence" in line:
-                  rewritten.append(
-                      line.replace(
-                          "expected one occurrence",
-                          "expected {expected} occurrences",
-                      )
-                  )
-              else:
-                  rewritten.append(line)
-          lines[function_index:function_end] = rewritten
+          diagnostic_index = diagnostic_lines[0]
+          guard_candidates = [
+              i
+              for i in range(max(0, diagnostic_index - 12), diagnostic_index)
+              if lines[i].strip() == "if count != 1:"
+          ]
+          if len(guard_candidates) != 1:
+              raise SystemExit(
+                  f"replace count guard candidates={len(guard_candidates)}"
+              )
+          guard_index = guard_candidates[0]
+          guard_indent = lines[guard_index][: len(lines[guard_index]) - len(lines[guard_index].lstrip())]
+          lines[guard_index:guard_index + 1] = [
+              guard_indent
+              + 'expected = 2 if label == "crash preappend identity" else 1',
+              guard_indent + "if count != expected:",
+          ]
+          diagnostic_index += 1
+          lines[diagnostic_index] = lines[diagnostic_index].replace(
+              "expected one occurrence",
+              "expected {expected} occurrences",
+          )
           path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           print("VOID_PR2761_CRASH_PREAPPEND_DUAL_IDENTITY_AUTHOR_PATCHED")
           PY
