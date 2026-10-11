@@ -1,0 +1,241 @@
+import { types as utilTypes } from "node:util";
+
+import {
+  VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1,
+  withBuyVoidCrossUidCapacityExclusiveLockV1,
+} from "./buy_void_cross_uid_capacity_exclusive_lock_v1.mjs";
+import {
+  VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_AUTHORITY_V1,
+  VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_V1,
+  classifyBuyVoidCrossUidFailureReconciliationV1,
+} from "./buy_void_cross_uid_failure_reconciliation_v1.mjs";
+import {
+  dispatchBuyVoidOperatorEventWithAllocationRequiredV1,
+} from "../../dist/economic/buy_void_operator_verified_allocation_dispatch_v1.js";
+import {
+  checkedVerifiedPaymentDispatchPlanV1,
+  checkedWebCrossUidCapacityConfigV1,
+  exactWebCrossUidWriterInputV1,
+} from "./buy_void_web_payment_cross_uid_lock_validation_v1.mjs";
+
+export const VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_V1 =
+  "VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_V1";
+
+export const VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_AUTHORITY_V1 =
+  Object.freeze({
+    source_only_unmounted: true,
+    canonical_cross_uid_capacity_exclusive_lock_reused: true,
+    canonical_allocation_required_dispatch_reused: true,
+    canonical_dispatch_planner_reused: true,
+    canonical_failure_reconciliation_classifier_reused: true,
+    reconciliation_runs_inside_owned_lock_callback: true,
+    reconciliation_identity_from_planned_snapshot: true,
+    reconciliation_server_roots_from_canonical_plan: true,
+    every_dispatch_failure_retains_outer_claim: true,
+    every_reconciliation_outcome_retains_outer_claim: true,
+    reconciliation_failure_retains_outer_claim: true,
+    reconciliation_result_cannot_authorize_release: true,
+    public_http_handler_installed: false,
+    production_cross_uid_lock_ownership_verified: false,
+    cross_file_atomic_snapshot_verified: false,
+    external_high_water_witness_verified: false,
+    coordinated_storage_rollback_excluded: false,
+    cross_uid_lock_release_authorized: false,
+    custody_recovery_authorized: false,
+    deployed_artifact_generation_verified: false,
+    runtime_integration: false,
+    payment_acceptance: false,
+    presale_activation: false,
+    wallet_or_signer_access: false,
+    transaction_broadcast: false,
+    funds_movement: false,
+  });
+
+const RECONCILIATION_STATUSES = Object.freeze([
+  "held",
+  "observed_no_target_capacity_effect",
+  "verified_allocation_missing",
+  "allocation_present",
+]);
+
+function fail(code, cause = undefined) {
+  const error = new Error(code, cause === undefined ? undefined : { cause });
+  throw error;
+}
+
+function frozenReconciliationInputV1(dispatchInput) {
+  const requestId = dispatchInput?.event?.request_id;
+  if (typeof requestId !== "string" || !requestId) {
+    fail("buy_void_web_cross_uid_reconciliation_request_id_invalid");
+  }
+  const values = [
+    ["allocation_high_water_root", dispatchInput.allocation_high_water_root],
+    ["allocation_ledger_root", dispatchInput.allocation_ledger_root],
+    ["request_dir", dispatchInput.request_dir],
+    ["request_id", requestId],
+  ];
+  const output = Object.create(null);
+  for (const [key, value] of values) {
+    if (typeof value !== "string" || !value) {
+      fail("buy_void_web_cross_uid_reconciliation_input_invalid");
+    }
+    Object.defineProperty(output, key, {
+      value,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
+  }
+  return Object.freeze(output);
+}
+
+function checkedReconciliationResultV1(value, requestId) {
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      utilTypes.isProxy(value) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(value)) ||
+      value.marker !== VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_V1 ||
+      value.version !== 1 ||
+      !RECONCILIATION_STATUSES.includes(value.status) ||
+      value.authority !==
+        VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_AUTHORITY_V1 ||
+      value.operation_performed !== false ||
+      value.filesystem_write !== false ||
+      value.external_high_water_witness_verified !== false ||
+      value.coordinated_storage_rollback_excluded !== false ||
+      value.cross_uid_lock_release_authorized !== false ||
+      value.custody_recovery_authorized !== false ||
+      value.runtime_integration !== false ||
+      value.payment_acceptance !== false ||
+      value.presale_activation !== false ||
+      value.funds_movement !== false) {
+    fail("buy_void_web_cross_uid_reconciliation_result_unqualified");
+  }
+
+  const held = value.status === "held";
+  if ((held && (value.ok !== false || value.classified !== false ||
+      value.request_id !== null)) ||
+      (!held && (value.classified !== true ||
+        value.request_id !== requestId))) {
+    fail("buy_void_web_cross_uid_reconciliation_result_identity_invalid");
+  }
+
+  const noEffect = value.status === "observed_no_target_capacity_effect";
+  const missing = value.status === "verified_allocation_missing";
+  const complete = value.status === "allocation_present";
+  if (value.observed_no_target_capacity_effect !== noEffect ||
+      value.exclusive_recovery_required !== missing ||
+      value.durable_handoff_complete !== complete ||
+      value.ok !== (noEffect || complete)) {
+    fail("buy_void_web_cross_uid_reconciliation_result_status_invalid");
+  }
+  return value;
+}
+
+function failureWithEvidenceV1(
+  code,
+  dispatchFailure,
+  reconciliation = undefined,
+  reconciliationFailure = undefined,
+) {
+  const error = new Error(code, { cause: dispatchFailure });
+  if (reconciliation !== undefined) {
+    Object.defineProperty(error, "reconciliation", {
+      value: reconciliation,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
+  if (reconciliationFailure !== undefined) {
+    Object.defineProperty(error, "reconciliation_failure", {
+      value: reconciliationFailure,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
+  return error;
+}
+
+export async function
+writeBuyVoidPaymentUnderCrossUidLockWithFailureBindingCandidateV1(raw) {
+  const input = exactWebCrossUidWriterInputV1(raw);
+  const config = checkedWebCrossUidCapacityConfigV1(input.capacity_lock);
+  const checked = checkedVerifiedPaymentDispatchPlanV1(input.writer_input);
+  const dispatchInput = checked.dispatch_input;
+  const reconciliationInput = frozenReconciliationInputV1(dispatchInput);
+
+  const locked = await withBuyVoidCrossUidCapacityExclusiveLockV1(
+    config,
+    async () => {
+      try {
+        if (JSON.stringify(dispatchInput.event) !== checked.event_json ||
+            JSON.stringify(dispatchInput.request) !== checked.request_json) {
+          fail("buy_void_web_cross_uid_dispatch_snapshot_changed");
+        }
+        const result =
+          await dispatchBuyVoidOperatorEventWithAllocationRequiredV1(
+            dispatchInput,
+          );
+        if (!result || result.ok !== true) {
+          fail("buy_void_web_cross_uid_dispatch_result_unqualified");
+        }
+        return result;
+      } catch (dispatchFailure) {
+        let reconciliation;
+        try {
+          reconciliation = checkedReconciliationResultV1(
+            classifyBuyVoidCrossUidFailureReconciliationV1(
+              reconciliationInput,
+            ),
+            reconciliationInput.request_id,
+          );
+        } catch (reconciliationFailure) {
+          throw failureWithEvidenceV1(
+            "buy_void_web_cross_uid_reconciliation_failed_lock_retained",
+            dispatchFailure,
+            undefined,
+            reconciliationFailure,
+          );
+        }
+        throw failureWithEvidenceV1(
+          "buy_void_web_cross_uid_dispatch_failed_reconciled_lock_retained",
+          dispatchFailure,
+          reconciliation,
+        );
+      }
+    },
+  );
+
+  if (!locked || locked.ok !== true ||
+      locked.marker !== VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1 ||
+      locked.status !== "completed" ||
+      locked.participant_role !== "web" ||
+      locked.participant_uid !== config.web_uid ||
+      locked.web_uid !== config.web_uid ||
+      locked.custody_uid !== config.custody_uid ||
+      locked.shared_gid !== config.shared_gid ||
+      locked.exclusive_critical_section_completed !== true ||
+      locked.lock_release_fsynced !== true ||
+      locked.callback_failure_retains_lock !== true ||
+      locked.result?.ok !== true) {
+    fail("buy_void_web_cross_uid_failure_binding_lock_result_unqualified");
+  }
+
+  return Object.freeze({
+    marker: VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_V1,
+    status: "source_candidate_only",
+    writer_result: locked.result,
+    reconciliation_source_bound: true,
+    reconciliation_invoked: false,
+    reconciliation_runs_inside_owned_lock_callback: true,
+    every_failure_retains_outer_claim: true,
+    cross_uid_lock_release_authorized: false,
+    custody_recovery_authorized: false,
+    deployed_artifact_generation_verified: false,
+    runtime_integration: false,
+    payment_acceptance: false,
+    presale_activation: false,
+    funds_movement: false,
+  });
+}
