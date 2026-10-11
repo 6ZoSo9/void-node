@@ -683,7 +683,7 @@ async function reserveCore(options, request) {
   });
 }
 
-export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
+export async function handleVoidBuyAllocationCustodyServiceEnvelopeV2(
   rawOptions,
   rawEnvelope,
 ) {
@@ -746,7 +746,7 @@ function writeResponse(socket, response, forceClose = false) {
   socket.end(line, afterFlush);
 }
 
-export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
+export function createVoidBuyAllocationCustodyServiceV2(rawOptions) {
   const options = normalizeOptions(rawOptions);
   let server = null;
   let started = false;
@@ -868,7 +868,7 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
             envelope = normalizeEnvelope(parsed);
           } catch {
             // Retain the existing exact-schema HOLD codes.
-            return handleVoidBuyAllocationCustodyServiceEnvelopeV1(
+            return handleVoidBuyAllocationCustodyServiceEnvelopeV2(
               options,
               parsed,
             );
@@ -881,7 +881,7 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
               held("allocation_custody_service_request_noncanonical"),
             );
           }
-          return handleVoidBuyAllocationCustodyServiceEnvelopeV1(
+          return handleVoidBuyAllocationCustodyServiceEnvelopeV2(
             options,
             envelope,
           );
@@ -998,7 +998,7 @@ async function main() {
   } catch {
     fail("allocation_custody_service_config_json_invalid");
   }
-  const service = createVoidBuyAllocationCustodyServiceV1(config);
+  const service = createVoidBuyAllocationCustodyServiceV2(config);
   await service.start();
   process.stdout.write(
     VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V2 + "_STARTED\n",
