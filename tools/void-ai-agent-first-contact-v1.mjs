@@ -364,7 +364,59 @@ function firstContactManifestFingerprintValid(manifest) {
   return computed === claimed;
 }
 
-async function readBoundedText(response) {
+function abortError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("request aborted");
+}
+
+async function readBodyChunkWithDeadline(reader, signal, markSettled) {
+  if (signal.aborted) {
+    throw abortError(signal);
+  }
+
+  const readOutcome = Promise.resolve()
+    .then(() => reader.read())
+    .then(
+      (value) => {
+        markSettled();
+        return { type: "read", value };
+      },
+      (error) => {
+        markSettled();
+        return { type: "error", error };
+      },
+    );
+
+  let detachAbort = () => undefined;
+  const abortOutcome = new Promise((resolve) => {
+    const onAbort = () => {
+      resolve({ type: "abort", error: abortError(signal) });
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    detachAbort = () => signal.removeEventListener("abort", onAbort);
+    if (signal.aborted) {
+      onAbort();
+    }
+  });
+
+  const outcome = await Promise.race([readOutcome, abortOutcome]);
+  detachAbort();
+  if (outcome.type === "abort" || outcome.type === "error") {
+    throw outcome.error;
+  }
+  return outcome.value;
+}
+
+function cancelReaderBestEffort(reader) {
+  try {
+    Promise.resolve(reader.cancel()).catch(() => undefined);
+  } catch (error) {
+    void error;
+  }
+}
+
+async function readBoundedText(response, signal) {
   const declaredLength = response.headers.get("content-length");
   if (
     declaredLength !== null &&
@@ -378,19 +430,29 @@ async function readBoundedText(response) {
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
+  let activeReadSettled = true;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      activeReadSettled = false;
+      const { done, value } = await readBodyChunkWithDeadline(
+        reader,
+        signal,
+        () => {
+          activeReadSettled = true;
+        },
+      );
       if (done) break;
       total += value.byteLength;
       if (total > MAX_RESPONSE_BYTES) {
-        await reader.cancel();
+        cancelReaderBestEffort(reader);
         throw new Error(`response exceeds ${MAX_RESPONSE_BYTES} bytes`);
       }
       chunks.push(value);
     }
   } finally {
-    reader.releaseLock();
+    if (activeReadSettled) {
+      reader.releaseLock();
+    }
   }
 
   const bytes = new Uint8Array(total);
@@ -404,7 +466,12 @@ async function readBoundedText(response) {
 
 async function fetchJson(baseUrl, path, timeoutMs) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(
+    () => controller.abort(
+      new Error(`request timed out after ${timeoutMs} ms`),
+    ),
+    timeoutMs,
+  );
   try {
     const response = await fetch(joinUrl(baseUrl, path), {
       method: "GET",
@@ -415,7 +482,7 @@ async function fetchJson(baseUrl, path, timeoutMs) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await readBoundedText(response);
+    const text = await readBoundedText(response, controller.signal);
     let body = null;
     let parseError = null;
     if (text.length > 0) {
@@ -1301,3 +1368,4 @@ main().catch((error) => {
   process.stderr.write(`HOLD: ${String(error?.message ?? error)}\n`);
   process.exitCode = 78;
 });
+
