@@ -1,0 +1,224 @@
+name: VOID Buy VOID allocation custody service v2 cross-UID lock
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - ".github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-allocation-custody-service-v2-cross-uid-lock-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: custody V2 cross-UID / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build canonical dependencies
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Syntax-check V2 custody source and proof
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-service-v2.mjs
+          node --check scripts/prove_void_buy_allocation_custody_service_v2.mjs
+          node --check src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+          node --check scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+
+      - name: Prove ordinary custody V2 HOLD boundary
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_buy_allocation_custody_service_v2.mjs \
+            | tee "custody-v2-ordinary-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V2_PROOF_GREEN' \
+            'v1_service_untouched=true' \
+            'custody_cross_uid_lock_participation_source_bound=true' \
+            'read_validation_hold_releases_lock=true' \
+            'durable_payment_provenance_reaches_web_writer_lock_hold=true' \
+            'web_payment_writer_cross_uid_lock_participation_verified=false' \
+            'payment_capacity_lock_verified=false' \
+            'allocation_handoff_atomicity_proven=false' \
+            'reserve_method_enabled=false' \
+            'recovery_terminal_before_new_transition=false' \
+            'allocation_write=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "custody-v2-ordinary-${{ matrix.node }}.txt"
+          done
+
+      - name: Prove actual web-to-custody lock contention
+        run: |
+          set -euo pipefail
+
+          NODE="$(command -v node)"
+          GROUP="voidv2ipc"
+          CUST="voidv2custody"
+          WEB="voidv2web"
+          CODE="/tmp/void-custody-v2-code-${{ github.run_id }}-${{ matrix.node }}"
+          DATA="/tmp/void-custody-v2-data-${{ github.run_id }}-${{ matrix.node }}"
+          SHARED="/tmp/void-custody-v2-lock-${{ github.run_id }}-${{ matrix.node }}"
+          LOG="/tmp/void-custody-v2-contention-${{ github.run_id }}-${{ matrix.node }}.log"
+
+          sudo groupadd "$GROUP"
+          sudo useradd -M -s /usr/sbin/nologin -g "$GROUP" "$CUST"
+          sudo useradd -M -s /usr/sbin/nologin -g "$GROUP" "$WEB"
+
+          CUST_UID="$(id -u "$CUST")"
+          WEB_UID="$(id -u "$WEB")"
+          GID="$(getent group "$GROUP" | cut -d: -f3)"
+          test "$CUST_UID" -ne "$WEB_UID"
+          test "$CUST_UID" -gt 0
+          test "$WEB_UID" -gt 0
+          test "$GID" -gt 0
+
+          sudo install -d -m 0755 -o root -g root \
+            "$CODE" "$CODE/dist" "$CODE/src" "$CODE/tools" "$CODE/scripts"
+          sudo cp -a dist/economic "$CODE/dist/"
+          sudo cp -a src/economic "$CODE/src/"
+          sudo install -m 0444 -o root -g root \
+            tools/void-buy-allocation-custody-service-v2.mjs \
+            "$CODE/tools/void-buy-allocation-custody-service-v2.mjs"
+          sudo install -m 0444 -o root -g root \
+            scripts/prove_void_buy_allocation_custody_service_v2.mjs \
+            "$CODE/scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+          sudo install -m 0444 -o root -g root \
+            scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs \
+            "$CODE/scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+          sudo chown -R root:root "$CODE"
+          sudo find "$CODE" -type d -exec chmod 0555 {} +
+          sudo find "$CODE" -type f -exec chmod 0444 {} +
+
+          cmp tools/void-buy-allocation-custody-service-v2.mjs \
+            "$CODE/tools/void-buy-allocation-custody-service-v2.mjs"
+          cmp scripts/prove_void_buy_allocation_custody_service_v2.mjs \
+            "$CODE/scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+          cmp src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs \
+            "$CODE/src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+
+          sudo install -d -m 0700 -o "$CUST" -g "$GROUP" "$DATA"
+          sudo install -d -m 3770 -o "$CUST" -g "$GROUP" "$SHARED"
+          sudo install -m 0660 -o "$CUST" -g "$GROUP" /dev/null "$LOG"
+
+          WEB_PROOF="$CODE/scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+          CUST_PROOF="$CODE/scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+
+          sudo runuser -u "$WEB" -- "$NODE" "$WEB_PROOF" --worker \
+            "$SHARED" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" \
+            web-holder success 5000 10 \
+            > "custody-v2-web-holder-${{ matrix.node }}.txt" &
+          WEB_PID=$!
+
+          seen=false
+          for _ in $(seq 1 200); do
+            if sudo grep -Fxq 'enter:web-holder' "$LOG"; then
+              seen=true
+              break
+            fi
+            sleep 0.01
+          done
+          test "$seen" = true
+
+          sudo runuser -u "$CUST" -- "$NODE" "$CUST_PROOF" \
+            --custody-reserve-worker \
+            "$DATA" "$SHARED" "$WEB_UID" "$GID" "$LOG" \
+            > "custody-v2-custody-worker-${{ matrix.node }}.txt"
+
+          wait "$WEB_PID"
+
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN' \
+            "custody-v2-web-holder-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_V2_TWO_UID_RESERVE_GREEN' \
+            "custody-v2-custody-worker-${{ matrix.node }}.txt"
+          grep -Fx 'custody_waited_for_foreign_web_lock=true' \
+            "custody-v2-custody-worker-${{ matrix.node }}.txt"
+          grep -Fx 'payment_capacity_lock_verified=false' \
+            "custody-v2-custody-worker-${{ matrix.node }}.txt"
+          grep -Fx 'allocation_write=false' \
+            "custody-v2-custody-worker-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' \
+            "custody-v2-custody-worker-${{ matrix.node }}.txt"
+
+          sudo cp "$LOG" "custody-v2-contention-${{ matrix.node }}.log"
+          sudo chown "$(id -u):$(id -g)" \
+            "custody-v2-contention-${{ matrix.node }}.log"
+          node scripts/prove_void_buy_allocation_custody_service_v2.mjs \
+            --verify-contention-log \
+            "custody-v2-contention-${{ matrix.node }}.log" \
+            | tee "custody-v2-contention-proof-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_V2_CROSS_UID_CONTENTION_GREEN' \
+            "custody-v2-contention-proof-${{ matrix.node }}.txt"
+          grep -Fx 'web_exit_precedes_custody_completion=true' \
+            "custody-v2-contention-proof-${{ matrix.node }}.txt"
+
+          sudo test ! -e \
+            "$SHARED/.void-buy-void-cross-uid-capacity-exclusive-lock-v1.json"
+
+          sudo rm -rf "$CODE" "$DATA" "$SHARED" "$LOG"
+
+      - name: Preserve frozen V1 and exact V2 diff scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          test "$(git rev-parse "$BASE_SHA:tools/void-buy-allocation-custody-service-v1.mjs")" = \
+               "$(git rev-parse "$HEAD_SHA:tools/void-buy-allocation-custody-service-v1.mjs")"
+
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort > changed.txt
+          printf '%s\n' \
+            '.github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml' \
+            'scripts/prove_void_buy_allocation_custody_service_v2.mjs' \
+            'tools/void-buy-allocation-custody-service-v2.mjs' \
+            | sort > expected.txt
+          diff -u expected.txt changed.txt
