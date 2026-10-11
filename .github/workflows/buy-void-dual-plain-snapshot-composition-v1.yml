@@ -1,0 +1,129 @@
+name: VOID Buy VOID preappend and dispatcher array snapshot composition V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs"
+      - "scripts/prove_buy_void_dispatch_own_array_index_v1.mjs"
+      - "scripts/prove_buy_void_dual_plain_snapshot_composition_v1.mjs"
+      - ".github/workflows/buy-void-dual-plain-snapshot-composition-v1.yml"
+      - "docs/architecture/buy-void-dual-plain-snapshot-composition-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-dual-array-snapshot-composition-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: two actual compiled snapshots / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact stacked Draft head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact commit and both reviewed source blobs
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = 945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f
+          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = eb4fb37c6073415228b312663c45a99d5015c727
+      - name: Install known Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without lifecycle execution
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build BOTH exact owned source modules
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Preserve both existing independent compiled negative proofs
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_preappend_plain_input_v1.mjs
+          node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs \
+            | tee "$RUNNER_TEMP/preappend-proof.txt"
+          node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs \
+            | tee "$RUNNER_TEMP/dispatcher-proof.txt"
+          grep -Fx 'snapshot_inherited_numeric_setter_invocations=0' "$RUNNER_TEMP/preappend-proof.txt"
+          grep -Fx 'reviewed_dispatcher_inherited_setter_invocations=0' "$RUNNER_TEMP/dispatcher-proof.txt"
+          grep -Fx 'reviewed_dispatcher_hostile_array_push_invocations=0' "$RUNNER_TEMP/dispatcher-proof.txt"
+      - name: Prove same-process preappend to dispatcher under hostile array prototype
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_dual_plain_snapshot_composition_v1.mjs \
+            | tee dual-snapshot-${{ matrix.node }}.txt
+          for line in \
+            VOID_BUY_VOID_DUAL_PLAIN_SNAPSHOTS_COMPOSED_V1_GREEN \
+            tested_actual_compiled_preappend_and_dispatcher=true \
+            shared_inherited_numeric_setter_controls=2 \
+            preappend_then_dispatch_setter_invocations=0 \
+            preappend_then_dispatch_hostile_push_invocations=0 \
+            reviewed_and_payment_verified_branches_match_clean_json=true \
+            all_nested_array_indexes_own_frozen=true \
+            operator_route_mounted=false \
+            payment_append_performed=false \
+            allocation_append_performed=false \
+            presale_activation=false \
+            funds_movement=false
+          do grep -Fx "$line" dual-snapshot-${{ matrix.node }}.txt; done
+      - name: Confirm no tracked mutation and clean committed range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --check "${BASE_SHA:-HEAD^}" "$HEAD_SHA"
+      - name: Upload exact-head composed result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-two-snapshots-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dual-snapshot-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [compose]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download independent composed security transcripts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-two-snapshots-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Compare Node 22 24 26 bytes and confirm nonauthority
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "evidence/dual-snapshot-$node.txt"; done
+          cmp evidence/dual-snapshot-22.txt evidence/dual-snapshot-24.txt
+          cmp evidence/dual-snapshot-22.txt evidence/dual-snapshot-26.txt
+          grep -Fx 'preappend_then_dispatch_setter_invocations=0' evidence/dual-snapshot-22.txt
+          grep -Fx 'payment_append_performed=false' evidence/dual-snapshot-22.txt
+          grep -Fx 'funds_movement=false' evidence/dual-snapshot-22.txt
+          echo "VOID_BUY_VOID_TWO_SNAPSHOT_EXACT_THREE_NODE_COMPOSITION_GREEN"
+          echo "production_payment_and_allocation_authority=false"

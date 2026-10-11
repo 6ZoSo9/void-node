@@ -5,6 +5,8 @@ on:
     paths:
       - "tools/void-buy-allocation-custody-service-v1.mjs"
       - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "docs/architecture/buy-void-allocation-custody-service-contract-v1.json"
       - "scripts/prove_void_buy_allocation_custody_service_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-service-v1.md"
@@ -65,6 +67,7 @@ jobs:
         run: |
           node --check tools/void-buy-allocation-custody-service-v1.mjs
           node --check src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs
+          node --check src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs
 
       - name: Prove custody service contract
         run: node scripts/prove_void_buy_allocation_custody_service_v1.mjs

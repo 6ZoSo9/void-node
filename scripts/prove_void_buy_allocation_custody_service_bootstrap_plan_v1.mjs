@@ -12,6 +12,8 @@ import {
   classifyBuyAllocationCustodyServiceBootstrapPlanV1,
   classifyBuyAllocationCustodyServiceBootstrapPlanV2,
   VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2,
+  classifyBuyAllocationCustodyServiceBootstrapPlanV3,
+  VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3,
 } from "../tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +21,8 @@ const tool = path.resolve(here, "../tools/void-buy-allocation-custody-service-bo
 const source = readFileSync(tool, "utf8");
 const fixture = VOID_BUY_ALLOCATION_CUSTODY_OCT7_OPERATOR_OBSERVATION_V1;
 const historicalV1 = classifyBuyAllocationCustodyServiceBootstrapPlanV1(fixture);
-const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV2(fixture);
+const historicalV2 = classifyBuyAllocationCustodyServiceBootstrapPlanV2(fixture);
+const decision = classifyBuyAllocationCustodyServiceBootstrapPlanV3(fixture);
 assert.equal(historicalV1.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1);
 assert.equal(historicalV1.schema, "void.buy.allocation.custody.bootstrap.plan.v1");
 assert.equal(historicalV1.version, 1);
@@ -31,12 +34,21 @@ assert.equal(Buffer.byteLength(historicalV1Wire, "utf8"), 5898,
 assert.equal(createHash("sha256").update(historicalV1Wire).digest("hex"),
   "db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf",
   "historical V1 output must remain byte-identical");
-assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2);
-assert.equal(decision.schema, "void.buy.allocation.custody.bootstrap.plan.v2");
-assert.equal(decision.version, 2);
+
+assert.equal(historicalV2.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2);
+assert.equal(historicalV2.schema, "void.buy.allocation.custody.bootstrap.plan.v2");
+assert.equal(historicalV2.version, 2);
+assert.equal(historicalV2.historical_v1_plan_sha256, historicalV1.plan_sha256);
+assert.deepEqual(historicalV2.candidate.predecessor_candidate, historicalV1.candidate);
+assert.notEqual(historicalV2.plan_sha256, historicalV1.plan_sha256);
+
+assert.equal(decision.marker, VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3);
+assert.equal(decision.schema, "void.buy.allocation.custody.bootstrap.plan.v3");
+assert.equal(decision.version, 3);
 assert.equal(decision.historical_v1_plan_sha256, historicalV1.plan_sha256);
-assert.deepEqual(decision.candidate.predecessor_candidate, historicalV1.candidate);
-assert.notEqual(decision.plan_sha256, historicalV1.plan_sha256);
+assert.equal(decision.historical_v2_plan_sha256, historicalV2.plan_sha256);
+assert.deepEqual(decision.candidate.predecessor_candidate, historicalV2.candidate);
+assert.notEqual(decision.plan_sha256, historicalV2.plan_sha256);
 assert.equal(decision.status, "HOLD_SOURCE_ONLY");
 assert.equal(decision.observation_trusted_as_authority, false);
 assert.equal(decision.source_head_verified_against_remote, false);
@@ -91,17 +103,24 @@ assert.deepEqual(decision.candidate.service_policy_target.ReadWritePaths, [
 ]);
 assert.equal(
   decision.candidate.service_source_sha256,
-  "sha256:fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88",
+  "sha256:4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18",
 );
 assert.equal(
   decision.candidate.service_contract_sha256,
-  "sha256:676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5",
+  "sha256:664c98528a05200c110ed27d4940b36d169a70e5e1da331bbcba77d52056465f",
 );
 assert.deepEqual(decision.candidate.top_level_source_imports, [
   "../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
   "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
   "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+  "../dist/economic/buy_void_verified_allocation_replay_binding_v1.js",
+  "../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs",
 ]);
+assert.equal(decision.candidate.request_root_candidate, null);
+assert.equal(decision.candidate.request_root_live_path_qualified, false);
+assert.equal(decision.candidate.cross_uid_read_permissions_qualified, false);
+assert.equal(decision.candidate.payment_capacity_lock_verified, false);
+assert.equal(decision.candidate.reserve_method_enabled, false);
 
 // Fail closed when a future security repair changes the checked-out service's
 // imports without reviewing a distinct untrusted bootstrap candidate.
@@ -283,8 +302,10 @@ const expectedReader = Object.freeze({
     "sha256:a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979",
   static_imports: ["node:crypto", "node:fs", "node:path", "node:util"],
 });
-assert.equal(decision.candidate.source_review_generation, "descriptor-inspection-20261010");
-assert.equal(decision.candidate.source_review_ref, "c7e5993bb5fd4d8fb402762a56925a9ce9e25518");
+assert.equal(historicalV2.candidate.source_review_generation, "descriptor-inspection-20261010");
+assert.equal(historicalV2.candidate.source_review_ref, "c7e5993bb5fd4d8fb402762a56925a9ce9e25518");
+assert.equal(decision.candidate.source_review_generation, "payment-provenance-bind-20261010");
+assert.equal(decision.candidate.source_review_ref, "5ed7dae3b4f799cde7d106d59f99a88eda753065");
 assert.deepEqual(decision.candidate.inspection_runtime_requirements, {
   platform: "linux", nonroot_uid: true, proc_self_fd: true,
   canonical_simple_component_paths: true, separate_nonnested_roots: true,
@@ -305,6 +326,65 @@ requireReaderIdentity(readerSource, decision.candidate.inspection_dependency);
 assert.equal(Object.isFrozen(decision.candidate.inspection_dependency), true);
 assert.equal(Object.isFrozen(decision.candidate.inspection_dependency.static_imports), true);
 assert.equal(Object.isFrozen(decision.candidate.inspection_runtime_requirements), true);
+
+const paymentReaderPath =
+  "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
+const paymentReaderSource =
+  readFileSync(path.resolve(here, "..", paymentReaderPath), "utf8");
+const expectedPaymentReader = Object.freeze({
+  source: paymentReaderPath,
+  source_git_blob: "7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325",
+  source_sha256:
+    "sha256:a4d5882e61e702b45f7a07b2e73bd9276979301649c7fe387a7c0c5f3198eb9c",
+  static_imports: ["node:fs", "node:path", "node:util"],
+});
+function requirePaymentReaderIdentity(text, record) {
+  assert.deepEqual(
+    record,
+    expectedPaymentReader,
+    "exact payment inspection dependency record required",
+  );
+  assert.equal(
+    sourceSha256(text),
+    record.source_sha256,
+    "payment inspection dependency bytes drift",
+  );
+  const bytes = Buffer.from(text, "utf8");
+  assert.equal(
+    createHash("sha1").update("blob " + bytes.length + "\0")
+      .update(bytes).digest("hex"),
+    record.source_git_blob,
+    "payment inspection dependency Git blob drift",
+  );
+  assert.deepEqual(
+    observedCompiledImports(text),
+    record.static_imports,
+    "payment inspection dependency static imports drift",
+  );
+}
+requirePaymentReaderIdentity(
+  paymentReaderSource,
+  decision.candidate.payment_inspection_dependency,
+);
+assert.equal(Object.isFrozen(decision.candidate.payment_inspection_dependency), true);
+assert.equal(
+  Object.isFrozen(decision.candidate.payment_inspection_dependency.static_imports),
+  true,
+);
+let paymentReaderCases = 1;
+for (const changed of [
+  paymentReaderSource.replace('import fs from "node:fs";', 'import fs from "node:tls";'),
+  paymentReaderSource.replace('import fs from "node:fs";', ''),
+  paymentReaderSource + '\nimport "./unreviewed-payment-reader.mjs"\n',
+  paymentReaderSource + '\n// changed bytes\n',
+]) {
+  assert.notEqual(changed, paymentReaderSource);
+  assert.throws(
+    () => requirePaymentReaderIdentity(changed, expectedPaymentReader),
+    /payment inspection dependency bytes drift/u,
+  );
+  paymentReaderCases++;
+}
 let readerCases = 1;
 // Independent parser checks still detect dependency changes even without
 // relying on the complete-file hash mismatch of these in-memory fixtures.
@@ -498,6 +578,10 @@ if (Number(process.versions.node.split(".")[0]) === 24) {
     "simulated early Node24 must reject nonempty linker extra.attributes",
   );
   assert.deepEqual(observedCompiledImports(readerSource, true), expectedReader.static_imports);
+  assert.deepEqual(
+    observedCompiledImports(paymentReaderSource, true),
+    expectedPaymentReader.static_imports,
+  );
   earlyNode24LinkerTested = true;
 }
 
@@ -584,6 +668,8 @@ const reversedKeys = Object.fromEntries(Object.entries(fixture).reverse());
 assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV1(reversedKeys).plan_sha256,
   historicalV1.plan_sha256);
 assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV2(reversedKeys).plan_sha256,
+  historicalV2.plan_sha256);
+assert.equal(classifyBuyAllocationCustodyServiceBootstrapPlanV3(reversedKeys).plan_sha256,
   decision.plan_sha256);
 
 for (const bad of [
@@ -617,11 +703,14 @@ assert.equal(defaultPlan.stdout, historicalV1Wire);
 assert.deepEqual(JSON.parse(defaultPlan.stdout), historicalV1);
 const inspectedV2Cli = run(["--plan-v2"]);
 assert.equal(inspectedV2Cli.status, 0, inspectedV2Cli.stderr);
-assert.deepEqual(JSON.parse(inspectedV2Cli.stdout), decision);
+assert.deepEqual(JSON.parse(inspectedV2Cli.stdout), historicalV2);
+const provenanceV3Cli = run(["--plan-v3"]);
+assert.equal(provenanceV3Cli.status, 0, provenanceV3Cli.stderr);
+assert.deepEqual(JSON.parse(provenanceV3Cli.stdout), decision);
 const help = run(["--help"]);
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /no --apply/u);
-for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"], ["--plan-v2", "--apply"], ["--plan-v2", "extra"]]) {
+for (const args of [["--apply"], ["--plan", "--apply"], ["--install"], ["--plan", "extra"], ["--plan-v2", "--apply"], ["--plan-v2", "extra"], ["--plan-v3", "--apply"], ["--plan-v3", "extra"]]) {
   const refused = run(args);
   assert.equal(refused.status, 2, JSON.stringify({args, stderr: refused.stderr}));
   assert.equal(refused.stdout, "");
@@ -659,12 +748,25 @@ assert.equal(v2AllTrue.production_gate_ready, false);
 assert.equal(v2AllTrue.status, "HOLD_SOURCE_ONLY");
 assert.equal(v2AllTrue.executable_unit_emitted, false);
 assert.deepEqual(v2AllTrue.authority, historicalV1.authority);
+const v3AllTrue = classifyBuyAllocationCustodyServiceBootstrapPlanV3(candidateAllTrue);
+assert.equal(v3AllTrue.production_gate_ready, false);
+assert.equal(v3AllTrue.status, "HOLD_SOURCE_ONLY");
+assert.equal(v3AllTrue.executable_unit_emitted, false);
+assert.deepEqual(v3AllTrue.authority, historicalV1.authority);
+assert.equal(v3AllTrue.candidate.request_root_live_path_qualified, false);
+assert.equal(v3AllTrue.candidate.cross_uid_read_permissions_qualified, false);
+assert.equal(v3AllTrue.candidate.payment_capacity_lock_verified, false);
+assert.equal(v3AllTrue.candidate.reserve_method_enabled, false);
 
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1_SOURCE_GREEN");
 console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V2_SOURCE_GREEN");
+console.log("VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V3_SOURCE_GREEN");
 console.log("historical_v1_cli_bytes_unchanged=true");
 console.log("diagnostic_v2_schema_marker_version_distinct=true");
+console.log("diagnostic_v3_schema_marker_version_distinct=true");
 console.log("inspection_dependency_review_cases=" + readerCases);
+console.log("payment_inspection_dependency_review_cases=" + paymentReaderCases);
+console.log("payment_inspection_reader_source_and_imports_bound=true");
 console.log("inspection_reader_source_and_imports_bound=true");
 console.log("historical_bootstrap_candidate_preserved=true");
 console.log("inspection_runtime_requirements_host_qualified=false");

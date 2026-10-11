@@ -51,3 +51,49 @@ Even a successful private stage is **not** an installation or acceptance:
 `verified_payment_to_allocation_mounted=false`,
 `custody_reserve_or_recover_enabled=false`,
 `presale_activation=false`, and `funds_moved=false`.
+
+## Two-file preinstall authorization-set admission — source-only
+
+`scripts/void_nimo_v3_two_file_admission_readonly_v1.py` (Git blob
+`943c02dde93e1c4b1a98e715b2a61d7d6c7e56c0`) is an **independent,
+read-only** observer for the next Nimo ceremony. It is not a root installer.
+
+On Nimo, the command `python3 - --inspect` (script piped over an already
+known-host SSH session) requires nonroot execution and the exact Nimo hostname.
+It binds the exact private staged eight-file V3 payload to fresh descriptor-
+relative SHA-256 reads, requires all eight installed root-owned runtime files
+to have mode 0444, one hard link and nonwritable root-owned ancestors, and
+checks the *entire* root-owned public three-key
+`/etc/ssh/authorized_keys/voidwitness` against reviewed SHA-256
+`82cf34c8c2ff28a29103d050f081cff21f9beb0fbad04ec2d6d4de212c49afe4`.
+Raw public keys are never returned; private keys are never opened.
+
+At the operator's October 10 read-only census, six installed bytes were
+already V3 exact, and only two historical V1 digests remained:
+
+- `dist/economic/buy_void_allocation_reservation_ledger_v1.js`:
+  installed historical `af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f`,
+  proposed V3 `97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0`;
+- `dist/economic/buy_void_auto_fulfillment_v1.js`:
+  installed historical `ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6`,
+  proposed V3 `119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c`.
+
+The earlier census did **not** freshly hash the packaged archive and did
+**not** report a current full three-key authorization-set SHA. The new
+observer verifies the eight staged payload SHA-256 values and the public
+authorization-set digest, but still reports
+`archive_sha256_freshly_measured=false`,
+`runtime_service_quiescence_verified=false`,
+`transport_identity_attested=false`, `installed_v3_accepted=false`,
+`authenticated_custody_principal_verified=false`,
+`presale_activation=false` and `funds_moved=false`.
+
+A mixed one-file replacement, missing/writable/symlinked file, noncanonical
+parent, unexpected byte, or auth-set drift is a HOLD. Its nine pure policy
+self-tests are included in the existing Node22/24/26 inactive bundle workflow,
+with exact source Git blob and byte-identical transcript assertions.
+No installation operation, sudo option, root file write, service restart,
+wallet/signing, customer-ledger access, payment acceptance or fund movement
+is implemented. Separate explicit operator authorization, service
+quiescence, safe rollback and post-install V3 evidence acceptance are
+required before the two root-owned runtime files may change.

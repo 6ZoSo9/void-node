@@ -1,18 +1,9 @@
 name: VOID Buy VOID current allocation crash matrix V4 source-only
 
+# Historical-generation executor.
+# Automatic immutability is enforced by buy-void-historical-proof-integrity-v1;
+# successor production-source generations are qualified by successor workflows.
 on:
-  pull_request:
-    paths:
-      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
-      - "src/economic/buy_void_preappend_plain_input_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
-      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
-      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v4.yml"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.build.json"
   workflow_dispatch:
 
 permissions:

@@ -63,6 +63,17 @@ const POOL = BigInt(ECONOMICS.canonical_presale_max_void) * MICRO;
 const RATE_NUMERATOR = BigInt(ECONOMICS.rate_void_units_numerator);
 const RATE_DENOMINATOR = BigInt(ECONOMICS.rate_void_units_denominator);
 const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+// Bind the complete native fatal decode call before a same-process hook
+// can mutate the decoder prototype or live Reflect.apply.
+const REPLAY_FATAL_UTF8_DECODE_BOUND_V1 =
+  TextDecoder.prototype.decode.bind(UTF8);
+// Snapshot the native parse/prototype functions at module load. JSON.parse
+// normally makes ordinary objects that inherit Object.prototype. A polluted
+// Object.prototype.delivery_address or launch_authority could otherwise
+// *invent* an original request field absent from the authenticated JSONL
+// bytes while JSON.stringify still reports an unchanged canonical line.
+const PARSE_JSON_ROW_NATIVE_V1 = JSON.parse;
+const SET_PARSED_JSON_PROTO_NATIVE_V1 = Object.setPrototypeOf;
 
 export type BuyVoidVerifiedAllocationReplayDecisionV1 = Readonly<{
   ok: boolean;
@@ -188,7 +199,14 @@ const TYPED_ARRAY_LENGTH_GETTER_V1 =
   Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "length")?.get;
 const TYPED_ARRAY_BUFFER_GETTER_V1 =
   Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "buffer")?.get;
+// Capture the exact byte/framing invocation mechanisms before mutable
+// same-process hooks can replace Reflect.apply or ArrayBuffer#slice.
+const REPLAY_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
+// The SharedArrayBuffer check is evidence authority, not a live mutable hook.
+const REPLAY_IS_SHARED_BACKING_NATIVE_V1 = utilTypes.isSharedArrayBuffer;
+const REPLAY_ARRAY_BUFFER_SLICE_NATIVE_V1 = ArrayBuffer.prototype.slice;
 const TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
+const TYPED_ARRAY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
 
 function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
   const invalid = () => fail(label + "_bytes_invalid");
@@ -206,8 +224,8 @@ function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
   let count: number;
   let backing: ArrayBufferLike;
   try {
-    count = Reflect.apply(TYPED_ARRAY_LENGTH_GETTER_V1!, value, []) as number;
-    backing = Reflect.apply(
+    count = REPLAY_REFLECT_APPLY_NATIVE_V1(TYPED_ARRAY_LENGTH_GETTER_V1!, value, []) as number;
+    backing = REPLAY_REFLECT_APPLY_NATIVE_V1(
       TYPED_ARRAY_BUFFER_GETTER_V1!, value, [],
     ) as ArrayBufferLike;
   } catch {
@@ -217,42 +235,114 @@ function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
     !Number.isSafeInteger(count) ||
     count < 0 ||
     count > MAX_JSONL_BYTES ||
-    utilTypes.isSharedArrayBuffer(backing)
+    REPLAY_IS_SHARED_BACKING_NATIVE_V1(backing)
   ) invalid();
   try {
     // Slice with zero output bytes deliberately probes for a detached buffer:
     // a detached prior-event Buffer must not silently become empty history.
-    Reflect.apply(ArrayBuffer.prototype.slice, backing, [0, 0]);
+    REPLAY_REFLECT_APPLY_NATIVE_V1(REPLAY_ARRAY_BUFFER_SLICE_NATIVE_V1, backing, [0, 0]);
     const detached = Buffer.alloc(count);
-    Reflect.apply(TYPED_ARRAY_SET_V1, detached, [value, 0]);
+    REPLAY_REFLECT_APPLY_NATIVE_V1(TYPED_ARRAY_SET_V1, detached, [value, 0]);
     return detached;
   } catch {
     return invalid();
   }
 }
 
+// Treat JSONL replay history as an ordered sequence of own data slots.
+// Ambient Array.prototype.map/iterators/sorters cannot select later rows.
+function ownArrayIndexV1<T>(
+  values: readonly T[], index: number, label: string,
+): T {
+  if (!Array.isArray(values) || index < 0 || index >= values.length) fail(label);
+  const descriptor = Object.getOwnPropertyDescriptor(values, String(index));
+  if (!descriptor || !Object.hasOwn(descriptor, "value")) fail(label);
+  return descriptor.value as T;
+}
+function exactOwnFieldsV1(
+  value: Record<string, unknown>, expected: readonly string[],
+): boolean {
+  const keys = Reflect.ownKeys(value);
+  if (keys.length !== expected.length) return false;
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = ownArrayIndexV1(keys, index, "object_key_slot_invalid");
+    if (typeof key !== "string") return false;
+    let found = false;
+    for (let j = 0; j < expected.length; j += 1) {
+      if (key === ownArrayIndexV1(expected, j, "expected_key_slot_invalid")) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+// JSONL replay rows are untrusted plain bytes, not ambient JS objects.
+// Null-prototype every decoded object AND array before checking canonical
+// bytes or any original-buyer/payment field. This also prevents inherited
+// toJSON hooks from running during the later canonical JSON.stringify.
+function parseDetachedJsonRowV1(line: string): unknown {
+  return PARSE_JSON_ROW_NATIVE_V1(line, (_field: string, value: unknown) => {
+    if (value !== null && typeof value === "object") {
+      SET_PARSED_JSON_PROTO_NATIVE_V1(value, null);
+    }
+    return value;
+  });
+}
 function rows(bytes: Buffer, label: string): HistoryRow[] {
   const detached = detachedJsonlBytesV1(bytes, label);
-  if (detached.length === 0) return [];
-  const text = UTF8.decode(detached);
-  if (!text.endsWith("\n") || text.includes("\r")) fail(label + "_truncated_or_noncanonical");
-  const lines = text.slice(0, -1).split("\n");
-  if (lines.length > MAX_ROWS) fail(label + "_too_many_rows");
-  return lines.map((line) => {
+  // Never consult a later mutable %TypedArray%.prototype.length accessor
+  // when framing history. The detached Buffer length is captured once
+  // through the intrinsic getter and previously bound call authority.
+  const byteLength = REPLAY_REFLECT_APPLY_NATIVE_V1(
+    TYPED_ARRAY_LENGTH_GETTER_V1!, detached, [],
+  ) as number;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 ||
+      byteLength > MAX_JSONL_BYTES) fail(label + "_bytes_invalid");
+  if (byteLength === 0) return [];
+  // Validate the entire UTF-8 stream first, preserving the original fatal
+  // decoder boundary even when a malformed later row follows a valid row.
+  REPLAY_FATAL_UTF8_DECODE_BOUND_V1(detached);
+  if (detached[byteLength - 1] !== 0x0a) {
+    fail(label + "_truncated_or_noncanonical");
+  }
+  // A mutable String.prototype.split/slice/endsWith can suppress R0 before
+  // any Array own-slot checks. Frame each row using the detached byte indices;
+  // never consult a string prototype to select the first buyer snapshot.
+  const parsed: HistoryRow[] = [];
+  let rowStart = 0;
+  let rowIndex = 0;
+  for (let cursor = 0; cursor < byteLength; cursor += 1) {
+    const octet = detached[cursor];
+    if (octet === 0x0d) fail(label + "_truncated_or_noncanonical");
+    if (octet !== 0x0a) continue;
+    if (rowIndex >= MAX_ROWS) fail(label + "_too_many_rows");
+    if (cursor === rowStart) fail(label + "_empty_row");
+    const lineBytes = REPLAY_REFLECT_APPLY_NATIVE_V1(
+      TYPED_ARRAY_SUBARRAY_V1, detached, [rowStart, cursor],
+    ) as Uint8Array;
+    const line = REPLAY_FATAL_UTF8_DECODE_BOUND_V1(lineBytes);
     if (!line) fail(label + "_empty_row");
     let value: unknown;
-    try { value = JSON.parse(line); } catch { fail(label + "_json_invalid"); }
+    try { value = parseDetachedJsonRowV1(line); } catch { fail(label + "_json_invalid"); }
     if (!isRow(value) || JSON.stringify(value) !== line) fail(label + "_noncanonical_row");
-    return { row: value, exactLine: line };
-  });
+    Object.defineProperty(parsed, String(rowIndex), {
+      value: { row: value, exactLine: line },
+      enumerable: true, writable: false, configurable: false,
+    });
+    rowIndex += 1;
+    rowStart = cursor + 1;
+  }
+  if (rowStart !== byteLength) fail(label + "_truncated_or_noncanonical");
+  return parsed;
 }
 
 // Mirror the pure canonical allocation planner's exact *shape* contract.
 // It cannot authenticate the launch-generation receipt or its historical origin.
 function canonicalLaunchAuthority(value: unknown): RecordRow | null {
   if (value === null || value === undefined) return null;
-  if (!isRow(value) || Object.keys(value).sort().join("|") !==
-      [...LAUNCH_AUTHORITY_KEYS].sort().join("|") ||
+  if (!isRow(value) || !exactOwnFieldsV1(value, LAUNCH_AUTHORITY_KEYS) ||
       value.marker !== "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1" ||
       value.version !== 1 ||
       typeof value.expires_at_ms !== "number" ||
@@ -265,7 +355,9 @@ function canonicalLaunchAuthority(value: unknown): RecordRow | null {
       !TX.test(value.activation_generation)) {
     fail("request_launch_authority_invalid");
   }
-  for (const name of ["coupled_launch_id", "source_composition_id", "generation_tip_sha256"]) {
+  for (let index = 0; index < 3; index += 1) {
+    const name = index === 0 ? "coupled_launch_id" :
+      index === 1 ? "source_composition_id" : "generation_tip_sha256";
     if (typeof value[name] !== "string" || !SHA256_REF.test(value[name])) {
       fail("request_launch_authority_invalid");
     }
@@ -276,7 +368,11 @@ function canonicalLaunchAuthority(value: unknown): RecordRow | null {
 // Canonical launch authority has a fixed, validated nine-member primitive tuple.
 // JSON member ordering is not authority; a changed/erased value still HOLDS.
 function sameCanonicalLaunchAuthority(a: RecordRow, b: RecordRow): boolean {
-  return LAUNCH_AUTHORITY_KEYS.every((key) => a[key] === b[key]);
+  for (let index = 0; index < LAUNCH_AUTHORITY_KEYS.length; index += 1) {
+    const key = ownArrayIndexV1(LAUNCH_AUTHORITY_KEYS, index, "launch_key_invalid");
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
 }
 
 function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
@@ -284,17 +380,20 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
   // Track every exact historical snapshot. A -> B -> A is rollback/replay
   // evidence even if B changed only an untracked field such as status.
   const previousLines = new Map<string, Set<string>>();
-  for (const { row, exactLine } of requestRows) {
+  for (let index = 0; index < requestRows.length; index += 1) {
+    const { row, exactLine } =
+      ownArrayIndexV1(requestRows, index, "request_history_slot_invalid");
     const id = field(row.request_id, "request_id_invalid");
     if (!REQUEST_ID.test(id)) fail("request_id_invalid");
     // Explicit source chain is mandatory. A conflicting/invalid alias
     // permanently disqualifies THIS request, never a separate request that
     // has no relationship to it through the target or verified history.
     const sourceChain = chain(row.source_chain);
-    const aliasesQualified = (["payment_chain", "chain"] as const).every(alias =>
-      !Object.prototype.hasOwnProperty.call(row, alias) ||
-        sourceAliasMatches(row[alias], sourceChain)
-    );
+    const aliasesQualified =
+      (!Object.hasOwn(row, "payment_chain") ||
+        sourceAliasMatches(row.payment_chain, sourceChain)) &&
+      (!Object.hasOwn(row, "chain") ||
+        sourceAliasMatches(row.chain, sourceChain));
     const tx = txHash(row.tx_hash, true);
     const quoted = amount(row.quoted_void, "request_quote_invalid");
     const usdc = row.usdc_amount === undefined || row.usdc_amount === null
@@ -315,7 +414,11 @@ function requestState(requestRows: HistoryRow[]): Map<string, RequestState> {
         initialLaunchAuthorityQualified: authority !== null,
         sourceAliasesQualified: aliasesQualified,
       });
-      previousLines.set(id, new Set([exactLine]));
+      // Construct duplicate-evidence membership without invoking an
+      // ambient Array.prototype iterator on a one-element literal.
+      const firstSeen = new Set<string>();
+      firstSeen.add(exactLine);
+      previousLines.set(id, firstSeen);
       continue;
     }
     const seen = previousLines.get(id);
@@ -418,8 +521,9 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
   allocation_jsonl: Buffer;
 }): BuyVoidVerifiedAllocationReplayDecisionV1 {
   try {
-    if (!isRow(input) || Object.keys(input).sort().join("|") !==
-      ["request_id", "requests_jsonl", "operator_events_jsonl", "allocation_jsonl"].sort().join("|")) {
+    if (!isRow(input) || !exactOwnFieldsV1(input, [
+        "request_id", "requests_jsonl", "operator_events_jsonl", "allocation_jsonl",
+      ])) {
       fail("replay_binding_input_shape_invalid");
     }
     const target = field(input.request_id, "replay_binding_request_id_invalid");
@@ -437,7 +541,9 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     const byRequest = new Map<string, VerifiedState>();
     const byIdentity = new Map<string, VerifiedState>();
     let verifiedMicro = 0n;
-    for (const item of operatorRows) {
+    for (let index = 0; index < operatorRows.length; index += 1) {
+      const item =
+        ownArrayIndexV1(operatorRows, index, "operator_history_slot_invalid");
       const { row } = item;
       const id = field(row.request_id, "operator_event_request_id_invalid");
       if (!REQUEST_ID.test(id) || typeof row.operator_status !== "string") {
@@ -471,7 +577,10 @@ export function classifyBuyVoidVerifiedAllocationReplayBindingV1(input: {
     if (allocation.ok === false) fail("allocation_history_" + allocation.reason);
     let allocatedMicro = 0n;
     let matched: (typeof allocation.records)[number] | null = null;
-    for (const record of allocation.records) {
+    for (let index = 0; index < allocation.records.length; index += 1) {
+      const record = ownArrayIndexV1(
+        allocation.records, index, "allocation_history_slot_invalid",
+      );
       const accepted = byRequest.get(record.request_id);
       if (!accepted || record.canonical_payment_identity !== accepted.paymentIdentity ||
           record.payment_verified_event_sha256 !== accepted.eventSha ||
@@ -668,11 +777,10 @@ export function classifyBuyVoidPreappendVerifiedPaymentLineageV1(input: {
     const callerChain = chain(candidateRequest.source_chain);
     if (
       callerChain !== original.chain ||
-      (["payment_chain", "chain"] as const).some(
-        (alias) =>
-          Object.prototype.hasOwnProperty.call(candidateRequest, alias) &&
-          !sourceAliasMatches(candidateRequest[alias], callerChain),
-      )
+      (Object.hasOwn(candidateRequest, "payment_chain") &&
+        !sourceAliasMatches(candidateRequest.payment_chain, callerChain)) ||
+      (Object.hasOwn(candidateRequest, "chain") &&
+        !sourceAliasMatches(candidateRequest.chain, callerChain))
     ) {
       fail("preappend_caller_source_chain_mismatch");
     }
