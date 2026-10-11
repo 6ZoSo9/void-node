@@ -95,7 +95,7 @@ jobs:
           wait "$P2"
           grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-web-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-${{ matrix.node }}.txt"
-          test ! -e "$LOCK"
+          sudo test ! -e "$LOCK"
           sudo cat "$LOG" > "cross-uid-log-${{ matrix.node }}.txt"
           node "$PROOF" --verify-log "cross-uid-log-${{ matrix.node }}.txt"             | tee "cross-uid-mutual-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_TWO_PROCESS_MUTUAL_EXCLUSION_GREEN'             "cross-uid-mutual-${{ matrix.node }}.txt"
@@ -103,24 +103,24 @@ jobs:
           sudo truncate -s 0 "$LOG"
           sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web-fail fail 3000             > "cross-uid-web-fail-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_RETAINED_FAILURE_GREEN'             "cross-uid-web-fail-${{ matrix.node }}.txt"
-          test -f "$LOCK"
+          sudo test -f "$LOCK"
 
           sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-reap success 3000             > "cross-uid-custody-reap-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-reap-${{ matrix.node }}.txt"
-          test ! -e "$LOCK"
+          sudo test ! -e "$LOCK"
 
           sudo truncate -s 0 "$LOG"
           sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-fail fail 3000             > "cross-uid-custody-fail-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_RETAINED_FAILURE_GREEN'             "cross-uid-custody-fail-${{ matrix.node }}.txt"
-          test -f "$LOCK"
+          sudo test -f "$LOCK"
 
           sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web-hold expect-foreign-stale 3000             > "cross-uid-web-hold-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_FOREIGN_STALE_HELD_GREEN'             "cross-uid-web-hold-${{ matrix.node }}.txt"
-          test -f "$LOCK"
+          sudo test -f "$LOCK"
 
           sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-self-reap success 3000             > "cross-uid-custody-self-reap-${{ matrix.node }}.txt"
           grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-self-reap-${{ matrix.node }}.txt"
-          test ! -e "$LOCK"
+          sudo test ! -e "$LOCK"
 
           printf '%s\n'             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_TWO_UID_GREEN'             'web_and_custody_mutual_exclusion=true'             'custody_owner_reaps_stale_web_claim=true'             'web_cannot_reap_stale_custody_claim=true'             'custody_reaps_own_stale_claim=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'funds_movement=false'             | tee "cross-uid-capacity-kernel-${{ matrix.node }}.txt"
 
