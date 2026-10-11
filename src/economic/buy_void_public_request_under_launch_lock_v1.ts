@@ -8,7 +8,10 @@ export const VOID_BUY_VOID_PUBLIC_REQUEST_UNDER_LAUNCH_LOCK_V1 =
   "VOID_BUY_VOID_PUBLIC_REQUEST_UNDER_LAUNCH_LOCK_V1";
 
 export type BuyVoidPublicRequestLaunchLockCallbacksV1 = readonly [
-  withLaunchMutation: (request: any, operation: () => Promise<any>) => Promise<any>,
+  withLaunchMutation: (
+    request: any,
+    operation: (assertCurrentAuthority: () => unknown) => Promise<any>,
+  ) => Promise<any>,
   readRequests: () => Promise<any[]>,
   readEvents: () => Promise<any[]>,
   applyEvents: (requests: any[], events: any[]) => any[],
@@ -32,7 +35,13 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   // Directory creation already preceded the original launch write lock.
   // The canonical launch lock callback independently revalidates the request.
   fs.mkdirSync(dir, { recursive: true });
-  return withLaunchMutation(reqObj, async () => {
+  return withLaunchMutation(reqObj, async (assertCurrentAuthority) => {
+    // The canonical launch gate first checks authority before invoking the
+    // callback, but these two history reads are awaited. They can outlive the
+    // gate generation / TTL. Require its original under-lock revalidator.
+    if (typeof assertCurrentAuthority !== "function") {
+      throw new Error("buy_void_request_launch_revalidator_missing");
+    }
     // Recheck reviewed operator/request history inside the EXISTING
     // cross-process authority lock, before any JSONL or sidecar append.
     const projected = applyEvents(await readRequests(), await readEvents());
@@ -76,12 +85,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       if (Number.isFinite(amount) &&
           amount === Number(reqObj.usdc_amount) &&
           chain === reqObj.source_chain) {
+        // Do not report a successful reused request after a lease expires
+        // during asynchronous history reads.
+        assertCurrentAuthority();
         return { dir, reused_request: active, file: null };
       }
       throw new Error("buy_void_request_active_destination_changed_during_lock");
     }
 
     const json = JSON.stringify(reqObj);
+    // Last synchronous admission check immediately before the append:
+    // nothing may await between this and the byte write under the lock.
+    assertCurrentAuthority();
     fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
     const file = path.join(dir, reqObj.request_id + ".json");
     fs.writeFileSync(file, JSON.stringify(reqObj, null, 2));

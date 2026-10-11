@@ -200,9 +200,94 @@ function temp(){
    fs.rmSync(root,{recursive:true,force:true});
  }
 }
+// The launch authority is checked by the canonical bakery lock *before*
+// invoking the operation, but the helper awaits request/event history while
+// holding that lock. Expiration during the awaited read must prevent both
+// a new request append and a successful reuse of an older request.
+for (const existing of [false, true]) {
+ const root=temp();
+ const saved=process.env.VOID_BUY_REQUEST_DIR;
+ let startedRead;
+ let releaseRead;
+ const reading=new Promise(resolve=>{startedRead=resolve;});
+ const released=new Promise(resolve=>{releaseRead=resolve;});
+ let leaseValid=true;
+ let checks=0;
+ const assertCurrentAuthority=()=>{
+   checks++;
+   if (!leaseValid) {
+     throw new Error("request_launch_authority_expired_or_superseded");
+   }
+   return {ready:true};
+ };
+ const locked=async (_request,operation)=>{
+   // Match the real gate's admission behavior: first check before callback.
+   assertCurrentAuthority();
+   return operation(assertCurrentAuthority);
+ };
+ const req=request("expiry-control");
+ try {
+   process.env.VOID_BUY_REQUEST_DIR=root;
+   // Reuse uses a canonical request reader result; this is all synthetic,
+   // with no live request, service or operator credential access.
+   const pending=persistBuyVoidPublicRequestUnderLaunchLockV1(req,[
+     locked,
+     async()=>{
+       startedRead();
+       await released;
+       return existing ? [req] : [];
+     },
+     async()=>[],
+     requests=>requests,
+     ()=>false,
+     ()=>true,
+   ]);
+   await reading;
+   leaseValid=false;
+   releaseRead();
+   await assert.rejects(pending,
+     /request_launch_authority_expired_or_superseded/u);
+   assert.equal(checks,2,
+     "under-lock authority must be revalidated after async reads");
+   assert.equal(fs.existsSync(path.join(root,"requests.jsonl")),false,
+     "expired lease must not append even one request");
+   assert.equal(fs.existsSync(path.join(root,req.request_id+".json")),false,
+     "expired lease must not create a request sidecar");
+ } finally {
+   leaseValid=false;
+   releaseRead();
+   if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
+   else process.env.VOID_BUY_REQUEST_DIR=saved;
+   fs.rmSync(root,{recursive:true,force:true});
+ }
+}
+// A mock lock that discards the actual gate revalidation capability may
+// never qualify any request byte append or idempotent response.
+{
+ const root=temp();
+ const saved=process.env.VOID_BUY_REQUEST_DIR;
+ try {
+   process.env.VOID_BUY_REQUEST_DIR=root;
+   await assert.rejects(
+     ()=>persistBuyVoidPublicRequestUnderLaunchLockV1(request("missing-gate"),[
+       async(_request,operation)=>operation(undefined),
+       async()=>[],async()=>[],requests=>requests,()=>false,()=>true,
+     ]),
+     /buy_void_request_launch_revalidator_missing/u,
+   );
+   assert.equal(fs.existsSync(path.join(root,"requests.jsonl")),false);
+ } finally {
+   if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
+   else process.env.VOID_BUY_REQUEST_DIR=saved;
+   fs.rmSync(root,{recursive:true,force:true});
+ }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
+console.log("expired_launch_lease_after_history_read_holds=true");
+console.log("expired_launch_lease_before_reused_response_holds=true");
+console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");

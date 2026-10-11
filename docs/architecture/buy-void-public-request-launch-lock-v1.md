@@ -69,6 +69,36 @@ review. The Node22/24/26 workflow typechecks/builds the actual full repository,
 requires exact source Git blobs and byte-identical inert test transcripts,
 with no token write permission and no mounted HTTP/payment service.
 
+## Lease expiry during asynchronous history checks (source-only)
+
+The canonical launch lock validates request authority before invoking a
+callback, but it also gives the callback an `assertCurrentAuthority` function.
+A request/event reader may await asynchronous I/O while the same cross-process
+lock is held. Admission at lock entry is **not** proof that the same launch
+generation or expiration remains valid when the append begins.
+
+The helper now REQUIRES the canonical callback to provide its revalidator,
+invokes it after both awaited history reads and synchronous request encoding,
+and only then appends. There is no intervening `await` between this assertion
+and the append. It also requires a fresh revalidation before emitting an
+idempotent/reused result, so stale read-only results cannot be mistaken for a
+currently authorized intake. Missing callback, expired generation or TTL
+always HOLD without adding a request row or sidecar.
+
+The existing disposable compiled-helper proof now simulates a lease expiring
+*while* `readRequests()` is pending, both for a previously empty history and
+for a single matching active request. Both must refuse, perform zero appends,
+and assert two actual authority checks (lock admission and post-await). A
+lock callback that drops the revalidator must HOLD as well.
+
+**Limits:** This is a lease/read-write linearization guard under the existing
+lock, not a strict historical JSONL reader, protected high-water, durable
+request/sidecar atomicity, canonical buyer authorization or authenticated
+idempotent recovery. The public route can still expose a prior full request
+record to an unauthenticated caller who knows public intent fields; that
+separate P1 finding remains OPEN and blocks release. No live payment, wallet,
+customer ledger or presale/WC state is changed here.
+
 ## Launch boundaries
 
 No Ready/merge, live request intake, customer records, installed custody,

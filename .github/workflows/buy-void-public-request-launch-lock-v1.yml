@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "133599f4e2279ca0efe633c9f0ed9bd69c6e955c"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "23ef017a008a573a1e9feba4a5915b36af2e9f02"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "62da88ffef913b5d6ae507ca598ed897fb9124df"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "1419baff6efde5b43b5e642d59ed6efd780e32f6"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "fa09ef06cfe23ff3256e74215410df5f0abe51ff"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -60,6 +60,9 @@ jobs:
             'VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN' \
             'negative_predecessor_duplicate_append_observed=true' \
             'current_concurrent_same_intent_exactly_one_append=true' \
+            'expired_launch_lease_after_history_read_holds=true' \
+            'expired_launch_lease_before_reused_response_holds=true' \
+            'missing_under_lock_revalidator_holds=true' \
             'current_same_intent_returns_existing_request=true' \
             'prior_multi_active_destination_never_idempotent=true' \
             'prior_multi_active_conflicting_rail_and_amount_holds=true' \
