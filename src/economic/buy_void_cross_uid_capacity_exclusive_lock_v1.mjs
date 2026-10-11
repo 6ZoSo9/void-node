@@ -607,6 +607,30 @@ function verifyClaimFileMetadata(metadata, config) {
   }
 }
 
+// Capture at most the preflight size plus one sentinel byte. In particular,
+// do not re-stat the file via readFileSync(fd) after the claim-size check.
+function readPreflightBoundedClaim(fd, expectedSize) {
+  if (!Number.isSafeInteger(expectedSize) ||
+      expectedSize < 2 || expectedSize > MAX_CLAIM_BYTES) {
+    fail("cross_uid_capacity_lock_claim_size_out_of_range");
+  }
+  const cap = expectedSize + 1;
+  const buffer = Buffer.alloc(cap);
+  let total = 0;
+  while (total < cap) {
+    const count = fs.readSync(fd, buffer, total, cap - total, total);
+    if (!Number.isSafeInteger(count) || count < 0 || count > cap - total) {
+      fail("cross_uid_capacity_lock_claim_read_invalid");
+    }
+    if (count === 0) break;
+    total += count;
+  }
+  if (total !== expectedSize) {
+    fail("cross_uid_capacity_lock_claim_changed_during_read");
+  }
+  return buffer.subarray(0, total);
+}
+
 function openAndReadLock(config, sharedFd) {
   const lockPath = procPath(sharedFd, LOCK_NAME);
   let fd;
@@ -623,7 +647,7 @@ function openAndReadLock(config, sharedFd) {
     if (!sameFileIdentity(before, visibleBefore)) {
       fail("cross_uid_capacity_lock_lock_path_fd_mismatch");
     }
-    const bytes = fs.readFileSync(fd);
+    const bytes = readPreflightBoundedClaim(fd, before.size);
     const after = fs.fstatSync(fd);
     const visibleAfter = fs.lstatSync(lockPath);
     if (
