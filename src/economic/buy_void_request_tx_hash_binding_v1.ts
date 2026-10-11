@@ -272,6 +272,26 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
           const persisted = await persistRequest(
             updated,
           );
+          // The public create persistor can return an older reused request
+          // without appending this updated tx hash. Never report it bound.
+          if (!persisted || typeof persisted !== "object" ||
+              persisted.file === null ||
+              persisted.reused_request != null) {
+            throw new Error("buy_void_request_tx_hash_persist_unconfirmed");
+          }
+          const afterRequests = await readRequests();
+          const updatedRows = Array.isArray(afterRequests)
+            ? afterRequests.filter(
+                (row: any) => row &&
+                  row.request_id === id,
+              )
+            : [];
+          if (updatedRows.length !== 1 ||
+              updatedRows[0].status !==
+                "payment_submitted_pending_manual_review" ||
+              updatedRows[0].tx_hash !== tx_hash) {
+            throw new Error("buy_void_request_tx_hash_persist_unconfirmed");
+          }
 
           return res.json({
             schema:
@@ -290,7 +310,9 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
         const held =
           message ===
           "request_launch_authority_expired_or_superseded";
-        return res.status(held ? 409 : 500).json({
+        const unconfirmed =
+          message === "buy_void_request_tx_hash_persist_unconfirmed";
+        return res.status(held ? 409 : unconfirmed ? 503 : 500).json({
           schema:
             "void_buy_void_request_tx_hash_binding_v1",
           ok: false,
