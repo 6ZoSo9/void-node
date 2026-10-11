@@ -14,7 +14,7 @@ import {
 
 const PINNED_SOURCE = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "9debe79943ba4622bb6b976ccbcfabf36b8429e3",
+    "bab217275dc6cdb8267adc0297599e2e83572518",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
     "e3c659194a95394dd53b1960aed559e3950a89e1",
 });

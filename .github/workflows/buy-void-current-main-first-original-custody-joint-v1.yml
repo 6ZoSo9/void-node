@@ -49,8 +49,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "e3c659194a95394dd53b1960aed559e3950a89e1"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "9debe79943ba4622bb6b976ccbcfabf36b8429e3"
-          test "$(git hash-object scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts)" = "f766f09b5563b068fb1ca7f7f72f3139efab4377"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "bab217275dc6cdb8267adc0297599e2e83572518"
+          test "$(git hash-object scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts)" = "091a2c890d49cd0e63625538c4f8153b1ac9694c"
           test "$(git hash-object tools/void-buy-allocation-custody-service-v1.mjs)" = "b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
           git merge-base --is-ancestor 16a9002a3b1ffe0f8faa2c9170ca6c087565c59a HEAD
           git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
@@ -113,7 +113,7 @@ jobs:
             echo "main_parent=16a9002a3b1ffe0f8faa2c9170ca6c087565c59a"
             echo "first_original_owner=df7ad33671b8c47a350c1d3ebfc87c59d69d580a"
             echo "replay_source=e3c659194a95394dd53b1960aed559e3950a89e1"
-            echo "allocation_source=9debe79943ba4622bb6b976ccbcfabf36b8429e3"
+            echo "allocation_source=bab217275dc6cdb8267adc0297599e2e83572518"
             echo "native_utf8_decoder_bound=true"
             echo "custody_source=b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
             echo "durable_payment_provenance_read=true"

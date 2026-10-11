@@ -46,7 +46,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "9debe79943ba4622bb6b976ccbcfabf36b8429e3"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "bab217275dc6cdb8267adc0297599e2e83572518"
           test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "e3c659194a95394dd53b1960aed559e3950a89e1"
           test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f"
           git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
@@ -72,7 +72,7 @@ jobs:
             assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6");
             assert.equal(j.reviewed_combined_source_head,"df7ad33671b8c47a350c1d3ebfc87c59d69d580a");
             assert.equal(j.reviewed_current_replay_source_blob_sha1,"e3c659194a95394dd53b1960aed559e3950a89e1");
-            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"9debe79943ba4622bb6b976ccbcfabf36b8429e3");
+            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"bab217275dc6cdb8267adc0297599e2e83572518");
             assert.equal(j.reviewed_current_preappend_source_blob_sha1,"945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f");
             for (const k of [
               "frozen_historical_V1_proof_unchanged",

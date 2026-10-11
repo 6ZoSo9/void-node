@@ -1070,14 +1070,20 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
     } else {
       throw new Error("allocation_reservation_ledger_not_plain_data");
     }
-    if (bytes.length > MAX_LEDGER_BYTES) {
+    // The copied Buffer's apparent .length may still resolve through a
+    // post-import mutable typed-array accessor. Check the same captured
+    // native byte length used for all subsequent framing.
+    const byteLength = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
+      ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, bytes, [],
+    ) as number;
+    if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
+      throw new Error("allocation_reservation_ledger_not_plain_data");
+    }
+    if (byteLength > MAX_LEDGER_BYTES) {
       throw new Error("allocation_reservation_ledger_too_large");
     }
     // Direct byte framing cannot be made to omit earlier reservations by
     // mutating Buffer.prototype.toString or String.prototype.slice/split.
-    const byteLength = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
-      ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, bytes, [],
-    ) as number;
     if (byteLength === 0) {
       return Object.freeze({
         ok: true,

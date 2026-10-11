@@ -52,11 +52,11 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
-          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "70fb63fa97e95fe628d131016c9607b9ed931ed3"
-          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "f260303cd982e9979d938e3f4f5d61bb9631f8cd"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "68db4b8f4372c3f9dc5a1ec007cd40ac089d8ebe"
+          test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "74ea807c988109072612ee433f35cab86d61bc5c"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs)" = "5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51"
-          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "8a0bdc976ac1a94853ce79f83f8187ccd85bb321"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "253c402ea12d2813416db3ac0dbbd8cf6bf246e8"
       - name: Require predecessor refusals and current successor success
         run: |
           set -euo pipefail
@@ -80,7 +80,7 @@ jobs:
             fi
             if [[ "$proof" == *crash_matrix_v4.mjs ]]; then
               grep -Fq '66617a89d5ad9f81b5a21d98cca55fcda6902a80' "$log"
-              grep -Fq '9debe79943ba4622bb6b976ccbcfabf36b8429e3' "$log"
+              grep -Fq 'bab217275dc6cdb8267adc0297599e2e83572518' "$log"
             fi
             if [[ "$proof" == *dual_rail_v2.ts ]]; then
               grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$log"
@@ -104,7 +104,7 @@ jobs:
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'reviewed_replay_source_blob=e3c659194a95394dd53b1960aed559e3950a89e1' dualrail-${{ matrix.node }}.txt
-          grep -Fxq 'reviewed_allocation_ledger_source_blob=9debe79943ba4622bb6b976ccbcfabf36b8429e3' dualrail-${{ matrix.node }}.txt
+          grep -Fxq 'reviewed_allocation_ledger_source_blob=bab217275dc6cdb8267adc0297599e2e83572518' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'frozen_dual_rail_v2_proof_unchanged=true' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'actual_live_provider_finality_verified=false' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'mounted_verified_allocation_dispatch=false' dualrail-${{ matrix.node }}.txt

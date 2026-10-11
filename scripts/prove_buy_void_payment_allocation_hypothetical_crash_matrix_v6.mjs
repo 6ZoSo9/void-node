@@ -26,7 +26,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "9debe79943ba4622bb6b976ccbcfabf36b8429e3",
+    "bab217275dc6cdb8267adc0297599e2e83572518",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
     "e3c659194a95394dd53b1960aed559e3950a89e1",
   "src/economic/buy_void_preappend_plain_input_v1.ts":
@@ -404,7 +404,7 @@ const report = Object.freeze({
     "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f",
   historical_v2_source_runtime_generation_commit:"7da490d56556ab98b5515f5eba53bf6a8f118203",
   reviewed_current_allocation_source_blob_sha1:
-    "9debe79943ba4622bb6b976ccbcfabf36b8429e3",
+    "bab217275dc6cdb8267adc0297599e2e83572518",
   frozen_predecessor_crash_proof_git_blob_sha1:FROZEN_V1_CRASH_PROOF_BLOB,
   frozen_historical_V1_proof_unchanged:true,
   frozen_historical_V2_proof_unchanged:true,
