@@ -375,7 +375,7 @@ async function fetchJson(url, label, options) {
   let acquired = false;
   let result;
   let primaryError;
-  let releaseError;
+  let releaseFailed = false;
   try {
     try {
       response = await awaitWithinDeadline(fetchOperation, request, `${label}_fetch`);
@@ -393,15 +393,15 @@ async function fetchJson(url, label, options) {
     if (acquired) await abortAndCancelResponse(response, request);
   } finally {
     try { request.reader?.releaseLock(); }
-    catch (error) {
-      releaseError = error;
+    catch {
+      releaseFailed = true;
       request.readerReleaseFailed = true;
     }
     request.finished = true;
     request.releaseIfTerminal();
   }
   if (primaryError) throw primaryError;
-  if (releaseError) fail(`${label}_body_reader_release_failed`);
+  if (releaseFailed) fail(`${label}_body_reader_release_failed`);
   return result;
 }
 
