@@ -51,14 +51,18 @@ try {
   // A captured native method is still unsafe if passed through a mutable
   // Reflect.apply at parse time. Reproduce that second callback boundary.
   const forged = '{"record_type":"allocation_reserved","request_id":"buyvoid_z_aaaaaaaa"}';
-  Reflect.apply = function(target: Function, receiver: unknown, args: any[]) {
+  Object.defineProperty(Reflect, "apply", {
+    configurable: true,
+    writable: true,
+    value: function(target: Function, receiver: unknown, args: any[]) {
     if (target === original.value && Array.isArray(args) &&
         args.length === 1 && Buffer.isBuffer(args[0])) {
       applyHookCount++;
       return forged;
     }
     return originalApply(target, receiver, args);
-  };
+    },
+  });
   const intercepted = Reflect.apply(original.value,
     new TextDecoder("utf-8", { fatal: true }),
     [Buffer.from([0xc3, 0x28, 0x0a])]);

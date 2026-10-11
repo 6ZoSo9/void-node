@@ -64,7 +64,7 @@ The successor reviewed Git blobs are:
 
 - allocation reservation ledger: `1542e833242a20bea8359396e2e157882e53cabc`;
 - verified allocation replay: `b5dbbbd932688f8b0ad04477433cd11ede413bb7`;
-- adversarial actual-classifier test: `b2487739db2b428c1e5a68cbf4453acb5d0ff354`.
+- adversarial actual-classifier test: `c45f1d31d254ffed7919b2cbaa05aff6caa6580a`.
 
 The existing joint workflow now requires the actual-classifier adversary on
 Node 22/24/26, including positive controls that poisoned global hooks are
