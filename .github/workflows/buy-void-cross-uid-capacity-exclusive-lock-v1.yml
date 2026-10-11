@@ -51,7 +51,7 @@ jobs:
           node --check src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
           node --check scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
           node scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs             | tee "cross-uid-capacity-ordinary-${{ matrix.node }}.txt"
-          for marker in             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1_GREEN'             'create_only_kernel_lock=true'             'callback_failure_retains_lock=true'             'ambient_tojson_not_claim_authority=true'             'shared_directory_mode_03770_required=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'presale_activation=false'             'funds_movement=false'
+          for marker in             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1_GREEN'             'create_only_kernel_lock=true'             'callback_failure_retains_lock=true'             'create_only_stale_recovery_marker=true'             'stale_recovery_marker_retained_as_tombstone=true'             'stale_reaper_path_unlink_serialized=true'             'ambient_tojson_not_claim_authority=true'             'shared_directory_mode_03770_required=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'presale_activation=false'             'funds_movement=false'
           do
             grep -Fx "$marker" "cross-uid-capacity-ordinary-${{ matrix.node }}.txt"
           done
@@ -105,9 +105,34 @@ jobs:
           grep -Fx 'VOID_CROSS_UID_RETAINED_FAILURE_GREEN'             "cross-uid-web-fail-${{ matrix.node }}.txt"
           sudo test -f "$LOCK"
 
-          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-reap success 3000             > "cross-uid-custody-reap-${{ matrix.node }}.txt"
-          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-reap-${{ matrix.node }}.txt"
+          sudo truncate -s 0 "$LOG"
+          sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-recovery-owner success-recovery-owner 5000 500             > "cross-uid-custody-recovery-owner-${{ matrix.node }}.txt" &
+          R1=$!
+
+          RECOVERY_MARKER=""
+          for _ in $(seq 1 100); do
+            RECOVERY_MARKER="$(sudo find "$ROOT" -maxdepth 1 -type f -name '.void-buy-void-cross-uid-capacity-recovery-v1-*.guard' -print -quit)"
+            if [ -n "$RECOVERY_MARKER" ]; then
+              break
+            fi
+            sleep 0.01
+          done
+          test -n "$RECOVERY_MARKER"
+          sudo test -f "$RECOVERY_MARKER"
+
+          sudo runuser -u "$WEB" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" web-recovery-waiter success-recovery-waiter 5000 10             > "cross-uid-web-recovery-waiter-${{ matrix.node }}.txt" &
+          R2=$!
+
+          wait "$R1"
+          wait "$R2"
+          grep -Fx 'VOID_CROSS_UID_RECOVERY_MARKER_OWNER_GREEN'             "cross-uid-custody-recovery-owner-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_RECOVERY_MARKER_WAITER_GREEN'             "cross-uid-web-recovery-waiter-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-recovery-owner-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-web-recovery-waiter-${{ matrix.node }}.txt"
           sudo test ! -e "$LOCK"
+          sudo cat "$LOG" > "cross-uid-recovery-log-${{ matrix.node }}.txt"
+          node "$PROOF" --verify-log "cross-uid-recovery-log-${{ matrix.node }}.txt"             | tee "cross-uid-recovery-mutual-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_CROSS_UID_TWO_PROCESS_MUTUAL_EXCLUSION_GREEN'             "cross-uid-recovery-mutual-${{ matrix.node }}.txt"
 
           sudo truncate -s 0 "$LOG"
           sudo runuser -u "$CUST" -- "$NODE" "$PROOF" --worker             "$ROOT" "$CUST_UID" "$WEB_UID" "$GID" "$LOG" custody-fail fail 3000             > "cross-uid-custody-fail-${{ matrix.node }}.txt"
@@ -122,7 +147,10 @@ jobs:
           grep -Fx 'VOID_CROSS_UID_WORKER_SUCCESS_GREEN'             "cross-uid-custody-self-reap-${{ matrix.node }}.txt"
           sudo test ! -e "$LOCK"
 
-          printf '%s\n'             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_TWO_UID_GREEN'             'web_and_custody_mutual_exclusion=true'             'custody_owner_reaps_stale_web_claim=true'             'web_cannot_reap_stale_custody_claim=true'             'custody_reaps_own_stale_claim=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'funds_movement=false'             | tee "cross-uid-capacity-kernel-${{ matrix.node }}.txt"
+          RECOVERY_COUNT="$(sudo find "$ROOT" -maxdepth 1 -type f -name '.void-buy-void-cross-uid-capacity-recovery-v1-*.guard' | wc -l)"
+          test "$RECOVERY_COUNT" -eq 2
+
+          printf '%s\n'             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_TWO_UID_GREEN'             'web_and_custody_mutual_exclusion=true'             'competing_cross_uid_stale_reapers_serialized=true'             'replacement_unlink_race_closed_by_retained_marker=true'             'retained_recovery_marker_count=2'             'custody_owner_reaps_stale_web_claim=true'             'web_cannot_reap_stale_custody_claim=true'             'custody_reaps_own_stale_claim=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'funds_movement=false'             | tee "cross-uid-capacity-kernel-${{ matrix.node }}.txt"
 
           sudo rm -rf "$ROOT" "$CODE"
 
@@ -146,6 +174,7 @@ jobs:
             cross-uid-capacity-ordinary-${{ matrix.node }}.txt
             cross-uid-capacity-kernel-${{ matrix.node }}.txt
             cross-uid-mutual-${{ matrix.node }}.txt
+            cross-uid-recovery-mutual-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
 
