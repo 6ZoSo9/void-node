@@ -170,7 +170,10 @@ function parseResponse(bytes, expectedDigest) {
   ]) || d.ok !== true || d.status !== "inspected" ||
       d.record_id !== null || d.allocation_record_hash !== null ||
       !Number.isSafeInteger(d.record_count) || d.record_count < 0 ||
-      typeof d.tip_hash !== "string" || d.tip_hash.length > 130 ||
+      d.record_count > 100_000 ||
+      typeof d.tip_hash !== "string" ||
+      !/^sha256:[0-9a-f]{64}$/u.test(d.tip_hash) ||
+      (d.record_count === 0 && d.tip_hash !== "sha256:" + "0".repeat(64)) ||
       d.operation_performed !== false ||
       d.custody_cross_uid_lock_participation_verified !== false ||
       d.web_payment_writer_cross_uid_lock_participation_verified !== false ||

@@ -144,6 +144,32 @@ try {
   held(await inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(config()));
 
   await fake(socket => deliver(socket, baseline), true);
+  // Canonical custody/high-water identity: count is bounded and the digest
+  // must be lowercase SHA-256; zero count has exactly the zero-genesis tip.
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    record_count: 100_001 } }), false);
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    record_count: -1 } }), false);
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    tip_hash: "INVALID-TIP" } }), false);
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    tip_hash: "sha256:" + "A".repeat(64) } }), false);
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    tip_hash: "sha256:" + "0".repeat(63) } }), false);
+  await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
+    tip_hash: "sha256:" + "1".repeat(64) } }), false);
+  // The inclusive count ceiling is allowed with a canonical nonzero tip.
+  await withServer(socket => deliver(socket, { ...baseline, decision: {
+    ...decision, record_count: 100_000, tip_hash: "sha256:" + "a".repeat(64),
+  } }), async () => {
+    const seen = await inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(config());
+    assert.equal(seen.ok, true);
+    assert.equal(seen.status, "source_inspected");
+    assert.equal(seen.record_count, 100_000);
+    assert.equal(seen.tip_hash, "sha256:" + "a".repeat(64));
+    assert.equal(seen.payment_acceptance, false);
+    assert.equal(seen.production_gate_ready, false);
+  });
   await fake(socket => deliver(socket, { ...baseline, request_sha256: sha("other") }), false);
   await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
     operation_performed: true } }), false);
