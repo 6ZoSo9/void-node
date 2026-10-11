@@ -5,17 +5,116 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import {
+import { TextDecoder } from "node:util";
+import { compileFunction } from "node:vm";
+
+// Execute the private scanner's actual declarations, not a second parser.
+// No observer or compiled replay is invoked while ambient hooks are installed.
+// Full filesystem/compiled integration remains the default proof below.
+function proveScannerIsolation() {
+  const source = fs.readFileSync(new URL(
+    "../src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs",
+    import.meta.url,
+  ), "utf8");
+  const first = "const REQUEST_ID =";
+  const last = "\nfunction replay(";
+  const start = source.indexOf(first);
+  const end = source.indexOf(last);
+  assert.ok(start >= 0 && end > start);
+  assert.equal(start, source.lastIndexOf(first));
+  assert.equal(end, source.lastIndexOf(last));
+  const scan = compileFunction(
+    source.slice(start, end) + "\nreturn strictVerifiedRequestIds;",
+    ["Buffer", "TextDecoder"],
+  )(Buffer, TextDecoder);
+  const id = "buyvoid_a_aaaaaaaa";
+  const row = {
+    request_id: id,
+    operator_status: "payment_verified",
+    payment_verified: true,
+    detail: { entries: ["nested", { ok: true }] },
+  };
+  const bytes = Buffer.from(JSON.stringify(row) + "\n");
+  assert.deepEqual(scan(bytes), [id]);
+  for (const proto of [Object.prototype, Array.prototype]) {
+    for (const accessor of [false, true]) {
+      const prior = Object.getOwnPropertyDescriptor(proto, "toJSON");
+      let calls = 0;
+      let result;
+      const hook = function() { calls++; return this; };
+      const descriptor = accessor
+        ? { configurable: true, get() { calls++; return undefined; } }
+        : { configurable: true, value: hook };
+      try {
+        Object.defineProperty(proto, "toJSON", descriptor);
+        JSON.stringify(proto === Array.prototype ? [] : {});
+        assert.ok(calls > 0, "positive control must exercise the hook");
+        calls = 0;
+        result = scan(bytes);
+      } finally {
+        if (prior) Object.defineProperty(proto, "toJSON", prior);
+        else delete proto.toJSON;
+      }
+      assert.equal(calls, 0, "scanner invoked inherited JSON behavior");
+      assert.deepEqual(result, [id]);
+      assert.equal(Object.isFrozen(result), true);
+    }
+  }
+  for (const value of [null, "own-data", false, 0, ["nested"]]) {
+    const own = { ...row, toJSON: value };
+    assert.deepEqual(scan(Buffer.from(JSON.stringify(own) + "\n")), [id]);
+  }
+  // Missing fields must not be supplied by an ambient prototype.
+  for (const key of ["request_id", "operator_status"]) {
+    const incomplete = { ...row };
+    delete incomplete[key];
+    const incompleteBytes = Buffer.from(JSON.stringify(incomplete) + "\n");
+    const prior = Object.getOwnPropertyDescriptor(Object.prototype, key);
+    try {
+      Object.defineProperty(Object.prototype, key, {
+        configurable: true, value: row[key], writable: true,
+      });
+      assert.throws(() => scan(incompleteBytes), /operator_events_row_invalid/u);
+    } finally {
+      if (prior) Object.defineProperty(Object.prototype, key, prior);
+      else delete Object.prototype[key];
+    }
+  }
+  for (const malformed of [
+    Buffer.from('{"request_id":"buyvoid_a_aaaaaaaa","request_id":"buyvoid_a_aaaaaaaa","operator_status":"payment_verified"}\n'),
+    Buffer.from(" " + bytes.toString()),
+    bytes.subarray(0, bytes.length - 1),
+    Buffer.from(bytes.toString().replace("\n", "\r\n")),
+    Buffer.from("[1,2]\n"),
+    Buffer.from("\n"),
+    Buffer.concat([bytes, bytes]),
+    Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes]),
+    Buffer.from([0xff, 0x0a]),
+  ]) assert.throws(() => scan(malformed));
+}
+
+const scannerOnly = process.argv.length === 3 &&
+  process.argv[2] === "--scanner-only";
+assert.ok(process.argv.length === 2 || scannerOnly, "unsupported proof argument");
+proveScannerIsolation();
+if (scannerOnly) {
+  console.log("VOID_BUY_VOID_RECONCILIATION_SCANNER_UNIT_GREEN");
+  console.log("scanner_inherited_json_hook_calls=0");
+  console.log("full_filesystem_reconciliation_proven=false");
+  process.exit(0);
+}
+
+const {
   deriveBuyVoidAllocationReservationHighWaterV1,
-} from "../dist/economic/buy_void_allocation_reservation_high_water_v1.js";
-import {
+} = await import("../dist/economic/buy_void_allocation_reservation_high_water_v1.js");
+const {
   planBuyVoidAllocationReservationV1,
-} from "../dist/economic/buy_void_allocation_reservation_ledger_v1.js";
-import {
+} = await import("../dist/economic/buy_void_allocation_reservation_ledger_v1.js");
+const {
   VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_AUTHORITY_V1,
   VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_V1,
   classifyBuyVoidCrossUidFailureReconciliationV1,
-} from "../src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs";
+} = await import("../src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs");
 
 const tx = (char) => "0x" + char.repeat(64);
 const address = (char) => "0x" + char.repeat(40);
@@ -371,6 +470,9 @@ try {
   assert.match(proxied.reason, /input_shape_invalid/u);
 
   console.log("VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1");
+  console.log("scanner_inherited_json_hook_calls=0");
+  console.log("scanner_own_data_and_canonical_rejection_preserved=true");
+  console.log("whole_pipeline_prototype_isolation_proven=false");
   console.log("descriptor_bound_payment_observer_reused=true");
   console.log("descriptor_bound_allocation_observer_reused=true");
   console.log("allocation_high_water_binding_required=true");

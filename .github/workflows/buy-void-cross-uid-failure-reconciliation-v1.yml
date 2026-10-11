@@ -42,23 +42,45 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build and prove read-only reconciliation
+        shell: bash
         run: |
+          set -euo pipefail
           npm run typecheck
           npm run build
           node --check src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs
           node --check scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs
+          # A nonempty transcript must never conceal a failed producer.
+          set +e
+          (printf 'synthetic proof failure\n'; exit 23) \
+            | tee "$RUNNER_TEMP/reconciliation-pipeline-negative.txt"
+          producer_status=$?
+          set -e
+          test "$producer_status" -eq 23
+          echo proof_pipeline_failure_propagated=true
           node scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs \
             | tee "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
-      - name: Exact four-path source scope
-        if: github.event_name == 'pull_request'
+          grep -Fx 'VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1' \
+            "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
+          grep -Fx 'scanner_inherited_json_hook_calls=0' \
+            "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
+      - name: Preserve historical introduction scope and check current diff
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INTRODUCTION_BASE: e355cb575cbf3931fe9560d7fa39ca4af4be0798
+          INTRODUCTION_HEAD: 799a85f0684e9f73a5fe7868164b3fe5ff2953fe
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git diff --check "$BASE" "$HEAD"
-          git diff --name-only "$BASE" "$HEAD" | sort > "$RUNNER_TEMP/actual"
+          git merge-base --is-ancestor "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_HEAD" "$HEAD"
+          # The original four added files remain historical evidence. Current
+          # edits are qualified by today's build/proof, not the old PR's size.
+          git diff --check "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git diff --name-only "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD" \
+            | sort > "$RUNNER_TEMP/actual"
+          test "$(git diff --name-only --diff-filter=A \
+            "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD" | wc -l)" -eq 4
           printf '%s\n' \
             .github/workflows/buy-void-cross-uid-failure-reconciliation-v1.yml \
             docs/architecture/buy-void-cross-uid-failure-reconciliation-v1.md \
@@ -66,7 +88,12 @@ jobs:
             src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs \
             | sort > "$RUNNER_TEMP/expected"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
-          echo exact_four_path_scope=true
+          echo historical_exact_four_path_scope=true
+          if test -n "${BASE:-}"; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: crossuid-failure-reconciliation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}

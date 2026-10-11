@@ -107,3 +107,33 @@ classifier only while the web writer still owns the outer claim. A separate
 review must define how a proven pre-mutation rejection is returned through the
 lock primitive and rethrown after a durable claim release. Missing or uncertain
 handoffs must continue retaining the claim for exclusive reconciliation.
+
+## Scanner and proof-exit repairs after the original introduction
+
+The verified-ID scanner removes the prototype from every decoded JSON object
+and array before canonical reserialization. Inherited `toJSON` callbacks and
+inherited request/status fields are not evidence. Own non-callable JSON data
+named `toJSON` retains its ordinary representation. Existing UTF-8, JSONL,
+duplicate-event, canonical-byte, size and row-count restrictions remain.
+
+The existing proof executes the private scanner's current source declarations
+in isolation, then runs its original real-observer/compiled-replay filesystem
+cases. Scanner tests cover object/array callbacks and accessors, positive
+controls, own data, inherited required fields and malformed input. Hooks are
+restored before any compiled dependency or filesystem integration runs.
+`--scanner-only` is an explicitly limited local test; CI invokes the default
+full proof and requires its full-proof marker. Scanner isolation does not
+establish whole-pipeline prototype isolation: the replay dependency's separate
+successor remains owned by the existing #2790 lineage and is not rewritten here.
+
+The existing Node 22/24/26 workflow uses explicit Bash and `set -euo pipefail`
+for the proof/receipt pipeline. An inline negative producer prints output and
+exits 23; the job must observe that failure before running the real proof.
+A nonempty or byte-identical transcript is not proof of a successful process.
+
+The initial four-file introduction remains authenticated through exact Git
+ancestors `e355cb575cbf3931fe9560d7fa39ca4af4be0798` and
+`799a85f0684e9f73a5fe7868164b3fe5ff2953fe`, including its exact added-file set.
+That historical diff is not imposed on every later PR. Current source changes
+still require fresh exact-head build/proof results, full-diff whitespace checks
+and independent scope/semantic review; no past GREEN is inherited.
