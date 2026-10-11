@@ -1054,6 +1054,8 @@ export async function withBuyVoidCrossUidCapacityExclusiveLockV1(
       fail("cross_uid_capacity_lock_callback_failed_lock_retained", error);
     }
 
+    const staleRecoveriesCompleted = held.stale_recoveries_completed;
+    const staleRecoveryMarkerWaits = held.stale_recovery_marker_waits;
     releaseHeld(config, opened, held);
     fs.closeSync(held.fd);
     held = null;
@@ -1069,8 +1071,8 @@ export async function withBuyVoidCrossUidCapacityExclusiveLockV1(
       exclusive_critical_section_completed: true,
       lock_release_fsynced: true,
       callback_failure_retains_lock: true,
-      stale_recoveries_completed: held.stale_recoveries_completed,
-      stale_recovery_marker_waits: held.stale_recovery_marker_waits,
+      stale_recoveries_completed: staleRecoveriesCompleted,
+      stale_recovery_marker_waits: staleRecoveryMarkerWaits,
       stale_recovery_marker_retained_as_tombstone: true,
       stale_reaper_path_unlink_serialized: true,
       cross_uid_serialization_source_proven: true,
