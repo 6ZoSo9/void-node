@@ -34,13 +34,17 @@ The classifier reuses the existing descriptor-bound read-only observers for:
 Both observations are repeated and all four byte sequences must remain
 identical across the read window. The allocation ledger must bind exactly to
 the authoritative high-water. Operator history is strict canonical JSONL, and
-the canonical verified-allocation replay classifier is run for every durable
-`payment_verified` request.
+the canonical verified-allocation replay classifier validates the complete
+verified-event/allocation history with at most two full replay calls. A target
+that already has a verified event needs one replay. A target without one uses
+one representative global replay, when needed, plus one target-absence replay.
+This avoids reparsing the complete ledgers once per verified request.
 
 This detects ordinary concurrent changes but does **not** prove an atomic
-cross-filesystem snapshot. A future caller must independently establish that it
-owns the outer cross-UID capacity claim before using this diagnosis in any
-release protocol.
+cross-filesystem snapshot, an external high-water witness, or exclusion of a
+coordinated rollback across both allocation roots. A future caller must
+independently establish that it owns the outer cross-UID capacity claim before
+using this diagnosis in any release protocol.
 
 ## Outcomes
 
@@ -84,6 +88,8 @@ The source authority permanently keeps these false:
 
 ```text
 cross_file_atomic_snapshot_verified=false
+external_high_water_witness_verified=false
+coordinated_storage_rollback_excluded=false
 cross_uid_lock_ownership_verified=false
 cross_uid_lock_release_authorized=false
 custody_recovery_authorized=false
