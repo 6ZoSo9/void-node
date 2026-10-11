@@ -187,6 +187,9 @@ function checkedDurableAllocationHandoffV1(receipt, eventJson) {
       !SHA256_REF_V1.test(row("payment_verified_event_sha256")) ||
       row("payment_verified_event_sha256") !== expectedDigest ||
       typeof row("idempotent") !== "boolean" ||
+      // A newly appended payment cannot already have an allocated ledger
+      // record; only an old payment may legitimately require gap recovery.
+      (!alreadyVerified && row("idempotent") !== false) ||
       !Number.isSafeInteger(row("final_record_count")) ||
       row("final_record_count") < 1 ||
       // A positive count alone cannot make a forged writer receipt

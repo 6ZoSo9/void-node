@@ -99,6 +99,7 @@ jobs:
             idempotent_allocation_replay_receipt_accepted=true \
             payment_replay_allocation_repair_accepted=true \
             allocation_writer_status_and_final_tip_bound=true \
+            new_payment_existing_allocation_retains_lock=true \
             successful_dispatch_releases_after_callback=true \
             production_dispatch_invoked=false \
             filesystem_write=false \

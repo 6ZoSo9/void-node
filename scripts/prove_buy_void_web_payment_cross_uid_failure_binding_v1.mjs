@@ -190,7 +190,8 @@ function input() {
 // rather than accepting a fabricated { ok: true } without an allocation.
 function durableDispatchResult(input, mode = "ok") {
   const idempotent = mode === "idempotent" || mode === "replay_repaired";
-  const allocationIdempotent = mode === "idempotent";
+  const allocationIdempotent =
+    mode === "idempotent" || mode === "new_payment_existing_allocation";
   const eventSha = "sha256:" + createHash("sha256")
     .update(JSON.stringify(input.event) + "\n", "utf8").digest("hex");
   const allocation = Object.freeze({
@@ -493,7 +494,7 @@ await assert.rejects(context.invoke(input()), (error) => {
 for (const mode of [
   "bare_success", "wrong_digest", "wrong_marker", "unfrozen",
   "wrong_writer_status", "wrong_operation", "wrong_recovery_type",
-  "wrong_tip_hash",
+  "wrong_tip_hash", "new_payment_existing_allocation",
 ]) {
   dispatchMode = mode;
   reconciliationMode = "allocation_present";
@@ -600,6 +601,7 @@ console.log("forged_allocation_or_payment_digest_retains_lock=true");
 console.log("idempotent_allocation_replay_receipt_accepted=true");
 console.log("payment_replay_allocation_repair_accepted=true");
 console.log("allocation_writer_status_and_final_tip_bound=true");
+console.log("new_payment_existing_allocation_retains_lock=true");
 console.log("successful_dispatch_releases_after_callback=true");
 console.log("production_dispatch_invoked=false");
 console.log("filesystem_write=false");

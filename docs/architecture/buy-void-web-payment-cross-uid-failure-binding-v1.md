@@ -142,3 +142,10 @@ publication during recovery. The synthetic proof tests that case and a fully
 idempotent completed replay without turning either into live authorization.
 These checks inspect a returned source-level receipt; they **do not** establish
 an independently authenticated installed witness or actual payment finality.
+
+A new `payment_event_appended=true` receipt is never permitted to claim a
+preexisting idempotent allocation: the nested `allocation.idempotent` must
+be `false`. The reverse combination remains valid for historical payment
+recovery (outer payment idempotent, nested newly persisted allocation).
+Both paths are asserted by the exact fake-dispatch proof; neither grants
+live payment or custody authority.
