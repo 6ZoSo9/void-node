@@ -18547,7 +18547,29 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1})}
+    // VOID_BUY_VOID_OPERATOR_VERIFIED_PAYMENT_ALLOCATION_MOUNT_HOLD_V1
+    // This mounted helper is the payment-only capacity writer, not the
+    // separate durable cross-UID payment-to-allocation handoff. Never let
+    // the operator route append payment_verified without custody acceptance.
+    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){
+      const before=e&&typeof e==="object"&&!Array.isArray(e)
+        ?Object.getOwnPropertyDescriptor(e,"operator_status"):null;
+      if(!before||!Object.hasOwn(before,"value")||
+          typeof before.value!=="string"){
+        throw new Error("buy_void_mounted_operator_status_noncanonical_hold");
+      }
+      if(before.value==="payment_verified"){
+        throw new Error("buy_void_payment_allocation_handoff_unmounted_hold");
+      }
+      const admittedStatus=before.value;
+      const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");
+      const after=Object.getOwnPropertyDescriptor(e,"operator_status");
+      if(!after||!Object.hasOwn(after,"value")||
+          after.value!==admittedStatus||after.value==="payment_verified"){
+        throw new Error("buy_void_mounted_operator_status_changed_hold");
+      }
+      return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1});
+    }
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
@@ -18786,11 +18808,11 @@ event,
 request: found
 });
 } catch(e:any) {
-const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_duplicate_guard_");
-res.status(held?409:500).json({
+const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_duplicate_guard_"),unmounted=m==="buy_void_payment_allocation_handoff_unmounted_hold";
+res.status(unmounted?503:held?409:500).json({
 schema: "void_buy_void_payment_verifier_v1",
 ok: false,
-error: held?m:"payment_verifier_failed",
+error: unmounted?m:held?m:"payment_verifier_failed",
 message: m
 });
 }
