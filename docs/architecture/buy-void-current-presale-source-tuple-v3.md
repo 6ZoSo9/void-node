@@ -17,7 +17,7 @@ Current source identities:
 - preappend plain-input: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`;
 - operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
 - dispatcher V3 proof: `a651e42c02a7127cf445e545de77292c29cbe2bc`;
-- first-original handoff V4 proof: `ccb271e34b67dca07683198d84a0a9449f46729e`;
+- first-original handoff V4 proof: `4baff04d8aa12b71704006fba1835bfda86043da`;
 - frozen crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
 - current crash matrix V6 proof: `6d0d489eba7964d82e104c8824f1ebdb0da9e397`.
 
@@ -29,7 +29,7 @@ movement remain false.
 
 The current source successor
 `scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts`,
-Git blob `6f305cc3fe1f3003ce73692a41a72f8ab09b00ab`, is added without
+Git blob `b522b8a3cf6902342eb5979a1ea4775c84584884`, is added without
 changing runtime, wallet or customer source. It binds the current verified
 allocation replay source `b451bcd895986dadaf6e53954671062068316ccf`
 and reservation ledger `8d84955e1e093a5c5af63241e62b8722fadd2f29`.
@@ -47,6 +47,16 @@ No live chain finality or customer receipt, signer, installed Nimo witness,
 separate custody-UID authority, payment-to-allocation routed dispatch,
 independent high-water durability, WC/VOID market, or funds are qualified.
 These remain HOLD until separately authorized, installed and accepted.
+
+The current V4 handoff and dual-rail V3 proofs also bind the hardened
+nonpayment terminal writer Git blob
+`cd255c42b0e4b331a1316351cc729f5f934aad50`; their earlier proof
+blobs `ccb271e34b67dca07683198d84a0a9449f46729e` and
+`6f305cc3fe1f3003ce73692a41a72f8ab09b00ab` remain historical Git generations,
+not current-positive evidence. The frozen first-original V3 proof is
+immutable and rejects the *earliest* mismatching historical replay blob
+`435ed6000caad046f48fb318fbc7c865393f3b6c` against the successor
+`b451bcd895986dadaf6e53954671062068316ccf` before reaching any later writer comparison.
 
 ## October 11 terminal writer-lock source successor
 

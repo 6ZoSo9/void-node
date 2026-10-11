@@ -18,12 +18,12 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PINS=Object.freeze({
-  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"f591f7407d9afc2cf77e0f90923aa11b4817fd4e",
+  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"cd255c42b0e4b331a1316351cc729f5f934aad50",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":"b451bcd895986dadaf6e53954671062068316ccf",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":"8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":"9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts":"9fb39172afa09e49c11d72ff376e9af2d99a4101",
-  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"ccb271e34b67dca07683198d84a0a9449f46729e",
+  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"4baff04d8aa12b71704006fba1835bfda86043da",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts":"7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts":"6d6a8b0efee8bc2d4e7f402bf7bd4b9e4ed4ac3a",
 });

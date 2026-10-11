@@ -147,11 +147,11 @@ jobs:
                 historical_status=$?
                 set -e
                 test "$historical_status" -eq 1
-                # This immutable V3 fixture first rejects the successor central
-                # writer. Do not demand an unreachable later replay mismatch.
-                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_payment_capacity_admission_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq 'f591f7407d9afc2cf77e0f90923aa11b4817fd4e' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq 'cd255c42b0e4b331a1316351cc729f5f934aad50' "$RUNNER_TEMP/$(basename "$proof").hold"
+                # This frozen proof checks its old replay source before the
+                # later central writer pin; select the earliest exact HOLD.
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'b451bcd895986dadaf6e53954671062068316ccf' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
                 continue
                 ;;
