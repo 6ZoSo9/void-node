@@ -8,6 +8,10 @@ export const VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_V1 =
 export const VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_AUTHORITY_V1 = {
   source_only_contract: true,
   unique_claim_paths: true,
+  existing_shared_group_queue_supported: true,
+  shared_group_queue_create: false,
+  shared_group_setgid_2770_required: true,
+  shared_group_claim_0660_required: true,
   choosing_phase_required: true,
   monotonically_increasing_ticket: true,
   dead_process_claim_cleanup: true,
@@ -131,6 +135,57 @@ function requireExistingPrivateDirectory(directory: string): string {
   return resolved;
 }
 
+function normalizedSharedGroupGidV1(value: unknown): number {
+  return safeInteger(
+    value,
+    1,
+    0x7fff_ffff,
+    "bakery_lock_shared_group_gid",
+  );
+}
+
+function processBelongsToGroupV1(gid: number): boolean {
+  const groups = new Set<number>();
+  if (typeof process.getgid === "function") groups.add(process.getgid());
+  if (typeof process.getegid === "function") groups.add(process.getegid());
+  if (typeof process.getgroups === "function") {
+    for (const member of process.getgroups()) groups.add(member);
+  }
+  return groups.has(gid);
+}
+
+function requireExistingSharedGroupDirectory(
+  directory: string,
+  expectedGroupGid: number,
+): string {
+  const resolved = path.resolve(directory);
+  if (!resolved || !path.isAbsolute(resolved) || resolved.includes("\0")) {
+    throw new Error("bakery_lock_shared_directory_path_invalid");
+  }
+  let metadata: fs.Stats;
+  try {
+    metadata = fs.lstatSync(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new Error("bakery_lock_shared_directory_missing");
+    }
+    throw error;
+  }
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    throw new Error("bakery_lock_shared_directory_must_be_direct_directory");
+  }
+  if (metadata.gid !== expectedGroupGid) {
+    throw new Error("bakery_lock_shared_directory_group_mismatch");
+  }
+  if ((metadata.mode & 0o7777) !== 0o2770) {
+    throw new Error("bakery_lock_shared_directory_mode_invalid");
+  }
+  if (!processBelongsToGroupV1(expectedGroupGid)) {
+    throw new Error("bakery_lock_shared_group_not_granted");
+  }
+  return resolved;
+}
+
 function fsyncDirectory(directory: string): void {
   const descriptor = fs.openSync(directory, "r");
   try {
@@ -144,20 +199,46 @@ function atomicWriteJson(
   file: string,
   value: unknown,
   existingParentRequired = false,
+  sharedGroupGid: number | null = null,
 ): void {
-  const parent = existingParentRequired
-    ? requireExistingPrivateDirectory(path.dirname(file))
-    : ensurePrivateDirectory(path.dirname(file));
+  const parent =
+    sharedGroupGid === null
+      ? existingParentRequired
+        ? requireExistingPrivateDirectory(path.dirname(file))
+        : ensurePrivateDirectory(path.dirname(file))
+      : requireExistingSharedGroupDirectory(
+          path.dirname(file),
+          sharedGroupGid,
+        );
   const temporary = path.join(
     parent,
     `.${path.basename(file)}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`,
   );
-  const descriptor = fs.openSync(temporary, "wx", 0o600);
+  const fileMode = sharedGroupGid === null ? 0o600 : 0o660;
+  const descriptor = fs.openSync(temporary, "wx", fileMode);
   try {
+    if (sharedGroupGid !== null) {
+      fs.fchmodSync(descriptor, fileMode);
+    }
     fs.writeFileSync(descriptor, `${JSON.stringify(value)}\n`, "utf8");
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
+  }
+  if (sharedGroupGid !== null) {
+    const metadata = fs.lstatSync(temporary);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.nlink !== 1 ||
+      metadata.gid !== sharedGroupGid ||
+      (metadata.mode & 0o777) !== 0o660
+    ) {
+      try {
+        fs.unlinkSync(temporary);
+      } catch {}
+      throw new Error("bakery_lock_shared_claim_metadata_invalid");
+    }
   }
   fs.renameSync(temporary, file);
   fsyncDirectory(parent);
@@ -492,6 +573,7 @@ async function withBuyVoidFilesystemBakeryQueueAsyncV1<T>(
   queue: string,
   operation: () => T | Promise<T>,
   existingQueueRequired: boolean,
+  sharedGroupGid: number | null = null,
 ): Promise<T> {
   const nonce = crypto.randomBytes(16).toString("hex");
   const createdAt = new Date().toISOString();
@@ -514,6 +596,7 @@ async function withBuyVoidFilesystemBakeryQueueAsyncV1<T>(
       created_at_utc: createdAt,
     },
     existingQueueRequired,
+    sharedGroupGid,
   );
 
   try {
@@ -544,6 +627,7 @@ async function withBuyVoidFilesystemBakeryQueueAsyncV1<T>(
         created_at_utc: createdAt,
       },
       existingQueueRequired,
+      sharedGroupGid,
     );
     removeOwnClaim(choosingPath);
     fsyncDirectory(queue);
@@ -614,5 +698,27 @@ export async function withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1<T>(
     queue,
     operation,
     true,
+  );
+}
+
+export async function withBuyVoidFilesystemBakeryLockAsyncExistingSharedGroupQueueV1<T>(
+  queueDirectory: string,
+  expectedGroupGid: number,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const raw = String(queueDirectory || "").trim();
+  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+    throw new Error("bakery_lock_shared_directory_path_invalid");
+  }
+  if (typeof operation !== "function") {
+    throw new Error("bakery_lock_operation_required");
+  }
+  const gid = normalizedSharedGroupGidV1(expectedGroupGid);
+  const queue = requireExistingSharedGroupDirectory(raw, gid);
+  return await withBuyVoidFilesystemBakeryQueueAsyncV1(
+    queue,
+    operation,
+    true,
+    gid,
   );
 }
