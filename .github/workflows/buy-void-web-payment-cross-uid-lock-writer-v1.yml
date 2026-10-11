@@ -9,6 +9,9 @@ on:
       - "scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_*.mjs"
       - "docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md"
       - ".github/workflows/buy-void-web-payment-cross-uid-lock-writer-v1.yml"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs"
+      - ".github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml"
       - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
       - "package.json"
       - "package-lock.json"
@@ -52,13 +55,75 @@ jobs:
           npm run build
           bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
             --prove "${{ matrix.node }}"
-      - name: Exact scope
+      - name: Preserve parent scopes and exact joint union
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          WEB_PARENT: a4b744bcd443fa7717a7fe3d37f77a62a2002037
+          LOCK_PARENT: d8cb6badd73f143db65b814521a87051578f49cb
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$WEB_PARENT" "$HEAD"
+          git merge-base --is-ancestor "$LOCK_PARENT" "$HEAD"
+
+          # Preserve #2788's original exact 11-path historical scope using its
+          # own reviewed commit, rather than pretending this later joint PR is
+          # the original source-only patch.
           bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
-            --scope "$BASE" "$HEAD"
+            --scope "$BASE" "$WEB_PARENT"
+
+          # Every reviewed #2788 component other than this integration-aware
+          # workflow must remain byte-identical to its parent head.
+          for path in \
+            docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_cases_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_harness_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_input_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_snapshot_v1.mjs \
+            scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
+            scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_validation_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_writer_impl_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs
+          do
+            test "$(git rev-parse "$WEB_PARENT:$path")" = \
+                 "$(git hash-object "$path")"
+          done
+
+          # Bind the complete current #2793 lock successor without repinning or
+          # relabeling any of its reviewed source/proof/workflow bytes.
+          for path in \
+            .github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml \
+            scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs \
+            src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+          do
+            test "$(git rev-parse "$LOCK_PARENT:$path")" = \
+                 "$(git hash-object "$path")"
+          done
+
+          git diff --check "$BASE" "$HEAD"
+          git diff --name-only "$BASE" "$HEAD" | sort > "$RUNNER_TEMP/actual"
+          printf '%s\n' \
+            .github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml \
+            .github/workflows/buy-void-web-payment-cross-uid-lock-writer-v1.yml \
+            docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_cases_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_harness_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_input_v1.mjs \
+            scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_snapshot_v1.mjs \
+            scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs \
+            scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
+            scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs \
+            src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_validation_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_writer_impl_v1.mjs \
+            src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs \
+            | sort > "$RUNNER_TEMP/expected"
+          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
+          echo web_parent_scope_preserved=true
+          echo lock_successor_blobs_preserved=true
+          echo joint_diff_union_exact=true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: web-crossuid-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
