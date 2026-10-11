@@ -189,7 +189,14 @@ function strictVerifiedRequestIds(bytes) {
   for (const line of lines) {
     let row;
     try {
-      row = JSON.parse(line);
+      // Freshly decoded JSON must not inherit toJSON callbacks or fields.
+      // Isolate arrays as well as objects before canonical reserialization.
+      row = JSON.parse(line, (_key, value) => {
+        if (value !== null && typeof value === "object") {
+          Object.setPrototypeOf(value, null);
+        }
+        return value;
+      });
     } catch {
       fail("operator_events_json_invalid");
     }
