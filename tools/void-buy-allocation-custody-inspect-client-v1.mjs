@@ -256,8 +256,24 @@ export async function inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(raw) {
     if (!sameIdentity(before.parent, after.parent) ||
         !sameIdentity(before.leaf, after.leaf)) fail("socket_generation_changed");
     return parseResponse(received, expectedDigest);
-  } catch {
-    return held("inspection_unqualified");
+  } catch (error) {
+    // Preserve only fixed source-defined diagnostic codes; never echo a raw
+    // filesystem exception, path, response bytes or peer-controlled reason.
+    const code = error instanceof Error ? error.message : "";
+    const safe = new Set([
+      "socket_total_deadline_exceeded",
+      "socket_response_too_large",
+      "socket_io_failed",
+      "socket_truncated",
+      "void_buy_void_custody_inspect_client_response_framing_invalid",
+      "void_buy_void_custody_inspect_client_response_multiline_invalid",
+      "void_buy_void_custody_inspect_client_response_json_invalid",
+      "void_buy_void_custody_inspect_client_response_noncanonical_json",
+      "void_buy_void_custody_inspect_client_response_identity_invalid",
+      "void_buy_void_custody_inspect_client_response_decision_unqualified",
+      "void_buy_void_custody_inspect_client_socket_generation_changed",
+    ]);
+    return held(safe.has(code) ? code : "inspection_unqualified");
   }
 }
 function held(reason) {

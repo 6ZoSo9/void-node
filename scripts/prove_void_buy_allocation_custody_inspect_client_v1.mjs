@@ -207,7 +207,11 @@ try {
     });
     await service.start();
     try {
-      const actual = await inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(config());
+      // Actual server parsing and descriptor census can take longer than
+      // a synthetic 150ms adversarial peer deadline on hosted runners.
+      const actual = await inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1({
+        ...config(), timeout_ms: 3000,
+      });
       assert.equal(actual.ok, true, actual.reason);
       assert.equal(actual.status, "source_inspected");
       assert.equal(actual.record_count, 0);
