@@ -13,59 +13,56 @@ const guardPath = path.join(
 );
 const source = fs.readFileSync(guardPath, "utf8");
 
-let scheduledCallback = null;
-let timeoutCalls = 0;
-let useCalls = 0;
-let registeredMiddleware = null;
-const visibleFailures = [];
+function makeSandbox(app) {
+  let scheduledCallback = null;
+  let timeoutCalls = 0;
+  const visibleFailures = [];
+  const sandbox = {
+    URL,
+    __void_http_app: app,
+    __voidSrcDiagPack3Visible(marker, error) {
+      visibleFailures.push({ marker, message: String(error?.message || error) });
+    },
+    console: { error() {} },
+    setTimeout(callback, delayMs) {
+      assert.equal(delayMs, 250);
+      timeoutCalls += 1;
+      scheduledCallback = callback;
+      return { unref() {} };
+    },
+  };
+  vm.runInNewContext(source, sandbox, { filename: guardPath });
+  return {
+    sandbox,
+    visibleFailures,
+    scheduledCallback: () => scheduledCallback,
+    timeoutCalls: () => timeoutCalls,
+  };
+}
 
-const app = {
+let delayedUseCalls = 0;
+let registeredMiddleware = null;
+const delayed = makeSandbox(undefined);
+assert.equal(delayed.timeoutCalls(), 1);
+assert.equal(typeof delayed.scheduledCallback(), "function");
+delayed.sandbox.__void_http_app = {
   use(middleware) {
-    useCalls += 1;
-    if (useCalls === 1) throw new Error("synthetic_registration_failure");
+    delayedUseCalls += 1;
     registeredMiddleware = middleware;
   },
 };
-
-const sandbox = {
-  URL,
-  __void_http_app: app,
-  __voidSrcDiagPack3Visible(marker, error) {
-    visibleFailures.push({ marker, message: String(error?.message || error) });
-  },
-  console: { error() {} },
-  setTimeout(callback, delayMs) {
-    assert.equal(delayMs, 250);
-    timeoutCalls += 1;
-    scheduledCallback = callback;
-    return { unref() {} };
-  },
-};
-
-vm.runInNewContext(source, sandbox, { filename: guardPath });
-
-assert.equal(sandbox.__void_datanet_require_who_v1, true);
-assert.equal(useCalls, 1);
-assert.equal(app.__void_datanet_require_who_v1_mounted, undefined);
-assert.equal(registeredMiddleware, null);
-assert.equal(timeoutCalls, 1);
-assert.equal(typeof scheduledCallback, "function");
-assert.equal(visibleFailures.length, 1);
+assert.doesNotThrow(() => delayed.scheduledCallback()());
+assert.equal(delayedUseCalls, 1);
 assert.equal(
-  visibleFailures[0].marker,
-  "VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_3_VISIBLE",
+  delayed.sandbox.__void_http_app.__void_datanet_require_who_v1_mounted,
+  true,
 );
-assert.equal(visibleFailures[0].message, "synthetic_registration_failure");
-
-assert.doesNotThrow(() => scheduledCallback());
-assert.equal(useCalls, 2);
-assert.equal(app.__void_datanet_require_who_v1_mounted, true);
-assert.equal(typeof registeredMiddleware, "function");
-assert.equal(timeoutCalls, 1);
-
-assert.doesNotThrow(() => scheduledCallback());
-assert.equal(useCalls, 2);
-assert.equal(timeoutCalls, 1);
+assert.equal(
+  delayed.sandbox.__void_http_app.__void_datanet_require_who_v1_mount_state,
+  "bound",
+);
+assert.equal(delayed.timeoutCalls(), 1);
+assert.equal(delayed.visibleFailures.length, 0);
 
 let statusCode = null;
 let responseBody = null;
@@ -115,10 +112,43 @@ registeredMiddleware(
 );
 assert.equal(nextCalls, 1);
 
+let partialUseCalls = 0;
+const retainedMiddleware = [];
+const partialApp = {
+  use(middleware) {
+    partialUseCalls += 1;
+    retainedMiddleware.push(middleware);
+    throw new Error("synthetic_install_then_throw");
+  },
+};
+const partial = makeSandbox(partialApp);
+assert.equal(partialUseCalls, 1);
+assert.equal(retainedMiddleware.length, 1);
+assert.equal(partialApp.__void_datanet_require_who_v1_mounted, undefined);
+assert.equal(
+  partialApp.__void_datanet_require_who_v1_mount_state,
+  "indeterminate",
+);
+assert.equal(partial.timeoutCalls(), 0);
+assert.equal(partial.scheduledCallback(), null);
+assert.equal(partial.visibleFailures.length, 1);
+assert.equal(
+  partial.visibleFailures[0].marker,
+  "VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_3_VISIBLE",
+);
+assert.equal(partial.visibleFailures[0].message, "synthetic_install_then_throw");
+
+vm.runInNewContext(source, partial.sandbox, { filename: guardPath });
+assert.equal(partialUseCalls, 1);
+assert.equal(retainedMiddleware.length, 1);
+assert.equal(partial.timeoutCalls(), 0);
+
 console.log("void_datanet_require_who_registration_retry_v1=PASS");
-console.log("failed_registration_marked_mounted=false");
-console.log("failed_registration_retry_observed=true");
-console.log("successful_registration_marked_mounted=true");
+console.log("missing_app_retry_preserved=true");
+console.log("successful_registration_marked_bound=true");
 console.log("successful_registration_idempotent=true");
+console.log("install_then_throw_marked_indeterminate=true");
+console.log("indeterminate_registration_retry_refused=true");
+console.log("duplicate_middleware_prevented=true");
 console.log("missing_who_guard_preserved=true");
 console.log("runtime_or_network_action=false");
