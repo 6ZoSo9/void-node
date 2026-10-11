@@ -29,7 +29,7 @@ function sameHistoryFileV1(left: any, right: any): boolean {
 // require every durable request ID to survive the legacy reader's projection.
 function assertCompleteRequestHistoryUnderLockV1(
   dir: string, observed: unknown,
-): void {
+): any[] {
   if (!Array.isArray(observed)) holdHistoryV1("reader_not_array");
   const ledger = path.join(dir, "requests.jsonl");
   let visible: any;
@@ -38,7 +38,7 @@ function assertCompleteRequestHistoryUnderLockV1(
   } catch (error: any) {
     if (error?.code !== "ENOENT") holdHistoryV1("metadata_unavailable");
     if (observed.length !== 0) holdHistoryV1("missing_with_observed_rows");
-    return;
+    return [];
   }
   if (!visible.isFile() || visible.isSymbolicLink() ||
       visible.nlink !== 1n || visible.size < 0n ||
@@ -70,7 +70,7 @@ function assertCompleteRequestHistoryUnderLockV1(
     }
     if (limit === 0) {
       if (observed.length !== 0) holdHistoryV1("empty_with_observed_rows");
-      return;
+      return [];
     }
     let text: string;
     try {
@@ -92,6 +92,7 @@ function assertCompleteRequestHistoryUnderLockV1(
       }
       presentIds.add(row.request_id);
     }
+    const durableRows: any[] = [];
     for (const line of text.slice(0, -1).split("\n")) {
       if (!line) holdHistoryV1("empty_row");
       let row: any;
@@ -103,7 +104,9 @@ function assertCompleteRequestHistoryUnderLockV1(
           !presentIds.has(row.request_id)) {
         holdHistoryV1("noncanonical_or_omitted_row");
       }
+      durableRows.push(row);
     }
+    return durableRows;
   } catch (error: any) {
     if (String(error?.message || "").startsWith(
       "buy_void_request_history_under_lock_")) throw error;
@@ -158,8 +161,12 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Expired launch authority takes precedence after awaited reads; never
     // interpret the filesystem when the original lock lease has lapsed.
     assertCurrentAuthority();
-    assertCompleteRequestHistoryUnderLockV1(dir, requestHistory);
-    const projected = applyEvents(requestHistory, eventHistory);
+    const durableRequestHistory =
+      assertCompleteRequestHistoryUnderLockV1(dir, requestHistory);
+    // A tolerant reader might return one row while omitting a different
+    // durable row with the *same request_id*. Only the independently parsed
+    // complete JSONL snapshot may drive destination admission.
+    const projected = applyEvents(durableRequestHistory, eventHistory);
     if (!Array.isArray(projected)) {
       throw new Error("buy_void_request_history_projection_unqualified");
     }

@@ -17,7 +17,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `c4291eece609b870ac367f6407ed8a59b22db525`). The existing
+(Git blob `19281cefd272ccf348a0eb60ae3d0f9be9ab98f8`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
@@ -137,6 +137,14 @@ under the same launch lock **before any request append**. Launch-generation
 authority is rechecked immediately after asynchronous history reads and again
 at the synchronous append point; no expired lease becomes a successful
 persistence or idempotent answer.
+
+The *independently parsed complete durable rows*, rather than the
+legacy reader's possibly filtered subset, now drive the in-lock destination
+projection. A separate negative case stores two active requests with the
+same `request_id` but conflicting payment terms, supplies a legacy reader
+that returns only one, and requires an unchanged JSONL ledger plus an
+explicit multiple-active HOLD. Matching request IDs alone are not sufficient
+evidence of complete history.
 
 Disposable compiled-helper regressions now verify that a malformed durable
 row and a valid durable row omitted by the reader both refuse without

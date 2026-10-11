@@ -230,6 +230,20 @@ function temp(){
    assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
      canonical,"omitted history must never be appended");
    assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
+   // A tolerant reader that keeps one row for a duplicated request_id
+   // can still hide a second, conflicting durable active obligation.
+   // The authoritative lock check must use *all raw canonical rows*.
+   const sameIdFirst=request("same-id","3","base","1");
+   const sameIdSecond=request("same-id","4","ethereum","1");
+   const conflict=[sameIdFirst,sameIdSecond]
+     .map(row=>JSON.stringify(row)).join("\n")+"\n";
+   fs.writeFileSync(path.join(root,"requests.jsonl"),conflict,{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[sameIdFirst]),
+     /buy_void_request_multiple_active_destination_under_lock/u,
+     "same-ID filtered conflicting obligation must HOLD");
+   assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
+     conflict,"same-ID omission cannot append or replace a durable row");
+   assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
  } finally {
    if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
    else process.env.VOID_BUY_REQUEST_DIR=saved;
@@ -329,6 +343,7 @@ console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");
 console.log("silently_omitted_durable_request_holds=true");
+console.log("same_id_partial_history_never_authoritative=true");
 console.log("current_mismatched_amount_and_rail_hold_without_append=true");
 console.log("different_destination_allowed=true");
 console.log("terminal_status_allows_subsequent_request=true");

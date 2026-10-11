@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "133599f4e2279ca0efe633c9f0ed9bd69c6e955c"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "c4291eece609b870ac367f6407ed8a59b22db525"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "68a319423178d0894508519370186d99545868a8"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "19281cefd272ccf348a0eb60ae3d0f9be9ab98f8"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "5e133a7580bf428f4446a712d0896e21ccd91db7"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -68,6 +68,7 @@ jobs:
             'prior_multi_active_conflicting_rail_and_amount_holds=true' \
             'malformed_durable_request_history_holds=true' \
             'silently_omitted_durable_request_holds=true' \
+            'same_id_partial_history_never_authoritative=true' \
             'current_mismatched_amount_and_rail_hold_without_append=true' \
             'different_destination_allowed=true' \
             'terminal_status_allows_subsequent_request=true' \
