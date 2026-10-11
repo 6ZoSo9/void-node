@@ -108,11 +108,13 @@ function acquireTransportGeneration(fetchImpl, requestedHref, label, timeoutMs) 
     cleanupStarted: false,
     bodyTerminal: false,
     bodyObserved: false,
+    readerReleaseFailed: false,
     body: undefined,
     reader: undefined,
     releaseIfTerminal() {
       if (request.finished && !request.fetchPending && !request.readPending &&
-          !request.cleanupPending && request.bodyTerminal && origins.get(origin) === request) {
+          !request.cleanupPending && request.bodyTerminal && !request.readerReleaseFailed &&
+          origins.get(origin) === request) {
         origins.delete(origin);
         if (origins.size === 0) transportGenerations.delete(fetchImpl);
       }
@@ -371,6 +373,9 @@ async function fetchJson(url, label, options) {
   void fetchOperation.catch(() => undefined);
   let response;
   let acquired = false;
+  let result;
+  let primaryError;
+  let releaseError;
   try {
     try {
       response = await awaitWithinDeadline(fetchOperation, request, `${label}_fetch`);
@@ -381,16 +386,23 @@ async function fetchJson(url, label, options) {
     }
     const metadata = acceptedResponseMetadata(response, requestedHref, label);
     const text = await readBoundedText(response, label, maxResponseBytes, request, metadata);
-    try { return JSON.parse(text); }
+    try { result = JSON.parse(text); }
     catch { fail(`${label}_invalid_json`); }
   } catch (error) {
+    primaryError = error;
     if (acquired) await abortAndCancelResponse(response, request);
-    throw error;
   } finally {
-    try { request.reader?.releaseLock(); } catch (releaseError) { void releaseError; }
+    try { request.reader?.releaseLock(); }
+    catch (error) {
+      releaseError = error;
+      request.readerReleaseFailed = true;
+    }
     request.finished = true;
     request.releaseIfTerminal();
   }
+  if (primaryError) throw primaryError;
+  if (releaseError) fail(`${label}_body_reader_release_failed`);
+  return result;
 }
 
 function validateWellKnown(base, value) {
