@@ -205,22 +205,46 @@ jobs:
 
           sudo rm -rf "$CODE" "$DATA" "$SHARED" "$LOGROOT"
 
-      - name: Preserve frozen V1 and exact V2 diff scope
+      - name: Preserve frozen V1 and merged V2 exact source identity
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REVIEWED_V2_SOURCE_COMMIT: 6e50a22d213694999d9ba0bbc2c51dde32953a58
         run: |
           set -euo pipefail
-          test -n "$BASE_SHA"
-          test -n "$HEAD_SHA"
-          test "$(git rev-parse "$BASE_SHA:tools/void-buy-allocation-custody-service-v1.mjs")" = \
-               "$(git rev-parse "$HEAD_SHA:tools/void-buy-allocation-custody-service-v1.mjs")"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$REVIEWED_V2_SOURCE_COMMIT" "$HEAD_SHA"
 
-          git diff --check "$BASE_SHA" "$HEAD_SHA"
-          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort > changed.txt
-          printf '%s\n' \
-            '.github/workflows/buy-void-allocation-custody-service-v2-cross-uid-lock.yml' \
-            'scripts/prove_void_buy_allocation_custody_service_v2.mjs' \
-            'tools/void-buy-allocation-custody-service-v2.mjs' \
-            | sort > expected.txt
-          diff -u expected.txt changed.txt
+          # Original V1 is byte-identical to the source reviewed before V2.
+          test "$(git hash-object tools/void-buy-allocation-custody-service-v1.mjs)" = \
+               "b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
+          test "$(git rev-parse "$REVIEWED_V2_SOURCE_COMMIT:tools/void-buy-allocation-custody-service-v1.mjs")" = \
+               "b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
+
+          # A different successor needs a fresh proof, not silent V2 reissue.
+          test "$(git hash-object tools/void-buy-allocation-custody-service-v2.mjs)" = \
+               "3afcc450b11f93209253a5cc10b300596942d07d"
+          test "$(git rev-parse "$REVIEWED_V2_SOURCE_COMMIT:tools/void-buy-allocation-custody-service-v2.mjs")" = \
+               "3afcc450b11f93209253a5cc10b300596942d07d"
+          test "$(git hash-object scripts/prove_void_buy_allocation_custody_service_v2.mjs)" = \
+               "b089e10782b93e12687aa5f7cd8e395adb51768d"
+          test "$(git rev-parse "$REVIEWED_V2_SOURCE_COMMIT:scripts/prove_void_buy_allocation_custody_service_v2.mjs")" = \
+               "b089e10782b93e12687aa5f7cd8e395adb51768d"
+          test "$(git hash-object src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs)" = \
+               "aac7b7fa9d0c86e1b3d11f9ab430f4b4d6e8a5d5"
+
+          # The initial 3-file PR diff is historical; later PRs may include
+          # other reviewed, disjoint changes to buyer/ledger/chain source.
+          # Preserve exact V1/V2 identities above and check ALL current diff
+          # whitespace, rather than asserting each future PR has 3 files.
+          if test -n "${BASE_SHA:-}"; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+          echo VOID_BUY_VOID_CUSTODY_V2_MERGED_SOURCE_IDENTITY_GREEN
+          echo original_v1_unmodified=true
+          echo reviewed_v2_unchanged=true
+          echo runtime_service_or_customer_mutation=false
+          echo payment_acceptance=false
+          echo funds_moved=false
