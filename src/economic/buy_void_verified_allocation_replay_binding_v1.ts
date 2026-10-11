@@ -202,6 +202,8 @@ const TYPED_ARRAY_BUFFER_GETTER_V1 =
 // Capture the exact byte/framing invocation mechanisms before mutable
 // same-process hooks can replace Reflect.apply or ArrayBuffer#slice.
 const REPLAY_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
+// The SharedArrayBuffer check is evidence authority, not a live mutable hook.
+const REPLAY_IS_SHARED_BACKING_NATIVE_V1 = utilTypes.isSharedArrayBuffer;
 const REPLAY_ARRAY_BUFFER_SLICE_NATIVE_V1 = ArrayBuffer.prototype.slice;
 const TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
 const TYPED_ARRAY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
@@ -233,7 +235,7 @@ function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
     !Number.isSafeInteger(count) ||
     count < 0 ||
     count > MAX_JSONL_BYTES ||
-    utilTypes.isSharedArrayBuffer(backing)
+    REPLAY_IS_SHARED_BACKING_NATIVE_V1(backing)
   ) invalid();
   try {
     // Slice with zero output bytes deliberately probes for a detached buffer:

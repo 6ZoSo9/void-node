@@ -26,9 +26,9 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "bab217275dc6cdb8267adc0297599e2e83572518",
+    "8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "e3c659194a95394dd53b1960aed559e3950a89e1",
+    "b451bcd895986dadaf6e53954671062068316ccf",
   "src/economic/buy_void_preappend_plain_input_v1.ts":
     "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":
@@ -399,12 +399,12 @@ const report = Object.freeze({
   reviewed_combined_source_head:REVIEWED_COMBINED_SOURCE_HEAD,
   predecessor_replay_source_blob_sha1:"435ed6000caad046f48fb318fbc7c865393f3b6c",
   reviewed_current_replay_source_blob_sha1:
-    "e3c659194a95394dd53b1960aed559e3950a89e1",
+    "b451bcd895986dadaf6e53954671062068316ccf",
   reviewed_current_preappend_source_blob_sha1:
     "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f",
   historical_v2_source_runtime_generation_commit:"7da490d56556ab98b5515f5eba53bf6a8f118203",
   reviewed_current_allocation_source_blob_sha1:
-    "bab217275dc6cdb8267adc0297599e2e83572518",
+    "8d84955e1e093a5c5af63241e62b8722fadd2f29",
   frozen_predecessor_crash_proof_git_blob_sha1:FROZEN_V1_CRASH_PROOF_BLOB,
   frozen_historical_V1_proof_unchanged:true,
   frozen_historical_V2_proof_unchanged:true,

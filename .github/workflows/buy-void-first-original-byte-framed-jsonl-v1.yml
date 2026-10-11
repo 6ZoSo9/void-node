@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$REVIEW_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "e3c659194a95394dd53b1960aed559e3950a89e1"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:

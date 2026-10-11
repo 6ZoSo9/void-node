@@ -86,6 +86,9 @@ const ALLOCATION_TYPED_ARRAY_BUFFER_V1 = Object.getOwnPropertyDescriptor(
 // Capture intrinsic invocation at module initialization; a later global
 // Reflect.apply replacement cannot forge byte length, copy or frame windows.
 const ALLOCATION_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
+// Preserve the shared-backing predicate itself before any post-import
+// same-process replacement of node:util.types can lie about backing.
+const ALLOCATION_IS_SHARED_BACKING_NATIVE_V1 = utilTypes.isSharedArrayBuffer;
 const ALLOCATION_TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
 // Preserve the original octets and framing independently of ambient
 // Buffer.prototype.toString or String.prototype.split/slice/endsWith.
@@ -112,7 +115,7 @@ function detachedAllocationBufferV1(value: Buffer): Buffer {
   const backing = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
     ALLOCATION_TYPED_ARRAY_BUFFER_V1, value, [],
   ) as ArrayBufferLike;
-  if (utilTypes.isSharedArrayBuffer(backing)) {
+  if (ALLOCATION_IS_SHARED_BACKING_NATIVE_V1(backing)) {
     throw new Error("allocation_reservation_ledger_shared_backing_forbidden");
   }
   const length = ALLOCATION_REFLECT_APPLY_NATIVE_V1(

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 import {
   classifyBuyVoidAllocationReservationLedgerV1,
 } from "../src/economic/buy_void_allocation_reservation_ledger_v1.js";
@@ -14,9 +14,9 @@ import {
 
 const PINNED_SOURCE = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "bab217275dc6cdb8267adc0297599e2e83572518",
+    "8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "e3c659194a95394dd53b1960aed559e3950a89e1",
+    "b451bcd895986dadaf6e53954671062068316ccf",
 });
 function gitBlob(file: string): string {
   const bytes = fs.readFileSync(file);
@@ -42,7 +42,12 @@ const ownSetDescriptor = Object.getOwnPropertyDescriptor(Uint8Array.prototype, "
 const ownSubarrayDescriptor = Object.getOwnPropertyDescriptor(Uint8Array.prototype, "subarray");
 const sliceDescriptor = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "slice");
 const lengthDescriptor = Object.getOwnPropertyDescriptor(typedArrayProto, "length");
-assert.ok(byteLengthGetter && lengthGetter && sliceDescriptor && lengthDescriptor);
+const sharedPredicateDescriptor =
+  Object.getOwnPropertyDescriptor(utilTypes, "isSharedArrayBuffer");
+const nativeSharedPredicate = utilTypes.isSharedArrayBuffer;
+assert.ok(byteLengthGetter && lengthGetter && sliceDescriptor && lengthDescriptor &&
+  sharedPredicateDescriptor && typeof nativeSharedPredicate === "function");
+let sharedPredicateHookCount = 0;
 let nativeSetHookCount = 0;
 let nativeSubarrayHookCount = 0;
 let nativeSliceHookCount = 0;
@@ -167,6 +172,23 @@ try {
       return real;
     },
   });
+  // Shared backing can be misclassified when a post-import module replaces
+  // the otherwise native node:util.types.isSharedArrayBuffer property.
+  Object.defineProperty(utilTypes, "isSharedArrayBuffer", {
+    ...sharedPredicateDescriptor!,
+    value: function(value: unknown) {
+      if (nativeSharedPredicate(value)) {
+        sharedPredicateHookCount += 1;
+        return false;
+      }
+      return nativeSharedPredicate(value);
+    },
+  });
+  assert.equal(utilTypes.isSharedArrayBuffer(new SharedArrayBuffer(0)), false);
+  assert.equal(sharedPredicateHookCount, 1,
+    "inherited mutable shared-backing predicate positive control not armed");
+  sharedPredicateHookCount = 0;
+
   // Positive controls establish that every mutated property is reachable.
   Uint8Array.prototype.set.call(new Uint8Array(2), Buffer.from("X\n"));
   assert.equal(nativeSetHookCount, 1);
@@ -194,6 +216,14 @@ try {
       Buffer.from(backing));
     assert.equal(shared.ok, false, "shared ledger backing must HOLD");
     assert.match(shared.reason || "", /shared_backing_forbidden/u);
+    const replayShared = classifyBuyVoidVerifiedAllocationReplayBindingV1({
+      request_id: "buyvoid_z_aaaaaaaa",
+      requests_jsonl: Buffer.from(backing),
+      operator_events_jsonl: Buffer.alloc(0),
+      allocation_jsonl: Buffer.alloc(0),
+    });
+    assert.equal(replayShared.ok, false, "shared replay backing must HOLD");
+    assert.match(replayShared.reason || "", /bytes_invalid/u);
   }
   const ledger = classifyBuyVoidAllocationReservationLedgerV1(Buffer.from("X\n"));
   assert.equal(ledger.ok, false, "invalid allocation JSONL must HOLD");
@@ -232,6 +262,8 @@ try {
   assert.equal(nativeSubarrayHookCount, 0, "native row subarray must stay captured");
   assert.equal(nativeSliceHookCount, 0, "native buffer slice must stay captured");
   assert.equal(nativeLengthHookCount, 0, "framing length must use captured getter");
+  assert.equal(sharedPredicateHookCount, 0,
+    "allocation and replay may not call replaced shared-backing predicate");
 } finally {
   Reflect.apply = originalApply;
   if (ownSetDescriptor) Object.defineProperty(Uint8Array.prototype, "set", ownSetDescriptor);
@@ -240,6 +272,7 @@ try {
   else delete (Uint8Array.prototype as any).subarray;
   Object.defineProperty(ArrayBuffer.prototype, "slice", sliceDescriptor!);
   Object.defineProperty(typedArrayProto, "length", lengthDescriptor!);
+  Object.defineProperty(utilTypes, "isSharedArrayBuffer", sharedPredicateDescriptor!);
   Object.defineProperty(TextDecoder.prototype, "decode", original);
 }
 assert.equal(succeeded, 4);
@@ -257,6 +290,8 @@ console.log("mutable_reflect_apply_frame_calls=0");
 console.log("mutable_reflect_apply_slice_calls=0");
 console.log("post_import_method_getter_callbacks_on_economic_classifiers=0");
 console.log("shared_allocation_backing_empty_nonempty_hold=true");
+console.log("shared_replay_backing_empty_nonempty_hold=true");
+console.log("post_import_shared_predicate_calls_on_economic_classifiers=0");
 console.log("ordinary_empty_allocation_buffer_genesis_valid=true");
 console.log("bound_fatal_utf8_decoder_used=true");
 console.log("synthetic_hold_cases=" + succeeded);
