@@ -375,6 +375,7 @@ async function fetchJson(url, label, options) {
   let acquired = false;
   let result;
   let primaryError;
+  let primaryFailed = false;
   let releaseFailed = false;
   try {
     try {
@@ -390,6 +391,7 @@ async function fetchJson(url, label, options) {
     catch { fail(`${label}_invalid_json`); }
   } catch (error) {
     primaryError = error;
+    primaryFailed = true;
     if (acquired) await abortAndCancelResponse(response, request);
   } finally {
     try { request.reader?.releaseLock(); }
@@ -400,7 +402,7 @@ async function fetchJson(url, label, options) {
     request.finished = true;
     request.releaseIfTerminal();
   }
-  if (primaryError) throw primaryError;
+  if (primaryFailed) throw primaryError;
   if (releaseFailed) fail(`${label}_body_reader_release_failed`);
   return result;
 }

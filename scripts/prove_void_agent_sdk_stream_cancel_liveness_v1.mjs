@@ -1120,6 +1120,59 @@ console.log("reader_release_failure_rejects_successful_body=true");
 console.log("reader_release_failure_quarantines_transport_generation=true");
 console.log("reader_release_falsy_throw_rejected=true");
 
+
+// Fetch and reader failures are events independent of the rejected payload.
+// Preserve every falsey primary value through cleanup instead of replacing it
+// with a later document-shape error.
+const falseyPrimaryValues = [undefined, null, 0, ""];
+let falseyPrimaryCases = 0;
+for (const stage of ["fetch", "read"]) {
+  for (const rejectedValue of falseyPrimaryValues) {
+    let fetches = 0;
+    let cancels = 0;
+    let releases = 0;
+    const fetchImpl = async url => {
+      fetches++;
+      if (stage === "fetch") throw rejectedValue;
+      return {
+        status: 200,
+        ok: true,
+        redirected: false,
+        url,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: {
+          getReader: () => ({
+            read: async () => { throw rejectedValue; },
+            cancel: async () => { cancels++; },
+            releaseLock() { releases++; },
+          }),
+        },
+      };
+    };
+    const observed = await expectAnyRejectBeforeDeadline(
+      `falsey primary ${stage} rejection`,
+      () => discoverVoidAgentV1({
+        baseUrl: `https://falsey-primary-${stage}-${falseyPrimaryCases}.example`,
+        fetchImpl,
+      }),
+    );
+    assertCondition(
+      Object.is(observed, rejectedValue),
+      `falsey primary ${stage} rejection was replaced`,
+    );
+    assertCondition(
+      fetches === 1 &&
+        cancels === (stage === "read" ? 1 : 0) &&
+        releases === (stage === "read" ? 1 : 0),
+      `falsey primary ${stage} cleanup was not owned exactly once`,
+    );
+    falseyPrimaryCases++;
+  }
+}
+assertCondition(falseyPrimaryCases === 8, "falsey primary matrix incomplete");
+console.log("falsey_fetch_and_reader_rejections_preserved=true");
+console.log(`falsey_primary_rejection_cases=${falseyPrimaryCases}`);
+
 // Timer callbacks can be delayed by synchronous work. A late fulfillment must
 // fail admission even when its promise continuation runs before the timer.
 function fulfillAfterDeadline(value) {
