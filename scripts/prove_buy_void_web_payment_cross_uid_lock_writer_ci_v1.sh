@@ -13,9 +13,26 @@ case "${1:-}" in
     do node --check "$file"; done
     receipt="web-crossuid-writer-${node_major}.txt"
     node scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs > "$receipt"
+    node --input-type=module -e '
+      import assert from "node:assert/strict";
+      const candidate = await import("./src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs");
+      assert.equal(typeof candidate.writeBuyVoidPaymentUnderCrossUidLockCandidateV1, "function");
+      assert.equal(
+        candidate.VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_LOCK_WRITER_AUTHORITY_V1
+          .canonical_allocation_required_dispatch_reused,
+        true,
+      );
+      assert.equal(
+        candidate.VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_LOCK_WRITER_AUTHORITY_V1
+          .payment_verified_legacy_writer_forbidden,
+        true,
+      );
+      console.log("actual_candidate_imports_resolved=true");
+    ' >> "$receipt"
     for expected in \
       VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_LOCK_WRITER_V1_SYNTHETIC_GREEN \
       actual_candidate_modules_evaluated_with_inert_imports=true \
+      actual_candidate_imports_resolved=true \
       canonical_allocation_dispatch_planned_before_cross_uid_lock=true \
       canonical_verified_payment_allocation_dispatch_called_inside_cross_uid_lock=true \
       legacy_payment_only_writer_invoked=false \
