@@ -145,7 +145,9 @@ jobs:
                 historical_status=$?
                 set -e
                 test "$historical_status" -eq 1
-                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'd873533dbe60f2efff2fefc19470ee963b4fead0' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
                 continue
                 ;;
