@@ -150,23 +150,49 @@ try {
   // A deliberately invalid frame must HOLD even if an inherited decode()
   // method would replace its text with a canonical positive receipt.
   const originalDecoderMethod = TextDecoder.prototype.decode;
+  const originalReflectApply = Reflect.apply;
   let poisonedDecoderCalls = 0;
+  let poisonedApplyCalls = 0;
   try {
     const forgedReceipt = JSON.stringify(baseline) + "\n";
+    const invalidUtf8 = Buffer.from([0xff,0x7b,0x7d,0x0a]);
     TextDecoder.prototype.decode = function() {
       poisonedDecoderCalls += 1;
       return forgedReceipt;
+    };
+    Reflect.apply = function(target, receiver, args) {
+      // Intercept only the exact invalid-UTF8 decoder invocation; let all
+      // unrelated Node and test-harness intrinsic calls proceed unchanged.
+      if (target === originalDecoderMethod &&
+          args?.length === 1 && Buffer.isBuffer(args[0]) &&
+          args[0].equals(invalidUtf8)) {
+        poisonedApplyCalls += 1;
+        return forgedReceipt;
+      }
+      return originalReflectApply(target, receiver, args);
     };
     assert.equal(new TextDecoder().decode(Buffer.from("negative-control")),
       forgedReceipt);
     assert.equal(poisonedDecoderCalls, 1,
       "ambient decode callback positive control must execute");
+    assert.equal(
+      Reflect.apply(originalDecoderMethod, new TextDecoder("utf-8", {
+        fatal: true,
+      }), [invalidUtf8]),
+      forgedReceipt,
+    );
+    assert.equal(poisonedApplyCalls, 1,
+      "ambient Reflect.apply callback positive control must execute");
     poisonedDecoderCalls = 0;
+    poisonedApplyCalls = 0;
     await fake(socket => socket.end("NOT_CANONICAL_JSON\n"), false);
-    await fake(socket => socket.end(Buffer.from([0xff,0x7b,0x7d,0x0a])), false);
+    await fake(socket => socket.end(invalidUtf8), false);
     assert.equal(poisonedDecoderCalls, 0,
       "socket-response decoder must not invoke an inherited mutable method");
+    assert.equal(poisonedApplyCalls, 0,
+      "socket-response decoder must not invoke mutable Reflect.apply");
   } finally {
+    Reflect.apply = originalReflectApply;
     TextDecoder.prototype.decode = originalDecoderMethod;
   }
 
@@ -279,6 +305,7 @@ try {
   console.log("bounded_socket_request_and_reply=true");
   console.log("request_digest_bound=true");
   console.log("utf8_decoder_intrinsic_bound=true");
+  console.log("reflect_apply_hook_bypassed=true");
   console.log("malformed_and_oversize_replies_hold=true");
   console.log("positive_decision_authority_false=true");
   console.log("socket_path_and_metadata_preflight=true");

@@ -47,14 +47,15 @@ production acceptance. **PROTECT THE CORE.**
 
 ## Socket response UTF-8 intrinsic boundary
 
-The source client captures the original `TextDecoder.prototype.decode` at
-module initialization and invokes that native method against its own fatal
-decoder instance. Mutating `TextDecoder.prototype.decode` **after** the client
-has initialized cannot change the text recovered from observed socket bytes.
-The existing negative proof arms a replacement that returns a forged,
-canonical positive inspection result, then sends malformed and invalid-UTF8
-wire frames; both must still HOLD, with zero callback invocations. It restores
-the original method before the remaining real-service protocol proof.
+The source client binds the original `TextDecoder.prototype.decode` to its
+own fatal decoder instance **during module initialization**, before any socket
+bytes arrive. It does not invoke a later mutable global `Reflect.apply` at
+parse time. Mutating either `TextDecoder.prototype.decode` or
+`Reflect.apply` **after** initialization cannot change decoded socket bytes.
+The negative proof poisons both globals, first proves that each replacement
+would forge a positive inspection result if invoked, and then sends malformed
+and invalid-UTF8 wire frames. Both must HOLD with zero poisoned callbacks.
+The proof restores both globals before the real-service protocol test.
 
 This is a same-process mutation defense, not a claim against prototype
 compromise before source initialization, changed Unix-socket peer identity,

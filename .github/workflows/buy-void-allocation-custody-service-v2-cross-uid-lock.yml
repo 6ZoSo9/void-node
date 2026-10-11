@@ -112,6 +112,7 @@ jobs:
             'bounded_socket_request_and_reply=true' \
             'request_digest_bound=true' \
             'utf8_decoder_intrinsic_bound=true' \
+            'reflect_apply_hook_bypassed=true' \
             'malformed_and_oversize_replies_hold=true' \
             'positive_decision_authority_false=true' \
             'socket_path_and_metadata_preflight=true' \
