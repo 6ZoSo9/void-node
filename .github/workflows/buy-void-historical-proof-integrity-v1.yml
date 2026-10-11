@@ -1,0 +1,71 @@
+name: VOID Buy VOID historical proof integrity v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v3.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v2.mjs"
+      - "scripts/prove_buy_void_custody_reserve_plan_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts"
+      - "scripts/prove_buy_void_first_buyer_allocation_composition_v1.mjs"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v1.yml"
+      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v3.yml"
+      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v4.yml"
+      - ".github/workflows/buy-void-custody-reserve-first-original-v2.yml"
+      - ".github/workflows/buy-void-first-original-dispatch-compose-v1.yml"
+      - ".github/workflows/buy-void-first-original-dualrail-dispatch-compose-v1.yml"
+      - ".github/workflows/buy-void-handoff-first-original-dual-rail-v2.yml"
+      - ".github/workflows/buy-void-first-buyer-plain-allocation-composition-v1.yml"
+      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v1.yml"
+      - ".github/workflows/buy-void-custody-reserve-plan-v1.yml"
+      - ".github/workflows/buy-void-handoff-first-original-v2.yml"
+      - ".github/workflows/buy-void-payment-allocation-first-original-crash-v2.yml"
+      - ".github/workflows/buy-void-verified-payment-allocation-handoff-v1.yml"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.yml"
+      - ".github/workflows/buy-void-nimo-v3-inactive-bundle-v1.yml"
+      - "scripts/prove_buy_void_historical_proof_integrity_v1.mjs"
+      - ".github/workflows/buy-void-historical-proof-integrity-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-historical-proof-integrity-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  exact-blobs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact review head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Authenticate immutable historical proof blobs
+        run: node scripts/prove_buy_void_historical_proof_integrity_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
