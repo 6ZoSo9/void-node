@@ -1,0 +1,140 @@
+name: VOID Buy VOID web payment cross-UID writer candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs"
+      - "scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs"
+      - "docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md"
+      - ".github/workflows/buy-void-web-payment-cross-uid-lock-writer-v1.yml"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-web-crossuid-writer-candidate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  scoped:
+    name: web payment lock source candidate / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged review head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact checkout and clean start
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up reviewed Node major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Check canonical source compilation
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Syntax check unmounted web adapter and its proof
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs
+          node --check scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs
+
+      - name: Prove real wrapper ordering with inert imported stand-ins
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs \
+            > "web-crossuid-writer-${{ matrix.node }}.txt"
+          for expected in \
+            'VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_LOCK_WRITER_V1_SYNTHETIC_GREEN' \
+            'actual_candidate_module_evaluated_with_inert_imports=true' \
+            'canonical_payment_writer_called_inside_cross_uid_lock=true' \
+            'lock_release_after_writer_callback=true' \
+            'uncertain_callback_exception_retains_lock=true' \
+            'invalid_identity_status_and_accessor_rejected_prelock=true' \
+            'proxied_server_config_rejected_prelock=true' \
+            'fake_custody_lock_receipt_rejected=true' \
+            'production_writer_invoked=false' \
+            'payment_capacity_lock_verified=false' \
+            'allocation_handoff_atomicity_proven=false' \
+            'payment_acceptance=false' \
+            'presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$expected" "web-crossuid-writer-${{ matrix.node }}.txt"
+          done
+
+      - name: Preserve current main and source ownership
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort > "$RUNNER_TEMP/changed.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-web-payment-cross-uid-lock-writer-v1.yml' \
+              'docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md' \
+              'scripts/prove_buy_void_web_payment_cross_uid_lock_writer_v1.mjs' \
+              'src/economic/buy_void_web_payment_cross_uid_lock_writer_v1.mjs' \
+              | sort > "$RUNNER_TEMP/expected.txt"
+            diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/changed.txt"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+      - name: Publish deterministic negative proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-web-crossuid-writer-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: web-crossuid-writer-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [scoped]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download three exact-head proof transcripts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-web-crossuid-writer-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+
+      - name: Require byte-identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/web-crossuid-writer-$v.txt"; done
+          cmp receipts/web-crossuid-writer-22.txt receipts/web-crossuid-writer-24.txt
+          cmp receipts/web-crossuid-writer-22.txt receipts/web-crossuid-writer-26.txt
+          echo "VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_WRITER_THREE_NODE_PROOF_GREEN"
+          echo "installed_web_writer_lock_qualified=false"
+          echo "payment_acceptance=false"
+          echo "presale_activation=false"
