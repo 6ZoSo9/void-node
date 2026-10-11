@@ -126,6 +126,11 @@ submission rather than forgetting an earlier potentially committed request.
 It does **not** persist across a reload, another tab or device; a real
 server-issued idempotency key and authoritative lookup are still required.
 
+During an in-flight new POST, a readiness refresh shows only **Creating guarded
+request…** and no earlier payment instructions or uncertain-result notice.
+The result is updated after the new POST succeeds or fails; its intent remains
+blocked against replay during that entire interval.
+
 The displayed result is bound to the **latest attempted intent**. Selecting a
 different intent never displays the latest attempt's payment instructions as
 though they belonged to the new amount, chain, or destination. Instead a

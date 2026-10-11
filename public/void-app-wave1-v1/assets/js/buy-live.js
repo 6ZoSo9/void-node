@@ -367,8 +367,13 @@ const renderSnapshot = (snapshot) => {
   setText('[data-buy-message]', config.ethereum_requests_enabled === true
     ? 'Base and Ethereum request intake are OPEN. Create one request first, then use only its exact returned rail and payment instructions.'
     : 'Base request intake is OPEN. Ethereum native USDC is policy-approved but remains HOLD until separately activated.');
-  setText('[data-buy-result]', attemptedResultText ||
-    'Ready to create a request. No funds are sent by this page.');
+  // A different POST may now be pending. Never resurrect a prior receipt
+  // while awaiting the newer attempt, even during a readiness refresh.
+  setText('[data-buy-result]', submitBusy
+    ? 'Creating guarded request… no funds are being sent.'
+    : 'Ready to create a request. No funds are sent by this page.');
+  // When not busy, updateSubmit restores only the *matching* last attempt
+  // or the conservative prior-request warning. It never enables a retry.
   setFormEnabled(true);
 };
 const renderError = (error) => {

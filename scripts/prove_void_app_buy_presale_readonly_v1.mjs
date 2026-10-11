@@ -529,6 +529,38 @@ for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
 amountInput.value = "12";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "distinct intent may still be created");
+// A different C POST in flight must not display A's payment instructions
+// or B's uncertain-result warning during an OPEN readiness refresh.
+let rejectPendingC = null;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  return new Promise((_, reject) => { rejectPendingC = reject; });
+};
+const pendingC = buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 2, "C should start one independent POST");
+assert.equal(typeof rejectPendingC, "function");
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.equal(submitButton.disabled, true, "pending request cannot resubmit");
+assert.match(buyResultNode.textContent, /Creating guarded request/u);
+assert.doesNotMatch(buyResultNode.textContent,
+  /buyvoid_ethereum_open_v1|Send exactly:|REQUEST OUTCOME UNCONFIRMED/u,
+  "pending C cannot resurrect old A receipt or B outcome");
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, true);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true);
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  buyTest.setState(ethereumSnapshot, false, true);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /Creating guarded request/u);
+  assert.doesNotMatch(buyResultNode.textContent,
+    /buyvoid_ethereum_open_v1|Send exactly:|REQUEST OUTCOME UNCONFIRMED/u);
+}
+assert.equal(fetchCalls.length, 2, "refreshes must not repeat pending C");
+rejectPendingC(new Error("synthetic_pending_request_network_loss"));
+await pendingC;
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.equal(submitButton.disabled, true, "pending C uncertainty still blocks retry");
 // Resume original Base fixture expectations without another HTTP call.
 amountInput.value = "10";
 fetchCalls.length = 0;
