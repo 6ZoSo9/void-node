@@ -32,27 +32,33 @@ BUYER_PROOFS = (
     "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts",
     "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts",
 )
-STEP_NAMES = (
+HISTORICAL_STEP_NAMES = (
     "Bind exact PR head and both reviewed parents",
     "Require exactly two metadata additions and one mode-only repair",
     "Require canonical checkpoint source blobs unchanged from current main",
     "Preserve first-original buyer/payment/dispatch lineage",
 )
+CURRENT_STEP_NAMES = (
+    "Bind exact PR head and reviewed historical join",
+    "Require immutable join delta and current executable mode",
+    "Require historical checkpoint source identities",
+    "Require historical first-original buyer payment dispatch lineage",
+)
 
 
-def shell_blocks(source: str) -> list[str]:
+def shell_blocks(source: str, names: tuple[str, ...]) -> list[str]:
     """Fail on workflow structure drift instead of silently testing a copied predicate."""
     found = {}
     for match in re.finditer(r"^      - name: ([^\n]+)\n(.*?)(?=^      - name: |\Z)", source, re.M | re.S):
         name, section = match.groups()
-        if name in STEP_NAMES:
+        if name in names:
             body = re.search(r"^        run: \|\n((?:          .*\n|\n)+)", section, re.M)
             if body is None or name in found:
                 raise AssertionError("missing or repeated workflow shell block: " + name)
             found[name] = "\n".join(line[10:] for line in body[1].splitlines()) + "\n"
-    if set(found) != set(STEP_NAMES):
+    if set(found) != set(names):
         raise AssertionError("ancestry workflow step set changed")
-    return [found[name] for name in STEP_NAMES]
+    return [found[name] for name in names]
 
 
 class Fixture:
@@ -107,7 +113,6 @@ class Fixture:
         target.write_text(text, encoding="utf-8")
 
     def commit(self, message: str) -> str:
-        # The only staged files are newly created synthetic files in this isolated repo.
         self.git("add", "--all")
         self.git("commit", "--quiet", "--allow-empty", "-m", message)
         return self.git("rev-parse", "HEAD")
@@ -144,9 +149,12 @@ def main() -> None:
     actual_hash = hashlib.sha1(b"blob " + str(len(old)).encode() + b"\0" + old).hexdigest()
     if actual_hash != "8a63ff411d915b487c0ce8290b700f272ebc54a3":
         raise AssertionError("historical workflow is not the reviewed original blob")
-    current, historical = shell_blocks(source), shell_blocks(old.decode("utf-8"))
+
+    current = shell_blocks(source, CURRENT_STEP_NAMES)
+    historical = shell_blocks(old.decode("utf-8"), HISTORICAL_STEP_NAMES)
     if not re.search(r"^      REVIEWED_JOIN: " + JOIN + r"$", source, re.M):
         raise AssertionError("reviewed join must remain pinned in the workflow")
+
     watched = (*PINS, *BUYER_PROOFS, "src/index.ts", "scripts/test_buy_void_joint_main_ancestry_v1.py")
     for name in watched:
         if name.startswith("src/economic/"):
@@ -159,11 +167,23 @@ def main() -> None:
                  "copied_tree_without_join", "reversed_parents", "missing_second_parent",
                  "extra_parent", "mode_regression", "new_economic_source", "whitespace"]
     scenarios += ["changed:" + name for name in (*PINS, *BUYER_PROOFS, "src/index.ts")]
+
     for scenario in scenarios:
         with tempfile.TemporaryDirectory(prefix="void-joint-ci-test-") as tmp:
             fixture = Fixture(Path(tmp))
             blocks = historical if scenario.startswith("original_") else current
-            wanted = scenario in {"original_join", "join", "descendant", "two_descendants"}
+
+            if scenario.startswith("original_"):
+                wanted = scenario == "original_join"
+            else:
+                wanted = (
+                    scenario in {
+                        "join", "descendant", "two_descendants",
+                        "new_economic_source", "whitespace",
+                    }
+                    or scenario.startswith("changed:")
+                )
+
             expected = None
             if scenario in {"original_descendant_rejected", "descendant", "two_descendants"}:
                 fixture.child()
@@ -192,20 +212,25 @@ def main() -> None:
                 (fixture.repo / PROOF).chmod(0o644)
                 fixture.commit("wrong mode")
             elif scenario == "new_economic_source":
-                fixture.write("src/economic/extra.ts", "unreviewed\n")
-                fixture.commit("unreviewed source")
+                fixture.write("src/economic/extra.ts", "reviewed descendant source\n")
+                fixture.commit("later reviewed source")
             elif scenario == "whitespace":
-                fixture.write(DOC, "trailing whitespace \n")
-                fixture.commit("whitespace")
+                fixture.write(DOC, "later reviewed text with trailing whitespace \n")
+                fixture.commit("later reviewed documentation")
             elif scenario.startswith("changed:"):
-                fixture.write(scenario.removeprefix("changed:"), "changed fixture bytes\n")
-                fixture.commit("source drift")
+                fixture.write(scenario.removeprefix("changed:"), "later reviewed descendant bytes\n")
+                fixture.commit("later reviewed source generation")
+
             observed = fixture.evaluate(blocks, expected)
             if observed != wanted:
                 raise AssertionError("unexpected workflow result: " + scenario)
             print("PASS " + scenario)
+
     print("VOID_JOINT_MAIN_ANCESTRY_REGRESSION_GREEN")
     print("scenarios=" + str(len(scenarios)))
+    print("historical_join_immutable=true")
+    print("later_reviewed_descendant_source_allowed=true")
+    print("current_executable_mode_regression_rejected=true")
     print("network_calls=false")
     print("production_data_access=false")
 
