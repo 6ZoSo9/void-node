@@ -5,6 +5,9 @@ on:
     paths:
       - "tools/void-buy-allocation-custody-service-v2.mjs"
       - "scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+      - "tools/void-buy-allocation-custody-inspect-client-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_inspect_client_v1.mjs"
+      - "docs/architecture/buy-void-custody-inspect-ipc-v1.md"
       - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
       - "scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs"
       - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
@@ -67,6 +70,8 @@ jobs:
           set -euo pipefail
           node --check tools/void-buy-allocation-custody-service-v2.mjs
           node --check scripts/prove_void_buy_allocation_custody_service_v2.mjs
+          node --check tools/void-buy-allocation-custody-inspect-client-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_inspect_client_v1.mjs
           node --check src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
           node --check scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
 
@@ -93,6 +98,31 @@ jobs:
             'funds_movement=false'
           do
             grep -Fx "$marker" "custody-v2-ordinary-${{ matrix.node }}.txt"
+          done
+
+      - name: Prove source-only V2 inspect socket client
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_buy_allocation_custody_inspect_client_v1.mjs \
+            | tee "custody-v2-inspect-client-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_INSPECT_IPC_V1_PROOF_GREEN' \
+            'bounded_socket_request_and_reply=true' \
+            'request_digest_bound=true' \
+            'malformed_and_oversize_replies_hold=true' \
+            'positive_decision_authority_false=true' \
+            'socket_path_and_metadata_preflight=true' \
+            'absolute_deadline_enforced=true' \
+            'config_proxy_and_accessors_not_executed=true' \
+            'actual_custody_v2_server_protocol_proven=true' \
+            'cross_uid_principal_separation_verified=false' \
+            'protected_custody_verified=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "custody-v2-inspect-client-${{ matrix.node }}.txt"
           done
 
       - name: Prove actual web-to-custody lock contention
