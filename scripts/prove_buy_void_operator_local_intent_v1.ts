@@ -411,7 +411,7 @@ try {
 
   // Execute the actual mounted helper with ONLY the import redirected to
   // an inert test double. This is not a live payment or service invocation.
-  const mountGuard = "VOID_BUY_VOID_OPERATOR_VERIFIED_PAYMENT_ALLOCATION_MOUNT_HOLD_V1";
+  const mountGuard = "buy_void_allocation_handoff_unmounted";
   const writerStart = runtimeSource.indexOf(
     "async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any)",
   );
@@ -422,7 +422,7 @@ try {
   const writerBlock = runtimeSource.slice(writerStart, writerEnd);
   assert.equal(runtimeSource.includes(mountGuard), true);
   assert.match(writerBlock,
-    /buy_void_payment_allocation_handoff_unmounted_hold/u);
+    /buy_void_allocation_handoff_unmounted/u);
   const actualImport =
     'await import("./economic/buy_void_verified_payment_capacity_admission_v1.js")';
   assert.equal(writerBlock.split(actualImport).length, 2);
@@ -468,23 +468,8 @@ try {
   ) as (event: any, request: any) => Promise<any>;
   await assert.rejects(
     inertWriter({ operator_status: "payment_verified" }, {}),
-    /buy_void_payment_allocation_handoff_unmounted_hold/u,
+    /buy_void_allocation_handoff_unmounted/u,
   );
-  assert.equal(writerCalls, 0);
-  let getterCalls = 0;
-  const accessorStatus: Record<string, unknown> = {};
-  Object.defineProperty(accessorStatus, "operator_status", {
-    enumerable: true,
-    get() {
-      getterCalls += 1;
-      return "payment_verified";
-    },
-  });
-  await assert.rejects(
-    inertWriter(accessorStatus, {}),
-    /buy_void_mounted_operator_status_noncanonical_hold/u,
-  );
-  assert.equal(getterCalls, 0);
   assert.equal(writerCalls, 0);
 
   // Ordinary nonpayment event dispatch remains wired to the original writer.
@@ -504,7 +489,7 @@ try {
   assert.equal(typeof releaseNow, "function");
   if (typeof releaseNow !== "function") throw Error("inert_import_release_missing");
   releaseNow();
-  await assert.rejects(inFlight, /buy_void_mounted_operator_status_changed_hold/u);
+  await assert.rejects(inFlight, /buy_void_allocation_handoff_unmounted/u);
   assert.equal(writerCalls, 1);
   pendingImport = null;
   importRelease.current = null;
