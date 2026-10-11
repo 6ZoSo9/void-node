@@ -1053,6 +1053,71 @@ console.log("zero_progress_chunks_rejected_before_copy=true");
 console.log("intrinsic_chunk_storage_bounds_preserved=true");
 console.log("chunk_rejection_cleanup_and_recovery=true");
 
+// A body is not fully retired when its owned reader cannot release. Reject an
+// otherwise valid document and keep that exact transport/origin generation
+// quarantined instead of accepting bytes whose teardown state is unknown.
+const releaseFailureUrl =
+  "https://release-failure.example/.well-known/void-agent-discovery.json";
+const releaseFailureBytes = new Uint8Array(Buffer.from(
+  await healthyResponse(releaseFailureUrl).text(),
+  "utf8",
+));
+let releaseFailureFetches = 0;
+let releaseFailureReads = 0;
+let releaseFailureCalls = 0;
+const releaseFailureFetch = async url => {
+  releaseFailureFetches++;
+  let offset = 0;
+  return {
+    status: 200,
+    ok: true,
+    redirected: false,
+    url,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader: () => ({
+        read: async () => {
+          releaseFailureReads++;
+          if (offset === 0) {
+            offset = releaseFailureBytes.length;
+            return { done: false, value: releaseFailureBytes };
+          }
+          return { done: true };
+        },
+        cancel: async () => {
+          throw new Error("release_failure_unexpected_cancel");
+        },
+        releaseLock() {
+          releaseFailureCalls++;
+          throw new Error("reader_release_failed");
+        },
+      }),
+    },
+  };
+};
+const releaseFailureOptions = {
+  baseUrl: "https://release-failure.example",
+  fetchImpl: releaseFailureFetch,
+};
+await expectRejectWithin(
+  "reader release failure rejects successful body",
+  () => discoverVoidAgentV1(releaseFailureOptions),
+  "well_known_discovery_body_reader_release_failed",
+);
+await expectRejectWithin(
+  "reader release failure quarantines exact generation",
+  () => discoverVoidAgentV1(releaseFailureOptions),
+  "well_known_discovery_transport_generation_unsettled",
+);
+assertCondition(
+  releaseFailureFetches === 1 &&
+    releaseFailureReads === 2 &&
+    releaseFailureCalls === 1,
+  "reader release failure admitted bytes or started a replacement generation",
+);
+console.log("reader_release_failure_rejects_successful_body=true");
+console.log("reader_release_failure_quarantines_transport_generation=true");
+
 // Timer callbacks can be delayed by synchronous work. A late fulfillment must
 // fail admission even when its promise continuation runs before the timer.
 function fulfillAfterDeadline(value) {
