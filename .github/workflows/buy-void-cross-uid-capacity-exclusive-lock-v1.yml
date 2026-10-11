@@ -73,7 +73,16 @@ jobs:
           LOG="$ROOT/critical.log"
           LOCK="$ROOT/.void-buy-void-cross-uid-capacity-exclusive-lock-v1.json"
           NODE="$(command -v node)"
-          PROOF="$(realpath scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs)"
+          WORKSPACE_PROOF="$(realpath scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs)"
+          WORKSPACE_SOURCE="$(realpath src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs)"
+          CODE="/tmp/void-cross-uid-capacity-code-${{ github.run_id }}-${{ matrix.node }}"
+          PROOF="$CODE/scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+
+          sudo install -d -m 0755 -o root -g root "$CODE" "$CODE/scripts" "$CODE/src" "$CODE/src/economic"
+          sudo install -m 0444 -o root -g root "$WORKSPACE_PROOF" "$PROOF"
+          sudo install -m 0444 -o root -g root "$WORKSPACE_SOURCE" "$CODE/src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+          cmp "$WORKSPACE_PROOF" "$PROOF"
+          cmp "$WORKSPACE_SOURCE" "$CODE/src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
 
           sudo install -d -m 3770 -o "$CUST" -g "$GRP" "$ROOT"
           sudo install -m 0660 -o "$CUST" -g "$GRP" /dev/null "$LOG"
@@ -115,7 +124,7 @@ jobs:
 
           printf '%s\n'             'VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_TWO_UID_GREEN'             'web_and_custody_mutual_exclusion=true'             'custody_owner_reaps_stale_web_claim=true'             'web_cannot_reap_stale_custody_claim=true'             'custody_reaps_own_stale_claim=true'             'payment_event_write=false'             'allocation_write=false'             'production_runtime_mounted=false'             'production_gate_ready=false'             'funds_movement=false'             | tee "cross-uid-capacity-kernel-${{ matrix.node }}.txt"
 
-          sudo rm -rf "$ROOT"
+          sudo rm -rf "$ROOT" "$CODE"
 
       - name: Committed diff hygiene
         env:
