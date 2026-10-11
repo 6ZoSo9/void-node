@@ -211,8 +211,20 @@ function readOperatorCapabilityV1():
   } catch {
     return { ok: false };
   } finally {
-    if (credentialFd !== null) fs.closeSync(credentialFd);
-    if (directoryFd !== null) fs.closeSync(directoryFd);
+    // A failure closing the credential descriptor must never skip closing
+    // the retained directory descriptor or qualify the read as authorized.
+    let closeUncertain = false;
+    if (credentialFd !== null) {
+      try { fs.closeSync(credentialFd); }
+      catch { closeUncertain = true; }
+    }
+    if (directoryFd !== null) {
+      try { fs.closeSync(directoryFd); }
+      catch { closeUncertain = true; }
+    }
+    if (closeUncertain) {
+      throw new Error("operator_capability_descriptor_close_uncertain");
+    }
   }
 }
 
@@ -287,7 +299,13 @@ export function authorizeBuyVoidOperatorLocalReadV1(
 ): boolean {
   if (!localTransportV1(req, res)) return false;
 
-  const capability = readOperatorCapabilityV1();
+  let capability: ReturnType<typeof readOperatorCapabilityV1>;
+  try {
+    capability = readOperatorCapabilityV1();
+  } catch {
+    // A failed close is ambiguous even when the token read itself succeeded.
+    return sendHeld(res, 503, "operator_capability_unavailable");
+  }
   if (!capability.ok) {
     return sendHeld(res, 503, "operator_capability_unavailable");
   }
