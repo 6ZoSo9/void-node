@@ -757,6 +757,59 @@ try {
     false,
   );
 
+  for (const lateReadMode of ["resolve", "reject"]) {
+    const lateSettlingRead = await runClient(
+      [
+        "--base-url",
+        "http://127.0.0.1:1",
+        "--timeout-ms",
+        "100",
+      ],
+      [],
+      {
+        nodeArgs: [
+          "--import",
+          importDataUrl(`
+            let releaseCount = 0;
+            const mode = ${JSON.stringify(lateReadMode)};
+            globalThis.fetch = async () => ({
+              ok: true,
+              status: 200,
+              headers: { get: () => null },
+              body: {
+                getReader: () => ({
+                  read: () => new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                      if (mode === "resolve") {
+                        resolve({ done: true, value: undefined });
+                      } else {
+                        reject(new Error("late-settled-read-failure"));
+                      }
+                    }, 150);
+                  }),
+                  cancel: () => Promise.resolve(),
+                  releaseLock: () => { releaseCount += 1; },
+                }),
+              },
+            });
+            process.on("exit", () => {
+              if (releaseCount !== 1) process.exitCode = 91;
+            });
+          `),
+        ],
+        wallTimeoutMs: 3_000,
+      },
+    );
+    assert.equal(lateSettlingRead.timedOut, false);
+    assert.equal(lateSettlingRead.code, 2, lateSettlingRead.stderr);
+    assert.equal(lateSettlingRead.elapsedMs < 3_000, true);
+    assert.equal(
+      JSON.parse(lateSettlingRead.stdout)
+        .checks.first_contact_manifest_reachable,
+      false,
+    );
+  }
+
   const nonSettlingCancel = await runClient(
     ["--base-url", "http://127.0.0.1:1"],
     [],
@@ -1692,4 +1745,3 @@ console.log("public_utility_catalog_loaded=true");
 console.log("useful_public_resource_count=3");
 console.log("composition_boundary_file_count=12");
 console.log("VOID_AI_AGENT_FIRST_CONTACT_KIT_V1_PROOF_EXACT_GREEN");
-

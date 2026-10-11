@@ -431,14 +431,31 @@ async function readBoundedText(response, signal) {
   const chunks = [];
   let total = 0;
   let activeReadSettled = true;
+  let releaseDeferred = false;
+  let readerReleased = false;
+  const releaseReaderOnce = () => {
+    if (readerReleased) return;
+    readerReleased = true;
+    reader.releaseLock();
+  };
   try {
     while (true) {
+      if (signal.aborted) {
+        throw abortError(signal);
+      }
       activeReadSettled = false;
       const { done, value } = await readBodyChunkWithDeadline(
         reader,
         signal,
         () => {
           activeReadSettled = true;
+          if (releaseDeferred) {
+            try {
+              releaseReaderOnce();
+            } catch (error) {
+              void error;
+            }
+          }
         },
       );
       if (done) break;
@@ -451,7 +468,9 @@ async function readBoundedText(response, signal) {
     }
   } finally {
     if (activeReadSettled) {
-      reader.releaseLock();
+      releaseReaderOnce();
+    } else {
+      releaseDeferred = true;
     }
   }
 
@@ -1368,4 +1387,3 @@ main().catch((error) => {
   process.stderr.write(`HOLD: ${String(error?.message ?? error)}\n`);
   process.exitCode = 78;
 });
-
