@@ -1,0 +1,162 @@
+// Actual source-extraction regression for Buy VOID public request intake.
+// Source-only: isolated temporary files, simulated serialization lock,
+// no HTTP listener, network, customer records, payment, signer or funds.
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import ts from "typescript";
+
+const NEW_SOURCE="src/index.ts";
+const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
+const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
+const NEW_BLOB="a399ab3fd80a103bc18f4dd81d8771f7d668568c";
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0"))
+    .update(bytes).digest("hex");
+}
+const oldBytes=execFileSync("git",["show",OLD_COMMIT+":"+NEW_SOURCE],{
+  maxBuffer:8*1024*1024,encoding:"buffer",stdio:["ignore","pipe","pipe"]
+});
+const currentBytes=fs.readFileSync(NEW_SOURCE);
+assert.equal(gitBlob(oldBytes),OLD_BLOB,"predecessor index bytes changed");
+assert.equal(gitBlob(currentBytes),NEW_BLOB,"reviewed new index source drift");
+const original=oldBytes.toString("utf8"),current=currentBytes.toString("utf8");
+function take(src,start,end){
+  const begin=src.indexOf(start);
+  assert.ok(begin>=0,"missing source start "+start);
+  const stop=src.indexOf(end,begin);
+  assert.ok(stop>begin&&stop-begin<15000,"missing source end "+end);
+  return src.slice(begin,stop);
+}
+const parts=[
+  ["async function __voidReadBuyVoidRequestsV1(){","    const __boi=require"],
+  ["async function __voidReadBuyVoidOperatorEventsV1(){","    async function __voidWriteBuyVoidOperatorEventV1"],
+  ["function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){","    // VOID_BUY_VOID_OPERATOR_PAGE_V1"],
+  ["function __voidBuyVoidTerminalStatusV1(status:any){","    app.get(\"/__void/buy-void/request.json\""],
+];
+const sources=parts.map(([a,b])=>take(current,a,b));
+function persister(src){
+  return take(src,"async function __voidPersistBuyVoidRequestV1(reqObj:any){",
+    "    function __voidBuyVoidReadParamV1");
+}
+const oldPersist=persister(original),newPersist=persister(current);
+assert.match(oldPersist,/__blm\(reqObj,\(\)=>/u);
+assert.doesNotMatch(oldPersist,/__voidReadBuyVoidRequestsV1/u);
+assert.match(newPersist,/__blm\(reqObj,async \(\)=>/u);
+assert.ok(newPersist.indexOf("__voidReadBuyVoidRequestsV1")>
+  newPersist.indexOf("__blm(reqObj,async"),"admission scan must be inside lock");
+assert.match(newPersist,/throw new Error\("buy_void_request_active_destination_changed_during_lock"\)/u);
+assert.match(newPersist,/reused_request:currentlyActive/u);
+assert.match(newPersist,/fs\.appendFileSync/u);
+const currentPost=take(current,'app.post("/__void/buy-void/request"',
+  '    // VOID_PUBLIC_BUY_VOID_ROUTE_V1');
+assert.match(currentPost,/if\(persisted\.reused_request\)/u);
+assert.match(currentPost,/idempotent:true/u);
+assert.match(currentPost,/d\?"one_active_request_per_void_destination"/u);
+
+function factory(persistBlock,dir){
+  const script=sources.join("\n")+"\n"+persistBlock;
+  const transformed=ts.transpileModule(script,{
+    compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
+    reportDiagnostics:true,
+  });
+  const errors=(transformed.diagnostics||[])
+    .filter(d=>d.category===ts.DiagnosticCategory.Error);
+  assert.equal(errors.length,0,errors.map(d=>ts.flattenDiagnosticMessageText(d.messageText," ")).join("\n"));
+  let queue=Promise.resolve();
+  let calls=0;
+  const withAuthorityLock=async(_request,operation)=>{
+    const prior=queue;
+    let release=()=>{};
+    queue=new Promise(resolve=>{release=resolve;});
+    await prior;
+    try{calls++;return await operation(()=>({ready:true}));}
+    finally{release();}
+  };
+  const context=new Function("__blm","__blo","process",
+    "voidIndexEmptyCatchVisibilityWindow17101_18000V1",
+    transformed.outputText+"\nreturn __voidPersistBuyVoidRequestV1;");
+  return {
+    persist:context(withAuthorityLock,()=>true,{env:{VOID_BUY_REQUEST_DIR:dir}},()=>{}),
+    getCalls:()=>calls,
+  };
+}
+function request(id,amt="3.000000",chain="base",dest="1"){
+  return Object.freeze({
+    schema:"void_public_buy_void_checkout_request_v1",
+    request_id:id,created_at_ms:1800000000000,
+    void_destination_address:"0x"+dest.repeat(40),
+    delivery_address:"0x"+dest.repeat(40),
+    usdc_amount:Number(amt),requested_amount_usdc:Number(amt),
+    source_chain:chain,payment_chain:chain,
+    status:"awaiting_payment_tx_hash",
+    tx_hash:"",launch_authority:Object.freeze({marker:"synthetic-only"}),
+  });
+}
+function lines(dir,file="requests.jsonl"){
+ const name=path.join(dir,file);
+ if(!fs.existsSync(name))return [];
+ return fs.readFileSync(name,"utf8").split("\n").filter(Boolean).map(JSON.parse);
+}
+function temp(){
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-buy-request-intake-lock-"));
+ fs.chmodSync(root,0o700);
+ return root;
+}
+{
+ const root=temp();
+ try{
+   const old=factory(oldPersist,root);
+   await Promise.all([old.persist(request("old-1")),old.persist(request("old-2"))]);
+   assert.equal(lines(root).length,2,
+     "negative control must reproduce duplicate append under sequential launch lock");
+   assert.equal(old.getCalls(),2);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+}
+{
+ const root=temp();
+ try{
+   const fresh=factory(newPersist,root);
+   const [first,second]=await Promise.all([
+     fresh.persist(request("new-1")),fresh.persist(request("new-2")),
+   ]);
+   assert.equal(first.reused_request,null);
+   assert.equal(second.reused_request?.request_id,"new-1");
+   assert.equal(lines(root).length,1,"same request intent may persist only once");
+   assert.equal(fresh.getCalls(),2);
+   await assert.rejects(
+     ()=>fresh.persist(request("mismatch-amount","4")),
+     /buy_void_request_active_destination_changed_during_lock/u);
+   await assert.rejects(
+     ()=>fresh.persist(request("mismatch-chain","3","ethereum")),
+     /buy_void_request_active_destination_changed_during_lock/u);
+   assert.equal(lines(root).length,1,"rejects must not append");
+   const independent=await fresh.persist(request("other-destination","3","base","2"));
+   assert.equal(independent.reused_request,null);
+   assert.equal(lines(root).length,2);
+   fs.writeFileSync(path.join(root,"operator-events.jsonl"),
+     JSON.stringify({request_id:"new-1",operator_status:"fulfilled",marked_at_ms:3})+"\n"+
+     JSON.stringify({request_id:"other-destination",operator_status:"fulfilled",marked_at_ms:4})+"\n",
+     {mode:0o600});
+   const replacement=await fresh.persist(request("post-terminal"));
+   assert.equal(replacement.reused_request,null);
+   assert.equal(lines(root).length,3,
+     "terminal old request permits a later distinct request");
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+}
+console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
+console.log("negative_predecessor_duplicate_append_observed=true");
+console.log("current_concurrent_same_intent_exactly_one_append=true");
+console.log("current_same_intent_returns_existing_request=true");
+console.log("current_mismatched_amount_and_rail_hold_without_append=true");
+console.log("different_destination_allowed=true");
+console.log("terminal_status_allows_subsequent_request=true");
+console.log("source_changed_economic_modules=false");
+console.log("production_request_route_deployed=false");
+console.log("live_payment_or_allocation_performed=false");
+console.log("presale_activation=false");
+console.log("funds_moved=false");

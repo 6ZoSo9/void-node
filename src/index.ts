@@ -18856,7 +18856,40 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
     });
 
 
-    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return await __blm(reqObj,()=>{const json=JSON.stringify(reqObj);fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}})}
+    async function __voidPersistBuyVoidRequestV1(reqObj:any){
+      const fs=await import("node:fs");
+      const path=await import("node:path");
+      const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");
+      fs.mkdirSync(dir,{recursive:true});
+      return await __blm(reqObj,async ()=>{
+        // Recheck under the EXISTING cross-process launch mutation lock.
+        // Two simultaneous POSTs can both pass the earlier read-only
+        // destination check before either one commits its request.
+        const currentlyActive=__voidApplyBuyVoidOperatorEventsV1(
+          await __voidReadBuyVoidRequestsV1(),
+          await __voidReadBuyVoidOperatorEventsV1(),
+        ).find((other:any)=>{
+          const destination=String(other.void_destination_address||
+            other.delivery_address||other.delivery_wallet||"").trim().toLowerCase();
+          return destination===String(reqObj.void_destination_address||"").trim().toLowerCase() &&
+            !__voidBuyVoidTerminalStatusV1(other.effective_status||other.status) &&
+            __blo(other);
+        });
+        if(currentlyActive){
+          const amount=Number(currentlyActive.usdc_amount??currentlyActive.requested_amount_usdc??0);
+          const requested=Number(reqObj.usdc_amount);
+          const chain=String(currentlyActive.source_chain||"base");
+          if(Number.isFinite(amount)&&amount===requested&&chain===reqObj.source_chain){
+            return {dir,reused_request:currentlyActive,file:null};
+          }
+          throw new Error("buy_void_request_active_destination_changed_during_lock");
+        }
+        const json=JSON.stringify(reqObj);
+        fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");
+        fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));
+        return {dir,file:path.join(dir,reqObj.request_id+".json"),reused_request:null};
+      });
+    }
 
     function __voidBuyVoidReadParamV1(req:any, name:string){
       const q = (req && req.query) || {};
@@ -19088,6 +19121,16 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
 
         if(!__blo(requestObj))throw new Error("request_launch_authority_expired_or_superseded");
         const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
+        if(persisted.reused_request){
+          return res.json({
+            schema:"void_public_buy_void_checkout_request_result_v1",
+            marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+            ok:true,
+            idempotent:true,
+            one_active_request_cap_enforced:true,
+            request:persisted.reused_request
+          });
+        }
         requestObj.persisted = { ok:true, file:persisted.file };
 
         return res.status(201).json({
@@ -19098,7 +19141,7 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           one_active_request_cap_enforced: true,
           request: requestObj
         });
-      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded";return res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:h?m:"buy_void_checkout_request_failed",message:m})}
+      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded",d=m==="buy_void_request_active_destination_changed_during_lock";return res.status(h||d?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:d?"one_active_request_per_void_destination":h?m:"buy_void_checkout_request_failed",message:m})}
     });
 
 
