@@ -249,7 +249,9 @@ export async function inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(raw) {
     });
     const expectedDigest = "sha256:" + crypto.createHash("sha256")
       .update(Buffer.from(canonical(request), "utf8")).digest("hex");
-    const bytes = Buffer.from(JSON.stringify(request) + "\n", "utf8");
+    // V2 server requires the exact sorted canonical JSON byte framing.
+    // A semantically equal JSON.stringify order must still be rejected.
+    const bytes = Buffer.from(canonical(request) + "\n", "utf8");
     if (bytes.length > MAX_REQUEST_BYTES) fail("request_too_large");
     const received = await inspectWire(config, bytes);
     const after = observeSocket(config);

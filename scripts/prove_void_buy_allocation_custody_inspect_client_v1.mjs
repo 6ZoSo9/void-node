@@ -82,6 +82,8 @@ async function withServer(write, check) {
     let input = "";
     socket.on("data", bytes => { input += bytes.toString("utf8"); });
     socket.on("end", () => {
+      // Real custody V2 rejects unsorted but semantically identical JSON.
+      assert.equal(input, canonical(envelope) + "\n");
       const req = JSON.parse(input);
       assert.equal(req.method, "inspect");
       assert.deepEqual(req.request, {});
