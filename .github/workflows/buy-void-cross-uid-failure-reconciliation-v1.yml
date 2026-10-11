@@ -1,0 +1,135 @@
+name: VOID Buy VOID cross-UID failure reconciliation v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs"
+      - "scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs"
+      - "docs/architecture/buy-void-cross-uid-failure-reconciliation-v1.md"
+      - ".github/workflows/buy-void-cross-uid-failure-reconciliation-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-crossuid-failure-reconciliation-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: read-only reconciliation / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact clean head
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and prove read-only reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node --check src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs
+          node --check scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs
+          # A nonempty transcript must never conceal a failed producer.
+          set +e
+          (printf 'synthetic proof failure\n'; exit 23) \
+            | tee "$RUNNER_TEMP/reconciliation-pipeline-negative.txt"
+          producer_status=$?
+          set -e
+          test "$producer_status" -eq 23
+          echo proof_pipeline_failure_propagated=true
+          node scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs \
+            | tee "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1' \
+            "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
+          grep -Fx 'scanner_inherited_json_hook_calls=0' \
+            "crossuid-failure-reconciliation-${{ matrix.node }}.txt"
+      - name: Preserve historical introduction scope and check current diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INTRODUCTION_BASE: e355cb575cbf3931fe9560d7fa39ca4af4be0798
+          INTRODUCTION_HEAD: 799a85f0684e9f73a5fe7868164b3fe5ff2953fe
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_HEAD" "$HEAD"
+          # The original four added files remain historical evidence. Current
+          # edits are qualified by today's build/proof, not the old PR's size.
+          git diff --check "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git diff --name-only "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD" \
+            | sort > "$RUNNER_TEMP/actual"
+          test "$(git diff --name-only --diff-filter=A \
+            "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD" | wc -l)" -eq 4
+          printf '%s\n' \
+            .github/workflows/buy-void-cross-uid-failure-reconciliation-v1.yml \
+            docs/architecture/buy-void-cross-uid-failure-reconciliation-v1.md \
+            scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs \
+            src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs \
+            | sort > "$RUNNER_TEMP/expected"
+          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
+          echo historical_exact_four_path_scope=true
+          # Check only changes introduced by the current PR. The base tip can
+          # advance after the branch fork and need not itself be an ancestor.
+          if test -n "${BASE:-}"; then
+            CURRENT_MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+            git merge-base --is-ancestor "$CURRENT_MERGE_BASE" "$HEAD"
+            git diff --check "$CURRENT_MERGE_BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+          echo current_diff_merge_base_bound=true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: crossuid-failure-reconciliation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: crossuid-failure-reconciliation-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    name: byte-identical Node receipts
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: crossuid-failure-reconciliation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "receipts/crossuid-failure-reconciliation-$version.txt"
+          done
+          cmp receipts/crossuid-failure-reconciliation-22.txt \
+            receipts/crossuid-failure-reconciliation-24.txt
+          cmp receipts/crossuid-failure-reconciliation-22.txt \
+            receipts/crossuid-failure-reconciliation-26.txt
+          echo VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_THREE_NODE_GREEN
+          echo filesystem_write=false
+          echo cross_uid_lock_release_authorized=false
+          echo custody_recovery_authorized=false
+          echo payment_acceptance=false
+          echo presale_activation=false
+          echo funds_movement=false
