@@ -234,7 +234,7 @@ async function ordinaryProof() {
       );
       cases++;
     } finally {
-      try { fs.unlinkSync(link); } catch {}
+      try { fs.unlinkSync(link); } catch (cleanupError) { void cleanupError; }
       cleanupFixture(base);
     }
   }
