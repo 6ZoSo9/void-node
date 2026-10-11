@@ -27,6 +27,9 @@ function proveScannerIsolation() {
     source.slice(start, end) + "\nreturn strictVerifiedRequestIds;",
     ["Buffer", "TextDecoder"],
   )(Buffer, TextDecoder);
+  const empty = scan(Buffer.alloc(0));
+  assert.deepEqual(empty, []);
+  assert.equal(Object.isFrozen(empty), true);
   const id = "buyvoid_a_aaaaaaaa";
   const row = {
     request_id: id,
@@ -99,6 +102,7 @@ assert.ok(process.argv.length === 2 || scannerOnly, "unsupported proof argument"
 proveScannerIsolation();
 if (scannerOnly) {
   console.log("VOID_BUY_VOID_RECONCILIATION_SCANNER_UNIT_GREEN");
+  console.log("scanner_stable_empty_operator_history=true");
   console.log("scanner_inherited_json_hook_calls=0");
   console.log("full_filesystem_reconciliation_proven=false");
   process.exit(0);
@@ -331,6 +335,28 @@ try {
 
   writeState({
     requestRows: [target],
+    operatorRows: [],
+    allocationJsonl: "",
+  });
+  const emptyAbsent = classifyWithoutMutation();
+  assert.equal(emptyAbsent.ok, true, emptyAbsent.reason);
+  assert.equal(emptyAbsent.status, "observed_no_target_capacity_effect");
+  assert.equal(emptyAbsent.observed_no_target_capacity_effect, true);
+  assert.equal(emptyAbsent.verified_request_count, 0);
+  assert.equal(emptyAbsent.allocation_record_count, 0);
+  assert.equal(emptyAbsent.canonical_replay_call_count, 1);
+
+  writeState({
+    requestRows: [target],
+    operatorRows: [],
+    allocationJsonl: targetAllocation.next_ledger_jsonl,
+  });
+  const emptyOrphan = classifyWithoutMutation();
+  assert.equal(emptyOrphan.status, "held");
+  assert.match(emptyOrphan.reason, /allocation_without_verified_payment/u);
+
+  writeState({
+    requestRows: [target],
     operatorRows: [reviewedEvent(target, 1_800_000_000_010)],
     allocationJsonl: "",
   });
@@ -470,6 +496,9 @@ try {
   assert.match(proxied.reason, /input_shape_invalid/u);
 
   console.log("VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1");
+  console.log("scanner_stable_empty_operator_history=true");
+  console.log("stable_empty_operator_history_no_effect_classified=true");
+  console.log("empty_operator_orphan_allocation_holds=true");
   console.log("scanner_inherited_json_hook_calls=0");
   console.log("scanner_own_data_and_canonical_rejection_preserved=true");
   console.log("whole_pipeline_prototype_isolation_proven=false");

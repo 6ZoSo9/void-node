@@ -52,13 +52,32 @@ jobs:
           npm run build
           bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
             --prove "${{ matrix.node }}"
-      - name: Exact scope
+      - name: Preserve historical introduction and check current PR diff
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INTRODUCTION_BASE: c53b09a8c8039a5ef3bb0d5388793f9abc753ccf
+          INTRODUCTION_HEAD: a4b744bcd443fa7717a7fe3d37f77a62a2002037
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_HEAD" "$HEAD"
+          test "$(git hash-object scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh)" = "fc1fe4beec42ea327546ceda5d230d2d732fbdfc"
           bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
-            --scope "$BASE" "$HEAD"
+            --scope "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          echo historical_exact_11_path_introduction_verified=true
+
+          # Successors must prove their present changes, not reproduce the
+          # historical PR #2788's exact 11-added-path diff.
+          if test -n "${BASE:-}"; then
+            CURRENT_MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+            test -n "$CURRENT_MERGE_BASE"
+            git diff --check "$CURRENT_MERGE_BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+          echo current_pr_whitespace_clean=true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: web-crossuid-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}

@@ -289,8 +289,47 @@ function exactFetchInput(
   return Object.freeze({ mirror: input.mirror, url: input.url });
 }
 
+function responseReadDeadlineErrorV1(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("bootstrap content response read deadline exceeded");
+}
+
+function awaitWithinOwnedDeadlineV1<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(responseReadDeadlineErrorV1(signal));
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(responseReadDeadlineErrorV1(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function readBoundedResponseBytesV1(
   response: Response,
+  signal: AbortSignal,
 ): Promise<Buffer> {
   const contentType = String(response.headers.get("content-type") || "")
     .toLowerCase()
@@ -317,9 +356,36 @@ async function readBoundedResponseBytesV1(
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let byteCount = 0;
+  let unresolvedRead = false;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const readPromise = Promise.resolve().then(() => reader.read());
+      let readSettled = false;
+      void readPromise.then(
+        () => {
+          readSettled = true;
+        },
+        () => {
+          readSettled = true;
+        },
+      );
+      unresolvedRead = true;
+      let done: boolean;
+      let value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await awaitWithinOwnedDeadlineV1(
+          readPromise,
+          signal,
+        ));
+        unresolvedRead = false;
+      } catch (error) {
+        unresolvedRead = !readSettled;
+        if (signal.aborted && unresolvedRead) {
+          void readPromise.catch(() => undefined);
+          void reader.cancel().catch(() => undefined);
+        }
+        throw error;
+      }
       if (done) break;
       if (!value || value.byteLength === 0) {
         void reader.cancel().catch(() => undefined);
@@ -336,7 +402,9 @@ async function readBoundedResponseBytesV1(
       chunks.push(value);
     }
   } finally {
-    reader.releaseLock();
+    if (!unresolvedRead) {
+      reader.releaseLock();
+    }
   }
   if (byteCount < 2) {
     throw new Error("bootstrap content response is empty");
@@ -388,7 +456,10 @@ export async function fetchVoidPublicP2pBootstrapContentBytesV1(
 
   const controller = new AbortController();
   const timer = setTimeout(
-    () => controller.abort(),
+    () =>
+      controller.abort(
+        new Error("bootstrap content response read deadline exceeded"),
+      ),
     VOID_P2P_UDP_SWARM_PUBLIC_INTRODUCTION_FETCH_TIMEOUT_MS_V1,
   );
   timer.unref?.();
@@ -407,7 +478,7 @@ export async function fetchVoidPublicP2pBootstrapContentBytesV1(
         `bootstrap content fetch returned HTTP ${response.status}`,
       );
     }
-    return await readBoundedResponseBytesV1(response);
+    return await readBoundedResponseBytesV1(response, controller.signal);
   } finally {
     clearTimeout(timer);
   }

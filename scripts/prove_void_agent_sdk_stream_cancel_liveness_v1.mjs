@@ -1053,6 +1053,126 @@ console.log("zero_progress_chunks_rejected_before_copy=true");
 console.log("intrinsic_chunk_storage_bounds_preserved=true");
 console.log("chunk_rejection_cleanup_and_recovery=true");
 
+// A body is not fully retired when its owned reader cannot release. Reject an
+// otherwise valid document and keep that exact transport/origin generation
+// quarantined instead of accepting bytes whose teardown state is unknown.
+const releaseFailureUrl =
+  "https://release-failure.example/.well-known/void-agent-discovery.json";
+const releaseFailureBytes = new Uint8Array(Buffer.from(
+  await healthyResponse(releaseFailureUrl).text(),
+  "utf8",
+));
+let releaseFailureFetches = 0;
+let releaseFailureReads = 0;
+let releaseFailureCalls = 0;
+const releaseFailureFetch = async url => {
+  releaseFailureFetches++;
+  let offset = 0;
+  return {
+    status: 200,
+    ok: true,
+    redirected: false,
+    url,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader: () => ({
+        read: async () => {
+          releaseFailureReads++;
+          if (offset === 0) {
+            offset = releaseFailureBytes.length;
+            return { done: false, value: releaseFailureBytes };
+          }
+          return { done: true };
+        },
+        cancel: async () => {
+          throw new Error("release_failure_unexpected_cancel");
+        },
+        releaseLock() {
+          releaseFailureCalls++;
+          // JavaScript permits falsy thrown values; teardown failure is the event.
+          throw undefined;
+        },
+      }),
+    },
+  };
+};
+const releaseFailureOptions = {
+  baseUrl: "https://release-failure.example",
+  fetchImpl: releaseFailureFetch,
+};
+await expectRejectWithin(
+  "reader release failure rejects successful body",
+  () => discoverVoidAgentV1(releaseFailureOptions),
+  "well_known_discovery_body_reader_release_failed",
+);
+await expectRejectWithin(
+  "reader release failure quarantines exact generation",
+  () => discoverVoidAgentV1(releaseFailureOptions),
+  "well_known_discovery_transport_generation_unsettled",
+);
+assertCondition(
+  releaseFailureFetches === 1 &&
+    releaseFailureReads === 2 &&
+    releaseFailureCalls === 1,
+  "reader release failure admitted bytes or started a replacement generation",
+);
+console.log("reader_release_failure_rejects_successful_body=true");
+console.log("reader_release_failure_quarantines_transport_generation=true");
+console.log("reader_release_falsy_throw_rejected=true");
+
+
+// Fetch and reader failures are events independent of the rejected payload.
+// Preserve every falsey primary value through cleanup instead of replacing it
+// with a later document-shape error.
+const falseyPrimaryValues = [undefined, null, 0, ""];
+let falseyPrimaryCases = 0;
+for (const stage of ["fetch", "read"]) {
+  for (const rejectedValue of falseyPrimaryValues) {
+    let fetches = 0;
+    let cancels = 0;
+    let releases = 0;
+    const fetchImpl = async url => {
+      fetches++;
+      if (stage === "fetch") throw rejectedValue;
+      return {
+        status: 200,
+        ok: true,
+        redirected: false,
+        url,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: {
+          getReader: () => ({
+            read: async () => { throw rejectedValue; },
+            cancel: async () => { cancels++; },
+            releaseLock() { releases++; },
+          }),
+        },
+      };
+    };
+    const observed = await expectAnyRejectBeforeDeadline(
+      `falsey primary ${stage} rejection`,
+      () => discoverVoidAgentV1({
+        baseUrl: `https://falsey-primary-${stage}-${falseyPrimaryCases}.example`,
+        fetchImpl,
+      }),
+    );
+    assertCondition(
+      Object.is(observed, rejectedValue),
+      `falsey primary ${stage} rejection was replaced`,
+    );
+    assertCondition(
+      fetches === 1 &&
+        cancels === (stage === "read" ? 1 : 0) &&
+        releases === (stage === "read" ? 1 : 0),
+      `falsey primary ${stage} cleanup was not owned exactly once`,
+    );
+    falseyPrimaryCases++;
+  }
+}
+assertCondition(falseyPrimaryCases === 8, "falsey primary matrix incomplete");
+console.log("falsey_fetch_and_reader_rejections_preserved=true");
+console.log(`falsey_primary_rejection_cases=${falseyPrimaryCases}`);
+
 // Timer callbacks can be delayed by synchronous work. A late fulfillment must
 // fail admission even when its promise continuation runs before the timer.
 function fulfillAfterDeadline(value) {

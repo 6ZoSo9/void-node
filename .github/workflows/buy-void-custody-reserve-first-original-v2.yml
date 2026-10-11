@@ -1,19 +1,9 @@
 name: VOID Buy VOID custody reserve bounded V3 with frozen V1/V2 refusals
 
+# Historical-generation executor.
+# Automatic immutability is enforced by buy-void-historical-proof-integrity-v1;
+# successor production-source generations are qualified by successor workflows.
 on:
-  pull_request:
-    paths:
-      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
-      - "src/economic/buy_void_custody_reserve_plan_v1.mjs"
-      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
-      - "scripts/prove_buy_void_custody_reserve_plan_v1.mjs"
-      - "scripts/prove_buy_void_custody_reserve_plan_v2.mjs"
-      - "scripts/prove_buy_void_custody_reserve_plan_v3.mjs"
-      - "docs/architecture/buy-void-custody-reserve-plan-v2.md"
-      - ".github/workflows/buy-void-custody-reserve-first-original-v2.yml"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.build.json"
   workflow_dispatch:
 
 permissions:
