@@ -1,0 +1,165 @@
+name: VOID Buy VOID web cross-UID failure binding v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs"
+      - "scripts/prove_buy_void_web_payment_cross_uid_failure_binding_v1.mjs"
+      - "docs/architecture/buy-void-web-payment-cross-uid-failure-binding-v1.md"
+      - ".github/workflows/buy-void-web-payment-cross-uid-failure-binding-v1.yml"
+      - "src/economic/buy_void_web_payment_cross_uid_lock_validation_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-web-crossuid-failure-binding-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: in-lock failure binding / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact clean head
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and prove merged components plus failure binding
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node --check src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs
+          node --check scripts/prove_buy_void_web_payment_cross_uid_failure_binding_v1.mjs
+          bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
+            --prove "${{ matrix.node }}"
+          node scripts/prove_buy_void_cross_uid_failure_reconciliation_v1.mjs \
+            > "crossuid-reconciliation-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_web_payment_cross_uid_failure_binding_v1.mjs \
+            | tee "web-crossuid-failure-binding-${{ matrix.node }}.txt"
+          node --input-type=module \
+            >> "web-crossuid-failure-binding-${{ matrix.node }}.txt" <<'NODE'
+          import assert from "node:assert/strict";
+          const candidate = await import(
+            "./src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs"
+          );
+          assert.equal(
+            typeof candidate
+              .writeBuyVoidPaymentUnderCrossUidLockWithFailureBindingCandidateV1,
+            "function",
+          );
+          assert.equal(
+            candidate
+              .VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_AUTHORITY_V1
+              .reconciliation_runs_inside_owned_lock_callback,
+            true,
+          );
+          assert.equal(
+            candidate
+              .VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_AUTHORITY_V1
+              .cross_uid_lock_release_authorized,
+            false,
+          );
+          console.log("actual_candidate_imports_resolved=true");
+          NODE
+          for marker in \
+            VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_V1_SYNTHETIC_GREEN \
+            actual_candidate_module_evaluated_with_inert_imports=true \
+            actual_candidate_imports_resolved=true \
+            dispatch_failure_reconciliation_runs_while_lock_held=true \
+            planned_snapshot_binds_reconciliation_identity=true \
+            all_reconciliation_statuses_retain_outer_claim=true \
+            no_reconciliation_outcome_authorizes_release=true \
+            reconciliation_failure_retains_outer_claim=true \
+            unqualified_reconciliation_retains_outer_claim=true \
+            successful_dispatch_releases_after_callback=true \
+            production_dispatch_invoked=false \
+            filesystem_write=false \
+            runtime_integration=false \
+            payment_acceptance=false \
+            presale_activation=false \
+            funds_movement=false
+          do
+            grep -Fx "$marker" \
+              "web-crossuid-failure-binding-${{ matrix.node }}.txt"
+          done
+          grep -Fx \
+            VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1 \
+            "crossuid-reconciliation-${{ matrix.node }}.txt"
+      - name: Exact additive scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          SOURCE_BASE: e124719629bc4580025726786d64181b61560bb3
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$HEAD"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+          git diff --name-status "$MERGE_BASE" "$HEAD" \
+            | sort > "$RUNNER_TEMP/actual"
+          printf '%s\n' \
+            'A	.github/workflows/buy-void-web-payment-cross-uid-failure-binding-v1.yml' \
+            'A	docs/architecture/buy-void-web-payment-cross-uid-failure-binding-v1.md' \
+            'A	scripts/prove_buy_void_web_payment_cross_uid_failure_binding_v1.mjs' \
+            'A	src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs' \
+            | sort > "$RUNNER_TEMP/expected"
+          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
+          echo exact_four_path_additive_scope=true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-crossuid-failure-binding-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: web-crossuid-failure-binding-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    name: byte-identical Node receipts
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: web-crossuid-failure-binding-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "receipts/web-crossuid-failure-binding-$version.txt"
+          done
+          cmp receipts/web-crossuid-failure-binding-22.txt \
+            receipts/web-crossuid-failure-binding-24.txt
+          cmp receipts/web-crossuid-failure-binding-22.txt \
+            receipts/web-crossuid-failure-binding-26.txt
+          echo VOID_BUY_VOID_WEB_CROSS_UID_FAILURE_BINDING_THREE_NODE_GREEN
+          echo cross_uid_lock_release_authorized=false
+          echo custody_recovery_authorized=false
+          echo payment_acceptance=false
+          echo presale_activation=false
+          echo funds_movement=false
