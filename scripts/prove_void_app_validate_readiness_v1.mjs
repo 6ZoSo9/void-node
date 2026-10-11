@@ -241,6 +241,17 @@ const validateViewSource = viewsSource.slice(
   validateViewStart,
   validateViewEnd,
 );
+const validateStatusMessageTag =
+  '<p data-validate-message role="status" aria-live="polite" aria-atomic="true">';
+assert.equal(
+  validateViewSource.match(/<p data-validate-message/gu)?.length,
+  1,
+  'Validate view must expose exactly one primary readiness message',
+);
+assert.ok(
+  validateViewSource.includes(validateStatusMessageTag),
+  'Validate readiness transitions must use an atomic polite status region',
+);
 for (const forbidden of [
   '<button',
   '<form',
@@ -290,6 +301,7 @@ console.log('referrer_no_referrer=true');
 console.log('owned_response_lifetime=true');
 console.log('hard_response_byte_ceiling=true');
 console.log('dynamic_text_content_only=true');
+console.log('readiness_message_live_region=true');
 console.log('readiness_retry_on_hold=true');
 console.log('readiness_retry_removes_stale_control=true');
 console.log('candidate_actions_exposed=false');
