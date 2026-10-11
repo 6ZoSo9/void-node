@@ -16,12 +16,19 @@ let requestSerial = 0;
 let currentSnapshot = null;
 let readinessPending = false;
 let submitBusy = false;
+// A lost POST response does not prove the server failed to create a request.
+// Keep the exact intent blocked during this Buy view lifetime, even after
+// network failure or readiness refresh; a changed intent is a NEW request.
+let attemptedIntentKey = null;
+let attemptedResultText = null;
 const touchedFields = new Set();
 let activeBuyView = null;
 const beginBuyViewInstance = (view) => {
   if (view === activeBuyView) return false;
   activeBuyView = view;
   touchedFields.clear();
+  attemptedIntentKey = null;
+  attemptedResultText = null;
   return true;
 };
 
@@ -223,6 +230,14 @@ const usdcAtoms = (value) => {
   const fraction = String(match[2] || '').padEnd(6, '0');
   return BigInt(match[1]) * 1000000n + BigInt(fraction || '0');
 };
+const buyIntentKey = () => {
+  const atoms = usdcAtoms(one('[data-buy-amount]')?.value);
+  const destination = String(one('[data-buy-destination]')?.value || '').trim();
+  const chain = selectedChain();
+  if (atoms === null || atoms <= 0n || !ADDRESS_RE.test(destination) ||
+      (chain !== 'base' && chain !== 'ethereum')) return null;
+  return JSON.stringify([chain, atoms.toString(), destination.toLowerCase()]);
+};
 const validAmount = () => {
   const raw = String(one('[data-buy-amount]')?.value || '').trim();
   const atoms = usdcAtoms(raw);
@@ -288,9 +303,11 @@ function updateSubmit() {
     'sender_equals_void_destination',
     'no_automatic_fulfillment',
   ].every((key) => acks[key] === true);
+  const intentKey = buyIntentKey();
   button.disabled = readinessPending || submitBusy ||
     !currentSnapshot || !isOpen(currentSnapshot) ||
-    !selectedRail() || !validAmount() || !validDestination() || !allAcknowledged;
+    !selectedRail() || !validAmount() || !validDestination() || !allAcknowledged ||
+    (intentKey !== null && intentKey === attemptedIntentKey);
 }
 const renderSnapshot = (snapshot) => {
   const { config, status, sale } = snapshot;
@@ -308,6 +325,7 @@ const renderSnapshot = (snapshot) => {
   setText('[data-buy-fulfillment]', config.automatic_fulfillment === true ? 'AUTOMATIC' : 'GUARDED');
 
   if (soldOut) {
+    attemptedResultText = null;
     setChip('[data-buy-state-chip]', 'warning', 'SOLD OUT');
     setChip('[data-buy-form-chip]', 'warning', 'CLOSED');
     setText('[data-buy-intake]', 'SOLD OUT');
@@ -317,6 +335,7 @@ const renderSnapshot = (snapshot) => {
     return;
   }
   if (!open) {
+    attemptedResultText = null;
     setChip('[data-buy-state-chip]', 'warning', 'HOLD — NOT OPEN');
     setChip('[data-buy-form-chip]', 'warning', 'HOLD');
     setText('[data-buy-intake]', 'HOLD');
@@ -332,7 +351,8 @@ const renderSnapshot = (snapshot) => {
   setText('[data-buy-message]', config.ethereum_requests_enabled === true
     ? 'Base and Ethereum request intake are OPEN. Create one request first, then use only its exact returned rail and payment instructions.'
     : 'Base request intake is OPEN. Ethereum native USDC is policy-approved but remains HOLD until separately activated.');
-  setText('[data-buy-result]', 'Ready to create a request. No funds are sent by this page.');
+  setText('[data-buy-result]', attemptedResultText ||
+    'Ready to create a request. No funds are sent by this page.');
   setFormEnabled(true);
 };
 const renderError = (error) => {
@@ -391,6 +411,8 @@ async function submitBuy(event) {
   const rail = selectedRail();
   if (!rail) return;
   const acks = acknowledgements();
+  const intentKey = buyIntentKey();
+  if (intentKey === null || intentKey === attemptedIntentKey) return;
   const payload = {
     requested_amount_usdc: amount,
     void_destination_address: destination,
@@ -402,6 +424,9 @@ async function submitBuy(event) {
     ack_no_automatic_fulfillment: acks.no_automatic_fulfillment,
   };
 
+  // Treat any started POST as potentially committed, even on timeout or a
+  // malformed/untrusted response. Only the server can establish its outcome.
+  attemptedIntentKey = intentKey;
   submitBusy = true;
   updateSubmit();
   setText('[data-buy-result]', 'Creating guarded request… no funds are being sent.');
@@ -463,7 +488,7 @@ async function submitBuy(event) {
     ) {
       throw new Error('returned request safety binding mismatch');
     }
-    setText('[data-buy-result]', [
+    attemptedResultText = [
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
       `Send exactly: ${returnedAmount} USDC`,
@@ -477,9 +502,16 @@ async function submitBuy(event) {
       'VOID cannot recover exchange/custodial sends. Treat them as lost.',
       '',
       `Keep the ${rail.label} transaction hash. Payment observation is not itself a fulfillment receipt.`,
-    ].join('\n'));
+    ].join('\n');
+    setText('[data-buy-result]', attemptedResultText);
   } catch (error) {
-    setText('[data-buy-result]', `REQUEST NOT CREATED — DO NOT SEND FUNDS\n${String(error?.message || error)}`);
+    attemptedResultText = [
+      'REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT',
+      'A request may have been recorded even though this page did not receive a valid confirmation.',
+      'Verify the original request with the operator before starting another request.',
+      String(error?.message || error),
+    ].join('\n');
+    setText('[data-buy-result]', attemptedResultText);
   } finally {
     submitBusy = false;
     updateSubmit();

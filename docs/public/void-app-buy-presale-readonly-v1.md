@@ -84,3 +84,31 @@ node scripts/prove_void_app_buy_presale_readonly_v1.mjs
 The historical proof filename is retained so existing CI and branch-protection
 continuity do not silently disappear. Its assertions now enforce the
 launch-ready, activation-gated contract rather than the retired static shell.
+
+## Request receipt ambiguity and same-intent retries
+
+A client-side network timeout, broken JSON response, or unrecognized response
+cannot establish that a `POST /__void/buy-void/request` failed to persist on
+the server. Once a POST starts, the Buy view records its exact selected rail,
+six-decimal USDC *atom amount*, and case-insensitive destination address as an
+attempted intent. The Submit button remains disabled for that same intent
+after either a valid returned receipt **or an uncertain result**; changing only
+decimal formatting, refreshing live readiness, or rechecking acknowledgements
+cannot silently repeat it. A different rail, amount or destination is treated
+as a new request. A newly rendered Buy view begins a new local guard lifetime.
+
+A valid returned request ID and its payment instructions remain visible through
+an OPEN readiness refresh. A transport or validation error after POST is shown
+as **REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT**, with a warning
+that the server may have persisted the request and an instruction to confirm
+its status with the operator. It is no longer claimed that the request was
+definitively not created. If live readiness becomes HOLD or SOLD OUT, the page
+shows the authoritative DO NOT SEND status instead of reviving stale payment
+instructions. The attempted-intent guard itself survives that transition.
+
+**Limits:** This is an in-memory, one-Buy-view safeguard and not a server-side
+idempotency key, durable browser history, payment-finality attestation,
+authoritative request lookup, authenticated custody or guaranteed prevention
+of resubmission after reload, a second browser or a different device. The
+participant must not send funds on any unknown-result screen; separate
+operator verification and real payment-to-allocation readiness remain required.

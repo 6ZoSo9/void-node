@@ -98,6 +98,9 @@ for (const required of [
   "returned request amount mismatch",
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
+  "attemptedIntentKey",
+  "REQUEST OUTCOME UNCONFIRMED",
+  "A request may have been recorded",
   "usdcAtoms",
   "updateFieldErrors",
   "42-character 0x VOID address",
@@ -444,6 +447,43 @@ assert.equal(fetchCalls.length, 1, "explicit Ethereum OPEN must issue exactly on
 assert.equal(fetchCalls[0][0], "/__void/buy-void/request");
 assert.equal(fetchCalls[0][1]?.method, "POST");
 assert.equal(JSON.parse(fetchCalls[0][1]?.body || "{}").source_chain, "ethereum");
+// Successfully returned request instructions must not permit a second
+// identical submission and must survive OPEN readiness refresh.
+assert.equal(submitButton.disabled, true, "same receipt intent must stay disabled");
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
+assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
+// Compare exact six-decimal USDC atoms rather than input formatting.
+amountInput.value = "10.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "equivalent USDC atoms must not bypass guard");
+amountInput.value = "11";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "new amount is new purchase intent");
+// Network timeout does not prove the server did not create the request.
+fetchCalls.length = 0;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  throw new Error("network_disconnected_after_server_receive");
+};
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "uncertain POST attempted once");
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.doesNotMatch(buyResultNode.textContent, /REQUEST NOT CREATED/u);
+assert.equal(submitButton.disabled, true, "uncertain intent must not be retried");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "ambiguous POST must not be duplicated");
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.equal(submitButton.disabled, true, "refresh must preserve uncertain intent lock");
+amountInput.value = "12";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "distinct intent may still be created");
+// Resume original Base fixture expectations without another HTTP call.
+amountInput.value = "10";
 fetchCalls.length = 0;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
@@ -581,6 +621,11 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
+console.log("same_intent_repost_after_receipt_blocked=1");
+console.log("same_intent_repost_after_timeout_blocked=1");
+console.log("equivalent_usdc_atoms_retry_blocked=1");
+console.log("ambiguous_server_commit_not_declared_not_created=1");
+console.log("request_outcome_survives_readiness_refresh=1");
 console.log("exchange_custody_loss_warning=1");
 console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");
