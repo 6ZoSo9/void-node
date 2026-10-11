@@ -24,6 +24,9 @@ export const VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_AUTHORITY_V1 =
     callback_failure_retains_lock: true,
     stale_same_uid_cleanup_allowed: true,
     stale_foreign_cleanup_custody_owner_only: true,
+    create_only_stale_recovery_marker: true,
+    stale_recovery_marker_retained_as_tombstone: true,
+    stale_reaper_path_unlink_serialized: true,
     successful_release_parent_fsynced: true,
     release_fsync_failure_is_uncertain: true,
     fairness_or_starvation_bound_proven: false,
@@ -39,6 +42,7 @@ export const VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_AUTHORITY_V1 =
 const CLAIM_SCHEMA = "void.buy.cross_uid_capacity_lock.claim.v1";
 const LOCK_NAME = ".void-buy-void-cross-uid-capacity-exclusive-lock-v1.json";
 const CLAIM_PREFIX = ".void-buy-void-cross-uid-capacity-claim-v1-";
+const RECOVERY_PREFIX = ".void-buy-void-cross-uid-capacity-recovery-v1-";
 const NONCE_RE = /^[0-9a-f]{32}$/u;
 const STAGING_RE =
   /^\.void-buy-void-cross-uid-capacity-claim-v1-u([1-9][0-9]*)-p([1-9][0-9]*)-([0-9a-f]{32})\.json$/u;
@@ -768,7 +772,50 @@ function tryCreateLock(config, participant, sharedFd) {
   }
 }
 
-function removeStaleLock(config, participant, sharedFd, held) {
+function recoveryMarkerName(claim) {
+  if (!NONCE_RE.test(claim.nonce)) {
+    fail("cross_uid_capacity_lock_recovery_nonce_invalid");
+  }
+  return `${RECOVERY_PREFIX}${claim.nonce}.guard`;
+}
+
+function verifyRecoveryMarkerMetadata(metadata, config, held, expectedUid = null) {
+  const allowedOwner =
+    metadata.uid === held.claim.uid ||
+    metadata.uid === config.custody_uid;
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.gid !== config.shared_gid ||
+    (metadata.mode & 0o7777) !== 0o440 ||
+    metadata.nlink !== 1 ||
+    metadata.size !== 0 ||
+    !allowedOwner ||
+    (expectedUid !== null && metadata.uid !== expectedUid)
+  ) {
+    fail("cross_uid_capacity_lock_recovery_marker_metadata_invalid");
+  }
+}
+
+function verifyExistingRecoveryMarker(config, sharedFd, held, markerPath) {
+  let fd;
+  try {
+    fd = fs.openSync(markerPath, fileReadFlags());
+    const descriptor = fs.fstatSync(fd);
+    const visible = fs.lstatSync(markerPath);
+    verifyRecoveryMarkerMetadata(descriptor, config, held);
+    verifyRecoveryMarkerMetadata(visible, config, held);
+    if (!sameFileIdentity(descriptor, visible)) {
+      fail("cross_uid_capacity_lock_recovery_marker_path_fd_mismatch");
+    }
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch (cleanupError) { void cleanupError; }
+    }
+  }
+}
+
+function tryClaimStaleRecovery(config, participant, sharedFd, held) {
   if (
     participant.uid !== held.claim.uid &&
     participant.uid !== config.custody_uid
@@ -776,27 +823,138 @@ function removeStaleLock(config, participant, sharedFd, held) {
     fail("cross_uid_capacity_lock_foreign_stale_claim_requires_custody_recovery");
   }
 
-  verifyHeldLock(config, sharedFd, held);
-  const stagingPath = procPath(sharedFd, held.claim.staging_name);
+  const markerPath = procPath(sharedFd, recoveryMarkerName(held.claim));
+  let fd;
   try {
-    const stagingVisible = fs.lstatSync(stagingPath);
-    if (!sameFileIdentity(held.stat, stagingVisible)) {
-      fail("cross_uid_capacity_lock_stale_staging_inode_mismatch");
-    }
-    fs.unlinkSync(stagingPath);
-    fs.fsyncSync(sharedFd);
+    fd = fs.openSync(markerPath, fileCreateFlags(), 0o440);
   } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
+    if (error?.code !== "EEXIST") throw error;
+    verifyExistingRecoveryMarker(config, sharedFd, held, markerPath);
+    return null;
   }
 
-  verifyHeldLock(config, sharedFd, held);
-  fs.unlinkSync(procPath(sharedFd, LOCK_NAME));
-  fs.fsyncSync(sharedFd);
+  try {
+    fs.fchmodSync(fd, 0o440);
+    fs.fsyncSync(fd);
+    const descriptor = fs.fstatSync(fd);
+    const visible = fs.lstatSync(markerPath);
+    verifyRecoveryMarkerMetadata(
+      descriptor,
+      config,
+      held,
+      participant.uid,
+    );
+    verifyRecoveryMarkerMetadata(
+      visible,
+      config,
+      held,
+      participant.uid,
+    );
+    if (!sameFileIdentity(descriptor, visible)) {
+      fail("cross_uid_capacity_lock_recovery_marker_create_identity_invalid");
+    }
+    fs.fsyncSync(sharedFd);
+    return Object.freeze({
+      fd,
+      stat: descriptor,
+      path: markerPath,
+    });
+  } catch (error) {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch (cleanupError) { void cleanupError; }
+    }
+    throw error;
+  }
+}
+
+function verifyHeldRecoveryMarker(config, participant, sharedFd, held, recovery) {
+  const descriptor = fs.fstatSync(recovery.fd);
+  const visible = fs.lstatSync(recovery.path);
+  verifyRecoveryMarkerMetadata(
+    descriptor,
+    config,
+    held,
+    participant.uid,
+  );
+  verifyRecoveryMarkerMetadata(
+    visible,
+    config,
+    held,
+    participant.uid,
+  );
+  if (
+    !sameFileIdentity(recovery.stat, descriptor) ||
+    !sameFileIdentity(recovery.stat, visible)
+  ) {
+    fail("cross_uid_capacity_lock_recovery_marker_replaced");
+  }
+}
+
+async function removeStaleLock(config, participant, sharedFd, held) {
+  const recovery = tryClaimStaleRecovery(
+    config,
+    participant,
+    sharedFd,
+    held,
+  );
+  if (recovery === null) return false;
+
+  try {
+    verifyHeldRecoveryMarker(
+      config,
+      participant,
+      sharedFd,
+      held,
+      recovery,
+    );
+    verifyHeldLock(config, sharedFd, held);
+
+    // Give competing authorized reapers one polling interval to observe the
+    // retained create-only marker. They must wait rather than unlink by path.
+    await sleep(config.poll_interval_ms);
+
+    verifyHeldRecoveryMarker(
+      config,
+      participant,
+      sharedFd,
+      held,
+      recovery,
+    );
+    verifyHeldLock(config, sharedFd, held);
+
+    const stagingPath = procPath(sharedFd, held.claim.staging_name);
+    try {
+      const stagingVisible = fs.lstatSync(stagingPath);
+      if (!sameFileIdentity(held.stat, stagingVisible)) {
+        fail("cross_uid_capacity_lock_stale_staging_inode_mismatch");
+      }
+      fs.unlinkSync(stagingPath);
+      fs.fsyncSync(sharedFd);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+
+    verifyHeldRecoveryMarker(
+      config,
+      participant,
+      sharedFd,
+      held,
+      recovery,
+    );
+    verifyHeldLock(config, sharedFd, held);
+    fs.unlinkSync(procPath(sharedFd, LOCK_NAME));
+    fs.fsyncSync(sharedFd);
+    return true;
+  } finally {
+    try { fs.closeSync(recovery.fd); } catch (cleanupError) { void cleanupError; }
+  }
 }
 
 async function acquire(config, participant, opened) {
   const sharedFd = opened.at(-1).fd;
   const deadline = Date.now() + config.wait_timeout_ms;
+  let staleRecoveriesCompleted = 0;
+  let staleRecoveryMarkerWaits = 0;
 
   while (true) {
     assertSharedDirectoryStillBound(config, opened);
@@ -805,7 +963,11 @@ async function acquire(config, participant, opened) {
       const created = tryCreateLock(config, participant, sharedFd);
       if (created !== null) {
         assertSharedDirectoryStillBound(config, opened);
-        return created;
+        return Object.freeze({
+          ...created,
+          stale_recoveries_completed: staleRecoveriesCompleted,
+          stale_recovery_marker_waits: staleRecoveryMarkerWaits,
+        });
       }
       observed = openAndReadLock(config, sharedFd);
       if (observed === null) continue;
@@ -813,8 +975,22 @@ async function acquire(config, participant, opened) {
 
     try {
       if (!claimIncarnationCurrent(observed.claim)) {
-        removeStaleLock(config, participant, sharedFd, observed);
+        const recovered = await removeStaleLock(
+          config,
+          participant,
+          sharedFd,
+          observed,
+        );
         fs.closeSync(observed.fd);
+        if (recovered) {
+          staleRecoveriesCompleted++;
+          continue;
+        }
+        staleRecoveryMarkerWaits++;
+        if (Date.now() >= deadline) {
+          fail("cross_uid_capacity_lock_recovery_marker_wait_timeout");
+        }
+        await sleep(config.poll_interval_ms);
         continue;
       }
     } catch (error) {
@@ -893,6 +1069,10 @@ export async function withBuyVoidCrossUidCapacityExclusiveLockV1(
       exclusive_critical_section_completed: true,
       lock_release_fsynced: true,
       callback_failure_retains_lock: true,
+      stale_recoveries_completed: held.stale_recoveries_completed,
+      stale_recovery_marker_waits: held.stale_recovery_marker_waits,
+      stale_recovery_marker_retained_as_tombstone: true,
+      stale_reaper_path_unlink_serialized: true,
       cross_uid_serialization_source_proven: true,
       payment_event_write: false,
       allocation_write: false,
@@ -918,6 +1098,9 @@ export const VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_CONTRACT_V1 =
     claim_schema: CLAIM_SCHEMA,
     shared_directory_mode: "03770",
     claim_file_mode: "0640",
+    stale_recovery_marker_prefix: RECOVERY_PREFIX,
+    stale_recovery_marker_mode: "0440",
+    stale_recovery_marker_retained: true,
     configuration_is_trusted_startup_input: true,
     shared_directory_is_preprovisioned: true,
     callback_may_be_async: true,
