@@ -125,3 +125,20 @@ web/custody identities, protected high-water custody, a complete external
 transaction, cross-file atomic snapshot or public operator mount. Success
 of this proof never authorizes payment acceptance, reserve/recovery,
 presale/WC activation, signer access or funds movement.
+
+
+## Strict allocation publication outcome and recovery evidence
+
+The exact source-only receipt verifier additionally requires a native
+allocation writer status (`persisted`, `recovered` or `idempotent`) with a
+matching operation-performed flag, Boolean prior recovery evidence, and a
+canonical non-genesis SHA-256 final ledger tip. A forged completed result with
+an invalid tip, impossible writer status, or contradictory operation flag
+retains the outer cross-UID claim through the existing failure pathway.
+
+Payment replay idempotence and allocation replay idempotence are separate:
+a previously durable payment may legitimately need a *first* allocation
+publication during recovery. The synthetic proof tests that case and a fully
+idempotent completed replay without turning either into live authorization.
+These checks inspect a returned source-level receipt; they **do not** establish
+an independently authenticated installed witness or actual payment finality.

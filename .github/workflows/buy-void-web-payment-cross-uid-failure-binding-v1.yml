@@ -97,6 +97,8 @@ jobs:
             bare_success_cannot_release_outer_claim=true \
             forged_allocation_or_payment_digest_retains_lock=true \
             idempotent_allocation_replay_receipt_accepted=true \
+            payment_replay_allocation_repair_accepted=true \
+            allocation_writer_status_and_final_tip_bound=true \
             successful_dispatch_releases_after_callback=true \
             production_dispatch_invoked=false \
             filesystem_write=false \

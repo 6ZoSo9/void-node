@@ -189,7 +189,8 @@ function input() {
 // Match the canonical current handoff receipt's actual positive shape,
 // rather than accepting a fabricated { ok: true } without an allocation.
 function durableDispatchResult(input, mode = "ok") {
-  const idempotent = mode === "idempotent";
+  const idempotent = mode === "idempotent" || mode === "replay_repaired";
+  const allocationIdempotent = mode === "idempotent";
   const eventSha = "sha256:" + createHash("sha256")
     .update(JSON.stringify(input.event) + "\n", "utf8").digest("hex");
   const allocation = Object.freeze({
@@ -199,8 +200,18 @@ function durableDispatchResult(input, mode = "ok") {
     allocation_record_id: "voidar1_" + "b".repeat(64),
     payment_verified_event_sha256:
       mode === "wrong_digest" ? "sha256:" + "f".repeat(64) : eventSha,
-    idempotent: mode === "idempotent",
+    idempotent: allocationIdempotent,
     final_record_count: 1,
+    allocation_writer_status:
+      mode === "wrong_writer_status" ? "unqualified" :
+      allocationIdempotent ? "idempotent" : "persisted",
+    allocation_writer_operation_performed:
+      mode === "wrong_operation" ? false : !allocationIdempotent,
+    prior_allocation_recovery_performed:
+      mode === "wrong_recovery_type" ? "not_a_boolean" : false,
+    final_tip_hash:
+      mode === "wrong_tip_hash" ? "sha256:" + "0".repeat(64) :
+      "sha256:" + "c".repeat(64),
     runtime_integration: false,
     protected_high_water_custody_proven: false,
     production_gate_ready: false,
@@ -420,6 +431,14 @@ const idempotentSuccess = await context.invoke(input());
 assert.equal(idempotentSuccess.writer_result.idempotent, true);
 assert.equal(idempotentSuccess.writer_result.payment_event_appended, false);
 assert.equal(releaseCount, 2);
+// A previously durable payment can legitimately require a first allocation
+// write on replay: do not conflate payment and allocation idempotence.
+dispatchMode = "replay_repaired";
+const repaired = await context.invoke(input());
+assert.equal(repaired.writer_result.idempotent, true);
+assert.equal(repaired.writer_result.allocation.idempotent, false);
+assert.equal(repaired.writer_result.payment_event_appended, false);
+assert.equal(releaseCount, 3);
 dispatchMode = "ok";
 
 
@@ -471,7 +490,11 @@ await assert.rejects(context.invoke(input()), (error) => {
 
 // The outer claim cannot be released by a success boolean lacking the
 // canonical durable payment-to-allocation receipt, or by forged receipt data.
-for (const mode of ["bare_success", "wrong_digest", "wrong_marker", "unfrozen"]) {
+for (const mode of [
+  "bare_success", "wrong_digest", "wrong_marker", "unfrozen",
+  "wrong_writer_status", "wrong_operation", "wrong_recovery_type",
+  "wrong_tip_hash",
+]) {
   dispatchMode = mode;
   reconciliationMode = "allocation_present";
   const priorRelease = releaseCount;
@@ -575,6 +598,8 @@ console.log("durable_allocation_receipt_checked_inside_lock=true");
 console.log("bare_success_cannot_release_outer_claim=true");
 console.log("forged_allocation_or_payment_digest_retains_lock=true");
 console.log("idempotent_allocation_replay_receipt_accepted=true");
+console.log("payment_replay_allocation_repair_accepted=true");
+console.log("allocation_writer_status_and_final_tip_bound=true");
 console.log("successful_dispatch_releases_after_callback=true");
 console.log("production_dispatch_invoked=false");
 console.log("filesystem_write=false");

@@ -164,6 +164,10 @@ function checkedDurableAllocationHandoffV1(receipt, eventJson) {
   const row = (key) => ownReceiptFieldV1(allocation, key);
   const alreadyVerified = get("idempotent");
   const newPaymentAppend = get("payment_event_appended");
+  const writerStatus = row("allocation_writer_status");
+  const writerOperationPerformed = row("allocation_writer_operation_performed");
+  const priorRecoveryPerformed = row("prior_allocation_recovery_performed");
+  const finalTip = row("final_tip_hash");
   const expectedDigest = "sha256:" +
     createHash("sha256").update(eventJson + "\n", "utf8").digest("hex");
   if (get("ok") !== true ||
@@ -185,6 +189,14 @@ function checkedDurableAllocationHandoffV1(receipt, eventJson) {
       typeof row("idempotent") !== "boolean" ||
       !Number.isSafeInteger(row("final_record_count")) ||
       row("final_record_count") < 1 ||
+      // A positive count alone cannot make a forged writer receipt
+      // authoritative: its status, operation flag and final tip must agree.
+      !["persisted", "recovered", "idempotent"].includes(writerStatus) ||
+      writerOperationPerformed !== (writerStatus !== "idempotent") ||
+      typeof priorRecoveryPerformed !== "boolean" ||
+      typeof finalTip !== "string" ||
+      !SHA256_REF_V1.test(finalTip) ||
+      finalTip === "sha256:" + "0".repeat(64) ||
       row("runtime_integration") !== false ||
       row("protected_high_water_custody_proven") !== false ||
       row("production_gate_ready") !== false ||
