@@ -161,6 +161,17 @@ jobs:
                 echo "VOID_HISTORICAL_WITNESS_BUNDLE_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
                 continue
                 ;;
+              scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)
+                # Frozen V3 Nimo runtime-bundle candidate was built from source main
+                # 851513f... and must not be rederived against the final first-original generation.
+                test "$(git hash-object -- "$proof")" = "0d8778b937f564eee5eabfcdb554c6ea8ffde0c8"
+                test "$(git hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)" = "453550bcab9c5caf192c6d9d813bce9ce4433b0a"
+                test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
+                echo "VOID_HISTORICAL_WITNESS_BUNDLE_V3_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)
                 # Historical source/custody generations remain covered by
                 # dedicated preservation workflows. Current source-finality is

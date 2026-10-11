@@ -5,6 +5,8 @@ import fs from "node:fs";
 
 const expected = Object.freeze({
   "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts": "4ef9379ff3130795533a7d2d59b5f737eafa0a00",
+  "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts": "0d8778b937f564eee5eabfcdb554c6ea8ffde0c8",
+  "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts": "453550bcab9c5caf192c6d9d813bce9ce4433b0a",
   "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs": "56e581b15e133f751070df1d5cf432ae4568cce8",
   "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs": "1a8db260a134ad438366d5b7660f926768c98a79",
   "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs": "d42148523c44d95d3b87236ade22cfb92dcb5bee",
