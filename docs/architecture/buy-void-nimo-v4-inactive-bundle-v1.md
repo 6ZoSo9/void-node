@@ -66,3 +66,47 @@ finality and coupled WC/VOID launch.
 **No deployment, host/service, customer ledger, custody reserve/recover,
 wallet/key/signer, transaction, presale activation or funds movement is
 authorized by this PR. PROTECT THE CORE.**
+
+## Exact hosted archive and safe private-stage generation (October 11)
+
+Exact predecessor package proof at [workflow #38171973131](https://github.com/6ZoSo9/void-node/actions/runs/38171973131)
+passed 4/4 jobs (Node22, 24, 26, and complete cross-node byte comparison).
+The exact immutable artifact values are:
+
+- Candidate ID:
+  `voidwfb4_b5d9516e5fa462ca7ed2333ebe3ef715eaf62ecdd3c0a6b049ecc9eb1e1659c2`
+- Canonical inactive archive: **266240** bytes, SHA-256
+  `6bb01af17cc87dfb42b63942143458f3e95990d8ae1ef6c1671fc5cd7d4feaf8`.
+- Current compiled ledger: **47309** bytes, SHA-256
+  `51de81388631ecef2a8c3feea68960040ccbda75fd29ada171cb9c9c7b53188a`.
+- Other seven V3 runtime members: byte-identical. The V3 **archive**
+  and staged payload remain historical and are not silently overwritten.
+
+The additional `scripts/void_nimo_v4_private_stage_v1.py` is a **standalone
+unprivileged user-private review utility**, derived from immutable V3 private
+staging behavior without changing its historical source. It independently
+requires the *exact* V4 archive bytes/hash, exact ten-member set, and all
+eight runtime checksums. `--plan <absolute-v4-archive>` is read-only.
+`--self-test <absolute-v4-archive>` writes only throwaway directories
+in temporary storage, verifies create-once, tamper, and symlink replacement
+HOLDs, and removes those disposable test directories afterward.
+`--stage <absolute-v4-archive>` (not automatically called by CI) is
+**create-once only**, restricted to the invoking unprivileged user's
+own private home folder
+`void-nimo-v4-inactive-review-20261011`; no overwrite/repair and no
+installed/root-owned tree access. `--inspect-stage` observes that user's
+private stage read-only; it is not acceptance of production installed bytes.
+
+The existing Node22/24/26 workflow now tests both V4 private-stage
+`--plan` and `--self-test` on the newly derived canonical archive,
+binds the exact private-stage Git blob
+`592855b64e773634aceb7398ad5a572e6a0aa397`, and requires exact
+cross-toolchain stage receipts in addition to full archive equality.
+The prior 4/4 SUCCESS is **historical predecessor CI only**;
+this expanded head must independently pass before stage qualification.
+
+**Do not use the inactive V4 review stage as an install procedure.**
+The deployed two historic V1 files on Nimo require a separately
+authorized, authenticated, protected rollback and quiescence plan, plus
+independent post-install host attestation. This work does not enable
+custody IPC, operator payment acceptance, presale/WC, keys, or funds.

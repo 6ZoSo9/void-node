@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v4_private_stage_v1.py"
       - ".github/workflows/buy-void-nimo-v4-inactive-bundle-v1.yml"
       - "docs/architecture/buy-void-nimo-v4-inactive-bundle-v1.md"
   workflow_dispatch:
@@ -70,6 +71,23 @@ jobs:
           cp "$private/void-nimo-v4-inactive.tar" "evidence/void-nimo-v4-inactive-node-${{ matrix.node }}.tar"
           echo "VOID_NIMO_V4_INACTIVE_REVIEW_CANDIDATE_GREEN"
           jq -r '.candidate_manifest_id,.ledger_sha256,.ledger_bytes' "evidence/v4-plan-${{ matrix.node }}.json"
+      - name: Qualify unprivileged V4 private stage in disposable directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/void_nimo_v4_private_stage_v1.py
+          test "$(git hash-object scripts/void_nimo_v4_private_stage_v1.py)" = "592855b64e773634aceb7398ad5a572e6a0aa397"
+          stage="$(mktemp -d)"
+          chmod 0700 "$stage"
+          trap 'rm -rf -- "$stage"' EXIT
+          cp "evidence/void-nimo-v4-inactive-node-${{ matrix.node }}.tar" "$stage/void-nimo-v4-inactive.tar"
+          python3 scripts/void_nimo_v4_private_stage_v1.py --plan "$stage/void-nimo-v4-inactive.tar" > "evidence/v4-stage-plan-${{ matrix.node }}.json"
+          python3 scripts/void_nimo_v4_private_stage_v1.py --self-test "$stage/void-nimo-v4-inactive.tar" > "evidence/v4-stage-self-test-${{ matrix.node }}.json"
+          for mode in plan self-test; do
+            file="evidence/v4-stage-$mode-${{ matrix.node }}.json"
+            jq -e --arg mode "$mode" '.marker=="VOID_NIMO_V4_PRIVATE_STAGE_V1" and .mode==$mode and .archive_bytes==266240 and .archive_sha256=="6bb01af17cc87dfb42b63942143458f3e95990d8ae1ef6c1671fc5cd7d4feaf8" and .candidate_manifest_id=="voidwfb4_b5d9516e5fa462ca7ed2333ebe3ef715eaf62ecdd3c0a6b049ecc9eb1e1659c2" and .runtime_files_exact==8 and .installed_nimo_v4_accepted==false and .presale_activation==false and .funds_moved==false' "$file"
+          done
+          echo "VOID_NIMO_V4_PRIVATE_STAGE_DISPOSABLE_GREEN"
       - name: Tampered canonical archive must HOLD
         shell: bash
         run: |
@@ -119,11 +137,16 @@ jobs:
           set -euo pipefail
           for node in 22 24 26; do
             for kind in plan package inspect; do test -s "evidence/v4-$kind-$node.json"; done
+            for kind in plan self-test; do test -s "evidence/v4-stage-$kind-$node.json"; done
             test -s "evidence/void-nimo-v4-inactive-node-$node.tar"
           done
           for kind in plan package inspect; do
             cmp "evidence/v4-$kind-22.json" "evidence/v4-$kind-24.json"
             cmp "evidence/v4-$kind-22.json" "evidence/v4-$kind-26.json"
+          done
+          for mode in plan self-test; do
+            cmp "evidence/v4-stage-$mode-22.json" "evidence/v4-stage-$mode-24.json"
+            cmp "evidence/v4-stage-$mode-22.json" "evidence/v4-stage-$mode-26.json"
           done
           cmp evidence/void-nimo-v4-inactive-node-22.tar evidence/void-nimo-v4-inactive-node-24.tar
           cmp evidence/void-nimo-v4-inactive-node-22.tar evidence/void-nimo-v4-inactive-node-26.tar
