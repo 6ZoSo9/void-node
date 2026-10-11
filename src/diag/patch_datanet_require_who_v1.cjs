@@ -21,6 +21,8 @@
   function mount(app){
     if (!app || typeof app.use !== "function") return false;
     if (app.__void_datanet_require_who_v1_mounted) return true;
+    if (app.__void_datanet_require_who_v1_mount_state === "bound") return true;
+    if (app.__void_datanet_require_who_v1_mount_state === "indeterminate") return true;
 
     const middleware = (req, res, next) => {
       try {
@@ -36,8 +38,10 @@
       next();
     };
 
+    app.__void_datanet_require_who_v1_mount_state = "indeterminate";
     app.use(middleware);
     app.__void_datanet_require_who_v1_mounted = true;
+    app.__void_datanet_require_who_v1_mount_state = "bound";
 
     try { console.error("[datanet.require_who.v1] mounted"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_2_VISIBLE", __void_diag_pack3_err); }
     return true;
@@ -48,6 +52,8 @@
       const app = G.__void_http_app;
       if (mount(app)) return;
     } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_PATCH_DATANET_REQUIRE_WHO_V1_CJS_1_3_VISIBLE", __void_diag_pack3_err); }
+    const app = G.__void_http_app;
+    if (app && app.__void_datanet_require_who_v1_mount_state === "indeterminate") return;
     setTimeout(tick, 250);
   }
 
