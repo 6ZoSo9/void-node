@@ -76,3 +76,20 @@ Nimo V4 acceptance, payment verifier, verified-payment→allocation dispatcher,
 reservations, Work Credits, VOID market, signing, treasury or funds action
 is authorized by this source-only guard. Independent operator acceptance and
 a separate deployment ceremony remain necessary. **PROTECT THE CORE.**
+
+### Already-multiple active destination histories
+
+Old request-intake code could durably create two nonterminal requests for the
+same VOID destination. Reading only the first matching row is **not** an
+idempotency guarantee when another active obligation remains (especially
+with mismatched USDC amount or payment chain). The new under-launch-lock
+recheck scans every projected row and **HOLDs before append** if more than
+one launch-qualified nonterminal request has the destination. It never picks
+one of several competing obligations as the winner. The actual compiled
+helper proof includes both conflicting-rail/amount and identical multi-active
+history; both must leave the original JSONL file byte-for-byte unchanged.
+
+This does **not** authenticate that the legacy request/event readers returned
+all on-disk records: a skipped malformed or truncated JSONL row remains a
+separate production admission HOLD. No real request, payment, reservation,
+service deployment, or presale activation is authorized.

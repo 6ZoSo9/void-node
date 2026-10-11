@@ -35,19 +35,40 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   return withLaunchMutation(reqObj, async () => {
     // Recheck reviewed operator/request history inside the EXISTING
     // cross-process authority lock, before any JSONL or sidecar append.
-    const active = applyEvents(await readRequests(), await readEvents())
-      .find((other: any) => {
-        const destination = String(
-          other.void_destination_address ||
-          other.delivery_address ||
-          other.delivery_wallet ||
-          "",
-        ).trim().toLowerCase();
-        return destination ===
-          String(reqObj.void_destination_address || "").trim().toLowerCase() &&
-          !isTerminal(other.effective_status || other.status) &&
-          launchMatches(other);
-      });
+    const projected = applyEvents(await readRequests(), await readEvents());
+    if (!Array.isArray(projected)) {
+      throw new Error("buy_void_request_history_projection_unqualified");
+    }
+    // Never reuse only the first matching request. Old pre-lock versions
+    // could create multiple live obligations for one destination. Any such
+    // history is ambiguous, even if one row exactly matches this new intent.
+    // Walk every projected index rather than a caller-overridable .find().
+    let active: any = null;
+    const target = String(
+      reqObj.void_destination_address || "",
+    ).trim().toLowerCase();
+    for (let i = 0; i < projected.length; i += 1) {
+      if (!Object.hasOwn(projected, i)) {
+        throw new Error("buy_void_request_history_projection_sparse");
+      }
+      const other = projected[i];
+      if (!other || typeof other !== "object" || Array.isArray(other)) {
+        throw new Error("buy_void_request_history_projection_row_invalid");
+      }
+      const destination = String(
+        other.void_destination_address ||
+        other.delivery_address ||
+        other.delivery_wallet ||
+        "",
+      ).trim().toLowerCase();
+      if (destination !== target ||
+          isTerminal(other.effective_status || other.status) ||
+          !launchMatches(other)) continue;
+      if (active !== null) {
+        throw new Error("buy_void_request_multiple_active_destination_under_lock");
+      }
+      active = other;
+    }
     if (active) {
       const amount = Number(active.usdc_amount ??
         active.requested_amount_usdc ?? 0);

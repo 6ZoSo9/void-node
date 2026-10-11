@@ -158,10 +158,54 @@ function temp(){
    fs.rmSync(root,{recursive:true,force:true});
  }
 }
+// A previous writer may have already committed two active obligations for the
+// same destination. Even if row one is an exact match, never idempotently
+// adopt it while a second active request remains. This test uses the
+// *actual* current compiled helper and the same guarded readers/lock.
+{
+ const root=temp();
+ const saved=process.env.VOID_BUY_REQUEST_DIR;
+ try {
+   const historical=factory(oldPersist,root);
+   const fresh={
+     persist:(req)=>persistBuyVoidPublicRequestUnderLaunchLockV1(req,[
+       historical.withLock,historical.readRequests,historical.readEvents,
+       historical.applyEvents,historical.terminalStatus,()=>true,
+     ]),
+   };
+   process.env.VOID_BUY_REQUEST_DIR=root;
+   for (const [secondAmount,secondChain] of [
+     ["4","ethereum"], // conflicting rail and amount
+     ["3","base"], // duplicate identical obligation is still ambiguous
+   ]) {
+     const priorRows=[
+       request("legacy-existing-a","3","base"),
+       request("legacy-existing-b",secondAmount,secondChain),
+     ];
+     fs.writeFileSync(path.join(root,"requests.jsonl"),
+       priorRows.map((row)=>JSON.stringify(row)).join("\n")+"\n",
+       {mode:0o600});
+     const before=fs.readFileSync(path.join(root,"requests.jsonl"));
+     await assert.rejects(
+       ()=>fresh.persist(request("later-attempt","3","base")),
+       /buy_void_request_multiple_active_destination_under_lock/u,
+       "preexisting multi-active history must HOLD instead of idempotent reuse",
+     );
+     assert.deepEqual(fs.readFileSync(path.join(root,"requests.jsonl")),before,
+       "multi-active HOLD must not append any additional request");
+   }
+ } finally {
+   if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
+   else process.env.VOID_BUY_REQUEST_DIR=saved;
+   fs.rmSync(root,{recursive:true,force:true});
+ }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
 console.log("current_same_intent_returns_existing_request=true");
+console.log("prior_multi_active_destination_never_idempotent=true");
+console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("current_mismatched_amount_and_rail_hold_without_append=true");
 console.log("different_destination_allowed=true");
 console.log("terminal_status_allows_subsequent_request=true");
