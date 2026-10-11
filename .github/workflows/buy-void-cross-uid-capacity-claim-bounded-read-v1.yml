@@ -1,0 +1,105 @@
+name: VOID Buy VOID bounded cross-UID lock claim read V1
+
+on:
+  pull_request:
+    paths:
+      - 'src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs'
+      - 'scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs'
+      - '.github/workflows/buy-void-cross-uid-capacity-claim-bounded-read-v1.yml'
+      - 'docs/architecture/buy-void-cross-uid-capacity-claim-bounded-read-v1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-cross-uid-bounded-claim-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact proposed head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact unmerged identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install reviewed Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check and run disposable growth adversary
+        run: |
+          set -euo pipefail
+          node --check src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+          node --check scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs
+          node scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs \
+            > "bounded-claim-node-${{ matrix.node }}.txt"
+          cat "bounded-claim-node-${{ matrix.node }}.txt"
+          for expected in \
+            "VOID_BUY_VOID_CROSS_UID_CAPACITY_BOUNDED_CLAIM_V1_GREEN" \
+            "read_cap_preflight_size_plus_one=true" \
+            "numeric_fd_readFileSync_called=false" \
+            "changed_claim_rejected_before_callback=true" \
+            "real_service_or_payment_mutation=false" \
+            "production_gate_ready=false" \
+            "presale_activation=false" \
+            "funds_movement=false"
+          do
+            grep -Fx "$expected" "bounded-claim-node-${{ matrix.node }}.txt"
+          done
+      - name: Preserve existing cross-UID synthetic proof
+        run: node scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs
+      - name: Upload exact receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-bounded-claim-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: bounded-claim-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Retrieve all exact-head proof receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-bounded-claim-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require byte-identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/bounded-claim-node-$v.txt"; done
+          cmp receipts/bounded-claim-node-22.txt receipts/bounded-claim-node-24.txt
+          cmp receipts/bounded-claim-node-22.txt receipts/bounded-claim-node-26.txt
+          echo "VOID_BUY_VOID_CROSS_UID_BOUND_READ_CROSS_NODE_GREEN"
+          echo "production_gate_ready=false"
+          echo "funds_movement=false"
