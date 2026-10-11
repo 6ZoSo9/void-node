@@ -117,6 +117,9 @@ function assertCompleteRequestHistoryUnderLockV1(
       catch { holdHistoryV1("descriptor_close_uncertain"); }
     }
   }
+  // Express the impossible fall-through explicitly to TypeScript. Every
+  // successful read already returned its immutable snapshot above.
+  holdHistoryV1("unreachable_after_cleanup");
 }
 
 export type BuyVoidPublicRequestLaunchLockCallbacksV1 = readonly [

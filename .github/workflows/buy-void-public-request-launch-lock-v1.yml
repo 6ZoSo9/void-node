@@ -39,7 +39,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "133599f4e2279ca0efe633c9f0ed9bd69c6e955c"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "19281cefd272ccf348a0eb60ae3d0f9be9ab98f8"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "c9bbd00e5b44c781ab85a5fb29ad011bfb7e3df2"
           test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "5e133a7580bf428f4446a712d0896e21ccd91db7"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38

@@ -17,7 +17,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `19281cefd272ccf348a0eb60ae3d0f9be9ab98f8`). The existing
+(Git blob `c9bbd00e5b44c781ab85a5fb29ad011bfb7e3df2`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
