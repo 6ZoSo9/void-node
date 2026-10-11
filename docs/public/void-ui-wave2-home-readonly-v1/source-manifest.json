@@ -49,7 +49,7 @@
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
-    "public/void-app-wave1-v1/assets/js/views.js": "b12d5b61ae05d70e4608d76e542bd0c8781dbb90bd66f43214ef0d59188d2fbb",
+    "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "385d6577907c8ef4d575d3d0468b950ffb2e64549d337317a13b1731a0eb6920",
     "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "4a58e22098423e34fcf4da5914e69ce3eb270ecbaa82c3acb43a3611456b8874",
@@ -138,5 +138,6 @@
   "coupled_opening_copy_refresh_date": "2026-10-07",
   "earn_stale_evidence_clear_refresh_date": "2026-10-07",
   "earn_invalid_input_supersession_refresh_date": "2026-10-07",
-  "wallet_session_persistence_best_effort_refresh_date": "2026-10-07"
+  "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
+  "validate_status_live_region_refresh_date": "2026-10-10"
 }

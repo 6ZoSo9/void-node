@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "898463cb0da2ab065af8f0923bcad25386d8d0ca2c6e508ad9b77362beda4a10",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "d915c7f52a0c35640127978d39818d666c72536f139b7b095a146e7bfb1c8a74",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -31,7 +31,7 @@
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
-    "public/void-app-wave1-v1/assets/js/views.js": "b12d5b61ae05d70e4608d76e542bd0c8781dbb90bd66f43214ef0d59188d2fbb",
+    "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "385d6577907c8ef4d575d3d0468b950ffb2e64549d337317a13b1731a0eb6920",
     "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
@@ -68,5 +68,6 @@
   "coupled_opening_copy_refresh_date": "2026-10-07",
   "earn_stale_evidence_clear_refresh_date": "2026-10-07",
   "earn_invalid_input_supersession_refresh_date": "2026-10-07",
-  "wallet_session_persistence_best_effort_refresh_date": "2026-10-07"
+  "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
+  "validate_status_live_region_refresh_date": "2026-10-10"
 }
