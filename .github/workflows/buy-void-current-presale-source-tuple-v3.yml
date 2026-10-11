@@ -47,6 +47,7 @@ jobs:
           npm run typecheck
           npm run build
           test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
           test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f"
@@ -74,7 +75,7 @@ jobs:
             grep -Fq "$marker" "$log"
             if [[ "$proof" == *dual_rail_v2.ts ]]; then
               grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$log"
-              grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$log"
+              grep -Fq 'd873533dbe60f2efff2fefc19470ee963b4fead0' "$log"
             fi
           done
           node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
