@@ -163,10 +163,13 @@ function decision(input) {
 }
 
 function strictVerifiedRequestIds(bytes) {
-  if (!Buffer.isBuffer(bytes) || bytes.length < 1 ||
-      bytes.length > MAX_JSONL_BYTES) {
+  if (!Buffer.isBuffer(bytes) || bytes.length > MAX_JSONL_BYTES) {
     fail("operator_events_bytes_invalid");
   }
+  // A present, descriptor-verified empty operator ledger has zero events.
+  // This is diagnostic only: it is not genesis, rollback exclusion, or
+  // permission to release a cross-UID claim.
+  if (bytes.length === 0) return Object.freeze([]);
   if (bytes.length >= 3 && bytes[0] === 0xef &&
       bytes[1] === 0xbb && bytes[2] === 0xbf) {
     fail("operator_events_utf8_bom_forbidden");

@@ -87,6 +87,11 @@ const ALLOCATION_TYPED_ARRAY_SUBARRAY_V2 = Uint8Array.prototype.subarray;
 const ALLOCATION_FATAL_UTF8_V2 = new TextDecoder("utf-8", {
   fatal: true, ignoreBOM: true,
 });
+// Capture the complete native decoder call at module initialization.
+// Later replacement of TextDecoder.prototype.decode or Reflect.apply
+// cannot substitute ledger text for the original detached bytes.
+const ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2 =
+  TextDecoder.prototype.decode.bind(ALLOCATION_FATAL_UTF8_V2);
 
 function isNativeAllocationBufferV1(value: unknown): value is Buffer {
   return !utilTypes.isProxy(value) &&
@@ -235,7 +240,7 @@ function decodedAllocationLedgerTextV2(value: string | Buffer): string {
   // detached copy using the reviewed TextDecoder, not Buffer#toString.
   const bytes = detachedAllocationBufferV1(value);
   try {
-    return ALLOCATION_FATAL_UTF8_V2.decode(bytes);
+    return ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(bytes);
   } catch {
     throw new Error("allocation_reservation_ledger_utf8_invalid");
   }
@@ -1080,7 +1085,7 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
     try {
       // Fatal decoding checks the entire supplied history, not merely
       // records selected after an untrusted string operation.
-      ALLOCATION_FATAL_UTF8_V2.decode(bytes);
+      ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(bytes);
     } catch {
       throw new Error("allocation_reservation_ledger_utf8_invalid");
     }
@@ -1112,7 +1117,7 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
       ) as Uint8Array;
       let line: string;
       try {
-        line = ALLOCATION_FATAL_UTF8_V2.decode(lineBytes);
+        line = ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(lineBytes);
       } catch {
         throw new Error("allocation_reservation_ledger_utf8_invalid");
       }

@@ -21,13 +21,13 @@ const BOUND=Object.freeze({
   "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts":
     "6d6a8b0efee8bc2d4e7f402bf7bd4b9e4ed4ac3a",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "d873533dbe60f2efff2fefc19470ee963b4fead0",
+    "b5dbbbd932688f8b0ad04477433cd11ede413bb7",
   "src/economic/buy_void_preappend_plain_input_v1.ts":
     "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f",
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":
     "f591f7407d9afc2cf77e0f90923aa11b4817fd4e",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "57a14a782549eb6c64d0a8f977f10e33d9e6bcda",
+    "1542e833242a20bea8359396e2e157882e53cabc",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":
     "9383c94cf848efb9a0112f1b741df4e10f790ac6",
 });

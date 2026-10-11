@@ -103,12 +103,16 @@ jobs:
       - name: Prove source-only V2 inspect socket client
         run: |
           set -euo pipefail
+          node --check tools/void-buy-allocation-custody-inspect-client-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_inspect_client_v1.mjs
           node scripts/prove_void_buy_allocation_custody_inspect_client_v1.mjs \
             | tee "custody-v2-inspect-client-${{ matrix.node }}.txt"
           for marker in \
             'VOID_BUY_VOID_CUSTODY_INSPECT_IPC_V1_PROOF_GREEN' \
             'bounded_socket_request_and_reply=true' \
             'request_digest_bound=true' \
+            'utf8_decoder_intrinsic_bound=true' \
+            'reflect_apply_hook_bypassed=true' \
             'malformed_and_oversize_replies_hold=true' \
             'positive_decision_authority_false=true' \
             'socket_path_and_metadata_preflight=true' \

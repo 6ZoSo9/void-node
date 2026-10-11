@@ -46,8 +46,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
           test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f"
           git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
       - name: Install Node
@@ -71,8 +71,8 @@ jobs:
             const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
             assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6");
             assert.equal(j.reviewed_combined_source_head,"df7ad33671b8c47a350c1d3ebfc87c59d69d580a");
-            assert.equal(j.reviewed_current_replay_source_blob_sha1,"d873533dbe60f2efff2fefc19470ee963b4fead0");
-            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"57a14a782549eb6c64d0a8f977f10e33d9e6bcda");
+            assert.equal(j.reviewed_current_replay_source_blob_sha1,"b5dbbbd932688f8b0ad04477433cd11ede413bb7");
+            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"1542e833242a20bea8359396e2e157882e53cabc");
             assert.equal(j.reviewed_current_preappend_source_blob_sha1,"945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f");
             for (const k of [
               "frozen_historical_V1_proof_unchanged",

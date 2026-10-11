@@ -53,6 +53,27 @@ A three-node cross-node job compares deterministic non-authority receipts
 byte-for-byte. The eight merged service files remain identical to merged
 #2778; no production route, ledgers or installed host are modified.
 
+## October 11 bound-decoder source successor
+
+The two source blobs above identify the original reviewed first-original
+generation, preserved in Git history. PR #2790's **new current-generation
+candidate** binds fatal UTF-8 decoder calls during module initialization,
+so a later replacement of `TextDecoder.prototype.decode` or global
+`Reflect.apply` cannot replace decoded allocation/replay row bytes.
+The successor reviewed Git blobs are:
+
+- allocation reservation ledger: `1542e833242a20bea8359396e2e157882e53cabc`;
+- verified allocation replay: `b5dbbbd932688f8b0ad04477433cd11ede413bb7`;
+- adversarial actual-classifier test: `b2487739db2b428c1e5a68cbf4453acb5d0ff354`.
+
+The existing joint workflow now requires the actual-classifier adversary on
+Node 22/24/26, including positive controls that poisoned global hooks are
+armed, rejection of malformed input without callback invocation, and
+byte-identical non-authority receipts. Historical pinned generations remain
+unchanged. These are **source-only** proofs; no current installed Nimo runtime,
+atomic payment allocation, custody release, buyer finality or presale approval
+is claimed.
+
 ## Honest remaining launch gates
 
 This forward integration does **not** create a real cross-UID verifiable lease

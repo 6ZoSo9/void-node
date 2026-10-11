@@ -135,5 +135,25 @@ The initial four-file introduction remains authenticated through exact Git
 ancestors `e355cb575cbf3931fe9560d7fa39ca4af4be0798` and
 `799a85f0684e9f73a5fe7868164b3fe5ff2953fe`, including its exact added-file set.
 That historical diff is not imposed on every later PR. Current source changes
-still require fresh exact-head build/proof results, full-diff whitespace checks
-and independent scope/semantic review; no past GREEN is inherited.
+still require fresh exact-head build/proof results, merge-base-bound whitespace
+checks and independent scope/semantic review; no past GREEN is inherited.
+
+## Present empty operator history
+
+A descriptor-verified, stable, present zero-byte `operator-events.jsonl` is now
+interpreted as an observed history with zero operator rows. The requests ledger
+must still be present and nonempty. Missing operator files, empty requests,
+symlinks, hard links, inode substitutions, close uncertainty and zero-to-one
+concurrent growth remain HOLD.
+
+With an empty operator history and no allocation, the classifier may diagnose
+`observed_no_target_capacity_effect` only after the canonical replay confirms
+the target has no durable verified payment. An allocation paired with that
+empty history remains an orphan and HOLDs. The focused full proof exercises
+both outcomes against the actual observer, high-water binding, allocation
+classifier and canonical replay dependency.
+
+This diagnostic does **not** authenticate genesis or prove that historical
+operator rows never existed. It does not exclude coordinated rollback, establish
+an external high-water witness, authorize lock release, or authorize custody
+recovery. All production, payment, presale and funds flags remain false.

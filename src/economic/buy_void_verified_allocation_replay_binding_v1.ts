@@ -63,6 +63,10 @@ const POOL = BigInt(ECONOMICS.canonical_presale_max_void) * MICRO;
 const RATE_NUMERATOR = BigInt(ECONOMICS.rate_void_units_numerator);
 const RATE_DENOMINATOR = BigInt(ECONOMICS.rate_void_units_denominator);
 const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+// Bind the complete native fatal decode call before a same-process hook
+// can mutate the decoder prototype or live Reflect.apply.
+const REPLAY_FATAL_UTF8_DECODE_BOUND_V1 =
+  TextDecoder.prototype.decode.bind(UTF8);
 // Snapshot the native parse/prototype functions at module load. JSON.parse
 // normally makes ordinary objects that inherit Object.prototype. A polluted
 // Object.prototype.delivery_address or launch_authority could otherwise
@@ -285,7 +289,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
   if (detached.length === 0) return [];
   // Validate the entire UTF-8 stream first, preserving the original fatal
   // decoder boundary even when a malformed later row follows a valid row.
-  UTF8.decode(detached);
+  REPLAY_FATAL_UTF8_DECODE_BOUND_V1(detached);
   if (detached[detached.length - 1] !== 0x0a) {
     fail(label + "_truncated_or_noncanonical");
   }
@@ -304,7 +308,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
     const lineBytes = Reflect.apply(
       TYPED_ARRAY_SUBARRAY_V1, detached, [rowStart, cursor],
     ) as Uint8Array;
-    const line = UTF8.decode(lineBytes);
+    const line = REPLAY_FATAL_UTF8_DECODE_BOUND_V1(lineBytes);
     if (!line) fail(label + "_empty_row");
     let value: unknown;
     try { value = parseDetachedJsonRowV1(line); } catch { fail(label + "_json_invalid"); }

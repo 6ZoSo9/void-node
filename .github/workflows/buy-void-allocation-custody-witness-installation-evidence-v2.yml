@@ -69,9 +69,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
-          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "72ba3406db6d780fc3bb69723080922376e3c20d"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "f59e7e7fda15a240952cc885309db1c26a648dea"
           npm run typecheck
           npm run build
           node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > "$RUNNER_TEMP/current-first-original-v6.json"

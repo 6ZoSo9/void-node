@@ -10,6 +10,7 @@ on:
       - "scripts/prove_void_buy_allocation_custody_service_v1.mjs"
       - "scripts/prove_buy_void_first_original_*"
       - "scripts/prove_buy_void_allocation_raw_jsonl_prototype_boundary_v1.mjs"
+      - "scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts"
       - "docs/architecture/buy-void-current-main-first-original-custody-joint-v1.md"
       - ".github/workflows/buy-void-current-main-first-original-custody-joint-v1.yml"
       - "package.json"
@@ -47,8 +48,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
+          test "$(git hash-object scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts)" = "b2487739db2b428c1e5a68cbf4453acb5d0ff354"
           test "$(git hash-object tools/void-buy-allocation-custody-service-v1.mjs)" = "b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
           git merge-base --is-ancestor 16a9002a3b1ffe0f8faa2c9170ca6c087565c59a HEAD
           git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
@@ -73,10 +75,14 @@ jobs:
           node scripts/prove_buy_void_first_original_byte_framed_jsonl_v1.mjs > proof-evidence/raw-first-original.txt
           node scripts/prove_buy_void_first_original_inherited_json_fields_v1.mjs > proof-evidence/inherited-rows.txt
           node scripts/prove_buy_void_allocation_raw_jsonl_prototype_boundary_v1.mjs > proof-evidence/allocation-raw.txt
+          node --import tsx scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts > "decoder-${{ matrix.node }}.txt"
           grep -Fx "VOID_FIRST_BUYER_REPLAY_OWN_ARRAY_HISTORY_V1_GREEN" proof-evidence/own-array.txt
           grep -Fx "VOID_FIRST_ORIGINAL_BYTE_FRAMED_JSONL_V1_GREEN" proof-evidence/raw-first-original.txt
           grep -Fx "VOID_BUY_VOID_FIRST_ORIGINAL_INHERITED_JSON_FIELDS_V1_GREEN" proof-evidence/inherited-rows.txt
           grep -Fx "VOID_BUY_VOID_ALLOCATION_RAW_JSONL_PROTOTYPE_BOUNDARY_V1_GREEN" proof-evidence/allocation-raw.txt
+          grep -Fx "VOID_BUY_VOID_FATAL_UTF8_INTRINSIC_SOURCE_GREEN" "decoder-${{ matrix.node }}.txt"
+          grep -Fx "malicious_decoder_callback_invocations_on_economic_classifiers=0" "decoder-${{ matrix.node }}.txt"
+          grep -Fx "production_gate_ready=false" "decoder-${{ matrix.node }}.txt"
           grep -Fx "original_wallet_inheritance_refused=true" proof-evidence/inherited-rows.txt
           grep -Fx "idempotent_retry_preserves_full_history=true" proof-evidence/allocation-raw.txt
           grep -Fx "payment_or_allocation_append_performed=false" proof-evidence/inherited-rows.txt
@@ -103,8 +109,9 @@ jobs:
             echo "VOID_BUY_VOID_FIRST_ORIGINAL_AND_CUSTODY_JOINT_MAIN_V1_GREEN"
             echo "main_parent=16a9002a3b1ffe0f8faa2c9170ca6c087565c59a"
             echo "first_original_owner=df7ad33671b8c47a350c1d3ebfc87c59d69d580a"
-            echo "replay_source=d873533dbe60f2efff2fefc19470ee963b4fead0"
-            echo "allocation_source=57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+            echo "replay_source=b5dbbbd932688f8b0ad04477433cd11ede413bb7"
+            echo "allocation_source=1542e833242a20bea8359396e2e157882e53cabc"
+            echo "native_utf8_decoder_bound=true"
             echo "custody_source=b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
             echo "durable_payment_provenance_read=true"
             echo "first_original_wallet_backfill_refused=true"
@@ -125,6 +132,7 @@ jobs:
           name: buy-void-joint-custody-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: |
             joint-custody-${{ matrix.node }}.txt
+            decoder-${{ matrix.node }}.txt
             proof-evidence/*.txt
           if-no-files-found: error
           retention-days: 3
@@ -151,9 +159,15 @@ jobs:
       - name: Byte-identical Node 22 24 26 review
         run: |
           set -euo pipefail
-          for node in 22 24 26; do test -s "receipts/joint-custody-$node.txt"; done
+          for node in 22 24 26; do
+            test -s "receipts/joint-custody-$node.txt"
+            test -s "receipts/decoder-$node.txt"
+          done
           cmp receipts/joint-custody-22.txt receipts/joint-custody-24.txt
           cmp receipts/joint-custody-22.txt receipts/joint-custody-26.txt
+          cmp receipts/decoder-22.txt receipts/decoder-24.txt
+          cmp receipts/decoder-22.txt receipts/decoder-26.txt
+          grep -Fx "malicious_decoder_callback_invocations_on_economic_classifiers=0" receipts/decoder-22.txt
           grep -Fx "cross_uid_capacity_serialization_qualified=false" receipts/joint-custody-22.txt
           grep -Fx "reserve_method_enabled=false" receipts/joint-custody-22.txt
           grep -Fx "funds_movement=false" receipts/joint-custody-22.txt

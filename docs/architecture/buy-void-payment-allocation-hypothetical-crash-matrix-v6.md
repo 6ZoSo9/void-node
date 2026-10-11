@@ -5,11 +5,18 @@
 V6 is the source-only crash/replay successor for the final first-original JSONL
 generation reviewed at `df7ad33671b8c47a350c1d3ebfc87c59d69d580a`.
 
-It binds the exact current source tuple:
+It binds the exact **current source-only bound-decoder successor** tuple:
 
-- allocation reservation ledger: `57a14a782549eb6c64d0a8f977f10e33d9e6bcda`;
-- verified allocation replay binding: `d873533dbe60f2efff2fefc19470ee963b4fead0`;
-- preappend plain-input boundary: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`.
+- allocation reservation ledger: `1542e833242a20bea8359396e2e157882e53cabc`;
+- verified allocation replay binding: `b5dbbbd932688f8b0ad04477433cd11ede413bb7`;
+- preappend plain-input boundary (unchanged): `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`.
+
+The previous first-original V6 reviewed source tuple
+(`57a14a782549eb6c64d0a8f977f10e33d9e6bcda` /
+`d873533dbe60f2efff2fefc19470ee963b4fead0`) remains
+recoverable in exact historical Git commits; the updated current V6 script
+does not alter immutable V1–V5 proof files. This source hardening does not
+authorize production custody or establish an installed runtime generation.
 
 The V1 through V5 crash proof files remain immutable historical artifacts. V6
 authenticates their Git blobs and does not repin or rewrite them.
