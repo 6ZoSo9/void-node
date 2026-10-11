@@ -360,6 +360,15 @@ async function readBoundedResponseBytesV1(
   try {
     while (true) {
       const readPromise = Promise.resolve().then(() => reader.read());
+      let readSettled = false;
+      void readPromise.then(
+        () => {
+          readSettled = true;
+        },
+        () => {
+          readSettled = true;
+        },
+      );
       unresolvedRead = true;
       let done: boolean;
       let value: Uint8Array | undefined;
@@ -370,7 +379,8 @@ async function readBoundedResponseBytesV1(
         ));
         unresolvedRead = false;
       } catch (error) {
-        if (signal.aborted) {
+        unresolvedRead = !readSettled;
+        if (signal.aborted && unresolvedRead) {
           void readPromise.catch(() => undefined);
           void reader.cancel().catch(() => undefined);
         }
