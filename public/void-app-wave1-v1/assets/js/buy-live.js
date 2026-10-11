@@ -375,9 +375,13 @@ const renderSnapshot = (snapshot) => {
     : 'Base request intake is OPEN. Ethereum native USDC is policy-approved but remains HOLD until separately activated.');
   // A different POST may now be pending. Never resurrect a prior receipt
   // while awaiting the newer attempt, even during a readiness refresh.
-  setText('[data-buy-result]', submitBusy
-    ? 'Creating guarded request… no funds are being sent.'
-    : 'Ready to create a request. No funds are sent by this page.');
+  // Global OPEN is not authority to display an in-flight request as
+  // actionable while its selected rail has independently switched to HOLD.
+  setText('[data-buy-result]', !selectedRail()
+    ? 'HOLD — selected payment rail is not active. Do not send funds.'
+    : submitBusy
+      ? 'Creating guarded request… no funds are being sent.'
+      : 'Ready to create a request. No funds are sent by this page.');
   // When not busy, updateSubmit restores only the *matching* last attempt
   // or the conservative prior-request warning. It never enables a retry.
   setFormEnabled(true);
