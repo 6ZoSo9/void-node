@@ -18,6 +18,9 @@ on:
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
       - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_identity_continuity_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs"
       - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
   workflow_dispatch:
 
@@ -62,41 +65,96 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Typecheck and build canonical dependencies
+      - name: Authenticate and build current first-original generation
+        shell: bash
         run: |
+          set -euo pipefail
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "72ba3406db6d780fc3bb69723080922376e3c20d"
           npm run typecheck
           npm run build
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > "$RUNNER_TEMP/current-first-original-v6.json"
+          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' "$RUNNER_TEMP/current-first-original-v6.json"
+          echo current_first_original_source_proof=GREEN
+          echo production_witness_installed=false
+
+      - name: Materialize original frozen V2 witness generation
+        shell: bash
+        env:
+          HISTORICAL_SOURCE_COMMIT: d992687fb871e31fe1f5f51138ff621bab7c643b
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git cat-file -e "$HISTORICAL_SOURCE_COMMIT^{commit}"
+          git merge-base --is-ancestor "$HISTORICAL_SOURCE_COMMIT" HEAD
+          HISTORICAL_ROOT="$RUNNER_TEMP/void-witness-historical-v2"
+          test ! -e "$HISTORICAL_ROOT"
+          git worktree add --detach "$HISTORICAL_ROOT" "$HISTORICAL_SOURCE_COMMIT"
+          test "$(git -C "$HISTORICAL_ROOT" rev-parse HEAD)" = "$HISTORICAL_SOURCE_COMMIT"
+          test -z "$(git -C "$HISTORICAL_ROOT" status --porcelain=v1)"
+          test "$(git -C "$HISTORICAL_ROOT" hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "c3fc204710a9189723651cfeb6ffc52b1aa049db"
+          test "$(git -C "$HISTORICAL_ROOT" hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)" = "d2e84643c9f4d76c642c7e07d4ea2bf1634035e4"
+          test "$(git -C "$HISTORICAL_ROOT" hash-object scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs)" = "f3e0aa63a3cf6bfff45b619c068f02d9bef05e35"
+          echo frozen_v2_generation_bound=true
+          echo current_source_reinterpreted_as_historical=false
+
+      - name: Build original frozen V2 dependencies
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          echo frozen_v2_exact_build=GREEN
 
       - name: Syntax-check V2 evidence collector
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: |
           node --check tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs
           node --check scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
 
       - name: Prove V2 installation evidence collector
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
 
       - name: Preserve merged runtime-bundle evidence collector
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 
       - name: Preserve runtime-bundle qualification
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
 
       - name: Preserve V2 installation qualification
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_installation_qualification_v2.ts
 
       - name: Preserve V2 forced-command continuity handler
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: node scripts/prove_buy_void_allocation_custody_witness_forced_command_v2.mjs
 
       - name: Preserve witness transport contract
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
 
       - name: Preserve witness identity continuity contract
+        working-directory: ${{ runner.temp }}/void-witness-historical-v2
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_identity_continuity_v1.ts
 
       - name: Diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          if test -n "${BASE_SHA:-}"; then
+            MERGE_BASE="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+            test -n "$MERGE_BASE"
+            git diff --check "$MERGE_BASE" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+          echo current_diff_hygiene_merge_base_bound=true
