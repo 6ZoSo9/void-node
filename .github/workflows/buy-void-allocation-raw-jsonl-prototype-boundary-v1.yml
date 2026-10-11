@@ -1,0 +1,121 @@
+name: VOID Buy VOID allocation JSONL raw framing and prototype boundary v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "scripts/prove_buy_void_allocation_raw_jsonl_prototype_boundary_v1.mjs"
+      - ".github/workflows/buy-void-allocation-raw-jsonl-prototype-boundary-v1.yml"
+      - "docs/architecture/buy-void-allocation-raw-jsonl-prototype-boundary-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged proposal
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require exact checkout and reviewed new allocation source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+
+      - name: Setup pinned GitHub Node action
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and rebuild actual runtime modules
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Reprove historical allocation planning invariants
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_allocation_reservation_ledger_v1.ts
+
+      - name: Falsify inherited Buffer and String JSONL framing
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_allocation_raw_jsonl_prototype_boundary_v1.mjs \
+            | tee "allocation-raw-jsonl-node-${{ matrix.node }}.txt"
+          for expected in \
+            "VOID_BUY_VOID_ALLOCATION_RAW_JSONL_PROTOTYPE_BOUNDARY_V1_GREEN" \
+            "nonempty_buffer_never_looks_empty=true" \
+            "buffer_inherited_toString_invocations=0" \
+            "string_inherited_framing_invocations=0" \
+            "original_reservation_hash_preserved=true" \
+            "idempotent_retry_preserves_full_history=true" \
+            "new_plan_preserves_first_full_history=true" \
+            "invalid_json_and_utf8_hold=true" \
+            "payment_or_allocation_append_performed=false" \
+            "presale_activation=false" \
+            "funds_moved=false"
+          do grep -Fx "$expected" "allocation-raw-jsonl-node-${{ matrix.node }}.txt"; done
+
+      - name: Upload compact non-funds evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-allocation-raw-jsonl-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: allocation-raw-jsonl-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact three non-funds test receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-allocation-raw-jsonl-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical Node 22 24 26 proof
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "evidence/allocation-raw-jsonl-node-$node.txt"
+          done
+          cmp evidence/allocation-raw-jsonl-node-22.txt evidence/allocation-raw-jsonl-node-24.txt
+          cmp evidence/allocation-raw-jsonl-node-22.txt evidence/allocation-raw-jsonl-node-26.txt
+          echo "VOID_ALLOCATION_RAW_JSONL_PROTOTYPE_THREE_NODE_GREEN"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"

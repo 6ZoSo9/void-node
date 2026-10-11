@@ -1,0 +1,114 @@
+name: VOID Buy VOID first-original raw-byte JSONL framing v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "scripts/prove_buy_void_first_original_byte_framed_jsonl_v1.mjs"
+      - ".github/workflows/buy-void-first-original-byte-framed-jsonl-v1.yml"
+      - "docs/architecture/buy-void-first-original-byte-framed-jsonl-v1.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-first-original-raw-byte-framing-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout reviewed exact head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source identity
+        env:
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d40d3198c64c31cc8c8d9621d8ae8150f3b4d487"
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build current source
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Preserve canonical original-buyer replay proof
+        run: node scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs
+      - name: Exercise actual compiled replay with hostile Array and String prototypes
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_first_original_byte_framed_jsonl_v1.mjs \
+            > "first-original-byte-framing-${{ matrix.node }}.txt"
+          for signal in \
+            VOID_FIRST_BUYER_REPLAY_OWN_ARRAY_HISTORY_V1_GREEN \
+            VOID_FIRST_ORIGINAL_BYTE_FRAMED_JSONL_V1_GREEN \
+            first_original_snapshot_not_elided_by_string_split=true \
+            duplicate_original_request_not_elided_by_string_split=true \
+            first_original_snapshot_not_elided_by_string_slice=true \
+            missing_trailing_lf_rejected_under_string_endsWith=true \
+            forbidden_cr_rejected_under_string_includes=true \
+            malicious_string_split_positive_control=1 \
+            malicious_string_slice_positive_control=1 \
+            runtime_payment_or_allocation_write=false \
+            production_allocation_authority=false \
+            presale_activation=false \
+            funds_movement=false
+          do grep -Fx "$signal" "first-original-byte-framing-${{ matrix.node }}.txt"; done
+      - name: Exact source and whitespace preservation
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --check "$BASE_SHA" "$REVIEW_HEAD"
+      - name: Upload no-funds proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-first-original-byte-framed-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: first-original-byte-framing-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download each exact-head proof receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-first-original-byte-framed-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require identical Node 22 24 26 receipts
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "receipts/first-original-byte-framing-$node.txt"
+          done
+          cmp receipts/first-original-byte-framing-22.txt receipts/first-original-byte-framing-24.txt
+          cmp receipts/first-original-byte-framing-22.txt receipts/first-original-byte-framing-26.txt
+          echo "VOID_BUY_VOID_FIRST_ORIGINAL_BYTE_FRAMED_THREE_NODE_GREEN"
+          echo "production_payment_allocation_authority=false"
