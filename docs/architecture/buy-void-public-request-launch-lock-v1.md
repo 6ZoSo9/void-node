@@ -13,11 +13,15 @@ observe no matching pending destination and subsequently append distinct
 guards one local client only and does not solve cross-tab or concurrent
 HTTP requests.
 
-This correction changes **only `src/index.ts` runtime source**. Its existing
-`__voidPersistBuyVoidRequestV1` callback now re-reads existing request and
-operator-event history **inside the same previously used cross-process
-launch-authority mutation lock**, before either request JSONL append or
-per-ID file creation. This avoids adding a second independently managed lock:
+This correction keeps a short `src/index.ts` bridge (exact Git blob
+`133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
+ceiling** and puts the recheck into compiled
+`src/economic/buy_void_public_request_under_launch_lock_v1.ts`
+(Git blob `e1295f1a3f85c125982bb56c7548f71a0f859f1a`). The existing
+`__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
+which re-reads request and operator-event history **inside the previously
+used cross-process launch-authority mutation lock**, before either request
+JSONL append or per-ID file creation. This avoids adding a second lock:
 
 - If no launch-authority-valid active intent exists at the same lowercase
   destination, write the reviewed request using the existing persistence
@@ -38,17 +42,22 @@ one-request ID and request document schema are unchanged.
 
 ## Source-bound regression
 
-`scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs` extracts
-the **actual** public request persistor, request and operator-event readers,
-event-status projection and terminal-status classifier from `src/index.ts`,
-transpiles those exact function fragments using the repository's installed
-TypeScript compiler, and executes them against a *disposable directory* with
-an in-memory serialization lock modeling the existing launch lock. It also
-extracts the older immutable index source from Git and proves that even
-serialized prior callback invocations still append **two duplicate rows**.
-The changed code must instead append only one and reuse that stored request,
+`scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs` imports
+the **actual compiled request-admission helper**. It also extracts the
+request and operator-event readers, event-status projection and
+terminal-status classifier from the actual `src/index.ts` source, and
+transpiles those exact fragments with the reviewed TypeScript compiler. It
+runs against *disposable temporary files* with a synthetic serialized lock.
+The immutable predecessor index is extracted from Git and its actual old
+persistor proves that even serialized prior callback invocations append
+**two duplicate rows**. The new compiled helper must instead append only
+one and reuse that stored request,
 refuse a different amount/rail without an append, preserve a different
 destination, and permit a new request after an explicit terminal event.
+
+Index growth is forbidden: the previous inlined patch failed the repository's
+hard **3,852,487-byte** `src/index.ts` ceiling. This version keeps the
+actual index source below the ceiling without increasing its configured limit.
 
 This focused test is **not proof that a real Nimo/Precision deployment, peer,
 durable fsync, cross-UID payment lock or inventory allocator is correctly

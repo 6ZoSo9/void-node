@@ -8,11 +8,12 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
+import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/buy_void_public_request_under_launch_lock_v1.js";
 
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="a399ab3fd80a103bc18f4dd81d8771f7d668568c";
+const NEW_BLOB="133599f4e2279ca0efe633c9f0ed9bd69c6e955c";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -39,19 +40,16 @@ const parts=[
   ["function __voidBuyVoidTerminalStatusV1(status:any){","    app.get(\"/__void/buy-void/request.json\""],
 ];
 const sources=parts.map(([a,b])=>take(current,a,b));
-function persister(src){
-  return take(src,"async function __voidPersistBuyVoidRequestV1(reqObj:any){",
-    "    function __voidBuyVoidReadParamV1");
+function persister(src,signature){
+  return take(src,signature,"    function __voidBuyVoidReadParamV1");
 }
-const oldPersist=persister(original),newPersist=persister(current);
+const oldPersist=persister(original,"async function __voidPersistBuyVoidRequestV1(reqObj:any){");
+const currentBridge=persister(current,"async function __voidPersistBuyVoidRequestV1(r:any){");
 assert.match(oldPersist,/__blm\(reqObj,\(\)=>/u);
 assert.doesNotMatch(oldPersist,/__voidReadBuyVoidRequestsV1/u);
-assert.match(newPersist,/__blm\(reqObj,async \(\)=>/u);
-assert.ok(newPersist.indexOf("__voidReadBuyVoidRequestsV1")>
-  newPersist.indexOf("__blm(reqObj,async"),"admission scan must be inside lock");
-assert.match(newPersist,/throw new Error\("buy_void_request_active_destination_changed_during_lock"\)/u);
-assert.match(newPersist,/reused_request:currentlyActive/u);
-assert.match(newPersist,/fs\.appendFileSync/u);
+assert.match(currentBridge,/import\("\.\/economic\/buy_void_public_request_under_launch_lock_v1[.]js"\)/u);
+assert.match(currentBridge,/persistBuyVoidPublicRequestUnderLaunchLockV1\(r,\[__blm,__voidReadBuyVoidRequestsV1,__voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,__voidBuyVoidTerminalStatusV1,__blo\]\)/u);
+assert.equal(typeof persistBuyVoidPublicRequestUnderLaunchLockV1,"function");
 const currentPost=take(current,'app.post("/__void/buy-void/request"',
   '    // VOID_PUBLIC_BUY_VOID_ROUTE_V1');
 assert.match(currentPost,/if\(persisted\.reused_request\)/u);
@@ -79,11 +77,9 @@ function factory(persistBlock,dir){
   };
   const context=new Function("__blm","__blo","process",
     "voidIndexEmptyCatchVisibilityWindow17101_18000V1",
-    transformed.outputText+"\nreturn __voidPersistBuyVoidRequestV1;");
-  return {
-    persist:context(withAuthorityLock,()=>true,{env:{VOID_BUY_REQUEST_DIR:dir}},()=>{}),
-    getCalls:()=>calls,
-  };
+    transformed.outputText+"\nreturn {persist:__voidPersistBuyVoidRequestV1,readRequests:__voidReadBuyVoidRequestsV1,readEvents:__voidReadBuyVoidOperatorEventsV1,applyEvents:__voidApplyBuyVoidOperatorEventsV1,terminalStatus:__voidBuyVoidTerminalStatusV1};");
+  const functions=context(withAuthorityLock,()=>true,{env:{VOID_BUY_REQUEST_DIR:dir}},()=>{});
+  return { ...functions, withLock:withAuthorityLock, getCalls:()=>calls };
 }
 function request(id,amt="3.000000",chain="base",dest="1"){
   return Object.freeze({
@@ -119,8 +115,17 @@ function temp(){
 }
 {
  const root=temp();
+ const originalDirectory=process.env.VOID_BUY_REQUEST_DIR;
  try{
-   const fresh=factory(newPersist,root);
+   const readers=factory(oldPersist,root);
+   const fresh={
+     persist:(req)=>persistBuyVoidPublicRequestUnderLaunchLockV1(req,[
+       readers.withLock,readers.readRequests,readers.readEvents,
+       readers.applyEvents,readers.terminalStatus,()=>true,
+     ]),
+     getCalls:readers.getCalls,
+   };
+   process.env.VOID_BUY_REQUEST_DIR=root;
    const [first,second]=await Promise.all([
      fresh.persist(request("new-1")),fresh.persist(request("new-2")),
    ]);
@@ -146,7 +151,12 @@ function temp(){
    assert.equal(replacement.reused_request,null);
    assert.equal(lines(root).length,3,
      "terminal old request permits a later distinct request");
- }finally{fs.rmSync(root,{recursive:true,force:true});}
+ }finally{
+   // Restore the real environment; disposable temp files only.
+   if(typeof originalDirectory==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
+   else process.env.VOID_BUY_REQUEST_DIR=originalDirectory;
+   fs.rmSync(root,{recursive:true,force:true});
+ }
 }
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
@@ -155,7 +165,9 @@ console.log("current_same_intent_returns_existing_request=true");
 console.log("current_mismatched_amount_and_rail_hold_without_append=true");
 console.log("different_destination_allowed=true");
 console.log("terminal_status_allows_subsequent_request=true");
-console.log("source_changed_economic_modules=false");
+console.log("existing_economic_writers_modified=false");
+console.log("compiled_public_request_admission_helper_used=true");
+console.log("src_index_size_guard_preserved=true");
 console.log("production_request_route_deployed=false");
 console.log("live_payment_or_allocation_performed=false");
 console.log("presale_activation=false");

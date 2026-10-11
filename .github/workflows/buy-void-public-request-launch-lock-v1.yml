@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/index.ts"
+      - "src/economic/buy_void_public_request_under_launch_lock_v1.ts"
       - "scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs"
       - ".github/workflows/buy-void-public-request-launch-lock-v1.yml"
       - "docs/architecture/buy-void-public-request-launch-lock-v1.md"
@@ -37,8 +38,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/index.ts)" = "a399ab3fd80a103bc18f4dd81d8771f7d668568c"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "832144fb474d0665a089699caef3ab11b2e0984e"
+          test "$(git hash-object src/index.ts)" = "133599f4e2279ca0efe633c9f0ed9bd69c6e955c"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "e1295f1a3f85c125982bb56c7548f71a0f859f1a"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "4914564177511f41480957e90aa59d5690ebd41b"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -62,7 +64,9 @@ jobs:
             'current_mismatched_amount_and_rail_hold_without_append=true' \
             'different_destination_allowed=true' \
             'terminal_status_allows_subsequent_request=true' \
-            'source_changed_economic_modules=false' \
+            'existing_economic_writers_modified=false' \
+            'compiled_public_request_admission_helper_used=true' \
+            'src_index_size_guard_preserved=true' \
             'production_request_route_deployed=false' \
             'live_payment_or_allocation_performed=false' \
             'presale_activation=false' \
