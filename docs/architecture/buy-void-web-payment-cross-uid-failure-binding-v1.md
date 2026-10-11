@@ -98,3 +98,30 @@ The next gate is a separately reviewed protected-witness and phase-aware
 release/recovery protocol. A proven pre-mutation rejection may be releasable
 only after that evidence is durable and independently bound. Missing or
 uncertain allocation must continue requiring exclusive recovery.
+
+## Complete allocation receipt before the outer lock can release
+
+The original callback accepted a dispatcher `{ok:true}` result without
+inspecting whether its durable allocation publication had completed. The
+canonical verified-payment allocation writer currently returns a frozen
+outer handoff receipt containing a separately frozen allocation receipt.
+The new source-only success check runs **inside** the outer lock callback
+and requires both canonical receipt/authority identities; matching exact
+SHA-256 of the already-frozen planned event JSON plus LF; a canonical
+allocation record ID; positive final allocation record count; consistent
+payment-append versus replay-idempotence flags; and all runtime/production/
+money-movement authorities still false.
+
+An absent allocation, success-only object, incorrect event digest,
+forged marker, unfrozen receipt or getter-bearing field throws through the
+existing in-lock reconciliation path. The cross-UID claim stays retained;
+no ambiguous callback can be promoted to completed solely because it
+returned `ok:true`. The existing Node 22/24/26 synthetic proof exercises
+both new-payment and exact idempotent receipt success and all negative
+classes without writing any ledger or invoking real dispatch.
+
+This guards the `source_candidate_only` interface, not installed real
+web/custody identities, protected high-water custody, a complete external
+transaction, cross-file atomic snapshot or public operator mount. Success
+of this proof never authorizes payment acceptance, reserve/recovery,
+presale/WC activation, signer access or funds movement.

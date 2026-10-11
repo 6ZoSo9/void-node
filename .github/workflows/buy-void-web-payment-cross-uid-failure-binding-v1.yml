@@ -93,6 +93,10 @@ jobs:
             no_reconciliation_outcome_authorizes_release=true \
             reconciliation_failure_retains_outer_claim=true \
             unqualified_reconciliation_retains_outer_claim=true \
+            durable_allocation_receipt_checked_inside_lock=true \
+            bare_success_cannot_release_outer_claim=true \
+            forged_allocation_or_payment_digest_retains_lock=true \
+            idempotent_allocation_replay_receipt_accepted=true \
             successful_dispatch_releases_after_callback=true \
             production_dispatch_invoked=false \
             filesystem_write=false \
