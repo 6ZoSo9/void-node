@@ -464,6 +464,28 @@ const soldOutSnapshot = buyTest.validateSnapshot(
   structuredClone(validStatus),
   { ...validSale, sold_out: true, remaining_void: 0, progress_pct: 100 },
 );
+// Sale-wide OPEN does not open Ethereum if its separate request gate closes.
+const ethereumRailHoldSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, ethereum_requests_enabled: false },
+  structuredClone(validStatus),
+  structuredClone(validSale),
+);
+buyTest.setState(ethereumRailHoldSnapshot, false, false);
+buyTest.renderSnapshot(ethereumRailHoldSnapshot);
+assert.equal(buyIntakeNode.textContent, "OPEN",
+  "the global intake remains OPEN when only Ethereum is disabled");
+assert.match(buyMessageNode.textContent,
+  /Ethereum native USDC is policy-approved but remains HOLD/u);
+assert.match(buyResultNode.textContent, /DO NOT SEND FUNDS/iu,
+  "a settled Ethereum receipt must be concealed while its rail is disabled");
+assert.doesNotMatch(buyResultNode.textContent, /Send exactly:|buyvoid_ethereum_open_v1/u);
+assert.equal(submitButton.disabled, true, "Ethereum HOLD must block retry");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "Ethereum rail HOLD must not repeat a POST");
+buyTest.setState(ethereumSnapshot, false, false);
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
+  "matching receipt may return only after Ethereum is OPEN again");
 for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
   buyTest.setState(closedSnapshot, false, false);
   buyTest.renderSnapshot(closedSnapshot);
@@ -568,11 +590,13 @@ for (const [caseLabel, closedSnapshot] of [
   ["HOLD", heldSnapshot],
   ["SOLD_OUT", soldOutSnapshot],
   ["READINESS_ERROR", null],
+  ["ETHEREUM_RAIL_HOLD", ethereumRailHoldSnapshot],
 ]) {
   buyTest.setState(ethereumSnapshot, false, false);
   buyTest.renderSnapshot(ethereumSnapshot);
   const amount = String(caseLabel === "HOLD" ? 13 :
-    caseLabel === "SOLD_OUT" ? 14 : 15);
+    caseLabel === "SOLD_OUT" ? 14 :
+    caseLabel === "READINESS_ERROR" ? 15 : 16);
   amountInput.value = amount;
   buyTest.updateSubmit();
   assert.equal(submitButton.disabled, false,
@@ -624,7 +648,7 @@ for (const [caseLabel, closedSnapshot] of [
   }));
   await pendingLateSuccess;
   assert.match(buyResultNode.textContent, /do not send funds/iu,
-    caseLabel + ": late successful POST must not hide HOLD/SOLD OUT/error");
+    caseLabel + ": late successful POST must not hide HOLD/SOLD OUT/rail HOLD/error");
   assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u,
     caseLabel + ": no payment instructions while CLOSED/unverified");
   assert.equal(submitButton.disabled, true);
@@ -788,6 +812,8 @@ console.log("prior_receipt_not_misbound_to_different_intent=1");
 console.log("equivalent_usdc_atoms_retry_blocked=1");
 console.log("ambiguous_server_commit_not_declared_not_created=1");
 console.log("request_outcome_survives_readiness_refresh=1");
+console.log("ethereum_rail_hold_hides_settled_and_late_receipts=1");
+console.log("ethereum_receipt_restored_only_after_rail_reopen=1");
 console.log("exchange_custody_loss_warning=1");
 console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");

@@ -318,7 +318,13 @@ function updateSubmit() {
   // for a different amount, chain or destination.
   if (!submitBusy && currentSnapshot && isOpen(currentSnapshot) &&
       attemptedIntentKeys.size > 0) {
-    setText('[data-buy-result]', intentKey === attemptedIntentKey && attemptedResultText
+    // Global OPEN is insufficient for a receipt created on a separately
+    // gated rail: Ethereum instructions remain hidden while that rail is HOLD.
+    // Keep the attempted intent locked; restore the exact receipt only after
+    // this same selected rail has independently returned to OPEN.
+    const matchingRailOpen = selectedRail() !== null;
+    setText('[data-buy-result]', matchingRailOpen &&
+      intentKey === attemptedIntentKey && attemptedResultText
       ? attemptedResultText
       : 'PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS. Reverify prior requests with the operator before another attempt.');
   }

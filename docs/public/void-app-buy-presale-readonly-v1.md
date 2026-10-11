@@ -142,3 +142,20 @@ HOLD/SOLD OUT, no prior payment receipt or instructions are displayed. A later
 verified OPEN refresh restores the previous result only for its matching
 canonical intent; a different intent sees the prior-request warning. No
 browser/client action is authority to send money or activate the presale.
+
+### Rail-specific receipt restoration gate
+
+A sale-wide OPEN snapshot does not authorize payment instructions on a
+separately disabled payment rail. If Ethereum request intake changes to HOLD
+while Base remains OPEN, the browser keeps any already attempted Ethereum
+intent in its bounded local duplicate guard but renders **DO NOT SEND FUNDS**
+instead of the remembered Ethereum payment instructions. The same rule applies
+when a pending Ethereum POST resolves after the rail became HOLD. Receipt text
+may reappear only when live verified readiness is OPEN **and** the original
+selected rail is individually enabled for the exact matching intent.
+
+The existing browser VM regression checks both settled and late-successful
+Ethereum responses through rail HOLD and subsequent verified reopening;
+no additional POST or wallet transaction is performed. This remains a
+browser-only safety condition, not server payment idempotency or presale
+activation.
