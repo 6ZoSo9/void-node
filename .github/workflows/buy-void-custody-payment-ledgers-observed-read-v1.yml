@@ -63,6 +63,11 @@ jobs:
             'fixed_requests_and_operator_leaf_names=true' \
             'two_leaf_descriptors_open_before_read=true' \
             'cross_file_read_window_unchanged_proven=true' \
+            'stable_empty_operator_history_observed=true' \
+            'empty_requests_remain_hold=true' \
+            'missing_operator_not_reinterpreted=true' \
+            'operator_hardlink_rejected=true' \
+            'operator_zero_to_one_growth_rejected=true' \
             'leaf_symlink_rejected=true' \
             'request_mutation_during_operator_read_rejected=true' \
             'post_open_growth_bounded_and_rejected=true' \
@@ -93,14 +98,17 @@ jobs:
       - name: Committed diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
-            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          if [ -n "${BASE_SHA:-}" ]; then
+            MERGE_BASE="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+            git merge-base --is-ancestor "$MERGE_BASE" "$HEAD_SHA"
+            git diff --check "$MERGE_BASE" "$HEAD_SHA"
           else
             git diff --check HEAD^ HEAD
           fi
+          echo current_diff_merge_base_bound=true
 
   cross-node:
     needs: [prove]
