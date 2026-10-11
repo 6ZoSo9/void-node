@@ -2,7 +2,7 @@
   "schema": "void_buy_void_allocation_custody_service_contract_v1",
   "marker": "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_CONTRACT_V1",
   "version": 1,
-  "service_source_sha256": "sha256:fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88",
+  "service_source_sha256": "sha256:4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18",
   "exact_request_schema": true,
   "exact_response_schema": true,
   "max_request_bytes": 65536,
@@ -17,5 +17,8 @@
   "wallet_or_signer_access": false,
   "transaction_broadcast": false,
   "chain2050_write": false,
-  "funds_movement": false
+  "funds_movement": false,
+  "server_controlled_request_root": true,
+  "descriptor_bound_payment_provenance": true,
+  "payment_capacity_lock_verified": false
 }
