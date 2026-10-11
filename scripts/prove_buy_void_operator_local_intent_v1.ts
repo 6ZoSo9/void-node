@@ -164,6 +164,45 @@ try {
     assert.equal(result.body, null);
   }
 
+  // Credential and directory close uncertainty must both deny access;
+  // every retained descriptor is attempted even when the first close fails.
+  for (const faultAt of ["credential", "directory"] as const) {
+    const realClose = fs.closeSync;
+    let closeCount = 0;
+    let directoryCloseCount = 0;
+    let injected = 0;
+    try {
+      (fs as any).closeSync = (fd: number): void => {
+        const isDirectory = fs.fstatSync(fd).isDirectory();
+        closeCount += 1;
+        if (isDirectory) directoryCloseCount += 1;
+        // Close the actual disposable descriptor first, then model uncertain
+        // success/error reporting; no FD or private token is retained.
+        realClose(fd);
+        if (!injected &&
+            (faultAt === "directory") === isDirectory) {
+          injected += 1;
+          throw new Error("synthetic_operator_descriptor_close_uncertain");
+        }
+      };
+      const { result, res } = response();
+      assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), false);
+      assert.equal(result.status, 503);
+      assert.equal(result.body?.error, "operator_capability_unavailable");
+      assert.equal(JSON.stringify(result.body).includes(capability), false);
+      assert.equal(closeCount, 2, "both descriptor closes must be attempted");
+      assert.equal(directoryCloseCount, 1, "directory descriptor must close");
+      assert.equal(injected, 1, "adversary must exercise the failure");
+    } finally {
+      (fs as any).closeSync = realClose;
+    }
+  }
+  {
+    const { result, res } = response();
+    assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), true);
+    assert.equal(result.body, null);
+  }
+
   for (const req of [
     request({
       headers: {
@@ -614,6 +653,8 @@ try {
   console.log("operator_credentials_directory_not_group_world_writable=true");
   console.log("operator_credentials_directory_descriptor_retained=true");
   console.log("operator_credential_descriptor_relative_open=true");
+  console.log("credential_and_directory_close_uncertainty_holds=true");
+  console.log("retained_directory_close_attempted_after_credential_failure=true");
   console.log("operator_credentials_directory_substitution_holds=true");
   console.log("relayed_loopback_without_capability_rejected=true");
   console.log("forged_local_host_remote_peer_rejected=true");
