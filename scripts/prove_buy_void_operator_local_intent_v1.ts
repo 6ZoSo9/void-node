@@ -65,6 +65,7 @@ function request(overrides: Record<string, any> = {}): any {
     },
     query: {},
     cookies: {},
+    route: { path: "/__void/buy-void/operator/mark.json" },
   };
   return {
     ...base,
@@ -400,6 +401,83 @@ try {
       assert.equal(result.headers.allow, "POST");
     }
   }
+
+  // The mounted payment verifier is authenticated but intentionally HOLDs
+  // until an allocation-backed cross-UID service replaces the payment-only
+  // writer. Match against the trusted Express registration, not req.path.
+  const allowedMutationPaths = [
+    "/__void/buy-void/operator/mark.json",
+    "/__void/buy-void/operator/request/tx-hash.json",
+  ];
+  for (const registeredPath of allowedMutationPaths) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({ route: { path: registeredPath } }),
+        res,
+      ),
+      true,
+    );
+    assert.equal(result.status, 200);
+    assert.equal(result.body, null);
+  }
+  for (const spoofedClientPath of [
+    "/__void/buy-void/operator/verify-payment.json",
+    "/__VOID/BUY-VOID/OPERATOR/VERIFY-PAYMENT.JSON",
+    "/__void/buy-void/operator/verify-payment.json/",
+    "/__void/buy-void/operator/verify-payment.json?id=synthetic",
+  ]) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({
+          route: {
+            path: "/__void/buy-void/operator/verify-payment.json",
+          },
+          path: spoofedClientPath,
+        }),
+        res,
+      ),
+      false,
+    );
+    assert.equal(result.status, 503);
+    assert.equal(
+      result.body?.error,
+      "buy_void_allocation_handoff_unmounted",
+    );
+  }
+  for (const registeredRoute of [
+    undefined,
+    null,
+    {},
+    { path: "/__void/buy-void/operator/unreviewed.json" },
+    { path: "/__VOID/BUY-VOID/OPERATOR/MARK.JSON" },
+    { path: ["__void/buy-void/operator/mark.json"] },
+  ]) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({ route: registeredRoute }),
+        res,
+      ),
+      false,
+    );
+    assert.equal(result.status, 403);
+    assert.equal(
+      result.body?.error,
+      "operator_mutation_route_identity_unqualified",
+    );
+  }
+  assert.equal(
+    VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+      .mounted_payment_only_verification_forbidden,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+      .registered_mutation_route_identity_required,
+    true,
+  );
 
   const runtimeSource = fs.readFileSync("src/index.ts", "utf8");
   const txHashBindingSource = fs.readFileSync(
