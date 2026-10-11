@@ -189,9 +189,11 @@ function input() {
 // Match the canonical current handoff receipt's actual positive shape,
 // rather than accepting a fabricated { ok: true } without an allocation.
 function durableDispatchResult(input, mode = "ok") {
-  const idempotent = mode === "idempotent" || mode === "replay_repaired";
+  const idempotent = mode === "idempotent" || mode === "replay_repaired" ||
+    mode === "idempotent_plan_fresh_write";
   const allocationIdempotent =
-    mode === "idempotent" || mode === "new_payment_existing_allocation";
+    mode === "idempotent" || mode === "new_payment_existing_allocation" ||
+    mode === "idempotent_plan_fresh_write";
   const eventSha = "sha256:" + createHash("sha256")
     .update(JSON.stringify(input.event) + "\n", "utf8").digest("hex");
   const allocation = Object.freeze({
@@ -206,9 +208,14 @@ function durableDispatchResult(input, mode = "ok") {
     final_record_count: 1,
     allocation_writer_status:
       mode === "wrong_writer_status" ? "unqualified" :
+      mode === "new_payment_noop_allocation_writer" ? "idempotent" :
+      mode === "idempotent_plan_fresh_write" ? "persisted" :
       allocationIdempotent ? "idempotent" : "persisted",
     allocation_writer_operation_performed:
-      mode === "wrong_operation" ? false : !allocationIdempotent,
+      mode === "wrong_operation" ||
+      mode === "new_payment_noop_allocation_writer" ? false :
+      mode === "idempotent_plan_fresh_write" ? true :
+      !allocationIdempotent,
     prior_allocation_recovery_performed:
       mode === "wrong_recovery_type" ? "not_a_boolean" : false,
     final_tip_hash:
@@ -497,6 +504,10 @@ for (const mode of [
   "wrong_writer_status", "wrong_operation", "wrong_recovery_type",
   "wrong_tip_hash", "new_payment_existing_allocation",
   "wrong_allocation_id",
+  // Both receipts satisfy the old superficial flags but violate the
+  // canonical planner/writer relationship; neither may release the claim.
+  "new_payment_noop_allocation_writer",
+  "idempotent_plan_fresh_write",
 ]) {
   dispatchMode = mode;
   reconciliationMode = "allocation_present";
@@ -603,6 +614,7 @@ console.log("forged_allocation_or_payment_digest_retains_lock=true");
 console.log("idempotent_allocation_replay_receipt_accepted=true");
 console.log("payment_replay_allocation_repair_accepted=true");
 console.log("allocation_writer_status_and_final_tip_bound=true");
+console.log("allocation_plan_writer_idempotency_consistency_bound=true");
 console.log("new_payment_existing_allocation_retains_lock=true");
 console.log("canonical_voidalloc1_record_id_required=true");
 console.log("successful_dispatch_releases_after_callback=true");
