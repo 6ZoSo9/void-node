@@ -1,0 +1,117 @@
+name: VOID Buy VOID cross-UID shared bakery queue v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "scripts/prove_buy_void_shared_group_bakery_lock_v1.mjs"
+      - "docs/architecture/buy-void-cross-uid-shared-bakery-queue-v1.md"
+      - ".github/workflows/buy-void-cross-uid-shared-bakery-queue-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-cross-uid-shared-bakery-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact proposal
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Pure shared-queue policy proof
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_shared_group_bakery_lock_v1.mjs             | tee shared-group-self-test.txt
+          grep -Fx "VOID_BUY_VOID_SHARED_GROUP_BAKERY_LOCK_V1_SELF_TEST_GREEN" shared-group-self-test.txt
+          grep -Fx "existing_private_queue_preserved=true" shared-group-self-test.txt
+          grep -Fx "shared_queue_existing_only=true" shared-group-self-test.txt
+          grep -Fx "shared_queue_mode_2770_required=true" shared-group-self-test.txt
+          grep -Fx "funds_moved=false" shared-group-self-test.txt
+
+      - name: Prove two distinct UIDs serialize through one group queue
+        run: |
+          set -euo pipefail
+
+          sudo groupadd voidipc
+          sudo useradd --system --no-create-home --gid voidipc voidweb
+          sudo useradd --system --no-create-home --gid voidipc voidcustody
+
+          gid="$(getent group voidipc | cut -d: -f3)"
+          test -n "$gid"
+
+          queue="$RUNNER_TEMP/void-shared-capacity.queue"
+          state="$RUNNER_TEMP/void-shared-capacity-state"
+          sentinel="$state/active"
+          sudo install -d -o root -g voidipc -m 2770 "$queue"
+          sudo install -d -o root -g voidipc -m 2770 "$state"
+
+          node_bin="$(command -v node)"
+          script="$GITHUB_WORKSPACE/scripts/prove_buy_void_shared_group_bakery_lock_v1.mjs"
+
+          set +e
+          sudo -u voidweb env             VOID_SHARED_QUEUE="$queue"             VOID_SHARED_SENTINEL="$sentinel"             VOID_SHARED_LABEL=web             VOID_SHARED_GID="$gid"             "$node_bin" "$script" --worker > web-worker.txt 2>&1 &
+          web_pid=$!
+
+          sudo -u voidcustody env             VOID_SHARED_QUEUE="$queue"             VOID_SHARED_SENTINEL="$sentinel"             VOID_SHARED_LABEL=custody             VOID_SHARED_GID="$gid"             "$node_bin" "$script" --worker > custody-worker.txt 2>&1 &
+          custody_pid=$!
+
+          wait "$web_pid"
+          web_status=$?
+          wait "$custody_pid"
+          custody_status=$?
+          set -e
+
+          cat web-worker.txt
+          cat custody-worker.txt
+          test "$web_status" -eq 0
+          test "$custody_status" -eq 0
+          grep -Fx "VOID_BUY_VOID_SHARED_GROUP_BAKERY_LOCK_V1_WORKER_GREEN" web-worker.txt
+          grep -Fx "VOID_BUY_VOID_SHARED_GROUP_BAKERY_LOCK_V1_WORKER_GREEN" custody-worker.txt
+          grep -Fx "cross_uid_queue_joined=true" web-worker.txt
+          grep -Fx "cross_uid_queue_joined=true" custody-worker.txt
+          test ! -e "$sentinel"
+          test -z "$(find "$queue" -mindepth 1 -maxdepth 1 -print -quit)"
+
+          echo "VOID_BUY_VOID_CROSS_UID_SHARED_BAKERY_QUEUE_V1_GREEN"
+          echo "distinct_linux_uids=true"
+          echo "same_group_queue=true"
+          echo "critical_section_overlap=false"
+          echo "production_queue_provisioned=false"
+          echo "payment_acceptance=false"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
+
+      - name: Source diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
