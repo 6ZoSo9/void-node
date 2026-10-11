@@ -237,63 +237,87 @@ def expected_tree() -> dict:
 
 
 def inspect_tree(fd: int, tree: dict, prefix: str = "") -> int:
-    names = set(os.listdir(fd))
-    if names != set(tree):
-        hold("stage_extra_or_missing_entries")
-    count = 0
-    for name, child in tree.items():
-        visible = os.stat(name, dir_fd=fd, follow_symlinks=False)
-        if child is None:
-            rel = prefix + name
-            if (
-                not stat.S_ISREG(visible.st_mode)
-                or visible.st_uid != os.getuid()
-                or visible.st_nlink != 1
-                or (visible.st_mode & 0o7777) != 0o400
-            ):
-                hold("stage_file_identity_invalid")
-            expected_bytes, expected_sha = RUNTIME_MAP[rel]
-            f = os.open(name, R, dir_fd=fd)
-            try:
-                opened = os.fstat(f)
-                if not exact_file(visible, opened):
-                    hold("stage_file_rebound:" + rel)
-                raw = os.pread(f, expected_bytes + 1, 0)
-                after = os.fstat(f)
-                still_visible = os.stat(name, dir_fd=fd, follow_symlinks=False)
+    # Keep every validated leaf and subtree descriptor open until the whole
+    # scan finishes. Earlier subtrees must not become stale while later
+    # branches are read. This observes a bounded moment, not a lease.
+    retained = []
+
+    def walk(curfd: int, expected: dict, relative: str) -> int:
+        initial = set(os.listdir(curfd))
+        if initial != set(expected):
+            hold("stage_extra_or_missing_entries")
+        count = 0
+        for name, child in expected.items():
+            visible = os.stat(name, dir_fd=curfd, follow_symlinks=False)
+            rel = relative + name
+            if child is None:
                 if (
-                    not exact_file(opened, after)
-                    or not exact_file(after, still_visible)
+                    not stat.S_ISREG(visible.st_mode)
+                    or visible.st_uid != os.getuid()
+                    or visible.st_nlink != 1
+                    or (visible.st_mode & 0o7777) != 0o400
                 ):
-                    hold("stage_file_rebound:" + rel)
-            finally:
-                os.close(f)
-            if len(raw) != expected_bytes or digest(raw) != expected_sha:
-                hold("stage_file_content_invalid:" + rel)
-            count += 1
-        else:
-            if (
-                not stat.S_ISDIR(visible.st_mode)
-                or stat.S_ISLNK(visible.st_mode)
-                or visible.st_uid != os.getuid()
-                or (visible.st_mode & 0o7777) != 0o700
-            ):
-                hold("stage_directory_invalid")
-            d = os.open(name, RD, dir_fd=fd)
-            try:
-                opened = os.fstat(d)
-                if not exact_file(visible, opened):
-                    hold("stage_directory_rebound")
-                count += inspect_tree(d, child, prefix + name + "/")
-                after = os.fstat(d)
-                still_visible = os.stat(name, dir_fd=fd, follow_symlinks=False)
-                if not exact_file(opened, after) or not exact_file(after, still_visible):
-                    hold("stage_directory_rebound")
-            finally:
-                os.close(d)
-    if set(os.listdir(fd)) != names:
-        hold("stage_entries_changed_during_inspection")
-    return count
+                    hold("stage_file_identity_invalid")
+                expected_bytes, expected_sha = RUNTIME_MAP[rel]
+                opened_fd = os.open(name, R, dir_fd=curfd)
+                held = False
+                try:
+                    opened = os.fstat(opened_fd)
+                    if not exact_file(visible, opened):
+                        hold("stage_file_rebound:" + rel)
+                    raw = os.pread(opened_fd, expected_bytes + 1, 0)
+                    after = os.fstat(opened_fd)
+                    still_visible = os.stat(
+                        name, dir_fd=curfd, follow_symlinks=False,
+                    )
+                    if (not exact_file(opened, after)
+                            or not exact_file(after, still_visible)):
+                        hold("stage_file_rebound:" + rel)
+                    if len(raw) != expected_bytes or digest(raw) != expected_sha:
+                        hold("stage_file_content_invalid:" + rel)
+                    retained.append((curfd, name, opened_fd, after, "file:" + rel))
+                    held = True
+                finally:
+                    if not held:
+                        os.close(opened_fd)
+                count += 1
+            else:
+                if (
+                    not stat.S_ISDIR(visible.st_mode)
+                    or stat.S_ISLNK(visible.st_mode)
+                    or visible.st_uid != os.getuid()
+                    or (visible.st_mode & 0o7777) != 0o700
+                ):
+                    hold("stage_directory_invalid")
+                dirfd = os.open(name, RD, dir_fd=curfd)
+                held = False
+                try:
+                    opened = os.fstat(dirfd)
+                    if not exact_file(visible, opened):
+                        hold("stage_directory_rebound")
+                    retained.append((curfd, name, dirfd, opened, "dir:" + rel))
+                    held = True
+                    count += walk(dirfd, child, rel + "/")
+                finally:
+                    if not held:
+                        os.close(dirfd)
+        if set(os.listdir(curfd)) != initial:
+            hold("stage_entries_changed_during_inspection")
+        return count
+
+    try:
+        count = walk(fd, tree, prefix)
+        # This second identity pass occurs after all subtree reads, while
+        # every parent and target descriptor is still pinned and open.
+        for parentfd, name, openedfd, previous, kind in retained:
+            current = os.fstat(openedfd)
+            visible = os.stat(name, dir_fd=parentfd, follow_symlinks=False)
+            if not exact_file(previous, current) or not exact_file(current, visible):
+                hold("stage_global_rebound:" + kind)
+        return count
+    finally:
+        for _, _, openedfd, _, _ in reversed(retained):
+            os.close(openedfd)
 
 
 def inspect_stage(parent: str) -> int:
@@ -331,44 +355,10 @@ def publish_stage_no_replace(parentfd: int, source: str) -> None:
         raise OSError(number, os.strerror(number))
 
 
-def remove_private_partial_tree(fd: int, allowed: dict) -> None:
-    # Remove only our unpublished private build, through pinned dir FDs.
-    # Unknown/symlink/rebound entries HOLD rather than deleting unrelated data.
-    for name in os.listdir(fd):
-        if name not in allowed:
-            hold("partial_cleanup_unexpected_entry")
-        visible = os.stat(name, dir_fd=fd, follow_symlinks=False)
-        child = allowed[name]
-        if child is None:
-            if (
-                not stat.S_ISREG(visible.st_mode)
-                or visible.st_uid != os.getuid()
-                or visible.st_nlink != 1
-                or (visible.st_mode & 0o7777) != 0o400
-            ):
-                hold("partial_cleanup_file_unqualified")
-            os.unlink(name, dir_fd=fd)
-        else:
-            if (
-                not stat.S_ISDIR(visible.st_mode)
-                or visible.st_uid != os.getuid()
-                or (visible.st_mode & 0o7777) != 0o700
-            ):
-                hold("partial_cleanup_directory_unqualified")
-            subfd = os.open(name, RD, dir_fd=fd)
-            try:
-                if not exact_file(visible, os.fstat(subfd)):
-                    hold("partial_cleanup_directory_rebound")
-                remove_private_partial_tree(subfd, child)
-                if not exact_file(
-                    os.fstat(subfd),
-                    os.stat(name, dir_fd=fd, follow_symlinks=False),
-                ):
-                    hold("partial_cleanup_directory_rebound")
-            finally:
-                os.close(subfd)
-            os.rmdir(name, dir_fd=fd)
-    os.fsync(fd)
+# Unpublished partial stages are intentionally retained under a random
+# mode-0700 sibling name. Linux offers no general atomic unlink-by-inode
+# for pathnames; recursively unlinking after stat can delete a same-UID
+# process's substituted file. A failed stage does not occupy STAGE_NAME.
 
 
 def stage_into(payload: dict[str, bytes], parent: str) -> None:
@@ -384,12 +374,9 @@ def stage_into(payload: dict[str, bytes], parent: str) -> None:
 
         temp_name = "." + STAGE_NAME + ".build-" + secrets.token_hex(16)
         os.mkdir(temp_name, 0o700, dir_fd=pfd)
-        try:
-            tfd = os.open(temp_name, RD, dir_fd=pfd)
-        except BaseException:
-            os.rmdir(temp_name, dir_fd=pfd)
-            os.fsync(pfd)
-            raise
+        # A failed open retains this private unpublished directory for
+        # inspection rather than unlinking a replaceable pathname.
+        tfd = os.open(temp_name, RD, dir_fd=pfd)
         published = False
         try:
             verify_stage_visible(pfd, tfd, temp_name)
@@ -411,25 +398,10 @@ def stage_into(payload: dict[str, bytes], parent: str) -> None:
                 hold("published_stage_inspection_failed")
             verify_stage_visible(pfd, tfd)
         finally:
-            try:
-                if not published:
-                    # The final name has not been exposed; an interrupted
-                    # partial build cannot reserve the canonical stage name.
-                    if not exact_file(
-                        os.fstat(tfd),
-                        os.stat(temp_name, dir_fd=pfd, follow_symlinks=False),
-                    ):
-                        hold("partial_stage_root_rebound")
-                    remove_private_partial_tree(tfd, expected_tree())
-                    if not exact_file(
-                        os.fstat(tfd),
-                        os.stat(temp_name, dir_fd=pfd, follow_symlinks=False),
-                    ):
-                        hold("partial_stage_root_rebound")
-                    os.rmdir(temp_name, dir_fd=pfd)
-                    os.fsync(pfd)
-            finally:
-                os.close(tfd)
+            # If publication did not occur, only a random private build name
+            # remains; the immutable final name stays free for safe retries.
+            # Do not unlink pathnames whose identities may have been swapped.
+            os.close(tfd)
     finally:
         os.close(pfd)
     if inspect_stage(parent) != len(RUNTIME):
@@ -520,9 +492,12 @@ def self_test(payload: dict[str, bytes]) -> None:
             globals()["write_payload"] = original_write
         if Path(temp, STAGE_NAME).exists():
             hold("selftest_partial_canonical_stage_published")
-        if any(name.startswith("." + STAGE_NAME + ".build-")
-               for name in os.listdir(temp)):
-            hold("selftest_partial_temporary_stage_not_cleaned")
+        retained_builds = [
+            name for name in os.listdir(temp)
+            if name.startswith("." + STAGE_NAME + ".build-")
+        ]
+        if len(retained_builds) != 1:
+            hold("selftest_private_partial_not_retained")
         stage_into(payload, temp)
         if inspect_stage(temp) != len(RUNTIME):
             hold("selftest_retry_after_interruption_failed")
@@ -557,6 +532,38 @@ def self_test(payload: dict[str, bytes]) -> None:
             os.pread = original_pread
         if not replaced:
             hold("selftest_staged_leaf_race_not_exercised")
+
+    with tempfile.TemporaryDirectory(prefix="void-nimo-v4-stage-late-race-") as temp:
+        os.chmod(temp, 0o700)
+        stage_into(payload, temp)
+        early = Path(temp, STAGE_NAME, RUNTIME[0][0])
+        moved = early.with_name(early.name + ".moved")
+        original_pread = os.pread
+        swapped = False
+        def swap_first_leaf_during_later_subtree(
+            fd: int, count: int, offset: int,
+        ) -> bytes:
+            nonlocal swapped
+            raw = original_pread(fd, count, offset)
+            if not swapped and os.fstat(fd).st_size == RUNTIME[1][1]:
+                early.rename(moved)
+                early.write_bytes(payload[RUNTIME[0][0]])
+                os.chmod(early, 0o400)
+                swapped = True
+            return raw
+        try:
+            os.pread = swap_first_leaf_during_later_subtree
+            try:
+                inspect_stage(temp)
+            except ValueError as exc:
+                if "stage_global_rebound" not in str(exc):
+                    raise
+            else:
+                hold("selftest_late_subtree_rebind_accepted")
+        finally:
+            os.pread = original_pread
+        if not swapped:
+            hold("selftest_late_subtree_race_not_exercised")
 
 def main() -> None:
     require_unprivileged()

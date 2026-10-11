@@ -90,9 +90,11 @@ eight runtime checksums. `--plan <absolute-v4-archive>` is read-only.
 `--self-test <absolute-v4-archive>` writes only throwaway directories
 in temporary storage, verifies atomic create-once, tamper, symlink
 replacement, a simulated ENOSPC after the first fully written payload,
-retry after the unpublished partial tree is cleaned, and staged-leaf pathname
-replacement during a descriptor read. The test restores its injected hooks
-and removes the disposable test directories afterward.
+retry while the unpublished partial tree remains quarantined under its
+random private name, staged-leaf replacement during a descriptor read, and
+a late replacement of the first validated leaf while a later subtree is
+being read. The test restores its injected hooks and removes its disposable
+temporary-directory fixtures afterward.
 `--stage <absolute-v4-archive>` (not automatically called by CI) is
 **create-once only**, restricted to the invoking unprivileged user's
 own private home folder
@@ -100,17 +102,22 @@ own private home folder
 installed/root-owned tree access. The staged files are first built, fsynced
 and inspected inside a freshly named private sibling. Linux `renameat2`
 with `RENAME_NOREPLACE` publishes the completed directory atomically,
-never replacing even an empty existing stage. An interrupted build cleans
-only its own FD-pinned unpublished tree. Publication fsync uncertainty
-returns HOLD without deleting the already visible canonical stage.
-`--inspect-stage` now checks each leaf and directory through its parent FD
-both before and after descriptor reads to reject pathname rebinding;
-it is still not acceptance of production installed bytes.
+never replacing even an empty existing stage. An interrupted build leaves a
+random, user-private unpublished sibling for separate inspection and
+retains the canonical name for a retry; it does **not** unlink entries based
+on raceable pathname metadata. Publication fsync uncertainty returns HOLD
+without deleting the already visible canonical stage.
+`--inspect-stage` retains each leaf and subtree descriptor through the
+**entire** inspection and compares their original metadata with the
+post-scan visible names after all subtrees have been read. This rejects
+late changes to an earlier subtree observed before acceptance; it is a
+bounded observation, not a continuous installed-host attestation.
+It is still not acceptance of production installed bytes.
 
 The existing Node22/24/26 workflow now tests both V4 private-stage
 `--plan` and `--self-test` on the newly derived canonical archive,
 binds the exact private-stage Git blob
-`22b8b28c624a6edc655130df2d33c25770668fc4`, and requires exact
+`34a3f2bb26312eec198e809f59e2c281ea9cfc3e`, and requires exact
 cross-toolchain stage receipts in addition to full archive equality.
 The prior 4/4 SUCCESS is **historical predecessor CI only**;
 this expanded head must independently pass before stage qualification.
