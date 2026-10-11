@@ -339,7 +339,8 @@ const renderSnapshot = (snapshot) => {
   setText('[data-buy-fulfillment]', config.automatic_fulfillment === true ? 'AUTOMATIC' : 'GUARDED');
 
   if (soldOut) {
-    attemptedResultText = null;
+    // Do not show payment instructions while closed; keep the last result
+    // for a later OPEN refresh of this exact Buy view.
     setChip('[data-buy-state-chip]', 'warning', 'SOLD OUT');
     setChip('[data-buy-form-chip]', 'warning', 'CLOSED');
     setText('[data-buy-intake]', 'SOLD OUT');
@@ -349,7 +350,8 @@ const renderSnapshot = (snapshot) => {
     return;
   }
   if (!open) {
-    attemptedResultText = null;
+    // Never erase a potentially committed POST outcome merely because
+    // authoritative live readiness has temporarily moved to HOLD.
     setChip('[data-buy-state-chip]', 'warning', 'HOLD — NOT OPEN');
     setChip('[data-buy-form-chip]', 'warning', 'HOLD');
     setText('[data-buy-intake]', 'HOLD');

@@ -456,6 +456,27 @@ assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
+// A confirmed request must not vanish when readiness briefly changes to
+// HOLD or SOLD OUT. Never display payment instructions while closed.
+const soldOutSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, ethereum_requests_enabled: true },
+  structuredClone(validStatus),
+  { ...validSale, sold_out: true, remaining_void: 0, progress_pct: 100 },
+);
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, false);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true, "closed request intake must block POST");
+  assert.doesNotMatch(buyResultNode.textContent, /Send exactly: 10 USDC/u,
+    "closed view must not show prior payment instructions");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, 1, "closed state must not submit another request");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
+    "a re-opened view must restore its exact previous confirmed request");
+  assert.equal(submitButton.disabled, true, "reopened confirmed request stays guarded");
+}
 // Compare exact six-decimal USDC atoms rather than input formatting.
 amountInput.value = "10.000000";
 buyTest.updateSubmit();
@@ -491,6 +512,20 @@ assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
 assert.equal(submitButton.disabled, true, "refresh must preserve uncertain intent lock");
+// An ambiguous POST cannot be forgotten by a HOLD/SOLD OUT -> OPEN cycle.
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, false);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true, "closed ambiguous intent must stay guarded");
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, 1, "closed uncertain request must never re-POST");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+    "OPEN must restore the ambiguity warning rather than saying Ready");
+  assert.equal(submitButton.disabled, true, "reopened uncertain request remains guarded");
+}
 amountInput.value = "12";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "distinct intent may still be created");

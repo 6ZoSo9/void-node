@@ -103,8 +103,11 @@ as **REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT**, with a war
 that the server may have persisted the request and an instruction to confirm
 its status with the operator. It is no longer claimed that the request was
 definitively not created. If live readiness becomes HOLD or SOLD OUT, the page
-shows the authoritative DO NOT SEND status instead of reviving stale payment
-instructions. The attempted-intent guard itself survives that transition.
+shows the authoritative DO NOT SEND status instead of any payment instructions.
+Both the attempted-intent guard and its last result remain in memory. When the
+same Buy view returns to verified OPEN, the exact matching intent's previous
+REQUEST CREATED instructions or REQUEST OUTCOME UNCONFIRMED warning reappears;
+Submit stays disabled for that attempted intent.
 
 **Limits:** This is an in-memory, one-Buy-view safeguard and not a server-side
 idempotency key, durable browser history, payment-finality attestation,
@@ -126,6 +129,8 @@ server-issued idempotency key and authoritative lookup are still required.
 The displayed result is bound to the **latest attempted intent**. Selecting a
 different intent never displays the latest attempt's payment instructions as
 though they belonged to the new amount, chain, or destination. Instead a
-conservative warning requires checking prior attempts with the operator. After
-HOLD/SOLD OUT, an OPEN refresh cannot revive a stale payment receipt. No
+conservative warning requires checking prior attempts with the operator. During
+HOLD/SOLD OUT, no prior payment receipt or instructions are displayed. A later
+verified OPEN refresh restores the previous result only for its matching
+canonical intent; a different intent sees the prior-request warning. No
 browser/client action is authority to send money or activate the presale.
