@@ -17,7 +17,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `e1295f1a3f85c125982bb56c7548f71a0f859f1a`). The existing
+(Git blob `c4291eece609b870ac367f6407ed8a59b22db525`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
@@ -123,3 +123,30 @@ This does **not** authenticate that the legacy request/event readers returned
 all on-disk records: a skipped malformed or truncated JSONL row remains a
 separate production admission HOLD. No real request, payment, reservation,
 service deployment, or presale activation is authorized.
+
+## Under-lock strict request JSONL preflight — next reviewed source candidate
+
+The old `__voidReadBuyVoidRequestsV1` can omit malformed or truncated
+request rows. Before treating its returned list as complete, the new compiled
+helper independently opens the existing `requests.jsonl` with a no-symlink
+leaf check and bounded 64 MiB size; verifies inode, size and metadata before
+and after descriptor-based reading; requires fatal UTF-8, exact LF-only
+canonical JSON rows and surviving request IDs in the legacy reader result.
+A failed read, descriptor close, malformed line or silently dropped row HOLDs
+under the same launch lock **before any request append**. Launch-generation
+authority is rechecked immediately after asynchronous history reads and again
+at the synchronous append point; no expired lease becomes a successful
+persistence or idempotent answer.
+
+Disposable compiled-helper regressions now verify that a malformed durable
+row and a valid durable row omitted by the reader both refuse without
+appending or generating a per-request sidecar. The Node22/24/26 workflow
+requires these fixed markers. On `workflow_dispatch`, checkout and diff
+hygiene use the exact manual run head and its first parent rather than empty
+PR-only references.
+
+**This does not solve** an unauthenticated public response disclosing a
+previous buyer's request metadata, a tolerant **operator-event** history
+reader, coordinated rollback, or atomic request/sidecar durability. Those
+remain separate P1/production HOLDs. No deployment or payment authority
+is granted by this source/test patch.

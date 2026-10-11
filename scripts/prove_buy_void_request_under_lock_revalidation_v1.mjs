@@ -200,6 +200,42 @@ function temp(){
    fs.rmSync(root,{recursive:true,force:true});
  }
 }
+// A tolerant legacy reader can skip a malformed historical JSONL row.
+// Even under a correct launch lock, that partial read must not authorize
+// another request. A valid on-disk row omitted from the reader also HOLDs.
+{
+ const root=temp();
+ const prior=request("legacy-prior-request");
+ const saved=process.env.VOID_BUY_REQUEST_DIR;
+ try {
+   process.env.VOID_BUY_REQUEST_DIR=root;
+   const old=factory(oldPersist,root);
+   const mutate=(reader)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+     request("candidate-new-request"),[
+       old.withLock,reader,async()=>[],rows=>rows,()=>false,()=>true,
+     ]);
+   const corrupt=JSON.stringify(prior)+"\n"+"{broken}\n";
+   fs.writeFileSync(path.join(root,"requests.jsonl"),corrupt,{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[prior]),
+     /buy_void_request_history_under_lock_malformed_row/u,
+     "silently skipped malformed JSONL must HOLD");
+   assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
+     corrupt,"malformed history must never be appended");
+   assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
+   const canonical=JSON.stringify(prior)+"\n";
+   fs.writeFileSync(path.join(root,"requests.jsonl"),canonical,{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[]),
+     /buy_void_request_history_under_lock_noncanonical_or_omitted_row/u,
+     "reader omission of a durable canonical row must HOLD");
+   assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
+     canonical,"omitted history must never be appended");
+   assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
+ } finally {
+   if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
+   else process.env.VOID_BUY_REQUEST_DIR=saved;
+   fs.rmSync(root,{recursive:true,force:true});
+ }
+}
 // The launch authority is checked by the canonical bakery lock *before*
 // invoking the operation, but the helper awaits request/event history while
 // holding that lock. Expiration during the awaited read must prevent both
@@ -291,6 +327,8 @@ console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
+console.log("malformed_durable_request_history_holds=true");
+console.log("silently_omitted_durable_request_holds=true");
 console.log("current_mismatched_amount_and_rail_hold_without_append=true");
 console.log("different_destination_allowed=true");
 console.log("terminal_status_allows_subsequent_request=true");
