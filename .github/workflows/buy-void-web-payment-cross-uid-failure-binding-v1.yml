@@ -107,29 +107,43 @@ jobs:
           grep -Fx \
             VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_PROOF_V1 \
             "crossuid-reconciliation-${{ matrix.node }}.txt"
-      - name: Exact additive scope
-        if: github.event_name == 'pull_request'
+      - name: Preserve historical introduction scope and check current diff
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-          SOURCE_BASE: e124719629bc4580025726786d64181b61560bb3
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INTRODUCTION_BASE: e124719629bc4580025726786d64181b61560bb3
+          INTRODUCTION_HEAD: cfd3a660bd8901b90491d0cd8ebb510edab93d6d
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git merge-base --is-ancestor "$SOURCE_BASE" "$HEAD"
-          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
-          git merge-base --is-ancestor "$SOURCE_BASE" "$MERGE_BASE"
-          git diff --check "$MERGE_BASE" "$HEAD"
-          git diff --name-status "$MERGE_BASE" "$HEAD" \
-            | sort > "$RUNNER_TEMP/actual"
+          git merge-base --is-ancestor \
+            "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git merge-base --is-ancestor "$INTRODUCTION_HEAD" "$HEAD"
+
+          # Preserve #2796 as immutable historical evidence. Later changes to
+          # its dependencies need fresh current-head proof, not the original
+          # four-added-path diff imposed on every successor PR.
+          git diff --check "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD"
+          git diff --name-status "$INTRODUCTION_BASE" "$INTRODUCTION_HEAD" \
+            | sort > "$RUNNER_TEMP/actual-historical"
           printf '%s\n' \
             'A	.github/workflows/buy-void-web-payment-cross-uid-failure-binding-v1.yml' \
             'A	docs/architecture/buy-void-web-payment-cross-uid-failure-binding-v1.md' \
             'A	scripts/prove_buy_void_web_payment_cross_uid_failure_binding_v1.mjs' \
             'A	src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs' \
-            | sort > "$RUNNER_TEMP/expected"
-          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
-          echo exact_four_path_additive_scope=true
+            | sort > "$RUNNER_TEMP/expected-historical"
+          diff -u \
+            "$RUNNER_TEMP/expected-historical" \
+            "$RUNNER_TEMP/actual-historical"
+          echo historical_exact_four_path_additive_scope=true
+
+          # Check the complete current PR diff without pretending it is #2796.
+          if test -n "${BASE:-}"; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+          echo current_diff_whitespace_clean=true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: web-crossuid-failure-binding-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
