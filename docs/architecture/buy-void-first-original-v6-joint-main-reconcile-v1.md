@@ -78,31 +78,51 @@ liquidity or funds action has been performed.
 
 **PROTECT THE CORE.**
 
-## Maintaining the review branch without rewriting its joining event
+## Maintaining immutable history without freezing future source
 
 The original joining commit remains
-`cff927e850dfc078419be06a468aa77c6c1f41c3`. Its exact ordered parents
-and three-path mode repair describe a historical event, not the immediate
-parents of every later PR tip. The former `HEAD^1` / `HEAD^2` checks rejected
-an ordinary single-parent follow-up even when all protected bytes survived.
+`cff927e850dfc078419be06a468aa77c6c1f41c3`. Its ordered parents,
+historical source identities and three-path mode repair describe an immutable
+event. They do **not** mean every later reviewed descendant must keep all
+checkpoint and economic files byte-identical to July/October historical
+blobs.
 
-The workflow now requires that immutable join to be an ancestor of the exact
-checked-out PR head, checks its complete ordered parent list, and evaluates
-its original three-path delta at that join. Current-head cleanliness, both
-source identities, all six checkpoint blobs/modes and the buyer proof bytes
-remain enforced separately. Both historical and new-range whitespace checks
-run. Changes to the protected paths also trigger this same existing workflow.
-This permits source-preserving CI/documentation maintenance; it does not
-accept a new economic or checkpoint source generation under the old pins.
+The previous maintenance workflow mixed those two responsibilities. It
+correctly proved the historical join was still in ancestry, but then also
+required several files at `HEAD` to equal the historical blobs and required
+the entire later economic tree to remain unchanged. Once normal reviewed
+hardening advanced those files, unrelated economic PRs could never make this
+historical check green even though the reviewed joining event itself remained
+unchanged.
 
-`python3 scripts/test_buy_void_joint_main_ancestry_v1.py` runs the actual four
-workflow shell blocks against disposable local Git histories. It verifies
-the original workflow blob, reproduces its descendant rejection, and checks
-28 positive/negative cases for descendants, parent order/count, copied trees,
-wrong checkout identity, dirty files, mode regression and protected content.
-Only object-ID literals are translated into synthetic Git fixture IDs; the
-shell predicates are extracted from the workflow rather than reimplemented.
-For an offline checkout, `--historical-workflow PATH` accepts only the exact
-original workflow bytes with Git blob `8a63ff411d915b487c0ce8290b700f272ebc54a3`.
-These tests have no network, customer-data, service or financial operations.
-Historical Nimo V1 and replay-source failures remain separate and unchanged.
+The corrected workflow keeps the strong historical checks:
+
+- exact checked-out PR head and clean worktree;
+- immutable reviewed join present in ancestry;
+- exact ordered join parents;
+- exact three-path delta from historical parent 1;
+- exact historical checkpoint blobs and modes across parent 2 and the join;
+- exact historical first-original replay/dispatch identities and proof
+  presence at the join;
+- the public bootstrap proof remains executable at the current tip.
+
+Current source **bytes** may advance through later reviewed commits. This
+workflow intentionally does not authorize those current bytes; their owning
+current-generation workflows and reviews remain responsible for that.
+Keeping the broad path triggers is useful because relevant changes continue
+to re-run the immutable-history proof without treating legitimate descendants
+as tampering.
+
+`python3 scripts/test_buy_void_joint_main_ancestry_v1.py` extracts and runs
+the actual shell bodies. It still authenticates the original workflow blob
+(`8a63ff411d915b487c0ce8290b700f272ebc54a3`) and proves that original
+workflow rejected an ordinary descendant. The corrected workflow rejects
+wrong checkout identity, dirty trees, copied/reordered/missing/extra-parent
+joins and a current executable-mode regression, while allowing later
+committed source generations, new economic files and documentation changes
+without rewriting the immutable historical event.
+
+This is CI provenance maintenance only. It grants no payment, allocation,
+runtime, Nimo, signer, presale, Chain-2050/WC or funds authority.
+
+**PROTECT THE CORE.**
