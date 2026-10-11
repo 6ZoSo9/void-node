@@ -709,6 +709,82 @@ try {
     "No account loaded",
   );
 
+  // A successful HTTP response can contain a semantically unusable body.
+  // Keep raw source transport intact while refusing to label it Available.
+  const sourceSelectors = {
+    wallet_status: "[data-wallet-source-status]",
+    ledger_wc: "[data-wallet-source-ledger]",
+    production_wc: "[data-wallet-source-production]",
+  } as const;
+  for (const sourceKey of ["wallet_status", "ledger_wc", "production_wc"] as const) {
+    const unusable = validSnapshot() as any;
+    if (sourceKey === "wallet_status") {
+      Object.assign(unusable.wallet, {
+        source_available: false,
+        has_wallet: false,
+        address: "",
+        unlocked: false,
+        native_gas_available: false,
+        native_gas_display: "—",
+      });
+    } else {
+      Object.assign(unusable.balances[sourceKey], {
+        available: false,
+        balance: null,
+        display: "—",
+        entries: null,
+      });
+    }
+    assert.equal(unusable.sources[sourceKey].ok, true);
+    assert.equal(unusable.sources[sourceKey].status, 200);
+    assert.doesNotThrow(() =>
+      renderWalletV1(unusable, "account-A", PROOF_NOW_MS),
+    );
+    assert.equal(
+      rendered.get(sourceSelectors[sourceKey])?.textContent,
+      "HTTP 200 · Unusable evidence",
+      `misleading HTTP 200 label for ${sourceKey}`,
+    );
+    for (const otherKey of ["wallet_status", "ledger_wc", "production_wc"] as const) {
+      if (otherKey !== sourceKey) {
+        assert.equal(rendered.get(sourceSelectors[otherKey])?.textContent, "Available");
+      }
+    }
+    if (sourceKey === "wallet_status") {
+      assert.equal(rendered.get("[data-wallet-state-chip]")?.textContent, "Wallet status unavailable");
+    } else if (sourceKey === "ledger_wc") {
+      assert.equal(rendered.get("[data-wallet-ledger-meta]")?.textContent, "Ledger balance unavailable");
+    } else {
+      assert.equal(rendered.get("[data-wallet-production-meta]")?.textContent, "Production balance unavailable");
+    }
+    // Valid evidence must recover all three labels without stale warning text.
+    renderWalletV1(validSnapshot(), "account-A", PROOF_NOW_MS);
+    for (const selector of Object.values(sourceSelectors)) {
+      assert.equal(rendered.get(selector)?.textContent, "Available");
+    }
+  }
+
+  // HTTP failure remains a distinct transport outcome from an unusable 200.
+  const transportFailure = validSnapshot() as any;
+  Object.assign(transportFailure.wallet, {
+    source_available: false,
+    has_wallet: false,
+    address: "",
+    unlocked: false,
+    native_gas_available: false,
+    native_gas_display: "—",
+  });
+  transportFailure.sources.wallet_status = {
+    route: "/__void/participant/wallet/status",
+    ok: false,
+    status: 503,
+  };
+  renderWalletV1(transportFailure, "account-A", PROOF_NOW_MS);
+  assert.equal(rendered.get("[data-wallet-source-status]")?.textContent, "HTTP 503");
+  transportFailure.sources.wallet_status.status = 0;
+  renderWalletV1(transportFailure, "account-A", PROOF_NOW_MS);
+  assert.equal(rendered.get("[data-wallet-source-status]")?.textContent, "Unavailable");
+
   assert.doesNotThrow(() =>
     renderWalletV1(unavailableSource, "account-A", PROOF_NOW_MS),
   );
