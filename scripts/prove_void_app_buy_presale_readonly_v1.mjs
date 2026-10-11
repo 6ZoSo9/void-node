@@ -476,6 +476,18 @@ assert.doesNotMatch(buyResultNode.textContent, /REQUEST NOT CREATED/u);
 assert.equal(submitButton.disabled, true, "uncertain intent must not be retried");
 await buyTest.submitBuy({ preventDefault() {} });
 assert.equal(fetchCalls.length, 1, "ambiguous POST must not be duplicated");
+// A succeeded, B had a lost response: B must not evict A's guard.
+// The prior implementation remembered only B and permitted A a second POST.
+amountInput.value = "10.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "A-B-A replay of first intent must HOLD");
+assert.match(buyResultNode.textContent, /PRIOR REQUEST MAY EXIST/u);
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "A-B-A first intent must not POST again");
+amountInput.value = "11.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "B remains blocked after selecting A");
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
 assert.equal(submitButton.disabled, true, "refresh must preserve uncertain intent lock");
@@ -623,6 +635,9 @@ console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
 console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
+console.log("first_intent_preserved_after_second_post=1");
+console.log("multi_intent_guard_memory_bounded=32");
+console.log("prior_receipt_not_misbound_to_different_intent=1");
 console.log("equivalent_usdc_atoms_retry_blocked=1");
 console.log("ambiguous_server_commit_not_declared_not_created=1");
 console.log("request_outcome_survives_readiness_refresh=1");

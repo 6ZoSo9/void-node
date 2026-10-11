@@ -112,3 +112,20 @@ authoritative request lookup, authenticated custody or guaranteed prevention
 of resubmission after reload, a second browser or a different device. The
 participant must not send funds on any unknown-result screen; separate
 operator verification and real payment-to-allocation readiness remain required.
+
+### Multiple attempted intents in one Buy view
+
+The browser retains a **bounded set of up to 32 attempted canonical intents**
+during the same Buy view. Starting a different purchase does not erase the
+earlier attempt: after attempts A and B, returning to A cannot submit again
+within that view. Once the bound is reached the view disables additional
+submission rather than forgetting an earlier potentially committed request.
+It does **not** persist across a reload, another tab or device; a real
+server-issued idempotency key and authoritative lookup are still required.
+
+The displayed result is bound to the **latest attempted intent**. Selecting a
+different intent never displays the latest attempt's payment instructions as
+though they belonged to the new amount, chain, or destination. Instead a
+conservative warning requires checking prior attempts with the operator. After
+HOLD/SOLD OUT, an OPEN refresh cannot revive a stale payment receipt. No
+browser/client action is authority to send money or activate the presale.

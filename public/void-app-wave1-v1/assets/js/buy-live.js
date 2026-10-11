@@ -20,6 +20,10 @@ let submitBusy = false;
 // Keep the exact intent blocked during this Buy view lifetime, even after
 // network failure or readiness refresh; a changed intent is a NEW request.
 let attemptedIntentKey = null;
+// Limit per-view history to a small fixed number of attempted POST intents.
+// A-B-A (or A-B-C-A) must not forget the first possibly committed request.
+const MAX_BUY_ATTEMPTS_PER_VIEW = 32;
+const attemptedIntentKeys = new Set();
 let attemptedResultText = null;
 const touchedFields = new Set();
 let activeBuyView = null;
@@ -27,6 +31,7 @@ const beginBuyViewInstance = (view) => {
   if (view === activeBuyView) return false;
   activeBuyView = view;
   touchedFields.clear();
+  attemptedIntentKeys.clear();
   attemptedIntentKey = null;
   attemptedResultText = null;
   return true;
@@ -307,7 +312,16 @@ function updateSubmit() {
   button.disabled = readinessPending || submitBusy ||
     !currentSnapshot || !isOpen(currentSnapshot) ||
     !selectedRail() || !validAmount() || !validDestination() || !allAcknowledged ||
-    (intentKey !== null && intentKey === attemptedIntentKey);
+    (intentKey !== null && attemptedIntentKeys.has(intentKey)) ||
+    attemptedIntentKeys.size >= MAX_BUY_ATTEMPTS_PER_VIEW;
+  // An earlier attempt's receipt must not be shown as payment instructions
+  // for a different amount, chain or destination.
+  if (!submitBusy && currentSnapshot && isOpen(currentSnapshot) &&
+      attemptedIntentKeys.size > 0) {
+    setText('[data-buy-result]', intentKey === attemptedIntentKey && attemptedResultText
+      ? attemptedResultText
+      : 'PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS. Reverify prior requests with the operator before another attempt.');
+  }
 }
 const renderSnapshot = (snapshot) => {
   const { config, status, sale } = snapshot;
@@ -412,7 +426,8 @@ async function submitBuy(event) {
   if (!rail) return;
   const acks = acknowledgements();
   const intentKey = buyIntentKey();
-  if (intentKey === null || intentKey === attemptedIntentKey) return;
+  if (intentKey === null || attemptedIntentKeys.has(intentKey) ||
+      attemptedIntentKeys.size >= MAX_BUY_ATTEMPTS_PER_VIEW) return;
   const payload = {
     requested_amount_usdc: amount,
     void_destination_address: destination,
@@ -426,6 +441,7 @@ async function submitBuy(event) {
 
   // Treat any started POST as potentially committed, even on timeout or a
   // malformed/untrusted response. Only the server can establish its outcome.
+  attemptedIntentKeys.add(intentKey);
   attemptedIntentKey = intentKey;
   submitBusy = true;
   updateSubmit();
