@@ -75,6 +75,9 @@ jobs:
             'canonical_payment_writer_called_inside_cross_uid_lock=true' \
             'lock_release_after_writer_callback=true' \
             'uncertain_callback_exception_retains_lock=true' \
+            'immutable_event_and_request_snapshot_before_lock=true' \
+            'deferred_lock_caller_mutation_cannot_redirect_writer=true' \
+            'nested_proxy_accessor_tojson_cycle_and_size_rejected_prelock=true' \
             'invalid_identity_status_and_accessor_rejected_prelock=true' \
             'proxied_server_config_rejected_prelock=true' \
             'fake_custody_lock_receipt_rejected=true' \
