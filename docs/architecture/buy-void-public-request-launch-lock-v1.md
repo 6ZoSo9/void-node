@@ -1,5 +1,32 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 raw-byte history successor — source only
+
+The reviewed request-history helper now derives each complete JSONL row from
+numeric LF byte positions under a captured native `Reflect.apply` and typed
+subarray operation. Fatal UTF-8 decoding and captured native JSON parsing
+and serialization operate on those exact frames, with parsed objects made
+null-prototype before canonical comparison. A post-import
+`String.prototype.split` hook may no longer silently erase a durable
+active obligation. The existing disposable compiled-helper proof now
+**positively exercises** a split hook that hides one of two same-destination
+rows, then requires unchanged bytes and a multiple-active HOLD with zero
+poisoned split callbacks.
+
+A missing or zero-byte `requests.jsonl` is not authenticated fresh genesis
+if an operator-event history or a per-request JSON sidecar survives in the
+same directory. Such states HOLD before any request append. This deliberately
+does not claim an authenticated genesis against coordinated deletion of all
+history, or stable directory/journal identity through the subsequent pathname
+append. Separate P1 privacy, tx-hash update and crash/recovery obligations
+remain outstanding.
+
+Current source Git blob: `20d0ec09dba80260d533346f719ad292d40ed5d4`. Actual source-only
+regression Git blob: `cb0ed3aab6e8452b3841e93d63bca2201ad58035`. Fresh exact-head Node 22/24/26 and full
+repository CI are mandatory; older results and the prior seven failing
+workflows are historical evidence only. No public intake, payment, custody,
+wallet, presale, WC, service, or funds authority follows.
+
 ## Source review — October 11, 2026
 
 **Source-only Draft. No production, customer or funds authority.**
@@ -17,7 +44,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `c9bbd00e5b44c781ab85a5fb29ad011bfb7e3df2`). The existing
+(Git blob `20d0ec09dba80260d533346f719ad292d40ed5d4`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

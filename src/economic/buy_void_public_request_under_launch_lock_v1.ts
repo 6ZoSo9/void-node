@@ -12,9 +12,29 @@ const REQUEST_HISTORY_MAX_BYTES_V1 = 64 * 1024 * 1024;
 const REQUEST_HISTORY_UTF8_V1 = new TextDecoder("utf-8", { fatal: true });
 const REQUEST_HISTORY_DECODE_V1 =
   TextDecoder.prototype.decode.bind(REQUEST_HISTORY_UTF8_V1);
+// A post-import String.prototype.split, JSON hook or Reflect.apply override
+// cannot be trusted to determine which paid obligations exist on disk.
+const REQUEST_HISTORY_APPLY_V1 = Reflect.apply;
+const REQUEST_HISTORY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
+const REQUEST_HISTORY_JSON_PARSE_V1 = JSON.parse;
+const REQUEST_HISTORY_JSON_STRINGIFY_V1 = JSON.stringify;
+const REQUEST_HISTORY_SET_PROTO_V1 = Object.setPrototypeOf;
 
 function holdHistoryV1(reason: string): never {
   throw new Error("buy_void_request_history_under_lock_" + reason);
+}
+// A missing/empty request JSONL cannot be mistaken for a fresh store if
+// operator history or a per-request sidecar survives from a prior generation.
+function assertNoSurvivingRequestHistoryV1(dir: string): void {
+  let entries: string[];
+  try { entries = fs.readdirSync(dir); }
+  catch { holdHistoryV1("directory_listing_unavailable"); }
+  for (const entry of entries) {
+    if (entry === "operator-events.jsonl" ||
+        path.extname(entry) === ".json") {
+      holdHistoryV1("missing_or_empty_with_surviving_history");
+    }
+  }
 }
 function sameHistoryFileV1(left: any, right: any): boolean {
   return left.dev === right.dev && left.ino === right.ino &&
@@ -38,6 +58,7 @@ function assertCompleteRequestHistoryUnderLockV1(
   } catch (error: any) {
     if (error?.code !== "ENOENT") holdHistoryV1("metadata_unavailable");
     if (observed.length !== 0) holdHistoryV1("missing_with_observed_rows");
+    assertNoSurvivingRequestHistoryV1(dir);
     return [];
   }
   if (!visible.isFile() || visible.isSymbolicLink() ||
@@ -70,16 +91,15 @@ function assertCompleteRequestHistoryUnderLockV1(
     }
     if (limit === 0) {
       if (observed.length !== 0) holdHistoryV1("empty_with_observed_rows");
+      assertNoSurvivingRequestHistoryV1(dir);
       return [];
     }
-    let text: string;
-    try {
-      text = REQUEST_HISTORY_DECODE_V1(buffer.subarray(0, limit));
-    } catch {
-      holdHistoryV1("utf8_invalid");
-    }
-    if (!text.endsWith("\n") || text.includes("\r") ||
-        text.charCodeAt(0) === 0xfeff) {
+    // Derive every row boundary from immutable numeric octets, never a
+    // mutable String.prototype.split/slice/endsWith call. Independently
+    // reject BOM, CR, unterminated or empty frames and invalid UTF-8.
+    if (buffer[limit - 1] !== 0x0a ||
+        (limit >= 3 && buffer[0] === 0xef &&
+         buffer[1] === 0xbb && buffer[2] === 0xbf)) {
       holdHistoryV1("framing_invalid");
     }
     const presentIds = new Set<string>();
@@ -93,19 +113,40 @@ function assertCompleteRequestHistoryUnderLockV1(
       presentIds.add(row.request_id);
     }
     const durableRows: any[] = [];
-    for (const line of text.slice(0, -1).split("\n")) {
-      if (!line) holdHistoryV1("empty_row");
+    let frameStart = 0;
+    for (let cursor = 0; cursor < limit; cursor += 1) {
+      const octet = buffer[cursor];
+      if (octet === 0x0d) holdHistoryV1("framing_invalid");
+      if (octet !== 0x0a) continue;
+      if (cursor === frameStart || durableRows.length >= 100_000) {
+        holdHistoryV1("empty_or_excess_rows");
+      }
+      let line: string;
+      try {
+        const frame = REQUEST_HISTORY_APPLY_V1(
+          REQUEST_HISTORY_SUBARRAY_V1, buffer, [frameStart, cursor],
+        ) as Uint8Array;
+        line = REQUEST_HISTORY_DECODE_V1(frame);
+      } catch { holdHistoryV1("utf8_invalid"); }
       let row: any;
-      try { row = JSON.parse(line); }
-      catch { holdHistoryV1("malformed_row"); }
+      try {
+        row = REQUEST_HISTORY_JSON_PARSE_V1(line, (_key, value) => {
+          if (value !== null && typeof value === "object") {
+            REQUEST_HISTORY_SET_PROTO_V1(value, null);
+          }
+          return value;
+        });
+      } catch { holdHistoryV1("malformed_row"); }
       if (!row || typeof row !== "object" || Array.isArray(row) ||
-          JSON.stringify(row) !== line ||
+          REQUEST_HISTORY_JSON_STRINGIFY_V1(row) !== line ||
           typeof row.request_id !== "string" || !row.request_id ||
           !presentIds.has(row.request_id)) {
         holdHistoryV1("noncanonical_or_omitted_row");
       }
       durableRows.push(row);
+      frameStart = cursor + 1;
     }
+    if (frameStart !== limit) holdHistoryV1("framing_invalid");
     return durableRows;
   } catch (error: any) {
     if (String(error?.message || "").startsWith(

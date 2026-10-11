@@ -244,6 +244,58 @@ function temp(){
    assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
      conflict,"same-ID omission cannot append or replace a durable row");
    assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
+
+   // Positive-control hostile string framing: the previous parser used
+   // text.slice(0, -1).split("\\n"), so a same-process split replacement
+   // could erase one valid active obligation. The hardened helper must
+   // derive both frames from actual octets and never invoke this hook.
+   const originalSplit=String.prototype.split;
+   const framedText=conflict.slice(0,-1);
+   let splitPoisonCalls=0;
+   try {
+     String.prototype.split=function(separator,...args){
+       if(separator==="\\n" && String(this)===framedText){
+         splitPoisonCalls++;
+         return [JSON.stringify(sameIdFirst)];
+       }
+       return originalSplit.call(this,separator,...args);
+     };
+     assert.deepEqual(framedText.split("\\n"),[JSON.stringify(sameIdFirst)],
+       "split adversary positive control must actually erase one row");
+     assert.equal(splitPoisonCalls,1);
+     splitPoisonCalls=0;
+     await assert.rejects(()=>mutate(async()=>[sameIdFirst]),
+       /buy_void_request_multiple_active_destination_under_lock/u,
+       "all raw durable rows must survive ambient String.split replacement");
+     assert.equal(splitPoisonCalls,0,
+       "the strict reader must not invoke poisoned String.prototype.split");
+   }finally{
+     String.prototype.split=originalSplit;
+   }
+   assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
+     conflict,"poisoned framing must not rewrite durable history");
+
+   // A disappeared or zero-byte request journal is not authenticated first
+   // genesis if operator history or an original per-request sidecar survives.
+   fs.unlinkSync(path.join(root,"requests.jsonl"));
+   const operatorHistory=path.join(root,"operator-events.jsonl");
+   fs.writeFileSync(operatorHistory,
+     JSON.stringify({request_id:"legacy-existing-a",
+       operator_status:"reviewed"})+"\\n",{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[]),
+     /buy_void_request_history_under_lock_missing_or_empty_with_surviving_history/u,
+     "missing ledger with surviving operator history must HOLD");
+   fs.unlinkSync(operatorHistory);
+   const orphanSidecar=path.join(root,"legacy-existing-a.json");
+   fs.writeFileSync(orphanSidecar,"{}\\n",{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[]),
+     /buy_void_request_history_under_lock_missing_or_empty_with_surviving_history/u,
+     "missing ledger with surviving request sidecar must HOLD");
+   fs.writeFileSync(path.join(root,"requests.jsonl"),"",{mode:0o600});
+   await assert.rejects(()=>mutate(async()=>[]),
+     /buy_void_request_history_under_lock_missing_or_empty_with_surviving_history/u,
+     "zero-byte ledger with surviving sidecar must HOLD");
+   assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
  } finally {
    if(typeof saved==="undefined")delete process.env.VOID_BUY_REQUEST_DIR;
    else process.env.VOID_BUY_REQUEST_DIR=saved;
@@ -344,6 +396,9 @@ console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");
 console.log("silently_omitted_durable_request_holds=true");
 console.log("same_id_partial_history_never_authoritative=true");
+console.log("hostile_string_split_cannot_drop_durable_rows=true");
+console.log("missing_ledger_with_surviving_history_holds=true");
+console.log("empty_ledger_with_surviving_sidecar_holds=true");
 console.log("current_mismatched_amount_and_rail_hold_without_append=true");
 console.log("different_destination_allowed=true");
 console.log("terminal_status_allows_subsequent_request=true");

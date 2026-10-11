@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "133599f4e2279ca0efe633c9f0ed9bd69c6e955c"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "c9bbd00e5b44c781ab85a5fb29ad011bfb7e3df2"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "5e133a7580bf428f4446a712d0896e21ccd91db7"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "20d0ec09dba80260d533346f719ad292d40ed5d4"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "cb0ed3aab6e8452b3841e93d63bca2201ad58035"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -69,6 +69,9 @@ jobs:
             'malformed_durable_request_history_holds=true' \
             'silently_omitted_durable_request_holds=true' \
             'same_id_partial_history_never_authoritative=true' \
+            'hostile_string_split_cannot_drop_durable_rows=true' \
+            'missing_ledger_with_surviving_history_holds=true' \
+            'empty_ledger_with_surviving_sidecar_holds=true' \
             'current_mismatched_amount_and_rail_hold_without_append=true' \
             'different_destination_allowed=true' \
             'terminal_status_allows_subsequent_request=true' \
