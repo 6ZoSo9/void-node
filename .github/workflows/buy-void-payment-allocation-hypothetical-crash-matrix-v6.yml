@@ -1,0 +1,143 @@
+name: VOID Buy VOID current first-original crash matrix V6 source-only
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs"
+      - ".github/workflows/buy-void-payment-allocation-hypothetical-crash-matrix-v6.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-crash-v6-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: synthetic / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact current review head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind final first-original source generation
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "57a14a782549eb6c64d0a8f977f10e33d9e6bcda"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "d873533dbe60f2efff2fefc19470ee963b4fead0"
+          test "$(git hash-object src/economic/buy_void_preappend_plain_input_v1.ts)" = "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f"
+          git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install, typecheck and compile exact source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Prove current V6 and preserve frozen V1 through V5
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs \
+            > "crash-v6-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.marker,"VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6");
+            assert.equal(j.reviewed_combined_source_head,"df7ad33671b8c47a350c1d3ebfc87c59d69d580a");
+            assert.equal(j.reviewed_current_replay_source_blob_sha1,"d873533dbe60f2efff2fefc19470ee963b4fead0");
+            assert.equal(j.reviewed_current_allocation_source_blob_sha1,"57a14a782549eb6c64d0a8f977f10e33d9e6bcda");
+            assert.equal(j.reviewed_current_preappend_source_blob_sha1,"945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f");
+            for (const k of [
+              "frozen_historical_V1_proof_unchanged",
+              "frozen_historical_V2_proof_unchanged",
+              "frozen_historical_V3_proof_unchanged",
+              "frozen_historical_V4_proof_unchanged",
+              "frozen_historical_V5_proof_unchanged",
+              "forged_prior_event_buffer_length_rejected",
+              "forged_allocation_buffer_length_does_not_erase_idempotent_reservation",
+              "late_buyer_wallet_backfill_verified_allocation_rejected",
+              "changed_original_buyer_wallet_rejected",
+              "late_tx_and_receive_with_original_wallet_positive",
+              "exact_replay_idempotent",
+              "conflicting_identity_rejected",
+              "malformed_or_orphan_history_rejected",
+              "valid_oversell_rejected_for_insufficient_inventory",
+              "malformed_oversell_input_rejected_for_distinct_plain_data_reason"
+            ]) assert.equal(j[k],true,k);
+            assert.deepEqual(j.observed_publication_phases,["intent_only","ledger_committed","complete"]);
+            for (const k of [
+              "proposed_allocation_mutated",
+              "actual_durable_payment_fsync_verified",
+              "verified_capacity_and_request_locks_held",
+              "independently_proven_original_request",
+              "protected_high_water_custody_verified",
+              "allocation_publication_integrated",
+              "exactly_once_allocation_production_ready",
+              "signer_or_wallet_access",
+              "production_source_finality_authority_ready",
+              "presale_activation",
+              "funds_moved"
+            ]) assert.equal(j[k],false,k);
+          ' "crash-v6-${{ matrix.node }}.json"
+      - name: Upload exact-node source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-crash-v6-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: crash-v6-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: synthetic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact V6 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-crash-v6-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require Node 22 24 26 byte identity and authority HOLD
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "receipts/crash-v6-$n.json"; done
+          cmp receipts/crash-v6-22.json receipts/crash-v6-24.json
+          cmp receipts/crash-v6-22.json receipts/crash-v6-26.json
+          grep -F '"presale_activation": false' receipts/crash-v6-22.json
+          grep -F '"funds_moved": false' receipts/crash-v6-22.json
+          echo "VOID_BUY_VOID_CRASH_V6_THREE_NODE_GREEN"
