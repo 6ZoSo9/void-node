@@ -140,6 +140,7 @@ const other = request("b", "5", "6");
 const targetPayment = paymentEvent(target, 7, 1_800_000_000_020);
 const otherPayment = paymentEvent(other, 8, 1_800_000_000_030);
 const targetAllocation = allocationFor(target, targetPayment);
+const otherAllocation = allocationFor(other, otherPayment);
 
 function writeState({ requestRows, operatorRows, allocationJsonl }) {
   fs.mkdirSync(requestDir, { recursive: true, mode: 0o700 });
@@ -190,6 +191,8 @@ function classifyWithoutMutation() {
   assert.equal(result.filesystem_write, false);
   assert.equal(result.cross_uid_lock_release_authorized, false);
   assert.equal(result.custody_recovery_authorized, false);
+  assert.equal(result.external_high_water_witness_verified, false);
+  assert.equal(result.coordinated_storage_rollback_excluded, false);
   assert.equal(result.runtime_integration, false);
   assert.equal(result.payment_acceptance, false);
   assert.equal(result.presale_activation, false);
@@ -209,6 +212,8 @@ try {
     true,
   );
   for (const key of [
+    "external_high_water_witness_verified",
+    "coordinated_storage_rollback_excluded",
     "cross_uid_lock_ownership_verified",
     "cross_uid_lock_release_authorized",
     "custody_recovery_authorized",
@@ -239,6 +244,28 @@ try {
   assert.equal(absent.durable_handoff_complete, false);
   assert.equal(absent.verified_request_count, 0);
   assert.equal(absent.allocation_record_count, 0);
+  assert.equal(absent.canonical_replay_call_count, 1);
+
+  // Even with many future records, target absence requires at most one
+  // representative global replay plus one target-absence replay.
+  writeState({
+    requestRows: [target, other],
+    operatorRows: [
+      reviewedEvent(target, 1_800_000_000_010),
+      otherPayment,
+    ],
+    allocationJsonl: otherAllocation.next_ledger_jsonl,
+  });
+  const absentWithCompleteOther = classifyWithoutMutation();
+  assert.equal(absentWithCompleteOther.ok, true,
+    absentWithCompleteOther.reason);
+  assert.equal(
+    absentWithCompleteOther.status,
+    "observed_no_target_capacity_effect",
+  );
+  assert.equal(absentWithCompleteOther.verified_request_count, 1);
+  assert.equal(absentWithCompleteOther.allocation_record_count, 1);
+  assert.equal(absentWithCompleteOther.canonical_replay_call_count, 2);
 
   writeState({
     requestRows: [target],
@@ -257,6 +284,7 @@ try {
   assert.equal(missing.observed_no_target_capacity_effect, false);
   assert.equal(missing.durable_handoff_complete, false);
   assert.equal(missing.payment_verified_event_sha256, sha(jsonl([targetPayment])));
+  assert.equal(missing.canonical_replay_call_count, 1);
 
   writeState({
     requestRows: [target],
@@ -270,6 +298,7 @@ try {
   assert.equal(present.exclusive_recovery_required, false);
   assert.equal(present.allocation_record_id,
     targetAllocation.record.record_id);
+  assert.equal(present.canonical_replay_call_count, 1);
 
   // An orphan target allocation can never be misclassified as no effect.
   writeState({
@@ -346,6 +375,7 @@ try {
   console.log("descriptor_bound_allocation_observer_reused=true");
   console.log("allocation_high_water_binding_required=true");
   console.log("global_verified_allocation_completeness_required=true");
+  console.log("canonical_replay_calls_bounded=true");
   console.log("repeated_observation_unchanged_required=true");
   console.log("observed_no_target_capacity_effect=true");
   console.log("verified_allocation_missing_requires_exclusive_recovery=true");
@@ -353,6 +383,8 @@ try {
   console.log("orphan_allocation_holds=true");
   console.log("unrelated_verified_gap_holds=true");
   console.log("rollback_or_malformed_evidence_holds=true");
+  console.log("external_high_water_witness_verified=false");
+  console.log("coordinated_storage_rollback_excluded=false");
   console.log("filesystem_write=false");
   console.log("cross_uid_lock_release_authorized=false");
   console.log("custody_recovery_authorized=false");
