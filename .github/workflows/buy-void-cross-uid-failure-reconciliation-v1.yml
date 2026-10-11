@@ -89,11 +89,16 @@ jobs:
             | sort > "$RUNNER_TEMP/expected"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
           echo historical_exact_four_path_scope=true
+          # Check only changes introduced by the current PR. The base tip can
+          # advance after the branch fork and need not itself be an ancestor.
           if test -n "${BASE:-}"; then
-            git diff --check "$BASE" "$HEAD"
+            CURRENT_MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+            git merge-base --is-ancestor "$CURRENT_MERGE_BASE" "$HEAD"
+            git diff --check "$CURRENT_MERGE_BASE" "$HEAD"
           else
             git diff --check HEAD^ HEAD
           fi
+          echo current_diff_merge_base_bound=true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: crossuid-failure-reconciliation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
