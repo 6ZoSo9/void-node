@@ -631,6 +631,18 @@ function readPreflightBoundedClaim(fd, expectedSize) {
   return buffer.subarray(0, total);
 }
 
+// A non-owning observer may see a legitimate release between open and lstat.
+// Only pathname absence at these observations is retryable. Owned-lock checks
+// and all other I/O, identity and claim-validation failures remain fail-closed.
+function observeLockPath(lockPath) {
+  try {
+    return fs.lstatSync(lockPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 function openAndReadLock(config, sharedFd) {
   const lockPath = procPath(sharedFd, LOCK_NAME);
   let fd;
@@ -640,16 +652,19 @@ function openAndReadLock(config, sharedFd) {
     if (error?.code === "ENOENT") return null;
     throw error;
   }
+  let transferred = false;
   try {
     const before = fs.fstatSync(fd);
-    const visibleBefore = fs.lstatSync(lockPath);
+    const visibleBefore = observeLockPath(lockPath);
+    if (visibleBefore === null) return null;
     verifyClaimFileMetadata(before, config);
     if (!sameFileIdentity(before, visibleBefore)) {
       fail("cross_uid_capacity_lock_lock_path_fd_mismatch");
     }
     const bytes = readPreflightBoundedClaim(fd, before.size);
     const after = fs.fstatSync(fd);
-    const visibleAfter = fs.lstatSync(lockPath);
+    const visibleAfter = observeLockPath(lockPath);
+    if (visibleAfter === null) return null;
     if (
       !sameFileIdentity(before, after) ||
       !sameFileIdentity(before, visibleAfter) ||
@@ -659,10 +674,12 @@ function openAndReadLock(config, sharedFd) {
       fail("cross_uid_capacity_lock_claim_changed_during_read");
     }
     const claim = parseClaim(bytes, config, before);
-    return Object.freeze({ fd, stat: before, claim });
-  } catch (error) {
-    try { fs.closeSync(fd); } catch (cleanupError) { void cleanupError; }
-    throw error;
+    const observed = Object.freeze({ fd, stat: before, claim });
+    transferred = true;
+    return observed;
+  } finally {
+    // Do not retry or acquire after an uncertain descriptor cleanup.
+    if (!transferred) fs.closeSync(fd);
   }
 }
 
@@ -994,7 +1011,15 @@ async function acquire(config, participant, opened) {
         });
       }
       observed = openAndReadLock(config, sharedFd);
-      if (observed === null) continue;
+      if (observed === null) {
+        // Losing creation to an already-released competitor is contention too.
+        // Keep this retry on the same deadline and yield rather than spin.
+        if (Date.now() >= deadline) {
+          fail("cross_uid_capacity_lock_wait_timeout");
+        }
+        await sleep(config.poll_interval_ms);
+        continue;
+      }
     }
 
     try {
