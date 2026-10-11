@@ -25,12 +25,15 @@ export const VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_AUTHORITY_V1 =
     descriptor_bound_payment_observer_reused: true,
     descriptor_bound_allocation_observer_reused: true,
     canonical_replay_classifier_reused: true,
+    canonical_replay_calls_bounded: true,
     canonical_allocation_ledger_classifier_reused: true,
     allocation_high_water_binding_required: true,
     repeated_observation_unchanged_required: true,
     global_verified_allocation_completeness_required: true,
     target_capacity_effect_classified: true,
     cross_file_atomic_snapshot_verified: false,
+    external_high_water_witness_verified: false,
+    coordinated_storage_rollback_excluded: false,
     cross_uid_lock_ownership_verified: false,
     cross_uid_lock_release_authorized: false,
     custody_recovery_authorized: false,
@@ -104,9 +107,12 @@ function held(reason) {
     allocation_record_id: null,
     verified_request_count: null,
     allocation_record_count: null,
+    canonical_replay_call_count: null,
     observed_no_target_capacity_effect: false,
     exclusive_recovery_required: false,
     durable_handoff_complete: false,
+    external_high_water_witness_verified: false,
+    coordinated_storage_rollback_excluded: false,
     cross_uid_lock_release_authorized: false,
     custody_recovery_authorized: false,
     operation_performed: false,
@@ -134,12 +140,15 @@ function decision(input) {
     allocation_record_id: input.allocation_record_id,
     verified_request_count: input.verified_request_count,
     allocation_record_count: input.allocation_record_count,
+    canonical_replay_call_count: input.canonical_replay_call_count,
     observed_no_target_capacity_effect:
       input.status === "observed_no_target_capacity_effect",
     exclusive_recovery_required:
       input.status === "verified_allocation_missing",
     durable_handoff_complete:
       input.status === "allocation_present",
+    external_high_water_witness_verified: false,
+    coordinated_storage_rollback_excluded: false,
     cross_uid_lock_release_authorized: false,
     custody_recovery_authorized: false,
     operation_performed: false,
@@ -203,7 +212,11 @@ function strictVerifiedRequestIds(bytes) {
   return Object.freeze([...verified].sort());
 }
 
-function replay(input, requestId) {
+function replay(input, requestId, budget) {
+  budget.calls += 1;
+  if (budget.calls > 2) {
+    fail("canonical_replay_call_bound_exceeded");
+  }
   return classifyBuyVoidVerifiedAllocationReplayBindingV1({
     request_id: requestId,
     requests_jsonl: Buffer.from(input.requests_jsonl),
@@ -294,10 +307,16 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
       observed.operator_events_jsonl,
     );
     const verifiedSet = new Set(verifiedIds);
-    if (ledger.records.some(
-      (record) => !verifiedSet.has(record?.request_id),
-    )) {
-      fail("allocation_without_verified_payment");
+    const allocatedIds = new Set();
+    for (const record of ledger.records) {
+      const recordId = record?.request_id;
+      if (!verifiedSet.has(recordId)) {
+        fail("allocation_without_verified_payment");
+      }
+      if (allocatedIds.has(recordId)) {
+        fail("allocation_request_duplicate");
+      }
+      allocatedIds.add(recordId);
     }
     const targetRecords = ledger.records.filter(
       (record) => record?.request_id === input.request_id,
@@ -306,26 +325,41 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
       fail("target_allocation_cardinality_invalid");
     }
 
-    let targetReplay = null;
-    for (const requestId of verifiedIds) {
-      const classified = replay(observed, requestId);
-      if (requestId === input.request_id) {
-        targetReplay = classified;
-        continue;
-      }
-      if (classified?.ok !== true ||
-          classified.status !== "allocation_present" ||
-          classified.request_id !== requestId ||
-          !classified.allocation_record_id) {
-        fail("other_verified_request_not_fully_allocated");
-      }
-    }
+    const exactAllocatedSet = (excludedRequestId = null) => {
+      const expected = verifiedIds.filter(
+        (requestId) => requestId !== excludedRequestId,
+      );
+      return allocatedIds.size === expected.length &&
+        expected.every((requestId) => allocatedIds.has(requestId)) &&
+        (excludedRequestId === null ||
+          !allocatedIds.has(excludedRequestId));
+    };
+    const replayBudget = { calls: 0 };
+    const targetVerified = verifiedSet.has(input.request_id);
 
-    if (!verifiedIds.includes(input.request_id)) {
+    if (!targetVerified) {
       if (targetRecords.length !== 0) {
         fail("target_allocation_without_verified_payment");
       }
-      const absent = replay(observed, input.request_id);
+      if (verifiedIds.length > 0) {
+        // One representative replay validates every verified event and every
+        // present allocation record globally. Exact set equality plus zero
+        // unallocated capacity proves that no other durable gap is hidden.
+        const global = replay(observed, verifiedIds[0], replayBudget);
+        if (global?.ok !== true ||
+            global.status !== "allocation_present" ||
+            global.unallocated_verified_void_micro !== "0" ||
+            !exactAllocatedSet()) {
+          fail("other_verified_request_not_fully_allocated");
+        }
+      } else if (allocatedIds.size !== 0) {
+        fail("allocation_without_verified_payment");
+      }
+      const absent = replay(
+        observed,
+        input.request_id,
+        replayBudget,
+      );
       if (absent?.status !== "held" ||
           absent.reason !== "replay_binding_verified_payment_missing") {
         fail("target_absence_not_proven_" +
@@ -340,11 +374,21 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
         allocation_record_id: null,
         verified_request_count: verifiedIds.length,
         allocation_record_count: ledger.records.length,
+        canonical_replay_call_count: replayBudget.calls,
       });
     }
 
-    if (!targetReplay) {
-      fail("target_replay_missing");
+    // A target replay validates the complete verified-event and allocation
+    // histories once. Set equality below establishes global completeness
+    // without reparsing the full histories once per verified request.
+    const targetReplay = replay(
+      observed,
+      input.request_id,
+      replayBudget,
+    );
+    if (!targetReplay || targetReplay.status === "held") {
+      fail("target_replay_" +
+        String(targetReplay?.reason || "held"));
     }
     if (targetReplay.request_id !== input.request_id ||
         !targetReplay.payment_verified_event_sha256) {
@@ -354,8 +398,9 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
     if (targetReplay.status === "verified_allocation_missing" &&
         targetReplay.reason ===
           "verified_allocation_requires_protected_recovery") {
-      if (targetRecords.length !== 0) {
-        fail("target_missing_replay_has_allocation_record");
+      if (targetRecords.length !== 0 ||
+          !exactAllocatedSet(input.request_id)) {
+        fail("target_missing_global_allocation_set_invalid");
       }
       return decision({
         ok: false,
@@ -367,6 +412,7 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
         allocation_record_id: null,
         verified_request_count: verifiedIds.length,
         allocation_record_count: ledger.records.length,
+        canonical_replay_call_count: replayBudget.calls,
       });
     }
 
@@ -374,8 +420,10 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
         targetReplay.status === "allocation_present") {
       if (targetRecords.length !== 1 ||
           targetReplay.allocation_record_id !==
-            targetRecords[0].record_id) {
-        fail("target_present_replay_record_mismatch");
+            targetRecords[0].record_id ||
+          targetReplay.unallocated_verified_void_micro !== "0" ||
+          !exactAllocatedSet()) {
+        fail("target_present_global_allocation_set_invalid");
       }
       return decision({
         ok: true,
@@ -387,6 +435,7 @@ export function classifyBuyVoidCrossUidFailureReconciliationV1(raw = {}) {
         allocation_record_id: targetReplay.allocation_record_id,
         verified_request_count: verifiedIds.length,
         allocation_record_count: ledger.records.length,
+        canonical_replay_call_count: replayBudget.calls,
       });
     }
 
