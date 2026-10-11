@@ -14,6 +14,8 @@ import {
 
 const LOCK_NAME =
   ".void-buy-void-cross-uid-capacity-exclusive-lock-v1.json";
+const RECOVERY_PREFIX =
+  ".void-buy-void-cross-uid-capacity-recovery-v1-";
 
 function fixture() {
   const uid = process.getuid();
@@ -78,6 +80,10 @@ async function ordinaryProof() {
       assert.equal(result.participant_role, "custody");
       assert.equal(result.exclusive_critical_section_completed, true);
       assert.equal(result.lock_release_fsynced, true);
+      assert.equal(result.stale_recoveries_completed, 0);
+      assert.equal(result.stale_recovery_marker_waits, 0);
+      assert.equal(result.stale_recovery_marker_retained_as_tombstone, true);
+      assert.equal(result.stale_reaper_path_unlink_serialized, true);
       assert.equal(result.cross_uid_serialization_source_proven, true);
       assert.equal(result.payment_event_write, false);
       assert.equal(result.allocation_write, false);
@@ -261,6 +267,9 @@ async function ordinaryProof() {
   console.log("ordinary_adversarial_cases=" + cases);
   console.log("create_only_kernel_lock=true");
   console.log("callback_failure_retains_lock=true");
+  console.log("create_only_stale_recovery_marker=true");
+  console.log("stale_recovery_marker_retained_as_tombstone=true");
+  console.log("stale_reaper_path_unlink_serialized=true");
   console.log("ambient_tojson_not_claim_authority=true");
   console.log("shared_directory_mode_03770_required=true");
   console.log("payment_event_write=false");
@@ -272,7 +281,7 @@ async function ordinaryProof() {
 }
 
 function parseWorkerArgs(argv) {
-  assert.equal(argv.length, 8);
+  assert.ok(argv.length === 8 || argv.length === 9);
   const [
     sharedDirectory,
     custodyUidRaw,
@@ -282,17 +291,21 @@ function parseWorkerArgs(argv) {
     tag,
     behavior,
     timeoutRaw,
+    pollRaw,
   ] = argv;
   const custodyUid = Number(custodyUidRaw);
   const webUid = Number(webUidRaw);
   const sharedGid = Number(sharedGidRaw);
   const timeout = Number(timeoutRaw);
-  for (const value of [custodyUid, webUid, sharedGid, timeout]) {
+  const poll = pollRaw === undefined ? 10 : Number(pollRaw);
+  for (const value of [custodyUid, webUid, sharedGid, timeout, poll]) {
     assert.equal(Number.isSafeInteger(value), true);
   }
   assert.match(tag, /^[A-Za-z0-9_.-]+$/u);
   assert.ok([
     "success",
+    "success-recovery-owner",
+    "success-recovery-waiter",
     "fail",
     "expect-foreign-stale",
   ].includes(behavior));
@@ -303,7 +316,7 @@ function parseWorkerArgs(argv) {
       web_uid: webUid,
       shared_gid: sharedGid,
       wait_timeout_ms: timeout,
-      poll_interval_ms: 10,
+      poll_interval_ms: poll,
     }),
     logPath,
     tag,
@@ -356,6 +369,20 @@ async function worker(args) {
   assert.equal(result.ok, true);
   assert.equal(result.result, w.tag);
   assert.equal(result.participant_uid, process.getuid());
+  if (w.behavior === "success-recovery-owner") {
+    assert.ok(result.stale_recoveries_completed >= 1);
+    console.log("VOID_CROSS_UID_RECOVERY_MARKER_OWNER_GREEN");
+  }
+  if (w.behavior === "success-recovery-waiter") {
+    assert.ok(result.stale_recovery_marker_waits >= 1);
+    console.log("VOID_CROSS_UID_RECOVERY_MARKER_WAITER_GREEN");
+  }
+  console.log(
+    "stale_recoveries_completed=" + result.stale_recoveries_completed,
+  );
+  console.log(
+    "stale_recovery_marker_waits=" + result.stale_recovery_marker_waits,
+  );
   console.log("VOID_CROSS_UID_WORKER_SUCCESS_GREEN");
 }
 
@@ -378,6 +405,12 @@ if (mode === "--worker") {
 } else if (mode === "--verify-log") {
   assert.equal(rest.length, 1);
   verifyLog(rest[0]);
+} else if (mode === "--count-recovery-markers") {
+  assert.equal(rest.length, 1);
+  const markers = fs.readdirSync(rest[0]).filter((name) =>
+    name.startsWith(RECOVERY_PREFIX)
+  );
+  console.log("recovery_marker_count=" + markers.length);
 } else if (mode === undefined) {
   await ordinaryProof();
 } else {
