@@ -70,7 +70,7 @@ presale/market or funds action. **PROTECT THE CORE.**
 This original-request regression runs against the present compiled
 `Buy VOID` verified-payment/allocation code. The source-only successor
 writer Git blob is
-`cd255c42b0e4b331a1316351cc729f5f934aad50` (the
+`101ce2eb806b2adb21035ed8b72874ba2b0026d3` (the
 `operator-events.jsonl` status-only route now rechecks historical
 fulfillment under the same terminal request lock, without enabling a
 payment-only verification path). Current replay Git blob

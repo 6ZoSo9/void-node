@@ -401,47 +401,96 @@ function readPinnedLedgerBytesV1(
   });
 }
 
-// The append writer commits exact JSON.stringify(row) + LF bytes. Never accept
-// a truncated final line, normalized UTF-8, duplicate member, or reformatted
-// history as authoritative paid-capacity evidence.
-const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+// Preserve the native byte and JSON parsing boundary at module load. A
+// post-import same-process modification of String/Array/JSON/decoder prototypes
+// must never omit a durable terminal event from the authoritative history.
+const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", {
+  fatal: true, ignoreBOM: true,
+});
+const CAPACITY_HISTORY_DECODE_V1 =
+  TextDecoder.prototype.decode.bind(CAPACITY_HISTORY_UTF8);
+const CAPACITY_HISTORY_APPLY_V1 = Reflect.apply;
+const CAPACITY_HISTORY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
+const CAPACITY_HISTORY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+)!.get!;
+const CAPACITY_HISTORY_PARSE_V1 = JSON.parse;
+const CAPACITY_HISTORY_STRINGIFY_V1 = JSON.stringify;
+const CAPACITY_HISTORY_SET_PROTO_V1 = Object.setPrototypeOf;
+const CAPACITY_HISTORY_DEFINE_V1 = Object.defineProperty;
+const CAPACITY_HISTORY_DESCRIPTOR_V1 = Object.getOwnPropertyDescriptor;
+
+// The writer persists canonical JSON.stringify(row) + LF bytes. Frame by the
+// *original octets* before parsing: no String#split/slice/endsWith, inherited
+// Array iteration/mappers, mutable JSON methods or caller-visible toJSON hooks.
 function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
-  if (bytes.length === 0) return [];
-  if (bytes.length >= 3 && bytes[0] === 0xef &&
+  const length = CAPACITY_HISTORY_APPLY_V1(
+    CAPACITY_HISTORY_BYTE_LENGTH_V1, bytes, [],
+  ) as number;
+  if (!Number.isSafeInteger(length) || length < 0 ||
+      length > LEDGER_MAX_BYTES) {
+    fail(code + "_bytes_invalid");
+  }
+  if (length === 0) return [];
+  if (length >= 3 && bytes[0] === 0xef &&
       bytes[1] === 0xbb && bytes[2] === 0xbf) {
     fail(code + "_utf8_bom_not_canonical");
   }
-  let text: string;
+  if (bytes[length - 1] !== 0x0a) {
+    fail(code + "_truncated_or_noncanonical");
+  }
+  // Entire-stream fatal validation also rejects a malformed last row.
   try {
-    text = CAPACITY_HISTORY_UTF8.decode(bytes);
+    CAPACITY_HISTORY_DECODE_V1(bytes);
   } catch {
     fail(code + "_utf8_invalid");
   }
-  if (!text.endsWith("\n") || text.includes("\r") ||
-      text.charCodeAt(0) === 0xfeff) {
-    fail(code + "_truncated_or_noncanonical");
-  }
-  const lines = text.slice(0, -1).split("\n");
-  if (lines.some((line) => line.length === 0)) {
-    fail(code + "_empty_row");
-  }
-  return lines.map((line) => {
+  const rows: any[] = [];
+  let start = 0;
+  let count = 0;
+  for (let i = 0; i < length; i += 1) {
+    const octet = bytes[i];
+    if (octet === 0x0d) {
+      fail(code + "_truncated_or_noncanonical");
+    }
+    if (octet !== 0x0a) continue;
+    if (i === start) fail(code + "_empty_row");
+    const frame = CAPACITY_HISTORY_APPLY_V1(
+      CAPACITY_HISTORY_SUBARRAY_V1, bytes, [start, i],
+    ) as Uint8Array;
+    let line: string;
+    try {
+      line = CAPACITY_HISTORY_DECODE_V1(frame);
+    } catch {
+      fail(code + "_utf8_invalid");
+    }
     let value: unknown;
     try {
-      value = JSON.parse(line);
+      value = CAPACITY_HISTORY_PARSE_V1(line, (_key, parsed) => {
+        if (parsed !== null && typeof parsed === "object") {
+          // Null-prototype objects *and arrays* cannot inherit toJSON.
+          CAPACITY_HISTORY_SET_PROTO_V1(parsed, null);
+        }
+        return parsed;
+      });
     } catch {
       fail(code + "_json_invalid");
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       fail(code + "_row_invalid");
     }
-    if (JSON.stringify(value) !== line) {
+    if (CAPACITY_HISTORY_STRINGIFY_V1(value) !== line) {
       fail(code + "_row_noncanonical");
     }
-    return value;
-  });
+    CAPACITY_HISTORY_DEFINE_V1(rows, String(count), {
+      value, writable: true, configurable: true, enumerable: true,
+    });
+    count += 1;
+    start = i + 1;
+  }
+  if (start !== length) fail(code + "_truncated_or_noncanonical");
+  return rows;
 }
-
 function readStrictJsonLinesFromDirectoryV1(
   directory: PinnedRequestDirectoryV1,
   name: string,
@@ -2575,9 +2624,16 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           path.join(requestDir, "operator-events.jsonl"),
           "buy_void_operator_terminal_history",
         );
-        for (const row of priorEvents) {
-          const rowRequest = Object.getOwnPropertyDescriptor(row, "request_id");
-          const rowStatus = Object.getOwnPropertyDescriptor(row, "operator_status");
+        for (let rowIndex = 0; rowIndex < priorEvents.length; rowIndex += 1) {
+          const slot = CAPACITY_HISTORY_DESCRIPTOR_V1(
+            priorEvents, String(rowIndex),
+          );
+          if (!slot || !Object.hasOwn(slot, "value")) {
+            fail("buy_void_operator_terminal_history_ambiguous");
+          }
+          const row = slot.value;
+          const rowRequest = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "request_id");
+          const rowStatus = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "operator_status");
           if (!rowRequest || !Object.hasOwn(rowRequest, "value") ||
               !rowStatus || !Object.hasOwn(rowStatus, "value") ||
               typeof rowRequest.value !== "string" ||

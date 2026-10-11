@@ -127,7 +127,7 @@ jobs:
                 test "$historical_status" -eq 1
                 grep -Fq 'reviewed source changed:src/economic/buy_void_verified_payment_capacity_admission_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
                 grep -Fq 'f591f7407d9afc2cf77e0f90923aa11b4817fd4e' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq 'cd255c42b0e4b331a1316351cc729f5f934aad50' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '101ce2eb806b2adb21035ed8b72874ba2b0026d3' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_DUAL_RAIL_V2_HELD=$proof"
                 continue
                 ;;

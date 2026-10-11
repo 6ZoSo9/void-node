@@ -64,8 +64,12 @@ jobs:
 
       - name: Prove actual writer under-lock terminal status
         run: |
+          set -euo pipefail
           node_modules/.bin/tsx \
-            scripts/prove_buy_void_operator_under_lock_terminal_v1.ts
+            scripts/prove_buy_void_operator_under_lock_terminal_v1.ts \
+            | tee "$RUNNER_TEMP/terminal-history-proof-v1.txt"
+          grep -Fx 'terminal_history_hostile_intrinsics_ignored=true' \
+            "$RUNNER_TEMP/terminal-history-proof-v1.txt"
 
       - name: Typecheck repository
         run: npm run typecheck

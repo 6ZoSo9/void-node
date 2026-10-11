@@ -16,8 +16,8 @@ Current source identities:
 
 - preappend plain-input: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`;
 - operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
-- dispatcher V3 proof: `a651e42c02a7127cf445e545de77292c29cbe2bc`;
-- first-original handoff V4 proof: `4baff04d8aa12b71704006fba1835bfda86043da`;
+- dispatcher V3 proof: `f059b42d5befeab94a0b162ce9558375d85b7e76`;
+- first-original handoff V4 proof: `2f17db9bb68ab40cc7e3d541d3d3a731f3d87442`;
 - frozen crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
 - current crash matrix V6 proof: `6d0d489eba7964d82e104c8824f1ebdb0da9e397`.
 
@@ -29,7 +29,7 @@ movement remain false.
 
 The current source successor
 `scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts`,
-Git blob `b522b8a3cf6902342eb5979a1ea4775c84584884`, is added without
+Git blob `dc5967516fda605e8cf33890cc687c4ce70d11ad`, is added without
 changing runtime, wallet or customer source. It binds the current verified
 allocation replay source `b451bcd895986dadaf6e53954671062068316ccf`
 and reservation ledger `8d84955e1e093a5c5af63241e62b8722fadd2f29`.
@@ -50,7 +50,7 @@ These remain HOLD until separately authorized, installed and accepted.
 
 The current V4 handoff and dual-rail V3 proofs also bind the hardened
 nonpayment terminal writer Git blob
-`cd255c42b0e4b331a1316351cc729f5f934aad50`; their earlier proof
+`101ce2eb806b2adb21035ed8b72874ba2b0026d3`; their earlier proof
 blobs `ccb271e34b67dca07683198d84a0a9449f46729e` and
 `6f305cc3fe1f3003ce73692a41a72f8ab09b00ab` remain historical Git generations,
 not current-positive evidence. The frozen first-original V3 proof is
@@ -58,11 +58,32 @@ immutable and rejects the *earliest* mismatching historical replay blob
 `435ed6000caad046f48fb318fbc7c865393f3b6c` against the successor
 `b451bcd895986dadaf6e53954671062068316ccf` before reaching any later writer comparison.
 
+## October 11 — native byte-framed terminal-history source successor
+
+The current nonpayment writer `101ce2eb806b2adb21035ed8b72874ba2b0026d3`
+now validates complete operator JSONL by captured native fatal UTF-8
+decoding, byte-position LF frames, native JSON.parse/stringify and
+null-prototype parsed rows. This prevents post-import modifications of
+`String.prototype.split`, `TextDecoder.prototype.decode`, global JSON
+methods and inherited `Object.prototype.toJSON` from silently hiding a
+previously durable fulfilled event in the central under-lock status check.
+The existing actual-writer synthetic regression exercises those malicious
+hooks with positive controls and still requires zero operator append and
+no newly published sidecar on rejection. No historical frozen V1–V5
+source/proof bytes were changed.
+
+**Limitations still blocking production:** after history inspection, the
+pinned journal descriptors are released before the path-based append, leaving
+a same-UID pathname replacement race. A crash between journal append and
+sidecar publication also requires separately reviewed durable recovery.
+The pre-lock public route's tolerant reader is not itself authenticated as
+complete canonical history. No payment/custody/presale/funds authority follows.
+
 ## October 11 terminal writer-lock source successor
 
 The current V3 dispatcher proof now requires central nonpayment writer
-`cd255c42b0e4b331a1316351cc729f5f934aad50` and has reviewed
-Git blob `a651e42c02a7127cf445e545de77292c29cbe2bc`. The previous
+`101ce2eb806b2adb21035ed8b72874ba2b0026d3` and has reviewed
+Git blob `f059b42d5befeab94a0b162ce9558375d85b7e76`. The previous
 dispatcher V3 proof `df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f` and writer
 `f591f7407d9afc2cf77e0f90923aa11b4817fd4e` are historical
 generations. Frozen V1/V2 dispatcher proofs remain unchanged and are

@@ -188,6 +188,12 @@ function checkedDurableAllocationHandoffV1(receipt, eventJson) {
       !SHA256_REF_V1.test(row("payment_verified_event_sha256")) ||
       row("payment_verified_event_sha256") !== expectedDigest ||
       typeof row("idempotent") !== "boolean" ||
+      // Planner and durable writer must agree about whether the allocation
+      // already existed. A no-op writer cannot justify releasing the claim
+      // for a newly planned allocation; a fresh persistence cannot be
+      // represented as an already-idempotent plan.
+      (writerStatus === "idempotent" && row("idempotent") !== true) ||
+      (writerStatus === "persisted" && row("idempotent") !== false) ||
       // A newly appended payment cannot already have an allocated ledger
       // record; only an old payment may legitimately require gap recovery.
       (!alreadyVerified && row("idempotent") !== false) ||

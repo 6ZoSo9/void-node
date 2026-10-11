@@ -102,7 +102,7 @@ liquidity, presale/market activation or funds movement occurs here.
 ## Current source-only writer successor, October 11, 2026
 
 The current production-source candidate is the central nonpayment operator
-writer at Git blob `cd255c42b0e4b331a1316351cc729f5f934aad50`, which adds an immutable terminal
+writer at Git blob `101ce2eb806b2adb21035ed8b72874ba2b0026d3`, which adds an immutable terminal
 fulfillment recheck under the existing same-request writer lock. The earlier
 writer blob `f591f7407d9afc2cf77e0f90923aa11b4817fd4e` remains historical, not an
 accepted current-source implementation. This negative operator-status alias
