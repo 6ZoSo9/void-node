@@ -1187,6 +1187,228 @@ try {
   }
 }
 
+
+/**
+ * Exercise the ACTUAL mounted Wave 3 Wallet HTTP adapter, not a handwritten
+ * snapshot, with three independent malformed HTTP-200 upstream bodies.
+ * This mock HTTP app and its three fixed sources are fully in-process.
+ */
+const oldMountedWalletApp = (globalThis as any).__void_http_app;
+const oldMountedWalletMarker = (globalThis as any).__void_ui_wave3_wallet_readonly_v1;
+const oldMountedWalletFetch = globalThis.fetch;
+const oldMountedWalletDocument = (globalThis as any).document;
+const adapterRoutes = new Map<string, (req: any, res: any) => Promise<void>>();
+const adapterNodes = new Map<string, { textContent: string; className: string }>();
+const upstreamBodies = new Map<string, Record<string, unknown>>();
+const validUpstream = (): Map<string, Record<string, unknown>> => new Map([
+  [
+    "/__void/participant/wallet/status",
+    {
+      ok: true,
+      has_wallet: true,
+      unlocked: false,
+      address: "0x" + "a".repeat(40),
+      native_gas: "1",
+    },
+  ],
+  ["/wc/balance", { ok: true, balance: 3, count: 2 }],
+  [
+    "/wc/production/balance",
+    {
+      ok: true,
+      marker: "VOID_WC_PRODUCTION_BALANCE_V1",
+      balance: 1.5,
+      count: 1,
+      ledger_version: "v1",
+    },
+  ],
+]);
+const sourceKeys = [
+  "wallet_status",
+  "ledger_wc",
+  "production_wc",
+] as const;
+const evidenceSelector = {
+  wallet_status: "[data-wallet-source-status]",
+  ledger_wc: "[data-wallet-source-ledger]",
+  production_wc: "[data-wallet-source-production]",
+} as const;
+try {
+  (globalThis as any).__void_http_app = {
+    all(route: string, callback: (req: any, res: any) => Promise<void>) {
+      if (adapterRoutes.has(route)) {
+        throw new Error(`duplicate synthetic HTTP adapter route: ${route}`);
+      }
+      adapterRoutes.set(route, callback);
+    },
+  };
+  delete (globalThis as any).__void_ui_wave3_wallet_readonly_v1;
+  // Query-unique import remounts the actual compiled adapter on the inert app.
+  // The module's fixed-source fetcher and route-handler are not reproduced here.
+  const isolatedAdapter = new URL(
+    "../src/ui/void_app_wave3_wallet_readonly_v1.js",
+    import.meta.url,
+  );
+  isolatedAdapter.searchParams.set("wallet_http200_evidence_proof", "v1");
+  await import(isolatedAdapter.href);
+  const walletHandler = adapterRoutes.get("/__void/ui/wave3/wallet.json");
+  assert.ok(walletHandler, "actual compiled Wallet adapter must register its GET route");
+
+  (globalThis as any).document = {
+    querySelector(selector: string) {
+      if (!adapterNodes.has(selector)) {
+        adapterNodes.set(selector, { textContent: "", className: "" });
+      }
+      return adapterNodes.get(selector);
+    },
+  };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "127.0.0.1");
+    assert.equal(url.searchParams.get("account"), "account-A");
+    assert.equal(init?.method, "GET");
+    assert.equal(init?.redirect, "error");
+    assert.equal(init?.credentials, "omit");
+    assert.ok(upstreamBodies.has(url.pathname), `unknown Wallet source ${url.pathname}`);
+    return responseAt(
+      url.href,
+      JSON.stringify(upstreamBodies.get(url.pathname)),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  const requestActualWalletSnapshot = async () => {
+    let httpCode = 0;
+    let wireBody: Buffer | undefined;
+    const before = Date.now();
+    await walletHandler!(
+      {
+        ip: "127.0.0.1",
+        socket: { remoteAddress: "127.0.0.1" },
+        method: "GET",
+        query: { account: "account-A" },
+      },
+      {
+        writeHead(code: number, headers: Record<string, string>) {
+          httpCode = code;
+          assert.equal(headers["cache-control"], "no-store");
+          assert.match(headers["content-type"], /^application\\/json/);
+        },
+        end(data?: Buffer) { wireBody = data; },
+      },
+    );
+    assert.equal(httpCode, 200);
+    assert.ok(Buffer.isBuffer(wireBody));
+    const snapshot = JSON.parse(wireBody!.toString("utf8"));
+    assert.equal(snapshot.marker, "VOID_UI_WAVE3_WALLET_READONLY_V1");
+    assert.equal(snapshot.read_only, true);
+    assert.equal(snapshot.account.id, "account-A");
+    validateWalletSnapshotV1(snapshot, "account-A", {
+      requestStartedAtMs: before,
+      evaluatedAtMs: Date.now(),
+    });
+    renderWalletV1(snapshot, "account-A", before);
+    return snapshot;
+  };
+
+  const variants: Array<{
+    source: (typeof sourceKeys)[number];
+    route: string;
+    wrongField: string;
+    wrongValue: string;
+  }> = [
+    {
+      source: "wallet_status",
+      route: "/__void/participant/wallet/status",
+      wrongField: "has_wallet",
+      wrongValue: "yes",
+    },
+    {
+      source: "ledger_wc",
+      route: "/wc/balance",
+      wrongField: "balance",
+      wrongValue: "3",
+    },
+    {
+      source: "production_wc",
+      route: "/wc/production/balance",
+      wrongField: "count",
+      wrongValue: "1",
+    },
+  ];
+  for (const variant of variants) {
+    upstreamBodies.clear();
+    for (const [key, value] of validUpstream()) upstreamBodies.set(key, value);
+    upstreamBodies.get(variant.route)![variant.wrongField] = variant.wrongValue;
+
+    // Actual HTTP adapter must preserve transport HTTP 200 but reject exactly
+    // one malformed semantic source. No synthetic snapshot toggles are used.
+    const snapshot = await requestActualWalletSnapshot();
+    for (const key of sourceKeys) {
+      assert.equal(snapshot.sources[key].ok, true);
+      assert.equal(snapshot.sources[key].status, 200);
+      const expectedUsable = key !== variant.source;
+      const usable = key === "wallet_status"
+        ? snapshot.wallet.source_available
+        : snapshot.balances[key].available;
+      assert.equal(usable, expectedUsable, `adapter evidence truth for ${key}`);
+      assert.equal(
+        adapterNodes.get(evidenceSelector[key])?.textContent,
+        expectedUsable ? "Available" : "HTTP 200 · Unusable evidence",
+        `rendered truth for ${key}`,
+      );
+    }
+    if (variant.source === "wallet_status") {
+      assert.equal(snapshot.wallet.address, "");
+      assert.equal(snapshot.wallet.native_gas_available, false);
+      assert.equal(adapterNodes.get("[data-wallet-state-chip]")?.textContent,
+        "Wallet status unavailable");
+    } else {
+      assert.equal(snapshot.balances[variant.source].balance, null);
+      assert.equal(snapshot.balances[variant.source].entries, null);
+      assert.equal(snapshot.balances[variant.source].display, "—");
+      assert.equal(
+        adapterNodes.get(
+          variant.source === "ledger_wc"
+            ? "[data-wallet-ledger-meta]"
+            : "[data-wallet-production-meta]",
+        )?.textContent,
+        variant.source === "ledger_wc"
+          ? "Ledger balance unavailable"
+          : "Production balance unavailable",
+      );
+    }
+
+    upstreamBodies.clear();
+    for (const [key, value] of validUpstream()) upstreamBodies.set(key, value);
+    const recovered = await requestActualWalletSnapshot();
+    assert.equal(recovered.wallet.source_available, true);
+    assert.equal(recovered.balances.ledger_wc.available, true);
+    assert.equal(recovered.balances.production_wc.available, true);
+    assert.equal(adapterNodes.get("[data-wallet-state-chip]")?.textContent, "Local wallet found");
+    for (const key of sourceKeys) {
+      assert.equal(adapterNodes.get(evidenceSelector[key])?.textContent, "Available");
+    }
+  }
+} finally {
+  globalThis.fetch = oldMountedWalletFetch;
+  if (oldMountedWalletDocument === undefined) {
+    delete (globalThis as any).document;
+  } else {
+    (globalThis as any).document = oldMountedWalletDocument;
+  }
+  if (oldMountedWalletApp === undefined) {
+    delete (globalThis as any).__void_http_app;
+  } else {
+    (globalThis as any).__void_http_app = oldMountedWalletApp;
+  }
+  if (oldMountedWalletMarker === undefined) {
+    delete (globalThis as any).__void_ui_wave3_wallet_readonly_v1;
+  } else {
+    (globalThis as any).__void_ui_wave3_wallet_readonly_v1 = oldMountedWalletMarker;
+  }
+}
+
 const adapterSource = fs.readFileSync(path.join(root, sourcePath), "utf8");
 for (const marker of [
   "export function walletAccountIdV1(raw: unknown): string | null",
@@ -1273,6 +1495,8 @@ console.log("browser_available_display_balance_bound=true");
 console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
+console.log("wallet_actual_adapter_http200_invalid_body_isolated=true");
+console.log("wallet_actual_adapter_http200_valid_recovery=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
 console.log("browser_wallet_invalid_input_supersedes_active_request=true");
 console.log("browser_wallet_generated_at_canonical=true");
