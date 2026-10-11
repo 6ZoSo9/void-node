@@ -1089,7 +1089,8 @@ const releaseFailureFetch = async url => {
         },
         releaseLock() {
           releaseFailureCalls++;
-          throw new Error("reader_release_failed");
+          // JavaScript permits falsy thrown values; teardown failure is the event.
+          throw undefined;
         },
       }),
     },
@@ -1117,6 +1118,7 @@ assertCondition(
 );
 console.log("reader_release_failure_rejects_successful_body=true");
 console.log("reader_release_failure_quarantines_transport_generation=true");
+console.log("reader_release_falsy_throw_rejected=true");
 
 // Timer callbacks can be delayed by synchronous work. A late fulfillment must
 // fail admission even when its promise continuation runs before the timer.
