@@ -240,6 +240,9 @@ writeBuyVoidPaymentUnderCrossUidLockWithFailureBindingCandidateV1(raw) {
           await dispatchBuyVoidOperatorEventWithAllocationRequiredV1(
             dispatchInput,
           );
+        if (ownReceiptFieldV1(result, "ok") !== true) {
+          fail("buy_void_web_cross_uid_dispatch_result_unqualified");
+        }
         return checkedDurableAllocationHandoffV1(result, checked.event_json);
       } catch (dispatchFailure) {
         let reconciliation;
