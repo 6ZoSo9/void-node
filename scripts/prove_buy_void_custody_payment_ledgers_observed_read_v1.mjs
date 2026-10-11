@@ -12,7 +12,7 @@ import {
 } from "../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
 
 const SOURCE="src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
-const EXPECTED_SOURCE_BLOB="7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325";
+const EXPECTED_SOURCE_BLOB="79eb8c39529583fffdb083173fb37b1f32075a14";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0","utf8"))
@@ -25,6 +25,8 @@ for(const required of [
   "utilTypes.isProxy(input)",
   "Object.getOwnPropertyDescriptors(input)",
   '"/proc/self/fd/"',
+  "const minimum=name===REQUESTS_NAME?1n:0n;",
+  "cap<1",
   "requests_changed_during_observation",
   "operator_changed_during_observation",
   "directory_ancestor_changed_during_observation",
@@ -63,6 +65,11 @@ const writeFixture=()=>{
   fs.writeFileSync(requestPath,requestBytes,{mode:0o640});
   fs.writeFileSync(operatorPath,operatorBytes,{mode:0o640});
 };
+const writeEmptyOperatorFixture=()=>{
+  fs.mkdirSync(requestDir,{recursive:true,mode:0o750});
+  fs.writeFileSync(requestPath,requestBytes,{mode:0o640});
+  fs.writeFileSync(operatorPath,Buffer.alloc(0),{mode:0o640});
+};
 const restoreFixture=()=>{
   if(fs.existsSync(requestDir)&&fs.lstatSync(requestDir).isSymbolicLink()){
     fs.unlinkSync(requestDir);
@@ -100,6 +107,38 @@ try{
   assert.equal(positive.payment_capacity_lock_verified,false);
   assert.equal(positive.filesystem_write,false);
   assert.equal(positive.custody_reserve_method_enabled,false);
+
+  writeEmptyOperatorFixture();
+  const emptyOperator=observeBuyVoidCustodyPaymentLedgersReadOnlyV1({
+    request_dir:requestDir,
+  });
+  assert.equal(emptyOperator.observed,true,emptyOperator.reason);
+  assert.deepEqual(emptyOperator.requests_jsonl,requestBytes);
+  assert.deepEqual(emptyOperator.operator_events_jsonl,Buffer.alloc(0));
+  assert.equal(emptyOperator.evidence.requests.bytes,requestBytes.length);
+  assert.equal(emptyOperator.evidence.operator_events.bytes,0);
+  assert.equal(emptyOperator.cross_file_read_window_unchanged_proven,true);
+  writeFixture();
+
+  fs.writeFileSync(requestPath,Buffer.alloc(0),{mode:0o640});
+  requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({
+    request_dir:requestDir,
+  }),/requests_leaf_unqualified/u);
+  writeFixture();
+
+  fs.unlinkSync(operatorPath);
+  requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({
+    request_dir:requestDir,
+  }),/(?:held|operator_leaf_unqualified)/u);
+  writeFixture();
+
+  const operatorHardlink=operatorPath+".hardlink";
+  fs.linkSync(operatorPath,operatorHardlink);
+  requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({
+    request_dir:requestDir,
+  }),/operator_leaf_unqualified/u);
+  fs.unlinkSync(operatorHardlink);
+  writeFixture();
 
   let proxyTraps=0;
   const proxied=new Proxy({request_dir:requestDir},{
@@ -156,6 +195,28 @@ try{
     assert.equal(mutatedDuringOperatorRead,true,
       "first-ledger mutation must occur during second-ledger descriptor read");
     assert.ok(readCalls>=2);
+  }finally{
+    fs.readSync=originalRead;
+    writeFixture();
+  }
+
+  writeEmptyOperatorFixture();
+  const emptyOperatorIdentity=fs.statSync(operatorPath,{bigint:true});
+  let grewEmptyOperator=false;
+  try{
+    fs.readSync=function(fd,...args){
+      const stat=fs.fstatSync(fd,{bigint:true});
+      if(!grewEmptyOperator&&
+         stat.dev===emptyOperatorIdentity.dev&&stat.ino===emptyOperatorIdentity.ino){
+        grewEmptyOperator=true;
+        fs.appendFileSync(operatorPath,Buffer.from([0x7b]));
+      }
+      return originalRead.call(fs,fd,...args);
+    };
+    requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({request_dir:requestDir}),
+      /operator_changed_during_read/u);
+    assert.equal(grewEmptyOperator,true,
+      "zero-byte operator growth adversary did not execute");
   }finally{
     fs.readSync=originalRead;
     writeFixture();
@@ -259,6 +320,11 @@ try{
   console.log("fixed_requests_and_operator_leaf_names=true");
   console.log("two_leaf_descriptors_open_before_read=true");
   console.log("cross_file_read_window_unchanged_proven=true");
+  console.log("stable_empty_operator_history_observed=true");
+  console.log("empty_requests_remain_hold=true");
+  console.log("missing_operator_not_reinterpreted=true");
+  console.log("operator_hardlink_rejected=true");
+  console.log("operator_zero_to_one_growth_rejected=true");
   console.log("leaf_symlink_rejected=true");
   console.log("request_mutation_during_operator_read_rejected=true");
   console.log("post_open_growth_bounded_and_rejected=true");
@@ -275,8 +341,5 @@ try{
   console.log("production_allocation_mutation_ready=false");
   console.log("funds_moved=false");
 }finally{
-  fs.readSync=fs.readSync;
-  fs.openSync=fs.openSync;
-  fs.closeSync=fs.closeSync;
   fs.rmSync(root,{recursive:true,force:true});
 }

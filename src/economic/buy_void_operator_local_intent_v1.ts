@@ -29,6 +29,8 @@ export const VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1 =
     capability_browser_storage_forbidden: true,
     mutation_post_required: true,
     mutation_intent_header_required: true,
+    mounted_payment_only_verification_forbidden: true,
+    registered_mutation_route_identity_required: true,
     cross_site_browser_mutation_forbidden: true,
     public_ingress_authority: false,
     wallet_access: false,
@@ -209,8 +211,20 @@ function readOperatorCapabilityV1():
   } catch {
     return { ok: false };
   } finally {
-    if (credentialFd !== null) fs.closeSync(credentialFd);
-    if (directoryFd !== null) fs.closeSync(directoryFd);
+    // A failure closing the credential descriptor must never skip closing
+    // the retained directory descriptor or qualify the read as authorized.
+    let closeUncertain = false;
+    if (credentialFd !== null) {
+      try { fs.closeSync(credentialFd); }
+      catch { closeUncertain = true; }
+    }
+    if (directoryFd !== null) {
+      try { fs.closeSync(directoryFd); }
+      catch { closeUncertain = true; }
+    }
+    if (closeUncertain) {
+      throw new Error("operator_capability_descriptor_close_uncertain");
+    }
   }
 }
 
@@ -285,7 +299,13 @@ export function authorizeBuyVoidOperatorLocalReadV1(
 ): boolean {
   if (!localTransportV1(req, res)) return false;
 
-  const capability = readOperatorCapabilityV1();
+  let capability: ReturnType<typeof readOperatorCapabilityV1>;
+  try {
+    capability = readOperatorCapabilityV1();
+  } catch {
+    // A failed close is ambiguous even when the token read itself succeeded.
+    return sendHeld(res, 503, "operator_capability_unavailable");
+  }
   if (!capability.ok) {
     return sendHeld(res, 503, "operator_capability_unavailable");
   }
@@ -356,6 +376,21 @@ export function authorizeBuyVoidOperatorMutationV1(
 
   if (!localOriginMatchesHost(req)) {
     return sendHeld(res, 403, "operator_mutation_origin_forbidden");
+  }
+
+  // Express records the matched *registration* path in req.route.path.
+  // Never infer mutation authority from a client-controlled URL spelling.
+  const registeredRoute = req?.route?.path;
+  if (registeredRoute ===
+      "/__void/buy-void/operator/verify-payment.json") {
+    // The mounted verifier still uses a payment-only capacity writer.
+    // A durable payment_verified without allocation_reserved is forbidden.
+    return sendHeld(res, 503, "buy_void_allocation_handoff_unmounted");
+  }
+  if (registeredRoute !== "/__void/buy-void/operator/mark.json" &&
+      registeredRoute !==
+        "/__void/buy-void/operator/request/tx-hash.json") {
+    return sendHeld(res, 403, "operator_mutation_route_identity_unqualified");
   }
 
   return true;

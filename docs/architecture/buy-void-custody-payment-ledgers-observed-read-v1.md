@@ -4,9 +4,9 @@ Marker: `VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_V1`
 
 Status: **source-only read capability / production HOLD**.
 
-Exact source Git blob: `7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325`.
+Exact source Git blob: `79eb8c39529583fffdb083173fb37b1f32075a14`.
 
-Focused proof Git blob: `064d8c19d8fdc0979ecb280cc51ca3bc7fbc3ab3`.
+Focused proof Git blob: `4c51d29b681d433fc3733f738f8c1a36fae9e8e1`.
 
 ## Purpose
 
@@ -44,6 +44,20 @@ A mutation to the first ledger while the second is being read therefore HOLDs.
 Leaf substitution, ancestor rebinding, truncation, growth and same-window
 in-place mutation also HOLD.
 
+## Stable empty operator history
+
+`requests.jsonl` must remain present and nonempty. A present, regular,
+single-link `operator-events.jsonl` may be exactly zero bytes. That state means
+only that the descriptor-bound observed operator history contains zero rows.
+It is not authenticated genesis, proof that no historical payments existed,
+rollback exclusion, or permission to release a cross-UID claim.
+
+The zero-byte operator leaf still receives a one-byte preflight read. If a
+writer grows it from zero to one byte after the descriptor is pinned, the
+sentinel byte is observed and the read HOLDs as
+`operator_changed_during_read`. A missing operator path, symlink, hard link,
+replacement inode, close uncertainty, or an empty requests leaf remains HOLD.
+
 ## Deliberately narrower claim
 
 This proves only that both files were unchanged across the retained-descriptor
@@ -75,15 +89,20 @@ The proof uses disposable temp files only. It requires:
 
 - exact source identity;
 - byte-exact positive reads;
+- a present stable zero-byte operator history returning an empty Buffer;
+- continued rejection of empty requests and missing operator paths;
+- hard-link and symlink rejection;
+- zero-to-one-byte operator growth rejection;
 - zero Proxy/accessor execution;
 - fixed leaf names;
-- leaf-symlink rejection;
 - detection of request mutation while the operator ledger is read;
 - bounded detection of post-open multi-megabyte growth;
 - ancestor replacement detection;
 - cleanup of retained descriptors after a mid-walk failure; and
 - visible HOLD on descriptor-close failure.
 
-Node 22, 24 and 26 must emit byte-identical proof receipts.
+Node 22, 24 and 26 must emit byte-identical proof receipts. Current PR diff
+hygiene is computed from the PR merge base so an advancing base branch cannot
+inject reverse changes into this lane's whitespace check.
 
 **PROTECT THE CORE.**
