@@ -34,7 +34,10 @@ const SERVER_MARKER = "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V2";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_TIMEOUT_MS = 5000;
+// Bind the original decoder method at module load. A later same-process
+// TextDecoder.prototype.decode replacement must not redefine socket evidence.
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
+const UTF8_DECODE_INTRINSIC_V1 = TextDecoder.prototype.decode;
 
 function fail(code) {
   throw new Error("void_buy_void_custody_inspect_client_" + code);
@@ -141,7 +144,7 @@ function onlyFields(row, keys) {
 function parseResponse(bytes, expectedDigest) {
   if (bytes.length < 3 || bytes.length > MAX_RESPONSE_BYTES ||
       bytes[bytes.length - 1] !== 0x0a) fail("response_framing_invalid");
-  const decoded = UTF8.decode(bytes);
+  const decoded = Reflect.apply(UTF8_DECODE_INTRINSIC_V1, UTF8, [bytes]);
   if (decoded.includes("\r") || decoded.indexOf("\n") !== decoded.length - 1) {
     fail("response_multiline_invalid");
   }

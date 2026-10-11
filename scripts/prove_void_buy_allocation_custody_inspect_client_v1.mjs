@@ -5,6 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 import {
   VOID_BUY_VOID_CUSTODY_INSPECT_CLIENT_AUTHORITY_V1,
   VOID_BUY_VOID_CUSTODY_INSPECT_CLIENT_V1,
@@ -144,6 +145,32 @@ try {
   held(await inspectVoidBuyAllocationCustodyServiceV2ReadOnlyV1(config()));
 
   await fake(socket => deliver(socket, baseline), true);
+  // Same-process ambient prototype replacement must not reinterpret the
+  // peer's exact response bytes as a successful custody inspection.
+  // A deliberately invalid frame must HOLD even if an inherited decode()
+  // method would replace its text with a canonical positive receipt.
+  const originalDecoderMethod = TextDecoder.prototype.decode;
+  let poisonedDecoderCalls = 0;
+  try {
+    const forgedReceipt = JSON.stringify(baseline) + "\n";
+    TextDecoder.prototype.decode = function() {
+      poisonedDecoderCalls += 1;
+      return forgedReceipt;
+    };
+    assert.equal(new TextDecoder().decode(Buffer.from("negative-control")),
+      forgedReceipt);
+    assert.equal(poisonedDecoderCalls, 1,
+      "ambient decode callback positive control must execute");
+    poisonedDecoderCalls = 0;
+    await fake(socket => socket.end("NOT_CANONICAL_JSON\n"), false);
+    await fake(socket => socket.end(Buffer.from([0xff,0x7b,0x7d,0x0a])), false);
+    assert.equal(poisonedDecoderCalls, 0,
+      "socket-response decoder must not invoke an inherited mutable method");
+  } finally {
+    TextDecoder.prototype.decode = originalDecoderMethod;
+  }
+
+
   // Canonical custody/high-water identity: count is bounded and the digest
   // must be lowercase SHA-256; zero count has exactly the zero-genesis tip.
   await fake(socket => deliver(socket, { ...baseline, decision: { ...decision,
@@ -251,6 +278,7 @@ try {
   console.log("VOID_BUY_VOID_CUSTODY_INSPECT_IPC_V1_PROOF_GREEN");
   console.log("bounded_socket_request_and_reply=true");
   console.log("request_digest_bound=true");
+  console.log("utf8_decoder_intrinsic_bound=true");
   console.log("malformed_and_oversize_replies_hold=true");
   console.log("positive_decision_authority_false=true");
   console.log("socket_path_and_metadata_preflight=true");
