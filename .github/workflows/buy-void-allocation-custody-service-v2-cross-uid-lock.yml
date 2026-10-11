@@ -105,7 +105,7 @@ jobs:
           CODE="/tmp/void-custody-v2-code-${{ github.run_id }}-${{ matrix.node }}"
           DATA="/tmp/void-custody-v2-data-${{ github.run_id }}-${{ matrix.node }}"
           SHARED="/tmp/void-custody-v2-lock-${{ github.run_id }}-${{ matrix.node }}"
-          LOG="/tmp/void-custody-v2-contention-${{ github.run_id }}-${{ matrix.node }}.log"
+          LOG="$SHARED/contention.log"
 
           sudo groupadd "$GROUP"
           sudo useradd -M -s /usr/sbin/nologin -g "$GROUP" "$CUST"
