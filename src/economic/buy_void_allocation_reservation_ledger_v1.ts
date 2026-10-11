@@ -80,6 +80,9 @@ const ALLOCATION_BUFFER_PROTOTYPE_V1 = Buffer.prototype;
 const ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
 )!.get!;
+// Capture intrinsic invocation at module initialization; a later global
+// Reflect.apply replacement cannot forge byte length, copy or frame windows.
+const ALLOCATION_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
 const ALLOCATION_TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
 // Preserve the original octets and framing independently of ambient
 // Buffer.prototype.toString or String.prototype.split/slice/endsWith.
@@ -100,7 +103,7 @@ function isNativeAllocationBufferV1(value: unknown): value is Buffer {
 }
 
 function detachedAllocationBufferV1(value: Buffer): Buffer {
-  const length = Reflect.apply(
+  const length = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
     ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, value, [],
   ) as number;
   if (length > MAX_LEDGER_BYTES) {
@@ -109,7 +112,7 @@ function detachedAllocationBufferV1(value: Buffer): Buffer {
   const bytes = Buffer.alloc(length);
   // TypedArray.set's typed-array source path ignores valueOf, length,
   // iterator, constructor, and buffer properties on the caller's object.
-  Reflect.apply(ALLOCATION_TYPED_ARRAY_SET_V1, bytes, [value]);
+  ALLOCATION_REFLECT_APPLY_NATIVE_V1(ALLOCATION_TYPED_ARRAY_SET_V1, bytes, [value]);
   return bytes;
 }
 
@@ -1057,7 +1060,7 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
     }
     // Direct byte framing cannot be made to omit earlier reservations by
     // mutating Buffer.prototype.toString or String.prototype.slice/split.
-    const byteLength = Reflect.apply(
+    const byteLength = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
       ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, bytes, [],
     ) as number;
     if (byteLength === 0) {
@@ -1112,7 +1115,7 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
       if (frameCount >= MAX_LEDGER_RECORDS || cursor === frameStart) {
         throw new Error("allocation_reservation_ledger_lines_invalid");
       }
-      const lineBytes = Reflect.apply(
+      const lineBytes = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
         ALLOCATION_TYPED_ARRAY_SUBARRAY_V2, bytes, [frameStart, cursor],
       ) as Uint8Array;
       let line: string;

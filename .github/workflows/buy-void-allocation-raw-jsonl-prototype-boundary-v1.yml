@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "53d7e24dc2b646e05f2ecce0c02181d0af53b849"
 
       - name: Setup pinned GitHub Node action
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38

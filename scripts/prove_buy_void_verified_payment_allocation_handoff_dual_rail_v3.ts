@@ -19,11 +19,11 @@ import {
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PINS=Object.freeze({
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"f591f7407d9afc2cf77e0f90923aa11b4817fd4e",
-  "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":"b5dbbbd932688f8b0ad04477433cd11ede413bb7",
-  "src/economic/buy_void_allocation_reservation_ledger_v1.ts":"1542e833242a20bea8359396e2e157882e53cabc",
+  "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":"423f06869623e0e3bb626d68aabd302ca1ecbb17",
+  "src/economic/buy_void_allocation_reservation_ledger_v1.ts":"53d7e24dc2b646e05f2ecce0c02181d0af53b849",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":"9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts":"9fb39172afa09e49c11d72ff376e9af2d99a4101",
-  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"d5b24ba90c56aee0f23e281d58dd285edde8d934",
+  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"01962a46d121c8c646f3e7745628e29c19fb0933",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts":"7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts":"6d6a8b0efee8bc2d4e7f402bf7bd4b9e4ed4ac3a",
 });
@@ -218,8 +218,8 @@ assert.equal(accepted,2);assert.equal(replays,2);assert.equal(missing,3);
 assert.equal(chainHolds,2);assert.equal(nonnative,1);assert.equal(late,1);
 assert.ok(authorityCalls>0);
 console.log("VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN");
-console.log("reviewed_replay_source_blob=b5dbbbd932688f8b0ad04477433cd11ede413bb7");
-console.log("reviewed_allocation_ledger_source_blob=1542e833242a20bea8359396e2e157882e53cabc");
+console.log("reviewed_replay_source_blob=423f06869623e0e3bb626d68aabd302ca1ecbb17");
+console.log("reviewed_allocation_ledger_source_blob=53d7e24dc2b646e05f2ecce0c02181d0af53b849");
 console.log("frozen_dual_rail_v2_proof_unchanged=true");
 console.log("current_first_original_v4_proof_source_bound=true");
 console.log("both_native_usdc_rails_admitted=2");

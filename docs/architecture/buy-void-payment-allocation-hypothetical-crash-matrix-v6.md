@@ -5,10 +5,10 @@
 V6 is the source-only crash/replay successor for the final first-original JSONL
 generation reviewed at `df7ad33671b8c47a350c1d3ebfc87c59d69d580a`.
 
-It binds the exact **current source-only bound-decoder successor** tuple:
+It binds the exact **current source-only bound-decoder and byte-framing-intrinsic successor** tuple:
 
-- allocation reservation ledger: `1542e833242a20bea8359396e2e157882e53cabc`;
-- verified allocation replay binding: `b5dbbbd932688f8b0ad04477433cd11ede413bb7`;
+- allocation reservation ledger: `53d7e24dc2b646e05f2ecce0c02181d0af53b849`;
+- verified allocation replay binding: `423f06869623e0e3bb626d68aabd302ca1ecbb17`;
 - preappend plain-input boundary (unchanged): `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`.
 
 The previous first-original V6 reviewed source tuple

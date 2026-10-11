@@ -125,7 +125,7 @@ jobs:
                 test "$historical_status" -eq 1
                 grep -Fq 'reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
                 grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq 'b5dbbbd932688f8b0ad04477433cd11ede413bb7' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '423f06869623e0e3bb626d68aabd302ca1ecbb17' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_DUAL_RAIL_V2_HELD=$proof"
                 continue
                 ;;
@@ -147,7 +147,7 @@ jobs:
                 test "$historical_status" -eq 1
                 grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
                 grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq 'b5dbbbd932688f8b0ad04477433cd11ede413bb7' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '423f06869623e0e3bb626d68aabd302ca1ecbb17' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
                 continue
                 ;;
@@ -158,8 +158,8 @@ jobs:
                 # execute or silently repin the historical proof against successor bytes.
                 test "$(git hash-object -- "$proof")" = "4ef9379ff3130795533a7d2d59b5f737eafa0a00"
                 test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
-                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
-                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "53d7e24dc2b646e05f2ecce0c02181d0af53b849"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "423f06869623e0e3bb626d68aabd302ca1ecbb17"
                 echo "VOID_HISTORICAL_WITNESS_BUNDLE_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
                 continue
                 ;;
@@ -169,8 +169,8 @@ jobs:
                 test "$(git hash-object -- "$proof")" = "0d8778b937f564eee5eabfcdb554c6ea8ffde0c8"
                 test "$(git hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)" = "453550bcab9c5caf192c6d9d813bce9ce4433b0a"
                 test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
-                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
-                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "53d7e24dc2b646e05f2ecce0c02181d0af53b849"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "423f06869623e0e3bb626d68aabd302ca1ecbb17"
                 echo "VOID_HISTORICAL_WITNESS_BUNDLE_V3_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
                 continue
                 ;;

@@ -199,6 +199,10 @@ const TYPED_ARRAY_LENGTH_GETTER_V1 =
   Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "length")?.get;
 const TYPED_ARRAY_BUFFER_GETTER_V1 =
   Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTO_V1, "buffer")?.get;
+// Capture the exact byte/framing invocation mechanisms before mutable
+// same-process hooks can replace Reflect.apply or ArrayBuffer#slice.
+const REPLAY_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
+const REPLAY_ARRAY_BUFFER_SLICE_NATIVE_V1 = ArrayBuffer.prototype.slice;
 const TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
 const TYPED_ARRAY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
 
@@ -218,8 +222,8 @@ function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
   let count: number;
   let backing: ArrayBufferLike;
   try {
-    count = Reflect.apply(TYPED_ARRAY_LENGTH_GETTER_V1!, value, []) as number;
-    backing = Reflect.apply(
+    count = REPLAY_REFLECT_APPLY_NATIVE_V1(TYPED_ARRAY_LENGTH_GETTER_V1!, value, []) as number;
+    backing = REPLAY_REFLECT_APPLY_NATIVE_V1(
       TYPED_ARRAY_BUFFER_GETTER_V1!, value, [],
     ) as ArrayBufferLike;
   } catch {
@@ -234,9 +238,9 @@ function detachedJsonlBytesV1(value: unknown, label: string): Buffer {
   try {
     // Slice with zero output bytes deliberately probes for a detached buffer:
     // a detached prior-event Buffer must not silently become empty history.
-    Reflect.apply(ArrayBuffer.prototype.slice, backing, [0, 0]);
+    REPLAY_REFLECT_APPLY_NATIVE_V1(REPLAY_ARRAY_BUFFER_SLICE_NATIVE_V1, backing, [0, 0]);
     const detached = Buffer.alloc(count);
-    Reflect.apply(TYPED_ARRAY_SET_V1, detached, [value, 0]);
+    REPLAY_REFLECT_APPLY_NATIVE_V1(TYPED_ARRAY_SET_V1, detached, [value, 0]);
     return detached;
   } catch {
     return invalid();
@@ -305,7 +309,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
     if (octet !== 0x0a) continue;
     if (rowIndex >= MAX_ROWS) fail(label + "_too_many_rows");
     if (cursor === rowStart) fail(label + "_empty_row");
-    const lineBytes = Reflect.apply(
+    const lineBytes = REPLAY_REFLECT_APPLY_NATIVE_V1(
       TYPED_ARRAY_SUBARRAY_V1, detached, [rowStart, cursor],
     ) as Uint8Array;
     const line = REPLAY_FATAL_UTF8_DECODE_BOUND_V1(lineBytes);

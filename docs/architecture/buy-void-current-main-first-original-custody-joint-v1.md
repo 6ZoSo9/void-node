@@ -58,17 +58,18 @@ byte-for-byte. The eight merged service files remain identical to merged
 The two source blobs above identify the original reviewed first-original
 generation, preserved in Git history. PR #2790's **new current-generation
 candidate** binds fatal UTF-8 decoder calls during module initialization,
-so a later replacement of `TextDecoder.prototype.decode` or global
-`Reflect.apply` cannot replace decoded allocation/replay row bytes.
+and also captures native `Reflect.apply` and ArrayBuffer slice
+intrinsics before byte-length, copy and subarray operations. Later
+mutations cannot forge decoded allocation/replay row bytes.
 The successor reviewed Git blobs are:
 
-- allocation reservation ledger: `1542e833242a20bea8359396e2e157882e53cabc`;
-- verified allocation replay: `b5dbbbd932688f8b0ad04477433cd11ede413bb7`;
-- adversarial actual-classifier test: `c45f1d31d254ffed7919b2cbaa05aff6caa6580a`.
+- allocation reservation ledger: `53d7e24dc2b646e05f2ecce0c02181d0af53b849`;
+- verified allocation replay: `423f06869623e0e3bb626d68aabd302ca1ecbb17`;
+- adversarial actual-classifier test: `d750cc132685557492f87aeb54bd021d0c4a8a50`.
 
 The existing joint workflow now requires the actual-classifier adversary on
-Node 22/24/26, including positive controls that poisoned global hooks are
-armed, rejection of malformed input without callback invocation, and
+Node 22/24/26, including positive controls for poisoned global decoder and framing
+hooks, rejection of malformed input with zero hook invocations, and
 byte-identical non-authority receipts. Historical pinned generations remain
 unchanged. These are **source-only** proofs; no current installed Nimo runtime,
 atomic payment allocation, custody release, buyer finality or presale approval

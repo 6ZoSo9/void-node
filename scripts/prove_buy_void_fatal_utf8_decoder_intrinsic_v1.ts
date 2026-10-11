@@ -14,9 +14,9 @@ import {
 
 const PINNED_SOURCE = Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
-    "1542e833242a20bea8359396e2e157882e53cabc",
+    "53d7e24dc2b646e05f2ecce0c02181d0af53b849",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":
-    "b5dbbbd932688f8b0ad04477433cd11ede413bb7",
+    "423f06869623e0e3bb626d68aabd302ca1ecbb17",
 });
 function gitBlob(file: string): string {
   const bytes = fs.readFileSync(file);
@@ -30,8 +30,18 @@ for (const [path, expected] of Object.entries(PINNED_SOURCE)) {
 const original = Object.getOwnPropertyDescriptor(TextDecoder.prototype, "decode");
 assert.ok(original && original.configurable && typeof original.value === "function");
 const originalApply = Reflect.apply;
+const originalSlice = ArrayBuffer.prototype.slice;
+const typedArrayProto = Object.getPrototypeOf(Uint8Array.prototype);
+const byteLengthGetter =
+  Object.getOwnPropertyDescriptor(typedArrayProto, "byteLength")?.get;
+const lengthGetter =
+  Object.getOwnPropertyDescriptor(typedArrayProto, "length")?.get;
+const typedSubarray = Uint8Array.prototype.subarray;
+assert.ok(byteLengthGetter && lengthGetter);
 let callbackCount = 0;
 let applyHookCount = 0;
+let framingHookCount = 0;
+let sliceHookCount = 0;
 Object.defineProperty(TextDecoder.prototype, "decode", {
   ...original,
   value(_bytes: unknown) {
@@ -60,6 +70,24 @@ try {
       applyHookCount++;
       return forged;
     }
+    // Byte-length spoofing can incorrectly turn nonempty ledger history into
+    // an empty, apparently valid genesis, before any decoded JSONL check.
+    const marker = Buffer.isBuffer(receiver) &&
+      receiver.length === 2 && receiver[0] === 0x58 &&
+      receiver[1] === 0x0a;
+    if (marker && (target === byteLengthGetter || target === lengthGetter)) {
+      framingHookCount++;
+      return 0;
+    }
+    // Redirect framed row bytes to unrelated but canonical JSON text.
+    if (marker && target === typedSubarray) {
+      framingHookCount++;
+      return Buffer.from("{}", "utf8");
+    }
+    if (target === originalSlice && receiver instanceof ArrayBuffer) {
+      sliceHookCount++;
+      return new ArrayBuffer(0);
+    }
     return originalApply(target, receiver, args);
     },
   });
@@ -70,6 +98,18 @@ try {
     "malicious Reflect.apply control not armed");
   assert.equal(applyHookCount, 1);
   applyHookCount = 0;
+  // Each attacker path must be reachable as a positive control through
+  // the live, poisoned global, rather than a vacuous zero-call assertion.
+  const twoBytes = Buffer.from("X\n");
+  assert.equal(Reflect.apply(byteLengthGetter!, twoBytes, []), 0);
+  const forgedRow = Reflect.apply(typedSubarray, twoBytes, [0, 1]);
+  assert.equal(Buffer.from(forgedRow).toString("utf8"), "{}");
+  assert.equal(framingHookCount, 2);
+  framingHookCount = 0;
+  assert.equal(Reflect.apply(originalSlice, new ArrayBuffer(8), [0, 0])
+    .byteLength, 0);
+  assert.equal(sliceHookCount, 1);
+  sliceHookCount = 0;
 
   const ledger = classifyBuyVoidAllocationReservationLedgerV1(Buffer.from("X\n"));
   assert.equal(ledger.ok, false, "invalid allocation JSONL must HOLD");
@@ -100,6 +140,10 @@ try {
     "source parsers must NEVER invoke mutated TextDecoder.prototype.decode");
   assert.equal(applyHookCount, 0,
     "source parsers must NEVER invoke mutable Reflect.apply for UTF-8 decode");
+  assert.equal(framingHookCount, 0,
+    "ledger/replay may not use a mutable Reflect.apply for bytes or row frames");
+  assert.equal(sliceHookCount, 0,
+    "replay may not use a mutable Reflect.apply for ArrayBuffer slice");
 } finally {
   Reflect.apply = originalApply;
   Object.defineProperty(TextDecoder.prototype, "decode", original);
@@ -115,6 +159,8 @@ console.log("reviewed_replay_source_blob=" + PINNED_SOURCE[
 console.log("malicious_decoder_control_armed=true");
 console.log("malicious_decoder_callback_invocations_on_economic_classifiers=0");
 console.log("mutable_reflect_apply_decoder_calls=0");
+console.log("mutable_reflect_apply_frame_calls=0");
+console.log("mutable_reflect_apply_slice_calls=0");
 console.log("bound_fatal_utf8_decoder_used=true");
 console.log("synthetic_hold_cases=" + succeeded);
 console.log("prototype_restored_after_test=true");

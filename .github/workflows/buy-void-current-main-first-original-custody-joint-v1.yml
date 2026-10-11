@@ -48,9 +48,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b5dbbbd932688f8b0ad04477433cd11ede413bb7"
-          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "1542e833242a20bea8359396e2e157882e53cabc"
-          test "$(git hash-object scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts)" = "c45f1d31d254ffed7919b2cbaa05aff6caa6580a"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "423f06869623e0e3bb626d68aabd302ca1ecbb17"
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "53d7e24dc2b646e05f2ecce0c02181d0af53b849"
+          test "$(git hash-object scripts/prove_buy_void_fatal_utf8_decoder_intrinsic_v1.ts)" = "d750cc132685557492f87aeb54bd021d0c4a8a50"
           test "$(git hash-object tools/void-buy-allocation-custody-service-v1.mjs)" = "b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
           git merge-base --is-ancestor 16a9002a3b1ffe0f8faa2c9170ca6c087565c59a HEAD
           git merge-base --is-ancestor df7ad33671b8c47a350c1d3ebfc87c59d69d580a HEAD
@@ -109,8 +109,8 @@ jobs:
             echo "VOID_BUY_VOID_FIRST_ORIGINAL_AND_CUSTODY_JOINT_MAIN_V1_GREEN"
             echo "main_parent=16a9002a3b1ffe0f8faa2c9170ca6c087565c59a"
             echo "first_original_owner=df7ad33671b8c47a350c1d3ebfc87c59d69d580a"
-            echo "replay_source=b5dbbbd932688f8b0ad04477433cd11ede413bb7"
-            echo "allocation_source=1542e833242a20bea8359396e2e157882e53cabc"
+            echo "replay_source=423f06869623e0e3bb626d68aabd302ca1ecbb17"
+            echo "allocation_source=53d7e24dc2b646e05f2ecce0c02181d0af53b849"
             echo "native_utf8_decoder_bound=true"
             echo "custody_source=b89d6c3ef210473f486f9fc9d1cab9303e6336c9"
             echo "durable_payment_provenance_read=true"
