@@ -56,28 +56,39 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object src/index.ts)" = "1fde828c97175560f98ab070af33eefc595f8002"
-          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "0e27a76e777c326d2d9e2b1550b7f2979fca9abb"
-          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "f591f7407d9afc2cf77e0f90923aa11b4817fd4e"
+          test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "cd255c42b0e4b331a1316351cc729f5f934aad50"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "a651e42c02a7127cf445e545de77292c29cbe2bc"
           test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs)" = "033018d6caee821b370001d558fcfb81edda48f1"
       - name: Reprove exact seal-first router ancestry
         run: node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs
-      - name: Frozen dispatcher V1 must refuse current router
+      - name: Preserve frozen V1 and V2 refusal of current source
         run: |
           set -euo pipefail
-          if node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > "$RUNNER_TEMP/frozen-v1.txt" 2>&1; then
-            echo "UNEXPECTED_FROZEN_DISPATCH_V1_ACCEPTANCE" >&2
-            exit 1
-          fi
-          grep -F 'mounted router generation drift' "$RUNNER_TEMP/frozen-v1.txt"
-      - name: Prove current dispatcher V2 and mounted HOLD
+          for version in 1 2; do
+            proof="scripts/prove_buy_void_operator_verified_allocation_dispatch_v${version}.ts"
+            log="$RUNNER_TEMP/dispatch-frozen-v${version}.txt"
+            if node --import tsx "$proof" > "$log" 2>&1; then
+              echo "UNEXPECTED_FROZEN_DISPATCH_SOURCE_ACCEPTANCE_V${version}" >&2
+              exit 1
+            fi
+            grep -Fq 'exact reviewed dispatcher source drift' "$log"
+            grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$log"
+            grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$log"
+          done
+          echo frozen_dispatcher_v1_v2_source_refusal_verified=true
+      - name: Prove current dispatcher V3 and mounted HOLD
         run: |
           set -euo pipefail
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts \
-            | tee "dispatch-v2-node-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts \
+            | tee "dispatch-v3-node-${{ matrix.node }}.txt"
           for marker in \
-            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V2_GREEN' \
+            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V3_GREEN' \
+            'frozen_dispatcher_v2_proof_unchanged=true' \
+            'verified_payment_plan_selects_allocation_handoff=true' \
+            'nonpayment_plan_preserves_status_writer=true' \
             'frozen_dispatcher_v1_proof_unchanged=true' \
             'reviewed_router_source_blob=1fde828c97175560f98ab070af33eefc595f8002' \
             'outer_input_proxy_rejected_without_traps=true' \
@@ -91,13 +102,13 @@ jobs:
             'presale_activation=false' \
             'funds_moved=false'
           do
-            grep -Fx "$marker" "dispatch-v2-node-${{ matrix.node }}.txt"
+            grep -Fx "$marker" "dispatch-v3-node-${{ matrix.node }}.txt"
           done
       - name: Upload exact-head source-only proof
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-verified-allocation-dispatch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: dispatch-v2-node-${{ matrix.node }}.txt
+          name: buy-void-verified-allocation-dispatch-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dispatch-v3-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff whitespace hygiene
@@ -114,16 +125,16 @@ jobs:
       - name: Download three exact-head V2 outputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-verified-allocation-dispatch-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-verified-allocation-dispatch-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./evidence
-      - name: Require exact Node 22 24 26 byte equality
+      - name: Require current V3 exact Node 22 24 26 byte equality
         run: |
           set -euo pipefail
-          for v in 22 24 26; do test -s "evidence/dispatch-v2-node-$v.txt"; done
-          cmp evidence/dispatch-v2-node-22.txt evidence/dispatch-v2-node-24.txt
-          cmp evidence/dispatch-v2-node-22.txt evidence/dispatch-v2-node-26.txt
-          echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V2_CROSS_NODE_GREEN"
+          for v in 22 24 26; do test -s "evidence/dispatch-v3-node-$v.txt"; done
+          cmp evidence/dispatch-v3-node-22.txt evidence/dispatch-v3-node-24.txt
+          cmp evidence/dispatch-v3-node-22.txt evidence/dispatch-v3-node-26.txt
+          echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V3_CROSS_NODE_GREEN"
           echo "frozen_dispatcher_v1_proof_unchanged=true"
           echo "mounted_operator_route_verified=false"
           echo "production_gate_ready=false"

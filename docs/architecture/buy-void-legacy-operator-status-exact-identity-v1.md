@@ -98,3 +98,14 @@ wallet/credential/signer, transaction, Chain-2050/WC, inventory, treasury,
 liquidity, presale/market activation or funds movement occurs here.
 
 **PROTECT THE CORE.**
+
+## Current source-only writer successor, October 11, 2026
+
+The current production-source candidate is the central nonpayment operator
+writer at Git blob `cd255c42b0e4b331a1316351cc729f5f934aad50`, which adds an immutable terminal
+fulfillment recheck under the existing same-request writer lock. The earlier
+writer blob `f591f7407d9afc2cf77e0f90923aa11b4817fd4e` remains historical, not an
+accepted current-source implementation. This negative operator-status alias
+proof is re-executed against the *current* source, ensuring the new terminal
+guard does not revive noncanonical `payment_verified` status aliases.
+Cross-process production custody and customer-payment acceptance remain HOLD.

@@ -29,3 +29,19 @@ reporting `mounted_verified_allocation_dispatch=false`.
 
 No host, service, credential, customer ledger, wallet, signer, payment,
 allocation, inventory, treasury, presale, or funds action is performed.
+
+## October 11, 2026 — current V3 and frozen V1/V2 discrimination
+
+The original verified-allocation V1/V2 dispatcher scripts are **frozen
+historical source generations**. A new central nonpayment writer implements
+bounded strict canonical operator-event history validation *inside* the
+per-request closeout lock, without mounting verified-payment allocation.
+The current writer Git blob is
+`cd255c42b0e4b331a1316351cc729f5f934aad50`;
+the current V3 dispatcher proof Git blob is `a651e42c02a7127cf445e545de77292c29cbe2bc`.
+Workflow V1 must prove the frozen V1 source refuses the new tree; the
+existing V2 workflow now requires both frozen V1 and frozen V2 refusals
+and the actual current V3 source-only positive proof on Node 22/24/26.
+Historical test/proof source bytes are unchanged and cannot be treated
+as current acceptance. No public runtime, custody UID, funds, payment
+or presale authority is enabled by this requalification.

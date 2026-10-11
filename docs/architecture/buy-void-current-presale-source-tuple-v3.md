@@ -16,7 +16,7 @@ Current source identities:
 
 - preappend plain-input: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`;
 - operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
-- dispatcher V3 proof: `df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f`;
+- dispatcher V3 proof: `a651e42c02a7127cf445e545de77292c29cbe2bc`;
 - first-original handoff V4 proof: `ccb271e34b67dca07683198d84a0a9449f46729e`;
 - frozen crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
 - current crash matrix V6 proof: `6d0d489eba7964d82e104c8824f1ebdb0da9e397`.
@@ -47,3 +47,15 @@ No live chain finality or customer receipt, signer, installed Nimo witness,
 separate custody-UID authority, payment-to-allocation routed dispatch,
 independent high-water durability, WC/VOID market, or funds are qualified.
 These remain HOLD until separately authorized, installed and accepted.
+
+## October 11 terminal writer-lock source successor
+
+The current V3 dispatcher proof now requires central nonpayment writer
+`cd255c42b0e4b331a1316351cc729f5f934aad50` and has reviewed
+Git blob `a651e42c02a7127cf445e545de77292c29cbe2bc`. The previous
+dispatcher V3 proof `df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f` and writer
+`f591f7407d9afc2cf77e0f90923aa11b4817fd4e` are historical
+generations. Frozen V1/V2 dispatcher proofs remain unchanged and are
+required to reject incompatible current source. The mounted verified-payment
+allocation dispatcher remains disabled; source green never grants payment
+acceptance, custody reserve/recover, presale activation or funds movement.

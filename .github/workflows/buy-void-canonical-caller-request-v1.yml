@@ -32,8 +32,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = f591f7407d9afc2cf77e0f90923aa11b4817fd4e
-          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = 970e686cd96b43d496c44acb4ff343a5e61e26c5
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = cd255c42b0e4b331a1316351cc729f5f934aad50
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = b451bcd895986dadaf6e53954671062068316ccf
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
