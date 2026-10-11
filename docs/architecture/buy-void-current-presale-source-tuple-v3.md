@@ -14,7 +14,8 @@ Current source identities:
 - operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
 - dispatcher V3 proof: `df38ed1d0ba1bd6b74f7dbcac9b9dcdc249cea1f`;
 - first-original handoff V4 proof: `ed31307a5fc0ae4644eba3b553e58e03cf1703d4`;
-- crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`.
+- frozen crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
+- current crash matrix V6 proof: `72ba3406db6d780fc3bb69723080922376e3c20d`.
 
 The mounted operator route remains payment-only. Custody reserve/recover,
 installed Nimo V2, real payment acceptance, presale activation and funds

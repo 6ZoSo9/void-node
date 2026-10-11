@@ -56,6 +56,7 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "ef5b351c3db19a9effe419b056de76dd473029ad"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs)" = "5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51"
+          test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs)" = "72ba3406db6d780fc3bb69723080922376e3c20d"
       - name: Require predecessor refusals and current successor success
         run: |
           set -euo pipefail
@@ -77,14 +78,19 @@ jobs:
               grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$log"
               grep -Fq 'd873533dbe60f2efff2fefc19470ee963b4fead0' "$log"
             fi
+            echo "historical_refusal_verified=$proof"
           done
           node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
           node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs
-          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs > crash-${{ matrix.node }}.json
+          echo current_positive_begin=crash_v6
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > crash-${{ matrix.node }}.json
+          echo current_positive_begin=first_original_v4
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > handoff-${{ matrix.node }}.txt
+          echo current_positive_begin=dispatcher_v3
           node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts > dispatch-${{ matrix.node }}.txt
+          echo current_positive_begin=dual_rail_v3
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > dualrail-${{ matrix.node }}.txt
-          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V5' crash-${{ matrix.node }}.json
+          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' crash-${{ matrix.node }}.json
           grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' handoff-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V3_GREEN' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
