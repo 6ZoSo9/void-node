@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import vm from "node:vm";
-import ts from "typescript";
 
 import {
   VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
@@ -67,6 +65,7 @@ function request(overrides: Record<string, any> = {}): any {
     },
     query: {},
     cookies: {},
+    route: { path: "/__void/buy-void/operator/mark.json" },
   };
   return {
     ...base,
@@ -403,112 +402,88 @@ try {
     }
   }
 
+  // The mounted payment verifier is authenticated but intentionally HOLDs
+  // until an allocation-backed cross-UID service replaces the payment-only
+  // writer. Match against the trusted Express registration, not req.path.
+  const allowedMutationPaths = [
+    "/__void/buy-void/operator/mark.json",
+    "/__void/buy-void/operator/request/tx-hash.json",
+  ];
+  for (const registeredPath of allowedMutationPaths) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({ route: { path: registeredPath } }),
+        res,
+      ),
+      true,
+    );
+    assert.equal(result.status, 200);
+    assert.equal(result.body, null);
+  }
+  for (const spoofedClientPath of [
+    "/__void/buy-void/operator/verify-payment.json",
+    "/__VOID/BUY-VOID/OPERATOR/VERIFY-PAYMENT.JSON",
+    "/__void/buy-void/operator/verify-payment.json/",
+    "/__void/buy-void/operator/verify-payment.json?id=synthetic",
+  ]) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({
+          route: {
+            path: "/__void/buy-void/operator/verify-payment.json",
+          },
+          path: spoofedClientPath,
+        }),
+        res,
+      ),
+      false,
+    );
+    assert.equal(result.status, 503);
+    assert.equal(
+      result.body?.error,
+      "buy_void_allocation_handoff_unmounted",
+    );
+  }
+  for (const registeredRoute of [
+    undefined,
+    null,
+    {},
+    { path: "/__void/buy-void/operator/unreviewed.json" },
+    { path: "/__VOID/BUY-VOID/OPERATOR/MARK.JSON" },
+    { path: ["__void/buy-void/operator/mark.json"] },
+  ]) {
+    const { result, res } = response();
+    assert.equal(
+      authorizeBuyVoidOperatorMutationV1(
+        request({ route: registeredRoute }),
+        res,
+      ),
+      false,
+    );
+    assert.equal(result.status, 403);
+    assert.equal(
+      result.body?.error,
+      "operator_mutation_route_identity_unqualified",
+    );
+  }
+  assert.equal(
+    VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+      .mounted_payment_only_verification_forbidden,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_OPERATOR_LOCAL_INTENT_AUTHORITY_V1
+      .registered_mutation_route_identity_required,
+    true,
+  );
+
   const runtimeSource = fs.readFileSync("src/index.ts", "utf8");
   const txHashBindingSource = fs.readFileSync(
     "src/economic/buy_void_request_tx_hash_binding_v1.ts",
     "utf8",
   );
-
-  // Execute the actual mounted helper with ONLY the import redirected to
-  // an inert test double. This is not a live payment or service invocation.
-  const mountGuard = "buy_void_allocation_handoff_unmounted";
-  const writerStart = runtimeSource.indexOf(
-    "async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any)",
-  );
-  const writerEnd = runtimeSource.indexOf(
-    "// VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1", writerStart,
-  );
-  assert.ok(writerStart > 0 && writerEnd > writerStart);
-  const writerBlock = runtimeSource.slice(writerStart, writerEnd);
-  assert.equal(runtimeSource.includes(mountGuard), true);
-  assert.match(writerBlock,
-    /buy_void_allocation_handoff_unmounted/u);
-  const actualImport =
-    'await import("./economic/buy_void_verified_payment_capacity_admission_v1.js")';
-  assert.equal(writerBlock.split(actualImport).length, 2);
-  let writerCalls = 0;
-  const importRelease = { current: null as (() => void) | null };
-  let pendingImport: Promise<void> | null = null;
-  const importStub = () => {
-    if (pendingImport) return pendingImport.then(() => ({
-      writeBuyVoidOperatorEventWithCapacityAdmissionV1() {
-        writerCalls += 1;
-        return { ok: true };
-      },
-    }));
-    return Promise.resolve({
-      writeBuyVoidOperatorEventWithCapacityAdmissionV1() {
-        writerCalls += 1;
-        return { ok: true };
-      },
-    });
-  };
-  const inertSource = writerBlock.replace(actualImport, "await __mockImport()");
-  const compiledWriter = ts.transpileModule(
-    inertSource + "\n__voidWriteBuyVoidOperatorEventV1",
-    {
-      compilerOptions: {
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.ESNext,
-      },
-    },
-  );
-  const inertContext = vm.createContext({
-    __mockImport: importStub,
-    process: { env: {} },
-    __blm: () => { throw Error("launch_mutation_must_not_run"); },
-    __voidBuyVoidSaleStateV1: () => {
-      throw Error("sale_state_must_not_be_read");
-    },
-  });
-  const inertWriter = vm.runInContext(
-    compiledWriter.outputText,
-    inertContext,
-    { timeout: 1000 },
-  ) as (event: any, request: any) => Promise<any>;
-  await assert.rejects(
-    inertWriter({ operator_status: "payment_verified" }, {}),
-    /buy_void_allocation_handoff_unmounted/u,
-  );
-  assert.equal(writerCalls, 0);
-
-  // Ordinary nonpayment event dispatch remains wired to the original writer.
-  const ordinary = await inertWriter({ operator_status: "reviewed" }, {});
-  assert.equal(ordinary.ok, true);
-  assert.equal(writerCalls, 1);
-
-  // Re-check after the awaited import; a status that flips to verified
-  // during the await must NEVER reach the legacy payment-only writer.
-  pendingImport = new Promise<void>((resolve) => {
-    importRelease.current = resolve;
-  });
-  const mutableStatus = { operator_status: "reviewed" };
-  const inFlight = inertWriter(mutableStatus, {});
-  mutableStatus.operator_status = "payment_verified";
-  const releaseNow = importRelease.current;
-  assert.equal(typeof releaseNow, "function");
-  if (typeof releaseNow !== "function") throw Error("inert_import_release_missing");
-  releaseNow();
-  await assert.rejects(inFlight, /buy_void_allocation_handoff_unmounted/u);
-  assert.equal(writerCalls, 1);
-  pendingImport = null;
-  importRelease.current = null;
-
-  // HTTP error propagation distinguishes not-yet-mounted allocation from a
-  // verified payment. No 200 response may represent this source-only HOLD.
-  const verifyStart = runtimeSource.indexOf(
-    'app.post("/__void/buy-void/operator/verify-payment.json"',
-  );
-  const markStart = runtimeSource.indexOf(
-    'app.post("/__void/buy-void/operator/mark.json"', verifyStart,
-  );
-  assert.ok(verifyStart > 0 && markStart > verifyStart);
-  const verifyBlock = runtimeSource.slice(verifyStart, markStart);
-  assert.match(verifyBlock, /unmounted\?503:held\?409:500/u);
-  assert.match(verifyBlock, /error: unmounted\?m:held\?m:"payment_verifier_failed"/u);
-  console.log("mounted_payment_verified_requires_allocation_handoff=true");
-  console.log("mounted_legacy_payment_verified_writer_calls=0");
-  console.log("mounted_status_mutation_during_import_holds=true");
 
   const maliciousRequestId =
     "buyvoid_fixture_aaaaaaaa');globalThis.__synthetic_flag=true;//";
