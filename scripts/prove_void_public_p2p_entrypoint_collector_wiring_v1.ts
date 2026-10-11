@@ -472,6 +472,46 @@ try {
     "bootstrap no-progress rejection waited for cancel settlement",
   );
 
+  let rejectedReadReleaseCount=0;
+  let rejectedReadCancelCount=0;
+  globalThis.fetch=(async ()=>({
+    redirected:false,
+    url:"",
+    status:200,
+    headers:new Headers({"content-type":"application/json"}),
+    body:{
+      getReader(){
+        return {
+          read(){
+            return Promise.reject(
+              new Error("bootstrap synthetic settled read failure"),
+            );
+          },
+          cancel(){
+            rejectedReadCancelCount += 1;
+            return Promise.resolve();
+          },
+          releaseLock(){
+            rejectedReadReleaseCount += 1;
+          },
+        };
+      },
+    },
+  } as unknown as Response)) as typeof fetch;
+  await assert.rejects(
+    fetchVoidPublicP2pBootstrapContentBytesV1({
+      mirror:{
+        transport:"https",
+        base_url:"https://mirror.example/void/bootstrap/v2",
+        failure_domain:"mirror-a",
+      },
+      url:"https://mirror.example/void/bootstrap/v2/records/voidpbr2_"+"e".repeat(64)+".json",
+    }),
+    /synthetic settled read failure/u,
+  );
+  assert.equal(rejectedReadReleaseCount,1);
+  assert.equal(rejectedReadCancelCount,0);
+
   const OriginalAbortController=globalThis.AbortController;
   let deadlineController:AbortController|undefined;
   class CapturingAbortController extends OriginalAbortController {
@@ -607,6 +647,7 @@ console.log("caller_selectable_trust_path=false");
 console.log("immutable_mirror_namespace_enforced=true");
 console.log("bounded_fetch=true");
 console.log("zero_progress_bootstrap_stream_rejected=true");
+console.log("settled_bootstrap_read_failure_releases_reader=true");
 console.log("signal_ignoring_bootstrap_read_deadline_owned=true");
 console.log("nonsettling_bootstrap_cancel_does_not_extend_deadline=true");
 console.log("entrypoint_mount_binding_wired=true");
