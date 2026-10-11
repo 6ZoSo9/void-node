@@ -7,6 +7,7 @@ on:
       - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
       - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "src/economic/buy_void_confirmed_state_journal_v1.ts"
       - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
   push:
@@ -16,6 +17,7 @@ on:
       - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
       - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "src/economic/buy_void_confirmed_state_journal_v1.ts"
       - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
 
@@ -50,6 +52,11 @@ jobs:
         run: |
           node_modules/.bin/tsx \
             scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts
+
+      - name: Prove mounted manual fulfilled confirmed-state gate
+        run: |
+          node_modules/.bin/tsx \
+            scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts
 
       - name: Typecheck repository
         run: npm run typecheck

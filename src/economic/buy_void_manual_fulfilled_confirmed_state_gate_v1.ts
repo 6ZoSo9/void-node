@@ -66,6 +66,25 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     };
   }
 
+  // A fulfilled delivery is terminal in the operator projection. Later
+  // reviewed/rejected annotations cannot hide its completed receipt.
+  // Historical corrections require a separate reviewed closeout flow.
+  if (effective_prior_status === "fulfilled" &&
+      operator_status !== "fulfilled") {
+    return {
+      ok: false,
+      status_code: 409,
+      body: {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: false,
+        error: "manual_fulfilled_terminal_status_immutable",
+        request_id: id,
+        operator_status,
+        prior_status: effective_prior_status,
+      },
+    };
+  }
+
   let canonical_confirmed_state: any = null;
   if (operator_status === "fulfilled") {
     if (effective_prior_status === "fulfilled") {

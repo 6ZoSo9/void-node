@@ -521,6 +521,25 @@ globalThis.__voidCallManualMark = async function(input) {
   assert.equal(duplicate.root_calls, 0);
   assert.equal(duplicate.list_calls, 0);
 
+  // Review/reject must not overwrite an already recorded fulfilled status.
+  const attemptedDowngrades = [];
+  for (const status of ["reviewed", "rejected"]) {
+    const downgrade = await call({ status, events: [fulfilledEvent] });
+    assert.equal(downgrade.sent.status, 409);
+    assert.equal(downgrade.sent.body?.ok, false);
+    assert.equal(
+      downgrade.sent.body?.error,
+      "manual_fulfilled_terminal_status_immutable",
+    );
+    assert.equal(downgrade.sent.body?.prior_status, "fulfilled");
+    assert.equal(downgrade.writes.length, 0);
+    assert.equal(downgrade.root_calls, 0);
+    assert.equal(downgrade.list_calls, 0);
+    assert.equal(downgrade.operator_event_read_calls, 1);
+    assert.equal(downgrade.operator_event_apply_calls, 1);
+    attemptedDowngrades.push(downgrade);
+  }
+
   const projectionReadFailure = await call({
     status: "fulfilled",
     tx: deliveryTx,
@@ -699,6 +718,7 @@ globalThis.__voidCallManualMark = async function(input) {
   for (const result of [
     unverified,
     duplicate,
+    ...attemptedDowngrades,
     projectionReadFailure,
     missing,
     markerMismatch,
@@ -721,6 +741,7 @@ globalThis.__voidCallManualMark = async function(input) {
   );
   console.log("manual_fulfilled_unverified_public_status_write=0");
   console.log("manual_fulfilled_duplicate_event_write=0");
+  console.log("manual_fulfilled_terminal_downgrade_write=0");
   console.log("manual_fulfilled_operator_projection_failure_write=0");
   console.log("manual_fulfilled_without_confirmed_state_write=0");
   console.log("manual_fulfilled_state_marker_mismatch_write=0");
