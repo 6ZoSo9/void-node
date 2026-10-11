@@ -105,7 +105,8 @@ jobs:
           CODE="/tmp/void-custody-v2-code-${{ github.run_id }}-${{ matrix.node }}"
           DATA="/tmp/void-custody-v2-data-${{ github.run_id }}-${{ matrix.node }}"
           SHARED="/tmp/void-custody-v2-lock-${{ github.run_id }}-${{ matrix.node }}"
-          LOG="$SHARED/contention.log"
+          LOGROOT="/tmp/void-custody-v2-logdir-${{ github.run_id }}-${{ matrix.node }}"
+          LOG="$LOGROOT/contention.log"
 
           sudo groupadd "$GROUP"
           sudo useradd -M -s /usr/sbin/nologin -g "$GROUP" "$CUST"
@@ -145,6 +146,7 @@ jobs:
 
           sudo install -d -m 0700 -o "$CUST" -g "$GROUP" "$DATA"
           sudo install -d -m 3770 -o "$CUST" -g "$GROUP" "$SHARED"
+          sudo install -d -m 0770 -o "$CUST" -g "$GROUP" "$LOGROOT"
           sudo install -m 0660 -o "$CUST" -g "$GROUP" /dev/null "$LOG"
 
           WEB_PROOF="$CODE/scripts/prove_buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
@@ -201,7 +203,7 @@ jobs:
           sudo test ! -e \
             "$SHARED/.void-buy-void-cross-uid-capacity-exclusive-lock-v1.json"
 
-          sudo rm -rf "$CODE" "$DATA" "$SHARED" "$LOG"
+          sudo rm -rf "$CODE" "$DATA" "$SHARED" "$LOGROOT"
 
       - name: Preserve frozen V1 and exact V2 diff scope
         env:
