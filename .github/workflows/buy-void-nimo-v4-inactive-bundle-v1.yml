@@ -76,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile scripts/void_nimo_v4_private_stage_v1.py
-          test "$(git hash-object scripts/void_nimo_v4_private_stage_v1.py)" = "592855b64e773634aceb7398ad5a572e6a0aa397"
+          test "$(git hash-object scripts/void_nimo_v4_private_stage_v1.py)" = "22b8b28c624a6edc655130df2d33c25770668fc4"
           stage="$(mktemp -d)"
           chmod 0700 "$stage"
           trap 'rm -rf -- "$stage"' EXIT

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { types as utilTypes } from "node:util";
 
 import {
@@ -13,6 +14,10 @@ import {
   dispatchBuyVoidOperatorEventWithAllocationRequiredV1,
 } from "../../dist/economic/buy_void_operator_verified_allocation_dispatch_v1.js";
 import {
+  VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1,
+  VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_AUTHORITY_V1,
+} from "../../dist/economic/buy_void_verified_payment_capacity_admission_v1.js";
+import {
   checkedVerifiedPaymentDispatchPlanV1,
   checkedWebCrossUidCapacityConfigV1,
   exactWebCrossUidWriterInputV1,
@@ -26,6 +31,7 @@ export const VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_AUTHORITY_V1 =
     source_only_unmounted: true,
     canonical_cross_uid_capacity_exclusive_lock_reused: true,
     canonical_allocation_required_dispatch_reused: true,
+    durable_allocation_receipt_required_before_lock_release: true,
     canonical_dispatch_planner_reused: true,
     canonical_failure_reconciliation_classifier_reused: true,
     reconciliation_runs_inside_owned_lock_callback: true,
@@ -131,6 +137,79 @@ function checkedReconciliationResultV1(value, requestId) {
   return value;
 }
 
+
+// Match recordIdV1 in the canonical allocation reservation ledger.
+const ALLOCATION_ID_V1 = /^voidalloc1_[0-9a-f]{64}$/u;
+const SHA256_REF_V1 = /^sha256:[0-9a-f]{64}$/u;
+
+// A success flag alone does not prove that a verified payment was paired with
+// a durable allocation. Read only frozen own-data fields from the canonical
+// handoff receipt while still inside the outer cross-UID critical section.
+function ownReceiptFieldV1(record, key) {
+  if (!record || typeof record !== "object" || Array.isArray(record) ||
+      utilTypes.isProxy(record) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(record)) ||
+      !Object.isFrozen(record)) {
+    fail("buy_void_web_cross_uid_handoff_receipt_unqualified");
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  if (!descriptor || !Object.hasOwn(descriptor, "value")) {
+    fail("buy_void_web_cross_uid_handoff_receipt_unqualified");
+  }
+  return descriptor.value;
+}
+
+function checkedDurableAllocationHandoffV1(receipt, eventJson) {
+  const get = (key) => ownReceiptFieldV1(receipt, key);
+  const allocation = get("allocation");
+  const row = (key) => ownReceiptFieldV1(allocation, key);
+  const alreadyVerified = get("idempotent");
+  const newPaymentAppend = get("payment_event_appended");
+  const writerStatus = row("allocation_writer_status");
+  const writerOperationPerformed = row("allocation_writer_operation_performed");
+  const priorRecoveryPerformed = row("prior_allocation_recovery_performed");
+  const finalTip = row("final_tip_hash");
+  const expectedDigest = "sha256:" +
+    createHash("sha256").update(eventJson + "\n", "utf8").digest("hex");
+  if (get("ok") !== true ||
+      get("authority") !==
+        VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_AUTHORITY_V1 ||
+      typeof alreadyVerified !== "boolean" ||
+      newPaymentAppend !== !alreadyVerified ||
+      get("runtime_integration") !== false ||
+      get("protected_high_water_custody_proven") !== false ||
+      get("production_gate_ready") !== false ||
+      get("funds_movement") !== false ||
+      row("ok") !== true ||
+      row("marker") !== VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1 ||
+      row("authority") !==
+        VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_AUTHORITY_V1 ||
+      !ALLOCATION_ID_V1.test(row("allocation_record_id")) ||
+      !SHA256_REF_V1.test(row("payment_verified_event_sha256")) ||
+      row("payment_verified_event_sha256") !== expectedDigest ||
+      typeof row("idempotent") !== "boolean" ||
+      // A newly appended payment cannot already have an allocated ledger
+      // record; only an old payment may legitimately require gap recovery.
+      (!alreadyVerified && row("idempotent") !== false) ||
+      !Number.isSafeInteger(row("final_record_count")) ||
+      row("final_record_count") < 1 ||
+      // A positive count alone cannot make a forged writer receipt
+      // authoritative: its status, operation flag and final tip must agree.
+      !["persisted", "recovered", "idempotent"].includes(writerStatus) ||
+      writerOperationPerformed !== (writerStatus !== "idempotent") ||
+      typeof priorRecoveryPerformed !== "boolean" ||
+      typeof finalTip !== "string" ||
+      !SHA256_REF_V1.test(finalTip) ||
+      finalTip === "sha256:" + "0".repeat(64) ||
+      row("runtime_integration") !== false ||
+      row("protected_high_water_custody_proven") !== false ||
+      row("production_gate_ready") !== false ||
+      row("funds_movement") !== false) {
+    fail("buy_void_web_cross_uid_handoff_receipt_unqualified");
+  }
+  return receipt;
+}
+
 function failureWithEvidenceV1(
   code,
   dispatchFailure,
@@ -177,10 +256,10 @@ writeBuyVoidPaymentUnderCrossUidLockWithFailureBindingCandidateV1(raw) {
           await dispatchBuyVoidOperatorEventWithAllocationRequiredV1(
             dispatchInput,
           );
-        if (!result || result.ok !== true) {
+        if (ownReceiptFieldV1(result, "ok") !== true) {
           fail("buy_void_web_cross_uid_dispatch_result_unqualified");
         }
-        return result;
+        return checkedDurableAllocationHandoffV1(result, checked.event_json);
       } catch (dispatchFailure) {
         let reconciliation;
         try {

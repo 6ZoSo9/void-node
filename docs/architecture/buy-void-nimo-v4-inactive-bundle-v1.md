@@ -88,19 +88,29 @@ staging behavior without changing its historical source. It independently
 requires the *exact* V4 archive bytes/hash, exact ten-member set, and all
 eight runtime checksums. `--plan <absolute-v4-archive>` is read-only.
 `--self-test <absolute-v4-archive>` writes only throwaway directories
-in temporary storage, verifies create-once, tamper, and symlink replacement
-HOLDs, and removes those disposable test directories afterward.
+in temporary storage, verifies atomic create-once, tamper, symlink
+replacement, a simulated ENOSPC after the first fully written payload,
+retry after the unpublished partial tree is cleaned, and staged-leaf pathname
+replacement during a descriptor read. The test restores its injected hooks
+and removes the disposable test directories afterward.
 `--stage <absolute-v4-archive>` (not automatically called by CI) is
 **create-once only**, restricted to the invoking unprivileged user's
 own private home folder
 `void-nimo-v4-inactive-review-20261011`; no overwrite/repair and no
-installed/root-owned tree access. `--inspect-stage` observes that user's
-private stage read-only; it is not acceptance of production installed bytes.
+installed/root-owned tree access. The staged files are first built, fsynced
+and inspected inside a freshly named private sibling. Linux `renameat2`
+with `RENAME_NOREPLACE` publishes the completed directory atomically,
+never replacing even an empty existing stage. An interrupted build cleans
+only its own FD-pinned unpublished tree. Publication fsync uncertainty
+returns HOLD without deleting the already visible canonical stage.
+`--inspect-stage` now checks each leaf and directory through its parent FD
+both before and after descriptor reads to reject pathname rebinding;
+it is still not acceptance of production installed bytes.
 
 The existing Node22/24/26 workflow now tests both V4 private-stage
 `--plan` and `--self-test` on the newly derived canonical archive,
 binds the exact private-stage Git blob
-`592855b64e773634aceb7398ad5a572e6a0aa397`, and requires exact
+`22b8b28c624a6edc655130df2d33c25770668fc4`, and requires exact
 cross-toolchain stage receipts in addition to full archive equality.
 The prior 4/4 SUCCESS is **historical predecessor CI only**;
 this expanded head must independently pass before stage qualification.

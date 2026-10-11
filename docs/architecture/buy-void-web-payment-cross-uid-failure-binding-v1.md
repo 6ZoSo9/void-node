@@ -98,3 +98,61 @@ The next gate is a separately reviewed protected-witness and phase-aware
 release/recovery protocol. A proven pre-mutation rejection may be releasable
 only after that evidence is durable and independently bound. Missing or
 uncertain allocation must continue requiring exclusive recovery.
+
+## Complete allocation receipt before the outer lock can release
+
+The original callback accepted a dispatcher `{ok:true}` result without
+inspecting whether its durable allocation publication had completed. The
+canonical verified-payment allocation writer currently returns a frozen
+outer handoff receipt containing a separately frozen allocation receipt.
+The new source-only success check runs **inside** the outer lock callback
+and requires both canonical receipt/authority identities; matching exact
+SHA-256 of the already-frozen planned event JSON plus LF; a canonical
+allocation record ID; positive final allocation record count; consistent
+payment-append versus replay-idempotence flags; and all runtime/production/
+money-movement authorities still false.
+
+An absent allocation, success-only object, incorrect event digest,
+forged marker, unfrozen receipt or getter-bearing field throws through the
+existing in-lock reconciliation path. The cross-UID claim stays retained;
+no ambiguous callback can be promoted to completed solely because it
+returned `ok:true`. The existing Node 22/24/26 synthetic proof exercises
+both new-payment and exact idempotent receipt success and all negative
+classes without writing any ledger or invoking real dispatch.
+
+This guards the `source_candidate_only` interface, not installed real
+web/custody identities, protected high-water custody, a complete external
+transaction, cross-file atomic snapshot or public operator mount. Success
+of this proof never authorizes payment acceptance, reserve/recovery,
+presale/WC activation, signer access or funds movement.
+
+
+## Strict allocation publication outcome and recovery evidence
+
+The exact source-only receipt verifier additionally requires a native
+allocation writer status (`persisted`, `recovered` or `idempotent`) with a
+matching operation-performed flag, Boolean prior recovery evidence, and a
+canonical non-genesis SHA-256 final ledger tip. A forged completed result with
+an invalid tip, impossible writer status, or contradictory operation flag
+retains the outer cross-UID claim through the existing failure pathway.
+
+Payment replay idempotence and allocation replay idempotence are separate:
+a previously durable payment may legitimately need a *first* allocation
+publication during recovery. The synthetic proof tests that case and a fully
+idempotent completed replay without turning either into live authorization.
+These checks inspect a returned source-level receipt; they **do not** establish
+an independently authenticated installed witness or actual payment finality.
+
+A new `payment_event_appended=true` receipt is never permitted to claim a
+preexisting idempotent allocation: the nested `allocation.idempotent` must
+be `false`. The reverse combination remains valid for historical payment
+recovery (outer payment idempotent, nested newly persisted allocation).
+Both paths are asserted by the exact fake-dispatch proof; neither grants
+live payment or custody authority.
+
+The canonical allocation record identifier comes from
+`buy_void_allocation_reservation_ledger_v1.ts::recordIdV1` and has the
+`voidalloc1_<64 lowercase hexadecimal>` form. The distinct, nonexistent
+`voidar1_` alias is explicitly rejected by the source-only receipt test;
+accepting only that alias would retain the lock on every real allocation
+receipt despite otherwise successful publication.
