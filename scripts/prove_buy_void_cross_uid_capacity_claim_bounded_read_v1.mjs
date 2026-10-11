@@ -32,8 +32,159 @@ const realRead = fs.readSync;
 const realReadFile = fs.readFileSync;
 let restoredRead = false;
 let restoredReadFile = false;
+
+// Exercise the real observer, not a substitute lock implementation. Each case
+// owns its own disposable directory; no production claim is inspected/deleted.
+async function proveObservationRace(stage, fault) {
+  const caseRoot = fs.mkdtempSync(path.join(root, "observation-"));
+  fs.chmodSync(caseRoot, 0o3770);
+  const caseConfig = Object.freeze({ ...config, shared_directory: caseRoot });
+  const name = path.basename(lockPath);
+  const caseLock = path.join(caseRoot, name);
+  await assert.rejects(
+    () => withBuyVoidCrossUidCapacityExclusiveLockV1(caseConfig, () => {
+      throw new Error("synthetic_observed_holder");
+    }),
+    /cross_uid_capacity_lock_callback_failed_lock_retained/u,
+  );
+  const oldStat = fs.statSync(caseLock);
+  const oldBytes = fs.readFileSync(caseLock);
+  const oldNonce = JSON.parse(oldBytes.toString("utf8")).nonce;
+  const originalLstat = fs.lstatSync;
+  const originalClose = fs.closeSync;
+  let observations = 0;
+  let fired = false;
+  let oldClosed = 0;
+  let callbackRuns = 0;
+  const injected = Object.assign(new Error(`synthetic_observer_${fault}`), {
+    code: fault === "close" ? "EIO" : fault,
+  });
+  try {
+    fs.lstatSync = function(filename, ...args) {
+      if (!fired && typeof filename === "string" &&
+          /^\/proc\/self\/fd\/[0-9]+\//u.test(filename) &&
+          filename.endsWith(`/${name}`)) {
+        observations++;
+        if (observations === stage) {
+          fired = true;
+          if (fault === "release" || fault === "close") {
+            // Remove the visible lock name while retaining the old inode in the
+            // fixture, so inode recycling cannot inflate the close counter.
+            fs.renameSync(caseLock, path.join(caseRoot, "released-claim.json"));
+          } else if (fault === "replace") {
+            // Retain the old inode so a recycled inode cannot satisfy the test.
+            fs.renameSync(caseLock, path.join(caseRoot, "old-claim.json"));
+            fs.writeFileSync(caseLock, oldBytes, { mode: 0o640, flag: "wx" });
+            fs.chmodSync(caseLock, 0o640);
+          } else {
+            throw injected;
+          }
+        }
+      }
+      return originalLstat.call(fs, filename, ...args);
+    };
+    fs.closeSync = function(fd) {
+      const metadata = fs.fstatSync(fd);
+      const isOld = metadata.dev === oldStat.dev && metadata.ino === oldStat.ino;
+      const result = originalClose.call(fs, fd);
+      if (isOld) {
+        oldClosed++;
+        // Close for real, then report uncertainty. It must not grant a retry.
+        if (fault === "close") throw injected;
+      }
+      return result;
+    };
+    const operation = () => withBuyVoidCrossUidCapacityExclusiveLockV1(
+      caseConfig,
+      () => {
+        callbackRuns++;
+        assert.equal(oldClosed, 1, "old observation must close before reacquire");
+        const held = JSON.parse(realReadFile.call(fs, caseLock, "utf8"));
+        assert.notEqual(held.nonce, oldNonce, "a fresh claim must win exclusion");
+        return "reacquired";
+      },
+    );
+    if (fault === "release") {
+      const receipt = await operation();
+      fs.closeSync = originalClose;
+      assert.equal(receipt.result, "reacquired");
+      assert.equal(receipt.lock_release_fsynced, true);
+      assert.equal(callbackRuns, 1);
+      assert.equal(fs.existsSync(caseLock), false);
+    } else {
+      await assert.rejects(operation, (error) => {
+        if (fault !== "replace") return error === injected;
+        return error.message === (stage === 1
+          ? "cross_uid_capacity_lock_lock_path_fd_mismatch"
+          : "cross_uid_capacity_lock_claim_changed_during_read");
+      });
+      fs.closeSync = originalClose;
+      assert.equal(callbackRuns, 0, "non-absence errors remain HOLD");
+      if (fault !== "close") {
+        assert.deepEqual(realReadFile.call(fs, caseLock), oldBytes);
+      }
+      if (fault === "EACCES" || fault === "EIO") {
+        assert.equal(fs.statSync(caseLock).ino, oldStat.ino);
+      }
+    }
+    assert.equal(fired, true, "the requested observation cut must execute");
+    assert.equal(observations, stage);
+    assert.equal(oldClosed, 1, "observer descriptor closes exactly once");
+  } finally {
+    fs.lstatSync = originalLstat;
+    fs.closeSync = originalClose;
+    fs.rmSync(caseRoot, { recursive: true, force: true });
+  }
+}
+
+async function proveDisappearingCompetitorDeadline() {
+  const caseRoot = fs.mkdtempSync(path.join(root, "retry-deadline-"));
+  fs.chmodSync(caseRoot, 0o3770);
+  const caseConfig = Object.freeze({ ...config, shared_directory: caseRoot });
+  const originalLink = fs.linkSync;
+  const originalNow = Date.now;
+  let clock = 0;
+  let attempts = 0;
+  let callbackRuns = 0;
+  let yielded = false;
+  const timer = setTimeout(() => { yielded = true; }, 0);
+  try {
+    Date.now = () => clock;
+    fs.linkSync = function(existingPath, newPath) {
+      assert.ok(newPath.endsWith(`/${path.basename(lockPath)}`));
+      attempts++;
+      assert.ok(attempts <= 6, "disappearing-claim retry bypassed deadline");
+      clock += 25;
+      // Model losing atomic creation to a competitor that has already released
+      // before the next observation. Never create an alternative grant.
+      throw Object.assign(new Error("synthetic_competitor_released"), { code: "EEXIST" });
+    };
+    await assert.rejects(
+      () => withBuyVoidCrossUidCapacityExclusiveLockV1(caseConfig, () => {
+        callbackRuns++;
+      }),
+      /cross_uid_capacity_lock_wait_timeout/u,
+    );
+    assert.equal(attempts, 4);
+    assert.equal(callbackRuns, 0);
+    assert.equal(yielded, true, "contention retries must yield instead of spin");
+    assert.deepEqual(fs.readdirSync(caseRoot), [], "no failed staging claims left");
+  } finally {
+    fs.linkSync = originalLink;
+    Date.now = originalNow;
+    clearTimeout(timer);
+    fs.rmSync(caseRoot, { recursive: true, force: true });
+  }
+}
+
 try {
   fs.chmodSync(root, 0o3770);
+  for (const stage of [1, 2]) {
+    for (const fault of ["release", "EACCES", "EIO", "replace", "close"]) {
+      await proveObservationRace(stage, fault);
+    }
+  }
+  await proveDisappearingCompetitorDeadline();
   const positive = await withBuyVoidCrossUidCapacityExclusiveLockV1(
     config,
     async () => "positive",
@@ -119,6 +270,12 @@ try {
 
   console.log("VOID_BUY_VOID_CROSS_UID_CAPACITY_BOUNDED_CLAIM_V1_GREEN");
   console.log("positive_exclusive_callback_qualified=true");
+  console.log("released_claim_before_and_after_read_retried=true");
+  console.log("observer_descriptor_closed_before_reacquire=true");
+  console.log("nonabsence_and_cleanup_failures_remain_hold=true");
+  console.log("replacement_inode_remains_hold=true");
+  console.log("disappearing_competitor_retries_deadline_bounded=true");
+  console.log("disappearing_competitor_retries_yield=true");
   console.log("retained_live_claim_created_in_temp_only=true");
   console.log("concurrent_claim_growth_bytes=3145728");
   console.log("read_cap_preflight_size_plus_one=true");
