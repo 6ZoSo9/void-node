@@ -379,6 +379,135 @@ assert.equal(
   "introduction no-progress rejection waited for cancel settlement",
 );
 
+let rejectedReadReleaseCount = 0;
+let rejectedReadCancelCount = 0;
+globalThis.fetch = (async () => ({
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    getReader() {
+      return {
+        read() {
+          return Promise.reject(
+            new Error("introduction synthetic settled read failure"),
+          );
+        },
+        cancel() {
+          rejectedReadCancelCount += 1;
+          return Promise.resolve();
+        },
+        releaseLock() {
+          rejectedReadReleaseCount += 1;
+        },
+      };
+    },
+  },
+} as unknown as Response)) as typeof fetch;
+await assert.rejects(
+  fetchVoidUdpSwarmPublicRelayIntroductionV1({
+    source_node_id: sourceA.nodeId,
+    url: "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
+  }),
+  /synthetic settled read failure/u,
+);
+assert.equal(rejectedReadReleaseCount, 1);
+assert.equal(rejectedReadCancelCount, 0);
+
+const OriginalAbortController = globalThis.AbortController;
+let deadlineController: AbortController | undefined;
+class CapturingAbortController extends OriginalAbortController {
+  constructor() {
+    super();
+    deadlineController = this;
+  }
+}
+Object.defineProperty(globalThis, "AbortController", {
+  configurable: true,
+  writable: true,
+  value: CapturingAbortController,
+});
+let deadlineReadStartedResolve: (() => void) | undefined;
+const deadlineReadStarted = new Promise<void>((resolve) => {
+  deadlineReadStartedResolve = resolve;
+});
+const deadlineReadPending = new Promise<never>(() => undefined);
+let deadlineCancelCalledResolve: (() => void) | undefined;
+const deadlineCancelCalled = new Promise<void>((resolve) => {
+  deadlineCancelCalledResolve = resolve;
+});
+let releaseDeadlineCancel: (() => void) | undefined;
+const deadlineCancelPending = new Promise<void>((resolve) => {
+  releaseDeadlineCancel = resolve;
+});
+let deadlineReaderReleased = false;
+globalThis.fetch = (async () => ({
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    getReader() {
+      return {
+        read() {
+          deadlineReadStartedResolve?.();
+          return deadlineReadPending;
+        },
+        cancel() {
+          deadlineCancelCalledResolve?.();
+          return deadlineCancelPending;
+        },
+        releaseLock() {
+          deadlineReaderReleased = true;
+        },
+      };
+    },
+  },
+} as unknown as Response)) as typeof fetch;
+try {
+  const deadlineOperation =
+    fetchVoidUdpSwarmPublicRelayIntroductionV1({
+      source_node_id: sourceA.nodeId,
+      url: "http://8.8.8.8:4100/.well-known/void-p2p-udp-swarm-relay-introductions-v1.json",
+    });
+  await deadlineReadStarted;
+  deadlineController?.abort(
+    new Error("introduction transport response read deadline exceeded"),
+  );
+  let deadlineSettled = false;
+  void deadlineOperation.then(
+    () => {
+      deadlineSettled = true;
+    },
+    () => {
+      deadlineSettled = true;
+    },
+  );
+  await deadlineCancelCalled;
+  await Promise.resolve();
+  await Promise.resolve();
+  const deadlineSettledBeforeCancelRelease = deadlineSettled;
+  releaseDeadlineCancel?.();
+  await assert.rejects(
+    deadlineOperation,
+    /read deadline exceeded/u,
+  );
+  assert.equal(
+    deadlineSettledBeforeCancelRelease,
+    true,
+    "introduction deadline rejection waited for cancel settlement",
+  );
+  assert.equal(
+    deadlineReaderReleased,
+    false,
+    "introduction released a reader with an unresolved read generation",
+  );
+} finally {
+  releaseDeadlineCancel?.();
+  Object.defineProperty(globalThis, "AbortController", {
+    configurable: true,
+    writable: true,
+    value: OriginalAbortController,
+  });
+}
+
 globalThis.fetch = (async () =>
   new Response(JSON.stringify(envelope()), {
     status: 200,
@@ -927,4 +1056,7 @@ console.log("peer_identity_exposed_in_status=false");
 console.log("deployment=none");
 console.log("service_restart=none");
 console.log("zero_progress_transport_stream_rejected=true");
+console.log("settled_transport_read_failure_releases_reader=true");
+console.log("signal_ignoring_transport_read_deadline_owned=true");
+console.log("nonsettling_transport_cancel_does_not_extend_deadline=true");
 console.log(MARKER);
