@@ -246,6 +246,7 @@ const instrumentedClient = client + `
   validateSnapshot,
   isOpen,
   renderSnapshot,
+  renderError,
   updateSubmit,
   submitBuy,
   markFieldTouched,
@@ -561,6 +562,85 @@ rejectPendingC(new Error("synthetic_pending_request_network_loss"));
 await pendingC;
 assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
 assert.equal(submitButton.disabled, true, "pending C uncertainty still blocks retry");
+// A distinct POST can finish AFTER readiness has become HOLD, SOLD OUT,
+// or unavailable. Its late success must not overwrite DO NOT SEND copy.
+for (const [caseLabel, closedSnapshot] of [
+  ["HOLD", heldSnapshot],
+  ["SOLD_OUT", soldOutSnapshot],
+  ["READINESS_ERROR", null],
+]) {
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  const amount = String(caseLabel === "HOLD" ? 13 :
+    caseLabel === "SOLD_OUT" ? 14 : 15);
+  amountInput.value = amount;
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false,
+    "distinct late-success fixture must start with a valid intent");
+  let resolveLateSuccess = null;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Promise((resolve) => { resolveLateSuccess = resolve; });
+  };
+  const beforeLate = fetchCalls.length;
+  const pendingLateSuccess = buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1);
+  assert.equal(typeof resolveLateSuccess, "function");
+  if (closedSnapshot !== null) {
+    buyTest.setState(closedSnapshot, false, true);
+    buyTest.renderSnapshot(closedSnapshot);
+  } else {
+    buyTest.renderError(new Error("synthetic_readiness_temporarily_unavailable"));
+  }
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  assert.equal(submitButton.disabled, true);
+  const requestId = "buyvoid_ethereum_late_" + amount;
+  const responseBody = {
+    ok: true,
+    schema: "void_public_buy_void_checkout_request_result_v1",
+    request: {
+      request_id: requestId,
+      receive_address: validConfig.receive_address,
+      void_destination_address: destinationInput.value,
+      source_chain: "ethereum",
+      payment_chain: "ethereum",
+      payment_chain_id: 1,
+      usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
+      requested_amount_usdc: amount,
+      safety: { automatic_fulfillment: false, manual_review_required: true },
+      payment_instructions: {
+        send_chain: "ethereum", send_chain_id: 1,
+        token_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
+        token_decimals: 6,
+        send_to: validConfig.receive_address,
+        send_from: destinationInput.value,
+        do_not_send_from_exchange_or_pooled_custody: true,
+      },
+    },
+  };
+  resolveLateSuccess(new Response(JSON.stringify(responseBody), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  await pendingLateSuccess;
+  assert.match(buyResultNode.textContent, /do not send funds/iu,
+    caseLabel + ": late successful POST must not hide HOLD/SOLD OUT/error");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u,
+    caseLabel + ": no payment instructions while CLOSED/unverified");
+  assert.equal(submitButton.disabled, true);
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1,
+    caseLabel + ": no retry while intake is closed");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, new RegExp(requestId, "u"),
+    caseLabel + ": verified OPEN must restore matching request receipt");
+  assert.match(buyResultNode.textContent, new RegExp("Send exactly: " + amount + " USDC", "u"));
+  assert.equal(submitButton.disabled, true, "re-opened committed intent must be guarded");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1,
+    caseLabel + ": verified OPEN must not repeat a committed POST");
+}
 // Resume original Base fixture expectations without another HTTP call.
 amountInput.value = "10";
 fetchCalls.length = 0;

@@ -526,7 +526,10 @@ async function submitBuy(event) {
       '',
       `Keep the ${rail.label} transaction hash. Payment observation is not itself a fulfillment receipt.`,
     ].join('\n');
-    setText('[data-buy-result]', attemptedResultText);
+    // A POST can resolve after live readiness switched to HOLD, SOLD OUT,
+    // or became unavailable. Preserve the outcome in memory only; the
+    // finally/updateSubmit path renders it solely on verified OPEN and
+    // only for the matching canonical intent.
   } catch (error) {
     attemptedResultText = [
       'REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT',
@@ -534,7 +537,10 @@ async function submitBuy(event) {
       'Verify the original request with the operator before starting another request.',
       String(error?.message || error),
     ].join('\n');
-    setText('[data-buy-result]', attemptedResultText);
+    // A POST can resolve after live readiness switched to HOLD, SOLD OUT,
+    // or became unavailable. Preserve the outcome in memory only; the
+    // finally/updateSubmit path renders it solely on verified OPEN and
+    // only for the matching canonical intent.
   } finally {
     submitBusy = false;
     updateSubmit();

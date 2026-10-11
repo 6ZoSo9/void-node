@@ -128,8 +128,11 @@ server-issued idempotency key and authoritative lookup are still required.
 
 During an in-flight new POST, a readiness refresh shows only **Creating guarded
 request…** and no earlier payment instructions or uncertain-result notice.
-The result is updated after the new POST succeeds or fails; its intent remains
-blocked against replay during that entire interval.
+The result is recorded in memory after the POST succeeds or fails. If that
+happens after readiness changes to HOLD, SOLD OUT, or a failed/unavailable
+readiness state, the authoritative **DO NOT SEND** text remains on screen.
+Only a later verified OPEN refresh restores the exact matching result; no
+in-flight or completed POST may bypass its per-view duplicate guard.
 
 The displayed result is bound to the **latest attempted intent**. Selecting a
 different intent never displays the latest attempt's payment instructions as
