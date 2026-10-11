@@ -1,22 +1,9 @@
 name: VOID Buy VOID witness runtime bundle evidence v1
 
+# Historical-generation executor.
+# Automatic immutability is enforced by buy-void-historical-proof-integrity-v1;
+# successor production-source generations are qualified by successor workflows.
 on:
-  pull_request:
-    paths:
-      - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs"
-      - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs"
-      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
-      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md"
-      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.yml"
-      - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
-      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
-      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
-      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
-      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
-      - "src/economic/buy_void_auto_fulfillment_v1.ts"
-      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
-      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -137,9 +124,18 @@ jobs:
       - name: Diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          if [ -z "${BASE_SHA:-}" ]; then
+            # This historical evidence workflow is workflow_dispatch-only.
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
           git diff --check "$BASE_SHA" "$HEAD_SHA"
 
   compare-v3:

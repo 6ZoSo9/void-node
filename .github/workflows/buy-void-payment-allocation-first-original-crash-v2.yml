@@ -1,18 +1,9 @@
 name: VOID Buy VOID original buyer crash replay V2 successor
 
+# Historical-generation executor.
+# Automatic immutability is enforced by buy-void-historical-proof-integrity-v1;
+# successor production-source generations are qualified by successor workflows.
 on:
-  pull_request:
-    paths:
-      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
-      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v2.mjs"
-      - "docs/architecture/buy-void-payment-allocation-first-original-crash-v2.md"
-      - ".github/workflows/buy-void-payment-allocation-first-original-crash-v2.yml"
-      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v1.mjs"
-      - "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts"
-      - "scripts/prove_buy_void_verified_allocation_replay_binding_v1.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.build.json"
   workflow_dispatch:
 
 permissions:

@@ -377,7 +377,30 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     quoted_void: found.quoted_void,
   };
 
-  await __voidWriteBuyVoidOperatorEventV1(event);
+  try {
+    await __voidWriteBuyVoidOperatorEventV1(event);
+  } catch (error: any) {
+    // The writer's authoritative under-request-lock history check catches
+    // a fulfillment committed *after* the route's pre-read projection.
+    // Only this exact expected refusal is 409; unrelated disk/custody
+    // uncertainty must not be silently converted into an ordinary status.
+    if (error?.message === "buy_void_operator_fulfilled_terminal_under_lock") {
+      return {
+        ok: false,
+        status_code: 409,
+        body: {
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error: "manual_fulfilled_terminal_status_immutable",
+          request_id: id,
+          operator_status,
+          prior_status: effective_prior_status,
+          concurrent_terminal_fulfillment_detected: true,
+        },
+      };
+    }
+    throw error;
+  }
   return {
     ok: true,
     status_code: 200,

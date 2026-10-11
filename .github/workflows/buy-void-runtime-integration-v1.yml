@@ -56,6 +56,10 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             scripts/prove_buy_void_*.ts
+      - name: Build exact current runtime before compiled-byte proofs
+        run: |
+          set -euo pipefail
+          npm run build
       - name: Runtime integration proofs
         run: |
           ./node_modules/.bin/tsx scripts/prove_buy_void_runtime_integration_v1.ts
@@ -121,7 +125,7 @@ jobs:
                 test "$historical_status" -eq 1
                 grep -Fq 'reviewed source changed:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
                 grep -Fq '0a74a3652081c3e142d0b887676771a7ac148f32' "$RUNNER_TEMP/$(basename "$proof").hold"
-                grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'b451bcd895986dadaf6e53954671062068316ccf' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_DUAL_RAIL_V2_HELD=$proof"
                 continue
                 ;;
@@ -141,36 +145,33 @@ jobs:
                 historical_status=$?
                 set -e
                 test "$historical_status" -eq 1
-                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_preappend_plain_input_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'b451bcd895986dadaf6e53954671062068316ccf' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
                 continue
                 ;;
               scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)
-                # Frozen V1 source and manifest MUST remain unchanged. It
-                # refuses the current hardened allocation ledger first.
-                set +e
-                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/frozen-witness-v1-hold.txt" 2>&1
-                frozen_status=$?
-                set -e
-                test "$frozen_status" -eq 1
-                grep -Fq 'reviewed runtime bundle file bytes changed: dist/economic/buy_void_allocation_reservation_ledger_v1.js' "$RUNNER_TEMP/frozen-witness-v1-hold.txt"
-                grep -Fq 'sha256:af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f' "$RUNNER_TEMP/frozen-witness-v1-hold.txt"
-                grep -Fq 'sha256:97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0' "$RUNNER_TEMP/frozen-witness-v1-hold.txt"
-                # Proposed V2 lock is immutable; 14/15 reviewed source/build
-                # files are unchanged, one hardened ledger needs unaccepted V3.
-                node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove > "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'VOID_BUY_VOID_NIMO_COMBINED_V3_UNACCEPTED_SOURCE_GREEN' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'source_build_unchanged_since_v2=14/15' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'other_v2_runtime_files_unchanged=7/7' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'original_frozen_v1_identity_preserved=true' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'reviewed_v2_source_lock_preserved=true' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'candidate_v3_installed_on_nimo=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'authenticated_custody_principal_verified=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'verified_payment_to_allocation_mounted=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'production_gate_ready=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'presale_activation=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                grep -Fxq 'funds_moved=false' "$RUNNER_TEMP/current-nimo-v3-unaccepted.txt"
-                echo 'VOID_HISTORICAL_WITNESS_V1_HELD_CURRENT_V3_UNACCEPTED_GREEN'
+                # This exact proof and Nimo V3 bundle are frozen historical generations.
+                # Current source is qualified by crash V6, joint custody, package
+                # preservation and the dedicated Nimo admission workflows. Do not
+                # execute or silently repin the historical proof against successor bytes.
+                test "$(git hash-object -- "$proof")" = "4ef9379ff3130795533a7d2d59b5f737eafa0a00"
+                test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "8d84955e1e093a5c5af63241e62b8722fadd2f29"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
+                echo "VOID_HISTORICAL_WITNESS_BUNDLE_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)
+                # Frozen V3 Nimo runtime-bundle candidate was built from source main
+                # 851513f... and must not be rederived against the final first-original generation.
+                test "$(git hash-object -- "$proof")" = "0d8778b937f564eee5eabfcdb554c6ea8ffde0c8"
+                test "$(git hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)" = "453550bcab9c5caf192c6d9d813bce9ce4433b0a"
+                test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "8d84955e1e093a5c5af63241e62b8722fadd2f29"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
+                echo "VOID_HISTORICAL_WITNESS_BUNDLE_V3_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
                 continue
                 ;;
               scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)

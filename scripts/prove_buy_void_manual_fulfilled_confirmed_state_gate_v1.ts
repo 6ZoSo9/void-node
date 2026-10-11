@@ -211,6 +211,7 @@ let __operatorEventError = "";
 let __confirmedStates = [];
 let __confirmedError = "";
 let __writes = [];
+let __underLockTerminalRace = false;
 let __rootCalls = 0;
 let __listCalls = 0;
 let __operatorEventReadCalls = 0;
@@ -253,6 +254,9 @@ function __voidApplyBuyVoidOperatorEventsV1(requests, events) {
   });
 }
 async function __voidWriteBuyVoidOperatorEventV1(event) {
+  if (__underLockTerminalRace) {
+    throw new Error("buy_void_operator_fulfilled_terminal_under_lock");
+  }
   __writes.push(event);
   return { ok: true };
 }
@@ -279,6 +283,7 @@ globalThis.__voidCallManualMark = async function(input) {
   __confirmedStates = input.confirmed_states || [];
   __confirmedError = input.confirmed_error || "";
   __writes = [];
+  __underLockTerminalRace = input.under_lock_terminal_race === true;
   __rootCalls = 0;
   __listCalls = 0;
   __operatorEventReadCalls = 0;
@@ -473,6 +478,7 @@ globalThis.__voidCallManualMark = async function(input) {
     error?: string;
     events?: Record<string, any>[];
     operatorError?: string;
+    writerRace?: boolean;
   }): Promise<any> {
     const operatorEvents = input.events !== undefined
       ? input.events
@@ -489,6 +495,7 @@ globalThis.__voidCallManualMark = async function(input) {
       },
       operator_events: operatorEvents,
       operator_event_error: input.operatorError || "",
+      under_lock_terminal_race: input.writerRace === true,
       confirmed_states: input.states || [],
       confirmed_error: input.error || "",
     });
@@ -584,6 +591,22 @@ globalThis.__voidCallManualMark = async function(input) {
   });
   assert.equal(otherRequest.sent.status, 200);
   assert.equal(otherRequest.writes.length, 1);
+
+  // The pre-lock projection is clean, but a competing completion may land
+  // immediately before the central writer acquires the request lock.
+  const concurrentCloseout = await call({
+    status: "reviewed", events: [], writerRace: true,
+  });
+  assert.equal(concurrentCloseout.sent.status, 409);
+  assert.equal(concurrentCloseout.sent.body?.error,
+    "manual_fulfilled_terminal_status_immutable");
+  assert.equal(concurrentCloseout.sent.body?.concurrent_terminal_fulfillment_detected,
+    true);
+  assert.equal(concurrentCloseout.writes.length, 0);
+  assert.equal(concurrentCloseout.root_calls, 0);
+  assert.equal(concurrentCloseout.list_calls, 0);
+  assert.equal(concurrentCloseout.operator_event_read_calls, 1);
+  assert.equal(concurrentCloseout.operator_event_apply_calls, 1);
 
   const projectionReadFailure = await call({
     status: "fulfilled",
@@ -765,6 +788,7 @@ globalThis.__voidCallManualMark = async function(input) {
     duplicate,
     ...attemptedDowngrades,
     ...hiddenFulfillmentAttempts,
+    concurrentCloseout,
     projectionReadFailure,
     missing,
     markerMismatch,
@@ -789,6 +813,7 @@ globalThis.__voidCallManualMark = async function(input) {
   console.log("manual_fulfilled_duplicate_event_write=0");
   console.log("manual_fulfilled_terminal_downgrade_write=0");
   console.log("manual_historical_fulfillment_masking_write=0");
+  console.log("manual_under_lock_terminal_race_returns_409=true");
   console.log("manual_fulfilled_operator_projection_failure_write=0");
   console.log("manual_fulfilled_without_confirmed_state_write=0");
   console.log("manual_fulfilled_state_marker_mismatch_write=0");

@@ -2566,6 +2566,29 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
         request_id: requestId,
       },
       () => {
+        // The pre-lock operator status projection is advisory. A competing
+        // fulfilled append may have committed before this request acquired
+        // the shared terminal-closeout request lock. Re-read authoritative
+        // JSONL under this exact lock and reject masked historic fulfillment
+        // BEFORE any event or sidecar write.
+        const priorEvents = readStrictJsonLinesV1(
+          path.join(requestDir, "operator-events.jsonl"),
+          "buy_void_operator_terminal_history",
+        );
+        for (const row of priorEvents) {
+          const rowRequest = Object.getOwnPropertyDescriptor(row, "request_id");
+          const rowStatus = Object.getOwnPropertyDescriptor(row, "operator_status");
+          if (!rowRequest || !Object.hasOwn(rowRequest, "value") ||
+              !rowStatus || !Object.hasOwn(rowStatus, "value") ||
+              typeof rowRequest.value !== "string" ||
+              typeof rowStatus.value !== "string") {
+            fail("buy_void_operator_terminal_history_ambiguous");
+          }
+          if (rowRequest.value === requestId &&
+              rowStatus.value === "fulfilled") {
+            fail("buy_void_operator_fulfilled_terminal_under_lock");
+          }
+        }
         fs.appendFileSync(
           path.join(requestDir, "operator-events.jsonl"),
           operatorEventLine,

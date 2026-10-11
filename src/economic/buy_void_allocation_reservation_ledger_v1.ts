@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { types as utilTypes } from "node:util";
+import { TextDecoder, types as utilTypes } from "node:util";
 
 import {
   canonicalBuyVoidPaymentIdentityV1,
@@ -80,7 +80,27 @@ const ALLOCATION_BUFFER_PROTOTYPE_V1 = Buffer.prototype;
 const ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
 )!.get!;
+const ALLOCATION_TYPED_ARRAY_BUFFER_V1 = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "buffer",
+)!.get!;
+// Capture intrinsic invocation at module initialization; a later global
+// Reflect.apply replacement cannot forge byte length, copy or frame windows.
+const ALLOCATION_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
+// Preserve the shared-backing predicate itself before any post-import
+// same-process replacement of node:util.types can lie about backing.
+const ALLOCATION_IS_SHARED_BACKING_NATIVE_V1 = utilTypes.isSharedArrayBuffer;
 const ALLOCATION_TYPED_ARRAY_SET_V1 = Uint8Array.prototype.set;
+// Preserve the original octets and framing independently of ambient
+// Buffer.prototype.toString or String.prototype.split/slice/endsWith.
+const ALLOCATION_TYPED_ARRAY_SUBARRAY_V2 = Uint8Array.prototype.subarray;
+const ALLOCATION_FATAL_UTF8_V2 = new TextDecoder("utf-8", {
+  fatal: true, ignoreBOM: true,
+});
+// Capture the complete native decoder call at module initialization.
+// Later replacement of TextDecoder.prototype.decode or Reflect.apply
+// cannot substitute ledger text for the original detached bytes.
+const ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2 =
+  TextDecoder.prototype.decode.bind(ALLOCATION_FATAL_UTF8_V2);
 
 function isNativeAllocationBufferV1(value: unknown): value is Buffer {
   return !utilTypes.isProxy(value) &&
@@ -89,16 +109,28 @@ function isNativeAllocationBufferV1(value: unknown): value is Buffer {
 }
 
 function detachedAllocationBufferV1(value: Buffer): Buffer {
-  const length = Reflect.apply(
+  // A SharedArrayBuffer source can change while copying, even when all
+  // method calls are native. Never equate shared mutable bytes with a
+  // detached, original payment/allocation history.
+  const backing = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
+    ALLOCATION_TYPED_ARRAY_BUFFER_V1, value, [],
+  ) as ArrayBufferLike;
+  if (ALLOCATION_IS_SHARED_BACKING_NATIVE_V1(backing)) {
+    throw new Error("allocation_reservation_ledger_shared_backing_forbidden");
+  }
+  const length = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
     ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, value, [],
   ) as number;
+  if (!Number.isSafeInteger(length) || length < 0) {
+    throw new Error("allocation_reservation_ledger_not_plain_data");
+  }
   if (length > MAX_LEDGER_BYTES) {
     throw new Error("allocation_reservation_ledger_too_large");
   }
   const bytes = Buffer.alloc(length);
   // TypedArray.set's typed-array source path ignores valueOf, length,
   // iterator, constructor, and buffer properties on the caller's object.
-  Reflect.apply(ALLOCATION_TYPED_ARRAY_SET_V1, bytes, [value]);
+  ALLOCATION_REFLECT_APPLY_NATIVE_V1(ALLOCATION_TYPED_ARRAY_SET_V1, bytes, [value]);
   return bytes;
 }
 
@@ -219,6 +251,21 @@ type AmountV1 = {
   text: string;
   micro: bigint;
 };
+
+function decodedAllocationLedgerTextV2(value: string | Buffer): string {
+  if (typeof value === "string") return value;
+  if (!isNativeAllocationBufferV1(value)) {
+    throw new Error("allocation_reservation_ledger_not_plain_data");
+  }
+  // The caller's Buffer (and all inherited methods) is untrusted. Decode a
+  // detached copy using the reviewed TextDecoder, not Buffer#toString.
+  const bytes = detachedAllocationBufferV1(value);
+  try {
+    return ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(bytes);
+  } catch {
+    throw new Error("allocation_reservation_ledger_utf8_invalid");
+  }
+}
 
 function held(reason: string): BuyVoidAllocationReservationHeldV1 {
   return Object.freeze({
@@ -1026,11 +1073,21 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
     } else {
       throw new Error("allocation_reservation_ledger_not_plain_data");
     }
-    if (bytes.length > MAX_LEDGER_BYTES) {
+    // The copied Buffer's apparent .length may still resolve through a
+    // post-import mutable typed-array accessor. Check the same captured
+    // native byte length used for all subsequent framing.
+    const byteLength = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
+      ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, bytes, [],
+    ) as number;
+    if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
+      throw new Error("allocation_reservation_ledger_not_plain_data");
+    }
+    if (byteLength > MAX_LEDGER_BYTES) {
       throw new Error("allocation_reservation_ledger_too_large");
     }
-    const text = bytes.toString("utf8");
-    if (!text) {
+    // Direct byte framing cannot be made to omit earlier reservations by
+    // mutating Buffer.prototype.toString or String.prototype.slice/split.
+    if (byteLength === 0) {
       return Object.freeze({
         ok: true,
         status: "valid",
@@ -1049,15 +1106,15 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
           VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_AUTHORITY_V1,
       });
     }
-    if (!text.endsWith("\n")) {
+    if (bytes[byteLength - 1] !== 0x0a) {
       throw new Error("allocation_reservation_ledger_missing_final_newline");
     }
-    const lines = text.slice(0, -1).split("\n");
-    if (
-      lines.length > MAX_LEDGER_RECORDS ||
-      lines.some((line) => line.length === 0)
-    ) {
-      throw new Error("allocation_reservation_ledger_lines_invalid");
+    try {
+      // Fatal decoding checks the entire supplied history, not merely
+      // records selected after an untrusted string operation.
+      ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(bytes);
+    } catch {
+      throw new Error("allocation_reservation_ledger_utf8_invalid");
     }
 
     const records: BuyVoidAllocationReservationRecordV1[] = [];
@@ -1071,7 +1128,27 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
     let priorRemaining: bigint | null = null;
     let priorCreatedAt: number | null = null;
 
-    for (const line of lines) {
+    let frameStart = 0;
+    let frameCount = 0;
+    for (let cursor = 0; cursor < byteLength; cursor += 1) {
+      const octet = bytes[cursor];
+      if (octet === 0x0d) {
+        throw new Error("allocation_reservation_ledger_lines_invalid");
+      }
+      if (octet !== 0x0a) continue;
+      if (frameCount >= MAX_LEDGER_RECORDS || cursor === frameStart) {
+        throw new Error("allocation_reservation_ledger_lines_invalid");
+      }
+      const lineBytes = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
+        ALLOCATION_TYPED_ARRAY_SUBARRAY_V2, bytes, [frameStart, cursor],
+      ) as Uint8Array;
+      let line: string;
+      try {
+        line = ALLOCATION_FATAL_UTF8_DECODE_BOUND_V2(lineBytes);
+      } catch {
+        throw new Error("allocation_reservation_ledger_utf8_invalid");
+      }
+      if (!line) throw new Error("allocation_reservation_ledger_lines_invalid");
       let parsed: unknown;
       try {
         parsed = JSON.parse(line);
@@ -1112,6 +1189,11 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
         "allocation_reservation_remaining_after_invalid",
       ).micro;
       priorCreatedAt = record.created_at_ms;
+      frameCount += 1;
+      frameStart = cursor + 1;
+    }
+    if (frameStart !== byteLength) {
+      throw new Error("allocation_reservation_ledger_missing_final_newline");
     }
 
     return Object.freeze({
@@ -1270,6 +1352,10 @@ export function planBuyVoidAllocationReservationV1(rawInput: {
         input.ledger_jsonl,
       );
     if (ledger.ok === false) return ledger;
+    // Do not reconstitute durable history from caller-inherited Buffer methods.
+    // This exact textual prefix is still validated as canonical JSONL above.
+    const trustedPriorLedgerTextV2 =
+      decodedAllocationLedgerTextV2(input.ledger_jsonl);
 
     const core = candidateCoreV1(input);
     const pool = amountV1(
@@ -1355,9 +1441,7 @@ export function planBuyVoidAllocationReservationV1(rawInput: {
         idempotent: true,
         operation_performed: false,
         record: priorByRequest,
-        next_ledger_jsonl: Buffer.isBuffer(input.ledger_jsonl)
-          ? input.ledger_jsonl.toString("utf8")
-          : String(input.ledger_jsonl ?? ""),
+        next_ledger_jsonl: trustedPriorLedgerTextV2,
         next_record_count: ledger.record_count,
         authority:
           VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_AUTHORITY_V1,
@@ -1463,11 +1547,8 @@ export function planBuyVoidAllocationReservationV1(rawInput: {
         recordHashV1(recordWithoutHash),
     }));
 
-    const priorText = Buffer.isBuffer(input.ledger_jsonl)
-      ? input.ledger_jsonl.toString("utf8")
-      : String(input.ledger_jsonl ?? "");
     const nextLedger =
-      priorText + JSON.stringify(record) + "\n";
+      trustedPriorLedgerTextV2 + JSON.stringify(record) + "\n";
     const classifiedNext =
       classifyBuyVoidAllocationReservationLedgerV1(
         nextLedger,
