@@ -1,0 +1,86 @@
+name: VOID Buy VOID web payment cross-UID writer candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_web_payment_cross_uid_lock_*.mjs"
+      - "scripts/prove_buy_void_web_payment_cross_uid_lock_writer_*.mjs"
+      - "scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh"
+      - "scripts/lib/buy_void_web_payment_cross_uid_lock_writer_proof_*.mjs"
+      - "docs/architecture/buy-void-web-payment-cross-uid-lock-writer-v1.md"
+      - ".github/workflows/buy-void-web-payment-cross-uid-lock-writer-v1.yml"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-web-crossuid-writer-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: source candidate / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact clean head
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and prove
+        run: |
+          npm run typecheck
+          npm run build
+          bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
+            --prove "${{ matrix.node }}"
+      - name: Exact scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          bash scripts/prove_buy_void_web_payment_cross_uid_lock_writer_ci_v1.sh \
+            --scope "$BASE" "$HEAD"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-crossuid-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: web-crossuid-writer-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: web-crossuid-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "receipts/web-crossuid-writer-$v.txt"; done
+          cmp receipts/web-crossuid-writer-22.txt receipts/web-crossuid-writer-24.txt
+          cmp receipts/web-crossuid-writer-22.txt receipts/web-crossuid-writer-26.txt
+          echo VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_WRITER_THREE_NODE_PROOF_GREEN
+          echo payment_acceptance=false
+          echo presale_activation=false
