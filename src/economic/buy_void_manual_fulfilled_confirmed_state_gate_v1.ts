@@ -39,12 +39,22 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
   ) => Promise<unknown>,
 ): Promise<BuyVoidManualFulfilledConfirmedStateGateResultV1> {
   let effective_prior_status = "";
+  let historical_fulfilled_event_seen = false;
   try {
+    const history = await __voidReadBuyVoidOperatorEventsV1();
+    if (!Array.isArray(history)) {
+      throw new Error("operator_event_history_not_array");
+    }
+    // The latest status alone cannot be the terminal-state authority:
+    // a later legacy reviewed/rejected row can mask a prior fulfillment.
+    for (const row of history) {
+      if (row?.request_id === id && row?.operator_status === "fulfilled") {
+        historical_fulfilled_event_seen = true;
+        break;
+      }
+    }
     const projected_request =
-      __voidApplyBuyVoidOperatorEventsV1(
-        [found],
-        await __voidReadBuyVoidOperatorEventsV1(),
-      )[0] || found;
+      __voidApplyBuyVoidOperatorEventsV1([found], history)[0] || found;
     effective_prior_status = String(
       projected_request?.effective_status || found.status || "",
     )
@@ -62,6 +72,28 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
         operator_status,
         void_delivery_tx_hash,
         message: String(error?.message || error).slice(0, 240),
+      },
+    };
+  }
+
+  // An older fulfilled event remains terminal even when legacy history
+  // already contains a later reviewed/rejected entry hiding it from the
+  // latest-event projection. A new fulfillment is also a duplicate.
+  if (historical_fulfilled_event_seen &&
+      effective_prior_status !== "fulfilled") {
+    return {
+      ok: false,
+      status_code: 409,
+      body: {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: false,
+        error: operator_status === "fulfilled"
+          ? "manual_fulfilled_already_recorded"
+          : "manual_fulfilled_terminal_status_immutable",
+        request_id: id,
+        operator_status,
+        prior_status: effective_prior_status,
+        historical_fulfillment_detected: true,
       },
     };
   }

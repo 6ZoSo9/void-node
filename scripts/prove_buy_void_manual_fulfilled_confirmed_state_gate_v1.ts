@@ -540,6 +540,51 @@ globalThis.__voidCallManualMark = async function(input) {
     attemptedDowngrades.push(downgrade);
   }
 
+  // An earlier durable fulfillment cannot be erased by a later legacy
+  // rejected/reviewed event. The newest-event projection alone says rejected.
+  const legacyDowngrade = {
+    ...fulfilledEvent,
+    operator_status: "rejected",
+    prior_status: "fulfilled",
+    marked_at_ms: 300,
+  };
+  const hiddenFulfillmentAttempts = [];
+  for (const status of ["reviewed", "rejected", "fulfilled"]) {
+    const hidden = await call({
+      status,
+      tx: status === "fulfilled" ? deliveryTx : "",
+      events: [legacyDowngrade, fulfilledEvent],
+      states: [confirmedState()],
+    });
+    assert.equal(hidden.sent.status, 409);
+    assert.equal(hidden.sent.body?.ok, false);
+    assert.equal(
+      hidden.sent.body?.error,
+      status === "fulfilled"
+        ? "manual_fulfilled_already_recorded"
+        : "manual_fulfilled_terminal_status_immutable",
+    );
+    assert.equal(hidden.sent.body?.prior_status, "rejected");
+    assert.equal(hidden.sent.body?.historical_fulfillment_detected, true);
+    assert.equal(hidden.writes.length, 0);
+    assert.equal(hidden.root_calls, 0);
+    assert.equal(hidden.list_calls, 0);
+    assert.equal(hidden.operator_event_read_calls, 1);
+    assert.equal(hidden.operator_event_apply_calls, 1);
+    hiddenFulfillmentAttempts.push(hidden);
+  }
+  // A fulfillment for a different request must not block this request.
+  const otherFulfilled = {
+    ...fulfilledEvent,
+    request_id: "buyvoid_other_aaaaaaaa",
+  };
+  const otherRequest = await call({
+    status: "reviewed",
+    events: [otherFulfilled],
+  });
+  assert.equal(otherRequest.sent.status, 200);
+  assert.equal(otherRequest.writes.length, 1);
+
   const projectionReadFailure = await call({
     status: "fulfilled",
     tx: deliveryTx,
@@ -719,6 +764,7 @@ globalThis.__voidCallManualMark = async function(input) {
     unverified,
     duplicate,
     ...attemptedDowngrades,
+    ...hiddenFulfillmentAttempts,
     projectionReadFailure,
     missing,
     markerMismatch,
@@ -742,6 +788,7 @@ globalThis.__voidCallManualMark = async function(input) {
   console.log("manual_fulfilled_unverified_public_status_write=0");
   console.log("manual_fulfilled_duplicate_event_write=0");
   console.log("manual_fulfilled_terminal_downgrade_write=0");
+  console.log("manual_historical_fulfillment_masking_write=0");
   console.log("manual_fulfilled_operator_projection_failure_write=0");
   console.log("manual_fulfilled_without_confirmed_state_write=0");
   console.log("manual_fulfilled_state_marker_mismatch_write=0");

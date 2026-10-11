@@ -105,8 +105,9 @@ function openLeaf(directoryFd,absolute,name,maximum){
   if(!Number.isSafeInteger(maximum)||maximum<1)fail("read_limit_invalid");
   const full=path.join(absolute,name);
   const visible=fs.lstatSync(full,{bigint:true});
+  const minimum=name===REQUESTS_NAME?1n:0n;
   if(!visible.isFile()||visible.isSymbolicLink()||visible.nlink!==1n||
-     visible.size<1n||visible.size>BigInt(maximum)){
+     visible.size<minimum||visible.size>BigInt(maximum)){
     fail(name===REQUESTS_NAME?"requests_leaf_unqualified":"operator_leaf_unqualified");
   }
   const fd=fs.openSync(
@@ -126,7 +127,7 @@ function openLeaf(directoryFd,absolute,name,maximum){
 }
 function readPinned(leaf){
   const cap=Number(leaf.stat.size)+1;
-  if(!Number.isSafeInteger(cap)||cap<2||cap>leaf.maximum+1){
+  if(!Number.isSafeInteger(cap)||cap<1||cap>leaf.maximum+1){
     fail("pinned_read_size_invalid");
   }
   const bytes=Buffer.alloc(cap);
