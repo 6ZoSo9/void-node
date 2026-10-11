@@ -98,6 +98,9 @@ for (const required of [
   "returned request amount mismatch",
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
+  "attemptedIntentKey",
+  "REQUEST OUTCOME UNCONFIRMED",
+  "A request may have been recorded",
   "usdcAtoms",
   "updateFieldErrors",
   "42-character 0x VOID address",
@@ -243,6 +246,7 @@ const instrumentedClient = client + `
   validateSnapshot,
   isOpen,
   renderSnapshot,
+  renderError,
   updateSubmit,
   submitBuy,
   markFieldTouched,
@@ -444,6 +448,225 @@ assert.equal(fetchCalls.length, 1, "explicit Ethereum OPEN must issue exactly on
 assert.equal(fetchCalls[0][0], "/__void/buy-void/request");
 assert.equal(fetchCalls[0][1]?.method, "POST");
 assert.equal(JSON.parse(fetchCalls[0][1]?.body || "{}").source_chain, "ethereum");
+// Successfully returned request instructions must not permit a second
+// identical submission and must survive OPEN readiness refresh.
+assert.equal(submitButton.disabled, true, "same receipt intent must stay disabled");
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
+assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
+// A confirmed request must not vanish when readiness briefly changes to
+// HOLD or SOLD OUT. Never display payment instructions while closed.
+const soldOutSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, ethereum_requests_enabled: true },
+  structuredClone(validStatus),
+  { ...validSale, sold_out: true, remaining_void: 0, progress_pct: 100 },
+);
+// Sale-wide OPEN does not open Ethereum if its separate request gate closes.
+const ethereumRailHoldSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, ethereum_requests_enabled: false },
+  structuredClone(validStatus),
+  structuredClone(validSale),
+);
+buyTest.setState(ethereumRailHoldSnapshot, false, false);
+buyTest.renderSnapshot(ethereumRailHoldSnapshot);
+assert.equal(buyIntakeNode.textContent, "OPEN",
+  "the global intake remains OPEN when only Ethereum is disabled");
+assert.match(buyMessageNode.textContent,
+  /Ethereum native USDC is policy-approved but remains HOLD/u);
+assert.match(buyResultNode.textContent, /DO NOT SEND FUNDS/iu,
+  "a settled Ethereum receipt must be concealed while its rail is disabled");
+assert.doesNotMatch(buyResultNode.textContent, /Send exactly:|buyvoid_ethereum_open_v1/u);
+assert.equal(submitButton.disabled, true, "Ethereum HOLD must block retry");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "Ethereum rail HOLD must not repeat a POST");
+buyTest.setState(ethereumSnapshot, false, false);
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
+  "matching receipt may return only after Ethereum is OPEN again");
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, false);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true, "closed request intake must block POST");
+  assert.doesNotMatch(buyResultNode.textContent, /Send exactly: 10 USDC/u,
+    "closed view must not show prior payment instructions");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, 1, "closed state must not submit another request");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
+    "a re-opened view must restore its exact previous confirmed request");
+  assert.equal(submitButton.disabled, true, "reopened confirmed request stays guarded");
+}
+// Compare exact six-decimal USDC atoms rather than input formatting.
+amountInput.value = "10.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "equivalent USDC atoms must not bypass guard");
+amountInput.value = "11";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "new amount is new purchase intent");
+// Network timeout does not prove the server did not create the request.
+fetchCalls.length = 0;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  throw new Error("network_disconnected_after_server_receive");
+};
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "uncertain POST attempted once");
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.doesNotMatch(buyResultNode.textContent, /REQUEST NOT CREATED/u);
+assert.equal(submitButton.disabled, true, "uncertain intent must not be retried");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "ambiguous POST must not be duplicated");
+// A succeeded, B had a lost response: B must not evict A's guard.
+// The prior implementation remembered only B and permitted A a second POST.
+amountInput.value = "10.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "A-B-A replay of first intent must HOLD");
+assert.match(buyResultNode.textContent, /PRIOR REQUEST MAY EXIST/u);
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "A-B-A first intent must not POST again");
+amountInput.value = "11.000000";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "B remains blocked after selecting A");
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.equal(submitButton.disabled, true, "refresh must preserve uncertain intent lock");
+// An ambiguous POST cannot be forgotten by a HOLD/SOLD OUT -> OPEN cycle.
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, false);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true, "closed ambiguous intent must stay guarded");
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, 1, "closed uncertain request must never re-POST");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+    "OPEN must restore the ambiguity warning rather than saying Ready");
+  assert.equal(submitButton.disabled, true, "reopened uncertain request remains guarded");
+}
+amountInput.value = "12";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "distinct intent may still be created");
+// A different C POST in flight must not display A's payment instructions
+// or B's uncertain-result warning during an OPEN readiness refresh.
+let rejectPendingC = null;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  return new Promise((_, reject) => { rejectPendingC = reject; });
+};
+const pendingC = buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 2, "C should start one independent POST");
+assert.equal(typeof rejectPendingC, "function");
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.equal(submitButton.disabled, true, "pending request cannot resubmit");
+assert.match(buyResultNode.textContent, /Creating guarded request/u);
+assert.doesNotMatch(buyResultNode.textContent,
+  /buyvoid_ethereum_open_v1|Send exactly:|REQUEST OUTCOME UNCONFIRMED/u,
+  "pending C cannot resurrect old A receipt or B outcome");
+for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
+  buyTest.setState(closedSnapshot, false, true);
+  buyTest.renderSnapshot(closedSnapshot);
+  assert.equal(submitButton.disabled, true);
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  buyTest.setState(ethereumSnapshot, false, true);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, /Creating guarded request/u);
+  assert.doesNotMatch(buyResultNode.textContent,
+    /buyvoid_ethereum_open_v1|Send exactly:|REQUEST OUTCOME UNCONFIRMED/u);
+}
+assert.equal(fetchCalls.length, 2, "refreshes must not repeat pending C");
+rejectPendingC(new Error("synthetic_pending_request_network_loss"));
+await pendingC;
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u);
+assert.equal(submitButton.disabled, true, "pending C uncertainty still blocks retry");
+// A distinct POST can finish AFTER readiness has become HOLD, SOLD OUT,
+// or unavailable. Its late success must not overwrite DO NOT SEND copy.
+for (const [caseLabel, closedSnapshot] of [
+  ["HOLD", heldSnapshot],
+  ["SOLD_OUT", soldOutSnapshot],
+  ["READINESS_ERROR", null],
+  ["ETHEREUM_RAIL_HOLD", ethereumRailHoldSnapshot],
+]) {
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  const amount = String(caseLabel === "HOLD" ? 13 :
+    caseLabel === "SOLD_OUT" ? 14 :
+    caseLabel === "READINESS_ERROR" ? 15 : 16);
+  amountInput.value = amount;
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false,
+    "distinct late-success fixture must start with a valid intent");
+  let resolveLateSuccess = null;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Promise((resolve) => { resolveLateSuccess = resolve; });
+  };
+  const beforeLate = fetchCalls.length;
+  const pendingLateSuccess = buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1);
+  assert.equal(typeof resolveLateSuccess, "function");
+  if (closedSnapshot !== null) {
+    buyTest.setState(closedSnapshot, false, true);
+    buyTest.renderSnapshot(closedSnapshot);
+  } else {
+    buyTest.renderError(new Error("synthetic_readiness_temporarily_unavailable"));
+  }
+  assert.match(buyResultNode.textContent, /do not send funds/iu);
+  assert.equal(submitButton.disabled, true);
+  const requestId = "buyvoid_ethereum_late_" + amount;
+  const responseBody = {
+    ok: true,
+    schema: "void_public_buy_void_checkout_request_result_v1",
+    request: {
+      request_id: requestId,
+      receive_address: validConfig.receive_address,
+      void_destination_address: destinationInput.value,
+      source_chain: "ethereum",
+      payment_chain: "ethereum",
+      payment_chain_id: 1,
+      usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
+      requested_amount_usdc: amount,
+      safety: { automatic_fulfillment: false, manual_review_required: true },
+      payment_instructions: {
+        send_chain: "ethereum", send_chain_id: 1,
+        token_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
+        token_decimals: 6,
+        send_to: validConfig.receive_address,
+        send_from: destinationInput.value,
+        do_not_send_from_exchange_or_pooled_custody: true,
+      },
+    },
+  };
+  resolveLateSuccess(new Response(JSON.stringify(responseBody), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  await pendingLateSuccess;
+  assert.match(buyResultNode.textContent, /do not send funds/iu,
+    caseLabel + ": late successful POST must not hide HOLD/SOLD OUT/rail HOLD/error");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u,
+    caseLabel + ": no payment instructions while CLOSED/unverified");
+  assert.equal(submitButton.disabled, true);
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1,
+    caseLabel + ": no retry while intake is closed");
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent, new RegExp(requestId, "u"),
+    caseLabel + ": verified OPEN must restore matching request receipt");
+  assert.match(buyResultNode.textContent, new RegExp("Send exactly: " + amount + " USDC", "u"));
+  assert.equal(submitButton.disabled, true, "re-opened committed intent must be guarded");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeLate + 1,
+    caseLabel + ": verified OPEN must not repeat a committed POST");
+}
+// Resume original Base fixture expectations without another HTTP call.
+amountInput.value = "10";
 fetchCalls.length = 0;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
@@ -581,6 +804,16 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
+console.log("same_intent_repost_after_receipt_blocked=1");
+console.log("same_intent_repost_after_timeout_blocked=1");
+console.log("first_intent_preserved_after_second_post=1");
+console.log("multi_intent_guard_memory_bounded=32");
+console.log("prior_receipt_not_misbound_to_different_intent=1");
+console.log("equivalent_usdc_atoms_retry_blocked=1");
+console.log("ambiguous_server_commit_not_declared_not_created=1");
+console.log("request_outcome_survives_readiness_refresh=1");
+console.log("ethereum_rail_hold_hides_settled_and_late_receipts=1");
+console.log("ethereum_receipt_restored_only_after_rail_reopen=1");
 console.log("exchange_custody_loss_warning=1");
 console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");
