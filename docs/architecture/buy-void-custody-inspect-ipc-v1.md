@@ -43,3 +43,21 @@ permissions. No production fixture or customer data is read or changed.
 
 Source-positive and synthetic-real-service green are distinct from deployed
 production acceptance. **PROTECT THE CORE.**
+
+
+## Socket response UTF-8 intrinsic boundary
+
+The source client binds the original `TextDecoder.prototype.decode` to its
+own fatal decoder instance **during module initialization**, before any socket
+bytes arrive. It does not invoke a later mutable global `Reflect.apply` at
+parse time. Mutating either `TextDecoder.prototype.decode` or
+`Reflect.apply` **after** initialization cannot change decoded socket bytes.
+The negative proof poisons both globals, first proves that each replacement
+would forge a positive inspection result if invoked, and then sends malformed
+and invalid-UTF8 wire frames. Both must HOLD with zero poisoned callbacks.
+The proof restores both globals before the real-service protocol test.
+
+This is a same-process mutation defense, not a claim against prototype
+compromise before source initialization, changed Unix-socket peer identity,
+lost high-water history, malicious installed code, or authenticated custody.
+All payment, reserve/recover, release, production and funds flags remain false.
