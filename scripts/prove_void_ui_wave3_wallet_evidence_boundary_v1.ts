@@ -1292,7 +1292,7 @@ try {
         writeHead(code: number, headers: Record<string, string>) {
           httpCode = code;
           assert.equal(headers["cache-control"], "no-store");
-          assert.match(headers["content-type"], /^application\\/json/);
+          assert.ok(headers["content-type"].startsWith("application/json"));
         },
         end(data?: Buffer) { wireBody = data; },
       },
