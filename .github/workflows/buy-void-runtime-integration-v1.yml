@@ -56,6 +56,10 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             scripts/prove_buy_void_*.ts
+      - name: Build exact current runtime before compiled-byte proofs
+        run: |
+          set -euo pipefail
+          npm run build
       - name: Runtime integration proofs
         run: |
           ./node_modules/.bin/tsx scripts/prove_buy_void_runtime_integration_v1.ts
