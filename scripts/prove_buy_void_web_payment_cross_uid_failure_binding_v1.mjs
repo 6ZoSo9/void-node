@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import vm from "node:vm";
 import { types as utilTypes } from "node:util";
@@ -13,6 +14,15 @@ const RECON_MARKER =
   "VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_V1";
 const CANDIDATE_MARKER =
   "VOID_BUY_VOID_WEB_PAYMENT_CROSS_UID_FAILURE_BINDING_V1";
+const HANDOFF_MARKER =
+  "VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1";
+const handoffAuthority = Object.freeze({
+  source_contract: true,
+  durable_payment_verified_before_allocation: true,
+  runtime_integration: false,
+  production_gate_ready: false,
+  funds_movement: false,
+});
 const LEDGER_ROOT = "/var/lib/void-allocation-ledger-v1";
 const HIGH_WATER_ROOT = "/var/lib/void-allocation-custody-v1";
 const REQUEST_DIR = "/tmp/void-buy-failure-binding-synthetic";
@@ -176,6 +186,53 @@ function input() {
   };
 }
 
+// Match the canonical current handoff receipt's actual positive shape,
+// rather than accepting a fabricated { ok: true } without an allocation.
+function durableDispatchResult(input, mode = "ok") {
+  const idempotent = mode === "idempotent" || mode === "replay_repaired";
+  const allocationIdempotent =
+    mode === "idempotent" || mode === "new_payment_existing_allocation";
+  const eventSha = "sha256:" + createHash("sha256")
+    .update(JSON.stringify(input.event) + "\n", "utf8").digest("hex");
+  const allocation = Object.freeze({
+    ok: true,
+    marker: mode === "wrong_marker" ? "forged_handoff" : HANDOFF_MARKER,
+    authority: handoffAuthority,
+    allocation_record_id: (mode === "wrong_allocation_id" ?
+      "voidar1_" : "voidalloc1_") + "b".repeat(64),
+    payment_verified_event_sha256:
+      mode === "wrong_digest" ? "sha256:" + "f".repeat(64) : eventSha,
+    idempotent: allocationIdempotent,
+    final_record_count: 1,
+    allocation_writer_status:
+      mode === "wrong_writer_status" ? "unqualified" :
+      allocationIdempotent ? "idempotent" : "persisted",
+    allocation_writer_operation_performed:
+      mode === "wrong_operation" ? false : !allocationIdempotent,
+    prior_allocation_recovery_performed:
+      mode === "wrong_recovery_type" ? "not_a_boolean" : false,
+    final_tip_hash:
+      mode === "wrong_tip_hash" ? "sha256:" + "0".repeat(64) :
+      "sha256:" + "c".repeat(64),
+    runtime_integration: false,
+    protected_high_water_custody_proven: false,
+    production_gate_ready: false,
+    funds_movement: false,
+  });
+  const result = {
+    ok: true,
+    allocation,
+    payment_event_appended: !idempotent,
+    idempotent,
+    authority: handoffAuthority,
+    runtime_integration: false,
+    protected_high_water_custody_proven: false,
+    production_gate_ready: false,
+    funds_movement: false,
+  };
+  return mode === "unfrozen" ? result : Object.freeze(result);
+}
+
 function reconciliation(status, requestId) {
   const held = status === "held";
   const noEffect = status === "observed_no_target_capacity_effect";
@@ -220,6 +277,10 @@ const sandbox = {
   Error,
   JSON,
   utilTypes,
+  createHash,
+  VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1: HANDOFF_MARKER,
+  VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_AUTHORITY_V1:
+    handoffAuthority,
   process: { platform: "linux", getuid: () => 2102 },
   VOID_BUY_VOID_CROSS_UID_CAPACITY_EXCLUSIVE_LOCK_V1: LOCK_MARKER,
   VOID_BUY_VOID_CROSS_UID_FAILURE_RECONCILIATION_V1: RECON_MARKER,
@@ -269,7 +330,10 @@ const sandbox = {
       throw Error("synthetic_dispatch_ambiguity");
     }
     if (dispatchMode === "bad") return Object.freeze({ ok: false });
-    return Object.freeze({ ok: true, marker: "synthetic_dispatch_ok" });
+    if (dispatchMode === "bare_success") {
+      return Object.freeze({ ok: true });
+    }
+    return durableDispatchResult(value, dispatchMode);
   },
   classifyBuyVoidCrossUidFailureReconciliationV1(value) {
     reconciliationCount += 1;
@@ -357,6 +421,28 @@ assert.equal(releaseCount, 1);
 assert.equal(retainedCount, 0);
 assert.equal(context.contract.every_reconciliation_outcome_retains_outer_claim, true);
 assert.equal(context.contract.cross_uid_lock_release_authorized, false);
+assert.equal(
+  context.contract.durable_allocation_receipt_required_before_lock_release,
+  true,
+);
+
+// A complete verified-payment plus durable-allocation receipt qualifies.
+// An exact idempotent replay must likewise avoid another payment append.
+dispatchMode = "idempotent";
+const idempotentSuccess = await context.invoke(input());
+assert.equal(idempotentSuccess.writer_result.idempotent, true);
+assert.equal(idempotentSuccess.writer_result.payment_event_appended, false);
+assert.equal(releaseCount, 2);
+// A previously durable payment can legitimately require a first allocation
+// write on replay: do not conflate payment and allocation idempotence.
+dispatchMode = "replay_repaired";
+const repaired = await context.invoke(input());
+assert.equal(repaired.writer_result.idempotent, true);
+assert.equal(repaired.writer_result.allocation.idempotent, false);
+assert.equal(repaired.writer_result.payment_event_appended, false);
+assert.equal(releaseCount, 3);
+dispatchMode = "ok";
+
 
 for (const status of [
   "observed_no_target_capacity_effect",
@@ -403,6 +489,34 @@ await assert.rejects(context.invoke(input()), (error) => {
   assert.equal(error.cause.reconciliation.status, "allocation_present");
   return true;
 });
+
+// The outer claim cannot be released by a success boolean lacking the
+// canonical durable payment-to-allocation receipt, or by forged receipt data.
+for (const mode of [
+  "bare_success", "wrong_digest", "wrong_marker", "unfrozen",
+  "wrong_writer_status", "wrong_operation", "wrong_recovery_type",
+  "wrong_tip_hash", "new_payment_existing_allocation",
+  "wrong_allocation_id",
+]) {
+  dispatchMode = mode;
+  reconciliationMode = "allocation_present";
+  const priorRelease = releaseCount;
+  const priorRetained = retainedCount;
+  await assert.rejects(context.invoke(input()), (error) => {
+    assert.equal(error.message,
+      "cross_uid_capacity_lock_callback_failed_lock_retained");
+    assert.equal(error.cause.message,
+      "buy_void_web_cross_uid_dispatch_failed_reconciled_lock_retained");
+    assert.equal(error.cause.cause.message,
+      "buy_void_web_cross_uid_handoff_receipt_unqualified");
+    assert.equal(error.cause.reconciliation.status, "allocation_present");
+    return true;
+  });
+  assert.equal(releaseCount, priorRelease);
+  assert.equal(retainedCount, priorRetained + 1);
+  assert.equal(reconciliationObservedLockHeld, true);
+}
+dispatchMode = "ok";
 
 // Reconciliation exceptions and malformed classifier results both retain.
 dispatchMode = "throw";
@@ -483,6 +597,14 @@ console.log("all_reconciliation_statuses_retain_outer_claim=true");
 console.log("no_reconciliation_outcome_authorizes_release=true");
 console.log("reconciliation_failure_retains_outer_claim=true");
 console.log("unqualified_reconciliation_retains_outer_claim=true");
+console.log("durable_allocation_receipt_checked_inside_lock=true");
+console.log("bare_success_cannot_release_outer_claim=true");
+console.log("forged_allocation_or_payment_digest_retains_lock=true");
+console.log("idempotent_allocation_replay_receipt_accepted=true");
+console.log("payment_replay_allocation_repair_accepted=true");
+console.log("allocation_writer_status_and_final_tip_bound=true");
+console.log("new_payment_existing_allocation_retains_lock=true");
+console.log("canonical_voidalloc1_record_id_required=true");
 console.log("successful_dispatch_releases_after_callback=true");
 console.log("production_dispatch_invoked=false");
 console.log("filesystem_write=false");
