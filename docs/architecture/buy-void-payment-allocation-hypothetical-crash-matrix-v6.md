@@ -7,8 +7,8 @@ generation reviewed at `df7ad33671b8c47a350c1d3ebfc87c59d69d580a`.
 
 It binds the exact **current source-only bound-decoder and byte-framing-intrinsic successor** tuple:
 
-- allocation reservation ledger: `53d7e24dc2b646e05f2ecce0c02181d0af53b849`;
-- verified allocation replay binding: `423f06869623e0e3bb626d68aabd302ca1ecbb17`;
+- allocation reservation ledger: `9debe79943ba4622bb6b976ccbcfabf36b8429e3`;
+- verified allocation replay binding: `e3c659194a95394dd53b1960aed559e3950a89e1`;
 - preappend plain-input boundary (unchanged): `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`.
 
 The previous first-original V6 reviewed source tuple

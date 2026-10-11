@@ -290,11 +290,19 @@ function parseDetachedJsonRowV1(line: string): unknown {
 }
 function rows(bytes: Buffer, label: string): HistoryRow[] {
   const detached = detachedJsonlBytesV1(bytes, label);
-  if (detached.length === 0) return [];
+  // Never consult a later mutable %TypedArray%.prototype.length accessor
+  // when framing history. The detached Buffer length is captured once
+  // through the intrinsic getter and previously bound call authority.
+  const byteLength = REPLAY_REFLECT_APPLY_NATIVE_V1(
+    TYPED_ARRAY_LENGTH_GETTER_V1!, detached, [],
+  ) as number;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 ||
+      byteLength > MAX_JSONL_BYTES) fail(label + "_bytes_invalid");
+  if (byteLength === 0) return [];
   // Validate the entire UTF-8 stream first, preserving the original fatal
   // decoder boundary even when a malformed later row follows a valid row.
   REPLAY_FATAL_UTF8_DECODE_BOUND_V1(detached);
-  if (detached[detached.length - 1] !== 0x0a) {
+  if (detached[byteLength - 1] !== 0x0a) {
     fail(label + "_truncated_or_noncanonical");
   }
   // A mutable String.prototype.split/slice/endsWith can suppress R0 before
@@ -303,7 +311,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
   const parsed: HistoryRow[] = [];
   let rowStart = 0;
   let rowIndex = 0;
-  for (let cursor = 0; cursor < detached.length; cursor += 1) {
+  for (let cursor = 0; cursor < byteLength; cursor += 1) {
     const octet = detached[cursor];
     if (octet === 0x0d) fail(label + "_truncated_or_noncanonical");
     if (octet !== 0x0a) continue;
@@ -324,7 +332,7 @@ function rows(bytes: Buffer, label: string): HistoryRow[] {
     rowIndex += 1;
     rowStart = cursor + 1;
   }
-  if (rowStart !== detached.length) fail(label + "_truncated_or_noncanonical");
+  if (rowStart !== byteLength) fail(label + "_truncated_or_noncanonical");
   return parsed;
 }
 

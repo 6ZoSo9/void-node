@@ -80,6 +80,9 @@ const ALLOCATION_BUFFER_PROTOTYPE_V1 = Buffer.prototype;
 const ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
 )!.get!;
+const ALLOCATION_TYPED_ARRAY_BUFFER_V1 = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "buffer",
+)!.get!;
 // Capture intrinsic invocation at module initialization; a later global
 // Reflect.apply replacement cannot forge byte length, copy or frame windows.
 const ALLOCATION_REFLECT_APPLY_NATIVE_V1 = Reflect.apply;
@@ -103,9 +106,21 @@ function isNativeAllocationBufferV1(value: unknown): value is Buffer {
 }
 
 function detachedAllocationBufferV1(value: Buffer): Buffer {
+  // A SharedArrayBuffer source can change while copying, even when all
+  // method calls are native. Never equate shared mutable bytes with a
+  // detached, original payment/allocation history.
+  const backing = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
+    ALLOCATION_TYPED_ARRAY_BUFFER_V1, value, [],
+  ) as ArrayBufferLike;
+  if (utilTypes.isSharedArrayBuffer(backing)) {
+    throw new Error("allocation_reservation_ledger_shared_backing_forbidden");
+  }
   const length = ALLOCATION_REFLECT_APPLY_NATIVE_V1(
     ALLOCATION_TYPED_ARRAY_BYTE_LENGTH_V1, value, [],
   ) as number;
+  if (!Number.isSafeInteger(length) || length < 0) {
+    throw new Error("allocation_reservation_ledger_not_plain_data");
+  }
   if (length > MAX_LEDGER_BYTES) {
     throw new Error("allocation_reservation_ledger_too_large");
   }

@@ -63,11 +63,11 @@ intrinsics before byte-length, copy and subarray operations. Later
 mutations cannot forge decoded allocation/replay row bytes.
 The successor reviewed Git blobs are:
 
-- allocation reservation ledger: `53d7e24dc2b646e05f2ecce0c02181d0af53b849`;
-- verified allocation replay: `423f06869623e0e3bb626d68aabd302ca1ecbb17`;
-- adversarial actual-classifier test: `d750cc132685557492f87aeb54bd021d0c4a8a50`.
+- allocation reservation ledger: `9debe79943ba4622bb6b976ccbcfabf36b8429e3`;
+- verified allocation replay: `e3c659194a95394dd53b1960aed559e3950a89e1`;
+- adversarial actual-classifier test: `f766f09b5563b068fb1ca7f7f72f3139efab4377`.
 
-The existing joint workflow now requires the actual-classifier adversary on
+The current adversary also rejects SharedArrayBuffer-backed allocation histories (including zero bytes), preserves ordinary empty-Buffer genesis, and asserts zero poisoned typed-array method or length getter calls. The existing joint workflow now requires the actual-classifier adversary on
 Node 22/24/26, including positive controls for poisoned global decoder and framing
 hooks, rejection of malformed input with zero hook invocations, and
 byte-identical non-authority receipts. Historical pinned generations remain
