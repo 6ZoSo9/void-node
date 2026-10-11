@@ -149,3 +149,10 @@ be `false`. The reverse combination remains valid for historical payment
 recovery (outer payment idempotent, nested newly persisted allocation).
 Both paths are asserted by the exact fake-dispatch proof; neither grants
 live payment or custody authority.
+
+The canonical allocation record identifier comes from
+`buy_void_allocation_reservation_ledger_v1.ts::recordIdV1` and has the
+`voidalloc1_<64 lowercase hexadecimal>` form. The distinct, nonexistent
+`voidar1_` alias is explicitly rejected by the source-only receipt test;
+accepting only that alias would retain the lock on every real allocation
+receipt despite otherwise successful publication.

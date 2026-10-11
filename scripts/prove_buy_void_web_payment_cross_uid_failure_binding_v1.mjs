@@ -198,7 +198,8 @@ function durableDispatchResult(input, mode = "ok") {
     ok: true,
     marker: mode === "wrong_marker" ? "forged_handoff" : HANDOFF_MARKER,
     authority: handoffAuthority,
-    allocation_record_id: "voidar1_" + "b".repeat(64),
+    allocation_record_id: (mode === "wrong_allocation_id" ?
+      "voidar1_" : "voidalloc1_") + "b".repeat(64),
     payment_verified_event_sha256:
       mode === "wrong_digest" ? "sha256:" + "f".repeat(64) : eventSha,
     idempotent: allocationIdempotent,
@@ -495,6 +496,7 @@ for (const mode of [
   "bare_success", "wrong_digest", "wrong_marker", "unfrozen",
   "wrong_writer_status", "wrong_operation", "wrong_recovery_type",
   "wrong_tip_hash", "new_payment_existing_allocation",
+  "wrong_allocation_id",
 ]) {
   dispatchMode = mode;
   reconciliationMode = "allocation_present";
@@ -602,6 +604,7 @@ console.log("idempotent_allocation_replay_receipt_accepted=true");
 console.log("payment_replay_allocation_repair_accepted=true");
 console.log("allocation_writer_status_and_final_tip_bound=true");
 console.log("new_payment_existing_allocation_retains_lock=true");
+console.log("canonical_voidalloc1_record_id_required=true");
 console.log("successful_dispatch_releases_after_callback=true");
 console.log("production_dispatch_invoked=false");
 console.log("filesystem_write=false");

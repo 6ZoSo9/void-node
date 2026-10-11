@@ -138,7 +138,8 @@ function checkedReconciliationResultV1(value, requestId) {
 }
 
 
-const ALLOCATION_ID_V1 = /^voidar1_[0-9a-f]{64}$/u;
+// Match recordIdV1 in the canonical allocation reservation ledger.
+const ALLOCATION_ID_V1 = /^voidalloc1_[0-9a-f]{64}$/u;
 const SHA256_REF_V1 = /^sha256:[0-9a-f]{64}$/u;
 
 // A success flag alone does not prove that a verified payment was paired with
