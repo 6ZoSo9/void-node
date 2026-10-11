@@ -329,7 +329,7 @@ function openSharedDirectory(config) {
     return opened;
   } catch (error) {
     for (const entry of opened.reverse()) {
-      try { fs.closeSync(entry.fd); } catch {}
+      try { fs.closeSync(entry.fd); } catch (cleanupError) { void cleanupError; }
     }
     throw error;
   }
@@ -633,7 +633,7 @@ function openAndReadLock(config, sharedFd) {
     const claim = parseClaim(bytes, config, before);
     return Object.freeze({ fd, stat: before, claim });
   } catch (error) {
-    try { fs.closeSync(fd); } catch {}
+    try { fs.closeSync(fd); } catch (cleanupError) { void cleanupError; }
     throw error;
   }
 }
@@ -684,7 +684,7 @@ function writeStagingClaim(config, sharedFd, claim) {
     return Object.freeze({ fd, stat: after, path: stagingPath });
   } catch (error) {
     if (fd !== undefined) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); } catch (cleanupError) { void cleanupError; }
     }
     throw error;
   }
@@ -757,9 +757,9 @@ function tryCreateLock(config, participant, sharedFd) {
     }
     return Object.freeze({ fd: heldFd, stat: after, claim });
   } catch (error) {
-    try { fs.closeSync(staging.fd); } catch {}
+    try { fs.closeSync(staging.fd); } catch (cleanupError) { void cleanupError; }
     if (heldFd !== undefined) {
-      try { fs.closeSync(heldFd); } catch {}
+      try { fs.closeSync(heldFd); } catch (cleanupError) { void cleanupError; }
     }
     if (linked) {
       fail("cross_uid_capacity_lock_acquire_failed_lock_retained", error);
@@ -818,7 +818,7 @@ async function acquire(config, participant, opened) {
         continue;
       }
     } catch (error) {
-      try { fs.closeSync(observed.fd); } catch {}
+      try { fs.closeSync(observed.fd); } catch (cleanupError) { void cleanupError; }
       throw error;
     }
 
@@ -850,7 +850,7 @@ function releaseHeld(config, opened, held) {
 
 function closeOpened(opened) {
   for (const entry of opened.reverse()) {
-    try { fs.closeSync(entry.fd); } catch {}
+    try { fs.closeSync(entry.fd); } catch (cleanupError) { void cleanupError; }
   }
 }
 
@@ -873,7 +873,7 @@ export async function withBuyVoidCrossUidCapacityExclusiveLockV1(
     try {
       result = await criticalSection();
     } catch (error) {
-      try { fs.closeSync(held.fd); } catch {}
+      try { fs.closeSync(held.fd); } catch (cleanupError) { void cleanupError; }
       held = null;
       fail("cross_uid_capacity_lock_callback_failed_lock_retained", error);
     }
@@ -904,7 +904,7 @@ export async function withBuyVoidCrossUidCapacityExclusiveLockV1(
     });
   } finally {
     if (held) {
-      try { fs.closeSync(held.fd); } catch {}
+      try { fs.closeSync(held.fd); } catch (cleanupError) { void cleanupError; }
     }
     closeOpened(opened);
   }
