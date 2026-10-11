@@ -80,6 +80,16 @@ jobs:
         run: |
           set -euo pipefail
           git diff --exit-code
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD"
+          if [ -z "${BASE_SHA:-}" ]; then
+            # Workflow dispatch has no pull_request event: compare the
+            # checked-out commit with its exact first parent, fail closed.
+            BASE_SHA="$(git rev-parse "$REVIEW_HEAD^")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE_SHA" "$REVIEW_HEAD"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
           git diff --check "$BASE_SHA" "$REVIEW_HEAD"
       - name: Preserve exact-head synthetic transcript
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

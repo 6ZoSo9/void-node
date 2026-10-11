@@ -145,9 +145,19 @@ jobs:
       - name: Diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          if [ -z "${BASE_SHA:-}" ]; then
+            # Workflow dispatch has no pull_request event: compare the
+            # checked-out commit with its exact first parent, fail closed.
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
           git diff --check "$BASE_SHA" "$HEAD_SHA"
 
   cross-node:
