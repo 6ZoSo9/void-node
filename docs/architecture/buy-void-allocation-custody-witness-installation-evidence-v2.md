@@ -335,3 +335,32 @@ git diff --check
 The synthetic proof uses injected host I/O only. It performs no live SSH,
 service, mount, permission, witness, payment, key, transaction, activation or
 funds mutation.
+
+## CI historical V2 versus current first-original generation (October 11, 2026)
+
+The original V2 installation-evidence proof and manifest are a **frozen
+historical generation**. The original reviewed proof Git blob
+`f3e0aa63a3cf6bfff45b619c068f02d9bef05e35` binds the immutable V1
+runtime-bundle qualifier blob `d2e84643c9f4d76c642c7e07d4ea2bf1634035e4`
+and allocation-ledger source blob `c3fc204710a9189723651cfeb6ffc52b1aa049db`.
+Running its expected compiled SHA-256 checks against the **new** allocation
+ledger was an invalid source-generation composition, not evidence of an
+installed Nimo witness.
+
+The hosted workflow first checks out and binds the **exact current PR head**,
+typechecks/builds the current generation, pins current replay/ledger Git
+blobs (`d873533d...`/`57a14a78...`), and executes the current source-only
+crash matrix V6. It then creates a **detached, temporary historical Git
+worktree** at commit `d992687fb871e31fe1f5f51138ff621bab7c643b`, checks the exact historical source/proof
+blobs, and builds and executes the existing V2 collector, runtime-bundle
+qualifier, installation/transport/continuity tests **only in that frozen
+generation**. No historical source or expected digest is rewritten, and
+the current branch's whitespace check is based on its real Git merge base.
+
+The frozen V2 proof proves only historical internal consistency.
+Current V6 is hypothetical source proof, not installed runtime qualification.
+Neither result authenticates present Nimo installed modules, actual UID/GID
+or cross-UID ownership, independent protected high-water custody, payment
+acceptance, market funding, presale activation, or funds movement.
+A separate exact current-generation witness package and live external
+read/receipt must be qualified before any production claim.
