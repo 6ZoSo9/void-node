@@ -365,6 +365,10 @@ async function fetchAgainstOwnedDeadlineV1(
         }
       };
       void fetchPromise.then(onLateResponse, retire);
+      // Fetch may reject from its earlier-installed abort listener before
+      // Promise.race receives our deadline rejection. Once the owned clock
+      // wins, return the deterministic owned AbortError, not fetch's error.
+      throw new DOMException("response_fetch_timeout", "AbortError");
     }
     throw error;
   } finally {
