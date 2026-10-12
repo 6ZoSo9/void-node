@@ -35,8 +35,14 @@ The gateway does not gain a general mutation proxy.
   and stalls (or repeatedly trickles one byte) must terminate without
   ever forwarding a request to the upstream node. The incomplete socket
   is destroyed on deadline; its transport close is **not** a payment or
-  purchase receipt. This timer is independent of the later 8-second
-  upstream header/body response limit.
+  purchase receipt. If an unfinished upload instead crosses the 65,536-byte
+  cap, the edge flushes HTTP 413 with `Connection: close` and retires the
+  owned socket immediately afterward; it does not clear the timer and leave
+  the oversized peer trickling indefinitely. The inert HTTP proof sends a
+  65,537-byte chunk without ending the request, then requires the complete
+  413, prompt socket close well before eight seconds, and zero upstream POSTs.
+  This timer is independent of the later 8-second upstream header/body
+  response limit.
 - The upstream POST and its full JSON response have a fixed **8-second
   total deadline**, enforced by both AbortSignal and one monotonic absolute
   expiry applied to response headers **and every body read**. Each awaited
