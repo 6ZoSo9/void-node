@@ -1,5 +1,26 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 orphan sidecar and revision journal cleanup — source only
+
+A new Buy VOID request with an ID **absent from canonical requests.jsonl**
+must not open or truncate a surviving private `<id>.json` sidecar.
+Even with a nonempty, otherwise sound ledger, that leaf is evidence of
+rollback, lost journal history or another writer. The source now refuses
+`new_request_orphan_sidecar` **before any journal append**, leaving the
+orphan's exact bytes and prior purchase obligations unchanged.
+
+When verification of an original operator-revision sidecar fails, the caller
+retains both sidecar and journal FDs until cleanup. Its close handler now uses
+an independent nested `finally`, guaranteeing an attempt to close the
+pinned journal even if the sidecar close throws and causes a HOLD. The
+actual compiled-helper proof creates an orphan alongside a nonempty
+journal, proves zero new journal bytes and intact sidecar bytes, then
+injects a failed sidecar close and requires exactly one observed journal
+close attempt without authorizing the revision.
+
+This closes two narrow source races, **not** production crash atomicity or
+authorization of payment, fulfillment, Work Credits or public presale.
+
 ## October 11 operator revision original-sidecar preappend fence — source only
 
 Before an authenticated operator's first tx-hash revision can append any new
@@ -267,8 +288,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `4746b90178c2a80382ca4c2283ed88915f7ee2be`. Actual source-only
-regression Git blob: `c0a036a0cf23c89f6debaeece99b4e0ac185624a`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `764c2dd200dd9783bdd3c92beee74c18679606ac`. Actual source-only
+regression Git blob: `0634951f6076233b291fe67929b75d69bab31864`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -292,7 +313,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `4746b90178c2a80382ca4c2283ed88915f7ee2be`). The existing
+(Git blob `764c2dd200dd9783bdd3c92beee74c18679606ac`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
