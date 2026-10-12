@@ -501,6 +501,7 @@ export function validateBuyVoidEpoch2FulfillerCredentialEnvelopeV1(
     return /^0x[0-9a-f]{64}$/.test(paymentId) &&
       paymentId !== "0x" + "0".repeat(64) &&
       recipient !== null &&
+      recipient !== "0x" + "0".repeat(40) &&
       typeof amount === "bigint" &&
       amount > 0n && amount <= 10_000_000n * 10n ** 18n &&
       EPOCH2_FULFILLMENT_ABI_V1.encodeFunctionData("fulfill", [
