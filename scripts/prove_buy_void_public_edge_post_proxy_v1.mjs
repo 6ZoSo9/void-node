@@ -240,6 +240,76 @@ const exactAccepted201Receipt = {
 };
 const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n";
 
+// A distinct *full native-USDC buyer request* fixture matches the reviewed
+// node's public checkout payload and the browser's separate identity,
+// receipt-age and payment-instruction checks. The minimal 201 above proves
+// only the gateway's narrow envelope. This fixture is still synthetic and
+// is NOT executable cross-PR browser qualification or payment authority.
+const fullCreatedAtMs = Date.now();
+const fullExpiresAtMs = fullCreatedAtMs + 4 * 60 * 1000;
+const full201RequestId = "buyvoid_edge_full_base_aaaaaaaa";
+const full201Destination = "0x1111111111111111111111111111111111111111";
+const full201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const full201BaseUsdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const fullAccepted201Receipt = {
+  schema: "void_public_buy_void_checkout_request_result_v1",
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  ok: true,
+  idempotent: false,
+  one_active_request_cap_enforced: true,
+  request: {
+    schema: "void_public_buy_void_checkout_request_v1",
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    ok: true,
+    persisted: { ok: true },
+    request_id: full201RequestId,
+    created_at_ms: fullCreatedAtMs,
+    launch_authority: { expires_at_ms: fullExpiresAtMs },
+    status: "awaiting_payment_tx_hash",
+    tx_hash: "",
+    source_chain: "base",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    asset_in: "USDC",
+    usdc_decimals: 6,
+    usdc_contract: full201BaseUsdc,
+    usdc_amount: 10,
+    requested_amount_usdc: 10,
+    receive_address: full201Receiver,
+    void_destination_address: full201Destination,
+    delivery_address: full201Destination,
+    delivery_wallet: full201Destination,
+    delivery_chain: "void",
+    delivery_chain_id: 2050,
+    request_contract: {
+      request_before_payment_required: true,
+      one_active_request_per_void_destination: true,
+      payment_sender_must_equal_void_destination: true,
+      payment_tx_hash_bound_after_request_by_operator: true,
+    },
+    safety: {
+      automatic_fulfillment: false,
+      manual_review_required: true,
+    },
+    payment_instructions: {
+      request_id: full201RequestId,
+      amount: 10,
+      expires_at_ms: fullExpiresAtMs,
+      send_asset: "USDC",
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: full201BaseUsdc,
+      token_decimals: 6,
+      send_to: full201Receiver,
+      send_from: full201Destination,
+      do_not_send_before_request: true,
+      keep_transaction_hash: true,
+      do_not_send_from_exchange_or_pooled_custody: true,
+    },
+  },
+};
+const fullAccepted201Json = JSON.stringify(fullAccepted201Receipt, null, 3)+"\n";
+
 const upstream = http.createServer(
   async (req, res) => {
     const chunks = [];
@@ -298,6 +368,15 @@ const upstream = http.createServer(
         // case. Route it to the inert baseline fixture; never claim receipt
         // success on the basis of test-only input parsing.
         proofCase = "";
+      }
+      if (proofCase === "full_client_contract_201") {
+        res.writeHead(201, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public,max-age=60",
+          "content-length": String(Buffer.byteLength(fullAccepted201Json)),
+        });
+        res.end(fullAccepted201Json);
+        return;
       }
       if (proofCase === "valid_201") {
         res.writeHead(201, {
@@ -685,6 +764,27 @@ try {
   assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
     exactAccepted201Receipt);
 
+  // This is a second, complete receipt forwarding check. The independent
+  // browser Draft #2818 owns *actual consumer* validation of these fields.
+  const full201 = await postProof("full_client_contract_201");
+  assert.equal(full201.status, 201);
+  const full201Bytes = Buffer.from(await full201.arrayBuffer());
+  assert.deepEqual(full201Bytes, Buffer.from(fullAccepted201Json, "utf8"),
+    "full native-USDC buyer receipt must preserve every original byte");
+  const fullReceipt = JSON.parse(full201Bytes.toString("utf8"));
+  assert.deepEqual(fullReceipt, fullAccepted201Receipt);
+  assert.equal(fullReceipt.request.created_at_ms + 4*60*1000,
+    fullReceipt.request.payment_instructions.expires_at_ms);
+  assert.equal(fullReceipt.request.launch_authority.expires_at_ms,
+    fullReceipt.request.payment_instructions.expires_at_ms);
+  assert.equal(fullReceipt.request.payment_instructions.send_from.toLowerCase(),
+    fullReceipt.request.void_destination_address.toLowerCase());
+  assert.equal(fullReceipt.request.payment_instructions.send_to.toLowerCase(),
+    full201Receiver);
+  assert.deepEqual(fullReceipt.request.persisted, {ok:true});
+  assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
+    full201BaseUsdc.toLowerCase());
+
   const maximumValid = await postProof("max_size_valid");
   assert.equal(maximumValid.status, 400);
   const maximumValidBytes = Buffer.from(await maximumValid.arrayBuffer());
@@ -852,6 +952,7 @@ try {
   console.log("upstream_redirect_and_nonjson_rejected=true");
   console.log("valid_checkout_201_pass_through=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
   console.log("independent_201_missing_false_nonobject_persistence_refused=true");
   console.log("independent_201_request_id_ok_marker_refused=true");
