@@ -1,0 +1,48 @@
+name: Canonical producer immutable source custody v1
+
+on:
+  pull_request:
+    paths:
+      - "runtime/canonical-producer-source-custody-v1.cjs"
+      - "runtime/canonical-producer-self-http-guard-v3.cjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "scripts/prove_canonical_producer_source_custody_v1.mjs"
+      - ".github/workflows/canonical-producer-source-custody-v1.yml"
+      - "docs/operations/canonical-producer-source-custody-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kernel-custody:
+    name: Native unprivileged custody / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Validate inert source and Bash launcher
+        run: |
+          node --check runtime/canonical-producer-source-custody-v1.cjs
+          node --check scripts/prove_canonical_producer_source_custody_v1.mjs
+          bash -n ops/run-void-node-live-v1.sh
+      - name: Kernel root-owned source fixture and negative mutation tests
+        run: |
+          set -euo pipefail
+          node scripts/prove_canonical_producer_source_custody_v1.mjs
+      - name: Source whitespace hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+          git diff --check "${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}" "${{ github.event.pull_request.head.sha || github.sha }}"
