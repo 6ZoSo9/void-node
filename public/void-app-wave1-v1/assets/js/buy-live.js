@@ -151,14 +151,16 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
   if (Number.isFinite(declared) && declared > MAX_BUY_JSON_BYTES) {
     throw new Error('Buy VOID response exceeds byte limit');
   }
-  const reader = response.body?.getReader?.();
-  if (!reader) throw new Error('Buy VOID response stream unavailable');
-  // Browser timers may fire late in throttled/frozen tabs. Treat monotonic
-  // elapsed time as authority; setTimeout is only a wake-up mechanism.
+  // Establish the time budget BEFORE acquiring a stream reader. A missing
+  // or invalid monotonic clock must not leave the response body locked with
+  // no cancellation path (for example, after a tab loses clock access).
+  // Browser timers may fire late; they are only wake-up mechanisms.
   const bodyStartedMonoMs = receiptMonotonicNow();
   if (bodyStartedMonoMs === null) {
     throw new Error('Buy VOID response body monotonic clock unavailable');
   }
+  const reader = response.body?.getReader?.();
+  if (!reader) throw new Error('Buy VOID response stream unavailable');
   const assertBodyWithinDeadline = () => {
     const now = receiptMonotonicNow();
     if (now === null || now < bodyStartedMonoMs ||
