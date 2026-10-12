@@ -96,7 +96,7 @@ for(const value of Object.values(storedSecrets)){
 // (old negative control, current positive) under inert response objects.
 function extractPublicCatch(post){
   const marker="}catch(e:any){";
-  const begin=post.lastIndexOf(marker),end=post.lastIndexOf("}\\n    });");
+  const begin=post.lastIndexOf(marker),end=post.lastIndexOf("}" + String.fromCharCode(10) + "    });");
   assert.ok(begin>=0&&end>begin,"missing mounted POST catch");
   return new Function("e","res",post.slice(begin+marker.length,end));
 }
