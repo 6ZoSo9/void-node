@@ -1,5 +1,26 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 final sidecar byte revalidation — source only
+
+A new last-success safety check keeps the previously authenticated sidecar FD
+open through a second bounded byte-for-byte read against the **canonical latest
+journal row**, then requires exact bigint dev/inode, size, uid/gid, permission,
+link count, mtimeNs and ctimeNs stability before reporting internal idempotent
+reuse. An exclusively recreated missing sidecar is opened O_RDWR|O_EXCL so its
+fresh fsynced bytes can be re-read; an existing sidecar remains O_RDONLY.
+Both paths revalidate journal, launch authority and private directory *before*
+the last byte check. The focused compiled-helper proof injects an equal-length
+same-inode rewrite after the earlier validation in both the existing and
+missing-sidecar-recovery paths, and requires HOLD without appending another
+economic obligation.
+
+These are final observed-byte checks, **not a continuous exclusion mechanism**
+against a same-UID writer after the final observation or general atomic
+journal/sidecar transaction. Operator-event history, installed request-directory
+generation, coupled presale/WC market readiness, funds and custody remain HOLD.
+
+
+
 ## October 11 create-only missing-sidecar recovery — source-only candidate
 
 One specific crash gap is now replayable without inventing a second purchase:
