@@ -142,6 +142,8 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
     "non-201 response must be redacted after all tiny reads settle");
   assert.deepEqual(JSON.parse(output.toString("utf8")), {
     ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   });
   assert.equal(syntheticRes.headers["cache-control"], "no-store");
   assert.equal(readCalls, literal.length + 1, "exercise all 4,098 tiny reads");
@@ -190,6 +192,8 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
   assert.equal(uncertainRes.statusCode, 502);
   assert.deepEqual(JSON.parse(uncertainOutput.toString("utf8")), {
     ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   });
   assert.equal(uncertainRes.headers["cache-control"], "no-store");
   assert.equal(outstandingTimers.size, 0);
@@ -413,6 +417,29 @@ const upstream = http.createServer(
           ok: false, error: "one_active_request_per_void_destination",
           existing_request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
           existing_status: "SENTINEL_PRIOR_BUYER_STATUS_9922",
+        }));
+        return;
+      }
+      if (proofCase === "legacy_private_400" ||
+          proofCase === "legacy_private_503" ||
+          proofCase === "legacy_private_500") {
+        const legacyStatus = proofCase === "legacy_private_400"
+          ? 400 : proofCase === "legacy_private_503" ? 503 : 500;
+        res.writeHead(legacyStatus, {
+          "content-type": "application/json",
+          "cache-control": "public,max-age=3600",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+        });
+        res.end(JSON.stringify({
+          ok: false,
+          error: "SENTINEL_PRIOR_BUYER_STATUS_9922",
+          request: {
+            request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+            account: "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+            note: "SENTINEL_PRIOR_BUYER_NOTE_9922",
+            tx_hash: "SENTINEL_PRIOR_BUYER_HASH_9922",
+          },
         }));
         return;
       }
@@ -754,6 +781,8 @@ try {
     await postResponse.json();
   assert.deepEqual(postBody, {
     ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   }, "backend's arbitrary validation body may not cross public edge");
   assert.equal(
     upstreamCalls.length,
@@ -900,14 +929,23 @@ try {
   // The new edge must refuse that disclosure even before #2811 is installed.
   for (const [scenario, expectedStatus] of [
     ["legacy_reuse_private_200", 502],
+    ["legacy_private_400", 400],
     ["legacy_conflict_private_409", 409],
+    ["legacy_private_503", 503],
+    ["legacy_private_500", 502],
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, expectedStatus, scenario);
     assert.equal(refused.headers.get("etag"), null, scenario);
+    assert.equal(refused.headers.get("x-private-request-id"), null, scenario);
+    assert.equal(refused.headers.get("cache-control"), "no-store", scenario);
+    assert.equal(refused.headers.get("content-type"),
+      "application/json; charset=utf-8", scenario);
     const publicText = await refused.text();
     assert.deepEqual(JSON.parse(publicText), {
       ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
     }, scenario);
     for (const privateValue of [
       "SENTINEL_PRIOR_BUYER_REQUEST_9922",
@@ -929,6 +967,8 @@ try {
   assert.equal(maximumValid.status, 400);
   assert.deepEqual(await maximumValid.json(), {
     ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   });
 
   for (const scenario of [
@@ -963,6 +1003,8 @@ try {
     assert.deepEqual(await refused.json(), {
       ok: false,
       error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
     }, scenario);
   }
 
@@ -970,6 +1012,8 @@ try {
   assert.equal(refusedOpenBody.status, 502);
   assert.deepEqual(await refusedOpenBody.json(), {
     ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   });
   const earlyCloseStartedAt = Date.now();
   for (let attempt=0;attempt<100 && !headerRejectedSocketClosed;attempt++) {
@@ -990,6 +1034,8 @@ try {
   assert.deepEqual(await stalled.json(), {
     ok: false,
     error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
   });
   assert.ok(stalledElapsedMs >= 5000 && stalledElapsedMs < 13000,
     "upstream response must have a finite total deadline");
@@ -1094,6 +1140,8 @@ try {
   console.log("retired_200_full_prior_buyer_record_redacted=true");
   console.log("retired_409_prior_buyer_identity_redacted=true");
   console.log("all_non201_backend_json_sanitized=true");
+  console.log("all_non201_200_400_409_503_500_sentinels_redacted=true");
+  console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("full_native_usdc_independent_chain_amount_identities=true");
