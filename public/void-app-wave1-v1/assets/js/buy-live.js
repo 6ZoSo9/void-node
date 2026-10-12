@@ -17,8 +17,8 @@ let currentSnapshot = null;
 let readinessPending = false;
 let submitBusy = false;
 // A lost POST response does not prove the server failed to create a request.
-// Keep the exact intent blocked during this Buy view lifetime, even after
-// network failure or readiness refresh; a changed intent is a NEW request.
+// Keep every attempted intent blocked throughout this SPA document, including
+// after route/view replacement. A reload still requires server-side recovery.
 let attemptedIntentKey = null;
 // Limit per-view history to a small fixed number of attempted POST intents.
 // A-B-A (or A-B-C-A) must not forget the first possibly committed request.
@@ -100,7 +100,9 @@ const beginBuyViewInstance = (view) => {
   clearReceiptExpiryTimer();
   activeBuyView = view;
   touchedFields.clear();
-  attemptedIntentKeys.clear();
+  // Do not erase possibly committed POST intents when the SPA replaces this
+  // view. Retire only the old receipt text and expiry state below: no prior
+  // payment directions can be revived by navigating away and back.
   attemptedIntentKey = null;
   attemptedResultText = null;
   attemptedResultExpiresAtMs = null;
