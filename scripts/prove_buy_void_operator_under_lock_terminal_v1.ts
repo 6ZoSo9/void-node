@@ -357,6 +357,85 @@ try {
     }
   }
 
+  // A failed private-temp write MUST NOT unlink an unrelated file substituted
+  // at the same child pathname after the writer opened its original inode.
+  // Pinning the parent directory is insufficient: child names remain mutable.
+  {
+    const attackRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-failed-temp-swap-"),
+    );
+    fs.chmodSync(attackRoot, 0o700);
+    const ledger = path.join(attackRoot, "operator-events.jsonl");
+    const sidecar = path.join(
+      attackRoot, "operator-event-" + first.request_id + "-905.json",
+    );
+    const ownedTempPrefix = ".operator-event-" +
+      first.request_id + "-905.json.tmp-";
+    const privateRecord = path.join(attackRoot, "unrelated-private-record");
+    const privateBytes = Buffer.from(
+      "UNRELATED_PRIVATE_RECORD_MUST_SURVIVE",
+    );
+    fs.writeFileSync(privateRecord, privateBytes, { mode: 0o600 });
+    const originalOwnedTemp = path.join(
+      attackRoot, "original-temp-inode.moved",
+    );
+    const e = event(first, "fulfilled", 905);
+    const perform = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: e, request: first, request_dir: attackRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const replay = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: reconciliationOnlyEvent(e), request: first,
+      request_dir: attackRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const originalWrite = fs.writeSync;
+    let reboundPath = "";
+    let injected = false;
+    try {
+      (fs as any).writeSync = function(...args: any[]) {
+        const data = args[1];
+        if (!injected && Buffer.isBuffer(data) &&
+            data.includes(Buffer.from('"marked_at_ms": 905'))) {
+          injected = true;
+          const temps = fs.readdirSync(attackRoot)
+            .filter(name => name.startsWith(ownedTempPrefix));
+          assert.equal(temps.length, 1);
+          reboundPath = path.join(attackRoot, temps[0]);
+          fs.renameSync(reboundPath, originalOwnedTemp);
+          fs.renameSync(privateRecord, reboundPath);
+          throw new Error("SYNTHETIC_FAILED_TEMP_NAME_REBOUND");
+        }
+        return Reflect.apply(originalWrite, fs, args);
+      };
+      await assert.rejects(
+        perform, /SYNTHETIC_FAILED_TEMP_NAME_REBOUND/u,
+      );
+    } finally {
+      (fs as any).writeSync = originalWrite;
+    }
+    try {
+      assert.equal(injected, true);
+      assert.ok(reboundPath);
+      assert.deepEqual(
+        fs.readFileSync(reboundPath), privateBytes,
+        "failed terminal-temp cleanup removed a substituted private file",
+      );
+      assert.equal(fs.existsSync(originalOwnedTemp), true);
+      assert.equal(fs.existsSync(sidecar), false);
+      const journaled = fs.readFileSync(ledger);
+      assert.equal(journaled.toString("utf8"), JSON.stringify(e) + "\n");
+      const result: any = await replay();
+      assert.equal(result.journal_reused, true);
+      assert.equal(result.sidecar_recovered, true);
+      assert.deepEqual(fs.readFileSync(ledger), journaled);
+      assert.deepEqual(fs.readFileSync(reboundPath), privateBytes);
+      assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, "utf8")), e);
+    } finally {
+      fs.rmSync(attackRoot, { recursive: true, force: true });
+    }
+  }
+
   // Crash after atomically linking complete sidecar but before unlinking
   // its hidden temp. The public bytes are already complete. An exact retry
   // verifies the joined inode, prunes only its own hidden hardlink and
@@ -612,6 +691,7 @@ try {
   console.log("terminal_descriptor_path_swap_holds_without_visible_append=true");
   console.log("terminal_exact_fulfilled_sidecar_recovery_without_duplicate=true");
   console.log("terminal_hidden_temp_partial_write_never_public=true");
+  console.log("terminal_failed_temp_name_swap_unrelated_file_preserved=true");
   console.log("terminal_post_link_owned_hardlink_recovered_exactly_once=true");
   console.log("under_request_lock_jsonl_revalidated=true");
   console.log("actual_customer_ledger_access=false");

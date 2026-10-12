@@ -2653,7 +2653,6 @@ function publishOperatorTerminalSidecarAtomicallyV1(
       fs.constants.O_EXCL | O_NOFOLLOW,
     0o600,
   );
-  let published = false;
   try {
     const written = fs.writeSync(
       fd, expectedBytes, 0, expectedBytes.length, null,
@@ -2669,26 +2668,19 @@ function publishOperatorTerminalSidecarAtomicallyV1(
     }
     assertPinnedRequestDirectoryVisibleV1(directory);
     fs.linkSync(tempPath, pinnedPath);
-    published = true;
     fs.fsyncSync(directory.fd);
     fs.unlinkSync(tempPath);
     fs.fsyncSync(directory.fd);
   } finally {
     fs.closeSync(fd);
-    // A hidden, unlinked pre-publication temp is never public status evidence.
-    // Leave an already-linked temp for exact same-inode crash replay instead
-    // of risking deletion of a different name after an uncertain failure.
-    if (!published) {
-      try {
-        const temp = fs.lstatSync(tempPath, { bigint: true });
-        if (!temp.isSymbolicLink() && temp.isFile() && temp.nlink === 1n) {
-          fs.unlinkSync(tempPath);
-          fs.fsyncSync(directory.fd);
-        }
-      } catch {
-        // Preserve original failure. A hidden leaf carries no public authority.
-      }
-    }
+    // On a failed pre-publication write, DO NOT unlink tempPath. The private
+    // child pathname is mutable even though the directory FD is pinned: a
+    // same-UID rename can replace our temp inode with an unrelated file.
+    // lstat+unlink, even with an extra inode check, is subject to a
+    // compare/unlink race. Fail closed and retain the hidden leaf for bounded
+    // operator-reviewed cleanup; it carries no public fulfillment authority.
+    // After publication an exact sidecar replay independently checks/cleans
+    // only verified joined hard links; the terminal journal stays canonical.
   }
   // Verify against the same pinned request directory before returning GREEN.
   // Existing now means published bytes and a single visible hard link.
