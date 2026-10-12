@@ -38,6 +38,19 @@ assert.match(
   source,
   /x-void-public-buy-void-post-proxy/,
 );
+assert.ok(source.includes(
+  "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072"));
+assert.ok(source.includes(
+  "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000"));
+const postHandlerSource = source.slice(
+  source.indexOf("async function voidBuyVoidPublicEdgePostProxyV1("),
+  source.indexOf("\n}\n", source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(")),
+);
+assert.doesNotMatch(postHandlerSource,
+  /await upstreamResponse\.arrayBuffer\(\)/u);
+assert.match(postHandlerSource, /AbortSignal\.timeout/u);
+assert.match(postHandlerSource, /reader\.read\(\)/u);
 
 async function freePort() {
   const server = net.createServer();
@@ -117,6 +130,53 @@ const upstream = http.createServer(
       && req.url
         === "/__void/buy-void/request"
     ) {
+      let proofCase = "";
+      try { proofCase = JSON.parse(body)?.__edge_proof_case || ""; } catch {}
+      if (proofCase === "declared_oversize") {
+        res.writeHead(400, {
+          "content-type": "application/json",
+          "content-length": "131073",
+        });
+        res.end();
+        return;
+      }
+      if (proofCase === "chunked_oversize") {
+        res.writeHead(400, {
+          "content-type": "application/json",
+          "transfer-encoding": "chunked",
+        });
+        res.end("x".repeat(131073));
+        return;
+      }
+      if (proofCase === "non_json") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end("<html>Not a checkout receipt</html>");
+        return;
+      }
+      if (proofCase === "redirect") {
+        res.writeHead(302, {
+          "content-type": "application/json",
+          location: "/__void/buy-void/request",
+        });
+        res.end("{}");
+        return;
+      }
+      if (proofCase === "hanging_reply") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"ok":');
+        return;
+      }
+      if (proofCase === "max_size_valid") {
+        const prefix = '{"ok":false,"padding":"';
+        const suffix = '"}';
+        const payload = prefix +
+          "a".repeat(131072 - Buffer.byteLength(prefix) - Buffer.byteLength(suffix)) +
+          suffix;
+        assert.equal(Buffer.byteLength(payload), 131072);
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(payload);
+        return;
+      }
       const payload = JSON.stringify({
         ok: false,
         marker:
