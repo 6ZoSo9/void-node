@@ -1445,6 +1445,63 @@ for (const failureCase of ["headers_property", "headers_get_method"]) {
   assert.equal(cancelCalls, 1, "unresolved read cancellation must be attempted exactly once");
 }
 
+// A terminal read whose decoded body is complete but whose reader lock cannot
+// be released must not authorize a replacement generation on the same origin.
+{
+  const payload = discoveryJson();
+  let reads = 0;
+  let releaseCalls = 0;
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({
+      "content-type": "application/json",
+      "content-length": String(bytes(payload).byteLength),
+    }),
+    body: {
+      getReader() {
+        return {
+          async read() {
+            reads += 1;
+            if (reads === 1) {
+              return { done: false, value: bytes(payload) };
+            }
+            return { done: true, value: undefined };
+          },
+          cancel() {
+            cancelCalls += 1;
+          },
+          releaseLock() {
+            releaseCalls += 1;
+            throw new Error("synthetic_terminal_release_failure");
+          },
+        };
+      },
+    },
+  }));
+  const baseUrl = "https://terminal-release-failure.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+
+  const first = await capturePrimaryError(run);
+  assert.equal(first.message, "response_body_read_generation_unresolved");
+  assert.equal(reads, 2);
+  assert.equal(releaseCalls, 1);
+  assert.equal(cancelCalls, 0);
+  assert.equal(fixture.calls, 1,
+    "failed terminal lock release must block the next route fetch");
+
+  const second = await capturePrimaryError(run);
+  assert.equal(second.message, "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "failed terminal lock release must retain exactly one origin generation");
+  assert.equal(releaseCalls, 1);
+}
+
 console.log("VOID_AI_AGENT_PAID_WORK_CLIENT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("declared_response_bound_prebuffer=true");
 console.log("streamed_response_bound_prebuffer=true");
@@ -1454,6 +1511,7 @@ console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
 console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
+console.log("terminal_read_release_failure_quarantined=true");
 console.log("partial_late_read_failed_cancel_quarantined=true");
 console.log("oversize_body_rejected_cancel_quarantined=true");
 console.log("get_reader_throw_unconfirmed_cancel_quarantined=true");

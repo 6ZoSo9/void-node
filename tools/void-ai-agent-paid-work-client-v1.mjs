@@ -606,8 +606,12 @@ async function boundedRead(getHeader, responseBody, maximumBytes, controller, re
     }
     throw error;
   } finally {
-    if (!readerReleaseDeferred) {
-      releaseReaderLockBestEffortV1(reader);
+    if (!readerReleaseDeferred &&
+        !releaseReaderLockBestEffortV1(reader)) {
+      // A decoded terminal response does not prove that its reader released
+      // the underlying resource. Preserve this origin generation instead of
+      // accumulating replacement readers behind a successful decode.
+      readGeneration.unresolvedOperation = true;
     }
   }
 

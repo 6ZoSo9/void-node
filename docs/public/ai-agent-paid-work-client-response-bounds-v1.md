@@ -32,7 +32,7 @@ For discovery, route probing, and authenticated submission responses, the client
 - retains that generation after a timed-out unfinished fetch until the late fetch rejects or returns a response whose body can actually be cancelled; uncertain, rejected, or never-settling late cleanup remains fail-closed;
 - retains a timed-out reader lock until its pending read eventually settles, preserving the original generation's quarantine even after the initiating request times out;
 - refuses to treat a **partial late read** (`done:false`) or rejected read as stream termination when cancellation is unconfirmed; and
-- clears quarantine only after a terminal `done:true` read or a confirmed successful reader cancellation **and** settled outstanding read, with successful reader-lock release. Rejected, absent or never-settling cleanup stays HOLD.
+- clears quarantine only after a terminal `done:true` read or a confirmed successful reader cancellation **and** settled outstanding read, with successful reader-lock release. A throwing terminal lock release leaves the decoded response's origin generation quarantined; rejected, absent or never-settling cleanup stays HOLD.
 
 The same internal bounded fetch path is used by read-only `probe` requests and token-authenticated `submit` requests. No token value is returned, printed, persisted to result output, or placed in command arguments.
 
@@ -63,6 +63,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a synchronous abort listener that replaces the original pending cancellation method with a resolved fake cannot authorize the false release of another same-origin fetch;
 - a body cancellation that succeeds only after the bounded caller teardown later retires the exact original generation, permitting new clean requests;
 - when a previously pending cancellation later succeeds after a partial read settles, exactly one lock release restores same-origin admission;
+- a terminal `done:true` read whose `releaseLock()` throws cannot authorize the next same-origin route or any subsequent fetch generation;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
 - an admitted read that fails when the deadline aborts still attempts exactly one bounded cancellation before request ownership is released;
 - deferred/non-settling and rejecting cancellation after admitted read failure preserve the original `AbortError`;
