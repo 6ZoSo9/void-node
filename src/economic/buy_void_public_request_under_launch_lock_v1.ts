@@ -706,9 +706,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // The legacy sidecar is still non-atomic relative to the journal.
     // Avoid O_CREAT for an existing verified inode, and require O_EXCL
     // when preflight found no file. No replaced child may be truncated.
+    // Retain a *readable* descriptor until canonical bytes are authenticated
+    // at the last successful publication boundary, not just after fsync.
+    const canonicalSidecarBytes = Buffer.from(
+      REQUEST_HISTORY_JSON_STRINGIFY_V1(reqObj, null, 2), "utf8",
+    );
+    if (canonicalSidecarBytes.length < 1 ||
+        canonicalSidecarBytes.length > REQUEST_HISTORY_MAX_BYTES_V1) {
+      holdHistoryV1("published_sidecar_size_invalid");
+    }
     let sidecarFd: number;
     try {
-      sidecarFd = fs.openSync(file, fs.constants.O_WRONLY |
+      sidecarFd = fs.openSync(file, fs.constants.O_RDWR |
         fs.constants.O_NOFOLLOW |
         (sidecarBefore ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL),
       0o600);
@@ -719,18 +728,23 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       throw error;
     }
     let sidecarOpened: fs.BigIntStats;
+    let sidecarPostwrite: fs.BigIntStats;
     try {
       sidecarOpened = assertPrivateSidecarIdentityV1(
         file, sidecarFd, sidecarBefore,
       );
       fs.ftruncateSync(sidecarFd, 0);
-      fs.writeFileSync(sidecarFd, JSON.stringify(reqObj, null, 2));
+      fs.writeFileSync(sidecarFd, canonicalSidecarBytes);
       fs.fsyncSync(sidecarFd);
+      sidecarPostwrite = assertPrivateOpenLeafV1(sidecarFd);
+      if (sidecarPostwrite.size !== BigInt(canonicalSidecarBytes.length)) {
+        holdHistoryV1("published_sidecar_short_write");
+      }
       // A late same-UID pathname swap must not produce a success receipt.
       assertPrivateSidecarStillVisibleV1(file, sidecarOpened);
-    } finally {
-      fs.closeSync(sidecarFd);
-    }
+    // Keep the verified sidecar FD live across parent directory fsync and
+    // journal success checks. Both a new checkout and an operator revision
+    // must re-read *those same bytes* before returning success.
     // File fsyncs alone do not persist newly created directory entries.
     // Interrupted journal/sidecar updates still require recovery review.
     fs.fsyncSync(dirFd);
@@ -744,8 +758,15 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         !sameHistoryFileV1(journalAfter, journalAtSuccess)) {
       holdHistoryV1("journal_visible_identity_changed");
     }
+    assertPrivateSidecarContentsAtSuccessV1(
+      file, sidecarFd, sidecarPostwrite, canonicalSidecarBytes,
+    );
     return { dir, file: path.join(dir, reqObj.request_id + ".json"),
       reused_request: null };
+    } finally {
+      try { fs.closeSync(sidecarFd); }
+      catch { holdHistoryV1("published_sidecar_close_uncertain"); }
+    }
     } finally {
       if (journalFd !== null) {
         try { fs.closeSync(journalFd); }
