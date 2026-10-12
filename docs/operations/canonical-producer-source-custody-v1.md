@@ -70,6 +70,34 @@ adversaries. All fixture paths are ephemeral and deleted on the runner.
 real-kernel controls under Node.js 22, 24 and 26 and syntax-checks the
 canonical launcher. **Synthetic runner evidence is not installation proof.**
 
+## Reviewed current V3 source generation — October 12, 2026
+
+The stacked child retains the original V1 guard, V1 proof, V2 guard,
+V2 proof and V2 source-dispatch proof **byte-for-byte**. A separately
+versioned current V3 copies the reviewed V2 self-HTTP suppression behavior
+with only three reviewed differences: its marker, self-stack filename and
+the exact present parent `src/index.ts` Git blob
+`40239e0f76aa1edce43523d18c1b57691e41e8cf`. This is the
+unchanged operational legacy-observer callsite contract plus the parent's
+new Buy VOID public 409 privacy envelope; it is not a change of validator,
+consensus, or external HTTP permissions.
+
+The launcher picks V1, V2 or V3 only for an exact reviewed source Git blob,
+then independently requires source-custody preflight before any canonical
+Node/TSX load. The versioned V3 dispatcher requires frozen historical
+Git blobs and exact V2→V3 code parity, exercises all three shell selector
+branches and unknown-source refusal, proves the old V1/V2 modules
+reject current V3 index bytes, and runs the complete V3 observer behavioral
+suite. `.github/workflows/canonical-producer-legacy-self-http-observers-v1.yml`
+runs the composed proof on Node 22, 24 and 26.
+
+**Important:** GitHub PR checks run on a synthetic merge of the child
+with the parent #2811 branch, while the child's own branch remains
+historically based. Any further parent index change must be accepted as a
+*new reviewed source generation*—never silently repin a frozen guard.
+The separate root-owned protected release ancestry remains the at-use
+prerequisite; a green source test alone is not an installed service proof.
+
 ## Remaining blockers
 
 This is a **candidate** source-custody strategy, not unconditional closure of
