@@ -31,6 +31,12 @@ const MAX_REQUEST_BYTES = 65_536;
 const REJECTION_TEARDOWN_MAX_MS = 250;
 const RESPONSE_READ_QUARANTINES_V1 = new Map();
 
+function retireResponseGenerationV1(origin, generation) {
+  if (RESPONSE_READ_QUARANTINES_V1.get(origin) === generation) {
+    RESPONSE_READ_QUARANTINES_V1.delete(origin);
+  }
+}
+
 function usage() {
   return [
     "VOID AI Agent Paid Work Client V1",
@@ -310,6 +316,62 @@ function releaseReaderLockBestEffortV1(reader) {
   }
 }
 
+// A custom fetch implementation may ignore AbortSignal just as a stream
+// reader may. Own the same original request deadline through response headers.
+// An unfinished fetch keeps its per-origin slot until its late settlement,
+// and a late response with a body keeps the slot through actual cancellation.
+async function fetchAgainstOwnedDeadlineV1(
+  fetchPromise,
+  controller,
+  origin,
+  generation,
+) {
+  let deadlineWon = false;
+  let rejectDeadline;
+  const deadline = new Promise((_, reject) => {
+    rejectDeadline = reject;
+  });
+  const onAbort = () => {
+    deadlineWon = true;
+    rejectDeadline(new DOMException("response_fetch_timeout", "AbortError"));
+  };
+  if (controller.signal.aborted) {
+    onAbort();
+  } else {
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    return await Promise.race([fetchPromise, deadline]);
+  } catch (error) {
+    if (deadlineWon) {
+      generation.unresolvedOperation = true;
+      const retire = () => retireResponseGenerationV1(origin, generation);
+      const onLateResponse = (response) => {
+        try {
+          const body = response?.body;
+          if (!body) {
+            retire();
+            return;
+          }
+          // If a late body cannot be cancelled, retain the fail-closed slot;
+          // allowing another generation would accumulate abandoned bodies.
+          if (typeof body.cancel !== "function") return;
+          const cancellation = Promise.resolve(body.cancel());
+          // A rejecting or permanently pending cancellation cannot prove
+          // cleanup. Only the exact successful settlement retires this slot.
+          void cancellation.then(retire, () => undefined);
+        } catch {
+          // Uncertain late body cleanup remains quarantined.
+        }
+      };
+      void fetchPromise.then(onLateResponse, retire);
+    }
+    throw error;
+  } finally {
+    controller.signal.removeEventListener("abort", onAbort);
+  }
+}
+
 async function readAgainstOwnedDeadlineV1(
   reader,
   controller,
@@ -340,13 +402,11 @@ async function readAgainstOwnedDeadlineV1(
     if (deadlineWon) {
       // This origin was reserved before fetch initiation; retain the same
       // generation while an abort-ignoring reader remains unresolved.
-      readGeneration.unresolvedRead = true;
+      readGeneration.unresolvedOperation = true;
       deferRelease();
       const releaseLateGeneration = () => {
         releaseReaderLockBestEffortV1(reader);
-        if (RESPONSE_READ_QUARANTINES_V1.get(readScope) === readGeneration) {
-          RESPONSE_READ_QUARANTINES_V1.delete(readScope);
-        }
+        retireResponseGenerationV1(readScope, readGeneration);
       };
       void readPromise.then(releaseLateGeneration, releaseLateGeneration);
     }
@@ -441,19 +501,22 @@ async function fetchBoundedV1({
   // Reserve before the first await, rather than only after timeout. Without
   // this slot, simultaneous signal-ignoring reads can accumulate unbounded
   // unresolved generations under the same public origin.
-  const readGeneration = { unresolvedRead: false };
+  const readGeneration = { unresolvedOperation: false };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   RESPONSE_READ_QUARANTINES_V1.set(readScope, readGeneration);
 
   try {
-    const response = await fetchImpl(url, {
+    const fetchPromise = Promise.resolve(fetchImpl(url, {
       method,
       headers,
       body,
       redirect: "manual",
       signal: controller.signal,
-    });
+    }));
+    const response = await fetchAgainstOwnedDeadlineV1(
+      fetchPromise, controller, readScope, readGeneration,
+    );
     if (response.status >= 300 && response.status < 400) {
       await settleCancellationBounded(response.body, controller);
       fail(`redirect_forbidden:${response.status}`);
@@ -470,9 +533,8 @@ async function fetchBoundedV1({
     clearTimeout(timer);
     // Normal/error completion retires only its own slot. An unresolved read
     // owns the slot until its *actual* read promise settles and releases.
-    if (!readGeneration.unresolvedRead &&
-        RESPONSE_READ_QUARANTINES_V1.get(readScope) === readGeneration) {
-      RESPONSE_READ_QUARANTINES_V1.delete(readScope);
+    if (!readGeneration.unresolvedOperation) {
+      retireResponseGenerationV1(readScope, readGeneration);
     }
   }
 }
