@@ -52,6 +52,7 @@ const sources=[
   "ops/run-void-node-live-v1.sh",
   "runtime/canonical-producer-self-http-guard-v1.cjs",
   "runtime/canonical-producer-self-http-guard-v2.cjs",
+  "runtime/canonical-producer-self-http-guard-v3.cjs",
   "node_modules/tsx/dist/preflight.cjs",
   "node_modules/tsx/dist/loader.mjs",
 ];
