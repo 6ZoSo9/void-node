@@ -557,6 +557,67 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// Concurrent same-origin requests must share one read-generation slot from
+// the start of fetch, not merely after the first unreadable body times out.
+{
+  let admitFetch;
+  let settleRead;
+  let fetchCalls = 0;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fetchGate = new Promise((resolve) => { admitFetch = resolve; });
+  const readPromise = new Promise((resolve) => { settleRead = resolve; });
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    return fetchGate;
+  };
+  const baseUrl = "https://parallel-pending-read.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 100,
+    maxResponseBytes: 1024,
+    fetchImpl,
+  });
+  const first = capturePrimaryError(run);
+  const contenders = Array.from({ length: 12 }, () => capturePrimaryError(run));
+  assert.equal(fetchCalls, 1, "only one same-origin fetch may start before the first read");
+  const concurrent = await Promise.all(contenders);
+  for (const rejected of concurrent) {
+    assert.equal(rejected.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fetchCalls, 1, "concurrent requests must not create alternate generations");
+
+  admitFetch(signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() { cancelCalls += 1; },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const timedOut = await first;
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0);
+  const whilePending = await capturePrimaryError(run);
+  assert.equal(whilePending.message, "response_body_read_generation_unresolved");
+  assert.equal(fetchCalls, 1);
+
+  settleRead({ done: true, value: undefined });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "late read settles and releases the original lock once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  const recoveredResult = await probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: recovered.fetch,
+  });
+  assert.equal(recoveredResult.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2, "late settlement must reopen the origin");
+}
+
 {
   let cancelCalls = 0;
   let releaseCalls = 0;
@@ -608,6 +669,7 @@ console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
 console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
+console.log("concurrent_read_generation_singleflight=true");
 console.log("late_read_settlement_recovery=true");
 console.log("admitted_read_failure_teardown_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
