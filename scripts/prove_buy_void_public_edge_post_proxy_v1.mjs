@@ -808,6 +808,66 @@ try {
   // Everything below is an inert POST to the isolated fake upstream.
   // The public edge must not turn oversized/stalled replies into receipts.
   const edgeUrl = `http://127.0.0.1:${gatewayPort}/__void/buy-void/request`;
+  // An unfinished public POST must expire BEFORE the upstream 8s response
+  // deadline is even allocated. Both cases stream one byte immediately but
+  // never terminate their HTTP chunked body. The trickle keeps the socket
+  // active below any inactivity threshold; neither may cause an upstream POST.
+  const upstreamBeforeSlowUploads = upstreamCalls.length;
+  const slowUploadResults = await Promise.all(
+    ["single_byte_stall", "indefinite_trickle"].map((variant) =>
+      new Promise((resolve, reject) => {
+        const started = Date.now();
+        let finished = false;
+        let interval;
+        const client = http.request(
+          edgeUrl, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "transfer-encoding": "chunked",
+            },
+          },
+        );
+        const watchdog = setTimeout(() => {
+          if (finished) return;
+          finished = true;
+          if (interval) clearInterval(interval);
+          client.destroy();
+          reject(new Error("slow_upload_did_not_terminate:" + variant));
+        }, 14_000);
+        const finish = (kind, status) => {
+          if (finished) return;
+          finished = true;
+          if (interval) clearInterval(interval);
+          clearTimeout(watchdog);
+          resolve({ variant, kind, status, elapsed: Date.now() - started });
+        };
+        client.on("response", (response) => {
+          // A valid HTTP 201 must NEVER be returned for an incomplete upload.
+          response.resume();
+          response.on("end", () => finish("response", response.statusCode));
+          response.on("error", () => finish("closed", 0));
+        });
+        client.on("error", () => finish("closed", 0));
+        client.on("close", () => finish("closed", 0));
+        client.write("{");
+        if (variant === "indefinite_trickle") {
+          interval = setInterval(() => {
+            if (!finished && !client.destroyed) client.write(" ");
+          }, 200);
+        }
+      }),
+    ),
+  );
+  for (const outcome of slowUploadResults) {
+    assert.ok(outcome.elapsed >= 5000 && outcome.elapsed < 13_500,
+      "one absolute upload deadline must end " + outcome.variant);
+    assert.notEqual(outcome.status, 201,
+      "partial upload must never be reported as a created request");
+  }
+  assert.equal(upstreamCalls.length, upstreamBeforeSlowUploads,
+    "stalled or trickled public uploads must not create upstream requests");
+
   const postProof = async (proofCase, signal) => {
     const before = upstreamCalls.length;
     const response = await fetch(edgeUrl, {
@@ -1164,6 +1224,8 @@ try {
   console.log("completed_reader_release_failure_returns_502=true");
   console.log("truthy_json_primitive_201_refused=true");
   console.log("upstream_total_deadline_bounded=true");
+  console.log("client_upload_absolute_deadline_bounded=true");
+  console.log("slow_trickle_and_single_chunk_zero_upstream_posts=true");
   console.log("max_response_size_boundary_accepted=true");
   console.log(
     "proxy_response_marker_green=true",
