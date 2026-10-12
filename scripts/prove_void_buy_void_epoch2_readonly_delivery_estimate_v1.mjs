@@ -74,6 +74,28 @@ const valid = Object.freeze({
 const green = classifyBuyVoidEpoch2ReadOnlyEstimateV1(valid);
 assert.equal(green.ok, true, JSON.stringify(green));
 assert.equal(green.gas_estimate, (0x249f0).toString());
+assert.equal(green.gas_limit_multiplier_bps, "15000");
+assert.equal(green.computed_gas_limit, "225000");
+assert.equal(green.max_computed_gas_limit, "320000");
+const reviewedProductionCandidate = JSON.parse(fs.readFileSync(
+  "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json",
+  "utf8",
+));
+assert.equal(
+  reviewedProductionCandidate.candidate_configuration
+    .VOID_BUY_VOID_PAYMENT_KEYED_GAS_LIMIT_MULTIPLIER_BPS,
+  green.gas_limit_multiplier_bps,
+);
+assert.equal(
+  reviewedProductionCandidate.candidate_configuration
+    .VOID_BUY_VOID_PAYMENT_KEYED_MAX_GAS_LIMIT,
+  green.max_computed_gas_limit,
+);
+const rawBoundaryGreen = classifyBuyVoidEpoch2ReadOnlyEstimateV1({
+  ...valid, estimate_gas: "0x" + (213333n).toString(16),
+});
+assert.equal(rawBoundaryGreen.ok, true, JSON.stringify(rawBoundaryGreen));
+assert.equal(rawBoundaryGreen.computed_gas_limit, "320000");
 assert.equal(green.presale_balance_atoms, "10000000000000000000000000");
 assert.equal(green.presale_fulfilled_atoms, "0");
 assert.equal(green.transaction_broadcast, false);
@@ -112,9 +134,15 @@ fails("wrong_supply", { total_supply:word(666666666n * 10n**18n) },
 fails("malformed_storage", { token_presale_balance:"0x1" },
   "epoch2_rpc_evidence_malformed");
 fails("nonpositive_gas", { estimate_gas:"0x0" },
-  "epoch2_estimated_gas_outside_reviewed_ceiling");
+  "epoch2_computed_gas_limit_outside_reviewed_ceiling");
+fails("raw_boundary_one_over", {
+  estimate_gas: "0x" + (213334n).toString(16),
+}, "epoch2_computed_gas_limit_outside_reviewed_ceiling");
+fails("raw_300000_under_320000_but_multiplier_450000", {
+  estimate_gas: "0x" + (300000n).toString(16),
+}, "epoch2_computed_gas_limit_outside_reviewed_ceiling");
 fails("gas_over_ceiling", { estimate_gas:"0x4e201" },
-  "epoch2_estimated_gas_outside_reviewed_ceiling");
+  "epoch2_computed_gas_limit_outside_reviewed_ceiling");
 fails("malformed_gas", { estimate_gas:"0x0002" },
   "epoch2_rpc_evidence_malformed");
 
@@ -124,6 +152,9 @@ console.log("synthetic_two_void_fulfill_calldata_proven=true");
 console.log("epoch2_marker_included_and_zero_fee=true");
 console.log("real_epoch2_contract_bytecode_fixture_proven=true");
 console.log("wrong_chain_inventory_contract_gas_and_quorum_hold=true");
+console.log("gas_limit_multiplier_bps=15000");
+console.log("raw_estimate_213333_computed_320000_green=true");
+console.log("raw_estimate_213334_computed_320001_hold=true");
 console.log("http_rpc_called=false");
 console.log("signer_or_credential_access=false");
 console.log("transaction_sign_or_broadcast=false");

@@ -25,7 +25,12 @@ const PRESALE_BALANCE_SLOT = "0xb7c0ee5e49cd64bfaca4a7bd9a24ee438d5b56b1f74e5008
 const CAP_ATOMS = 10_000_000n * (10n ** 18n);
 const PREMINE_ATOMS = 333_333_333n * (10n ** 18n);
 const AMOUNT_ATOMS = 2n * (10n ** 18n);
-const MAX_ESTIMATED_GAS = 320_000n;
+// The current dormant production candidate uses a 150% safety multiplier.
+// Match the real payment-keyed planner's ceil(raw * bps / 10_000)
+// before issuing a read-only GREEN; never mislabel a larger raw estimate.
+const REVIEWED_GAS_LIMIT_MULTIPLIER_BPS = 15_000n;
+const GAS_LIMIT_BPS_DENOMINATOR = 10_000n;
+const MAX_COMPUTED_GAS_LIMIT = 320_000n;
 const RFC_TEST_RECIPIENT = "0x000000000000000000000000000000000000dead";
 const FULFILL = new Interface([
   "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
@@ -127,14 +132,20 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
       return hold("epoch2_inventory_or_supply_invalid");
     }
     const gas = exactQuantity(observed.estimate_gas);
-    if (gas <= 0n || gas > MAX_ESTIMATED_GAS) {
-      return hold("epoch2_estimated_gas_outside_reviewed_ceiling");
+    const computedGasLimit =
+      (gas * REVIEWED_GAS_LIMIT_MULTIPLIER_BPS +
+        GAS_LIMIT_BPS_DENOMINATOR - 1n) /
+      GAS_LIMIT_BPS_DENOMINATOR;
+    if (gas <= 0n || computedGasLimit > MAX_COMPUTED_GAS_LIMIT) {
+      return hold("epoch2_computed_gas_limit_outside_reviewed_ceiling");
     }
     return Object.freeze({
       ok: true,
       status: "READONLY_EPOCH2_DELIVERY_ESTIMATE_GREEN",
       gas_estimate: gas.toString(),
-      max_estimate_ceiling: MAX_ESTIMATED_GAS.toString(),
+      gas_limit_multiplier_bps: REVIEWED_GAS_LIMIT_MULTIPLIER_BPS.toString(),
+      computed_gas_limit: computedGasLimit.toString(),
+      max_computed_gas_limit: MAX_COMPUTED_GAS_LIMIT.toString(),
       chain_id: 2050,
       initial_head: before.toString(),
       final_head: after.toString(),

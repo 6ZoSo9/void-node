@@ -48,7 +48,14 @@ The qualification checks:
 - exact reviewed presale and VOID bytecode hashes;
 - token supply 333,333,333 VOID, presale's actual token balance plus fulfilled
   counter reconciled to the 10M inventory, with capacity for 2 VOID;
-- successful marked transaction `eth_estimateGas` with estimate <=320,000.
+- successful marked transaction `eth_estimateGas` **and** computed runtime
+  gas limit equal to `ceil(raw_estimate × 15,000 / 10,000)`, no more than
+  `320,000`. These values must match the current reviewed dormant candidate's
+  `VOID_BUY_VOID_PAYMENT_KEYED_GAS_LIMIT_MULTIPLIER_BPS=15000` and
+  `VOID_BUY_VOID_PAYMENT_KEYED_MAX_GAS_LIMIT=320000`. A raw estimate of
+  `213333` computes to `320000` (GREEN), but `213334` computes
+  to `320001` (HOLD). A green simulation does not substitute for the later
+  production runtime configuration and credential attestation.
 
 An RPC error, oversized/malformed response, wrong contract/code, wrong storage,
 quorum loss, excessive estimate or source identity mismatch is a **HOLD**.
