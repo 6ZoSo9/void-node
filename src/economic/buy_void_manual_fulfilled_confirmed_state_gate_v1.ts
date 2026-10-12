@@ -40,6 +40,7 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
 ): Promise<BuyVoidManualFulfilledConfirmedStateGateResultV1> {
   let effective_prior_status = "";
   let historical_fulfilled_event_seen = false;
+  let historical_fulfilled_event_for_reconciliation: Record<string, any> | null = null;
   try {
     const history = await __voidReadBuyVoidOperatorEventsV1();
     if (!Array.isArray(history)) {
@@ -50,6 +51,9 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     for (const row of history) {
       if (row?.request_id === id && row?.operator_status === "fulfilled") {
         historical_fulfilled_event_seen = true;
+        if (row && typeof row === "object" && !Array.isArray(row)) {
+          historical_fulfilled_event_for_reconciliation = row;
+        }
         break;
       }
     }
@@ -120,6 +124,26 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
   let canonical_confirmed_state: any = null;
   if (operator_status === "fulfilled") {
     if (effective_prior_status === "fulfilled") {
+      // A prior fulfilled journal row may have survived a crash before its
+      // derived sidecar was published. Re-enter the authoritative under-lock
+      // writer with the exact historical event so it can verify the pinned
+      // journal generation and repair only a missing byte-identical sidecar.
+      // Preserve the external duplicate response: this is reconciliation,
+      // never a second fulfillment or a new terminal event.
+      if (historical_fulfilled_event_for_reconciliation !== null) {
+        try {
+          await __voidWriteBuyVoidOperatorEventV1(
+            historical_fulfilled_event_for_reconciliation,
+          );
+        } catch (error: any) {
+          if (
+            error?.message !==
+              "buy_void_operator_fulfilled_terminal_under_lock"
+          ) {
+            throw error;
+          }
+        }
+      }
       return {
         ok: false,
         status_code: 409,

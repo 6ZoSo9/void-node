@@ -146,6 +146,7 @@ async function main(): Promise<void> {
     "__voidApplyBuyVoidOperatorEventsV1(",
     'error: "operator_event_projection_read_failed"',
     'error: "manual_fulfilled_already_recorded"',
+    "historical_fulfilled_event_for_reconciliation",
     'error: "manual_fulfilled_requires_verified_public_status"',
     '!["payment_verified", "reviewed"].includes(',
     "buyVoidConfirmedCloseoutRuntimeRootDirV1()",
@@ -524,9 +525,32 @@ globalThis.__voidCallManualMark = async function(input) {
   });
   assert.equal(duplicate.sent.status, 409);
   assert.equal(duplicate.sent.body.error, "manual_fulfilled_already_recorded");
-  assert.equal(duplicate.writes.length, 0);
+  assert.equal(duplicate.writes.length, 1);
+  assert.deepEqual(duplicate.writes[0], fulfilledEvent);
   assert.equal(duplicate.root_calls, 0);
   assert.equal(duplicate.list_calls, 0);
+  assert.equal(duplicate.operator_event_read_calls, 1);
+  assert.equal(duplicate.operator_event_apply_calls, 1);
+
+  // If the authoritative under-lock writer finds the terminal journal
+  // ambiguous, the mounted duplicate path remains a 409 and never reports a
+  // second fulfillment. Unrelated writer/storage errors are intentionally not
+  // converted into an ordinary duplicate response.
+  const duplicateUnderLockHold = await call({
+    status: "fulfilled",
+    tx: deliveryTx,
+    states: [confirmedState()],
+    events: [fulfilledEvent],
+    writerRace: true,
+  });
+  assert.equal(duplicateUnderLockHold.sent.status, 409);
+  assert.equal(
+    duplicateUnderLockHold.sent.body.error,
+    "manual_fulfilled_already_recorded",
+  );
+  assert.equal(duplicateUnderLockHold.writes.length, 0);
+  assert.equal(duplicateUnderLockHold.root_calls, 0);
+  assert.equal(duplicateUnderLockHold.list_calls, 0);
 
   // Review/reject must not overwrite an already recorded fulfilled status.
   const attemptedDowngrades = [];
@@ -786,6 +810,7 @@ globalThis.__voidCallManualMark = async function(input) {
   for (const result of [
     unverified,
     duplicate,
+    duplicateUnderLockHold,
     ...attemptedDowngrades,
     ...hiddenFulfillmentAttempts,
     concurrentCloseout,
@@ -810,7 +835,7 @@ globalThis.__voidCallManualMark = async function(input) {
     "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1_GREEN",
   );
   console.log("manual_fulfilled_unverified_public_status_write=0");
-  console.log("manual_fulfilled_duplicate_event_write=0");
+  console.log("manual_fulfilled_duplicate_reconciliation_write=1");
   console.log("manual_fulfilled_terminal_downgrade_write=0");
   console.log("manual_historical_fulfillment_masking_write=0");
   console.log("manual_under_lock_terminal_race_returns_409=true");
