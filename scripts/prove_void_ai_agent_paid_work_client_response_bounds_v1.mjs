@@ -618,6 +618,37 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2, "late settlement must reopen the origin");
 }
 
+// A fetch registered before the client deadline listener can reject first
+// when AbortSignal fires. The owned timeout still outranks that custom error.
+{
+  let fetchCalls = 0;
+  const baseUrl = "https://abort-listener-order.example.invalid";
+  const fetchImpl = (_url, options) => {
+    fetchCalls += 1;
+    return new Promise((_, reject) => {
+      options.signal.addEventListener("abort", () => {
+        reject(new Error("synthetic_fetch_abort_listener_won_first"));
+      }, { once: true });
+    });
+  };
+  const result = await capturePrimaryError(() => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  }));
+  assert.equal(result.name, "AbortError");
+  assert.equal(result.message, "response_fetch_timeout",
+    "custom fetch abort rejection must not replace the owned timeout");
+  assert.equal(fetchCalls, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
 // Abort-ignoring fetch before response headers must not hang the owner, nor
 // allow a new same-origin generation while that original fetch is unresolved.
 {
@@ -770,6 +801,7 @@ console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
 console.log("concurrent_read_generation_singleflight=true");
 console.log("signal_ignoring_fetch_total_deadline=true");
+console.log("fetch_abort_rejection_owned_timeout=true");
 console.log("late_fetch_cancellation_retains_quarantine=true");
 console.log("late_fetch_rejection_recovery=true");
 console.log("late_read_settlement_recovery=true");
