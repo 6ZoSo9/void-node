@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import {
+  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  buyVoidPresaleFulfillerMatchesV1,
+} from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -70,6 +75,47 @@ const tmp = fs.mkdtempSync(
       max_response_bytes: 65536,
     });
   if (decision.ok === false) throw new Error(decision.reason);
+  // A wallet attested for the retired contract cannot authorize the
+  // immutable Epoch-2 presale signer merely by rebinding the destination.
+  assert.equal(
+    buyVoidPresaleFulfillerMatchesV1(
+      VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, WALLET,
+    ), false,
+  );
+  assert.equal(
+    buyVoidPresaleFulfillerMatchesV1(
+      VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+      VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+    ), true,
+  );
+  assert.equal(
+    buyVoidPresaleFulfillerMatchesV1(CONTRACT, WALLET), true,
+  );
+  const incorrectlyRebound =
+    createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
+      enabled: true,
+      credential_binding_evidence_id:
+        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      credentials_directory: missingCredentialDir,
+      fulfillment_wallet_address: WALLET,
+      fulfillment_contract_address: VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+      max_token_amount_atoms: "10000000000000000000000000",
+      submission_guard_root_dir: dependencyRoot,
+      rpc_url: "http://127.0.0.1:18553/",
+      request_timeout_ms: 5000,
+      max_response_bytes: 65536,
+    });
+  assert.equal(incorrectlyRebound.ok, false);
+  if (incorrectlyRebound.ok) {
+    throw new Error("retired signer incorrectly admitted for Epoch-2");
+  }
+  assert.equal(
+    incorrectlyRebound.reason,
+    "payment_keyed_runtime_epoch2_fulfiller_mismatch",
+  );
+  assert.equal(incorrectlyRebound.credential_read_performed, false);
+  assert.equal(incorrectlyRebound.rpc_call_performed, false);
+  assert.equal(incorrectlyRebound.transaction_broadcast_performed, false);
   assert.equal(
     decision.marker,
     VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1,

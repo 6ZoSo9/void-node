@@ -1,3 +1,6 @@
+import {
+  buyVoidPresaleFulfillerMatchesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -398,6 +401,18 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
     };
   }
   const wallet = wallets[0];
+  // Fail closed before legacy wallet-evidence admission when the target is
+  // the immutable successor presale contract. No credential content is read.
+  if (!buyVoidPresaleFulfillerMatchesV1(
+    address(env[names.fulfillment_contract_address]), wallet,
+  )) {
+    return {
+      configured: false,
+      reason: "payment_keyed_full_runtime_epoch2_fulfiller_mismatch",
+      missing_envs: [],
+      invalid_envs: [],
+    };
+  }
   const evidenceWallet = address(
     VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1
       .derived_wallet_address,

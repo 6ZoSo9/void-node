@@ -3,6 +3,19 @@
 // Reviewed Besu plugin: VoidEpoch2RawTransactionDomainPlugin.java.
 export const VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 =
   "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce";
+export const VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1 =
+  "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a";
+
+// Read-only public identity admission; it does not attest control of the
+// private signing credential or grant deployment/payment authority.
+export function buyVoidPresaleFulfillerMatchesV1(
+  target: unknown,
+  signer: unknown,
+): boolean {
+  if (!isBuyVoidEpoch2PresaleTargetV1(target)) return true;
+  return typeof signer === "string" &&
+    signer.toLowerCase() === VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+}
 export const VOID_BUY_VOID_EPOCH2_MARKER_ADDRESS_V1 =
   "0x0000000000000000000000000000000000002050";
 export const VOID_BUY_VOID_EPOCH2_MARKER_KEY_V1 =

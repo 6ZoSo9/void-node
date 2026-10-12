@@ -1,4 +1,7 @@
-import { buyVoidPresaleAccessListExactV1 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
+import {
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFulfillerMatchesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import path from "node:path";
 import {
@@ -259,6 +262,12 @@ function normalize(
     return held(
       "payment_keyed_runtime_dependency_bootstrap_policy_invalid",
     );
+  }
+
+  // The Epoch-2 contract enforces an immutable launch-operator fulfiller;
+  // a historically attested wallet must never be accepted by address rebinding.
+  if (!buyVoidPresaleFulfillerMatchesV1(contract, wallet)) {
+    return held("payment_keyed_runtime_epoch2_fulfiller_mismatch");
   }
 
   return {
