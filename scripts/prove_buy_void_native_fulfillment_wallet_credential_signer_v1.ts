@@ -382,6 +382,22 @@ try {
   assert.equal(broad.reason, "credential_permissions_too_broad");
 
   fs.rmSync(credential);
+  const missingLeaf = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+    credentials_directory: root,
+    expected_wallet_address: wallet.address,
+  });
+  assert.equal(missingLeaf.ok, false);
+  if (missingLeaf.ok) throw new Error("missing_leaf_unexpectedly_ready");
+  assert.equal(missingLeaf.reason, "credential_missing_or_unreadable");
+
+  const missingDirectory = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+    credentials_directory: path.join(root, "absent-credential-directory"),
+    expected_wallet_address: wallet.address,
+  });
+  assert.equal(missingDirectory.ok, false);
+  if (missingDirectory.ok) throw new Error("missing_directory_unexpectedly_ready");
+  assert.equal(missingDirectory.reason, "credential_missing_or_unreadable");
+
   const target = path.join(root, "target.key");
   fs.writeFileSync(target, wallet.privateKey, { mode: 0o400 });
   fs.symlinkSync(target, credential);

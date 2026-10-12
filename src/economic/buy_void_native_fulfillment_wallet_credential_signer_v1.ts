@@ -314,9 +314,14 @@ function readPinnedCredentialBytesV1(
     }
     result = Buffer.from(scratch.subarray(0, readCount));
   } catch (error) {
+    // A missing credential or directory still returns the historical HOLD.
+    // All other descriptor failures remain fail-closed.
+    const errorCode = (error as NodeJS.ErrnoException)?.code;
     reason = error instanceof CredentialFdReadHoldV1
       ? error.reason
-      : "credential_fd_read_failed";
+      : errorCode === "ENOENT" || errorCode === "ENOTDIR"
+        ? "credential_missing_or_unreadable"
+        : "credential_fd_read_failed";
   } finally {
     if (scratch !== null) scratch.fill(0);
     for (const fd of [credentialFd, directoryFd]) {
