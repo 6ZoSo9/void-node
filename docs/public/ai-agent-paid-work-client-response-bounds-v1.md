@@ -45,6 +45,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - twelve concurrent same-origin calls begun before any response headers are admitted cannot launch a second fetch/read generation, while a late-settling first read restores healthy future calls;
 - a never-settling fetch that ignores abort returns bounded `response_fetch_timeout` to its original caller without unblocking duplicate fetches;
 - a custom fetch that rejects synchronously from its own AbortSignal listener still returns the owned `response_fetch_timeout`, not the custom rejection, and releases its slot after the original rejection settles;
+- a reader whose earlier-installed AbortSignal listener rejects before the client deadline handler still returns the owned `response_body_read_timeout` and releases its lock exactly once after rejection;
 - a late response cannot reopen its origin until its owned body cancellation settles successfully, while a late fetch rejection safely retires the same original generation;
 - a late-settling timed-out read releases its retained lock and restores clean same-origin use;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
