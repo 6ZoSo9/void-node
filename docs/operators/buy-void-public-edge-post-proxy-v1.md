@@ -35,7 +35,10 @@ The gateway does not gain a general mutation proxy.
   expiry applied to response headers **and every body read**. Each awaited
   step has a separate deadline timer that is detached when it settles, so
   tiny-chunk streams cannot accumulate listeners on one shared pending
-  deadline promise. The extra fence covers the Node 22 case where an aborted
+  deadline promise. The focused proof also executes the real production handler in an isolated
+  no-socket fixture with 4,098 one-byte reads and counts every deadline
+  timer, requiring at least one timer per awaited operation, zero surviving
+  settled timers and at most one concurrent timer. The extra fence covers the Node 22 case where an aborted
   stream reader never settles. The upstream is contacted with redirects
   forbidden.
 - Upstream responses must be strict UTF-8 JSON **objects**, not just a
@@ -67,7 +70,7 @@ POST route preserves method, body, upstream status, and application response,
 while every non-allowlisted mutation remains blocked. It also
 tests the exact maximum accepted JSON reply, byte-for-byte forwarding
 of a deliberately noncanonical valid HTTP 201 receipt, malformed/invalid-UTF-8,
-primitive and array HTTP 201 refusals, declared/streamed oversize, non-JSON
+truthy primitive (`true`) and array HTTP 201 refusals, declared/streamed oversize, non-JSON
 and redirect refusal, plus a header-rejected response held open until the
 upstream server observes early socket closure. A separate fake upstream
 sends valid headers but never finishes the JSON body to probe the absolute
