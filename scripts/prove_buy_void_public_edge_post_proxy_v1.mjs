@@ -51,6 +51,8 @@ assert.doesNotMatch(postHandlerSource,
   /await upstreamResponse\.arrayBuffer\(\)/u);
 assert.match(postHandlerSource, /AbortSignal\.timeout/u);
 assert.match(postHandlerSource, /reader\.read\(\)/u);
+assert.match(postHandlerSource, /clearTimeout\(deadlineTimer\)/u);
+assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
 
 async function freePort() {
   const server = net.createServer();
@@ -79,6 +81,15 @@ const upstreamPort = await freePort();
 const gatewayPort = await freePort();
 
 const upstreamCalls = [];
+let headerRejectedSocketClosed = false;
+const exactAccepted201Json = JSON.stringify({
+  request: {
+    status: "awaiting_payment_tx_hash",
+    request_id: "buyvoid_edge_201_aaaaaaaa",
+  },
+  marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+  ok: true,
+}, null, 3) + "\n";
 
 const upstream = http.createServer(
   async (req, res) => {
@@ -133,25 +144,33 @@ const upstream = http.createServer(
       let proofCase = "";
       try { proofCase = JSON.parse(body)?.__edge_proof_case || ""; } catch {}
       if (proofCase === "valid_201") {
-        const receipt = JSON.stringify({
-          ok: true,
-          marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
-          request: {
-            request_id: "buyvoid_edge_201_aaaaaaaa",
-            status: "awaiting_payment_tx_hash",
-          },
-        });
         res.writeHead(201, {
           "content-type": "application/json; charset=utf-8",
           "cache-control": "public,max-age=60",
-          "content-length": String(Buffer.byteLength(receipt)),
+          "content-length": String(Buffer.byteLength(exactAccepted201Json)),
         });
-        res.end(receipt);
+        res.end(exactAccepted201Json);
         return;
       }
       if (proofCase === "malformed_json_201") {
         res.writeHead(201, { "content-type": "application/json" });
         res.end('{"ok":');
+        return;
+      }
+      if (proofCase === "primitive_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end("null");
+        return;
+      }
+      if (proofCase === "array_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end("[1,2]");
+        return;
+      }
+      if (proofCase === "header_nonjson_pending") {
+        res.once("close", () => { headerRejectedSocketClosed = true; });
+        res.writeHead(200, { "content-type": "text/html" });
+        res.write("<html>still-open");
         return;
       }
       if (proofCase === "invalid_utf8_201") {
@@ -436,14 +455,17 @@ try {
   assert.equal(valid201.status, 201, "legitimate checkout HTTP 201 retained");
   assert.equal(valid201.headers.get("content-type"),
     "application/json; charset=utf-8");
-  assert.deepEqual(await valid201.json(), {
-    ok: true,
-    marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+  const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
+  assert.deepEqual(accepted201Bytes, Buffer.from(exactAccepted201Json,"utf8"),
+    "HTTP 201 byte-for-byte body must not be parsed and reserialized");
+  assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")), {
     request: {
-      request_id: "buyvoid_edge_201_aaaaaaaa",
       status: "awaiting_payment_tx_hash",
+      request_id: "buyvoid_edge_201_aaaaaaaa",
     },
-  }, "valid original JSON 201 receipt must pass through unchanged");
+    marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+    ok: true,
+  });
 
   const maximumValid = await postProof("max_size_valid");
   assert.equal(maximumValid.status, 400);
@@ -458,6 +480,8 @@ try {
     "redirect",
     "malformed_json_201",
     "invalid_utf8_201",
+    "primitive_201",
+    "array_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -466,6 +490,20 @@ try {
       error: "buy_void_request_upstream_unavailable",
     }, scenario);
   }
+
+  const refusedOpenBody = await postProof("header_nonjson_pending");
+  assert.equal(refusedOpenBody.status, 502);
+  assert.deepEqual(await refusedOpenBody.json(), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+  });
+  const earlyCloseStartedAt = Date.now();
+  for (let attempt=0;attempt<100 && !headerRejectedSocketClosed;attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 40));
+  }
+  assert.equal(headerRejectedSocketClosed, true,
+    "header-rejected upstream body must be cancelled before fallback abort");
+  assert.ok(Date.now() - earlyCloseStartedAt < 6000,
+    "rejected body close cannot rely on the eight-second fallback");
 
   const stallStartedAt = Date.now();
   const stalled = await postProof(
@@ -580,6 +618,10 @@ try {
   console.log("valid_checkout_201_pass_through=true");
   console.log("malformed_json_201_rejected=true");
   console.log("invalid_utf8_201_rejected=true");
+  console.log("primitive_and_array_201_refused=true");
+  console.log("raw_noncanonical_201_bytes_preserved=true");
+  console.log("header_refusal_upstream_socket_closed_early=true");
+  console.log("per_read_deadline_timer_detached=true");
   console.log("upstream_total_deadline_bounded=true");
   console.log("max_response_size_boundary_accepted=true");
   console.log(
