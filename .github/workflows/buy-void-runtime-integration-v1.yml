@@ -96,7 +96,7 @@ jobs:
                 # re-pin it or silently mark its OLD E1 execution as ready.
                 test "$(git hash-object tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
                 test "$(git hash-object scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
-                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2" && \
+                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42" && \
                    node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-current.log" 2>&1; then
                   grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-current.log"
                   grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-current.log"
