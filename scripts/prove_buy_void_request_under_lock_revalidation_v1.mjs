@@ -1156,7 +1156,7 @@ for (const existing of [false, true]) {
         if(read>0) {
           let fdTarget="";
           try { fdTarget=fs.readlinkSync("/proc/self/fd/"+fd); }
-          catch {}
+          catch { fdTarget=""; /* no verified FD identity => no injection */ }
           if(fdTarget===sidecar) {
             sidecarReads+=1;
             if(!injected&&sidecarReads===(recovered?1:2)) {
@@ -1215,7 +1215,7 @@ for (const existing of [false, true]) {
         const read=nativeRead(fd,buffer,offset,length,position);
         if(read>0) {
           let resolved="";
-          try { resolved=fs.readlinkSync("/proc/self/fd/"+fd); }catch{}
+          try { resolved=fs.readlinkSync("/proc/self/fd/"+fd); }catch{ resolved=""; /* no verified FD identity => no injection */ }
           if(resolved===sidecar) {
             readCalls+=1;
             // On a revision, let the original sidecar pass its mandatory
@@ -1367,7 +1367,7 @@ for (const existing of [false, true]) {
     };
     fs.closeSync=function(fd){
       let target="";
-      try {target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      try {target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{ target=""; /* no verified FD identity => no fault injection */ }
       if(target===sidecar&&!injected){
         injected=true;
         nativeClose(fd);
