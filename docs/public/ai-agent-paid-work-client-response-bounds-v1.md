@@ -25,8 +25,9 @@ For discovery, route probing, and authenticated submission responses, the client
 - reserves a single per-origin fetch/read generation before the first asynchronous request operation, rejecting simultaneous same-origin callers while that generation remains in flight;
 - races response-header fetch settlement against the original AbortController deadline even when an injected/custom fetch implementation ignores the abort signal; a fetch-specific rejection from an earlier abort listener cannot replace the owned deterministic `AbortError`;
 - retains that generation after a timed-out unfinished fetch until the late fetch rejects or returns a response whose body can actually be cancelled; uncertain, rejected, or never-settling late cleanup remains fail-closed;
-- retains a timed-out reader lock until its pending read eventually settles, preserving the original generation's quarantine even after the initiating request times out; and
-- clears that quarantine and releases the retained reader lock after either successful or rejected late settlement.
+- retains a timed-out reader lock until its pending read eventually settles, preserving the original generation's quarantine even after the initiating request times out;
+- refuses to treat a **partial late read** (`done:false`) or rejected read as stream termination when cancellation is unconfirmed; and
+- clears quarantine only after a terminal `done:true` read or a confirmed successful reader cancellation **and** settled outstanding read, with successful reader-lock release. Rejected, absent or never-settling cleanup stays HOLD.
 
 The same internal bounded fetch path is used by read-only `probe` requests and token-authenticated `submit` requests. No token value is returned, printed, persisted to result output, or placed in command arguments.
 
@@ -48,6 +49,8 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a reader whose earlier-installed AbortSignal listener rejects before the client deadline handler still returns the owned `response_body_read_timeout` and releases its lock exactly once after rejection;
 - a late response cannot reopen its origin until its owned body cancellation settles successfully, while a late fetch rejection safely retires the same original generation;
 - a late-settling timed-out read releases its retained lock and restores clean same-origin use;
+- a partial late read with rejected cancellation leaves its reader lock and origin quarantined with zero replacement fetches;
+- when a previously pending cancellation later succeeds after a partial read settles, exactly one lock release restores same-origin admission;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
 - an admitted read that fails when the deadline aborts still attempts exactly one bounded cancellation before request ownership is released;
 - deferred/non-settling and rejecting cancellation after admitted read failure preserve the original `AbortError`;
