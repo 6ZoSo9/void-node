@@ -1,0 +1,88 @@
+name: VOID Buy browser public-edge current source composition v7
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-buy-browser-public-edge-composition-v7.yml"
+      - "scripts/prove_void_buy_browser_public_edge_composition_v7.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-buy-browser-edge-composition-v7-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-composition:
+    name: source-composition (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source with reachable Draft commits
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git cat-file -e e3f4d4809431de77699644da9a0e47ace1c6d89e^{commit}
+          git cat-file -e c40c5b11c1cca0f7ea15065d3170e0f04b19785c^{commit}
+          git cat-file -e 38fee809db1337610b4b516757c18d6907776743^{commit}
+          test "$(git hash-object scripts/prove_void_buy_browser_public_edge_composition_v7.mjs)" = "c23cebb97ebeb9ed8efa173c2645bbc8b87f3d22"
+          test -z "$(git status --porcelain=v1)"
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove actual browser -> actual gateway -> synthetic node backed by pinned writer
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_browser_public_edge_composition_v7.mjs
+          node scripts/prove_void_buy_browser_public_edge_composition_v7.mjs | tee "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'VOID_BUY_VOID_BROWSER_PUBLIC_EDGE_SOURCE_COMPOSITION_V7_GREEN' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'current_browser_clock_qualified_before_body_reader=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'actual_browser_post_through_actual_gateway=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'current_unopened_body_cleanup_and_reader_guard_bound=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'native_base_201_original_bytes_and_instructions_accepted=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'retired_200_and_409_privacy_leaks_blocked=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx '400_503_500_upstream_private_body_never_forwarded=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'legacy_private_file_receipt_redacted_and_accepted=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'legacy_etag_not_forwarded=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'malformed_legacy_persistence_stays_uncertain=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'actual_pinned_request_writer_helper_exercised=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'current_void_quote_and_policy_guard_proven=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'fractional_12_000001_usdc_exact_24_000002_void=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'current_quote_price_rate_pool_negatives=10' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'same_destination_idempotent_retry_no_duplicate_append=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'same_destination_changed_amount_public_response_indistinguishable=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'synthetic_writer_private_files_0700_0600=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'actual_mounted_index_http_route_exercised=false' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'presale_or_wc_void_activation=false' "$RUNNER_TEMP/exact-source-composition.txt"
+      - name: Confirm checkout cleanliness
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
