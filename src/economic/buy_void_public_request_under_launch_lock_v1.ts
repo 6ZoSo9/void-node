@@ -371,12 +371,13 @@ function qualifyOrRecoverReuseSidecarV1(
   const before = assertPrivateRequestLeafV1(sidecar);
   let sidecarFd: number | null = null;
   let checked: fs.BigIntStats | null = null;
+  let verifiedBytesIdentity: fs.BigIntStats | null = null;
   try {
     if (before === null) {
       // Absent means absent: only create-exclusively from the exact durable
       // journal row. Never truncate/rewrite a preexisting sidecar.
       try {
-        sidecarFd = fs.openSync(sidecar, fs.constants.O_WRONLY |
+        sidecarFd = fs.openSync(sidecar, fs.constants.O_RDWR |
           fs.constants.O_CREAT | fs.constants.O_EXCL |
           fs.constants.O_NOFOLLOW, 0o600);
       } catch (error: any) {
@@ -396,6 +397,7 @@ function qualifyOrRecoverReuseSidecarV1(
       if (after.size !== BigInt(bytes.length)) {
         holdHistoryV1("recovery_sidecar_short_write");
       }
+      verifiedBytesIdentity = after;
       assertPrivateSidecarStillVisibleV1(sidecar, checked);
       fs.fsyncSync(dirFd);
     } else {
@@ -426,13 +428,62 @@ function qualifyOrRecoverReuseSidecarV1(
           holdHistoryV1("reused_sidecar_content_mismatch");
         }
       }
+      verifiedBytesIdentity = checked;
     }
     assertCurrentAuthority();
     checkJournal();
     assertPinnedPrivateRequestDirV1(dir, dirFd);
     assertPrivateSidecarStillVisibleV1(sidecar, checked!);
+    // No new economic mutation after the final authority/sidecar readback.
+    assertPrivateSidecarContentsAtSuccessV1(
+      sidecar, sidecarFd!, verifiedBytesIdentity!, bytes,
+    );
   } finally {
     if (sidecarFd !== null) fs.closeSync(sidecarFd);
+  }
+}
+
+// Final retained-descriptor byte qualification after the last authority,
+// journal, and private-directory checks. Matching inode/size/mode alone is not
+// proof of canonical buyer data: a same-UID writer can change equal-length
+// bytes in place without replacing the inode. Fail closed on *any* final
+// size/metadata drift and compare every canonical byte at bounded read size.
+function assertPrivateSidecarContentsAtSuccessV1(
+  file: string, fd: number,
+  baseline: fs.BigIntStats, canonicalBytes: Buffer,
+): void {
+  let before: fs.BigIntStats;
+  try { before = fs.fstatSync(fd, { bigint: true }); }
+  catch { holdHistoryV1("sidecar_final_descriptor_unavailable"); }
+  if (!sameHistoryFileV1(baseline, before) ||
+      before.size !== BigInt(canonicalBytes.length) ||
+      !before.isFile()) {
+    holdHistoryV1("sidecar_final_descriptor_changed");
+  }
+  const chunk = Buffer.alloc(Math.min(canonicalBytes.length, 64 * 1024));
+  for (let offset = 0; offset < canonicalBytes.length;) {
+    const size = Math.min(chunk.length, canonicalBytes.length - offset);
+    let read: number;
+    try { read = fs.readSync(fd, chunk, 0, size, offset); }
+    catch { holdHistoryV1("sidecar_final_read_unavailable"); }
+    if (read <= 0) holdHistoryV1("sidecar_final_short_read");
+    for (let i = 0; i < read; i += 1) {
+      if (chunk[i] !== canonicalBytes[offset + i]) {
+        holdHistoryV1("sidecar_final_content_mismatch");
+      }
+    }
+    offset += read;
+  }
+  let after: fs.BigIntStats;
+  let visible: fs.BigIntStats;
+  try {
+    after = fs.fstatSync(fd, { bigint: true });
+    visible = fs.lstatSync(file, { bigint: true });
+  } catch { holdHistoryV1("sidecar_final_visibility_unavailable"); }
+  if (!sameHistoryFileV1(before, after) ||
+      !sameHistoryFileV1(after, visible) ||
+      !visible.isFile() || visible.isSymbolicLink()) {
+    holdHistoryV1("sidecar_final_identity_changed");
   }
 }
 
