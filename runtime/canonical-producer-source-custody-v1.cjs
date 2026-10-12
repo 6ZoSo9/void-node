@@ -64,18 +64,25 @@ function qualifySourceCustody(root, api = fs, identity = process) {
     let st;
     try { st = api.lstatSync(location); }
     catch { hold("source_metadata_unavailable"); }
-    if (st.uid !== 0 || (st.mode & 0o022) !== 0) hold("source_mutable_or_untrusted_owner");
-    try {
-      api.accessSync(location, fs.constants.W_OK);
-      hold("source_writable_by_runtime");
-    } catch (e) {
-      if (e?.code === "VOID_CANONICAL_SOURCE_CUSTODY_HOLD") throw e;
-      if (e?.code !== "EACCES" && e?.code !== "EPERM") {
-        hold("writability_qualification_unavailable");
-      }
-    }
+    if (st.uid !== 0) hold("source_mutable_or_untrusted_owner");
     if (expected === "directory" && !st.isDirectory()) hold("directory_required");
     if (expected === "file" && !st.isFile()) hold("file_required");
+    // Linux symlink mode 0777 is intentionally ignored by the kernel.
+    // Its parent controls replacement, and its real target must stay inside
+    // the trusted recursively checked tree; don't falsely reject safe
+    // package-manager symlinks on their meaningless mode bits.
+    if (!st.isSymbolicLink()) {
+      if ((st.mode & 0o022) !== 0) hold("source_mutable_or_untrusted_owner");
+      try {
+        api.accessSync(location, fs.constants.W_OK);
+        hold("source_writable_by_runtime");
+      } catch (e) {
+        if (e?.code === "VOID_CANONICAL_SOURCE_CUSTODY_HOLD") throw e;
+        if (e?.code !== "EACCES" && e?.code !== "EPERM") {
+          hold("writability_qualification_unavailable");
+        }
+      }
+    }
     if (st.isSymbolicLink()) {
       let target;
       try { target = api.realpathSync(location); }
