@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "40239e0f76aa1edce43523d18c1b57691e41e8cf"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "84a3fed80e5f2d532dfa2d61f7cb2efbe0aee0db"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "ff1694b7017405f09b17219f8e69b59743477310"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "eded467ff7b6116694b7f6a9f5897862f93ef98f"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "da4f8e217da7eb79fdfb52ed39571520fd6efa01"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -112,6 +112,8 @@ jobs:
             'new_request_inherited_tojson_snapshot_integrity=true' \
             'new_request_nonplain_snapshot_holds_without_mutation=true' \
             'ambient_array_iterator_payment_terms_preserved=true' \
+            'operator_immutable_nested_payment_instructions_iterator_guard=true' \
+            'operator_immutable_nested_payment_instructions_tojson_guard=true' \
             'presale_activation=false' \
             'funds_moved=false'
           do
