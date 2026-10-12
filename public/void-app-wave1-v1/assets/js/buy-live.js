@@ -476,7 +476,9 @@ async function submitBuy(event) {
     const body = await strictJson(response);
     if (
       !response.ok ||
+      response.status !== 201 ||
       body.ok !== true ||
+      body.idempotent !== false ||
       body.schema !== 'void_public_buy_void_checkout_request_result_v1'
     ) {
       throw new Error(body.error || (Array.isArray(body.errors) ? body.errors.join(', ') : `HTTP ${response.status}`));
@@ -485,7 +487,11 @@ async function submitBuy(event) {
     if (!request || typeof request !== 'object' || Array.isArray(request)) {
       throw new Error('returned request shape mismatch');
     }
+    // A new public checkout result is not authorization to reuse another
+    // buyer's request or to treat an already-submitted payment as new intake.
     if (
+      request.status !== 'awaiting_payment_tx_hash' ||
+      request.tx_hash !== '' ||
       !String(request.request_id || '').trim() ||
       String(request.receive_address || '').toLowerCase() !== CANONICAL_RECEIVER ||
       String(request.void_destination_address || '').toLowerCase() !== destination.toLowerCase() ||
@@ -508,7 +514,19 @@ async function submitBuy(event) {
     ) {
       throw new Error('returned request amount mismatch');
     }
+    // Bind the actionable instructions themselves, not merely the
+    // top-level request summary. Amounts are compared as native USDC atoms.
+    const instructedAmount = request.payment_instructions?.amount;
+    const instructedAtoms =
+      typeof instructedAmount === 'string' || typeof instructedAmount === 'number'
+        ? usdcAtoms(String(instructedAmount))
+        : null;
     if (
+      instructedAtoms === null ||
+      instructedAtoms !== submittedAtoms ||
+      request.payment_instructions?.request_id !== request.request_id ||
+      request.payment_instructions?.do_not_send_before_request !== true ||
+      request.payment_instructions?.keep_transaction_hash !== true ||
       request.safety?.automatic_fulfillment !== false ||
       request.safety?.manual_review_required !== true ||
       request.payment_instructions?.do_not_send_from_exchange_or_pooled_custody !== true ||
