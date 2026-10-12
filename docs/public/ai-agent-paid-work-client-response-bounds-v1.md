@@ -22,7 +22,8 @@ For discovery, route probing, and authenticated submission responses, the client
 - preserves the primary redirect/size/body/read/timeout error when cancellation rejects or does not settle;
 - keeps the original AbortController request deadline active through admitted body consumption, with only the bounded teardown window allowed after terminal failure;
 - races every admitted reader operation against that owned deadline even when a custom reader ignores the abort signal;
-- retains a timed-out reader lock until its pending read eventually settles, while quarantining the response origin so repeated calls cannot accumulate replacement read generations; and
+- reserves a single per-origin fetch/read generation before the first asynchronous request operation, rejecting simultaneous same-origin callers while that generation remains in flight;
+- retains a timed-out reader lock until its pending read eventually settles, preserving the original generation's quarantine even after the initiating request times out; and
 - clears that quarantine and releases the retained reader lock after either successful or rejected late settlement.
 
 The same internal bounded fetch path is used by read-only `probe` requests and token-authenticated `submit` requests. No token value is returned, printed, persisted to result output, or placed in command arguments.
@@ -39,6 +40,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a rejecting cancellation cannot replace the primary oversize result;
 - a response that sends a small prefix and then stalls remains bounded by the request deadline plus the explicit teardown ceiling;
 - a signal-ignoring read returns one deterministic `response_body_read_timeout`, receives exactly one cancellation attempt, and blocks same-origin replacement generations while unresolved;
+- twelve concurrent same-origin calls begun before any response headers are admitted cannot launch a second fetch/read generation, while a late-settling first read restores healthy future calls;
 - a late-settling timed-out read releases its retained lock and restores clean same-origin use;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
 - an admitted read that fails when the deadline aborts still attempts exactly one bounded cancellation before request ownership is released;
