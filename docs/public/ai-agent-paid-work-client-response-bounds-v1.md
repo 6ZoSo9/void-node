@@ -23,7 +23,7 @@ For discovery, route probing, and authenticated submission responses, the client
 - keeps the original AbortController request deadline active through admitted body consumption, with only the bounded teardown window allowed after terminal failure;
 - races every admitted reader operation against that owned deadline even when a custom reader ignores the abort signal;
 - reserves a single per-origin fetch/read generation before the first asynchronous request operation, rejecting simultaneous same-origin callers while that generation remains in flight;
-- races response-header fetch settlement against the original AbortController deadline even when an injected/custom fetch implementation ignores the abort signal;
+- races response-header fetch settlement against the original AbortController deadline even when an injected/custom fetch implementation ignores the abort signal; a fetch-specific rejection from an earlier abort listener cannot replace the owned deterministic `AbortError`;
 - retains that generation after a timed-out unfinished fetch until the late fetch rejects or returns a response whose body can actually be cancelled; uncertain, rejected, or never-settling late cleanup remains fail-closed;
 - retains a timed-out reader lock until its pending read eventually settles, preserving the original generation's quarantine even after the initiating request times out; and
 - clears that quarantine and releases the retained reader lock after either successful or rejected late settlement.
@@ -44,6 +44,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a signal-ignoring read returns one deterministic `response_body_read_timeout`, receives exactly one cancellation attempt, and blocks same-origin replacement generations while unresolved;
 - twelve concurrent same-origin calls begun before any response headers are admitted cannot launch a second fetch/read generation, while a late-settling first read restores healthy future calls;
 - a never-settling fetch that ignores abort returns bounded `response_fetch_timeout` to its original caller without unblocking duplicate fetches;
+- a custom fetch that rejects synchronously from its own AbortSignal listener still returns the owned `response_fetch_timeout`, not the custom rejection, and releases its slot after the original rejection settles;
 - a late response cannot reopen its origin until its owned body cancellation settles successfully, while a late fetch rejection safely retires the same original generation;
 - a late-settling timed-out read releases its retained lock and restores clean same-origin use;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
