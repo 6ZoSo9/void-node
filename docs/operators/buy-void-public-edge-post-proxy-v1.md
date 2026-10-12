@@ -78,6 +78,25 @@ The gateway does not gain a general mutation proxy.
 - This code change does not create a request, access a wallet, send USDC,
   sign a transaction, broadcast a transaction, or deliver VOID.
 
+## Full buyer receipt forwarding proof (synthetic)
+
+In addition to the minimal canonical-created envelope, the isolated
+`full_client_contract_201` upstream fixture supplies a complete public
+Buy VOID **native Base USDC** request-creation response with a generated
+four-minute lease, immutable receiver and sender/destination binding,
+chain 8453 and chain 2050 identities, canonical USDC contract and six-decimal
+amount, request-first acknowledgements, manual-fulfillment policy, and
+public-only `persisted: { ok:true }`. The actual gateway must preserve the
+full noncanonical JSON bytes and HTTP 201 exactly; this source-only proof
+checks the identities, instruction expiry and absence of an internal file path.
+
+**This is not yet an executable cross-PR browser acceptance test.** Browser
+Draft #2818 has additional time, view-generation, receipt-retry and
+payment-instruction validation that must be tested with this *same* full
+fixture at an independently composed source tree before a buyer can be
+told the checkout is end-to-end ready. A failed or uncertain POST outcome
+cannot be assumed uncommitted or safely retried. No real funds move.
+
 ## Verification
 
 `scripts/prove_buy_void_public_edge_post_proxy_v1.mjs` starts an isolated fake
