@@ -24,7 +24,7 @@ const MARKER = "VOID_BUY_VOID_BROWSER_PUBLIC_EDGE_SOURCE_COMPOSITION_V1";
 const receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
 const baseUsdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const destination = "0x1111111111111111111111111111111111111111";
-const originalEnv = { ...process.env };
+const safePath = process.env.PATH || "/usr/bin:/bin";
 const root = process.cwd();
 
 function git(args, options = {}) {
@@ -38,11 +38,12 @@ function gitBlob(text) {
 }
 function immutableSource(commit, name, expected) {
   let source;
-  try { source = git(["show", commit + ":" + name]); }
-  catch { throw new Error("HOLD_missing_pinned_source_commit_" + name); }
-  // git() trims only the exec output; use exact untrimmed bytes instead.
-  source = execFileSync("git", ["show", commit + ":" + name],
-    { cwd: root, encoding: "utf8", maxBuffer: 15 * 1024 * 1024 });
+  try {
+    source = execFileSync("git", ["show", commit + ":" + name],
+      { cwd: root, encoding: "utf8", maxBuffer: 15 * 1024 * 1024 });
+  } catch (_error) {
+    throw new Error("HOLD_missing_pinned_source_commit_" + name);
+  }
   assert.equal(gitBlob(source), expected, "exact Git source changed: " + name);
   return source;
 }
@@ -299,7 +300,7 @@ try {
   gateway = spawn(process.execPath, [path.join(edgeRoot, EDGE_PATH)], {
     cwd: edgeRoot,
     env: {
-      PATH: originalEnv.PATH || "/usr/bin:/bin", HOME: tmp,
+      PATH: safePath, HOME: tmp,
       NODE_ENV: "test", VOID_COMPOSITION_HOST: "127.0.0.1",
       VOID_COMPOSITION_PORT: String(gatewayPort),
       VOID_NODE_UPSTREAM: "http://127.0.0.1:" + upstreamPort,
@@ -372,7 +373,7 @@ try {
   console.log("malformed_201_browser_refuses_funds=true");
   console.log("retired_200_and_409_privacy_leaks_blocked=true");
   console.log("400_503_500_upstream_private_body_never_forwarded=true");
-  console.log("all_8_uncertain_intents_fenced_against_repost=true");
+  console.log("all_8_attempted_intents_fenced_against_repost=true");
   console.log("actual_request_writer_integration=false");
   console.log("production_runtime_or_wallet_access=false");
   console.log("presale_or_wc_void_activation=false");
