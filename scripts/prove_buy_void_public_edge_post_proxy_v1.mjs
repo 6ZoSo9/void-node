@@ -144,6 +144,48 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
     "all settled operations must detach their deadline timer");
   assert.equal(outstandingTimers.size, 0);
   assert.ok(peakTimers <= 1, "no accumulating pending per-read deadlines");
+
+  // A completed upstream response must not claim HTTP 201 if releasing
+  // its owned reader is uncertain. Exercise the same actual handler with
+  // a synthetic reader whose final releaseLock throws.
+  let readCount = 0;
+  const uncertainHandle = evalHandler(
+    async () => ({
+      status: 201,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          return {
+            async read() {
+              readCount += 1;
+              return readCount === 1
+                ? { done: false, value: Buffer.from("{}", "utf8") }
+                : { done: true };
+            },
+            releaseLock() { throw new Error("synthetic_reader_release_failure"); },
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    }),
+    scopedSetTimeout, scopedClearTimeout,
+    { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+  );
+  let uncertainOutput = null;
+  const uncertainRes = {
+    statusCode: 0,
+    writableEnded: false,
+    headers: {},
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(bytes) { uncertainOutput = Buffer.from(bytes); this.writableEnded = true; },
+  };
+  await uncertainHandle(syntheticReq, uncertainRes);
+  assert.equal(uncertainRes.statusCode, 502);
+  assert.deepEqual(JSON.parse(uncertainOutput.toString("utf8")), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+  });
+  assert.equal(uncertainRes.headers["cache-control"], "no-store");
+  assert.equal(outstandingTimers.size, 0);
 }
 
 async function freePort() {
@@ -717,6 +759,7 @@ try {
   console.log("header_refusal_upstream_socket_closed_early=true");
   console.log("per_read_deadline_timer_detached=true");
   console.log("tiny_chunk_deadline_timer_lifetime_proven=true");
+  console.log("completed_reader_release_failure_returns_502=true");
   console.log("truthy_json_primitive_201_refused=true");
   console.log("upstream_total_deadline_bounded=true");
   console.log("max_response_size_boundary_accepted=true");
