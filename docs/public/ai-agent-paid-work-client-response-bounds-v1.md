@@ -17,7 +17,7 @@ For discovery, route probing, and authenticated submission responses, the client
 - requires a readable response body and fails unavailable/non-readable bodies closed only after aborting the owned request and attempting bounded cancellation when the body exposes `cancel()`;
 - consumes the body with a stream reader and counts bytes before retaining beyond the configured limit;
 - actively aborts the owned request as soon as redirect, malformed length, oversize, unavailable/non-readable body, or admitted read failure is known;
-- reserves the original per-origin generation while **any** rejected response body or reader has unconfirmed cancellation, including declared/streamed oversize, invalid length, redirect and non-deadline reader errors; an unresolved or rejected cancellation cannot silently become a new fetch allowance;
+- reserves the original per-origin generation while **any** rejected response body or reader has unconfirmed cancellation, including declared/streamed oversize, invalid length, redirect, non-deadline reader errors and failed `getReader()` acquisition; an unresolved or rejected cancellation cannot silently become a new fetch allowance;
 - retains request ownership through bounded reader/body cancellation for every terminal body failure, including timeout/read rejection after response headers;
 - gives cleanup a separate maximum 250 ms teardown window so a deadline-triggered read error cannot return while teardown is completely unowned;
 - preserves the primary redirect/size/body/read/timeout error when cancellation rejects or does not settle;
@@ -52,6 +52,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a late-settling timed-out read releases its retained lock and restores clean same-origin use;
 - a partial late read with rejected cancellation leaves its reader lock and origin quarantined with zero replacement fetches;
 - declared-oversize body with rejected cancellation, malformed `Content-Length` with permanently pending cancellation, and oversize streamed chunk with rejected reader cancellation each retain their original generation and refuse repeated same-origin calls;
+- a throwing synthetic `getReader()` with failed cancellation, and a real locked WHATWG `Response.body`, each refuse another same-origin fetch while the original reader/body remains unresolved;
 - a body cancellation that succeeds only after the bounded caller teardown later retires the exact original generation, permitting new clean requests;
 - when a previously pending cancellation later succeeds after a partial read settles, exactly one lock release restores same-origin admission;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
