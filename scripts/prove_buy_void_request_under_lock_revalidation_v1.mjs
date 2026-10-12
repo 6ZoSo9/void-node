@@ -660,9 +660,30 @@ for (const existing of [false, true]) {
     await assert.rejects(()=>failLedger.persist(beforeLedger),
       /synthetic_first_journal_fsync_failure/u);
     fs.fsyncSync=originalFsync;
-    assert.equal(fs.existsSync(path.join(failLedger.dir,
-      beforeLedger.request_id+".json")),false,
-      "ledger fsync failure cannot claim a sidecar");
+    // New source *reserves* the private leaf exclusively before journal
+    // append. A failed first journal fsync may therefore leave an EMPTY
+    // 0600 reservation; it must never be mistaken for a completed sidecar.
+    const reservedAfterLedgerFault=path.join(failLedger.dir,
+      beforeLedger.request_id+".json");
+    assert.equal(fs.existsSync(reservedAfterLedgerFault),true,
+      "ledger fsync failure leaves only the exclusive empty reservation");
+    assert.equal(fs.statSync(reservedAfterLedgerFault).size,0,
+      "failed journal sync must not publish completed customer sidecar bytes");
+    assert.equal(mode(reservedAfterLedgerFault),0o600,
+      "uncertain reservation retains private 0600 permissions");
+    assert.deepEqual(lines(failLedger.dir).map(row=>row.request_id),
+      [beforeLedger.request_id],
+      "the synthetic unsynced append is observable, not qualified durable");
+    // No automatic clean result may be issued from an ambiguous empty leaf.
+    const postFault=await assert.rejects(
+      ()=>failLedger.persist(request("buyvoid_fsync_a_retry_bbbbbbbb",
+        "3","base","8")),
+      /buy_void_request_history_under_lock_reused_sidecar_content_mismatch/u,
+    );
+    assert.equal(postFault,undefined);
+    assert.equal(fs.statSync(reservedAfterLedgerFault).size,0);
+    assert.equal(lines(failLedger.dir).length,1,
+      "rejected retry never appends a second economic obligation");
 
     const failSidecar=build("fsync-sidecar-fault");
     let syncedFiles=0;
