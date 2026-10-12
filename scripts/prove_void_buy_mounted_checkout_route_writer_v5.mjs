@@ -14,8 +14,8 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const REPO = process.cwd();
-const INDEX_COMMIT = "cfc4a3c388f998bed217001d1ff7eeecaadca6ca";
-const INDEX_BLOB = "91151bb6ba5addf061a1a713aeceab142a814312";
+const INDEX_COMMIT = "e261923cab5f70f5e77bb2b08f3f12946f1ce489";
+const INDEX_BLOB = "40239e0f76aa1edce43523d18c1b57691e41e8cf";
 const WRITER_COMMIT = INDEX_COMMIT;
 const WRITER_BLOB = "e738e32601c68b70ebc7cbf922b24f055cc3e91d";
 const INDEX_PATH = "src/index.ts";
