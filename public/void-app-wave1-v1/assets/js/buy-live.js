@@ -26,25 +26,71 @@ const MAX_BUY_ATTEMPTS_PER_VIEW = 32;
 const attemptedIntentKeys = new Set();
 let attemptedResultText = null;
 let attemptedResultExpiresAtMs = null;
+let attemptedResultMonoDeadlineMs = null;
+let attemptedResultAcceptedMonoMs = null;
+let attemptedResultAcceptedWallMs = null;
+let attemptedResultExpired = false;
 let receiptExpiryTimer = null;
-// Timed-out/corrupt responses remain unresolved, but a *confirmed* request
-// must not present payment instructions after its exact activation receipt
-// expires. The timeout updates the visible copy even without user input.
+// The server-generated request creation timestamp anchors the response to
+// server time. Subtract the whole observed POST lifetime plus an explicit
+// skew budget, then use performance.now() to retain a monotonic expiry.
+// An untrusted/rolled-back wall clock must never revive instructions.
+const BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000;
+const BUY_RECEIPT_MAX_POST_DURATION_MS = 10000;
+function receiptMonotonicNow() {
+  try {
+    const now = globalThis.performance?.now?.();
+    return typeof now === 'number' && Number.isFinite(now) && now >= 0 ? now : null;
+  } catch {
+    return null;
+  }
+}
 function clearReceiptExpiryTimer() {
   if (receiptExpiryTimer !== null) clearTimeout(receiptExpiryTimer);
   receiptExpiryTimer = null;
 }
-function armReceiptExpiryTimer(expiresAtMs) {
+function receiptExpiredOrUntrusted() {
+  if (attemptedResultMonoDeadlineMs === null) return false;
+  if (attemptedResultExpired) return true;
+  const monoNow = receiptMonotonicNow();
+  const wallNow = Date.now();
+  const monoElapsed = monoNow === null ? NaN : monoNow - attemptedResultAcceptedMonoMs;
+  const wallElapsed = wallNow - attemptedResultAcceptedWallMs;
+  if (
+    monoNow === null ||
+    !Number.isSafeInteger(wallNow) ||
+    !Number.isFinite(monoElapsed) || monoElapsed < 0 ||
+    !Number.isFinite(wallElapsed) ||
+    Math.abs(wallElapsed - monoElapsed) > BUY_RECEIPT_MAX_CLOCK_SKEW_MS ||
+    monoNow >= attemptedResultMonoDeadlineMs ||
+    wallNow >= attemptedResultExpiresAtMs - BUY_RECEIPT_MAX_CLOCK_SKEW_MS
+  ) {
+    attemptedResultExpired = true;
+    clearReceiptExpiryTimer();
+    return true;
+  }
+  return false;
+}
+function armReceiptExpiryTimer(monoDeadlineMs) {
   clearReceiptExpiryTimer();
-  const remaining = expiresAtMs - Date.now();
-  if (!Number.isFinite(remaining) || remaining <= 0) return;
+  if (monoDeadlineMs !== attemptedResultMonoDeadlineMs ||
+      receiptExpiredOrUntrusted()) return;
+  const monoNow = receiptMonotonicNow();
+  if (monoNow === null) {
+    receiptExpiredOrUntrusted();
+    return;
+  }
+  const remaining = monoDeadlineMs - monoNow;
+  if (!Number.isFinite(remaining) || remaining <= 0) {
+    receiptExpiredOrUntrusted();
+    return;
+  }
   receiptExpiryTimer = setTimeout(() => {
     receiptExpiryTimer = null;
     updateSubmit();
-    // Long timeouts are capped; re-arm only for the SAME request receipt.
-    if (attemptedResultExpiresAtMs === expiresAtMs && Date.now() < expiresAtMs) {
-      armReceiptExpiryTimer(expiresAtMs);
-    }
+    // Long timeouts are capped; only the SAME non-expired receipt can re-arm.
+    if (attemptedResultMonoDeadlineMs === monoDeadlineMs &&
+        !attemptedResultExpired) armReceiptExpiryTimer(monoDeadlineMs);
   }, Math.min(Math.max(1, remaining), 2147483647));
 }
 const touchedFields = new Set();
@@ -58,6 +104,10 @@ const beginBuyViewInstance = (view) => {
   attemptedIntentKey = null;
   attemptedResultText = null;
   attemptedResultExpiresAtMs = null;
+  attemptedResultMonoDeadlineMs = null;
+  attemptedResultAcceptedMonoMs = null;
+  attemptedResultAcceptedWallMs = null;
+  attemptedResultExpired = false;
   return true;
 };
 
@@ -350,7 +400,7 @@ function updateSubmit() {
     const sameIntent = intentKey === attemptedIntentKey;
     const instructionExpired = sameIntent &&
       attemptedResultExpiresAtMs !== null &&
-      Date.now() >= attemptedResultExpiresAtMs;
+      receiptExpiredOrUntrusted();
     setText('[data-buy-result]', instructionExpired
       ? 'REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS. Verify the original request with the operator before any further action.'
       : matchingRailOpen && sameIntent && attemptedResultText
@@ -474,6 +524,11 @@ async function submitBuy(event) {
   const intentKey = buyIntentKey();
   if (intentKey === null || attemptedIntentKeys.has(intentKey) ||
       attemptedIntentKeys.size >= MAX_BUY_ATTEMPTS_PER_VIEW) return;
+  const requestStartedMonoMs = receiptMonotonicNow();
+  if (requestStartedMonoMs === null) {
+    setText('[data-buy-result]', 'HOLD — browser monotonic timing unavailable. Do not send funds.');
+    return;
+  }
   const payload = {
     requested_amount_usdc: amount,
     void_destination_address: destination,
@@ -491,6 +546,10 @@ async function submitBuy(event) {
   attemptedIntentKey = intentKey;
   attemptedResultText = null;
   attemptedResultExpiresAtMs = null;
+  attemptedResultMonoDeadlineMs = null;
+  attemptedResultAcceptedMonoMs = null;
+  attemptedResultAcceptedWallMs = null;
+  attemptedResultExpired = false;
   clearReceiptExpiryTimer();
   submitBusy = true;
   updateSubmit();
@@ -554,9 +613,29 @@ async function submitBuy(event) {
         ? usdcAtoms(String(instructedAmount))
         : null;
     const instructionExpiresAtMs = request.payment_instructions?.expires_at_ms;
+    const createdAtMs = request.created_at_ms;
+    const receiptMonoMs = receiptMonotonicNow();
+    const receiptWallMs = Date.now();
+    const postElapsedMs = receiptMonoMs === null
+      ? NaN : receiptMonoMs - requestStartedMonoMs;
+    // Source-bound server creation time plus the full in-flight POST duration
+    // constrains wall-clock skew. An oversized/uncertain response is a HOLD.
+    const receiptClockQualified =
+      Number.isSafeInteger(createdAtMs) &&
+      Number.isSafeInteger(receiptWallMs) &&
+      receiptMonoMs !== null &&
+      Number.isFinite(postElapsedMs) &&
+      postElapsedMs >= 0 &&
+      postElapsedMs <= BUY_RECEIPT_MAX_POST_DURATION_MS &&
+      createdAtMs <= receiptWallMs + BUY_RECEIPT_MAX_CLOCK_SKEW_MS &&
+      receiptWallMs <= createdAtMs + postElapsedMs + BUY_RECEIPT_MAX_CLOCK_SKEW_MS;
+    const conservativeRemainingMs = instructionExpiresAtMs - createdAtMs -
+      postElapsedMs - BUY_RECEIPT_MAX_CLOCK_SKEW_MS;
     if (
+      !receiptClockQualified ||
       !Number.isSafeInteger(instructionExpiresAtMs) ||
-      instructionExpiresAtMs <= Date.now() ||
+      !Number.isFinite(conservativeRemainingMs) ||
+      conservativeRemainingMs <= 0 ||
       !Number.isSafeInteger(request.launch_authority?.expires_at_ms) ||
       instructionExpiresAtMs !== request.launch_authority.expires_at_ms ||
       instructedAtoms === null ||
@@ -577,6 +656,10 @@ async function submitBuy(event) {
       throw new Error('returned request safety binding mismatch');
     }
     attemptedResultExpiresAtMs = instructionExpiresAtMs;
+    attemptedResultMonoDeadlineMs = receiptMonoMs + conservativeRemainingMs;
+    attemptedResultAcceptedMonoMs = receiptMonoMs;
+    attemptedResultAcceptedWallMs = receiptWallMs;
+    attemptedResultExpired = false;
     attemptedResultText = [
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
@@ -592,7 +675,7 @@ async function submitBuy(event) {
       '',
       `Keep the ${rail.label} transaction hash. Payment observation is not itself a fulfillment receipt.`,
     ].join('\n');
-    armReceiptExpiryTimer(instructionExpiresAtMs);
+    armReceiptExpiryTimer(attemptedResultMonoDeadlineMs);
     // A POST can resolve after live readiness switched to HOLD, SOLD OUT,
     // or became unavailable. Preserve the outcome in memory only; the
     // finally/updateSubmit path renders it solely on verified OPEN and
