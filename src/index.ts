@@ -19069,7 +19069,10 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
             one_active_request_cap_enforced:true
           });
         }
-        requestObj.persisted = { ok:true, file:persisted.file };
+        // The private sidecar path is an internal persistence detail.
+        // Buyer-facing HTTP 201 proves only a retained request; never disclose
+        // VOID_BUY_REQUEST_DIR, the filename, or a path through requestObj.
+        requestObj.persisted = { ok:true };
 
         return res.status(201).json({
           schema: "void_public_buy_void_checkout_request_result_v1",
