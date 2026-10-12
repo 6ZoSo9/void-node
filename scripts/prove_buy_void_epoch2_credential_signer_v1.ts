@@ -58,8 +58,13 @@ try {
     credentials_directory: root,
     expected_wallet_address: dummyWallet.address,
   });
+  // Narrow the discriminated union before assert.equal(): the assertion
+  // itself narrows old.ok to true, making a following false-case .reason
+  // access ill-typed. Preserve the historical E1 negative branch explicitly.
+  if (old.ok === false) {
+    throw Error("legacy_credential_id_regressed:" + old.reason);
+  }
   assert.equal(old.ok, true);
-  if (!old.ok) throw Error("legacy_credential_id_regressed:" + old.reason);
   assert.equal(old.credential_id,
     VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1);
   const signedLegacy = await old.signer.sign_transaction({
