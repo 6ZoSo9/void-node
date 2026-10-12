@@ -162,7 +162,14 @@ const strictJson = async (response) => {
       chunks.push(value);
     }
   } catch (error) {
-    try { await reader.cancel(); } catch (_cancelError) { void _cancelError; }
+    // A broken stream may return a never-settling cancellation promise.
+    // Cancellation is best-effort; never suppress or delay the original
+    // response failure (or the buyer's no-retry/uncertain-outcome fence).
+    try {
+      Promise.resolve(reader.cancel()).catch(() => undefined);
+    } catch (cancelError) {
+      void cancelError;
+    }
     throw error;
   }
   const bytes = new Uint8Array(total);

@@ -292,6 +292,7 @@ const sandbox = {
 };
 const instrumentedClient = client + `
 ;globalThis.__voidBuyTestV1 = {
+  strictJson,
   validateSnapshot,
   isOpen,
   renderSnapshot,
@@ -329,6 +330,60 @@ vm.runInNewContext(instrumentedClient, sandbox, {
 });
 const buyTest = sandbox.__voidBuyTestV1;
 assert.ok(buyTest);
+
+// A malformed or over-budget source may return a cancel() promise that
+// never settles, rejects, or throws. None may hold the original exception,
+// or leave a potentially committed POST in a spinner instead of a HOLD.
+for (const fixture of [
+  {
+    label: "never_settling_cancel",
+    value: new Uint8Array(0),
+    expected: /invalid Buy VOID response stream/u,
+    cancel: () => new Promise(() => undefined),
+  },
+  {
+    label: "rejecting_cancel_after_oversize",
+    value: new Uint8Array(131073),
+    expected: /Buy VOID response exceeds byte limit/u,
+    cancel: () => Promise.reject(new Error("synthetic_cancel_rejected")),
+  },
+  {
+    label: "throwing_cancel_after_invalid_chunk",
+    value: null,
+    expected: /invalid Buy VOID response stream/u,
+    cancel: () => { throw new Error("synthetic_cancel_threw"); },
+  },
+]) {
+  let cancelCalls = 0;
+  const response = {
+    headers: {
+      get(name) { return name === "content-type" ? "application/json" : null; },
+    },
+    body: {
+      getReader() {
+        return {
+          async read() { return { done: false, value: fixture.value }; },
+          cancel() { cancelCalls += 1; return fixture.cancel(); },
+        };
+      },
+    },
+  };
+  let timeout = null;
+  const observed = await Promise.race([
+    buyTest.strictJson(response).then(
+      () => ({ result: "wrongly_accepted" }),
+      (error) => ({ result: "rejected", message: String(error?.message || error) }),
+    ),
+    new Promise((resolve) => {
+      timeout = setTimeout(() => resolve({ result: "cancellation_blocked" }), 300);
+    }),
+  ]);
+  clearTimeout(timeout);
+  assert.equal(observed.result, "rejected", fixture.label + ": cancellation must never stall HOLD");
+  assert.match(observed.message, fixture.expected,
+    fixture.label + ": preserve original response failure, not cancel failure");
+  assert.equal(cancelCalls, 1, fixture.label + ": cancellation attempted only once");
+}
 
 const validConfig = {
   marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -1564,6 +1619,7 @@ console.log("dual_rail_open_message_bound=true");
 console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
+console.log("buy_response_cancel_never_blocks_checkout_hold=true");
 console.log("returned_request_intent_bound=1");
 console.log("receipt_live_activation_lease_max_300000ms_bound=true");
 console.log("impossible_five_minute_plus_one_receipt_refused=true");
