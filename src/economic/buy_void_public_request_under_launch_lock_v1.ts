@@ -61,7 +61,7 @@ function assertPrivateRequestLeafV1(file: string): void {
   }
   if (!observed.isFile() || observed.isSymbolicLink() ||
       observed.nlink !== 1 ||
-      observed.uid !== process.getuid() ||
+      observed.uid !== process.getuid?.() ||
       (observed.mode & 0o7777) !== 0o600) {
     holdHistoryV1("private_existing_leaf_owner_or_mode");
   }
@@ -69,7 +69,7 @@ function assertPrivateRequestLeafV1(file: string): void {
 function assertPrivateOpenLeafV1(fd: number): void {
   const opened = fs.fstatSync(fd);
   if (!opened.isFile() || opened.nlink !== 1 ||
-      opened.uid !== process.getuid() ||
+      opened.uid !== process.getuid?.() ||
       (opened.mode & 0o7777) !== 0o600) {
     holdHistoryV1("private_open_leaf_owner_or_mode");
   }

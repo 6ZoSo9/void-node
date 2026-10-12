@@ -95,7 +95,7 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `8ef942e3739642ff64f25281a88b9de2bb200725`. Actual source-only
+Current source Git blob: `9ae541654850155f77d6d69f7c15d9f7093b6e12`. Actual source-only
 regression Git blob: `e09a6d7f78fb6936f4c614948bbfa02801490a9e`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
@@ -120,7 +120,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `8ef942e3739642ff64f25281a88b9de2bb200725`). The existing
+(Git blob `9ae541654850155f77d6d69f7c15d9f7093b6e12`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
