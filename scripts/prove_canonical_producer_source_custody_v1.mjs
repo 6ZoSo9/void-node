@@ -16,8 +16,11 @@ assert.ok(launcher.indexOf("canonical-producer-source-custody-v1.cjs") <
           "attestation must precede actual loader");
 assert.ok(fs.statSync(source).isFile());
 assert.notEqual(process.getuid?.(),0,"CI proof must run as unprivileged user");
-const fixture = "/opt/void-source-custody-proof-"+String(process.pid)+"-"+String(process.getuid());
-assert.match(fixture,/^\/opt\/void-source-custody-proof-[0-9]+-[0-9]+$/);
+// /var/lib is root-owned on the supported Ubuntu hosted runner; /opt may
+// be deliberately writable by the runner's hosted-toolcache installer and
+// would correctly fail the same-UID ancestry guard.
+const fixture = "/var/lib/void-source-custody-proof-"+String(process.pid)+"-"+String(process.getuid());
+assert.match(fixture,/^\/var\/lib\/void-source-custody-proof-[0-9]+-[0-9]+$/);
 function sudo(...args) {
   const run = spawnSync("sudo", ["-n",...args], {encoding:"utf8",timeout:12000});
   assert.equal(run.error,undefined,"sudo was unavailable");
@@ -107,7 +110,7 @@ try {
   console.log("writable_runtime_state_inside_source_tree_holds=true");
   console.log("production_source_tree_or_service_changed=false");
 } finally {
-  // CI-only uniquely named root-owned fixture under /opt; never a real
+  // CI-only uniquely named root-owned fixture under /var/lib; never a real
   // operator checkout. Its exact ephemeral path is validated above.
   sudo("rm","-rf","--",fixture);
 }
