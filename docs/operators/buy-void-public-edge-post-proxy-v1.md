@@ -29,7 +29,14 @@ The gateway does not gain a general mutation proxy.
   its existing `405` behavior.
 - `OPTIONS /__void/buy-void/request` remains blocked because the checkout is
   same-origin and does not require CORS preflight.
-- Request bodies are capped at 65,536 bytes.
+- Request bodies are capped at 65,536 bytes. The incoming client-upload
+  phase has its **own 8-second absolute lifetime from handler entry**, not
+  an inactivity timeout. A half-written chunked POST that sends one byte
+  and stalls (or repeatedly trickles one byte) must terminate without
+  ever forwarding a request to the upstream node. The incomplete socket
+  is destroyed on deadline; its transport close is **not** a payment or
+  purchase receipt. This timer is independent of the later 8-second
+  upstream header/body response limit.
 - The upstream POST and its full JSON response have a fixed **8-second
   total deadline**, enforced by both AbortSignal and one monotonic absolute
   expiry applied to response headers **and every body read**. Each awaited
@@ -123,6 +130,12 @@ told the checkout is end-to-end ready. A failed or uncertain POST outcome
 cannot be assumed uncommitted or safely retried. No real funds move.
 
 ## Verification
+
+The focused proof exercises two actual, intentionally unfinished
+chunked HTTP client uploads in parallel: a single byte with no ending chunk
+and an indefinite small-byte trickle. Both must terminate within a fixed
+wall-clock limit and cause **zero** upstream purchase requests, while
+complete valid client POST requests still forward exactly once.
 
 `scripts/prove_buy_void_public_edge_post_proxy_v1.mjs` starts an isolated fake
 node upstream and a temporary composition gateway. It proves that the exact
