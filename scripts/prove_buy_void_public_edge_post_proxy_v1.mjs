@@ -132,6 +132,33 @@ const upstream = http.createServer(
     ) {
       let proofCase = "";
       try { proofCase = JSON.parse(body)?.__edge_proof_case || ""; } catch {}
+      if (proofCase === "valid_201") {
+        const receipt = JSON.stringify({
+          ok: true,
+          marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+          request: {
+            request_id: "buyvoid_edge_201_aaaaaaaa",
+            status: "awaiting_payment_tx_hash",
+          },
+        });
+        res.writeHead(201, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public,max-age=60",
+          "content-length": String(Buffer.byteLength(receipt)),
+        });
+        res.end(receipt);
+        return;
+      }
+      if (proofCase === "malformed_json_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end('{"ok":');
+        return;
+      }
+      if (proofCase === "invalid_utf8_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end(Buffer.from([0xc3,0x28]));
+        return;
+      }
       if (proofCase === "declared_oversize") {
         res.writeHead(400, {
           "content-type": "application/json",
@@ -405,6 +432,19 @@ try {
     assert.equal(response.headers.get("x-content-type-options"), "nosniff", proofCase);
     return response;
   };
+  const valid201 = await postProof("valid_201");
+  assert.equal(valid201.status, 201, "legitimate checkout HTTP 201 retained");
+  assert.equal(valid201.headers.get("content-type"),
+    "application/json; charset=utf-8");
+  assert.deepEqual(await valid201.json(), {
+    ok: true,
+    marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+    request: {
+      request_id: "buyvoid_edge_201_aaaaaaaa",
+      status: "awaiting_payment_tx_hash",
+    },
+  }, "valid original JSON 201 receipt must pass through unchanged");
+
   const maximumValid = await postProof("max_size_valid");
   assert.equal(maximumValid.status, 400);
   const maximumValidBytes = Buffer.from(await maximumValid.arrayBuffer());
@@ -416,6 +456,8 @@ try {
     "chunked_oversize",
     "non_json",
     "redirect",
+    "malformed_json_201",
+    "invalid_utf8_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -535,6 +577,9 @@ try {
   console.log("upstream_declared_oversize_rejected=true");
   console.log("upstream_streamed_oversize_rejected=true");
   console.log("upstream_redirect_and_nonjson_rejected=true");
+  console.log("valid_checkout_201_pass_through=true");
+  console.log("malformed_json_201_rejected=true");
+  console.log("invalid_utf8_201_rejected=true");
   console.log("upstream_total_deadline_bounded=true");
   console.log("max_response_size_boundary_accepted=true");
   console.log(
