@@ -68,6 +68,11 @@ const valid = Object.freeze({
   block_before: "0x16f4e",
   block_after: "0x16f50",
   peers: "0x2",
+  validators: [
+    "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+    "0x02f967953386188397b992c208239d3a25180db6",
+    "0x461bf06270d9d28962f7570182c061b828799b66",
+  ],
   presale_code: epoch2.runtime_code_hex,
   token_code: token.runtime_code_hex,
   token_presale_balance: word(10_000_000n * 10n ** 18n),
@@ -84,6 +89,7 @@ assert.equal(green.max_computed_gas_limit, "320000");
 assert.equal(green.accepted_history_block, "3854");
 assert.equal(green.accepted_history_hash,
   "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942");
+assert.equal(green.exact_reviewed_validator_roster, true);
 assert.equal(green.blocks_produced_in_window, "2");
 assert.equal(green.observation_window_ms, "12000");
 const reviewedProductionCandidate = JSON.parse(fs.readFileSync(
@@ -143,6 +149,23 @@ fails("token_code", { token_code:"0x" },
   "epoch2_contract_code_mismatch");
 fails("under_quorum", { peers:"0x1" },
   "epoch2_quorum_or_history_not_qualified");
+fails("missing_validator_roster", { validators: undefined },
+  "epoch2_validator_roster_mismatch");
+fails("unknown_validator_in_three_member_roster", {
+  validators: [
+    ...valid.validators.slice(0, 2),
+    "0x" + "d".repeat(40),
+  ],
+}, "epoch2_validator_roster_mismatch");
+fails("duplicate_validator_in_three_member_roster", {
+  validators: [
+    ...valid.validators.slice(0, 2),
+    valid.validators[0],
+  ],
+}, "epoch2_validator_roster_mismatch");
+fails("short_validator_roster", {
+  validators: valid.validators.slice(0, 2),
+}, "epoch2_validator_roster_mismatch");
 fails("history_rollback", { block_after:"0x16f4d" },
   "epoch2_quorum_or_history_not_qualified");
 fails("stalled_two_peer_quorum", { block_after:valid.block_before },
@@ -174,6 +197,7 @@ console.log("synthetic_two_void_fulfill_calldata_proven=true");
 console.log("epoch2_marker_included_and_zero_fee=true");
 console.log("real_epoch2_contract_bytecode_fixture_proven=true");
 console.log("wrong_chain_inventory_contract_gas_and_quorum_hold=true");
+console.log("unknown_or_duplicate_epoch2_validator_roster_holds=true");
 console.log("gas_limit_multiplier_bps=15000");
 console.log("raw_estimate_213333_computed_320000_green=true");
 console.log("raw_estimate_213334_computed_320001_hold=true");

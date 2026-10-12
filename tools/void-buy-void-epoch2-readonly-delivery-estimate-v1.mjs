@@ -23,6 +23,11 @@ const CODE_SHA = "b200e702e07140921813c83a833d4f4abacea61dd5863f08b0d9c1147b8da2
 // Immutable accepted QBFT history, independently observed October 2, 2026.
 // The genesis hash alone does not attest that a running chain retained the
 // previously accepted block history after a crash/restart.
+const EXPECTED_VALIDATORS = Object.freeze([
+  "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863", // Precision
+  "0x02f967953386188397b992c208239d3a25180db6", // Nimo
+  "0x461bf06270d9d28962f7570182c061b828799b66", // Xiphos
+].sort());
 const ACCEPTED_BLOCK_NUMBER = "0xf0e"; // 3854
 const ACCEPTED_BLOCK_HASH =
   "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942";
@@ -46,7 +51,8 @@ const FULFILL = new Interface([
 ]);
 const RPC_ALLOWED = Object.freeze(new Set([
   "eth_chainId", "eth_blockNumber", "eth_getBlockByNumber",
-  "net_peerCount", "eth_getCode", "eth_getStorageAt", "eth_estimateGas",
+  "net_peerCount", "qbft_getValidatorsByBlockNumber",
+  "eth_getCode", "eth_getStorageAt", "eth_estimateGas",
 ]));
 
 function exactQuantity(raw) {
@@ -136,6 +142,16 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
     if (after <= before || before < 3854n || peers < 2n) {
       return hold("epoch2_quorum_or_history_not_qualified");
     }
+    // Two connected peers and block progress do not prove the reviewed
+    // validator authority: require the exact frozen three-member roster.
+    if (!Array.isArray(observed.validators) ||
+        observed.validators.length !== EXPECTED_VALIDATORS.length ||
+        !observed.validators.every(v =>
+          typeof v === "string" && /^0x[0-9a-fA-F]{40}$/u.test(v)) ||
+        observed.validators.map(v => v.toLowerCase()).sort()
+          .some((v, i) => v !== EXPECTED_VALIDATORS[i])) {
+      return hold("epoch2_validator_roster_mismatch");
+    }
     const balance = storageWord(observed.token_presale_balance);
     const fulfilled = storageWord(observed.total_fulfilled);
     const supply = storageWord(observed.total_supply);
@@ -167,6 +183,7 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
       blocks_produced_in_window: (after - before).toString(),
       observation_window_ms: String(OBSERVATION_WINDOW_MS),
       peer_count: peers.toString(),
+      exact_reviewed_validator_roster: true,
       presale_balance_atoms: balance.toString(),
       presale_fulfilled_atoms: fulfilled.toString(),
       zero_fee_type2_marker_estimate_accepted: true,
@@ -260,6 +277,9 @@ export async function observeBuyVoidEpoch2ReadOnlyEstimateV1() {
     "eth_getBlockByNumber", [ACCEPTED_BLOCK_NUMBER, false],
   );
   observed.peers = await rpcRead("net_peerCount", []);
+  observed.validators = await rpcRead("qbft_getValidatorsByBlockNumber", [
+    observed.block_before,
+  ]);
   observed.presale_code = await rpcRead("eth_getCode", [PRESALE, "latest"]);
   observed.token_code = await rpcRead("eth_getCode", [TOKEN, "latest"]);
   observed.token_presale_balance = await rpcRead("eth_getStorageAt", [

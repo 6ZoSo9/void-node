@@ -47,6 +47,9 @@ The qualification checks:
   accepted October 2 block 3,854 hash**
   `0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942`.
   A chain that shares genesis but not this reviewed history must HOLD;
+- Exact immutable three-validator QBFT roster (Precision, Nimo, Xiphos)
+  queried at the initial observed head; unknown, missing, and duplicate
+  validator addresses HOLD even when two peers report connected;
 - two live peers, and **at
   least one new block** across a deliberate 12-second post-estimate observation
   window (more than two reviewed five-second QBFT periods). Connected peers
@@ -65,7 +68,8 @@ The qualification checks:
 
 An RPC error, missing/different accepted block 3,854, oversized/malformed
 response, wrong contract/code, wrong storage,
-quorum loss, excessive estimate or source identity mismatch is a **HOLD**.
+quorum loss, validator-set drift, excessive estimate or source identity
+mismatch is a **HOLD**.
 Only an exact qualified read-only estimate reports
 `READONLY_EPOCH2_DELIVERY_ESTIMATE_GREEN`.
 
