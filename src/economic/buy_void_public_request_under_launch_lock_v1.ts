@@ -373,15 +373,30 @@ function assertCompleteRequestHistoryUnderLockV1(
 
 
 function immutableRequestBytesForTransitionV1(row: any): string {
-  if (!row || typeof row !== "object" || Array.isArray(row)) {
+  if (!row || typeof row !== "object" || REQUEST_HISTORY_IS_ARRAY_V1(row)) {
     holdHistoryV1("revision_row_not_plain_data");
   }
-  const stable = Object.create(null);
-  for (const key of Object.keys(row)) {
+  // Parsed historical rows are ordinary nested objects. Capturing stringify
+  // alone does not prevent an ambient inherited toJSON function from
+  // changing their payment terms. Deep detach before canonical comparison.
+  const detached = detachCanonicalRequestDataV1(row);
+  const keys = REQUEST_HISTORY_KEYS_V1(detached);
+  const stable = REQUEST_HISTORY_CREATE_V1(null);
+  // Do not for..of the mutable Array.prototype iterator. A same-process
+  // hook can omit "payment_instructions" while preserving keys.length and
+  // make an operator recipient substitution appear immutable.
+  for (let i = 0; i < keys.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(keys, String(i))) {
+      holdHistoryV1("revision_property_enumeration_ambiguous");
+    }
+    const key = keys[i];
+    if (typeof key !== "string") {
+      holdHistoryV1("revision_property_name_invalid");
+    }
     if (key === "status" || key === "tx_hash" ||
         key === "payment_submitted_at_ms") continue;
-    const descriptor = Object.getOwnPropertyDescriptor(row, key);
-    if (!descriptor || !Object.hasOwn(descriptor, "value")) {
+    const descriptor = REQUEST_HISTORY_OWN_DESCRIPTOR_V1(detached, key);
+    if (!descriptor || !REQUEST_HISTORY_HAS_OWN_V1(descriptor, "value")) {
       holdHistoryV1("revision_executable_property");
     }
     stable[key] = descriptor.value;
