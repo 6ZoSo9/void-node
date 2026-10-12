@@ -997,6 +997,40 @@ assert.equal(
 buyTest.updateSubmit();
 assert.equal(amountInput.getAttribute("aria-invalid"), "true");
 
+// A single-page-app route change creates a NEW Buy DOM view but does NOT
+// reload buy-live.js. After one potentially committed POST, navigating away
+// and back must not erase that intent's no-retry guard. A restored view has
+// no actionable old payment receipt; operator recovery is still required.
+const fetchesBeforeRouteReentry = fetchCalls.length;
+chainInput.value = "ethereum";
+destinationInput.value = "0x1111111111111111111111111111111111111111";
+buyTest.setState(ethereumSnapshot, false, false);
+buyTest.renderSnapshot(ethereumSnapshot);
+for (const [amount, meaning] of [
+  ["10.000000", "earlier confirmed HTTP-201 request"],
+  ["11", "earlier network-uncertain POST"],
+  ["21", "earlier synthetically reused receipt"],
+  ["111", "earlier expired instruction"],
+]) {
+  amountInput.value = amount;
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, true,
+    meaning + " must remain no-retry after a Buy SPA view replacement");
+  assert.match(buyResultNode.textContent, /PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS/u,
+    meaning + ": no payment directions or new-request claim after navigation");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u);
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, fetchesBeforeRouteReentry,
+    meaning + ": SPA navigation must never trigger a second POST");
+}
+// A genuinely new intent still remains available, avoiding a permanent
+// global purchase HOLD from a single earlier uncertain submission.
+amountInput.value = "209";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false,
+  "previous attempts must not block a distinct bounded new intent");
+assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u);
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -1025,6 +1059,8 @@ console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
 console.log("wall_rollback_suspension_and_skew_fail_closed=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
+console.log("same_intent_repost_after_spa_navigation_blocked=1");
+console.log("spa_navigation_never_revives_old_payment_receipt=1");
 console.log("first_intent_preserved_after_second_post=1");
 console.log("multi_intent_guard_memory_bounded=32");
 console.log("prior_receipt_not_misbound_to_different_intent=1");
