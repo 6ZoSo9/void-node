@@ -1466,11 +1466,27 @@ assert.equal(fullAccepted201Receipt.request.payment_instructions.send_chain_id, 
 assert.equal(fullAccepted201Receipt.request.delivery_chain_id, 2050);
 assert.deepEqual(fullAccepted201Receipt.request.persisted, {ok: true});
 const fullBaseSourceWire = JSON.stringify(fullAccepted201Receipt, null, 3) + "\n";
+// Verify the ORIGINAL BUYER POST, not just the canned 201 response. Otherwise
+// an accidentally wrong chain, amount, destination or missing acknowledgement
+// could be hidden by this mocked downstream receipt.
+const assertExactBaseOriginalBuyerPost = (args, expectedAmount) => {
+  assert.equal(args[0], "/__void/buy-void/request");
+  assert.equal(args[1]?.method, "POST");
+  assert.deepEqual(JSON.parse(String(args[1]?.body || "")), {
+    requested_amount_usdc: expectedAmount,
+    void_destination_address: full201Destination,
+    source_chain: "base",
+    ack_self_custody: true,
+    ack_native_usdc: true,
+    ack_request_before_payment: true,
+    ack_sender_equals_void_destination: true,
+    ack_no_automatic_fulfillment: true,
+  }, "Base original-buyer POST must match exact canonical receipt intent and acknowledgements");
+};
 const basePostBefore = fetchCalls.length;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
-  assert.equal(args[0], "/__void/buy-void/request");
-  assert.equal(args[1]?.method, "POST");
+  assertExactBaseOriginalBuyerPost(args, "10");
   return new Response(fullBaseSourceWire, {
     status: 201,
     headers: { "content-type": "application/json" },
@@ -1508,6 +1524,7 @@ assert.equal(submitButton.disabled, false,
   "different Base synthetic intent may be attempted independently");
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
+  assertExactBaseOriginalBuyerPost(args, "11");
   return new Response(JSON.stringify(corruptBaseReceipt), {
     status: 201,
     headers: { "content-type": "application/json" },
@@ -1537,6 +1554,7 @@ console.log("stale_buy_readiness_get_cannot_rebind_replaced_view=true");
 console.log("stale_buy_readiness_get_cannot_promote_departed_route=true");
 console.log("fresh_owned_buy_readiness_get_can_render=true");
 console.log("full_cross_pr_base_201_browser_receipt_accepted=true");
+console.log("full_cross_pr_base_request_body_and_acknowledgements_exact=true");
 console.log("full_cross_pr_base_201_bad_payment_instruction_refused=true");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
