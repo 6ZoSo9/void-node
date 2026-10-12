@@ -605,7 +605,12 @@ async function submitBuy(event) {
       request.schema !== 'void_public_buy_void_checkout_request_v1' ||
       request.marker !== BUY_MARKER ||
       request.ok !== true ||
-      request.persisted?.ok !== true ||
+      !request.persisted ||
+      typeof request.persisted !== 'object' ||
+      Array.isArray(request.persisted) ||
+      !Object.hasOwn(request.persisted, 'ok') ||
+      Object.keys(request.persisted).length !== 1 ||
+      request.persisted.ok !== true ||
       typeof request.request_id !== 'string' ||
       !/^[A-Za-z0-9_-]{1,128}$/.test(request.request_id) ||
       request.status !== 'awaiting_payment_tx_hash' ||
