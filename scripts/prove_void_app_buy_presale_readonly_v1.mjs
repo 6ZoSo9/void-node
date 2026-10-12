@@ -131,6 +131,9 @@ for (const required of [
   "armReceiptExpiryTimer",
   "clearReceiptExpiryTimer",
   "request.launch_authority?.expires_at_ms",
+  "request.created_at_ms",
+  "receiptMonotonicNow",
+  "BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000",
   "instructionExpiresAtMs",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
@@ -210,7 +213,9 @@ const replaceBuyView = () => {
   buyViewNode = {};
 };
 const fetchCalls = [];
+let syntheticMonoMs = 100000;
 const sandbox = {
+  performance: { now: () => syntheticMonoMs },
   console,
   location: { hash: "#/buy" },
   window: { addEventListener() {} },
@@ -439,6 +444,7 @@ sandbox.fetch = async (...args) => {
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
       launch_authority: { expires_at_ms: receiptExpiryAtMs },
+      created_at_ms: Date.now(),
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -483,39 +489,9 @@ assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
-// A fresh 201 receipt is actionably valid only until its exact instruction
-// expiry. An independently OPEN refreshed presale cannot revive old payment
-// instructions or permit a new POST for the previously committed intent.
-const nativeBrowserDateNow = vm.runInNewContext("Date.now", sandbox);
-sandbox.__syntheticBuyNowMs = receiptExpiryAtMs + 1;
-vm.runInNewContext("Date.now = () => globalThis.__syntheticBuyNowMs", sandbox);
-try {
-  assert.equal(vm.runInNewContext("Date.now()", sandbox), receiptExpiryAtMs + 1,
-    "synthetic browser time must cross the original instruction deadline");
-  buyTest.updateSubmit();
-  assert.match(buyResultNode.textContent,
-    /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u);
-  assert.doesNotMatch(buyResultNode.textContent,
-    /REQUEST CREATED|Send exactly:|buyvoid_ethereum_open_v1/u,
-    "expired receipt must expose no actionable payment instructions");
-  assert.equal(submitButton.disabled, true);
-  const beforeExpiryRetry = fetchCalls.length;
-  await buyTest.submitBuy({ preventDefault() {} });
-  assert.equal(fetchCalls.length, beforeExpiryRetry,
-    "expired-but-committed intent must not silently POST again");
-  buyTest.renderSnapshot(ethereumSnapshot);
-  assert.match(buyResultNode.textContent,
-    /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u,
-    "fresh OPEN cannot revive expired request instructions");
-} finally {
-  sandbox.__nativeBrowserDateNow = nativeBrowserDateNow;
-  vm.runInNewContext("Date.now = globalThis.__nativeBrowserDateNow", sandbox);
-  delete sandbox.__nativeBrowserDateNow;
-  delete sandbox.__syntheticBuyNowMs;
-}
+// A verified OPEN refresh before expiry retains this server-bound receipt.
 buyTest.updateSubmit();
-assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
-  "restored synthetic pre-expiry time still shows independently bound receipt");
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 
 // A confirmed request must not vanish when readiness briefly changes to
 // HOLD or SOLD OUT. Never display payment instructions while closed.
@@ -688,6 +664,7 @@ for (const [caseLabel, closedSnapshot] of [
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
       launch_authority: { expires_at_ms: receiptExpiryAtMs },
+      created_at_ms: Date.now(),
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -772,6 +749,18 @@ const bogusReceipts = [
     body.request.payment_instructions.expires_at_ms = value;
     body.request.launch_authority.expires_at_ms = value;
   }],
+  ["missing_server_created_at", 201, (body) => {
+    delete body.request.created_at_ms;
+  }],
+  ["wrong_type_server_created_at", 201, (body) => {
+    body.request.created_at_ms = String(body.request.created_at_ms);
+  }],
+  ["future_server_created_at", 201, (body) => {
+    body.request.created_at_ms += 60000;
+  }],
+  ["stale_server_created_at", 201, (body) => {
+    body.request.created_at_ms -= 60000;
+  }],
 ];
 for (let i = 0; i < bogusReceipts.length; i += 1) {
   const [label, httpStatus, mutate] = bogusReceipts[i];
@@ -782,6 +771,7 @@ for (let i = 0; i < bogusReceipts.length; i += 1) {
   responseBody.request.requested_amount_usdc = amount;
   responseBody.request.payment_instructions.request_id = id;
   responseBody.request.payment_instructions.amount = Number(amount);
+  responseBody.request.created_at_ms = Date.now();
   mutate(responseBody);
   amountInput.value = amount;
   chainInput.value = "ethereum";
@@ -900,6 +890,87 @@ assert.equal(
   "submit may re-enable only after readiness pending is cleared",
 );
 
+// A server-generated creation time gives the absolute clock anchor. The
+// browser's performance.now() then owns the deadline so that changing the
+// wall clock cannot make expired instructions actionable again.
+const browserDateNow = vm.runInNewContext("Date.now", sandbox);
+const savedMonoMs = syntheticMonoMs;
+sandbox.__buyTestWallMs = Date.now();
+vm.runInNewContext("Date.now = () => globalThis.__buyTestWallMs", sandbox);
+try {
+  for (const [name, amount, change] of [
+    ["monotonic_expired", 111, "deadline"],
+    ["clock_rolled_back", 112, "rollback"],
+    ["sleep_without_monotonic_progress", 113, "suspend"],
+  ]) {
+    const id = "buyvoid_clock_" + name;
+    const created = sandbox.__buyTestWallMs;
+    const expires = created + 30000;
+    const body = structuredClone(verifiedEthereumNewRequestBody);
+    body.request.request_id = id;
+    body.request.created_at_ms = created;
+    body.request.launch_authority.expires_at_ms = expires;
+    body.request.payment_instructions.expires_at_ms = expires;
+    body.request.payment_instructions.request_id = id;
+    body.request.requested_amount_usdc = String(amount);
+    body.request.payment_instructions.amount = amount;
+    amountInput.value = String(amount);
+    chainInput.value = "ethereum";
+    buyTest.setState(ethereumSnapshot, false, false);
+    buyTest.renderSnapshot(ethereumSnapshot);
+    buyTest.updateSubmit();
+    assert.equal(submitButton.disabled, false, name + ": distinct request");
+    const before = fetchCalls.length;
+    sandbox.fetch = async (...args) => {
+      fetchCalls.push(args);
+      return new Response(JSON.stringify(body), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    await buyTest.submitBuy({ preventDefault() {} });
+    assert.equal(fetchCalls.length, before + 1, name + ": one POST");
+    assert.match(buyResultNode.textContent, new RegExp(id, "u"),
+      name + ": valid server-bounded initial lease");
+
+    if (change === "deadline") {
+      syntheticMonoMs += 26000;
+      sandbox.__buyTestWallMs += 26000;
+    } else if (change === "rollback") {
+      syntheticMonoMs += 1000;
+      sandbox.__buyTestWallMs -= 15000;
+    } else {
+      // A system sleep can advance the wall clock without advancing
+      // performance.now(): this is untrusted, never extended validity.
+      sandbox.__buyTestWallMs += 20000;
+    }
+    buyTest.updateSubmit();
+    assert.match(buyResultNode.textContent,
+      /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u, name);
+    assert.doesNotMatch(buyResultNode.textContent,
+      /REQUEST CREATED|Send exactly:|buyvoid_clock_/u, name);
+    assert.equal(submitButton.disabled, true);
+    await buyTest.submitBuy({ preventDefault() {} });
+    assert.equal(fetchCalls.length, before + 1, name + ": no retry");
+    // The expired/uncertain state is irrevocable even if time is moved
+    // back to an apparently valid value and the presale gate is OPEN.
+    sandbox.__buyTestWallMs -= 30000;
+    buyTest.renderSnapshot(ethereumSnapshot);
+    assert.match(buyResultNode.textContent,
+      /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u);
+    sandbox.__buyTestWallMs += 35000;
+    buyTest.renderSnapshot(ethereumSnapshot);
+    assert.match(buyResultNode.textContent,
+      /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u);
+  }
+} finally {
+  sandbox.__originalBrowserNow = browserDateNow;
+  vm.runInNewContext("Date.now = globalThis.__originalBrowserNow", sandbox);
+  delete sandbox.__originalBrowserNow;
+  delete sandbox.__buyTestWallMs;
+  syntheticMonoMs = savedMonoMs;
+}
+
 replaceBuyView();
 assert.equal(
   buyTest.beginBuyViewInstance(buyViewNode),
@@ -950,6 +1021,8 @@ console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
 console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
+console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
+console.log("wall_rollback_suspension_and_skew_fail_closed=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
 console.log("first_intent_preserved_after_second_post=1");
