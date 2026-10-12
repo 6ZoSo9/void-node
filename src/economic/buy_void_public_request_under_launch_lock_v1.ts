@@ -667,6 +667,9 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       holdHistoryV1("journal_leaf_changed_after_read");
     }
     const sidecarBefore = assertPrivateRequestLeafV1(file);
+    if (typeof fs.constants.O_NOFOLLOW !== "number") {
+      holdHistoryV1("private_no_follow_unavailable");
+    }
     if (txHashRevision) {
       // Preserve existing buyer evidence: a different sidecar and original
       // journal row must never be overwritten by the first tx-hash revision.
@@ -693,9 +696,6 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       );
       assertCurrentAuthority();
       assertPinnedPrivateRequestDirV1(dir, dirFd);
-    }
-    if (typeof fs.constants.O_NOFOLLOW !== "number") {
-      holdHistoryV1("private_no_follow_unavailable");
     }
     assertPinnedPrivateRequestDirV1(dir, dirFd);
     // Last synchronous admission check: no await may intervene.
