@@ -12,7 +12,10 @@ Both paths revalidate journal, launch authority and private directory *before*
 the last byte check. The focused compiled-helper proof injects an equal-length
 same-inode rewrite after the earlier validation in both the existing and
 missing-sidecar-recovery paths, and requires HOLD without appending another
-economic obligation.
+economic obligation. A second **metadata-stable** adversary corrupts only
+the actual final FD read buffer and requires the exact
+`sidecar_final_content_mismatch` refusal, proving that the final
+byte-comparison loop runs even when inode, size, mtime and ctime did not drift.
 
 These are final observed-byte checks, **not a continuous exclusion mechanism**
 against a same-UID writer after the final observation or general atomic
@@ -219,8 +222,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `26b6f051d2c0ead11ac49d520894511f280cd3be`. Actual source-only
-regression Git blob: `9b65aff6c85d9db5837e053d785d353a7cb83fb2`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `b41c4111399bc39db023d8daf8bd37a9c86c6328`. Actual source-only
+regression Git blob: `44106fe914b3f97b9dc63d1c2671a32b8465fa3d`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -244,7 +247,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `26b6f051d2c0ead11ac49d520894511f280cd3be`). The existing
+(Git blob `b41c4111399bc39db023d8daf8bd37a9c86c6328`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
