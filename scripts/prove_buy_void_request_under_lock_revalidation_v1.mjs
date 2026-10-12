@@ -772,6 +772,8 @@ for (const existing of [false, true]) {
       assert.equal(inserted,true);
       assert.equal(fs.readFileSync(sidecar,"utf8"),
         "OPAQUE_SUBSTITUTE_ABSENT");
+      assert.equal(fs.existsSync(path.join(root,"requests.jsonl")), false,
+        "late sidecar EEXIST must be detected BEFORE the first journal append");
     } finally {
       fs.openSync=nativeOpen;
       if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
@@ -1357,6 +1359,7 @@ console.log("directory_rebind_during_fsync_holds=true");
 console.log("legacy_insecure_and_symlink_sidecars_hold_before_append=true");
 console.log("sidecar_preopen_inode_replacement_holds=true");
 console.log("sidecar_first_create_exclusive_holds=true");
+console.log("sidecar_exclusive_reserved_before_journal_append=true");
 console.log("sidecar_postwrite_rebind_holds=true");
 console.log("journal_existing_fd_pinned_from_read_through_append=true");
 console.log("journal_leaf_substitution_holds_without_visible_append=true");
