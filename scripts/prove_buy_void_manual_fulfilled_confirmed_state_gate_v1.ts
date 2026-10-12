@@ -71,12 +71,6 @@ async function main(): Promise<void> {
     ),
     "helper missing explicit fulfilled reconciliation mode import",
   );
-  assert.ok(
-    routeText.includes(
-      "(e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found)",
-    ),
-    "mounted route must preserve the existing ordinary writer bridge",
-  );
 
   const sf = ts.createSourceFile(
     indexFile,
@@ -113,6 +107,12 @@ async function main(): Promise<void> {
   assert.ok(callback, "manual mark route callback missing");
   const routeText = routeCall.getText(sf);
 
+  assert.ok(
+    routeText.includes(
+      "(e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found)",
+    ),
+    "mounted route must preserve the existing ordinary writer bridge",
+  );
   assert.ok(
     routeText.includes(
       "const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(",
