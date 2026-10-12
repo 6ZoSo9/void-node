@@ -88,9 +88,9 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
   const literal = Buffer.from("{" + " ".repeat(4096) + "}", "utf8");
   let readCalls = 0;
   let fetchCalls = 0;
-  // The timing fixture is an arbitrary object response, NOT a
-  // checkout-creation receipt; use 200 so the strict 201 schema guard is
-  // tested only by the separate canonical-201 acceptance/rejection cases.
+  // The timing fixture is a retired HTTP 200 rather than canonical 201.
+  // All 4,098 one-byte reads/timers must execute, but arbitrary backend
+  // response bytes must not cross the unauthenticated public boundary.
   const scopedFetch = async () => {
     fetchCalls += 1;
     return {
@@ -138,9 +138,12 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
   };
   await handle(syntheticReq, syntheticRes);
   assert.equal(fetchCalls, 1);
-  assert.equal(syntheticRes.statusCode, 200,
-    "tiny-stream timing fixture is not a canonical 201 checkout receipt");
-  assert.deepEqual(output, literal, "one-byte stream must preserve raw JSON");
+  assert.equal(syntheticRes.statusCode, 502,
+    "non-201 response must be redacted after all tiny reads settle");
+  assert.deepEqual(JSON.parse(output.toString("utf8")), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+  });
+  assert.equal(syntheticRes.headers["cache-control"], "no-store");
   assert.equal(readCalls, literal.length + 1, "exercise all 4,098 tiny reads");
   assert.ok(createdTimers >= readCalls + 1,
     "every tiny read must have an independently detachable deadline timer");
@@ -376,6 +379,41 @@ const upstream = http.createServer(
           "content-length": String(Buffer.byteLength(fullAccepted201Json)),
         });
         res.end(fullAccepted201Json);
+        return;
+      }
+      if (proofCase === "legacy_reuse_private_200") {
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+        });
+        res.end(JSON.stringify({
+          schema: "void_public_buy_void_checkout_request_result_v1",
+          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok: true, idempotent: true,
+          request: {
+            request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+            account: "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+            note: "SENTINEL_PRIOR_BUYER_NOTE_9922",
+            tx_hash: "SENTINEL_PRIOR_BUYER_HASH_9922",
+            payment_instructions: {
+              send_to: "SENTINEL_PRIOR_BUYER_RECEIVER_9922",
+            },
+          },
+        }));
+        return;
+      }
+      if (proofCase === "legacy_conflict_private_409") {
+        res.writeHead(409, {
+          "content-type": "application/json",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+        });
+        res.end(JSON.stringify({
+          schema: "void_public_buy_void_checkout_request_result_v1",
+          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok: false, error: "one_active_request_per_void_destination",
+          existing_request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+          existing_status: "SENTINEL_PRIOR_BUYER_STATUS_9922",
+        }));
         return;
       }
       if (proofCase === "valid_201") {
@@ -714,10 +752,9 @@ try {
 
   const postBody =
     await postResponse.json();
-  assert.equal(
-    postBody.marker,
-    "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_PROOF",
-  );
+  assert.deepEqual(postBody, {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+  }, "backend's arbitrary validation body may not cross public edge");
   assert.equal(
     upstreamCalls.length,
     1,
@@ -785,11 +822,43 @@ try {
   assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
     full201BaseUsdc.toLowerCase());
 
+  // Exact 131,072-byte response must be fully accepted (400), not misread
+  // as over-limit (502), but its unreviewed original body is never public.
+  // Partial upgrade: canonical main's retired writer returns private buyer
+  // request bytes on idempotent HTTP 200 and prior buyer ID/status on 409.
+  // The new edge must refuse that disclosure even before #2811 is installed.
+  for (const [scenario, expectedStatus] of [
+    ["legacy_reuse_private_200", 502],
+    ["legacy_conflict_private_409", 409],
+  ]) {
+    const refused = await postProof(scenario);
+    assert.equal(refused.status, expectedStatus, scenario);
+    assert.equal(refused.headers.get("etag"), null, scenario);
+    const publicText = await refused.text();
+    assert.deepEqual(JSON.parse(publicText), {
+      ok: false, error: "buy_void_request_upstream_unavailable",
+    }, scenario);
+    for (const privateValue of [
+      "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+      "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+      "SENTINEL_PRIOR_BUYER_NOTE_9922",
+      "SENTINEL_PRIOR_BUYER_HASH_9922",
+      "SENTINEL_PRIOR_BUYER_RECEIVER_9922",
+      "SENTINEL_PRIOR_BUYER_STATUS_9922",
+      "SENTINEL_PRIOR_BUYER_ETAG_9922",
+      "existing_request_id", "existing_status",
+      "payment_instructions", "idempotent",
+    ]) {
+      assert.equal(publicText.includes(privateValue), false,
+        scenario + ":" + privateValue);
+    }
+  }
+
   const maximumValid = await postProof("max_size_valid");
   assert.equal(maximumValid.status, 400);
-  const maximumValidBytes = Buffer.from(await maximumValid.arrayBuffer());
-  assert.equal(maximumValidBytes.length, 131072);
-  assert.equal(JSON.parse(maximumValidBytes.toString("utf8")).ok, false);
+  assert.deepEqual(await maximumValid.json(), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+  });
 
   for (const scenario of [
     "declared_oversize",
@@ -951,6 +1020,9 @@ try {
   console.log("upstream_streamed_oversize_rejected=true");
   console.log("upstream_redirect_and_nonjson_rejected=true");
   console.log("valid_checkout_201_pass_through=true");
+  console.log("retired_200_full_prior_buyer_record_redacted=true");
+  console.log("retired_409_prior_buyer_identity_redacted=true");
+  console.log("all_non201_backend_json_sanitized=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
