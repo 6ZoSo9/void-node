@@ -225,7 +225,7 @@ let headerRejectedSocketClosed = false;
 // edge that parses and reserializes a successful buyer receipt.
 const exactAccepted201Receipt = {
   request: {
-    persisted: { ok: true, file: "/synthetic/buyvoid_edge_201_aaaaaaaa.json" },
+    persisted: { ok: true },
     status: "awaiting_payment_tx_hash",
     request_id: "buyvoid_edge_201_aaaaaaaa",
     ok: true,
@@ -313,7 +313,8 @@ const upstream = http.createServer(
           proofCase === "wrong_marker_201" ||
           proofCase === "idempotent_201" ||
           proofCase === "missing_request_201" ||
-          proofCase === "wrong_request_status_201") {
+          proofCase === "wrong_request_status_201" ||
+          proofCase === "private_path_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
@@ -321,6 +322,12 @@ const upstream = http.createServer(
         if (proofCase === "missing_request_201") delete mutated.request;
         if (proofCase === "wrong_request_status_201") {
           mutated.request = { ...mutated.request, status: "fulfilled" };
+        }
+        if (proofCase === "private_path_201") {
+          mutated.request = { ...mutated.request, persisted: {
+            ok: true,
+            file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+          } };
         }
         const body = proofCase === "empty_object_201"
           ? "{}" : JSON.stringify(mutated);
@@ -660,6 +667,7 @@ try {
     "idempotent_201",
     "missing_request_201",
     "wrong_request_status_201",
+    "private_path_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -795,6 +803,7 @@ try {
   console.log("upstream_redirect_and_nonjson_rejected=true");
   console.log("valid_checkout_201_pass_through=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("public_201_private_persistence_path_refused=true");
   console.log("malformed_json_201_rejected=true");
   console.log("invalid_utf8_201_rejected=true");
   console.log("primitive_and_array_201_refused=true");
