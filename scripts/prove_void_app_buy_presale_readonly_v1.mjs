@@ -118,6 +118,14 @@ for (const required of [
   "source_chain: chain",
   "request.payment_instructions?.send_chain",
   "request.payment_instructions?.token_contract",
+  "request.payment_instructions?.keep_transaction_hash",
+  "request.payment_instructions?.do_not_send_before_request",
+  "request.payment_instructions?.amount",
+  "request.payment_instructions?.request_id",
+  "request.tx_hash !== ''",
+  "request.status !== 'awaiting_payment_tx_hash'",
+  "body.idempotent !== false",
+  "response.status !== 201",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
 }
@@ -412,13 +420,17 @@ assert.doesNotMatch(
 );
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
+let verifiedEthereumNewRequestBody = null;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
   const requestBody = {
     ok: true,
     schema: "void_public_buy_void_checkout_request_result_v1",
+    idempotent: false,
     request: {
       request_id: "buyvoid_ethereum_open_v1",
+      status: "awaiting_payment_tx_hash",
+      tx_hash: "",
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -428,6 +440,10 @@ sandbox.fetch = async (...args) => {
       requested_amount_usdc: "10",
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        request_id: "buyvoid_ethereum_open_v1",
+        amount: 10,
+        do_not_send_before_request: true,
+        keep_transaction_hash: true,
         send_chain: "ethereum",
         send_chain_id: 1,
         token_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -438,8 +454,9 @@ sandbox.fetch = async (...args) => {
       },
     },
   };
+  verifiedEthereumNewRequestBody = structuredClone(requestBody);
   return new Response(JSON.stringify(requestBody), {
-    status: 200,
+    status: 201,
     headers: { "content-type": "application/json" },
   });
 };
@@ -622,8 +639,11 @@ for (const [caseLabel, closedSnapshot] of [
   const responseBody = {
     ok: true,
     schema: "void_public_buy_void_checkout_request_result_v1",
+    idempotent: false,
     request: {
       request_id: requestId,
+      status: "awaiting_payment_tx_hash",
+      tx_hash: "",
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -633,6 +653,10 @@ for (const [caseLabel, closedSnapshot] of [
       requested_amount_usdc: amount,
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        request_id: requestId,
+        amount: Number(amount),
+        do_not_send_before_request: true,
+        keep_transaction_hash: true,
         send_chain: "ethereum", send_chain_id: 1,
         token_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
         token_decimals: 6,
@@ -643,7 +667,7 @@ for (const [caseLabel, closedSnapshot] of [
     },
   };
   resolveLateSuccess(new Response(JSON.stringify(responseBody), {
-    status: 200,
+    status: 201,
     headers: { "content-type": "application/json" },
   }));
   await pendingLateSuccess;
@@ -665,6 +689,61 @@ for (const [caseLabel, closedSnapshot] of [
   assert.equal(fetchCalls.length, beforeLate + 1,
     caseLabel + ": verified OPEN must not repeat a committed POST");
 }
+// A successful-looking server body must never become actionable payment
+// instructions unless it is an HTTP-201, non-reused, pre-payment request
+// whose exact native-USDC amount and instruction/request identity agree.
+// All fixtures are inert HTTP responses; no customer data or funds exist here.
+assert.ok(verifiedEthereumNewRequestBody, "valid receipt fixture required");
+const bogusReceipts = [
+  ["legacy_http_200_reused_request", 200, (body) => { body.idempotent = true; }],
+  ["http_201_reused_request", 201, (body) => { body.idempotent = true; }],
+  ["http_201_missing_freshness_flag", 201, (body) => { delete body.idempotent; }],
+  ["already_payment_verified", 201, (body) => { body.request.status = "payment_verified"; }],
+  ["already_has_tx_hash", 201, (body) => { body.request.tx_hash = "0x" + "a".repeat(64); }],
+  ["instructions_amount_mismatch", 201, (body) => { body.request.payment_instructions.amount = 999; }],
+  ["instructions_request_id_mismatch", 201, (body) => {
+    body.request.payment_instructions.request_id = "buyvoid_others_original";
+  }],
+  ["instructions_allow_payment_before_request", 201, (body) => {
+    body.request.payment_instructions.do_not_send_before_request = false;
+  }],
+  ["instructions_do_not_require_transaction_hash", 201, (body) => {
+    body.request.payment_instructions.keep_transaction_hash = false;
+  }],
+];
+for (let i = 0; i < bogusReceipts.length; i += 1) {
+  const [label, httpStatus, mutate] = bogusReceipts[i];
+  const amount = String(21 + i);
+  const id = "buyvoid_synthetic_adversary_" + i;
+  const responseBody = structuredClone(verifiedEthereumNewRequestBody);
+  responseBody.request.request_id = id;
+  responseBody.request.requested_amount_usdc = amount;
+  responseBody.request.payment_instructions.request_id = id;
+  responseBody.request.payment_instructions.amount = Number(amount);
+  mutate(responseBody);
+  amountInput.value = amount;
+  chainInput.value = "ethereum";
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false, label + ": independent intent can be attempted");
+  const before = fetchCalls.length;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Response(JSON.stringify(responseBody), {
+      status: httpStatus,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, before + 1, label + ": one inert POST attempted");
+  assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+    label + ": unusable receipt must not be presented as confirmed");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u,
+    label + ": forged/reused/unsafe instructions must never be actionable");
+  assert.equal(submitButton.disabled, true, label + ": uncertain intent cannot be retried");
+}
+
 // Resume original Base fixture expectations without another HTTP call.
 amountInput.value = "10";
 fetchCalls.length = 0;
@@ -804,6 +883,9 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
+console.log("browser_rejects_reused_or_non201_buy_receipts=true");
+console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
+console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
 console.log("first_intent_preserved_after_second_post=1");
