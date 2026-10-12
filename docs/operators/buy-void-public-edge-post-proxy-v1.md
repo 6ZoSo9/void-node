@@ -41,6 +41,15 @@ The gateway does not gain a general mutation proxy.
   settled timers and at most one concurrent timer. The extra fence covers the Node 22 case where an aborted
   stream reader never settles. The upstream is contacted with redirects
   forbidden.
+- HTTP 201 **created-request** responses must also match the canonical
+  node's actual `void_public_buy_void_checkout_request_result_v1` schema,
+  `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1` marker, `ok: true`,
+  `idempotent: false`, `one_active_request_cap_enforced: true` and a
+  canonical embedded checkout-request object with request ID, awaiting
+  payment-hash status and `persisted.ok: true`. An empty, unrelated, false,
+  reused or malformed 201 cannot be forwarded as a newly created payment
+  request. The validated successful **original bytes** are still forwarded
+  exactly without reserialization.
 - Upstream responses must be strict UTF-8 JSON **objects**, not just a
   JSON `Content-Type` header. Malformed JSON, invalid UTF-8, null/primitive values and arrays refuse
   even on HTTP 201. The maximum accepted response body is
@@ -70,7 +79,8 @@ POST route preserves method, body, upstream status, and application response,
 while every non-allowlisted mutation remains blocked. It also
 tests the exact maximum accepted JSON reply, byte-for-byte forwarding
 of a deliberately noncanonical valid HTTP 201 receipt, malformed/invalid-UTF-8,
-truthy primitive (`true`) and array HTTP 201 refusals, declared/streamed oversize, non-JSON
+truthy primitive (`true`), array and six malformed/wrong
+schema, marker, idempotency or request-status HTTP 201 refusals, declared/streamed oversize, non-JSON
 and redirect refusal, plus a header-rejected response held open until the
 upstream server observes early socket closure. A separate fake upstream
 sends valid headers but never finishes the JSON body to probe the absolute
