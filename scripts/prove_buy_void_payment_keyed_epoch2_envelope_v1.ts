@@ -3,7 +3,6 @@ import {
   buyVoidPresaleAccessListExactV1,
   buyVoidPresaleRequiredAccessListV1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
-#!/usr/bin/env node
 import assert from "node:assert/strict";
 import { Transaction, Wallet } from "ethers";
 
