@@ -64,7 +64,11 @@ function qualifySourceCustody(root, api = fs, identity = process) {
     let st;
     try { st = api.lstatSync(location); }
     catch { hold("source_metadata_unavailable"); }
-    if (st.uid !== 0) hold("source_mutable_or_untrusted_owner");
+    const locationClass = location === resolved ? "root" :
+      (under(resolved, location) ? "descendant" : "ancestor");
+    if (st.uid !== 0) {
+      hold("source_mutable_or_untrusted_owner_" + locationClass + "_owner");
+    }
     if (expected === "directory" && !st.isDirectory()) hold("directory_required");
     if (expected === "file" && !st.isFile()) hold("file_required");
     // Linux symlink mode 0777 is intentionally ignored by the kernel.
@@ -72,7 +76,9 @@ function qualifySourceCustody(root, api = fs, identity = process) {
     // the trusted recursively checked tree; don't falsely reject safe
     // package-manager symlinks on their meaningless mode bits.
     if (!st.isSymbolicLink()) {
-      if ((st.mode & 0o022) !== 0) hold("source_mutable_or_untrusted_owner");
+      if ((st.mode & 0o022) !== 0) {
+        hold("source_mutable_or_untrusted_owner_" + locationClass + "_mode");
+      }
       try {
         api.accessSync(location, fs.constants.W_OK);
         hold("source_writable_by_runtime");
