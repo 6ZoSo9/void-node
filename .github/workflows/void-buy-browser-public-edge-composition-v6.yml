@@ -39,7 +39,7 @@ jobs:
           git cat-file -e 369814d3cdbf0fd2bde150ac5c43b5460973639b^{commit}
           git cat-file -e d49126c39e298313b1151f1cbd3b4068339c0aaa^{commit}
           git cat-file -e 38fee809db1337610b4b516757c18d6907776743^{commit}
-          test "$(git hash-object scripts/prove_void_buy_browser_public_edge_composition_v6.mjs)" = "6f33aec7c65553b8d854ff106dd9ba0aecc04d51"
+          test "$(git hash-object scripts/prove_void_buy_browser_public_edge_composition_v6.mjs)" = "0cd12b61ef897a9012d9dace241f4c8357b9b0f4"
           test -z "$(git status --porcelain=v1)"
       - name: Use Node.js ${{ matrix.node }}
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
