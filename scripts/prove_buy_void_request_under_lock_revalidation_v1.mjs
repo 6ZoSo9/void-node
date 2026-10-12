@@ -669,7 +669,7 @@ for (const existing of [false, true]) {
       "ledger fsync failure leaves only the exclusive empty reservation");
     assert.equal(fs.statSync(reservedAfterLedgerFault).size,0,
       "failed journal sync must not publish completed customer sidecar bytes");
-    assert.equal(mode(reservedAfterLedgerFault),0o600,
+    assert.equal(fs.statSync(reservedAfterLedgerFault).mode & 0o7777,0o600,
       "uncertain reservation retains private 0600 permissions");
     assert.deepEqual(lines(failLedger.dir).map(row=>row.request_id),
       [beforeLedger.request_id],
