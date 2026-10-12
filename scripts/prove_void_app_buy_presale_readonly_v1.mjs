@@ -696,6 +696,7 @@ for (const [caseLabel, closedSnapshot] of [
 assert.ok(verifiedEthereumNewRequestBody, "valid receipt fixture required");
 const bogusReceipts = [
   ["legacy_http_200_reused_request", 200, (body) => { body.idempotent = true; }],
+  ["http_200_claims_fresh_request", 200, (_body) => {}],
   ["http_201_reused_request", 201, (body) => { body.idempotent = true; }],
   ["http_201_missing_freshness_flag", 201, (body) => { delete body.idempotent; }],
   ["already_payment_verified", 201, (body) => { body.request.status = "payment_verified"; }],
