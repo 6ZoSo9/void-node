@@ -10,6 +10,17 @@ const DISCOVERY_PATH = "/.well-known/void-agent-discovery.json";
 const ROUTE_PATH = "/__void/agents/paid-work/submissions/v1";
 const encoder = new TextEncoder();
 
+// Each independent negative uses its own simulated public origin. In the
+// hardened client, a response whose cancellation never finishes must keep
+// that origin quarantined; later independent fixtures cannot reuse it.
+let independentProofOriginNumber = 0;
+function independentProofOrigin() {
+  independentProofOriginNumber += 1;
+  return "https://paid-work-case-" +
+    String(independentProofOriginNumber).padStart(2, "0") +
+    ".example.invalid";
+}
+
 function bytes(text) {
   return encoder.encode(text);
 }
@@ -151,7 +162,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
     }),
   );
   const result = await probeVoidAiAgentPaidWorkV1({
-    baseUrl: "https://paid-work.example.invalid",
+    baseUrl: independentProofOrigin(),
     timeoutMs: 1000,
     maxResponseBytes: 1024,
     fetchImpl: fixture.fetch,
@@ -192,7 +203,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -225,7 +236,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -258,7 +269,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -289,7 +300,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   const started = Date.now();
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 800,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -319,7 +330,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -355,7 +366,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   const started = Date.now();
   await assert.rejects(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -384,7 +395,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -411,7 +422,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   );
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -437,7 +448,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 800,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -459,7 +470,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   );
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -484,7 +495,7 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
