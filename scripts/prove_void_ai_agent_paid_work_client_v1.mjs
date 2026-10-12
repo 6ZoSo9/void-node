@@ -657,18 +657,23 @@ await withServer(
         ),
       ),
     );
-    await assert.rejects(
-      () =>
-        submitVoidAiAgentPaidWorkV1({
-          baseUrl,
-          requestPath:
-            redirectPath,
-          tokenFile: tokenPath,
-          timeoutMs: 2000,
-          maxResponseBytes: 65536,
-        }),
-      /redirect_forbidden:307/,
-    );
+    // A rejected response may retain an unresolved cancellation and must
+    // quarantine its origin. Exercise each independent negative on a fresh
+    // local listener rather than treating a same-origin retry as safe.
+    await withServer(async ({ baseUrl: redirectBaseUrl }) => {
+      await assert.rejects(
+        () =>
+          submitVoidAiAgentPaidWorkV1({
+            baseUrl: redirectBaseUrl,
+            requestPath:
+              redirectPath,
+            tokenFile: tokenPath,
+            timeoutMs: 2000,
+            maxResponseBytes: 65536,
+          }),
+        /redirect_forbidden:307/,
+      );
+    });
 
     const oversizePath = path.join(
       temporary,
@@ -682,18 +687,20 @@ await withServer(
         ),
       ),
     );
-    await assert.rejects(
-      () =>
-        submitVoidAiAgentPaidWorkV1({
-          baseUrl,
-          requestPath:
-            oversizePath,
-          tokenFile: tokenPath,
-          timeoutMs: 2000,
-          maxResponseBytes: 1024,
-        }),
-      /response_too_large/,
-    );
+    await withServer(async ({ baseUrl: oversizeBaseUrl }) => {
+      await assert.rejects(
+        () =>
+          submitVoidAiAgentPaidWorkV1({
+            baseUrl: oversizeBaseUrl,
+            requestPath:
+              oversizePath,
+            tokenFile: tokenPath,
+            timeoutMs: 2000,
+            maxResponseBytes: 1024,
+          }),
+        /response_too_large/,
+      );
+    });
 
     const badHeaderPath = path.join(
       temporary,
