@@ -97,6 +97,14 @@ if (process.argv[2] === "--environment-child") {
     for (const [name, relative] of [["extra-output", "dist/extra.js"], ["untracked-compiler-input", "src/extra.ts"], ["extra-dependency", "node_modules/fixture/extra.js"]]) {
       check(name, () => { const file = path.join(temp, relative); fs.writeFileSync(file, "fixture"); try { assert.throws(verify); } finally { fs.unlinkSync(file); } });
     }
+    check("source-symlink", () => {
+      const file = path.join(temp, "src/extra.ts"); fs.symlinkSync("index.ts", file);
+      try { assert.throws(verify); } finally { fs.unlinkSync(file); }
+    });
+    check("hard-linked-source", () => {
+      const file = path.join(temp, "src/hard.ts"); fs.linkSync(path.join(temp, "src/index.ts"), file);
+      try { assert.throws(verify); } finally { fs.unlinkSync(file); }
+    });
     check("escaping-dependency-link", () => { const file = path.join(temp, "node_modules/escape"); fs.symlinkSync("../src/index.ts", file); try { assert.throws(verify); } finally { fs.unlinkSync(file); } });
     check("hard-linked-output", () => { const link = path.join(temp, "link"); fs.linkSync(path.join(temp, "dist/index.js"), link); try { assert.throws(verify); } finally { fs.unlinkSync(link); } });
     check("wrong-expected-digest", () => assert.throws(() => verifyBuildReceipt(temp, RECEIPT_PATH, "0".repeat(64))));
