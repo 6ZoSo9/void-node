@@ -22,9 +22,13 @@ node --import tsx scripts/void_buy_void_epoch2_signer_control_cli_v1.ts --intera
 
 It displays the same randomized five-minute public challenge, then waits for
 the **public EIP-191 signature** obtained from an independently trusted signer.
-Paste **only the public signature**, never a private key, seed phrase or systemd
-credential. The CLI validates the real immutable fulfiller address before the
-challenge expires and prints only the decision and message digest. It neither
+Paste **only the public 65-byte EIP-191 signature** (`0x` plus 130
+hex characters), never a private key, seed phrase or systemd credential. The
+printed `signing_message_sha256` is a diagnostic digest and **is not the
+signature**; do not paste it at the prompt. Sign the byte-exact multiline
+`signing_message` with the wallet that controls the immutable fulfiller.
+The CLI validates the real immutable fulfiller address before the challenge
+expires and prints only the decision and message digest. It neither
 writes a challenge/receipt file nor persists the public signature. An incorrect
 signature, expired challenge, or wrong wallet HOLDs; a correct signature still
 does not authorize signing a live transaction or opening checkout.

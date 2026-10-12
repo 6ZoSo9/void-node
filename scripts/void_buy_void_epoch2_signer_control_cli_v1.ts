@@ -86,10 +86,12 @@ async function main() {
     const reader = createInterface({
       input: process.stdin, output: process.stdout,
     });
+    console.log("signature_expected_format=0x_plus_130_hex_chars");
+    console.log("sign_exact_multiline_message_not_sha256=true");
     let signature = "";
     try {
       signature = (await reader.question(
-        "Paste PUBLIC EIP-191 signature (not a key/seed/password): ",
+        "Paste PUBLIC EIP-191 signature (0x + 130 hex; NOT signing_message_sha256): ",
         { signal: AbortSignal.timeout(300_000) },
       )).trim();
     } finally {

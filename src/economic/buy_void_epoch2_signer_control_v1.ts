@@ -199,12 +199,21 @@ export function verifyBuyVoidEpoch2SignerControlV1(input: {
   const signing = message(challenge);
   const digest =
     crypto.createHash("sha256").update(signing, "utf8").digest("hex");
-  if (typeof input.signature !== "string" || !SIG.test(input.signature)) {
+  const signature =
+    typeof input.signature === "string" ? input.signature.trim() : "";
+  const loweredSignature = signature.toLowerCase();
+  if (loweredSignature === digest || loweredSignature === "0x" + digest) {
+    return held(
+      "epoch2_signer_control_message_digest_is_not_signature",
+      digest,
+    );
+  }
+  if (!SIG.test(signature)) {
     return held("epoch2_signer_control_signature_invalid", digest);
   }
   let signer: string;
   try {
-    signer = verifyMessage(signing, input.signature).toLowerCase();
+    signer = verifyMessage(signing, signature).toLowerCase();
   } catch {
     return held("epoch2_signer_control_signature_recovery_failed", digest);
   }

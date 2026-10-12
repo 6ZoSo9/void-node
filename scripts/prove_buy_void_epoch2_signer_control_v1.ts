@@ -102,6 +102,12 @@ held("wrong_type", {
 }, signature, "epoch2_signer_control_challenge_invalid");
 held("truncated_sig", compiled.challenge, "0xdead",
   "epoch2_signer_control_signature_invalid");
+held("message_digest_not_signature", compiled.challenge,
+  compiled.signing_message_sha256,
+  "epoch2_signer_control_message_digest_is_not_signature");
+held("prefixed_message_digest_not_signature", compiled.challenge,
+  "0x" + compiled.signing_message_sha256,
+  "epoch2_signer_control_message_digest_is_not_signature");
 held("null_sig", compiled.challenge, null,
   "epoch2_signer_control_signature_invalid");
 held("overlong_expiry", {
@@ -169,6 +175,8 @@ const interactive = await new Promise<{
 assert.equal(interactive.signature_sent, true);
 assert.equal(interactive.code, 2);
 assert.match(interactive.stdout, /OFFCHAIN_PROOF_OF_CONTROL_ONLY/u);
+assert.match(interactive.stdout, /signature_expected_format=0x_plus_130_hex_chars/u);
+assert.match(interactive.stdout, /sign_exact_multiline_message_not_sha256=true/u);
 assert.match(interactive.stdout, /signer_control_proven=false/u);
 assert.match(interactive.stdout, /runtime_credential_installed_verified=false/u);
 assert.match(interactive.stdout, /live_payment_signing_authorized=false/u);
