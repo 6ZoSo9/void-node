@@ -1380,6 +1380,149 @@ for (let i = 0; i < badDeliveryReceipts.length; i += 1) {
  assert.equal(submitButton.disabled, true,
    "OPEN readiness without new-view required fields never enables purchase");
 
+
+// Cross-PR synthetically matched, FULL original-buyer Base native-USDC 201.
+// Exact fixture fields are mirrored from Draft #2823's source-only gateway
+// proof at head 7b360e70 (not a merged or installed source composition).
+// This is browser acceptance of the same wire shape, not a gateway test or
+// permission to take a payment. The earlier Ethereum proof remains intact.
+buyTest.resetForIndependentReceiptFixtures();
+replaceBuyView();
+assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
+chainInput.value = "base";
+amountInput.value = "10";
+destinationInput.value = "0x1111111111111111111111111111111111111111";
+buyTest.setState(validSnapshot, false, false);
+buyTest.renderSnapshot(validSnapshot);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false,
+  "new Base original-buyer synthetic intent must be eligible");
+const fullCreatedAtMs = Date.now();
+const fullExpiresAtMs = fullCreatedAtMs + 4 * 60 * 1000;
+const full201RequestId = "buyvoid_edge_full_base_aaaaaaaa";
+const full201Destination = "0x1111111111111111111111111111111111111111";
+const full201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const full201BaseUsdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const fullAccepted201Receipt = {
+  schema: "void_public_buy_void_checkout_request_result_v1",
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  ok: true,
+  idempotent: false,
+  one_active_request_cap_enforced: true,
+  request: {
+    schema: "void_public_buy_void_checkout_request_v1",
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    ok: true,
+    persisted: { ok: true },
+    request_id: full201RequestId,
+    created_at_ms: fullCreatedAtMs,
+    launch_authority: { expires_at_ms: fullExpiresAtMs },
+    status: "awaiting_payment_tx_hash",
+    tx_hash: "",
+    source_chain: "base",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    asset_in: "USDC",
+    usdc_decimals: 6,
+    usdc_contract: full201BaseUsdc,
+    usdc_amount: 10,
+    requested_amount_usdc: 10,
+    receive_address: full201Receiver,
+    void_destination_address: full201Destination,
+    delivery_address: full201Destination,
+    delivery_wallet: full201Destination,
+    delivery_chain: "void",
+    delivery_chain_id: 2050,
+    request_contract: {
+      request_before_payment_required: true,
+      one_active_request_per_void_destination: true,
+      payment_sender_must_equal_void_destination: true,
+      payment_tx_hash_bound_after_request_by_operator: true,
+    },
+    safety: {
+      automatic_fulfillment: false,
+      manual_review_required: true,
+    },
+    payment_instructions: {
+      request_id: full201RequestId,
+      amount: 10,
+      expires_at_ms: fullExpiresAtMs,
+      send_asset: "USDC",
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: full201BaseUsdc,
+      token_decimals: 6,
+      send_to: full201Receiver,
+      send_from: full201Destination,
+      do_not_send_before_request: true,
+      keep_transaction_hash: true,
+      do_not_send_from_exchange_or_pooled_custody: true,
+    },
+  },
+};
+
+assert.equal(fullAccepted201Receipt.request.payment_instructions.send_chain, "base");
+assert.equal(fullAccepted201Receipt.request.payment_instructions.send_chain_id, 8453);
+assert.equal(fullAccepted201Receipt.request.delivery_chain_id, 2050);
+assert.deepEqual(fullAccepted201Receipt.request.persisted, {ok: true});
+const fullBaseSourceWire = JSON.stringify(fullAccepted201Receipt, null, 3) + "\n";
+const basePostBefore = fetchCalls.length;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  assert.equal(args[0], "/__void/buy-void/request");
+  assert.equal(args[1]?.method, "POST");
+  return new Response(fullBaseSourceWire, {
+    status: 201,
+    headers: { "content-type": "application/json" },
+  });
+};
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, basePostBefore + 1,
+  "full Base 201 creates exactly one simulated browser POST");
+assert.match(buyResultNode.textContent, /REQUEST CREATED — VERIFY BEFORE PAYMENT/u);
+assert.match(buyResultNode.textContent, /Send exactly: 10 USDC/u);
+assert.match(buyResultNode.textContent, /Base Mainnet \(8453\)/u);
+assert.match(buyResultNode.textContent, /buyvoid_edge_full_base_aaaaaaaa/u);
+assert.equal(submitButton.disabled, true,
+  "successful full-Base 201 must fence identical intent");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, basePostBefore + 1,
+  "full-Base 201 may not post twice for the same intent");
+
+// Corrupt one *instruction* while leaving the outer and embedded schemas,
+// created request, rail and durable ack intact. The browser independently
+// refuses directions without treating the uncertain outcome as safe retry.
+const corruptBaseReceipt = structuredClone(fullAccepted201Receipt);
+corruptBaseReceipt.request.request_id = "buyvoid_edge_full_base_corrupt_aaaaaaaa";
+corruptBaseReceipt.request.requested_amount_usdc = 11;
+corruptBaseReceipt.request.usdc_amount = 11;
+corruptBaseReceipt.request.payment_instructions.request_id =
+  corruptBaseReceipt.request.request_id;
+corruptBaseReceipt.request.payment_instructions.amount = 11;
+corruptBaseReceipt.request.payment_instructions.send_to =
+  "0x2222222222222222222222222222222222222222";
+const corruptBasePostBefore = fetchCalls.length;
+amountInput.value = "11";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false,
+  "different Base synthetic intent may be attempted independently");
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  return new Response(JSON.stringify(corruptBaseReceipt), {
+    status: 201,
+    headers: { "content-type": "application/json" },
+  });
+};
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, corruptBasePostBefore + 1);
+assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+  "corrupt full-Base native-USDC instruction must fail closed");
+assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u);
+assert.equal(submitButton.disabled, true,
+  "corrupt full-Base receipt preserves no-repeat POST");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, corruptBasePostBefore + 1);
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -1393,6 +1536,8 @@ console.log("refresh_pending_submit_disabled=1");
 console.log("stale_buy_readiness_get_cannot_rebind_replaced_view=true");
 console.log("stale_buy_readiness_get_cannot_promote_departed_route=true");
 console.log("fresh_owned_buy_readiness_get_can_render=true");
+console.log("full_cross_pr_base_201_browser_receipt_accepted=true");
+console.log("full_cross_pr_base_201_bad_payment_instruction_refused=true");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
 console.log("dual_rail_selection_bound=true");
