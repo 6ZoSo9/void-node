@@ -98,8 +98,14 @@ four-minute lease, immutable receiver and sender/destination binding,
 chain 8453 and chain 2050 identities, canonical USDC contract and six-decimal
 amount, request-first acknowledgements, manual-fulfillment policy, and
 public-only `persisted: { ok:true }`. The actual gateway must preserve the
-full noncanonical JSON bytes and HTTP 201 exactly; this source-only proof
-checks the identities, instruction expiry and absence of an internal file path.
+full noncanonical JSON bytes and HTTP 201 exactly. In addition to
+comparing the received JSON to its source fixture, the proof independently
+pins the canonical Base USDC contract, receiver, source/payment chain 8453,
+delivery chain 2050, exact 10 USDC six-decimal amount, sender/destination
+identity, request/payment IDs, request-first flags, 4-minute lease,
+`persisted:{ok:true}` and disabled automatic fulfillment. Changing the
+fixture and receipt together can no longer silently redefine these identity
+claims; no internal persistence file path is accepted.
 
 **This is not yet an executable cross-PR browser acceptance test.** Browser
 Draft #2818 has additional time, view-generation, receipt-retry and
