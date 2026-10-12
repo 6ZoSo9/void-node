@@ -413,6 +413,88 @@ for (const fixture of [
     fixture.label + ": one best-effort unlocked-body cancellation");
 }
 
+// After valid headers and clock admission, getReader() itself can be
+// absent, return no reader, or throw (including while reading the method
+// property). These bodies remain UNLOCKED; the actual client must cancel
+// without waiting, then preserve the original refusal. A thrown cancellation
+// must not mask the reader-acquisition failure.
+for (const fixture of [
+  {
+    label: "reader_method_missing",
+    mode: "missing",
+    expected: /Buy VOID response stream unavailable/u,
+    cancel: () => new Promise(() => undefined),
+  },
+  {
+    label: "reader_method_returns_null",
+    mode: "null",
+    expected: /Buy VOID response stream unavailable/u,
+    cancel: () => Promise.reject(new Error("synthetic_acquire_cancel_rejected")),
+  },
+  {
+    label: "reader_method_throws",
+    mode: "throw",
+    expected: /synthetic_reader_acquisition_failed/u,
+    cancel: () => { throw new Error("synthetic_acquire_cancel_threw"); },
+  },
+  {
+    label: "reader_getter_denied_unlocked_cleanup",
+    mode: "getter",
+    expected: /synthetic_reader_getter_failed/u,
+    cancel: () => new Promise(() => undefined),
+  },
+]) {
+  let acquisitions = 0;
+  let cancellationCalls = 0;
+  const body = {
+    cancel() {
+      cancellationCalls += 1;
+      return fixture.cancel();
+    },
+  };
+  if (fixture.mode === "getter") {
+    Object.defineProperty(body, "getReader", {
+      get() {
+        acquisitions += 1;
+        throw new Error("synthetic_reader_getter_failed");
+      },
+    });
+  } else if (fixture.mode !== "missing") {
+    body.getReader = () => {
+      acquisitions += 1;
+      if (fixture.mode === "throw") {
+        throw new Error("synthetic_reader_acquisition_failed");
+      }
+      return null;
+    };
+  }
+  const response = {
+    headers: {
+      get(name) { return name === "content-type" ? "application/json" : null; },
+    },
+    body,
+  };
+  let timeout = null;
+  const outcome = await Promise.race([
+    buyTest.strictJson(response).then(
+      () => ({ kind: "incorrect_accept" }),
+      (error) => ({ kind: "held", message: String(error?.message || error) }),
+    ),
+    new Promise((resolve) => {
+      timeout = setTimeout(() => resolve({ kind: "stalled_on_cancel" }), 250);
+    }),
+  ]);
+  clearTimeout(timeout);
+  assert.equal(outcome.kind, "held",
+    fixture.label + ": unlocked-body cancellation must never stall refusal");
+  assert.match(outcome.message, fixture.expected,
+    fixture.label + ": preserve reader-acquisition failure, not cancel error");
+  assert.equal(acquisitions, fixture.mode === "missing" ? 0 : 1,
+    fixture.label + ": acquisition invocation count must be exact");
+  assert.equal(cancellationCalls, 1,
+    fixture.label + ": cancel the unopened body exactly once");
+}
+
 // An unavailable clock must reject BEFORE getReader() acquires a stream.
 // An earlier implementation acquired and then threw, retaining a locked
 // response body without any cancellation path. Use the actual Buy client.
@@ -1921,6 +2003,7 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("buy_header_refusal_unlocked_body_cancellation_bounded=true");
+console.log("buy_reader_acquisition_failure_unlocked_body_cancelled=true");
 console.log("buy_response_cancel_never_blocks_checkout_hold=true");
 console.log("buy_response_body_absolute_read_deadline=true");
 console.log("buy_response_infinite_trickle_deadline_cannot_reset=true");
