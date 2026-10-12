@@ -88,6 +88,57 @@ try {
   const beforeCorruption = fs.readFileSync(historyPath);
   assert.ok(beforeCorruption.length > before.length);
 
+  // A verified journal must never be reopened by visible pathname for append.
+  // Swap the entire directory at the first actual event write: an old
+  // appendFileSync(path) would alter the replacement journal. The held
+  // descriptor writer must instead HOLD, leaving that replacement unchanged.
+  {
+    const raceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-path-swap-"),
+    );
+    const detachedRoot = raceRoot + "-detached";
+    fs.chmodSync(raceRoot, 0o700);
+    const raceLedger = path.join(raceRoot, "operator-events.jsonl");
+    const originalHistory = JSON.stringify(event(other, "reviewed", 900)) + "\n";
+    fs.writeFileSync(raceLedger, originalHistory, { mode: 0o600 });
+    const originalWriteSync = fs.writeSync;
+    let swapped = false;
+    try {
+      (fs as any).writeSync = function(...args: any[]) {
+        const bytes = args[1];
+        if (!swapped && Buffer.isBuffer(bytes) &&
+            bytes.includes(Buffer.from('"marked_at_ms":901'))) {
+          swapped = true;
+          fs.renameSync(raceRoot, detachedRoot);
+          fs.mkdirSync(raceRoot, { mode: 0o700 });
+          fs.writeFileSync(raceLedger, originalHistory, { mode: 0o600 });
+        }
+        return Reflect.apply(originalWriteSync, fs, args);
+      };
+      await assert.rejects(
+        () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: event(other, "reviewed", 901),
+          request: other,
+          request_dir: raceRoot,
+          with_launch_authority_mutation: noLaunch,
+          read_sale_state: noSale,
+        }),
+        /buy_void_verified_payment_capacity_(?:event_append_path_changed|request_directory_changed)/u,
+        "a replacement visible journal must not receive the committed event",
+      );
+      assert.equal(swapped, true, "swap seam did not reach real held-FD append");
+      assert.equal(fs.readFileSync(raceLedger, "utf8"), originalHistory,
+        "replacement visible journal received an unsafe event");
+      assert.equal(fs.existsSync(path.join(
+        raceRoot, "operator-event-" + other.request_id + "-901.json",
+      )), false, "replacement directory acquired an orphan sidecar");
+    } finally {
+      (fs as any).writeSync = originalWriteSync;
+      fs.rmSync(raceRoot, { recursive: true, force: true });
+      fs.rmSync(detachedRoot, { recursive: true, force: true });
+    }
+  }
+
   // Exercise the *actual* locked writer with hostile same-process globals.
   // Native parsing must retain the historical fulfilled row even when the
   // inherited string/JSON methods can forge an apparent rejected projection.
@@ -219,6 +270,7 @@ try {
   console.log("different_request_mark_still_accepted=true");
   console.log("malformed_raw_history_holds_before_append=true");
   console.log("terminal_history_hostile_intrinsics_ignored=true");
+  console.log("terminal_descriptor_path_swap_holds_without_visible_append=true");
   console.log("under_request_lock_jsonl_revalidated=true");
   console.log("actual_customer_ledger_access=false");
   console.log("payment_acceptance=false");
