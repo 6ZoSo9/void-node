@@ -25,15 +25,39 @@ let attemptedIntentKey = null;
 const MAX_BUY_ATTEMPTS_PER_VIEW = 32;
 const attemptedIntentKeys = new Set();
 let attemptedResultText = null;
+let attemptedResultExpiresAtMs = null;
+let receiptExpiryTimer = null;
+// Timed-out/corrupt responses remain unresolved, but a *confirmed* request
+// must not present payment instructions after its exact activation receipt
+// expires. The timeout updates the visible copy even without user input.
+function clearReceiptExpiryTimer() {
+  if (receiptExpiryTimer !== null) clearTimeout(receiptExpiryTimer);
+  receiptExpiryTimer = null;
+}
+function armReceiptExpiryTimer(expiresAtMs) {
+  clearReceiptExpiryTimer();
+  const remaining = expiresAtMs - Date.now();
+  if (!Number.isFinite(remaining) || remaining <= 0) return;
+  receiptExpiryTimer = setTimeout(() => {
+    receiptExpiryTimer = null;
+    updateSubmit();
+    // Long timeouts are capped; re-arm only for the SAME request receipt.
+    if (attemptedResultExpiresAtMs === expiresAtMs && Date.now() < expiresAtMs) {
+      armReceiptExpiryTimer(expiresAtMs);
+    }
+  }, Math.min(Math.max(1, remaining), 2147483647));
+}
 const touchedFields = new Set();
 let activeBuyView = null;
 const beginBuyViewInstance = (view) => {
   if (view === activeBuyView) return false;
+  clearReceiptExpiryTimer();
   activeBuyView = view;
   touchedFields.clear();
   attemptedIntentKeys.clear();
   attemptedIntentKey = null;
   attemptedResultText = null;
+  attemptedResultExpiresAtMs = null;
   return true;
 };
 
@@ -323,10 +347,15 @@ function updateSubmit() {
     // Keep the attempted intent locked; restore the exact receipt only after
     // this same selected rail has independently returned to OPEN.
     const matchingRailOpen = selectedRail() !== null;
-    setText('[data-buy-result]', matchingRailOpen &&
-      intentKey === attemptedIntentKey && attemptedResultText
-      ? attemptedResultText
-      : 'PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS. Reverify prior requests with the operator before another attempt.');
+    const sameIntent = intentKey === attemptedIntentKey;
+    const instructionExpired = sameIntent &&
+      attemptedResultExpiresAtMs !== null &&
+      Date.now() >= attemptedResultExpiresAtMs;
+    setText('[data-buy-result]', instructionExpired
+      ? 'REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS. Verify the original request with the operator before any further action.'
+      : matchingRailOpen && sameIntent && attemptedResultText
+        ? attemptedResultText
+        : 'PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS. Reverify prior requests with the operator before another attempt.');
   }
 }
 const renderSnapshot = (snapshot) => {
@@ -460,6 +489,9 @@ async function submitBuy(event) {
   // malformed/untrusted response. Only the server can establish its outcome.
   attemptedIntentKeys.add(intentKey);
   attemptedIntentKey = intentKey;
+  attemptedResultText = null;
+  attemptedResultExpiresAtMs = null;
+  clearReceiptExpiryTimer();
   submitBusy = true;
   updateSubmit();
   setText('[data-buy-result]', 'Creating guarded request… no funds are being sent.');
@@ -521,7 +553,12 @@ async function submitBuy(event) {
       typeof instructedAmount === 'string' || typeof instructedAmount === 'number'
         ? usdcAtoms(String(instructedAmount))
         : null;
+    const instructionExpiresAtMs = request.payment_instructions?.expires_at_ms;
     if (
+      !Number.isSafeInteger(instructionExpiresAtMs) ||
+      instructionExpiresAtMs <= Date.now() ||
+      !Number.isSafeInteger(request.launch_authority?.expires_at_ms) ||
+      instructionExpiresAtMs !== request.launch_authority.expires_at_ms ||
       instructedAtoms === null ||
       instructedAtoms !== submittedAtoms ||
       request.payment_instructions?.request_id !== request.request_id ||
@@ -539,6 +576,7 @@ async function submitBuy(event) {
     ) {
       throw new Error('returned request safety binding mismatch');
     }
+    attemptedResultExpiresAtMs = instructionExpiresAtMs;
     attemptedResultText = [
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
@@ -554,6 +592,7 @@ async function submitBuy(event) {
       '',
       `Keep the ${rail.label} transaction hash. Payment observation is not itself a fulfillment receipt.`,
     ].join('\n');
+    armReceiptExpiryTimer(instructionExpiresAtMs);
     // A POST can resolve after live readiness switched to HOLD, SOLD OUT,
     // or became unavailable. Preserve the outcome in memory only; the
     // finally/updateSubmit path renders it solely on verified OPEN and
