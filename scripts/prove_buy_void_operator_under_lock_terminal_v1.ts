@@ -82,6 +82,116 @@ try {
       "stale mark wrote a visible sidecar");
   }
 
+  // A journaled fulfillment with no derived sidecar is recoverable ONLY
+  // when the retry supplies the byte-for-byte same original event.
+  const recoveredTerminal: any = await mark(first, "fulfilled", 200);
+  assert.equal(recoveredTerminal.ok, true);
+  assert.equal(recoveredTerminal.journal_reused, true);
+  assert.equal(recoveredTerminal.sidecar_recovered, true);
+  assert.deepEqual(fs.readFileSync(historyPath), before,
+    "exact fulfilled recovery duplicated a canonical journal event");
+  const terminalSidecar = path.join(root,
+    "operator-event-" + first.request_id + "-200.json");
+  assert.deepEqual(JSON.parse(fs.readFileSync(terminalSidecar, "utf8")), terminal);
+  const existingTerminal: any = await mark(first, "fulfilled", 200);
+  assert.equal(existingTerminal.journal_reused, true);
+  assert.equal(existingTerminal.sidecar_recovered, false);
+  assert.deepEqual(fs.readFileSync(historyPath), before);
+
+  // Exercise an actual failed sidecar open AFTER the journal's append/fsync.
+  // Retry is exact; a changed event, a forged sidecar or a later legacy row
+  // must not be silently adopted as an original fulfilled transaction.
+  {
+    const recoverRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-sidecar-recovery-"),
+    );
+    fs.chmodSync(recoverRoot, 0o700);
+    const recoverLedger = path.join(recoverRoot, "operator-events.jsonl");
+    const recoverEvent = event(first, "fulfilled", 901);
+    const recoverSidecar = path.join(recoverRoot,
+      "operator-event-" + first.request_id + "-901.json");
+    const originalOpenSync = fs.openSync;
+    let interruptionReached = false;
+    const persist = async (incoming: typeof recoverEvent): Promise<any> =>
+      writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: incoming, request: first, request_dir: recoverRoot,
+        with_launch_authority_mutation: noLaunch,
+        read_sale_state: noSale,
+      });
+    try {
+      (fs as any).openSync = function(
+        pathname: fs.PathLike, flags: string | number, mode?: any,
+      ) {
+        if (!interruptionReached &&
+            String(pathname).endsWith(
+              "operator-event-" + first.request_id + "-901.json") &&
+            typeof flags === "number" &&
+            (flags & fs.constants.O_CREAT) !== 0) {
+          interruptionReached = true;
+          const e: NodeJS.ErrnoException =
+            new Error("SYNTHETIC_SIDECAR_WRITE_INTERRUPTED");
+          e.code = "ENOSPC";
+          throw e;
+        }
+        return Reflect.apply(originalOpenSync, fs,
+          [pathname, flags, mode]);
+      };
+      await assert.rejects(
+        () => persist(recoverEvent),
+        /SYNTHETIC_SIDECAR_WRITE_INTERRUPTED/u,
+        "expected failure after journal fsync but before sidecar publication",
+      );
+    } finally {
+      (fs as any).openSync = originalOpenSync;
+    }
+    try {
+      assert.equal(interruptionReached, true);
+      const authoritative = fs.readFileSync(recoverLedger);
+      assert.equal(authoritative.toString("utf8"),
+        JSON.stringify(recoverEvent) + "\n");
+      assert.equal(fs.existsSync(recoverSidecar), false);
+      const exactRetry = await persist(recoverEvent);
+      assert.equal(exactRetry.ok, true);
+      assert.equal(exactRetry.journal_reused, true);
+      assert.equal(exactRetry.sidecar_recovered, true);
+      assert.deepEqual(fs.readFileSync(recoverLedger), authoritative,
+        "crash retry must not append a second fulfilled row");
+      assert.equal(fs.readFileSync(recoverSidecar, "utf8"),
+        JSON.stringify(recoverEvent, null, 2));
+      const stableRetry = await persist(recoverEvent);
+      assert.equal(stableRetry.journal_reused, true);
+      assert.equal(stableRetry.sidecar_recovered, false);
+      assert.deepEqual(fs.readFileSync(recoverLedger), authoritative);
+
+      await assert.rejects(
+        () => persist({ ...recoverEvent, quoted_void: 999 }),
+        /buy_void_operator_fulfilled_terminal_under_lock/u,
+        "changed fulfillment payload must not inherit exact replay authority",
+      );
+      fs.writeFileSync(recoverSidecar, '{"forged":true}', { mode: 0o600 });
+      await assert.rejects(
+        () => persist(recoverEvent),
+        /buy_void_operator_terminal_sidecar_conflict/u,
+        "an existing mismatched sidecar must not be overwritten",
+      );
+      assert.equal(fs.readFileSync(recoverSidecar, "utf8"), '{"forged":true}');
+      assert.deepEqual(fs.readFileSync(recoverLedger), authoritative);
+      fs.writeFileSync(recoverSidecar,
+        JSON.stringify(recoverEvent, null, 2), { mode: 0o600 });
+      const downgraded = event(first, "rejected", 902);
+      fs.appendFileSync(recoverLedger, JSON.stringify(downgraded) + "\n");
+      const ambiguous = fs.readFileSync(recoverLedger);
+      await assert.rejects(
+        () => persist(recoverEvent),
+        /buy_void_operator_fulfilled_terminal_under_lock/u,
+        "historical fulfilled followed by a downgrade cannot recover as clean",
+      );
+      assert.deepEqual(fs.readFileSync(recoverLedger), ambiguous);
+    } finally {
+      fs.rmSync(recoverRoot, { recursive: true, force: true });
+    }
+  }
+
   // A terminal row for request A cannot freeze unrelated request B.
   const unrelated = await mark(other, "reviewed", 400);
   assert.equal(unrelated.ok, true);
@@ -270,6 +380,7 @@ try {
   console.log("malformed_raw_history_holds_before_append=true");
   console.log("terminal_history_hostile_intrinsics_ignored=true");
   console.log("terminal_descriptor_path_swap_holds_without_visible_append=true");
+  console.log("terminal_exact_fulfilled_sidecar_recovery_without_duplicate=true");
   console.log("under_request_lock_jsonl_revalidated=true");
   console.log("actual_customer_ledger_access=false");
   console.log("payment_acceptance=false");

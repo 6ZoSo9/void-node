@@ -11,7 +11,7 @@ import {
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const EXPECTED_WRITER_BLOB="edcf220e6ce764c068ac111c5332c64db12efae1";
+const EXPECTED_WRITER_BLOB="34418a0d4dd343f6a60f0596ae009a9814b4d8ba";
 const source=fs.readFileSync(path.join(ROOT,"src/economic/buy_void_verified_payment_capacity_admission_v1.ts"));
 const blob=crypto.createHash("sha1")
   .update(Buffer.from("blob "+source.length+"\0","utf8")).update(source).digest("hex");

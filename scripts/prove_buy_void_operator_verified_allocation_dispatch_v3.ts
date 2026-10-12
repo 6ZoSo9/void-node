@@ -28,7 +28,7 @@ const FROZEN_DISPATCH_PROOF_V1_GIT_BLOB =
 const FROZEN_DISPATCH_PROOF_V2_GIT_BLOB =
   "5050498f600efd7d5c83af214f75663a66685d6e";
 const REQUIRED_WRITER_SOURCE_GIT_BLOB =
-  "edcf220e6ce764c068ac111c5332c64db12efae1";
+  "34418a0d4dd343f6a60f0596ae009a9814b4d8ba";
 
 function gitBlob(bytes: Buffer): string {
   return crypto.createHash("sha1")

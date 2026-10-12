@@ -2644,6 +2644,13 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           const priorEvents = parseStrictJsonLinesV1(
             strictRead.bytes, code,
           );
+          // The journal is authoritative. Reuse it only when the single
+          // already-committed fulfilled row is byte-canonical and exactly
+          // the event admitted by this operation. A later same-request row
+          // (including a legacy downgrade) makes recovery ambiguous.
+          const exactEventJson = CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent);
+          let fulfilledAlreadyCommitted = false;
+          let historicalFulfillmentSeen = false;
           for (let rowIndex = 0; rowIndex < priorEvents.length; rowIndex += 1) {
             const slot = CAPACITY_HISTORY_DESCRIPTOR_V1(
               priorEvents, String(rowIndex),
@@ -2660,27 +2667,85 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
                 typeof rowStatus.value !== "string") {
               fail("buy_void_operator_terminal_history_ambiguous");
             }
-            if (rowRequest.value === requestId &&
-                rowStatus.value === "fulfilled") {
+            if (rowRequest.value !== requestId) continue;
+            if (historicalFulfillmentSeen) {
               fail("buy_void_operator_fulfilled_terminal_under_lock");
+            }
+            if (rowStatus.value === "fulfilled") {
+              historicalFulfillmentSeen = true;
+              if (operatorStatus !== "fulfilled" ||
+                  CAPACITY_HISTORY_STRINGIFY_V1(row) !== exactEventJson) {
+                fail("buy_void_operator_fulfilled_terminal_under_lock");
+              }
+              fulfilledAlreadyCommitted = true;
             }
           }
 
-          const sidecarVisible = path.join(requestDir, sidecarName);
-          assertPinnedRequestDirectoryVisibleV1(directory);
-          try {
-            fs.lstatSync(sidecarVisible, { bigint: true });
-            fail("buy_void_operator_terminal_sidecar_already_exists");
-          } catch (error: any) {
-            if (String(error?.code || "") !== "ENOENT") throw error;
+          // Recheck the exact journal generation even on a recovery-only
+          // path; do not create a sidecar against a changed/detached log.
+          const atUse = assertPinnedLedgerVisibleV1(operatorLedger, code);
+          if (!sameFileIdentityV1(strictRead.stat, atUse)) {
+            fail("buy_void_operator_terminal_history_changed_since_read");
           }
-          // Exactly the previously parsed native event bytes are appended,
-          // with O_APPEND on the held inode, fsync, and post-append identity.
-          appendPaymentVerifiedEventDurableV1(
-            operatorLedger, strictRead.stat, operatorEventLine,
+          const sidecarNameCode = "buy_void_operator_terminal_sidecar";
+          const sidecarBytes = Buffer.from(
+            CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent, null, 2), "utf8",
           );
-          // Crash after journal fsync but before sidecar fsync stays a HOLD;
-          // this does not imply durable exactly-once recovery.
+          if (sidecarBytes.length < 2 ||
+              sidecarBytes.length > LEDGER_MAX_BYTES) {
+            fail("buy_void_operator_terminal_sidecar_bytes_invalid");
+          }
+          // A pre-existing sidecar is never overwritten. If and ONLY if
+          // journal evidence proves this exact historical fulfillment, read
+          // the visible sidecar through a verified FD and require exact bytes.
+          const existingSidecar = openPinnedLedgerV1(
+            directory, sidecarName, sidecarNameCode,
+            { writable: false, create: false },
+          );
+          if (existingSidecar !== null) {
+            try {
+              if (!fulfilledAlreadyCommitted) {
+                fail("buy_void_operator_terminal_sidecar_already_exists");
+              }
+              const existingBytes = readPinnedLedgerBytesV1(
+                existingSidecar, sidecarNameCode,
+              ).bytes;
+              if (existingBytes.length !== sidecarBytes.length) {
+                fail("buy_void_operator_terminal_sidecar_conflict");
+              }
+              for (let byteIndex = 0; byteIndex < sidecarBytes.length;
+                byteIndex += 1) {
+                if (existingBytes[byteIndex] !== sidecarBytes[byteIndex]) {
+                  fail("buy_void_operator_terminal_sidecar_conflict");
+                }
+              }
+            } finally {
+              fs.closeSync(existingSidecar.fd);
+            }
+            const afterSidecar = assertPinnedLedgerVisibleV1(
+              operatorLedger, code,
+            );
+            if (!sameFileIdentityV1(strictRead.stat, afterSidecar)) {
+              fail("buy_void_operator_terminal_history_changed_since_read");
+            }
+            return {
+              ok: true, dir: requestDir,
+              journal_reused: true, sidecar_recovered: false,
+            };
+          }
+
+          if (!fulfilledAlreadyCommitted) {
+            // The exact canonical bytes are appended once to the held inode
+            // and fsynced before publishing the derived sidecar.
+            appendPaymentVerifiedEventDurableV1(
+              operatorLedger, strictRead.stat, operatorEventLine,
+            );
+          }
+
+          // Interruption after journal fsync can leave a missing sidecar.
+          // Only the exact fulfilled retry above may repair that gap, with
+          // no second event append. Ambiguous/incomplete history still HOLDs.
+          assertPinnedRequestDirectoryVisibleV1(directory);
           const sidecarFd = fs.openSync(
             path.join(directory.proc_path, sidecarName),
             fs.constants.O_WRONLY | fs.constants.O_CREAT |
@@ -2688,13 +2753,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
             0o600,
           );
           try {
-            const sidecarBytes = Buffer.from(
-              CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent, null, 2), "utf8",
-            );
-            if (sidecarBytes.length < 2 ||
-                sidecarBytes.length > LEDGER_MAX_BYTES) {
-              fail("buy_void_operator_terminal_sidecar_bytes_invalid");
-            }
             const written = fs.writeSync(
               sidecarFd, sidecarBytes, 0, sidecarBytes.length, null,
             );
@@ -2703,9 +2761,11 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
             }
             fs.fsyncSync(sidecarFd);
             const opened = fs.fstatSync(sidecarFd, { bigint: true });
-            const visible = fs.lstatSync(sidecarVisible, { bigint: true });
-            validateLedgerStatV1(opened, "buy_void_operator_terminal_sidecar");
-            validateLedgerStatV1(visible, "buy_void_operator_terminal_sidecar");
+            const visible = fs.lstatSync(
+              path.join(requestDir, sidecarName), { bigint: true },
+            );
+            validateLedgerStatV1(opened, sidecarNameCode);
+            validateLedgerStatV1(visible, sidecarNameCode);
             if (!sameFileIdentityV1(opened, visible)) {
               fail("buy_void_operator_terminal_sidecar_path_changed");
             }
@@ -2714,11 +2774,15 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           } finally {
             fs.closeSync(sidecarFd);
           }
+          return {
+            ok: true, dir: requestDir,
+            journal_reused: fulfilledAlreadyCommitted,
+            sidecar_recovered: fulfilledAlreadyCommitted,
+          };
         } finally {
           if (operatorLedger !== null) fs.closeSync(operatorLedger.fd);
           fs.closeSync(directory.fd);
         }
-        return { ok: true, dir: requestDir };
       },
     );
   }
