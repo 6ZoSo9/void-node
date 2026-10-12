@@ -62,8 +62,16 @@ export function buyVoidCurrentPresaleApplyTargetV1(
       (rpc.hostname === "127.0.0.1" ||
        rpc.hostname === "localhost" ||
        rpc.hostname === "[::1]")) return false;
+  // Match the selected production listener by parsed endpoint identity,
+  // not by raw URL spelling: no slash, alternate loopback names, or added
+  // path segments must turn an arbitrary contract into an allowed E2 sale.
+  const selectedPortAlias =
+    rpc.port === "18553" &&
+    (rpc.hostname === "127.0.0.1" ||
+     rpc.hostname === "localhost" ||
+     rpc.hostname === "[::1]");
   if (normalizedTarget === VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
-      rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1) {
+      selectedPortAlias) {
     return normalizedTarget === VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 &&
       rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1 &&
       normalizedSigner === VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;

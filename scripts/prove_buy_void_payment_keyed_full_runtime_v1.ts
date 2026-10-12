@@ -588,6 +588,12 @@ async function runScenario(
     [CONTRACT, E1_RPC, WALLET, "retired_rpc_any_contract"],
     [CONTRACT, "http://localhost:8545/", WALLET, "retired_alias"],
     [CONTRACT, E2_RPC, WALLET, "unreviewed_target_at_selected_rpc"],
+    [CONTRACT, "http://127.0.0.1:18553", WALLET,
+      "selected_port_missing_trailing_slash"],
+    [CONTRACT, "http://localhost:18553/", WALLET,
+      "selected_port_loopback_alias"],
+    [CONTRACT, "http://127.0.0.1:18553/alternate", WALLET,
+      "selected_port_path_alias"],
     [VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,
       WALLET, "wrong_epoch2_fulfiller"],
   ] as const;
