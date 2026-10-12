@@ -143,6 +143,13 @@ for (const required of [
   "request.status !== 'awaiting_payment_tx_hash'",
   "body.idempotent !== false",
   "response.status !== 201",
+  "!/^[A-Za-z0-9_-]{1,128}$/.test(request.request_id)",
+  "request.persisted?.ok !== true",
+  "request.ok !== true",
+  "request.marker !== BUY_MARKER",
+  "request.schema !== 'void_public_buy_void_checkout_request_v1'",
+  "body.one_active_request_cap_enforced !== true",
+  "body.marker !== BUY_MARKER",
   "attemptedResultExpiresAtMs",
   "REQUEST INSTRUCTIONS EXPIRED",
   "armReceiptExpiryTimer",
@@ -471,8 +478,14 @@ sandbox.fetch = async (...args) => {
   const requestBody = {
     ok: true,
     schema: "void_public_buy_void_checkout_request_result_v1",
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    one_active_request_cap_enforced: true,
     idempotent: false,
     request: {
+      schema: "void_public_buy_void_checkout_request_v1",
+      marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+      ok: true,
+      persisted: { ok: true },
       delivery_chain: "void",
       delivery_chain_id: 2050,
       asset_in: "USDC",
@@ -702,8 +715,14 @@ for (const [caseLabel, closedSnapshot] of [
   const responseBody = {
     ok: true,
     schema: "void_public_buy_void_checkout_request_result_v1",
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    one_active_request_cap_enforced: true,
     idempotent: false,
     request: {
+      schema: "void_public_buy_void_checkout_request_v1",
+      marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+      ok: true,
+      persisted: { ok: true },
       delivery_chain: "void",
       delivery_chain_id: 2050,
       asset_in: "USDC",
@@ -1177,6 +1196,23 @@ for (const [label, amount, outcome] of [
 // a synthetic VM's Set here is test-only; the shipping browser has no reset.
 buyTest.resetForIndependentReceiptFixtures();
 const badDeliveryReceipts = [
+  // The browser must not trust the edge proxy (still a separate Draft).
+  // Absent durability proof or wrong canonical creation envelope: HOLD.
+  ["missing_persistence_evidence", (body) => { delete body.request.persisted; }],
+  ["false_persistence_evidence", (body) => { body.request.persisted.ok = false; }],
+  ["string_persistence_evidence", (body) => { body.request.persisted.ok = "true"; }],
+  ["missing_outer_marker", (body) => { delete body.marker; }],
+  ["wrong_outer_marker", (body) => { body.marker = "UNTRUSTED_CHECKOUT"; }],
+  ["missing_active_request_cap", (body) => { delete body.one_active_request_cap_enforced; }],
+  ["false_active_request_cap", (body) => { body.one_active_request_cap_enforced = false; }],
+  ["missing_request_schema", (body) => { delete body.request.schema; }],
+  ["wrong_request_schema", (body) => { body.request.schema = "legacy_request_v0"; }],
+  ["missing_request_marker", (body) => { delete body.request.marker; }],
+  ["wrong_request_marker", (body) => { body.request.marker = "UNTRUSTED_REQUEST"; }],
+  ["false_request_ok", (body) => { body.request.ok = false; }],
+  ["request_id_contains_path_separator", (body) => { body.request.request_id = "buyvoid_/not-a-request"; }],
+  ["request_id_over_128_bytes", (body) => { body.request.request_id = "x".repeat(129); }],
+  ["request_id_wrong_type", (body) => { body.request.request_id = 123; }],
   ["wrong_delivery_chain", (body) => { body.request.delivery_chain = "ethereum"; }],
   ["wrong_delivery_chain_id", (body) => { body.request.delivery_chain_id = 1; }],
   ["coerced_delivery_chain_id", (body) => { body.request.delivery_chain_id = "2050"; }],
@@ -1272,6 +1308,9 @@ console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
 console.log("buy_receipt_native_usdc_chain2050_delivery_bound=true");
 console.log("buy_receipt_request_first_and_operator_bind_flags_required=true");
 console.log("buy_receipt_numeric_chain_fields_type_strict=true");
+console.log("buy_receipt_requires_durable_new_request_ack=true");
+console.log("buy_receipt_canonical_creation_envelope_bound=true");
+console.log("buy_receipt_request_id_bounded_and_safe=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
 console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
