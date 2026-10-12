@@ -62,7 +62,7 @@ export const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_preparation_custody_v1.ts":
     "3b06f5d87f1647003348c7459cb3797a3394d343",
   "src/economic/buy_void_epoch2_signer_control_v1.ts":
-    "0ce33a35da61199b597bad80fa019dca26ffade1",
+    "785fe80d74ae5f6840da22a19a337cd2bcee9944",
   // The successor's separate systemd credential and its inert adversarial
   // proof are independent of the frozen E1 signer evidence.
   "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts":

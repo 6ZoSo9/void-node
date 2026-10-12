@@ -67,7 +67,7 @@ jobs:
           else
             grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CANDIDATE_V1_HOLD' "$RUNNER_TEMP/v1-candidate.log"
             grep -Fx 'reason=head_inherited_source_blob_mismatch:src/economic/buy_void_payment_keyed_full_runtime_v1.ts' "$RUNNER_TEMP/v1-candidate.log"
-            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "55ff3d203daf4e62b417303041ddc6a8d60ffc34"
+            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2"
             node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/e2-source.log"
             grep -Fx 'marker=VOID_BUY_VOID_EPOCH2_CLAIMED_PG_SOURCE_QUALIFICATION_V1' "$RUNNER_TEMP/e2-source.log"
             grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/e2-source.log"
