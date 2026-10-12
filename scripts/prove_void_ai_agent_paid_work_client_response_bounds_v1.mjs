@@ -568,6 +568,68 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// A custom getReader() may throw while the body still needs cancellation.
+{
+  let cancelCalls = 0;
+  let readerCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        readerCalls += 1;
+        throw new Error("synthetic_get_reader_failure");
+      },
+      cancel() {
+        cancelCalls += 1;
+        return Promise.reject(new Error("synthetic_acquisition_cancel_failure"));
+      },
+    },
+  }));
+  const baseUrl = "https://get-reader-failure.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failure = await capturePrimaryError(run);
+  assert.equal(failure.message, "synthetic_get_reader_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal(readerCalls, 1);
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "reader acquisition failure reentered fetch");
+  assert.equal(cancelCalls, 1);
+}
+
+// Real WHATWG Response, locked by a foreign reader: body.cancel() rejects.
+// The client must not open another origin generation during that lock.
+{
+  const sourceBody = new ReadableStream({
+    start(controller) { controller.enqueue(bytes("{")); },
+  });
+  const lockedResponse = new Response(sourceBody, {
+    status: 200, headers: { "content-type": "application/json" },
+  });
+  const externallyHeldReader = lockedResponse.body.getReader();
+  try {
+    const fixture = makeFetch(() => lockedResponse);
+    const baseUrl = "https://already-locked-body.example.invalid";
+    const run = () => probeVoidAiAgentPaidWorkV1({
+      baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+    });
+    const rejected = await capturePrimaryError(run);
+    assert.ok(rejected instanceof Error);
+    assert.notEqual(rejected.message, "response_body_read_generation_unresolved");
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+    assert.equal(fixture.calls, 1, "locked stream must keep one origin slot");
+  } finally {
+    await externallyHeldReader.cancel();
+    externallyHeldReader.releaseLock();
+  }
+}
+
 // Early rejection can leave an already-admitted response body unresolved.
 // Even if its nominal byte ceiling fails before reading, failed cleanup must
 // not allow repeated same-origin bodies to accumulate.
@@ -1067,6 +1129,8 @@ console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
 console.log("partial_late_read_failed_cancel_quarantined=true");
 console.log("oversize_body_rejected_cancel_quarantined=true");
+console.log("get_reader_throw_unconfirmed_cancel_quarantined=true");
+console.log("native_locked_stream_origin_quarantined=true");
 console.log("malformed_length_pending_cancel_quarantined=true");
 console.log("stream_oversize_failed_cancel_retains_reader=true");
 console.log("late_successful_oversize_cancel_releases_origin=true");
