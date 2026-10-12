@@ -458,6 +458,101 @@ for (const fixture of [
        "valid complete bounded JSON must still parse");
      await assert.rejects(() => buyTest.strictJson(good, 0),
        /invalid Buy VOID body deadline/u);
+     // Simulate a throttled/background tab: deadline callbacks are queued
+     // but never invoked. A reader continuation which completes after the
+     // monotonic budget MUST NOT win the Promise.race or return payment data.
+     const savedTimers = [sandbox.setTimeout, sandbox.clearTimeout];
+     const initialMono = syntheticMonoMs;
+     let queuedDeadlineCallbacks = 0;
+     sandbox.setTimeout = (_callback, _duration) => {
+       queuedDeadlineCallbacks += 1;
+       return queuedDeadlineCallbacks;
+     };
+     sandbox.clearTimeout = (_id) => undefined;
+     try {
+       const jsonBytes = new TextEncoder().encode('{"ok":true}');
+       for (const scenario of [
+         "late_first_chunk",
+         "late_eof",
+         "monotonic_rollback",
+         "monotonic_unavailable",
+       ]) {
+         syntheticMonoMs = 250000;
+         let reads = 0;
+         let cancels = 0;
+         const simulatedResponse = {
+           headers: { get(name) {
+             return name === "content-type" ? "application/json" : null;
+           } },
+           body: { getReader() {
+             return {
+               read() {
+                 reads += 1;
+                 if (scenario === "late_first_chunk") {
+                   syntheticMonoMs += 11;
+                   return Promise.resolve({ done: false, value: jsonBytes });
+                 }
+                 if (scenario === "monotonic_rollback") {
+                   syntheticMonoMs -= 1;
+                   return Promise.resolve({ done: false, value: jsonBytes });
+                 }
+                 if (scenario === "monotonic_unavailable") {
+                   syntheticMonoMs = Number.NaN;
+                   return Promise.resolve({ done: false, value: jsonBytes });
+                 }
+                 // A complete, legitimate-looking JSON chunk arrived in time,
+                 // but the *EOF* arrives after the clock has passed the limit.
+                 if (reads === 1) {
+                   return Promise.resolve({ done: false, value: jsonBytes });
+                 }
+                 syntheticMonoMs += 11;
+                 return Promise.resolve({ done: true });
+               },
+               cancel() { cancels += 1; return Promise.resolve(); },
+             };
+           } },
+         };
+         const queuedBefore = queuedDeadlineCallbacks;
+         await assert.rejects(
+           () => buyTest.strictJson(simulatedResponse, 10),
+           /Buy VOID response body deadline exceeded/u,
+           scenario + ": monotonic time, not a delayed timer, must reject the body",
+         );
+         assert.equal(cancels, 1, scenario + ": cancelled without awaiting");
+         assert.equal(reads, scenario === "late_eof" ? 2 : 1);
+         assert.equal(queuedDeadlineCallbacks, queuedBefore + 1,
+           scenario + ": watchdog was queued but never executed");
+       }
+       // An ordinary complete response inside the monotonic window remains
+       // usable even though the timer scheduler is deliberately frozen.
+       syntheticMonoMs = 350000;
+       let positiveReads = 0;
+       let positiveCancels = 0;
+       const positiveResponse = {
+         headers: { get(name) {
+           return name === "content-type" ? "application/json" : null;
+         } },
+         body: { getReader() {
+           return {
+             read() {
+               positiveReads += 1;
+               syntheticMonoMs += 3;
+               return Promise.resolve(positiveReads === 1
+                 ? { done: false, value: jsonBytes }
+                 : { done: true });
+             },
+             cancel() { positiveCancels += 1; throw new Error("no cancellation"); },
+           };
+         } },
+       };
+       assert.equal((await buyTest.strictJson(positiveResponse, 10)).ok, true,
+         "within-budget monotonic JSON must remain accepted");
+       assert.equal(positiveReads, 2);
+       assert.equal(positiveCancels, 0);
+     } finally {
+       syntheticMonoMs = initialMono;
+       [sandbox.setTimeout, sandbox.clearTimeout] = savedTimers;
+     }
    } finally {
      sandbox.setTimeout = oldTimeout;
      sandbox.clearTimeout = oldClearTimeout;
@@ -1701,6 +1796,8 @@ console.log("response_body_max_bytes=131072");
 console.log("buy_response_cancel_never_blocks_checkout_hold=true");
 console.log("buy_response_body_absolute_read_deadline=true");
 console.log("buy_response_infinite_trickle_deadline_cannot_reset=true");
+console.log("buy_response_delayed_timer_monotonic_deadline_bound=true");
+console.log("buy_response_monotonic_clock_rollback_or_absence_holds=true");
 console.log("returned_request_intent_bound=1");
 console.log("receipt_live_activation_lease_max_300000ms_bound=true");
 console.log("impossible_five_minute_plus_one_receipt_refused=true");
