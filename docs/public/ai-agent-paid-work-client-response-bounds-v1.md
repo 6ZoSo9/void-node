@@ -19,7 +19,7 @@ For discovery, route probing, and authenticated submission responses, the client
 - actively aborts the owned request as soon as redirect, malformed length, oversize, unavailable/non-readable body, or admitted read failure is known;
 - retains one exact admitted `response.body` reference through all header checks, `getReader()` acquisition and cancellation. A mutable body getter cannot substitute `null` or a different stream after acquisition fails; an initially throwing getter retains the origin generation as unverifiable;
 - snapshots HTTP status and the headers/get method **once** before route/status decisions; a throwing status/header getter or header read triggers cancellation of the admitted body and preserves quarantine until confirmed cleanup;
-- invokes exactly the first captured `cancel` method with its original body receiver, including late fetch response cleanup. A mutable cancel getter cannot swap a never-settling real cancellation for an apparently successful second-call no-op;
+- captures the first `cancel` method **before** dispatching its own AbortSignal, then invokes that exact method with its original body receiver, including late fetch response cleanup. A synchronous abort listener cannot swap a never-settling original cancellation for a resolved no-op and falsely retire the origin;
 - reserves the original per-origin generation while **any** rejected response body or reader has unconfirmed cancellation, including declared/streamed oversize, invalid length, redirect, non-deadline reader errors and failed `getReader()` acquisition; an unresolved, throwing-property or rejected cancellation cannot silently become a new fetch allowance;
 - retains request ownership through bounded reader/body cancellation for every terminal body failure, including timeout/read rejection after response headers;
 - gives cleanup a separate maximum 250 ms teardown window so a deadline-triggered read error cannot return while teardown is completely unowned;
@@ -59,6 +59,7 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a response whose `body` getter changes after the first observation still cancels only the admitted original body (one getter read), and a throwing first body/cancel getter preserves the primary error and retains quarantine;
 - mutable status 301→500 still rejects redirect from the first value, and throwing status/header getters and methods preserve the original failure and block new same-origin fetches;
 - both ordinary size-refusal cancellation and late-fetch cancellation use the **first** getter-returned method only; a second resolved no-op can never retire the original unsettled generation;
+- a synchronous abort listener that replaces the original pending cancellation method with a resolved fake cannot authorize the false release of another same-origin fetch;
 - a body cancellation that succeeds only after the bounded caller teardown later retires the exact original generation, permitting new clean requests;
 - when a previously pending cancellation later succeeds after a partial read settles, exactly one lock release restores same-origin admission;
 - a permanently non-settling read remains quarantined across repeated calls without additional fetches or cancellation attempts;
