@@ -1013,7 +1013,7 @@ for (const existing of [false, true]) {
     const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
       candidate,[readers.withLock,readers.readRequests,readers.readEvents,
         readers.applyEvents,readers.terminalStatus,()=>true]);
-    let injected=false, sidecarStats=0;
+    let injected=false, sidecarStats=0, injectedInode=null;
     try {
       process.env.VOID_BUY_REQUEST_DIR=root;
       await persist(owner);
@@ -1028,15 +1028,16 @@ for (const existing of [false, true]) {
       altered[idOffset]=altered[idOffset]===0x62?0x63:0x62;
       assert.equal(altered.length,pristine.length);
       if(recovered)fs.unlinkSync(sidecar);
-      // The third visible sidecar stat is the existing-sidecar final
-      // visibility check. A new recovery sidecar has an extra post-fsync
-      // visibility check, so its fourth stat is the final gate.
-      const targetStat=recovered?4:3;
+      // Count successful visible sidecar stats (ENOENT is not one).
+      // Both recovery and pre-existing paths reach their final pre-readback
+      // visibility check at the third successful sidecar lstat.
+      const targetStat=3;
       fs.lstatSync=function(file,options){
         const observed=nativeLstat(file,options);
         if(String(file).endsWith("/"+owner.request_id+".json")) {
           sidecarStats+=1;
           if(!injected&&sidecarStats===targetStat) {
+            injectedInode=observed.ino;
             const held=nativeOpen(sidecar,
               fs.constants.O_WRONLY|fs.constants.O_NOFOLLOW);
             try {
@@ -1054,8 +1055,9 @@ for (const existing of [false, true]) {
         "equal-length same-inode late rewrite must fail final readback");
       assert.equal(injected,true,"late final-check adversary must fire");
       assert.ok(sidecarStats>=targetStat,"must cross exact final gate");
-      assert.equal(fs.statSync(sidecar).ino,
-        recovered?fs.statSync(sidecar).ino:originalInode);
+      assert.equal(fs.statSync(sidecar,{bigint:true}).ino,injectedInode,
+        "equal-length adversary must retain the exact visible inode");
+      if(!recovered)assert.equal(fs.statSync(sidecar).ino,originalInode);
       assert.equal(fs.readFileSync(sidecar).length,pristine.length);
       assert.deepEqual(fs.readFileSync(ledger),journalBefore,
         "reuse under corruption must never append a second obligation");
