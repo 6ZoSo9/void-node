@@ -54,7 +54,7 @@ expected=expected.slice(0,afterCtor)+"\n  __apiSegStore = node.store;\n"+
 assert.equal(baseline,expected,
   "frozen main must equal exactly the historic two-hunk seal-first repair");
 const markerStart="  const node = new Node(P2P_PORT, kp, {";
-const markerEnd="\\n// [ADD] expose live node globally";
+const markerEnd="\n// [ADD] expose live node globally";
 const mainStart=baseline.indexOf(markerStart);
 const mainEnd=baseline.indexOf(markerEnd,mainStart);
 const successorStart=s.indexOf(markerStart);
