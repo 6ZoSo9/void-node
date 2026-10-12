@@ -369,16 +369,25 @@ const pinnedAppendAt = requestHelper.indexOf(
 const lastBeforeWrite = requestHelper.lastIndexOf(
   "assertCurrentAuthority();",pinnedAppendAt);
 const journalFsyncAt = requestHelper.indexOf("fs.fsyncSync(journalFd);",pinnedAppendAt);
+// The current helper bounds and serializes the canonical sidecar *once*
+// before the publication; the historical JSON.stringify direct-write shape
+// was removed to permit final exact-byte readback. This is a current-positive
+// source check, not a repin of the frozen historical V1 proof.
+const canonicalSidecarAt = requestHelper.indexOf(
+  "REQUEST_HISTORY_JSON_STRINGIFY_V1(reqObj, null, 2)",journalFsyncAt);
 const sidecarWriteAt = requestHelper.indexOf(
-  "fs.writeFileSync(sidecarFd, JSON.stringify(reqObj, null, 2));",journalFsyncAt);
+  "fs.writeFileSync(sidecarFd, canonicalSidecarBytes);",journalFsyncAt);
 const sidecarFsyncAt = requestHelper.indexOf("fs.fsyncSync(sidecarFd);",sidecarWriteAt);
 const dirFsyncAt = requestHelper.indexOf("fs.fsyncSync(dirFd);",sidecarFsyncAt);
+const finalByteCheckAt = requestHelper.indexOf(
+  "assertPrivateSidecarContentsAtSuccessV1(",dirFsyncAt);
 assert.ok(helperAt>=0&&lockHeldAt>helperAt&&strictHistoryAt>lockHeldAt&&
   journalRetainedAt>strictHistoryAt&&revisionAt>journalRetainedAt&&
   lastBeforeWrite>revisionAt&&pinnedAppendAt>lastBeforeWrite&&
-  journalFsyncAt>pinnedAppendAt&&sidecarWriteAt>journalFsyncAt&&
-  sidecarFsyncAt>sidecarWriteAt&&dirFsyncAt>sidecarFsyncAt,
-  "must revalidate under launch lock, retain checked journal FD and durably publish sidecar");
+  journalFsyncAt>pinnedAppendAt&&canonicalSidecarAt>journalFsyncAt&&
+  sidecarWriteAt>canonicalSidecarAt&&sidecarFsyncAt>sidecarWriteAt&&
+  dirFsyncAt>sidecarFsyncAt&&finalByteCheckAt>dirFsyncAt,
+  "must revalidate under launch lock and durably publish and recheck canonical sidecar bytes");
 assert.match(requestHelper,/fs[.]constants[.]O_NOFOLLOW/u);
 assert.match(requestHelper,/fs[.]constants[.]O_EXCL/u);
 assert.match(requestHelper,/assertPrivateSidecarStillVisibleV1/u);
