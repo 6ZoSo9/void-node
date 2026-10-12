@@ -320,6 +320,16 @@ const fullAccepted201Receipt = {
   },
 };
 const fullAccepted201Json = JSON.stringify(fullAccepted201Receipt, null, 3)+"\n";
+const fullLegacy201Json = JSON.stringify({
+  ...fullAccepted201Receipt,
+  request: {
+    ...fullAccepted201Receipt.request,
+    persisted: {
+      ok: true,
+      file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+    },
+  },
+}, null, 3)+"\n";
 
 const upstream = http.createServer(
   async (req, res) => {
@@ -380,13 +390,17 @@ const upstream = http.createServer(
         // success on the basis of test-only input parsing.
         proofCase = "";
       }
-      if (proofCase === "full_client_contract_201") {
+      if (proofCase === "full_client_contract_201" ||
+          proofCase === "full_client_contract_legacy_file_201") {
+        const isLegacy = proofCase === "full_client_contract_legacy_file_201";
+        const payload = isLegacy ? fullLegacy201Json : fullAccepted201Json;
         res.writeHead(201, {
           "content-type": "application/json; charset=utf-8",
           "cache-control": "public,max-age=60",
-          "content-length": String(Buffer.byteLength(fullAccepted201Json)),
+          "content-length": String(Buffer.byteLength(payload)),
+          ...(isLegacy ? { etag: '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"' } : {}),
         });
-        res.end(fullAccepted201Json);
+        res.end(payload);
         return;
       }
       if (proofCase === "legacy_reuse_private_200") {
@@ -467,6 +481,8 @@ const upstream = http.createServer(
           proofCase === "missing_request_201" ||
           proofCase === "wrong_request_status_201" ||
           proofCase === "private_path_201" ||
+          proofCase === "nonstring_file_201" ||
+          proofCase === "extra_persisted_metadata_201" ||
           proofCase === "wrong_outer_schema_201" ||
           proofCase === "missing_outer_schema_201" ||
           proofCase === "wrong_inner_schema_201" ||
@@ -528,15 +544,27 @@ const upstream = http.createServer(
         if (proofCase === "wrong_intent_chain_201") {
           mutated.request = { ...mutated.request, source_chain: "ethereum" };
         }
-        if (proofCase === "private_path_201") {
-          mutated.request = { ...mutated.request, persisted: {
+        if (proofCase === "private_path_201" ||
+            proofCase === "nonstring_file_201" ||
+            proofCase === "extra_persisted_metadata_201") {
+          const legacyPersisted = {
             ok: true,
             file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
-          } };
+          };
+          if (proofCase === "nonstring_file_201") legacyPersisted.file = 123;
+          if (proofCase === "extra_persisted_metadata_201") {
+            legacyPersisted.private_note = "SENTINEL_PRIVATE_BUYER_NOTE";
+          }
+          mutated.request = { ...mutated.request, persisted: legacyPersisted };
         }
         const body = proofCase === "empty_object_201"
           ? "{}" : JSON.stringify(mutated);
-        res.writeHead(201, { "content-type": "application/json" });
+        res.writeHead(201, {
+          "content-type": "application/json",
+          ...(proofCase === "private_path_201" ? {
+            etag: '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"',
+          } : {}),
+        });
         res.end(body);
         return;
       }
@@ -980,6 +1008,18 @@ try {
   assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
     exactAccepted201Receipt);
 
+  // Canonical main still emits {ok:true,file:<private path>} on HTTP 201.
+  // That 201 is valid, but its private file path and original ETag must
+  // never leave the edge. The safe successor {ok:true} stays byte-preserved.
+  const legacy201 = await postProof("private_path_201");
+  assert.equal(legacy201.status, 201, "legacy successful request stays 201");
+  assert.equal(legacy201.headers.get("etag"), null,
+    "sanitized response must not inherit an upstream private ETag");
+  const legacyPublicText = await legacy201.text();
+  assert.equal(legacyPublicText.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),
+    false, "private sidecar path must never be public");
+  assert.deepEqual(JSON.parse(legacyPublicText), exactAccepted201Receipt);
+
   // Backend accepts reviewed legacy field aliases; the added receipt/
   // intent-binding check must not silently break a valid older API client.
   for (const acceptedLegacyIntent of [
@@ -1011,6 +1051,18 @@ try {
     "full native-USDC buyer receipt must preserve every original byte");
   const fullReceipt = JSON.parse(full201Bytes.toString("utf8"));
   assert.deepEqual(fullReceipt, fullAccepted201Receipt);
+
+  // Also exercise the *complete* node receipt with legacy persisted.file.
+  // All canonical payment instructions remain intact after field redaction.
+  const fullLegacy = await postProof("full_client_contract_legacy_file_201");
+  assert.equal(fullLegacy.status, 201);
+  assert.equal(fullLegacy.headers.get("etag"), null);
+  const fullLegacyPublic = await fullLegacy.text();
+  assert.equal(fullLegacyPublic.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),
+    false);
+  assert.equal(fullLegacyPublic.includes("SENTINEL_PRIVATE_BUY_REQUEST_ETAG"),
+    false);
+  assert.deepEqual(JSON.parse(fullLegacyPublic), fullAccepted201Receipt);
   assert.equal(fullReceipt.request.created_at_ms + 4*60*1000,
     fullReceipt.request.payment_instructions.expires_at_ms);
   assert.equal(fullReceipt.request.launch_authority.expires_at_ms,
@@ -1158,7 +1210,8 @@ try {
     "idempotent_201",
     "missing_request_201",
     "wrong_request_status_201",
-    "private_path_201",
+    "nonstring_file_201",
+    "extra_persisted_metadata_201",
     "wrong_outer_schema_201",
     "missing_outer_schema_201",
     "wrong_inner_schema_201",
@@ -1319,6 +1372,9 @@ try {
   console.log("all_non201_fixtures_seed_private_identity_and_cache_headers=true");
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("legacy_201_private_path_redacted_without_losing_success=true");
+  console.log("full_legacy_201_payment_instructions_preserved=true");
+  console.log("unexpected_persisted_metadata_holds=true");
   console.log("http201_destination_amount_chain_match_submitted_intent=true");
   console.log("public_request_legacy_intent_aliases_preserved=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
