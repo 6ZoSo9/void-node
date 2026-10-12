@@ -36,8 +36,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git cat-file -e cfc4a3c388f998bed217001d1ff7eeecaadca6ca^{commit}
-          test "$(git hash-object scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs)" = "31c09a302b4816bc8725789684e1b8709ba31fa4"
+          git cat-file -e e261923cab5f70f5e77bb2b08f3f12946f1ce489^{commit}
+          test "$(git hash-object scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs)" = "371b8fb363d7a425d765166e99882a205a137895"
           test -z "$(git status --porcelain=v1)"
       - name: Use supported Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
