@@ -19094,7 +19094,11 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           ok:false,
           error:conflict?"one_active_request_per_void_destination":
             lease?"request_launch_authority_expired_or_superseded":
-            "buy_void_checkout_request_failed"
+            "buy_void_checkout_request_failed",
+          // Identical public 409 envelope for a guessed matching or changed
+          // amount/rail. Unauthenticated destination control must not reveal
+          // the earlier buyer's private original request terms.
+          ...(conflict?{one_active_request_cap_enforced:true}:{})
         });
       }
     });
