@@ -1412,6 +1412,156 @@ for (const existing of [false, true]) {
   }
 }
 
+// Close the *new incoming request* inherited-toJSON seam through the
+// ACTUAL COMPILED helper. Native JSON.stringify itself executes an inherited
+// Object.prototype.toJSON even after its function is captured at import.
+// The writer must admit a detached, null-prototype snapshot whose original
+// economic terms match BOTH the exact journal row and the pretty sidecar.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const row=request("buyvoid_inherited_tojson_aaaaaaaa","3","base","1");
+  const originalJson=JSON.stringify(row);
+  const originalPretty=JSON.stringify(row,null,2);
+  const nativeStringify=JSON.stringify;
+  const oldToJSON=Object.getOwnPropertyDescriptor(Object.prototype,"toJSON");
+  const readers=factory(oldPersist,root);
+  const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    candidate,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  let hooks=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    Object.defineProperty(Object.prototype,"toJSON",{
+      configurable:true,
+      value:function(){
+        if(this?.schema==="void_public_buy_void_checkout_request_v1"){
+          hooks++;
+          return {...this,usdc_amount:250,requested_amount_usdc:250,
+            void_destination_address:"0x"+"2".repeat(40)};
+        }
+        return this;
+      },
+    });
+    const poisoned=nativeStringify(row);
+    assert.notEqual(poisoned,originalJson,
+      "positive control must demonstrate inherited toJSON economic drift");
+    assert.equal(hooks,1,"positive control must invoke the inherited hook");
+    assert.match(poisoned,/"usdc_amount":250/u);
+    const result=await persist(row);
+    assert.equal(result.reused_request,null);
+    assert.ok(result.file,"new plain request must create its first sidecar");
+    assert.equal(hooks,1,
+      "actual guarded helper must never serialize the poisoned original");
+    assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
+      originalJson+"\n",
+      "journal amount/address must equal the original admitted request");
+    assert.equal(fs.readFileSync(result.file,"utf8"),originalPretty,
+      "sidecar must represent exactly the same accepted original terms");
+    const rowRead=JSON.parse(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"));
+    assert.equal(rowRead.usdc_amount,3);
+    assert.equal(rowRead.void_destination_address,"0x"+"1".repeat(40));
+  } finally {
+    if(oldToJSON)Object.defineProperty(Object.prototype,"toJSON",oldToJSON);
+    else delete Object.prototype.toJSON;
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+// An ambient Array.prototype iterator can omit an own property name
+// from an Object.keys() array even though keys.length remains unchanged.
+// Demonstrate that a naive for..of copier drops payment_instructions,
+// then require the ACTUAL compiled request helper to preserve the exact
+// canonical buyer terms and both journal/sidecar bytes.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const row={
+    ...request("buyvoid_iterator_guard_aaaaaaaa","3","base","4"),
+    payment_instructions:{
+      send_asset:"USDC",send_chain:"base",send_to:"0x"+"f".repeat(40),
+      amount:3,keep_transaction_hash:true,
+    },
+  };
+  const originalJournal=JSON.stringify(row);
+  const originalSidecar=JSON.stringify(row,null,2);
+  const savedIterator=Object.getOwnPropertyDescriptor(
+    Array.prototype,Symbol.iterator);
+  const readers=factory(oldPersist,root);
+  const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    candidate,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  let omittedByPoison=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,value:function*(){
+        for(let i=0;i<this.length;i+=1){
+          if(this[i]==="payment_instructions"){
+            omittedByPoison++;
+            continue;
+          }
+          yield this[i];
+        }
+      },
+    });
+    const naive={};
+    for(const key of Object.keys(row)) naive[key]=row[key];
+    assert.equal(Object.hasOwn(naive,"payment_instructions"),false,
+      "positive control must demonstrate an iterator-dropped buyer term");
+    assert.equal(omittedByPoison,1);
+    const baselineOmissions=omittedByPoison;
+    const result=await persist(row);
+    assert.equal(result.reused_request,null);
+    assert.ok(result.file);
+    assert.equal(omittedByPoison,baselineOmissions,
+      "the new economic snapshot must not consume ambient array iteration");
+    const journal=fs.readFileSync(path.join(root,"requests.jsonl"),"utf8");
+    const sidecar=fs.readFileSync(result.file,"utf8");
+    assert.equal(journal,originalJournal+"\n",
+      "new journal must contain all original payment instructions");
+    assert.equal(sidecar,originalSidecar,
+      "same original payment instructions required in pretty sidecar");
+    assert.deepEqual(JSON.parse(journal).payment_instructions,
+      row.payment_instructions);
+    assert.deepEqual(JSON.parse(sidecar).payment_instructions,
+      row.payment_instructions);
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,savedIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+// Accessors/custom toJSON must never run to manufacture economic request
+// fields. They fail before any real journal or sidecar can be created.
+for(const wrong of ["accessor","own_tojson","nonfinite"]){
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const row={...request("buyvoid_snapshot_negative_"+wrong,"3","base","3")};
+  if(wrong==="accessor"){
+    Object.defineProperty(row,"usdc_amount",{enumerable:true,
+      get(){throw new Error("unexpected_request_getter_executed");}});
+  } else if(wrong==="own_tojson"){
+    row.toJSON=()=>{throw new Error("unexpected_request_tojson_executed");};
+  } else row.usdc_amount=Infinity;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await assert.rejects(
+      ()=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+        row,[readers.withLock,readers.readRequests,readers.readEvents,
+          readers.applyEvents,readers.terminalStatus,()=>true]),
+      /buy_void_request_history_under_lock_request_snapshot_/u,
+      "invalid plain snapshot must HOLD before mutation");
+    assert.equal(fs.existsSync(path.join(root,"requests.jsonl")),false);
+    assert.equal(fs.readdirSync(root).filter(n=>n.endsWith(".json")).length,0);
+  } finally {
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+console.log("ambient_array_iterator_payment_terms_preserved=true");
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -1466,3 +1616,5 @@ console.log("production_request_route_deployed=false");
 console.log("live_payment_or_allocation_performed=false");
 console.log("presale_activation=false");
 console.log("funds_moved=false");
+console.log("new_request_inherited_tojson_snapshot_integrity=true");
+console.log("new_request_nonplain_snapshot_holds_without_mutation=true");
