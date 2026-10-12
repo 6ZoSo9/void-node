@@ -2620,46 +2620,104 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
         // the shared terminal-closeout request lock. Re-read authoritative
         // JSONL under this exact lock and reject masked historic fulfillment
         // BEFORE any event or sidecar write.
-        const priorEvents = readStrictJsonLinesV1(
-          path.join(requestDir, "operator-events.jsonl"),
-          "buy_void_operator_terminal_history",
-        );
-        for (let rowIndex = 0; rowIndex < priorEvents.length; rowIndex += 1) {
-          const slot = CAPACITY_HISTORY_DESCRIPTOR_V1(
-            priorEvents, String(rowIndex),
-          );
-          if (!slot || !Object.hasOwn(slot, "value")) {
-            fail("buy_void_operator_terminal_history_ambiguous");
-          }
-          const row = slot.value;
-          const rowRequest = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "request_id");
-          const rowStatus = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "operator_status");
-          if (!rowRequest || !Object.hasOwn(rowRequest, "value") ||
-              !rowStatus || !Object.hasOwn(rowStatus, "value") ||
-              typeof rowRequest.value !== "string" ||
-              typeof rowStatus.value !== "string") {
-            fail("buy_void_operator_terminal_history_ambiguous");
-          }
-          if (rowRequest.value === requestId &&
-              rowStatus.value === "fulfilled") {
-            fail("buy_void_operator_fulfilled_terminal_under_lock");
-          }
+        // Keep the same validated journal and directory descriptors open
+        // through history admission, the actual append and sidecar creation.
+        // A later pathname replacement must never redirect the write.
+        const sidecarTime = String(operatorEvent.marked_at_ms ?? "");
+        if (!/^(?:0|[1-9][0-9]{0,15})$/u.test(sidecarTime)) {
+          fail("buy_void_operator_terminal_sidecar_timestamp_invalid");
         }
-        fs.appendFileSync(
-          path.join(requestDir, "operator-events.jsonl"),
-          operatorEventLine,
-        );
-        fs.writeFileSync(
-          path.join(
-            requestDir,
-            "operator-event-" +
-              requestId +
-              "-" +
-              String(operatorEvent.marked_at_ms || "") +
-              ".json",
-          ),
-          JSON.stringify(operatorEvent, null, 2),
-        );
+        const sidecarName =
+          "operator-event-" + requestId + "-" + sidecarTime + ".json";
+        const directory = openPinnedRequestDirectoryV1(requestDir);
+        let operatorLedger: PinnedLedgerV1 | null = null;
+        try {
+          const code = "buy_void_operator_terminal_history";
+          operatorLedger = openPinnedLedgerV1(
+            directory, "operator-events.jsonl", code,
+            { writable: true, create: true },
+          );
+          if (operatorLedger === null) {
+            fail("buy_void_operator_terminal_history_unavailable");
+          }
+          const strictRead = readPinnedLedgerBytesV1(operatorLedger, code);
+          const priorEvents = parseStrictJsonLinesV1(
+            strictRead.bytes, code,
+          );
+          for (let rowIndex = 0; rowIndex < priorEvents.length; rowIndex += 1) {
+            const slot = CAPACITY_HISTORY_DESCRIPTOR_V1(
+              priorEvents, String(rowIndex),
+            );
+            if (!slot || !Object.hasOwn(slot, "value")) {
+              fail("buy_void_operator_terminal_history_ambiguous");
+            }
+            const row = slot.value;
+            const rowRequest = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "request_id");
+            const rowStatus = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "operator_status");
+            if (!rowRequest || !Object.hasOwn(rowRequest, "value") ||
+                !rowStatus || !Object.hasOwn(rowStatus, "value") ||
+                typeof rowRequest.value !== "string" ||
+                typeof rowStatus.value !== "string") {
+              fail("buy_void_operator_terminal_history_ambiguous");
+            }
+            if (rowRequest.value === requestId &&
+                rowStatus.value === "fulfilled") {
+              fail("buy_void_operator_fulfilled_terminal_under_lock");
+            }
+          }
+
+          const sidecarVisible = path.join(requestDir, sidecarName);
+          assertPinnedRequestDirectoryVisibleV1(directory);
+          try {
+            fs.lstatSync(sidecarVisible, { bigint: true });
+            fail("buy_void_operator_terminal_sidecar_already_exists");
+          } catch (error: any) {
+            if (String(error?.code || "") !== "ENOENT") throw error;
+          }
+          // Exactly the previously parsed native event bytes are appended,
+          // with O_APPEND on the held inode, fsync, and post-append identity.
+          appendPaymentVerifiedEventDurableV1(
+            operatorLedger, strictRead.stat, operatorEventLine,
+          );
+          // Crash after journal fsync but before sidecar fsync stays a HOLD;
+          // this does not imply durable exactly-once recovery.
+          const sidecarFd = fs.openSync(
+            path.join(directory.proc_path, sidecarName),
+            fs.constants.O_WRONLY | fs.constants.O_CREAT |
+              fs.constants.O_EXCL | O_NOFOLLOW,
+            0o600,
+          );
+          try {
+            const sidecarBytes = Buffer.from(
+              CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent, null, 2), "utf8",
+            );
+            if (sidecarBytes.length < 2 ||
+                sidecarBytes.length > LEDGER_MAX_BYTES) {
+              fail("buy_void_operator_terminal_sidecar_bytes_invalid");
+            }
+            const written = fs.writeSync(
+              sidecarFd, sidecarBytes, 0, sidecarBytes.length, null,
+            );
+            if (written !== sidecarBytes.length) {
+              fail("buy_void_operator_terminal_sidecar_short_write");
+            }
+            fs.fsyncSync(sidecarFd);
+            const opened = fs.fstatSync(sidecarFd, { bigint: true });
+            const visible = fs.lstatSync(sidecarVisible, { bigint: true });
+            validateLedgerStatV1(opened, "buy_void_operator_terminal_sidecar");
+            validateLedgerStatV1(visible, "buy_void_operator_terminal_sidecar");
+            if (!sameFileIdentityV1(opened, visible)) {
+              fail("buy_void_operator_terminal_sidecar_path_changed");
+            }
+            assertPinnedRequestDirectoryVisibleV1(directory);
+            fs.fsyncSync(directory.fd);
+          } finally {
+            fs.closeSync(sidecarFd);
+          }
+        } finally {
+          if (operatorLedger !== null) fs.closeSync(operatorLedger.fd);
+          fs.closeSync(directory.fd);
+        }
         return { ok: true, dir: requestDir };
       },
     );
