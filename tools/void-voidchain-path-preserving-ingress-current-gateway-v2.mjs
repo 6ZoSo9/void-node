@@ -838,41 +838,92 @@ function packetBody({
   });
 }
 
+// Independently verify packet leaf custody through a single O_NOFOLLOW FD.
+// A matching checksum alone cannot authorize an exported hard-link alias.
+// Keep descriptor and visible path bound across the entire bounded read.
+function readPinnedPacketLeafV2(file,{isPacketJson=false}={}){
+  const name=path.basename(file);
+  let fd;
+  try {
+    fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  } catch {
+    fail("VOIDCHAIN_INGRESS_PACKET_LEAF_OPEN_HOLD:"+name);
+  }
+  try {
+    let before,visible;
+    try {
+      before=fs.fstatSync(fd,{bigint:true});
+      visible=fs.lstatSync(file,{bigint:true});
+    } catch {
+      fail("VOIDCHAIN_INGRESS_PACKET_LEAF_IDENTITY_UNAVAILABLE:"+name);
+    }
+    const owner=BigInt(process.getuid?.()??-1);
+    if(!before.isFile()||!visible.isFile()||visible.isSymbolicLink()||
+       before.dev!==visible.dev||before.ino!==visible.ino||
+       before.uid!==owner||visible.uid!==owner||
+       before.uid!==visible.uid||before.gid!==visible.gid||
+       before.mode!==visible.mode||before.nlink!==1n||
+       visible.nlink!==1n){
+      fail("VOIDCHAIN_INGRESS_PACKET_LEAF_CUSTODY_INVALID:"+name);
+    }
+    if((before.mode&0o7777n)!==0o600n){
+      fail(isPacketJson
+        ? "VOIDCHAIN_INGRESS_PACKET_JSON_MODE_INVALID"
+        : "VOIDCHAIN_INGRESS_PACKET_FILE_MODE_INVALID:"+name);
+    }
+    if(before.size<1n||before.size>BigInt(MAX_PACKET_FILE_BYTES)){
+      fail("VOIDCHAIN_INGRESS_PACKET_LEAF_SIZE_INVALID:"+name);
+    }
+    const bytes=Buffer.alloc(Number(before.size));
+    for(let offset=0;offset<bytes.length;){
+      let n;
+      try {n=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);}
+      catch {fail("VOIDCHAIN_INGRESS_PACKET_LEAF_READ_HOLD:"+name);}
+      if(n<=0)fail("VOIDCHAIN_INGRESS_PACKET_LEAF_SHORT_READ:"+name);
+      offset+=n;
+    }
+    let after,still;
+    try{
+      after=fs.fstatSync(fd,{bigint:true});
+      still=fs.lstatSync(file,{bigint:true});
+    }catch{
+      fail("VOIDCHAIN_INGRESS_PACKET_LEAF_STABILITY_UNAVAILABLE:"+name);
+    }
+    if(["dev","ino","size","uid","gid","mode","nlink","mtimeNs","ctimeNs"]
+      .some(key=>before[key]!==after[key]||after[key]!==still[key])||
+       !after.isFile()||still.isSymbolicLink()){
+      fail("VOIDCHAIN_INGRESS_PACKET_LEAF_STABILITY_HOLD:"+name);
+    }
+    return bytes;
+  } finally {
+    try {fs.closeSync(fd);}
+    catch {fail("VOIDCHAIN_INGRESS_PACKET_LEAF_CLOSE_HOLD:"+name);}
+  }
+}
+
 function parsePacket(file){
-  const stat=fs.lstatSync(file);
-  if(stat.isSymbolicLink()||!stat.isFile()||stat.size<2||stat.size>MAX_PACKET_FILE_BYTES){
-    fail("VOIDCHAIN_INGRESS_PACKET_JSON_INVALID");
-  }
-  if((stat.mode&0o777)!==0o600){
-    fail("VOIDCHAIN_INGRESS_PACKET_JSON_MODE_INVALID");
-  }
-  const bytes=fs.readFileSync(file);
+  const bytes=readPinnedPacketLeafV2(file,{isPacketJson:true});
+  if(bytes.length<2) fail("VOIDCHAIN_INGRESS_PACKET_JSON_INVALID");
   let value;
-  try{value=JSON.parse(bytes.toString("utf8"));}catch{
-    fail("VOIDCHAIN_INGRESS_PACKET_JSON_PARSE_FAILED");
-  }
+  try{value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}
+  catch {fail("VOIDCHAIN_INGRESS_PACKET_JSON_PARSE_FAILED");}
   return exactObject(value,PACKET_KEYS,"VOIDCHAIN_INGRESS_PACKET_SHAPE_INVALID");
 }
 
 function requireGeneratedFile(packetDir,name,expectedText,entry){
-  if(!plain(entry)) fail("VOIDCHAIN_INGRESS_PACKET_FILE_ENTRY_INVALID:"+name);
-  const file=path.join(packetDir,name);
-  const stat=fs.lstatSync(file);
-  if(stat.isSymbolicLink()||!stat.isFile()||(stat.mode&0o777)!==0o600){
-    fail("VOIDCHAIN_INGRESS_PACKET_FILE_MODE_INVALID:"+name);
+  const expectedEntry=expectedOutputEntryV2(expectedText);
+  const qualified=exactObject(
+    entry,["bytes","sha256","mode"],
+    "VOIDCHAIN_INGRESS_PACKET_FILE_ENTRY_INVALID:"+name,
+  );
+  if(canonicalJson(qualified)!==canonicalJson(expectedEntry)){
+    fail("VOIDCHAIN_INGRESS_PACKET_FILE_IDENTITY_MISMATCH:"+name);
   }
-  const bytes=fs.readFileSync(file);
-  if(bytes.length>MAX_PACKET_FILE_BYTES){
-    fail("VOIDCHAIN_INGRESS_PACKET_FILE_TOO_LARGE:"+name);
-  }
-  if(bytes.toString("utf8")!==expectedText){
+  const bytes=readPinnedPacketLeafV2(path.join(packetDir,name));
+  if(!bytes.equals(Buffer.from(expectedText,"utf8"))){
     fail("VOIDCHAIN_INGRESS_PACKET_FILE_CONTENT_MISMATCH:"+name);
   }
-  if(
-    entry.bytes!==String(bytes.length)||
-    entry.sha256!==sha256(bytes)||
-    entry.mode!=="0600"
-  ){
+  if(qualified.bytes!==String(bytes.length)||qualified.sha256!==sha256(bytes)){
     fail("VOIDCHAIN_INGRESS_PACKET_FILE_IDENTITY_MISMATCH:"+name);
   }
 }
@@ -1059,10 +1110,26 @@ export function verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir
     packet.generated_files["REVIEW.txt"],
   );
 
-  const body={...packet};
-  delete body.plan_id;
-  const expectedPlanId=
-    "voidvci2_"+sha256(Buffer.from(canonicalJson(body),"utf8"));
+  // Construct the whole expected packet from trusted source and renderer,
+  // not from attacker-provided nested objects. A rehashed extra nested flag
+  // (for example activation_authorized:true) is not a reviewable contract.
+  const canonicalFiles=Object.freeze({
+    "cloudflared-config.yml":expectedOutputEntryV2(config),
+    "void-voidchain-ingress-current-gateway-v2.service":
+      expectedOutputEntryV2(unit),
+    "REVIEW.txt":expectedOutputEntryV2(instructions),
+  });
+  const qualifiedBody=packetBody({
+    repository,tunnelId,credential,cloudflared,generatedFiles:canonicalFiles,
+  });
+  const suppliedBody={...packet};
+  delete suppliedBody.plan_id;
+  if(canonicalJson(suppliedBody)!==canonicalJson(qualifiedBody)){
+    fail("VOIDCHAIN_INGRESS_PACKET_NESTED_CONTRACT_DRIFT");
+  }
+  const expectedPlanId="voidvci2_"+sha256(
+    Buffer.from(canonicalJson(qualifiedBody),"utf8"),
+  );
   if(packet.plan_id!==expectedPlanId){
     fail("VOIDCHAIN_INGRESS_PLAN_ID_MISMATCH");
   }
