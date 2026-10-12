@@ -276,7 +276,14 @@ const upstream = http.createServer(
         === "/__void/buy-void/request"
     ) {
       let proofCase = "";
-      try { proofCase = JSON.parse(body)?.__edge_proof_case || ""; } catch {}
+      try {
+        proofCase = JSON.parse(body)?.__edge_proof_case || "";
+      } catch {
+        // A malformed *synthetic test* request is not an authorized proof
+        // case. Route it to the inert baseline fixture; never claim receipt
+        // success on the basis of test-only input parsing.
+        proofCase = "";
+      }
       if (proofCase === "valid_201") {
         res.writeHead(201, {
           "content-type": "application/json; charset=utf-8",
