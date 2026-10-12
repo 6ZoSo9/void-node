@@ -199,7 +199,7 @@ function readPinnedCredentialBytesV1(
         typeof process.getuid !== "function") {
       reject("credential_fd_platform_unsupported");
     }
-    const userId = BigInt(process.getuid());
+    const userId = BigInt((process.getuid as () => number)());
     const directoryFlag = fs.constants.O_DIRECTORY;
     const noFollowFlag = fs.constants.O_NOFOLLOW;
     if (!Number.isInteger(directoryFlag) ||
@@ -243,12 +243,13 @@ function readPinnedCredentialBytesV1(
       reject("credential_directory_fd_identity_changed");
     }
 
-    let beforeCredential: fs.BigIntStats;
-    try {
-      beforeCredential = fs.lstatSync(credentialPath, { bigint: true });
-    } catch {
-      reject("credential_missing_or_unreadable");
-    }
+    const beforeCredential: fs.BigIntStats = (() => {
+      try {
+        return fs.lstatSync(credentialPath, { bigint: true });
+      } catch {
+        throw new CredentialFdReadHoldV1("credential_missing_or_unreadable");
+      }
+    })();
     if (beforeCredential.isSymbolicLink()) {
       reject("credential_symlink_forbidden");
     }
@@ -365,7 +366,7 @@ export function createBuyVoidNativeFulfillmentWalletCredentialSignerV1(
   const credentialRead = readPinnedCredentialBytesV1(
     normalizedDirectory, credentialPath,
   );
-  if (!credentialRead.ok) {
+  if ("reason" in credentialRead) {
     return held(credentialRead.reason);
   }
   const credentialBytes = credentialRead.bytes;
