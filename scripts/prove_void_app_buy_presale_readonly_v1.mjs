@@ -126,6 +126,12 @@ for (const required of [
   "request.status !== 'awaiting_payment_tx_hash'",
   "body.idempotent !== false",
   "response.status !== 201",
+  "attemptedResultExpiresAtMs",
+  "REQUEST INSTRUCTIONS EXPIRED",
+  "armReceiptExpiryTimer",
+  "clearReceiptExpiryTimer",
+  "request.launch_authority?.expires_at_ms",
+  "instructionExpiresAtMs",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
 }
@@ -420,6 +426,7 @@ assert.doesNotMatch(
 );
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
+const receiptExpiryAtMs = Date.now() + 10 * 60 * 1000;
 let verifiedEthereumNewRequestBody = null;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
@@ -431,6 +438,7 @@ sandbox.fetch = async (...args) => {
       request_id: "buyvoid_ethereum_open_v1",
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
+      launch_authority: { expires_at_ms: receiptExpiryAtMs },
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -440,6 +448,7 @@ sandbox.fetch = async (...args) => {
       requested_amount_usdc: "10",
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        expires_at_ms: receiptExpiryAtMs,
         request_id: "buyvoid_ethereum_open_v1",
         amount: 10,
         do_not_send_before_request: true,
@@ -474,6 +483,40 @@ assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
+// A fresh 201 receipt is actionably valid only until its exact instruction
+// expiry. An independently OPEN refreshed presale cannot revive old payment
+// instructions or permit a new POST for the previously committed intent.
+const nativeBrowserDateNow = vm.runInNewContext("Date.now", sandbox);
+sandbox.__syntheticBuyNowMs = receiptExpiryAtMs + 1;
+vm.runInNewContext("Date.now = () => globalThis.__syntheticBuyNowMs", sandbox);
+try {
+  assert.equal(vm.runInNewContext("Date.now()", sandbox), receiptExpiryAtMs + 1,
+    "synthetic browser time must cross the original instruction deadline");
+  buyTest.updateSubmit();
+  assert.match(buyResultNode.textContent,
+    /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u);
+  assert.doesNotMatch(buyResultNode.textContent,
+    /REQUEST CREATED|Send exactly:|buyvoid_ethereum_open_v1/u,
+    "expired receipt must expose no actionable payment instructions");
+  assert.equal(submitButton.disabled, true);
+  const beforeExpiryRetry = fetchCalls.length;
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, beforeExpiryRetry,
+    "expired-but-committed intent must not silently POST again");
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.match(buyResultNode.textContent,
+    /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u,
+    "fresh OPEN cannot revive expired request instructions");
+} finally {
+  sandbox.__nativeBrowserDateNow = nativeBrowserDateNow;
+  vm.runInNewContext("Date.now = globalThis.__nativeBrowserDateNow", sandbox);
+  delete sandbox.__nativeBrowserDateNow;
+  delete sandbox.__syntheticBuyNowMs;
+}
+buyTest.updateSubmit();
+assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u,
+  "restored synthetic pre-expiry time still shows independently bound receipt");
+
 // A confirmed request must not vanish when readiness briefly changes to
 // HOLD or SOLD OUT. Never display payment instructions while closed.
 const soldOutSnapshot = buyTest.validateSnapshot(
@@ -644,6 +687,7 @@ for (const [caseLabel, closedSnapshot] of [
       request_id: requestId,
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
+      launch_authority: { expires_at_ms: receiptExpiryAtMs },
       receive_address: validConfig.receive_address,
       void_destination_address: destinationInput.value,
       source_chain: "ethereum",
@@ -653,6 +697,7 @@ for (const [caseLabel, closedSnapshot] of [
       requested_amount_usdc: amount,
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        expires_at_ms: receiptExpiryAtMs,
         request_id: requestId,
         amount: Number(amount),
         do_not_send_before_request: true,
@@ -710,6 +755,22 @@ const bogusReceipts = [
   }],
   ["instructions_do_not_require_transaction_hash", 201, (body) => {
     body.request.payment_instructions.keep_transaction_hash = false;
+  }],
+  ["instructions_missing_expiry", 201, (body) => {
+    delete body.request.payment_instructions.expires_at_ms;
+  }],
+  ["instructions_mismatched_authority_expiry", 201, (body) => {
+    body.request.payment_instructions.expires_at_ms += 1;
+  }],
+  ["instructions_already_expired", 201, (body) => {
+    const old = Date.now() - 1;
+    body.request.payment_instructions.expires_at_ms = old;
+    body.request.launch_authority.expires_at_ms = old;
+  }],
+  ["instructions_string_expiry", 201, (body) => {
+    const value = String(body.request.payment_instructions.expires_at_ms);
+    body.request.payment_instructions.expires_at_ms = value;
+    body.request.launch_authority.expires_at_ms = value;
   }],
 ];
 for (let i = 0; i < bogusReceipts.length; i += 1) {
@@ -887,6 +948,8 @@ console.log("returned_request_intent_bound=1");
 console.log("browser_rejects_reused_or_non201_buy_receipts=true");
 console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
 console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
+console.log("buy_receipt_deadline_bound_to_launch_authority=true");
+console.log("expired_payment_instructions_never_restored=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
 console.log("first_intent_preserved_after_second_post=1");
