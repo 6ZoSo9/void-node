@@ -49,14 +49,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/prove_void_buy_browser_public_edge_composition_v1.mjs
-          node scripts/prove_void_buy_browser_public_edge_composition_v1.mjs | tee exact-source-composition.txt
-          grep -Fx 'VOID_BUY_VOID_BROWSER_PUBLIC_EDGE_SOURCE_COMPOSITION_V1_GREEN' exact-source-composition.txt
-          grep -Fx 'actual_browser_post_through_actual_gateway=true' exact-source-composition.txt
-          grep -Fx 'native_base_201_original_bytes_and_instructions_accepted=true' exact-source-composition.txt
-          grep -Fx 'retired_200_and_409_privacy_leaks_blocked=true' exact-source-composition.txt
-          grep -Fx '400_503_500_upstream_private_body_never_forwarded=true' exact-source-composition.txt
-          grep -Fx 'actual_request_writer_integration=false' exact-source-composition.txt
-          grep -Fx 'presale_or_wc_void_activation=false' exact-source-composition.txt
+          node scripts/prove_void_buy_browser_public_edge_composition_v1.mjs | tee "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'VOID_BUY_VOID_BROWSER_PUBLIC_EDGE_SOURCE_COMPOSITION_V1_GREEN' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'actual_browser_post_through_actual_gateway=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'native_base_201_original_bytes_and_instructions_accepted=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'retired_200_and_409_privacy_leaks_blocked=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx '400_503_500_upstream_private_body_never_forwarded=true' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'actual_request_writer_integration=false' "$RUNNER_TEMP/exact-source-composition.txt"
+          grep -Fx 'presale_or_wc_void_activation=false' "$RUNNER_TEMP/exact-source-composition.txt"
       - name: Confirm checkout cleanliness
         run: |
           set -euo pipefail
