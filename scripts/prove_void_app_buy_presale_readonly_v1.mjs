@@ -144,7 +144,9 @@ for (const required of [
   "body.idempotent !== false",
   "response.status !== 201",
   "!/^[A-Za-z0-9_-]{1,128}$/.test(request.request_id)",
-  "request.persisted?.ok !== true",
+  "request.persisted.ok !== true",
+  "!Object.hasOwn(request.persisted, 'ok')",
+  "Object.keys(request.persisted).length !== 1",
   "request.ok !== true",
   "request.marker !== BUY_MARKER",
   "request.schema !== 'void_public_buy_void_checkout_request_v1'",
@@ -1201,6 +1203,14 @@ const badDeliveryReceipts = [
   ["missing_persistence_evidence", (body) => { delete body.request.persisted; }],
   ["false_persistence_evidence", (body) => { body.request.persisted.ok = false; }],
   ["string_persistence_evidence", (body) => { body.request.persisted.ok = "true"; }],
+  ["boolean_persistence_evidence", (body) => { body.request.persisted = true; }],
+  ["array_persistence_evidence", (body) => { body.request.persisted = [{ ok: true }]; }],
+  ["persistence_receipt_private_file_path", (body) => {
+    body.request.persisted.file = "/synthetic/private/request.json";
+  }],
+  ["persistence_receipt_unreviewed_extra_field", (body) => {
+    body.request.persisted.debug = "synthetic-untrusted-operator-data";
+  }],
   ["missing_outer_marker", (body) => { delete body.marker; }],
   ["wrong_outer_marker", (body) => { body.marker = "UNTRUSTED_CHECKOUT"; }],
   ["missing_active_request_cap", (body) => { delete body.one_active_request_cap_enforced; }],
@@ -1309,6 +1319,7 @@ console.log("buy_receipt_native_usdc_chain2050_delivery_bound=true");
 console.log("buy_receipt_request_first_and_operator_bind_flags_required=true");
 console.log("buy_receipt_numeric_chain_fields_type_strict=true");
 console.log("buy_receipt_requires_durable_new_request_ack=true");
+console.log("buy_receipt_rejects_extra_private_persistence_fields=true");
 console.log("buy_receipt_canonical_creation_envelope_bound=true");
 console.log("buy_receipt_request_id_bounded_and_safe=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
