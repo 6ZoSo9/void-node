@@ -32,11 +32,14 @@ import {
 
 const ATTEMPT_ID = "1".repeat(64);
 const SAGA_ID = "voidbvfsg1_" + "2".repeat(64);
-const WALLET = String(
+const LEGACY_WALLET = String(
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1
     .derived_wallet_address,
 ).toLowerCase();
-const CONTRACT = "0x3333333333333333333333333333333333333333";
+const WALLET = VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+const CONTRACT = VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1;
+const OTHER_CONTRACT = "0x3333333333333333333333333333333333333333";
+const E2_RPC = "http://127.0.0.1:18553/";
 const TOKEN = "0x4444444444444444444444444444444444444444";
 const DELIVERY = "0x5555555555555555555555555555555555555555";
 const RUNTIME_FP = "6".repeat(64);
@@ -61,118 +64,60 @@ const tmp = fs.mkdtempSync(
 {
   const dependencyRoot = path.join(tmp, "dependency-root");
   const missingCredentialDir = path.join(tmp, "missing-credentials");
-  const decision =
+  const oldSignerCandidate =
     createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
       enabled: true,
       credential_binding_evidence_id:
         VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
       credentials_directory: missingCredentialDir,
-      fulfillment_wallet_address: WALLET,
+      fulfillment_wallet_address: LEGACY_WALLET,
       fulfillment_contract_address: CONTRACT,
+      max_token_amount_atoms: "10000000000000000000000000",
+      submission_guard_root_dir: dependencyRoot,
+      rpc_url: E2_RPC,
+      request_timeout_ms: 5000,
+      max_response_bytes: 65536,
+    });
+  assert.equal(oldSignerCandidate.ok, false);
+  if (oldSignerCandidate.ok) throw Error("legacy E1 signer wrongly admitted");
+  assert.equal(oldSignerCandidate.reason,
+    "payment_keyed_runtime_epoch2_fulfiller_mismatch");
+  assert.equal(oldSignerCandidate.credential_read_performed, false);
+  assert.equal(oldSignerCandidate.submission_guard_write_performed, false);
+  assert.equal(oldSignerCandidate.transaction_broadcast_performed, false);
+
+  const unreviewedCandidate =
+    createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
+      enabled: true,
+      credential_binding_evidence_id:
+        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      credentials_directory: missingCredentialDir,
+      fulfillment_wallet_address: LEGACY_WALLET,
+      fulfillment_contract_address: OTHER_CONTRACT,
       max_token_amount_atoms: "10000000000000000000000000",
       submission_guard_root_dir: dependencyRoot,
       rpc_url: "http://127.0.0.1:18545/",
       request_timeout_ms: 5000,
       max_response_bytes: 65536,
     });
-  if (decision.ok === false) throw new Error(decision.reason);
-  // A wallet attested for the retired contract cannot authorize the
-  // immutable Epoch-2 presale signer merely by rebinding the destination.
-  assert.equal(
-    buyVoidPresaleFulfillerMatchesV1(
-      VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, WALLET,
-    ), false,
-  );
-  assert.equal(
-    buyVoidPresaleFulfillerMatchesV1(
-      VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
-      VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
-    ), true,
-  );
-  assert.equal(
-    buyVoidPresaleFulfillerMatchesV1(CONTRACT, WALLET), true,
-  );
-  const incorrectlyRebound =
-    createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
-      enabled: true,
-      credential_binding_evidence_id:
-        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
-      credentials_directory: missingCredentialDir,
-      fulfillment_wallet_address: WALLET,
-      fulfillment_contract_address: VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
-      max_token_amount_atoms: "10000000000000000000000000",
-      submission_guard_root_dir: dependencyRoot,
-      rpc_url: "http://127.0.0.1:18553/",
-      request_timeout_ms: 5000,
-      max_response_bytes: 65536,
-    });
-  assert.equal(incorrectlyRebound.ok, false);
-  if (incorrectlyRebound.ok) {
-    throw new Error("retired signer incorrectly admitted for Epoch-2");
-  }
-  assert.equal(
-    incorrectlyRebound.reason,
-    "payment_keyed_runtime_epoch2_fulfiller_mismatch",
-  );
-  assert.equal(incorrectlyRebound.credential_read_performed, false);
-  assert.equal(incorrectlyRebound.rpc_call_performed, false);
-  assert.equal(incorrectlyRebound.transaction_broadcast_performed, false);
-  assert.equal(
-    decision.marker,
-    VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1,
-  );
-  assert.equal(decision.credential_read_performed, false);
-  assert.equal(decision.rpc_call_performed, false);
-  assert.equal(decision.signing_performed, false);
-  assert.equal(decision.transaction_broadcast_performed, false);
-  assert.equal(decision.submission_guard_write_performed, false);
-  assert.equal(
-    await decision.dependencies.signer.get_address(),
-    WALLET,
-  );
-
-  const invalidUnsigned: any = {
-    type: 2,
-    chainId: 2050n,
-    nonce: 1,
-    gasLimit: 120000n,
-    maxFeePerGas: 2000000000n,
-    maxPriorityFeePerGas: 1000000000n,
-    to: TOKEN,
-    value: 0n,
-    data: "0x",
-  };
-  await assert.rejects(
-    () =>
-      decision.dependencies.signer.sign_transaction(
-        invalidUnsigned,
-      ),
-    /payment_keyed_runtime_dependency_unsigned_transaction_invalid/,
-  );
-
-  const validUnsigned: any = {
-    ...invalidUnsigned,
-    to: CONTRACT,
-    data: FULFILL.encodeFunctionData("fulfill", [
-      "0x" + "e".repeat(64),
-      DELIVERY,
-      2_000_000_000_000_000_000n,
-    ]),
-  };
-  await assert.rejects(
-    () =>
-      decision.dependencies.signer.sign_transaction(
-        validUnsigned,
-      ),
-    /payment_keyed_runtime_credential_signer_not_ready:credential_missing_or_unreadable/,
-  );
+  assert.equal(unreviewedCandidate.ok, false);
+  if (unreviewedCandidate.ok) throw Error("unreviewed target admitted");
+  assert.equal(unreviewedCandidate.reason,
+    "payment_keyed_runtime_current_epoch2_target_required");
+  assert.equal(unreviewedCandidate.credential_read_performed, false);
+  assert.equal(unreviewedCandidate.submission_guard_write_performed, false);
+  assert.equal(unreviewedCandidate.transaction_broadcast_performed, false);
+  assert.equal(fs.existsSync(dependencyRoot), false);
+  assert.equal(buyVoidPresaleFulfillerMatchesV1(CONTRACT, WALLET), true);
+  assert.equal(buyVoidPresaleFulfillerMatchesV1(CONTRACT, LEGACY_WALLET),
+    false);
 }
 
 const serverPolicy: any = {
   preparation_policy: {
     enabled: true,
     chain_id: "2050",
-    rpc_url: "http://127.0.0.1:18545/",
+    rpc_url: E2_RPC,
     fulfillment_wallet_address: WALLET,
     fulfillment_contract_address: CONTRACT,
     max_void_amount_units: "10000000000000",
@@ -206,7 +151,7 @@ const serverPolicy: any = {
 const receiptPolicy: any = {
   enabled: true,
   chain_id: "2050",
-  rpc_url: "http://127.0.0.1:18545/",
+  rpc_url: E2_RPC,
   fulfillment_wallet_address: WALLET,
   fulfillment_contract_address: CONTRACT,
   void_token_address: TOKEN,
@@ -580,22 +525,25 @@ async function runScenario(
 // the immutable successor contract and its own authorized signer.
 {
   const E1 = "0xa40a43adfd174f88309173cb3daa6e09c10154a7";
-  const E2_RPC = "http://127.0.0.1:18553/";
   const E1_RPC = "http://127.0.0.1:8545/";
   const cases = [
-    [E1, E1_RPC, WALLET, "retired_combination"],
-    [E1, E2_RPC, WALLET, "old_contract_on_e2_rpc"],
+    [E1, E1_RPC, LEGACY_WALLET, "retired_combination"],
+    [E1, E2_RPC, LEGACY_WALLET, "old_contract_on_e2_rpc"],
     [CONTRACT, E1_RPC, WALLET, "retired_rpc_any_contract"],
     [CONTRACT, "http://localhost:8545/", WALLET, "retired_alias"],
-    [CONTRACT, E2_RPC, WALLET, "unreviewed_target_at_selected_rpc"],
+    [OTHER_CONTRACT, E2_RPC, LEGACY_WALLET,
+      "unreviewed_target_at_selected_rpc"],
+    [OTHER_CONTRACT, "http://127.0.0.1:18545/", LEGACY_WALLET,
+      "noncanonical_local_rpc_contract"],
+    [OTHER_CONTRACT, "http://198.51.100.1:8050/", LEGACY_WALLET,
+      "noncanonical_remote_rpc_contract"],
     [CONTRACT, "http://127.0.0.1:18553", WALLET,
       "selected_port_missing_trailing_slash"],
     [CONTRACT, "http://localhost:18553/", WALLET,
       "selected_port_loopback_alias"],
     [CONTRACT, "http://127.0.0.1:18553/alternate", WALLET,
       "selected_port_path_alias"],
-    [VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,
-      WALLET, "wrong_epoch2_fulfiller"],
+    [CONTRACT, E2_RPC, LEGACY_WALLET, "wrong_epoch2_fulfiller"],
   ] as const;
   for (const [contract, rpc, signer, name] of cases) {
     assert.equal(
@@ -634,7 +582,7 @@ async function runScenario(
       credential_binding_evidence_id:
         VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
       credentials_directory: path.join(tmp, "missing-credentials"),
-      fulfillment_wallet_address: signer,
+      fulfillment_wallet_address: LEGACY_WALLET,
       fulfillment_contract_address: contract,
       max_token_amount_atoms: "10000000000000000000000000",
       submission_guard_root_dir: path.join(tmp, "never-created-guard"),
@@ -644,9 +592,10 @@ async function runScenario(
     });
     assert.equal(exactBootstrap.ok, false, name);
     if (exactBootstrap.ok) throw Error(name + "_bootstrap_unexpected_ready");
-    assert.equal(exactBootstrap.reason, name === "wrong_epoch2_fulfiller"
-      ? "payment_keyed_runtime_epoch2_fulfiller_mismatch"
-      : "payment_keyed_runtime_current_epoch2_target_required", name);
+    assert.equal(exactBootstrap.reason,
+      contract === CONTRACT
+        ? "payment_keyed_runtime_epoch2_fulfiller_mismatch"
+        : "payment_keyed_runtime_current_epoch2_target_required", name);
     assert.equal(exactBootstrap.credential_read_performed, false, name);
     assert.equal(exactBootstrap.submission_guard_write_performed, false, name);
     assert.equal(exactBootstrap.transaction_broadcast_performed, false, name);
@@ -655,6 +604,12 @@ async function runScenario(
     VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,
     VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
   ), true);
+  assert.equal(buyVoidCurrentPresaleApplyTargetV1(
+    OTHER_CONTRACT, "http://127.0.0.1:18545/", LEGACY_WALLET,
+  ), false);
+  assert.equal(buyVoidCurrentPresaleApplyTargetV1(
+    OTHER_CONTRACT, "http://198.51.100.1:8050/", LEGACY_WALLET,
+  ), false);
 }
 
 {

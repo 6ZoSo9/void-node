@@ -76,9 +76,10 @@ export function buyVoidCurrentPresaleApplyTargetV1(
       rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1 &&
       normalizedSigner === VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
   }
-  // Non-production fixture targets remain testable. No public production
-  // admission comes from this return value; other authority gates still apply.
-  return true;
+  // Every executable runtime apply requires the single reviewed E2 tuple.
+  // Historical and unreviewed fixtures remain testable through injected
+  // inert proof dependencies, never through the live apply admission check.
+  return false;
 }
 
 export const VOID_BUY_VOID_EPOCH2_MARKER_ADDRESS_V1 =
