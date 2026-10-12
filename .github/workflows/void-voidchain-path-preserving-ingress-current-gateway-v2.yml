@@ -62,6 +62,8 @@ jobs:
             "private_packet_same_path_midwrite_resume=true" \
             "conflicting_partial_never_overwritten=true" \
             "packet_json_last_recovery_guard=true" \
+            "packet_leaf_hardlink_alias_rejected=true" \
+            "nested_packet_authority_injection_rejected=true" \
             "gateway_current_sha=ec998138c382196f6b0302c6d6ed665c4553cdcb" \
             "ingress_version=2" \
             "installation_authorized=false" \
