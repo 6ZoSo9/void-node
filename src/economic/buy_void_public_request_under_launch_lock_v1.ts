@@ -52,6 +52,25 @@ function assertPrivateRequestDirV1(dir: string): void {
 }
 // Creation mode does not repair an existing public-readable file; refuse
 // insecure legacy state instead of silently chmodding historical evidence.
+// Pin the verified private directory inode for history and publication.
+// /proc/self/fd child paths cannot follow a replacement directory pathname.
+function assertPinnedPrivateRequestDirV1(dir: string, fd: number): void {
+  let visible: fs.Stats;
+  let opened: fs.Stats;
+  try {
+    visible = fs.lstatSync(dir);
+    opened = fs.fstatSync(fd);
+  } catch { holdHistoryV1("pinned_directory_identity_unavailable"); }
+  if (!visible.isDirectory() || visible.isSymbolicLink() ||
+      !opened.isDirectory() ||
+      visible.dev !== opened.dev || visible.ino !== opened.ino ||
+      visible.uid !== opened.uid || visible.gid !== opened.gid ||
+      visible.mode !== opened.mode ||
+      opened.uid !== process.getuid?.() ||
+      (opened.mode & 0o7777) !== 0o700) {
+    holdHistoryV1("pinned_directory_rebound");
+  }
+}
 function assertPrivateRequestLeafV1(file: string): void {
   let observed: fs.Stats;
   try { observed = fs.lstatSync(file); }
@@ -278,6 +297,20 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   assertPrivateRequestDirV1(dir);
   return withLaunchMutation(reqObj, async (assertCurrentAuthority) => {
+    // Keep one private-directory FD across history read and publication.
+    // Journal inode pinning and journal/sidecar crash atomicity remain HOLD.
+    if (typeof fs.constants.O_NOFOLLOW !== "number" ||
+        typeof fs.constants.O_DIRECTORY !== "number") {
+      holdHistoryV1("pinned_directory_flags_unavailable");
+    }
+    const dirFd = fs.openSync(dir,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY |
+      fs.constants.O_NOFOLLOW);
+    try {
+      assertPinnedPrivateRequestDirV1(dir, dirFd);
+      const pinnedDir = "/proc/self/fd/" + String(dirFd);
+      try { fs.accessSync(pinnedDir); }
+      catch { holdHistoryV1("pinned_directory_proc_unavailable"); }
     // The canonical launch gate first checks authority before invoking the
     // callback, but these two history reads are awaited. They can outlive the
     // gate generation / TTL. Require its original under-lock revalidator.
@@ -292,7 +325,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // interpret the filesystem when the original lock lease has lapsed.
     assertCurrentAuthority();
     const durableRequestHistory =
-      assertCompleteRequestHistoryUnderLockV1(dir, requestHistory);
+      assertCompleteRequestHistoryUnderLockV1(pinnedDir, requestHistory);
     // A tolerant reader might return one row while omitting a different
     // durable row with the *same request_id*. Only the independently parsed
     // complete JSONL snapshot may drive destination admission.
@@ -378,8 +411,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     }
 
     const json = JSON.stringify(reqObj);
-    const ledger = path.join(dir, "requests.jsonl");
-    const file = path.join(dir, reqObj.request_id + ".json");
+    const ledger = path.join(pinnedDir, "requests.jsonl");
+    const file = path.join(pinnedDir, reqObj.request_id + ".json");
     // Qualify both existing destinations before the first append. Refuse
     // any group/other-readable history rather than publishing new secrets.
     assertPrivateRequestDirV1(dir);
@@ -388,6 +421,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     if (typeof fs.constants.O_NOFOLLOW !== "number") {
       holdHistoryV1("private_no_follow_unavailable");
     }
+    assertPinnedPrivateRequestDirV1(dir, dirFd);
     // Last synchronous admission check: no await may intervene.
     assertCurrentAuthority();
     const ledgerFd = fs.openSync(ledger,
@@ -396,6 +430,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     try {
       assertPrivateOpenLeafV1(ledgerFd);
       fs.writeFileSync(ledgerFd, json + "\n");
+      fs.fsyncSync(ledgerFd);
     } finally {
       fs.closeSync(ledgerFd);
     }
@@ -408,9 +443,18 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       assertPrivateOpenLeafV1(sidecarFd);
       fs.ftruncateSync(sidecarFd, 0);
       fs.writeFileSync(sidecarFd, JSON.stringify(reqObj, null, 2));
+      fs.fsyncSync(sidecarFd);
     } finally {
       fs.closeSync(sidecarFd);
     }
-    return { dir, file, reused_request: null };
+    // File fsyncs alone do not persist newly created directory entries.
+    // Interrupted journal/sidecar updates still require recovery review.
+    fs.fsyncSync(dirFd);
+    assertPinnedPrivateRequestDirV1(dir, dirFd);
+    return { dir, file: path.join(dir, reqObj.request_id + ".json"),
+      reused_request: null };
+    } finally {
+      fs.closeSync(dirFd);
+    }
   });
 }

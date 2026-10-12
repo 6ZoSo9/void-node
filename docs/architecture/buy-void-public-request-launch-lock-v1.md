@@ -24,6 +24,27 @@ guarantee: a same-UID path rebind and a crash between journal and sidecar
 remain separate P1 HOLDs. No installed host, real customer, signer,
 payment, treasury or presale mutation follows.
 
+## October 11 guarded fsync and pinned-directory qualification — source only
+
+This candidate retains an opened private 0700 request-directory inode while
+reading strict request history and writing the journal/sidecar, addressing
+mutable request-directory pathname rebinding. Linux `/proc/self/fd` child
+paths tie those operations to the held inode. A successful publication now
+requires journal-file fsync, sidecar-file fsync, and parent-directory fsync,
+then a final visible-path/inode comparison. The focused proof injects failures
+at each fsync boundary and a same-UID directory replacement during publication;
+all must refuse a false success. Existing 0600 leaf requirements remain.
+
+**Critical limitations:** The strict request-journal reader currently closes
+its checked leaf descriptor before the append writer opens a new O_APPEND leaf.
+A same-UID journal inode swap can still escape that read-to-append binding.
+The journal and sidecar are separately written and are not an atomic pair; a
+crash or fsync failure after one write can leave a partial durable commit.
+This is a source-only security increment, **not** a qualified recovery protocol,
+a payment receipt, a custody deployment, or presale/WC activation. Keep
+Draft/HOLD pending independent review, full exact-head CI, and those
+remaining source/runtime gates.
+
 ## October 11 same-ID operator tx-hash revision candidate — source only
 
 The current merged operator route correctly refuses to report a payment
@@ -95,8 +116,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `9ae541654850155f77d6d69f7c15d9f7093b6e12`. Actual source-only
-regression Git blob: `e09a6d7f78fb6936f4c614948bbfa02801490a9e`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `9b8f995bd9bf5df910ea4bd203a9e82005133c4f`. Actual source-only
+regression Git blob: `f0d0a4886793273efe9e7dcebb4c365cd2d22d81`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -120,7 +141,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `9ae541654850155f77d6d69f7c15d9f7093b6e12`). The existing
+(Git blob `9b8f995bd9bf5df910ea4bd203a9e82005133c4f`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

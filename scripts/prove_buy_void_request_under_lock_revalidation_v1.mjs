@@ -588,6 +588,106 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// Source-only fsync ordering and directory rebind adversaries. All files
+// are disposable; no real buyer ledger, payment, network or wallet access.
+{
+  const root=temp(), originalDir=process.env.VOID_BUY_REQUEST_DIR;
+  const originalFsync=fs.fsyncSync;
+  try {
+    const build=(suffix)=>{
+      const dir=path.join(root,suffix);
+      process.env.VOID_BUY_REQUEST_DIR=dir;
+      const legacy=factory(oldPersist,dir);
+      return {dir,persist:(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+        row,[legacy.withLock,legacy.readRequests,legacy.readEvents,
+          legacy.applyEvents,legacy.terminalStatus,()=>true])};
+    };
+    const good=build("durable-positive");
+    const order=[];
+    fs.fsyncSync=(fd)=>{
+      order.push(fs.fstatSync(fd).isDirectory()?"directory":"file");
+      return originalFsync(fd);
+    };
+    const happy=request("buyvoid_durable_aaaaaaaa","3","base","9");
+    const accepted=await good.persist(happy);
+    fs.fsyncSync=originalFsync;
+    assert.deepEqual(order,["file","file","directory"],
+      "journal, sidecar and directory must fsync before success");
+    assert.equal(lines(good.dir).length,1);
+    assert.equal(JSON.parse(fs.readFileSync(accepted.file,"utf8")).request_id,
+      happy.request_id);
+
+    const failLedger=build("fsync-ledger-fault");
+    fs.fsyncSync=(fd)=>{
+      if (fs.fstatSync(fd).isFile()) {
+        throw new Error("synthetic_first_journal_fsync_failure");
+      }
+      return originalFsync(fd);
+    };
+    const beforeLedger=request("buyvoid_fsync_a_bbbbbbbb","3","base","8");
+    await assert.rejects(()=>failLedger.persist(beforeLedger),
+      /synthetic_first_journal_fsync_failure/u);
+    fs.fsyncSync=originalFsync;
+    assert.equal(fs.existsSync(path.join(failLedger.dir,
+      beforeLedger.request_id+".json")),false,
+      "ledger fsync failure cannot claim a sidecar");
+
+    const failSidecar=build("fsync-sidecar-fault");
+    let syncedFiles=0;
+    fs.fsyncSync=(fd)=>{
+      if (fs.fstatSync(fd).isFile() && ++syncedFiles===2) {
+        throw new Error("synthetic_sidecar_fsync_failure");
+      }
+      return originalFsync(fd);
+    };
+    const beforeSidecar=request("buyvoid_fsync_b_cccccccc","3","base","7");
+    await assert.rejects(()=>failSidecar.persist(beforeSidecar),
+      /synthetic_sidecar_fsync_failure/u);
+    fs.fsyncSync=originalFsync;
+    assert.equal(syncedFiles,2);
+    assert.equal(lines(failSidecar.dir).length,1,
+      "journal may persist after sidecar fsync failure; recovery stays HOLD");
+
+    const failParent=build("fsync-parent-fault");
+    fs.fsyncSync=(fd)=>{
+      if (fs.fstatSync(fd).isDirectory()) {
+        throw new Error("synthetic_directory_fsync_failure");
+      }
+      return originalFsync(fd);
+    };
+    await assert.rejects(
+      ()=>failParent.persist(request("buyvoid_fsync_c_dddddddd","3","base","6")),
+      /synthetic_directory_fsync_failure/u);
+    fs.fsyncSync=originalFsync;
+
+    const displaced=build("directory-rebind-fault");
+    let swapped=false;
+    const heldPath=displaced.dir+"-held";
+    fs.fsyncSync=(fd)=>{
+      if (!swapped && fs.fstatSync(fd).isFile()) {
+        fs.renameSync(displaced.dir,heldPath);
+        fs.mkdirSync(displaced.dir,{mode:0o700});
+        swapped=true;
+      }
+      return originalFsync(fd);
+    };
+    await assert.rejects(
+      ()=>displaced.persist(request("buyvoid_fsync_d_eeeeeeee","3","base","5")),
+      /buy_void_request_history_under_lock_pinned_directory_rebound/u,
+      "replacement path must never receive an accepted request");
+    fs.fsyncSync=originalFsync;
+    assert.equal(swapped,true);
+    assert.equal(fs.existsSync(path.join(displaced.dir,"requests.jsonl")),false,
+      "pinned write must not be redirected into substituted directory");
+    assert.equal(lines(heldPath).length,1,
+      "ambiguous hidden partial publication remains a HOLD");
+  } finally {
+    fs.fsyncSync=originalFsync;
+    if(originalDir===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=originalDir;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -602,6 +702,9 @@ console.log("public_safe_known_conflicts_preserved=true");
 console.log("operator_same_id_tx_hash_revision_appended=true");
 console.log("operator_revision_conflicting_history_holds=true");
 console.log("private_customer_directory_and_files_0700_0600=true");
+console.log("journal_sidecar_and_directory_fsync_order=true");
+console.log("fsync_failures_reject_without_false_success=true");
+console.log("directory_rebind_during_fsync_holds=true");
 console.log("legacy_insecure_and_symlink_sidecars_hold_before_append=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
