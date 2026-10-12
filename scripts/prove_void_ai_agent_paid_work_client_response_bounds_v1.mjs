@@ -568,6 +568,101 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// A mutable body accessor must be snapshotted before getReader() can throw.
+// An unsafe second read returning null cannot skip cancellation or clear the
+// origin that already owns the original body.
+{
+  let bodyAccesses = 0;
+  let cancelCalls = 0;
+  let readerCalls = 0;
+  const admittedBody = {
+    getReader() {
+      readerCalls += 1;
+      throw new Error("synthetic_acquisition_failure_original_body");
+    },
+    cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_original_body_cancel_failure"));
+    },
+  };
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    get body() {
+      bodyAccesses += 1;
+      return bodyAccesses === 1 ? admittedBody : null;
+    },
+  }));
+  const baseUrl = "https://mutable-response-body.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const result = await capturePrimaryError(run);
+  assert.equal(result.message, "synthetic_acquisition_failure_original_body");
+  assert.equal(bodyAccesses, 1, "body accessor must be read only once");
+  assert.equal(readerCalls, 1);
+  assert.equal(cancelCalls, 1, "original admitted body must be cancelled");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A body accessor that throws on its *first* access cannot establish a
+// reliable cleanup target; its generation must fail closed without retries.
+{
+  let accessCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    get body() {
+      accessCalls += 1;
+      throw new Error("synthetic_body_getter_denied");
+    },
+  }));
+  const baseUrl = "https://throwing-body-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_body_getter_denied");
+  assert.equal(accessCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A throwing cancel property accessor must not overwrite the original
+// getReader() failure or be confused with confirmed cancellation.
+{
+  let readerCalls = 0;
+  let cancellationGetterCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        readerCalls += 1;
+        throw new Error("synthetic_original_reader_error");
+      },
+      get cancel() {
+        cancellationGetterCalls += 1;
+        throw new Error("synthetic_cancel_getter_error");
+      },
+    },
+  }));
+  const baseUrl = "https://throwing-cancel-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_original_reader_error");
+  assert.equal(readerCalls, 1);
+  assert.equal(cancellationGetterCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
 // A custom getReader() may throw while the body still needs cancellation.
 {
   let cancelCalls = 0;
@@ -1130,6 +1225,9 @@ console.log("unresolved_read_generation_quarantined=true");
 console.log("partial_late_read_failed_cancel_quarantined=true");
 console.log("oversize_body_rejected_cancel_quarantined=true");
 console.log("get_reader_throw_unconfirmed_cancel_quarantined=true");
+console.log("mutable_body_getter_cleanup_snapshot=true");
+console.log("throwing_body_getter_origin_quarantined=true");
+console.log("throwing_cancel_getter_primary_error_preserved=true");
 console.log("native_locked_stream_origin_quarantined=true");
 console.log("malformed_length_pending_cancel_quarantined=true");
 console.log("stream_oversize_failed_cancel_retains_reader=true");
