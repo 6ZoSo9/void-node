@@ -59,7 +59,7 @@ assert.match(writerSource, /export async function persistBuyVoidPublicRequestUnd
 assert.ok(browserSource.includes("response.status !== 201"));
 assert.ok(browserSource.includes("request.persisted"));
 const clockBeforeReader = browserSource.indexOf(
-  "const bodyStartedMonoMs = receiptMonotonicNow();"
+  "bodyStartedMonoMs = receiptMonotonicNow();"
 );
 const readerAcquire = browserSource.indexOf(
   "reader = response.body?.getReader?.();"
