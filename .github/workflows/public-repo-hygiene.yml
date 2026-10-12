@@ -18,5 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Guard exact PR tree against mass deletion
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          python3 scripts/check_void_pr_tree_mass_deletion_v1.py --self-test
+          git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          python3 scripts/check_void_pr_tree_mass_deletion_v1.py \
+            --base-sha "$PR_BASE_SHA" --head-sha "$PR_HEAD_SHA"
       - name: Check tracked public repo hygiene
         run: bash tools/check_public_repo_hygiene.sh
