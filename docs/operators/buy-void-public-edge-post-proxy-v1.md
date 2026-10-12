@@ -85,6 +85,19 @@ The gateway does not gain a general mutation proxy.
   unknown, or extra metadata cannot cross the public API inside a valid 201.
   This is the reviewed fixed-price presale generation, not permission to
   change pricing or activate a market.
+- A newly created 201 is an actionable *short* payment lease:
+  `created_at_ms` must be a positive safe integer, not more than 30s
+  future-dated, and matching launch/instruction expiry must still exceed
+  current wall time, exceed creation time, and be within the reviewed
+  five-minute coupled launch maximum. Expiry is rechecked directly before
+  public publication; stale, future, or overlong receipts become the same
+  generic uncertain 502 and are never instructions to send funds.
+- The six-key 201 outer envelope and the embedded canonical request's
+  top-level field names are closed allowlists derived from `src/index.ts`.
+  Unknown metadata is refused in both the public direct-body case and the
+  legacy `persisted.file` redaction case, preventing an unreviewed private
+  field from crossing the public checkout boundary. Inert HTTP fixtures
+  test stale/overlong/future lease and unknown outer/request keys.
 - A 201 must ALSO bind its actionable `payment_instructions` to the
   original buyer's destination and amount, and to source-reviewed canonical
   USDC payment identities **independently of the upstream's claim**: exact
