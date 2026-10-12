@@ -1,5 +1,27 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 same-ID operator tx-hash revision candidate — source only
+
+The current merged operator route correctly refuses to report a payment
+tx-hash update that did not reach durable request history, but the shared
+public request persistor previously returned only an idempotent reuse.
+This unmerged candidate adds an explicit same-request operator revision:
+the current launch lock authorizes exactly one first tx-hash/status update
+from an existing immutable original request. The ID, destination, USDC
+amount/chain, quote, recipient, account, note and launch-authority data
+cannot change. Full canonical JSONL is folded only across valid same-ID
+transitions; hidden duplicate-ID conflicts and duplicate hashes held by
+another request always HOLD. Ordinary public creation still allows only
+one active destination.
+
+A new source-only disposable compiled-helper test verifies the actual
+second journal row, current reader's new latest row, matching sidecar,
+same-destination public refusal, immutable-field tamper, duplicate hash
+and conflicting historical same-ID HOLD. This does **not** qualify durable
+same-inode append, atomic ledger/sidecar crash recovery, a strict operator
+event journal, customer records, production host service, acceptance of
+payment, or a WC/VOID presale launch. These remain separate HOLD gates.
+
 ## October 11 public exception redaction — source only
 
 The public request POST's catch branch previously returned raw exception text
@@ -49,8 +71,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `20d0ec09dba80260d533346f719ad292d40ed5d4`. Actual source-only
-regression Git blob: `771c5969cebea9c7ea58870b8c30e3326064595e`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `1106f0351281ad51667a272c70a89c90143c2b40`. Actual source-only
+regression Git blob: `459304437b68e3163e64e232050437efde14596a`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -74,7 +96,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `20d0ec09dba80260d533346f719ad292d40ed5d4`). The existing
+(Git blob `1106f0351281ad51667a272c70a89c90143c2b40`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

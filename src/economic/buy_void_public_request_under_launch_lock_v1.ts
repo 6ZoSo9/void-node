@@ -163,6 +163,52 @@ function assertCompleteRequestHistoryUnderLockV1(
   holdHistoryV1("unreachable_after_cleanup");
 }
 
+
+function immutableRequestBytesForTransitionV1(row: any): string {
+  if (!row || typeof row !== "object" || Array.isArray(row)) {
+    holdHistoryV1("revision_row_not_plain_data");
+  }
+  const stable = Object.create(null);
+  for (const key of Object.keys(row)) {
+    if (key === "status" || key === "tx_hash" ||
+        key === "payment_submitted_at_ms") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(row, key);
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) {
+      holdHistoryV1("revision_executable_property");
+    }
+    stable[key] = descriptor.value;
+  }
+  return REQUEST_HISTORY_JSON_STRINGIFY_V1(stable);
+}
+// The only allowed same-ID history successor is an immutable original
+// whose previously empty transaction hash is first set by the operator.
+function validTxHashRevisionV1(before: any, after: any): boolean {
+  return before?.request_id === after?.request_id &&
+    before?.status === "awaiting_payment_tx_hash" &&
+    (before?.tx_hash === "" || before?.tx_hash == null) &&
+    after?.status === "payment_submitted_pending_manual_review" &&
+    typeof after?.tx_hash === "string" &&
+    /^0x[a-fA-F0-9]{64}$/.test(after.tx_hash) &&
+    Number.isSafeInteger(after.payment_submitted_at_ms) &&
+    after.payment_submitted_at_ms >= Number(before.created_at_ms) &&
+    immutableRequestBytesForTransitionV1(before) ===
+      immutableRequestBytesForTransitionV1(after);
+}
+function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
+  const byId = new Map<string, any>();
+  for (const row of rows) {
+    if (!row || typeof row.request_id !== "string" || !row.request_id) {
+      holdHistoryV1("revision_id_invalid");
+    }
+    const previous = byId.get(row.request_id);
+    if (previous !== undefined && !validTxHashRevisionV1(previous, row)) {
+      holdHistoryV1("duplicate_id_transition_unqualified");
+    }
+    byId.set(row.request_id, row);
+  }
+  return Array.from(byId.values());
+}
+
 export type BuyVoidPublicRequestLaunchLockCallbacksV1 = readonly [
   withLaunchMutation: (
     request: any,
@@ -210,7 +256,9 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // A tolerant reader might return one row while omitting a different
     // durable row with the *same request_id*. Only the independently parsed
     // complete JSONL snapshot may drive destination admission.
-    const projected = applyEvents(durableRequestHistory, eventHistory);
+    const currentRequestStates =
+      foldCanonicalRequestRevisionsV1(durableRequestHistory);
+    const projected = applyEvents(currentRequestStates, eventHistory);
     if (!Array.isArray(projected)) {
       throw new Error("buy_void_request_history_projection_unqualified");
     }
@@ -219,9 +267,12 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // history is ambiguous, even if one row exactly matches this new intent.
     // Walk every projected index rather than a caller-overridable .find().
     let active: any = null;
+    const txHashRevision =
+      reqObj?.status === "payment_submitted_pending_manual_review";
     const target = String(
       reqObj.void_destination_address || "",
     ).trim().toLowerCase();
+    if (!target) holdHistoryV1("request_destination_absent");
     for (let i = 0; i < projected.length; i += 1) {
       if (!Object.hasOwn(projected, i)) {
         throw new Error("buy_void_request_history_projection_sparse");
@@ -244,19 +295,46 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       }
       active = other;
     }
-    if (active) {
-      const amount = Number(active.usdc_amount ??
-        active.requested_amount_usdc ?? 0);
-      const chain = String(active.source_chain || "base");
-      if (Number.isFinite(amount) &&
-          amount === Number(reqObj.usdc_amount) &&
-          chain === reqObj.source_chain) {
-        // Do not report a successful reused request after a lease expires
-        // during asynchronous history reads.
-        assertCurrentAuthority();
-        return { dir, reused_request: active, file: null };
+    if (txHashRevision) {
+      // The operator route authenticates its mutation intent separately.
+      // The launch lock independently requires an exact same-ID,
+      // same-obligation transition and no history-hidden tx hash collision.
+      const original = currentRequestStates.find(
+        (row: any) => row.request_id === reqObj.request_id,
+      );
+      if (!original || !active || active.request_id !== reqObj.request_id ||
+          !validTxHashRevisionV1(original, reqObj)) {
+        holdHistoryV1("operator_revision_not_authorized_by_original");
       }
-      throw new Error("buy_void_request_active_destination_changed_during_lock");
+      for (const row of durableRequestHistory) {
+        if (row.request_id !== reqObj.request_id &&
+            typeof row.tx_hash === "string" &&
+            row.tx_hash.toLowerCase() === reqObj.tx_hash.toLowerCase()) {
+          holdHistoryV1("operator_revision_duplicate_tx_hash");
+        }
+      }
+    } else {
+      if (reqObj?.status !== "awaiting_payment_tx_hash" ||
+          (reqObj?.tx_hash !== "" && reqObj?.tx_hash != null)) {
+        holdHistoryV1("public_creation_status_invalid");
+      }
+      if (currentRequestStates.some(
+        (row: any) => row.request_id === reqObj.request_id,
+      )) holdHistoryV1("new_request_id_already_durable");
+      if (active) {
+        const amount = Number(active.usdc_amount ??
+          active.requested_amount_usdc ?? 0);
+        const chain = String(active.source_chain || "base");
+        if (Number.isFinite(amount) &&
+            amount === Number(reqObj.usdc_amount) &&
+            chain === reqObj.source_chain) {
+          assertCurrentAuthority();
+          return { dir, reused_request: active, file: null };
+        }
+        throw new Error(
+          "buy_void_request_active_destination_changed_during_lock",
+        );
+      }
     }
 
     const json = JSON.stringify(reqObj);

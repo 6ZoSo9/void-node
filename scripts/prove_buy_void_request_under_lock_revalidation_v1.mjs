@@ -313,7 +313,7 @@ function temp(){
      .map(row=>JSON.stringify(row)).join("\n")+"\n";
    fs.writeFileSync(path.join(root,"requests.jsonl"),conflict,{mode:0o600});
    await assert.rejects(()=>mutate(async()=>[sameIdFirst]),
-     /buy_void_request_multiple_active_destination_under_lock/u,
+     /buy_void_request_history_under_lock_duplicate_id_transition_unqualified/u,
      "same-ID filtered conflicting obligation must HOLD");
    assert.equal(fs.readFileSync(path.join(root,"requests.jsonl"),"utf8"),
      conflict,"same-ID omission cannot append or replace a durable row");
@@ -340,7 +340,7 @@ function temp(){
      assert.equal(splitPoisonCalls,1);
      splitPoisonCalls=0;
      await assert.rejects(()=>mutate(async()=>[sameIdFirst]),
-       /buy_void_request_multiple_active_destination_under_lock/u,
+       /buy_void_request_history_under_lock_duplicate_id_transition_unqualified/u,
        "all raw durable rows must survive ambient String.split replacement");
      assert.equal(splitPoisonCalls,0,
        "the strict reader must not invoke poisoned String.prototype.split");
@@ -459,6 +459,70 @@ for (const existing of [false, true]) {
    fs.rmSync(root,{recursive:true,force:true});
  }
 }
+// Actual compiled-helper operator revision: binding must write a new
+// canonical same-ID journal row, not return public creation reuse.
+// All inputs, lock callbacks and ledgers are disposable synthetic data.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const hash="0x"+"a".repeat(64), other="0x"+"b".repeat(64);
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const readers=factory(oldPersist,root);
+    const persist=(requested)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      requested,[
+        readers.withLock,readers.readRequests,readers.readEvents,
+        readers.applyEvents,readers.terminalStatus,()=>true,
+      ]);
+    const original=request("buyvoid_revision_aaaaaaaa","3","base","5");
+    const created=await persist(original);
+    assert.equal(created.reused_request,null);
+    const revised={...original,
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:hash,payment_submitted_at_ms:1800000000400};
+    const result=await persist(revised);
+    assert.equal(result.reused_request,null);
+    assert.ok(result.file?.endsWith(original.request_id+".json"));
+    assert.equal(lines(root).length,2,"revision must append to durable JSONL");
+    assert.equal(lines(root)[1].tx_hash,hash);
+    assert.equal((await readers.readRequests())[0].tx_hash,hash);
+    const sidecar=JSON.parse(fs.readFileSync(result.file,"utf8"));
+    assert.equal(sidecar.status,revised.status);
+    assert.equal(sidecar.tx_hash,hash);
+    // Same-ID rebind and second-tx-hash attempts may not rewrite history.
+    await assert.rejects(()=>persist({...revised,tx_hash:other}),
+      /buy_void_request_history_under_lock_operator_revision_not_authorized_by_original/u);
+    await assert.rejects(()=>persist({...revised,note:"unreviewed-change"}),
+      /buy_void_request_history_under_lock_operator_revision_not_authorized_by_original/u);
+    assert.equal(lines(root).length,2);
+    const repeat=await persist(request("buyvoid_duplicate_bbbbbbbb","3","base","5"));
+    assert.equal(repeat.reused_request?.request_id,original.request_id);
+    assert.equal(lines(root).length,2);
+    // Duplicate payment hash across different request IDs must HOLD.
+    const otherDestination=request("buyvoid_different_cccccccc","3","base","6");
+    await persist(otherDestination);
+    await assert.rejects(()=>persist({...otherDestination,
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:hash,payment_submitted_at_ms:1800000000555}),
+      /buy_void_request_history_under_lock_operator_revision_duplicate_tx_hash/u);
+    assert.equal(lines(root).length,3);
+    // Conflicting durable economics behind a repeated ID remain HOLD,
+    // even if a legacy reader would filter one row by request_id.
+    const forged={...original,
+      void_destination_address:"0x"+"7".repeat(40),
+      delivery_address:"0x"+"7".repeat(40)};
+    fs.writeFileSync(path.join(root,"requests.jsonl"),
+      [original,forged].map(row=>JSON.stringify(row)).join("\n")+"\n",
+      {mode:0o600});
+    await assert.rejects(
+      ()=>persist(request("buyvoid_new_dddddddd","3","base","8")),
+      /buy_void_request_history_under_lock_duplicate_id_transition_unqualified/u);
+    assert.equal(lines(root).length,2);
+  } finally {
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -470,6 +534,8 @@ console.log("public_unauthenticated_reuse_private_conflict=true");
 console.log("public_prelock_fast_return_removed=true");
 console.log("public_unknown_internal_exception_details_redacted=true");
 console.log("public_safe_known_conflicts_preserved=true");
+console.log("operator_same_id_tx_hash_revision_appended=true");
+console.log("operator_revision_conflicting_history_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");
