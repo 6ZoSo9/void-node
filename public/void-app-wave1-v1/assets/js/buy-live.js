@@ -153,6 +153,19 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
   }
   const reader = response.body?.getReader?.();
   if (!reader) throw new Error('Buy VOID response stream unavailable');
+  // Browser timers may fire late in throttled/frozen tabs. Treat monotonic
+  // elapsed time as authority; setTimeout is only a wake-up mechanism.
+  const bodyStartedMonoMs = receiptMonotonicNow();
+  if (bodyStartedMonoMs === null) {
+    throw new Error('Buy VOID response body monotonic clock unavailable');
+  }
+  const assertBodyWithinDeadline = () => {
+    const now = receiptMonotonicNow();
+    if (now === null || now < bodyStartedMonoMs ||
+        now - bodyStartedMonoMs >= bodyDeadlineMs) {
+      throw new Error('Buy VOID response body deadline exceeded');
+    }
+  };
   const chunks = [];
   let total = 0;
   let bodyDeadlineTimer = null;
@@ -162,8 +175,11 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
   // handled even if reader.cancel() ignores cancellation.
   const readWholeBody = async () => {
     while (true) {
+      assertBodyWithinDeadline();
       const { done, value } = await reader.read();
       if (bodyReadRetired) return;
+      // A delayed timer callback must not let a late chunk or EOF win.
+      assertBodyWithinDeadline();
       if (done) break;
       if (!(value instanceof Uint8Array) || value.byteLength === 0) {
         throw new Error('invalid Buy VOID response stream');
@@ -184,6 +200,9 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
         }, bodyDeadlineMs);
       }),
     ]);
+    // Also reject a complete body whose queued success continuation ran
+    // before a throttled timer callback after the monotonic deadline.
+    assertBodyWithinDeadline();
   } catch (error) {
     bodyReadRetired = true;
     // A broken stream may return a never-settling cancellation promise.
@@ -214,6 +233,8 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error('invalid Buy VOID response');
   }
+  // Decoding and parsing do not extend authority to use an expired body.
+  assertBodyWithinDeadline();
   return body;
 };
 const fetchJson = async (path) => {
