@@ -523,6 +523,71 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// Buyer records must not inherit umask 022 world-readable defaults.
+// The actual compiled helper runs exclusively against disposable directories.
+{
+  const root=temp(), savedDir=process.env.VOID_BUY_REQUEST_DIR;
+  const savedMask=process.umask(0o022);
+  const privateDir=path.join(root,"new-private-requests");
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=privateDir;
+    const prior=factory(oldPersist,privateDir);
+    const persist=(v)=>persistBuyVoidPublicRequestUnderLaunchLockV1(v,[
+      prior.withLock,prior.readRequests,prior.readEvents,
+      prior.applyEvents,prior.terminalStatus,()=>true,
+    ]);
+    const owner=request("buyvoid_privacy_aaaaaaaa","3","base","4");
+    await persist(owner);
+    const ledger=path.join(privateDir,"requests.jsonl");
+    const sidecar=path.join(privateDir,owner.request_id+".json");
+    const mode=(name)=>fs.lstatSync(name).mode&0o7777;
+    assert.equal(mode(privateDir),0o700,"customer directory must be private");
+    assert.equal(mode(ledger),0o600,"request history must be private");
+    assert.equal(mode(sidecar),0o600,"customer sidecar must be private");
+    const immutable=fs.readFileSync(ledger);
+    fs.chmodSync(privateDir,0o755);
+    await assert.rejects(()=>persist(request("buyvoid_private_bbbbbbbb",
+      "3","base","5")),
+      /buy_void_request_history_under_lock_private_directory_owner_or_mode/u);
+    assert.deepEqual(fs.readFileSync(ledger),immutable);
+    fs.chmodSync(privateDir,0o700);
+    fs.chmodSync(ledger,0o644);
+    await assert.rejects(()=>persist(request("buyvoid_private_bbbbbbbb",
+      "3","base","5")),
+      /buy_void_request_history_under_lock_private_existing_leaf_owner_or_mode/u);
+    assert.deepEqual(fs.readFileSync(ledger),immutable);
+    fs.chmodSync(ledger,0o600);
+    fs.chmodSync(sidecar,0o644);
+    const revision={...owner,
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:"0x"+"a".repeat(64),
+      payment_submitted_at_ms:1800000000400};
+    await assert.rejects(()=>persist(revision),
+      /buy_void_request_history_under_lock_private_existing_leaf_owner_or_mode/u);
+    assert.deepEqual(fs.readFileSync(ledger),immutable,
+      "insecure pre-existing sidecar must HOLD before journal append");
+    fs.chmodSync(sidecar,0o600);
+    const stored=sidecar+".held";
+    fs.renameSync(sidecar,stored);
+    fs.symlinkSync(stored,sidecar);
+    await assert.rejects(()=>persist(revision),
+      /buy_void_request_history_under_lock_private_existing_leaf_owner_or_mode/u);
+    assert.deepEqual(fs.readFileSync(ledger),immutable,
+      "symlinked sidecar must HOLD before journal append");
+    fs.unlinkSync(sidecar);
+    fs.renameSync(stored,sidecar);
+    await persist(revision);
+    assert.equal(mode(ledger),0o600);
+    assert.equal(mode(sidecar),0o600);
+    assert.equal(lines(privateDir).length,2,
+      "qualified update retains private request history");
+  } finally {
+    process.umask(savedMask);
+    if(savedDir===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=savedDir;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -536,6 +601,8 @@ console.log("public_unknown_internal_exception_details_redacted=true");
 console.log("public_safe_known_conflicts_preserved=true");
 console.log("operator_same_id_tx_hash_revision_appended=true");
 console.log("operator_revision_conflicting_history_holds=true");
+console.log("private_customer_directory_and_files_0700_0600=true");
+console.log("legacy_insecure_and_symlink_sidecars_hold_before_append=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");

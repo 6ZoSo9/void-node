@@ -36,6 +36,45 @@ function assertNoSurvivingRequestHistoryV1(dir: string): void {
     }
   }
 }
+
+function assertPrivateRequestDirV1(dir: string): void {
+  if (typeof process.getuid !== "function") {
+    holdHistoryV1("private_posix_identity_unavailable");
+  }
+  let observed: fs.Stats;
+  try { observed = fs.lstatSync(dir); }
+  catch { holdHistoryV1("private_directory_metadata_unavailable"); }
+  if (!observed.isDirectory() || observed.isSymbolicLink() ||
+      observed.uid !== process.getuid() ||
+      (observed.mode & 0o7777) !== 0o700) {
+    holdHistoryV1("private_directory_owner_or_mode");
+  }
+}
+// Creation mode does not repair an existing public-readable file; refuse
+// insecure legacy state instead of silently chmodding historical evidence.
+function assertPrivateRequestLeafV1(file: string): void {
+  let observed: fs.Stats;
+  try { observed = fs.lstatSync(file); }
+  catch (error: any) {
+    if (error?.code === "ENOENT") return;
+    holdHistoryV1("private_leaf_metadata_unavailable");
+  }
+  if (!observed.isFile() || observed.isSymbolicLink() ||
+      observed.nlink !== 1 ||
+      observed.uid !== process.getuid() ||
+      (observed.mode & 0o7777) !== 0o600) {
+    holdHistoryV1("private_existing_leaf_owner_or_mode");
+  }
+}
+function assertPrivateOpenLeafV1(fd: number): void {
+  const opened = fs.fstatSync(fd);
+  if (!opened.isFile() || opened.nlink !== 1 ||
+      opened.uid !== process.getuid() ||
+      (opened.mode & 0o7777) !== 0o600) {
+    holdHistoryV1("private_open_leaf_owner_or_mode");
+  }
+}
+
 function sameHistoryFileV1(left: any, right: any): boolean {
   return left.dev === right.dev && left.ino === right.ino &&
     left.size === right.size && left.mtimeNs === right.mtimeNs &&
@@ -234,9 +273,10 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   if (typeof dir !== "string" || !dir || dir.includes("\0")) {
     throw new Error("buy_void_request_directory_not_configured");
   }
-  // Directory creation already preceded the original launch write lock.
-  // The canonical launch lock callback independently revalidates the request.
-  fs.mkdirSync(dir, { recursive: true });
+  // Create private from the first inode; an existing wrong-mode directory
+  // is a HOLD, not an invitation to chmod historical customer state.
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  assertPrivateRequestDirV1(dir);
   return withLaunchMutation(reqObj, async (assertCurrentAuthority) => {
     // The canonical launch gate first checks authority before invoking the
     // callback, but these two history reads are awaited. They can outlive the
@@ -338,12 +378,39 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     }
 
     const json = JSON.stringify(reqObj);
-    // Last synchronous admission check immediately before the append:
-    // nothing may await between this and the byte write under the lock.
-    assertCurrentAuthority();
-    fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
+    const ledger = path.join(dir, "requests.jsonl");
     const file = path.join(dir, reqObj.request_id + ".json");
-    fs.writeFileSync(file, JSON.stringify(reqObj, null, 2));
+    // Qualify both existing destinations before the first append. Refuse
+    // any group/other-readable history rather than publishing new secrets.
+    assertPrivateRequestDirV1(dir);
+    assertPrivateRequestLeafV1(ledger);
+    assertPrivateRequestLeafV1(file);
+    if (typeof fs.constants.O_NOFOLLOW !== "number") {
+      holdHistoryV1("private_no_follow_unavailable");
+    }
+    // Last synchronous admission check: no await may intervene.
+    assertCurrentAuthority();
+    const ledgerFd = fs.openSync(ledger,
+      fs.constants.O_WRONLY | fs.constants.O_APPEND |
+      fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
+    try {
+      assertPrivateOpenLeafV1(ledgerFd);
+      fs.writeFileSync(ledgerFd, json + "\n");
+    } finally {
+      fs.closeSync(ledgerFd);
+    }
+    // The legacy sidecar is still non-atomic relative to the journal.
+    // Keep the leaf no-follow and mode 0600; separate crash recovery HOLDs.
+    const sidecarFd = fs.openSync(file,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT |
+      fs.constants.O_NOFOLLOW, 0o600);
+    try {
+      assertPrivateOpenLeafV1(sidecarFd);
+      fs.ftruncateSync(sidecarFd, 0);
+      fs.writeFileSync(sidecarFd, JSON.stringify(reqObj, null, 2));
+    } finally {
+      fs.closeSync(sidecarFd);
+    }
     return { dir, file, reused_request: null };
   });
 }

@@ -1,5 +1,29 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 private buyer-record permissions — source only
+
+At ordinary process umask 0022 the older writer could create the public
+request directory mode 0755 and request JSONL/sidecar mode 0644. Those
+permissions are inappropriate for buyer-supplied account, note and payment
+metadata, even when the HTTP response is redacted.
+
+This candidate creates a new request directory with mode 0700, new journal
+and sidecar leaves with mode 0600, and refuses existing wrong-owner,
+world/group-readable or symlinked leaves before appending any new data.
+It opens write descriptors with no-follow, checks the opened file identity
+and mode, then writes via those descriptors. It deliberately HOLDS rather
+than silently chmodding or overwriting historical insecure files.
+The synthetic focused proof runs under an explicit umask 0022, checks
+exact private modes, and attempts insecure-directory, legacy-0644-leaf,
+and symlink-sidecar adversaries with zero journal mutation.
+
+Existing deployments may require a separately reviewed private-custody
+migration if their old bytes are not already private. This is not a
+proven directory-ancestor lease or append-to-validated-original-inode
+guarantee: a same-UID path rebind and a crash between journal and sidecar
+remain separate P1 HOLDs. No installed host, real customer, signer,
+payment, treasury or presale mutation follows.
+
 ## October 11 same-ID operator tx-hash revision candidate — source only
 
 The current merged operator route correctly refuses to report a payment
@@ -71,8 +95,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `1106f0351281ad51667a272c70a89c90143c2b40`. Actual source-only
-regression Git blob: `d28ccfb6998f4e24a78d64e7ea12e1a4a8b9955d`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `8ef942e3739642ff64f25281a88b9de2bb200725`. Actual source-only
+regression Git blob: `e09a6d7f78fb6936f4c614948bbfa02801490a9e`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -96,7 +120,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `1106f0351281ad51667a272c70a89c90143c2b40`). The existing
+(Git blob `8ef942e3739642ff64f25281a88b9de2bb200725`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
