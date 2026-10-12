@@ -17,6 +17,8 @@ on:
       - "scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
       - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs"
       - "docs/operators/buy-void-payment-keyed-epoch2-dormant-candidate-v1.md"
       - "tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs"
       - "scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs"
@@ -48,6 +50,9 @@ jobs:
           npm run typecheck
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts
+          node --check tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs
+          node --check scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs
+          node scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs
           node --check tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs
           node --check scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
           node --import tsx scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
