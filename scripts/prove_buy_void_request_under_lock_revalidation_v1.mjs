@@ -1532,6 +1532,112 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// Operator revision must compare the actual ORIGINAL and NEW payment terms.
+// A naive Object.keys() for..of can omit payment_instructions under an
+// ambient Array iterator, and inherited toJSON can map both distinct nested
+// USDC receivers to the same fake serialized value. Neither may authorize
+// a new transaction-hash revision or append to the buyer's durable history.
+for(const attack of ["array_iterator","inherited_tojson"]){
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const original={
+    ...request("buyvoid_revision_immutable_"+attack,"3","base","5"),
+    payment_instructions:{
+      send_asset:"USDC",send_chain:"base",
+      send_to:"0x"+"f".repeat(40),amount:3,
+      keep_transaction_hash:true,
+    },
+  };
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  const priorIterator=Object.getOwnPropertyDescriptor(Array.prototype,Symbol.iterator);
+  const priorToJSON=Object.getOwnPropertyDescriptor(Object.prototype,"toJSON");
+  let poisonCalls=0;
+  try{
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await persist(original);
+    const sidecar=path.join(root,original.request_id+".json");
+    const journal=path.join(root,"requests.jsonl");
+    const journalBefore=fs.readFileSync(journal);
+    const sidecarBefore=fs.readFileSync(sidecar);
+    const revision={
+      ...original,
+      payment_instructions:{
+        ...original.payment_instructions,send_to:"0x"+"e".repeat(40),
+      },
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:"0x"+"b".repeat(64),
+      payment_submitted_at_ms:1800000000400,
+    };
+    if(attack==="array_iterator"){
+      Object.defineProperty(Array.prototype,Symbol.iterator,{
+        configurable:true,writable:true,value:function*(){
+          for(let i=0;i<this.length;i+=1){
+            if(this[i]==="payment_instructions"){
+              poisonCalls++;
+              continue;
+            }
+            yield this[i];
+          }
+        },
+      });
+      const naiveImmutable=(row)=>{
+        const stable=Object.create(null);
+        for(const key of Object.keys(row)){
+          if(key==="status"||key==="tx_hash"||
+              key==="payment_submitted_at_ms")continue;
+          stable[key]=row[key];
+        }
+        return JSON.stringify(stable);
+      };
+      assert.equal(naiveImmutable(original),naiveImmutable(revision),
+        "positive control: poisoned iterator hides distinct USDC recipient");
+    }else{
+      Object.defineProperty(Object.prototype,"toJSON",{
+        configurable:true,value:function(){
+          if(this?.send_asset==="USDC"){
+            poisonCalls++;
+            return {...this,send_to:"0x"+"a".repeat(40)};
+          }
+          return this;
+        },
+      });
+      const naiveImmutable=(row)=>{
+        const stable=Object.create(null);
+        const keys=Object.keys(row);
+        for(let i=0;i<keys.length;i+=1){
+          const key=keys[i];
+          if(key==="status"||key==="tx_hash"||
+              key==="payment_submitted_at_ms")continue;
+          stable[key]=row[key];
+        }
+        return JSON.stringify(stable);
+      };
+      assert.equal(naiveImmutable(original),naiveImmutable(revision),
+        "positive control: inherited toJSON normalizes distinct USDC recipients");
+    }
+    const controls=poisonCalls;
+    assert.ok(controls>0,"attack must demonstrably affect naive comparison");
+    await assert.rejects(()=>persist(revision),
+      /buy_void_request_history_under_lock_operator_revision_not_authorized_by_original/u,
+      "immutability check must refuse changes to nested payment instructions");
+    assert.equal(poisonCalls,controls,
+      "actual immutable comparison must not invoke ambient malicious hooks");
+    assert.deepEqual(fs.readFileSync(journal),journalBefore,
+      "rejected revision cannot append altered payment receiver");
+    assert.deepEqual(fs.readFileSync(sidecar),sidecarBefore,
+      "rejected revision must not rewrite original buyer sidecar");
+  }finally{
+    Object.defineProperty(Array.prototype,Symbol.iterator,priorIterator);
+    if(priorToJSON)Object.defineProperty(Object.prototype,"toJSON",priorToJSON);
+    else delete Object.prototype.toJSON;
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 // Accessors/custom toJSON must never run to manufacture economic request
 // fields. They fail before any real journal or sidecar can be created.
 for(const wrong of ["accessor","own_tojson","nonfinite"]){
@@ -1562,6 +1668,8 @@ for(const wrong of ["accessor","own_tojson","nonfinite"]){
 }
 
 console.log("ambient_array_iterator_payment_terms_preserved=true");
+console.log("operator_immutable_nested_payment_instructions_iterator_guard=true");
+console.log("operator_immutable_nested_payment_instructions_tojson_guard=true");
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
