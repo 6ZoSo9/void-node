@@ -471,6 +471,38 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           checkout.safety?.manual_review_required !== true) {
         throw new Error("buy_void_post_created_payment_instructions_invalid");
       }
+
+      // Public API clients need the same exact-amount and VOID quote
+      // authentication as the Buy browser before HTTP 201 is published.
+      const checkedMicro = (v) => {
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return null;
+        const raw=String(v);
+        if (!/^(?:0|[1-9][0-9]*)(?:[.][0-9]{1,6})?$/.test(raw)) return null;
+        const [whole, fraction=""]=raw.split(".");
+        return BigInt(whole)*1000000n + BigInt(fraction.padEnd(6,"0")||"0");
+      };
+      const intendedMicro=checkedMicro(intendedAmount);
+      if (intendedMicro===null || intendedMicro<=0n ||
+          checkedMicro(checkout.usdc_amount)!==intendedMicro ||
+          checkedMicro(checkout.requested_amount_usdc)!==intendedMicro ||
+          checkout.rate_void_per_usdc!=="2" ||
+          checkout.price_usdc_per_void!=="0.50" ||
+          checkout.pool_void_total!==10000000 ||
+          checkedMicro(checkout.quoted_void)!==intendedMicro*2n) {
+        throw new Error("buy_void_post_created_void_quote_invalid");
+      }
+      // Unknown nested payment-instruction fields are not public receipts.
+      const instructionKeys=Object.keys(instruction);
+      const allowedInstructionKeys=new Set([
+        "request_id","send_asset","send_chain","send_chain_id",
+        "token_contract","token_decimals","send_to","send_from",
+        "amount","expires_at_ms","do_not_send_before_request",
+        "do_not_send_from_exchange_or_pooled_custody","keep_transaction_hash",
+      ]);
+      if (instructionKeys.length!==allowedInstructionKeys.size ||
+          instructionKeys.some(k=>!allowedInstructionKeys.has(k))) {
+        throw new Error("buy_void_post_created_instruction_keyset_invalid");
+      }
       if (hasLegacyFile) {
         // Re-encode ONLY after removing the verified legacy private leaf.
         // Safe {ok:true} receipts retain their original noncanonical bytes.
