@@ -73,11 +73,19 @@ The gateway does not gain a general mutation proxy.
   retired 200 success/reuse) becomes generic **502**. Neither case discloses
   buyer IDs, accounts, notes, payment hashes or payment instructions, even
   if this edge is installed before the #2811 request-writer privacy fix.
+  The synthetic wire privacy matrix sends sentinel-bearing upstream bodies
+  and private ETag/identity headers on HTTP 200, 400, 409, 503 and 500.
+  The edge retains only coarse 400/409/503, maps 200/500 to 502, and emits
+  the same fixed private-data-free response in all five cases.
   A rejected, lost or uncertain upstream result does not prove whether any
   economic obligation was persisted and is **never** authority to retry.
 - A refused or timed-out upstream result becomes a fixed generic error with
   no checkout request, transaction identity, private data, or payment
-  instructions in the edge-generated response.
+  instructions in the edge-generated response. The public JSON result now
+  explicitly contains `submission_outcome: "uncertain"` and
+  `automatic_retry_safe: false` on all non-201 and failed-upstream results.
+  These fields are negative payment-safety evidence, not a status inquiry
+  or an operator-certified payment result.
 - A 502 does **not** establish that no request was recorded upstream.
   A client MUST keep the attempted intent uncertain and must not
   automatically resubmit or send funds; only reviewed request recovery
