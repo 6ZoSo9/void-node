@@ -259,6 +259,31 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       }
     }
 
+    // Privacy is independent of backend rollout order. The retired public
+    // writer can return HTTP 200 with a previous buyer's full idempotent
+    // request or 409 with the old request ID/status. NEVER forward arbitrary
+    // non-201 checkout bytes or upstream headers to an unauthenticated
+    // caller. Preserve only narrow HTTP refusal statuses and synthesize
+    // a fixed body. A 502 is an UNCERTAIN submission outcome, not proof that
+    // a purchase request was not recorded and not permission to retry.
+    if (upstreamResponse.status !== 201) {
+      const safeStatus = (
+        upstreamResponse.status === 400 ||
+        upstreamResponse.status === 409 ||
+        upstreamResponse.status === 503
+      ) ? upstreamResponse.status : 502;
+      res.statusCode = safeStatus;
+      res.setHeader("content-type", "application/json; charset=utf-8");
+      res.setHeader("cache-control", "no-store");
+      res.setHeader("x-content-type-options", "nosniff");
+      res.setHeader("x-void-public-buy-void-post-proxy", "v1");
+      res.end(JSON.stringify({
+        ok: false,
+        error: "buy_void_request_upstream_unavailable",
+      }));
+      return;
+    }
+
     res.statusCode = upstreamResponse.status;
 
     for (
