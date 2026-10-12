@@ -43,7 +43,11 @@ and the exact marker:
 `0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7`.
 
 The qualification checks:
-- Chain ID and canonical epoch-2 genesis hash, two live peers, and **at
+- Chain ID and canonical epoch-2 genesis hash **plus the independently
+  accepted October 2 block 3,854 hash**
+  `0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942`.
+  A chain that shares genesis but not this reviewed history must HOLD;
+- two live peers, and **at
   least one new block** across a deliberate 12-second post-estimate observation
   window (more than two reviewed five-second QBFT periods). Connected peers
   with a stalled head must HOLD; no block-height rollback is ever accepted;
@@ -59,7 +63,8 @@ The qualification checks:
   to `320001` (HOLD). A green simulation does not substitute for the later
   production runtime configuration and credential attestation.
 
-An RPC error, oversized/malformed response, wrong contract/code, wrong storage,
+An RPC error, missing/different accepted block 3,854, oversized/malformed
+response, wrong contract/code, wrong storage,
 quorum loss, excessive estimate or source identity mismatch is a **HOLD**.
 Only an exact qualified read-only estimate reports
 `READONLY_EPOCH2_DELIVERY_ESTIMATE_GREEN`.

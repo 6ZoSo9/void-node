@@ -20,6 +20,12 @@ export const VOID_BUY_VOID_EPOCH2_READONLY_DELIVERY_ESTIMATE_V1 =
 const TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const GENESIS = "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d";
 const CODE_SHA = "b200e702e07140921813c83a833d4f4abacea61dd5863f08b0d9c1147b8da225";
+// Immutable accepted QBFT history, independently observed October 2, 2026.
+// The genesis hash alone does not attest that a running chain retained the
+// previously accepted block history after a crash/restart.
+const ACCEPTED_BLOCK_NUMBER = "0xf0e"; // 3854
+const ACCEPTED_BLOCK_HASH =
+  "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942";
 const TOKEN_CODE_SHA = "7c2e39f57c3240b740d68ef77ae4e9d0fb6110ccb412cbdb1bec99c485ea4adb";
 const PRESALE_BALANCE_SLOT = "0xb7c0ee5e49cd64bfaca4a7bd9a24ee438d5b56b1f74e500899752b943375722c";
 const CAP_ATOMS = 10_000_000n * (10n ** 18n);
@@ -116,6 +122,10 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
         observed.genesis?.hash?.toLowerCase() !== GENESIS) {
       return hold("epoch2_chain_identity_invalid");
     }
+    if (observed.accepted_block?.number !== ACCEPTED_BLOCK_NUMBER ||
+        observed.accepted_block?.hash?.toLowerCase() !== ACCEPTED_BLOCK_HASH) {
+      return hold("epoch2_accepted_history_mismatch");
+    }
     if (codeSha(observed.presale_code) !== CODE_SHA ||
         codeSha(observed.token_code) !== TOKEN_CODE_SHA) {
       return hold("epoch2_contract_code_mismatch");
@@ -150,6 +160,8 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
       computed_gas_limit: computedGasLimit.toString(),
       max_computed_gas_limit: MAX_COMPUTED_GAS_LIMIT.toString(),
       chain_id: 2050,
+      accepted_history_block: String(BigInt(ACCEPTED_BLOCK_NUMBER)),
+      accepted_history_hash: ACCEPTED_BLOCK_HASH,
       initial_head: before.toString(),
       final_head: after.toString(),
       blocks_produced_in_window: (after - before).toString(),
@@ -244,6 +256,9 @@ export async function observeBuyVoidEpoch2ReadOnlyEstimateV1() {
   observed.chain = await rpcRead("eth_chainId", []);
   observed.block_before = await rpcRead("eth_blockNumber", []);
   observed.genesis = await rpcRead("eth_getBlockByNumber", ["0x0", false]);
+  observed.accepted_block = await rpcRead(
+    "eth_getBlockByNumber", [ACCEPTED_BLOCK_NUMBER, false],
+  );
   observed.peers = await rpcRead("net_peerCount", []);
   observed.presale_code = await rpcRead("eth_getCode", [PRESALE, "latest"]);
   observed.token_code = await rpcRead("eth_getCode", [TOKEN, "latest"]);

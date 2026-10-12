@@ -61,6 +61,10 @@ const valid = Object.freeze({
   chain: "0x802",
   genesis: { hash:
     "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d" },
+  accepted_block: {
+    number: "0xf0e",
+    hash: "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942",
+  },
   block_before: "0x16f4e",
   block_after: "0x16f50",
   peers: "0x2",
@@ -77,6 +81,9 @@ assert.equal(green.gas_estimate, (0x249f0).toString());
 assert.equal(green.gas_limit_multiplier_bps, "15000");
 assert.equal(green.computed_gas_limit, "225000");
 assert.equal(green.max_computed_gas_limit, "320000");
+assert.equal(green.accepted_history_block, "3854");
+assert.equal(green.accepted_history_hash,
+  "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942");
 assert.equal(green.blocks_produced_in_window, "2");
 assert.equal(green.observation_window_ms, "12000");
 const reviewedProductionCandidate = JSON.parse(fs.readFileSync(
@@ -119,6 +126,17 @@ function fails(name, patch, expected) {
 fails("wrong_chain", { chain: "0x1" }, "epoch2_chain_identity_invalid");
 fails("wrong_genesis", { genesis: {hash:"0x" + "0".repeat(64)} },
   "epoch2_chain_identity_invalid");
+fails("missing_accepted_block", { accepted_block: undefined },
+  "epoch2_accepted_history_mismatch");
+fails("different_accepted_block_hash", {
+  accepted_block: { number: "0xf0e", hash: "0x" + "0".repeat(64) },
+}, "epoch2_accepted_history_mismatch");
+fails("wrong_accepted_block_number", {
+  accepted_block: {
+    number: "0xf0f",
+    hash: "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942",
+  },
+}, "epoch2_accepted_history_mismatch");
 fails("presale_code", { presale_code:"0x" },
   "epoch2_contract_code_mismatch");
 fails("token_code", { token_code:"0x" },
@@ -151,7 +169,7 @@ fails("malformed_gas", { estimate_gas:"0x0002" },
   "epoch2_rpc_evidence_malformed");
 
 console.log("VOID_BUY_VOID_EPOCH2_READONLY_DELIVERY_ESTIMATE_V1_PROOF_GREEN");
-console.log("canonical_rpc_and_genesis_bound=true");
+console.log("canonical_rpc_genesis_and_accepted_block_3854_bound=true");
 console.log("synthetic_two_void_fulfill_calldata_proven=true");
 console.log("epoch2_marker_included_and_zero_fee=true");
 console.log("real_epoch2_contract_bytecode_fixture_proven=true");
