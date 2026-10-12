@@ -18983,38 +18983,8 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           });
         }
 
-        const existingRequests = await __voidReadBuyVoidRequestsV1();
-        const existingEvents = await __voidReadBuyVoidOperatorEventsV1();
-        const effectiveRequests = __voidApplyBuyVoidOperatorEventsV1(existingRequests, existingEvents);
-        const destinationLower = void_destination_address.toLowerCase();
-        const activeForDestination = effectiveRequests.find((request:any)=>{
-          const boundDestination = String(request.void_destination_address || request.delivery_address || request.delivery_wallet || "").trim().toLowerCase();
-          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__blo(request);
-        });
-
-        if (activeForDestination) {
-          const activeAmount = Number(activeForDestination.usdc_amount ?? activeForDestination.requested_amount_usdc ?? 0);
-          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount && (activeForDestination.source_chain || "base") === source_chain) {
-            return res.json({
-              schema: "void_public_buy_void_checkout_request_result_v1",
-              marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-              ok: true,
-              idempotent: true,
-              one_active_request_cap_enforced: true,
-              request: activeForDestination
-            });
-          }
-
-          return res.status(409).json({
-            schema: "void_public_buy_void_checkout_request_result_v1",
-            marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-            ok: false,
-            error: "one_active_request_per_void_destination",
-            existing_request_id: String(activeForDestination.request_id || ""),
-            existing_status: String(activeForDestination.effective_status || activeForDestination.status || ""),
-            void_destination_address
-          });
-        }
+        // Strict history and destination checks happen only in the lock.
+        // Do not let a public fast return bypass canonical journal validation.
 
         const request_id = "buyvoid_" + Date.now().toString(36) + "_" + Math.random().toString(16).slice(2,10);
         const created_at_ms = Date.now();
@@ -19088,7 +19058,17 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
 
         if(!__blo(requestObj))throw new Error("request_launch_authority_expired_or_superseded");
         const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
-        if(persisted.reused_request)return res.json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,idempotent:true,one_active_request_cap_enforced:true,request:persisted.reused_request});
+        // An address/amount/chain match is not proof of the original caller.
+        // Never expose that buyer's record or request ID to an anonymous retry.
+        if(persisted.reused_request){
+          return res.status(409).json({
+            schema:"void_public_buy_void_checkout_request_result_v1",
+            marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+            ok:false,
+            error:"one_active_request_per_void_destination",
+            one_active_request_cap_enforced:true
+          });
+        }
         requestObj.persisted = { ok:true, file:persisted.file };
 
         return res.status(201).json({

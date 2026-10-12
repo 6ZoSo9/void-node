@@ -13,7 +13,7 @@ import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/b
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="133599f4e2279ca0efe633c9f0ed9bd69c6e955c";
+const NEW_BLOB="1249848f1875b3f81c6f90aed2bb3c3a0bda50e4";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -52,9 +52,44 @@ assert.match(currentBridge,/persistBuyVoidPublicRequestUnderLaunchLockV1\(r,\[__
 assert.equal(typeof persistBuyVoidPublicRequestUnderLaunchLockV1,"function");
 const currentPost=take(current,'app.post("/__void/buy-void/request"',
   '    // VOID_PUBLIC_BUY_VOID_ROUTE_V1');
-assert.match(currentPost,/if\(persisted\.reused_request\)/u);
-assert.match(currentPost,/idempotent:true/u);
+// Public URL/amount/chain is NOT caller authentication. The predecessor's
+// pre-lock fast return exposed full buyer metadata and bypassed strict history.
+const oldPost=take(original,'app.post("/__void/buy-void/request"',
+  '    // VOID_PUBLIC_BUY_VOID_ROUTE_V1');
+assert.match(oldPost,/request:\s*activeForDestination/u);
+assert.match(oldPost,/existing_request_id/u);
+assert.doesNotMatch(currentPost,/existing_request_id|existing_status|request:\s*activeForDestination|request:\s*persisted\.reused_request/u);
+assert.doesNotMatch(currentPost,/const existingRequests\s*=\s*await __voidReadBuyVoidRequestsV1\(/u);
+assert.doesNotMatch(currentPost,/const existingEvents\s*=\s*await __voidReadBuyVoidOperatorEventsV1\(/u);
+assert.doesNotMatch(currentPost,/idempotent:true/u);
+assert.match(currentPost,/if\(persisted\.reused_request\)\s*\{\s*return res\.status\(409\)\.json\(/u);
 assert.match(currentPost,/d\?"one_active_request_per_void_destination"/u);
+
+// Execute the exact compiled-safe current route response branch with a
+// stranger's same-intent request; no prior ID, account, note or payment
+// metadata may enter the public wire result.
+const reuseBranch=take(currentPost,"if(persisted.reused_request){",
+  "requestObj.persisted =");
+const emitReuse=new Function("persisted","res",reuseBranch);
+const storedSecrets=Object.freeze({
+  request_id:"SECRET_PRIOR_REQUEST_ID",
+  account:"SECRET_PRIVATE_ACCOUNT",
+  note:"SECRET_PRIVATE_NOTE",
+  payment_metadata:"SECRET_PRIVATE_PAYMENT",
+});
+const observedReuse={
+  status_code:0,body:null,
+  status(code){this.status_code=code;return this;},
+  json(body){this.body=body;return this;},
+};
+emitReuse({reused_request:storedSecrets},observedReuse);
+assert.equal(observedReuse.status_code,409);
+assert.equal(observedReuse.body?.ok,false);
+assert.equal(observedReuse.body?.error,"one_active_request_per_void_destination");
+const reuseWire=JSON.stringify(observedReuse.body);
+for(const value of Object.values(storedSecrets)){
+  assert.equal(reuseWire.includes(value),false,"private prior request leaked");
+}
 
 function factory(persistBlock,dir){
   const script=sources.join("\n")+"\n"+persistBlock;
@@ -392,6 +427,8 @@ console.log("expired_launch_lease_after_history_read_holds=true");
 console.log("expired_launch_lease_before_reused_response_holds=true");
 console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
+console.log("public_unauthenticated_reuse_private_conflict=true");
+console.log("public_prelock_fast_return_removed=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");

@@ -1,5 +1,16 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 public privacy and strict-history route successor — source only
+
+The public POST now lets the existing launch-locked persistor decide every
+active-destination retry, never returning an earlier buyer's request or
+request ID. An unauthenticated same-intent retry receives generic HTTP 409
+instead of someone else's payment instructions. The old public fast return,
+which could bypass strict malformed-history verification, is removed.
+The exact source-extracted regression executes the real reused-response
+branch against private sentinel fields and requires zero disclosure. No
+public intake activation or production privacy acceptance follows.
+
 ## October 11 raw-byte history successor — source only
 
 The reviewed request-history helper now derives each complete JSONL row from
@@ -27,7 +38,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `20d0ec09dba80260d533346f719ad292d40ed5d4`. Actual source-only
-regression Git blob: `11807022d98c9ce9266bb23892c636bf10ef2459`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `3aede2478d9ffefd17616c17743f3108743f1891`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -36,17 +47,19 @@ wallet, presale, WC, service, or funds authority follows.
 
 **Source-only Draft. No production, customer or funds authority.**
 
-The current public `POST /__void/buy-void/request` already reads existing
-requests and operator events before persisting, and reuses a matching active
-destination intent. But those reads occur **outside**
-`withBuyLaunchRequestAuthorityMutationV1`; two concurrent POSTs can both
-observe no matching pending destination and subsequently append distinct
-`request_id` rows. The browser-side [#2810](https://github.com/6ZoSo9/void-node/pull/2810)
+The original public `POST /__void/buy-void/request` read existing
+requests and operator events before persisting, then returned a matching
+active buyer's complete request to an unauthenticated caller. The
+read occurred **outside** `withBuyLaunchRequestAuthorityMutationV1`,
+allowing concurrent POSTs to both observe no destination and append
+distinct `request_id` rows. The new public route removes that
+pre-lock fast path; strict in-lock request-history qualification controls
+all reuse/conflict decisions. The browser-side [#2810](https://github.com/6ZoSo9/void-node/pull/2810)
 guards one local client only and does not solve cross-tab or concurrent
 HTTP requests.
 
 This correction keeps a short `src/index.ts` bridge (exact Git blob
-`133599f4e2279ca0efe633c9f0ed9bd69c6e955c`) **within its hard size
+`1249848f1875b3f81c6f90aed2bb3c3a0bda50e4`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
 (Git blob `20d0ec09dba80260d533346f719ad292d40ed5d4`). The existing
@@ -58,17 +71,20 @@ JSONL append or per-ID file creation. This avoids adding a second lock:
 - If no launch-authority-valid active intent exists at the same lowercase
   destination, write the reviewed request using the existing persistence
   functions.
-- If a matching amount and source chain already exists, return the **existing
-  request**, do not generate a second stored request, and issue an
-  `idempotent:true` response; no new payment instruction is minted.
+- If a matching amount and source chain already exists, the helper
+  returns the **existing request internally** without another append.
+  The unauthenticated public POST does **not** expose that record or
+  its request ID. It responds with a generic HTTP 409 active-destination
+  conflict, not a falsely authenticated `idempotent:true` recovery.
+  Genuine caller recovery requires a separately reviewed proof of ownership.
 - If the destination is active but amount or chain differs, return a
   `409 one_active_request_per_void_destination`, with **no second append**.
 - Completed `fulfilled`/`rejected` prior requests retain the existing
   terminal-state policy, and different destination intents are independent.
 
-The earlier quick read-only destination check remains for normal responses;
-the new **serialized pre-append revalidation** is authoritative for this
-specific request-create path. The existing launch authority/coupled generation
+The earlier public read-only destination check is removed; all active
+destination admission now reaches the **serialized strict-history pre-append
+revalidation** before any public result is returned. The existing launch authority/coupled generation
 admission, USDC contract, chain selection, acknowledgements, quotation,
 one-request ID and request document schema are unchanged.
 
@@ -126,9 +142,10 @@ lock callback that drops the revalidator must HOLD as well.
 **Limits:** This is a lease/read-write linearization guard under the existing
 lock, not a strict historical JSONL reader, protected high-water, durable
 request/sidecar atomicity, canonical buyer authorization or authenticated
-idempotent recovery. The public route can still expose a prior full request
-record to an unauthenticated caller who knows public intent fields; that
-separate P1 finding remains OPEN and blocks release. No live payment, wallet,
+idempotent recovery. The original public route's prior-request disclosure via both its
+precheck and its race-reuse response is now eliminated in source. This
+does NOT establish authenticated original-caller recovery, nor clear
+other public endpoints or the remaining production P1 boundaries. No live payment, wallet,
 customer ledger or presale/WC state is changed here.
 
 ## Launch boundaries
@@ -185,8 +202,10 @@ requires these fixed markers. On `workflow_dispatch`, checkout and diff
 hygiene use the exact manual run head and its first parent rather than empty
 PR-only references.
 
-**This does not solve** an unauthenticated public response disclosing a
-previous buyer's request metadata, a tolerant **operator-event** history
-reader, coordinated rollback, or atomic request/sidecar durability. Those
+This repair prevents this **specific public request endpoint** from
+returning another buyer's stored request metadata; it does not prove
+broader buyer privacy, a tolerant **operator-event** history reader,
+coordinated rollback, authenticated original-caller recovery, or atomic
+request/sidecar durability. Those
 remain separate P1/production HOLDs. No deployment or payment authority
 is granted by this source/test patch.
