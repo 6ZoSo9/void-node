@@ -557,6 +557,85 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// A partial late read is not proof that the body is terminal. If cancellation
+// rejects, neither its lock nor the origin slot may be released.
+{
+  let resolveRead;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => { resolveRead = resolve; });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_partial_cancel_rejected"));
+    },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const baseUrl = "https://partial-late-read-cancel-reject.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  resolveRead({ done: false, value: bytes("still-open") });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 0, "partial read with rejected cancel must retain lock");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const blocked = await capturePrimaryError(run);
+    assert.equal(blocked.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "partial read must not reopen origin");
+  assert.equal(cancelCalls, 1, "failed cancellation is not retried");
+}
+
+// If the owner returned after its bounded cleanup window, a subsequently
+// successful cancellation must retire the *same* partial late-read generation,
+// but only after its actual reader promise has settled.
+{
+  let resolveRead;
+  let finishCancel;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => { resolveRead = resolve; });
+  const cancelPromise = new Promise((resolve) => { finishCancel = resolve; });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() { cancelCalls += 1; return cancelPromise; },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const baseUrl = "https://partial-late-read-cancel-later.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const started = Date.now();
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.ok(Date.now() - started < 650, "pending cancel exceeded bounded caller cleanup");
+  assert.equal(cancelCalls, 1);
+  resolveRead({ done: false, value: bytes("partial") });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 0, "partial late read must not release lock prematurely");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  finishCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "confirmed cancellation retires partial reader once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+  assert.equal(releaseCalls, 1);
+}
+
 // Concurrent same-origin requests must share one read-generation slot from
 // the start of fetch, not merely after the first unreadable body times out.
 {
@@ -846,6 +925,8 @@ console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
 console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
+console.log("partial_late_read_failed_cancel_quarantined=true");
+console.log("partial_late_read_late_confirmed_cancel_recovery=true");
 console.log("concurrent_read_generation_singleflight=true");
 console.log("signal_ignoring_fetch_total_deadline=true");
 console.log("fetch_abort_rejection_owned_timeout=true");
