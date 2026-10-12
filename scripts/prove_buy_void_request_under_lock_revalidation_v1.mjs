@@ -711,7 +711,7 @@ for (const existing of [false, true]) {
   }
 
   // An already qualified sidecar can be replaced with another private
-  // regular inode between lstat and O_WRONLY. The replacement must never
+  // regular inode between lstat and the now-readable O_RDWR open. The replacement must never
   // be truncated, even though its mode and owner look acceptable.
   {
     const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
@@ -727,7 +727,8 @@ for (const existing of [false, true]) {
         payment_submitted_at_ms:1800000000400};
       fs.openSync=function(file,flags,mode){
         if (!replaced && String(file).endsWith("/"+base.request_id+".json") &&
-            (flags & fs.constants.O_WRONLY)!==0) {
+            ((flags & fs.constants.O_RDWR)===fs.constants.O_RDWR ||
+             (flags & fs.constants.O_WRONLY)===fs.constants.O_WRONLY)) {
           fs.renameSync(sidecar,sidecar+".held");
           substitute(sidecar,"OPAQUE_SUBSTITUTE_EXISTING");
           replaced=true;
