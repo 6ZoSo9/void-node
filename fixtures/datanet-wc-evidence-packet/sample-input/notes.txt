@@ -1,3 +1,0 @@
-This fixture represents local DataNet verification evidence.
-It is useful for proving deterministic packet generation only.
-No Work Credits are issued by this fixture.

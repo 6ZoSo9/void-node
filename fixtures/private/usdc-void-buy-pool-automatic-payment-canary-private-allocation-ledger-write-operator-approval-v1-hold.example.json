@@ -1,6 +1,0 @@
-{
-  "operator_private_allocation_ledger_write_decision": "hold_for_operator_review",
-  "reviewer": "operator",
-  "review_note": "canary private allocation ledger write packet held for additional operator review",
-  "max_packet_count": 1
-}

@@ -1,6 +1,0 @@
-{
-  "operator_inventory_reserve_decision": "approve_for_separate_inventory_reserve_execution_packet",
-  "reviewer": "operator",
-  "review_note": "canary inventory reserve candidate approved for separate reserve execution packet",
-  "max_candidate_count": 1
-}

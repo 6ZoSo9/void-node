@@ -1,6 +1,0 @@
-{
-  "operator_inventory_reserve_decision": "hold_for_operator_review",
-  "reviewer": "operator",
-  "review_note": "canary inventory reserve candidate held for additional operator review",
-  "max_candidate_count": 1
-}
