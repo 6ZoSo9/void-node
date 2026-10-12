@@ -450,8 +450,11 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       return;
     }
 
-    res.statusCode = upstreamResponse.status;
-
+    // Qualify all untrusted upstream response headers *before* touching
+    // public response state. If the absolute deadline expires during a
+    // synchronous header getter, the generic 502 must not inherit an old
+    // 201 Content-Length, ETag or private upstream response identity.
+    const acceptedHeaders = [];
     for (
       const headerName
       of [
@@ -461,32 +464,21 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         "x-content-type-options",
       ]
     ) {
-      // An upstream ETag may describe the original unsanitized private
-      // document and must not be sent as an identity for rewritten bytes.
       if (headerName === "etag" && privatePersistedPathRemoved) continue;
-      const headerValue =
-        upstreamResponse.headers.get(headerName);
-      if (headerValue) {
-        res.setHeader(
-          headerName,
-          headerValue,
-        );
-      }
+      const headerValue = upstreamResponse.headers.get(headerName);
+      if (headerValue) acceptedHeaders.push([headerName, headerValue]);
     }
-
+    // This is the final, immediate-at-publication monotonic authorization.
+    // No await or untrusted upstream getter follows this check.
+    requireUpstreamBeforeDeadline();
+    res.statusCode = upstreamResponse.status;
+    for (const [headerName, headerValue] of acceptedHeaders) {
+      res.setHeader(headerName, headerValue);
+    }
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-content-type-options", "nosniff");
-    res.setHeader(
-      "x-void-public-buy-void-post-proxy",
-      "v1",
-    );
-    res.setHeader(
-      "content-length",
-      String(responseBody.length),
-    );
-    // Include synchronous JSON/receipt validation in the 8-second budget.
-    // An overdue HTTP 201 cannot become public payment instructions.
-    requireUpstreamBeforeDeadline();
+    res.setHeader("x-void-public-buy-void-post-proxy", "v1");
+    res.setHeader("content-length", String(responseBody.length));
     res.end(responseBody);
   } catch (_error) {
     if (res.writableEnded || uploadExpired) {
