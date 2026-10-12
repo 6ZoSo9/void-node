@@ -618,6 +618,53 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2, "late settlement must reopen the origin");
 }
 
+// The body's reader may also own an earlier abort listener installed during
+// getReader(). A raced rejection cannot change the deterministic owner error.
+{
+  let readAbortEvents = 0;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const baseUrl = "https://reader-abort-listener-order.example.invalid";
+  const fixture = makeFetch((signal) => {
+    let rejectRead;
+    const heldRead = new Promise((_, reject) => { rejectRead = reject; });
+    return {
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          signal.addEventListener("abort", () => {
+            readAbortEvents += 1;
+            rejectRead(new Error("reader_abort_listener_won_first"));
+          }, { once: true });
+          return {
+            read() { return heldRead; },
+            cancel() { cancelCalls += 1; },
+            releaseLock() { releaseCalls += 1; },
+          };
+        },
+      },
+    };
+  });
+  const result = await capturePrimaryError(() => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  }));
+  assert.equal(result.name, "AbortError");
+  assert.equal(result.message, "response_body_read_timeout");
+  assert.equal(readAbortEvents, 1);
+  assert.equal(cancelCalls, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "settled rejected read must release exactly once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
 // A fetch registered before the client deadline listener can reject first
 // when AbortSignal fires. The owned timeout still outranks that custom error.
 {
@@ -802,6 +849,7 @@ console.log("unresolved_read_generation_quarantined=true");
 console.log("concurrent_read_generation_singleflight=true");
 console.log("signal_ignoring_fetch_total_deadline=true");
 console.log("fetch_abort_rejection_owned_timeout=true");
+console.log("reader_abort_rejection_owned_timeout=true");
 console.log("late_fetch_cancellation_retains_quarantine=true");
 console.log("late_fetch_rejection_recovery=true");
 console.log("late_read_settlement_recovery=true");
