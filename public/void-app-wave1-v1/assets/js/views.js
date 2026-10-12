@@ -663,7 +663,7 @@ function validateView() {
           <div class="hero-content">
             <span class="status-chip status-chip--info" data-validate-state-chip>Checking readiness</span>
             <h2 id="validate-readiness-title">Validator candidate readiness</h2>
-            <p data-validate-message>No candidate state is inferred until the sealed public-safe readiness contract validates.</p>
+            <p data-validate-message role="status" aria-live="polite" aria-atomic="true">No candidate state is inferred until the sealed public-safe readiness contract validates.</p>
           </div>
           <aside class="hero-aside" aria-label="Validator readiness summary">
             <div class="signal-line"><span>Minimum policy reference</span><strong data-validate-stake-policy>—</strong></div>
