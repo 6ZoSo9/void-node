@@ -55,7 +55,24 @@ if [ "${VOID_CANONICAL_PRODUCER_ROLE:-0}" = "1" ]; then
   test "${VOID_CANONICAL_SELF_HTTP_GUARD:-0}" = "1"
   test "${VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS:-0}" = "1"
   test -z "${NODE_OPTIONS:-}"
-  canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v1.cjs")
+  # Select an exact reviewed source generation; never bypass the guard.
+  # Both the checked-out source and tracked commit must agree, and the
+  # selected guard independently rehashes the source at Node startup.
+  producer_index_blob="$(git hash-object -- src/index.ts)"
+  tracked_index_blob="$(git rev-parse --verify "${source_commit_before}:src/index.ts")"
+  test "$producer_index_blob" = "$tracked_index_blob"
+  case "$producer_index_blob" in
+    1fde828c97175560f98ab070af33eefc595f8002)
+      canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v1.cjs")
+      ;;
+    8198912a70c8db0c81dad5d341cb4a779906c851)
+      canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v2.cjs")
+      ;;
+    *)
+      echo "VOID_CANONICAL_PRODUCER_SOURCE_GENERATION_HOLD" >&2
+      exit 1
+      ;;
+  esac
   export NODE_OPTIONS="${canonical_self_http_preload[*]}"
 fi
 
