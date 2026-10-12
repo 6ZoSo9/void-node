@@ -314,6 +314,7 @@ async function readAgainstOwnedDeadlineV1(
   reader,
   controller,
   readScope,
+  readGeneration,
   deferRelease,
 ) {
   const readPromise = Promise.resolve().then(() => reader.read());
@@ -337,12 +338,13 @@ async function readAgainstOwnedDeadlineV1(
     return await Promise.race([readPromise, deadline]);
   } catch (error) {
     if (deadlineWon) {
-      const generation = {};
+      // This origin was reserved before fetch initiation; retain the same
+      // generation while an abort-ignoring reader remains unresolved.
+      readGeneration.unresolvedRead = true;
       deferRelease();
-      RESPONSE_READ_QUARANTINES_V1.set(readScope, generation);
       const releaseLateGeneration = () => {
         releaseReaderLockBestEffortV1(reader);
-        if (RESPONSE_READ_QUARANTINES_V1.get(readScope) === generation) {
+        if (RESPONSE_READ_QUARANTINES_V1.get(readScope) === readGeneration) {
           RESPONSE_READ_QUARANTINES_V1.delete(readScope);
         }
       };
@@ -354,7 +356,7 @@ async function readAgainstOwnedDeadlineV1(
   }
 }
 
-async function boundedRead(response, maximumBytes, controller, readScope) {
+async function boundedRead(response, maximumBytes, controller, readScope, readGeneration) {
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     const contentLengthText = contentLengthRaw.trim();
@@ -384,6 +386,7 @@ async function boundedRead(response, maximumBytes, controller, readScope) {
         reader,
         controller,
         readScope,
+        readGeneration,
         () => {
           readerReleaseDeferred = true;
         },
@@ -435,8 +438,13 @@ async function fetchBoundedV1({
   if (RESPONSE_READ_QUARANTINES_V1.has(readScope)) {
     fail("response_body_read_generation_unresolved");
   }
+  // Reserve before the first await, rather than only after timeout. Without
+  // this slot, simultaneous signal-ignoring reads can accumulate unbounded
+  // unresolved generations under the same public origin.
+  const readGeneration = { unresolvedRead: false };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  RESPONSE_READ_QUARANTINES_V1.set(readScope, readGeneration);
 
   try {
     const response = await fetchImpl(url, {
@@ -455,10 +463,17 @@ async function fetchBoundedV1({
       maximumBytes,
       controller,
       readScope,
+      readGeneration,
     );
     return { response, raw };
   } finally {
     clearTimeout(timer);
+    // Normal/error completion retires only its own slot. An unresolved read
+    // owns the slot until its *actual* read promise settles and releases.
+    if (!readGeneration.unresolvedRead &&
+        RESPONSE_READ_QUARANTINES_V1.get(readScope) === readGeneration) {
+      RESPONSE_READ_QUARANTINES_V1.delete(readScope);
+    }
   }
 }
 
