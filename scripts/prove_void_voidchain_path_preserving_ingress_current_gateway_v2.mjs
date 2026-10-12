@@ -204,6 +204,123 @@ try{
   assert.equal(verified.independent_public_acceptance,false);
   assert.equal(fs.existsSync(executedMarker),false);
 
+  // An interrupted packet publication is not a reason to delete real
+  // private evidence or choose a different output identity. At every file
+  // and parent fsync boundary, throw AFTER the durable syscall, then require
+  // the SAME path to resume with only exact existing leaves and complete the
+  // inert packet without overwriting any already published bytes.
+  const originalFsync=fs.fsyncSync;
+  const stages=[
+    ["cloudflared-config.yml","cloudflared-config.yml"],
+    ["service","void-voidchain-ingress-current-gateway-v2.service"],
+    ["review","REVIEW.txt"],
+    ["packet","packet.json"],
+    ["directory",null],
+  ];
+  for(const [label,leaf] of stages){
+    const partial=path.join(temp,"resume-"+label);
+    let injected=false;
+    fs.fsyncSync=function(fd){
+      originalFsync(fd);
+      let target="";
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      const match=leaf ? target===path.join(partial,leaf) : target===partial;
+      if(match&&!injected){
+        injected=true;
+        throw new Error("synthetic_publish_fsync_interrupted_"+label);
+      }
+    };
+    try{
+      assert.throws(
+        ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+          ...request,output_dir:partial}),
+        new RegExp("synthetic_publish_fsync_interrupted_"+label),
+      );
+    }finally{fs.fsyncSync=originalFsync;}
+    assert.equal(injected,true,label+" failure must cross publication fsync");
+    assert.equal(fs.existsSync(partial),true);
+    const priorEntries=fs.readdirSync(partial);
+    const priorContents=new Map(priorEntries.map(name=>[
+      name,fs.readFileSync(path.join(partial,name))]));
+    const completed=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:partial});
+    const verifiedResume=verifyVoidchainPathPreservingIngressCurrentGatewayV2({
+      packet_dir:partial,
+    });
+    assert.equal(verifiedResume.plan_id,completed.plan_id);
+    assert.equal(verifiedResume.ok,true);
+    assert.equal(verifiedResume.ingress_activation_authorized,false);
+    assert.equal(verifiedResume.independent_public_acceptance,false);
+    for(const [name,before] of priorContents){
+      assert.deepEqual(fs.readFileSync(path.join(partial,name)),before,
+        "resumption cannot rewrite a previously published leaf: "+name);
+    }
+    assert.deepEqual(fs.readdirSync(partial).sort(),[
+      "REVIEW.txt","cloudflared-config.yml","packet.json",
+      "void-voidchain-ingress-current-gateway-v2.service",
+    ].sort());
+    // A *fully* published packet must also permit exact idempotent
+    // requalification with zero source-file replacement.
+    const repeated=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:partial});
+    assert.equal(repeated.plan_id,completed.plan_id);
+  }
+
+  // Reject a source-conflicting partial file without touching its bytes.
+  for(const kind of ["wrong_bytes","unexpected_leaf","wrong_mode","symlink"]){
+    const partial=path.join(temp,"tampered-resume-"+kind);
+    let injected=false;
+    fs.fsyncSync=function(fd){
+      originalFsync(fd);
+      let target="";
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      if(!injected&&target===path.join(partial,"cloudflared-config.yml")){
+        injected=true;throw new Error("synthetic_first_leaf_partial");
+      }
+    };
+    try{
+      assert.throws(
+        ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+          ...request,output_dir:partial}),
+        /synthetic_first_leaf_partial/u);
+    }finally{fs.fsyncSync=originalFsync;}
+    assert.equal(injected,true);
+    const first=path.join(partial,"cloudflared-config.yml");
+    if(kind==="wrong_bytes")fs.writeFileSync(first,"UNREVIEWED_SOURCE_FRAGMENT");
+    if(kind==="unexpected_leaf"){
+      fs.writeFileSync(path.join(partial,"UNREVIEWED_EXTRA.txt"),
+        "private-inert-fixture",{mode:0o600});
+    }
+    if(kind==="wrong_mode")fs.chmodSync(first,0o644);
+    if(kind==="symlink"){
+      fs.unlinkSync(first);
+      fs.symlinkSync(cloudflared,first);
+    }
+    const originalBytes=kind==="symlink" ? null : fs.readFileSync(first);
+    assert.throws(
+      ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+        ...request,output_dir:partial}),
+      /VOIDCHAIN_INGRESS_RESUME_/u,
+      kind+" conflicting private partial must HOLD with no overwrite",
+    );
+    if(originalBytes!==null){
+      assert.deepEqual(fs.readFileSync(first),originalBytes);
+    }else{
+      assert.equal(fs.lstatSync(first).isSymbolicLink(),true);
+    }
+    assert.equal(fs.existsSync(path.join(partial,"packet.json")),false);
+  }
+  // Published packet without its REVIEW prerequisite is corruption, never a
+  // signal that absent prior leaves may be recreated and silently endorsed.
+  const premature=path.join(temp,"resume-packet");
+  fs.unlinkSync(path.join(premature,"REVIEW.txt"));
+  assert.throws(
+    ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:premature}),
+    /VOIDCHAIN_INGRESS_RESUME_PREMATURE_PACKET/u);
+  assert.equal(fs.existsSync(path.join(premature,"REVIEW.txt")),false);
+  assert.equal(fs.existsSync(executedMarker),false);
+
   for(const [key,value] of Object.entries(
     VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_AUTHORITY_V2,
   )){
@@ -415,6 +532,9 @@ try{
   console.log("path_preserving=true");
   console.log("exact_pr_head_checkout_required=true");
   console.log("frozen_ingress_v1_rejects_current_gateway=true");
+  console.log("private_packet_same_path_midwrite_resume=true");
+  console.log("conflicting_partial_never_overwritten=true");
+  console.log("packet_json_last_recovery_guard=true");
   console.log("gateway_current_sha=ec998138c382196f6b0302c6d6ed665c4553cdcb");
   console.log("ingress_version=2");
   console.log("git_config_parameters_rejected=true");
