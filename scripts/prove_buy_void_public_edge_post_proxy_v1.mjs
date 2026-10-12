@@ -88,10 +88,13 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
   const literal = Buffer.from("{" + " ".repeat(4096) + "}", "utf8");
   let readCalls = 0;
   let fetchCalls = 0;
+  // The timing fixture is an arbitrary object response, NOT a
+  // checkout-creation receipt; use 200 so the strict 201 schema guard is
+  // tested only by the separate canonical-201 acceptance/rejection cases.
   const scopedFetch = async () => {
     fetchCalls += 1;
     return {
-      status: 201,
+      status: 200,
       headers: new Headers({
         "content-type": "application/json; charset=utf-8",
       }),
@@ -135,7 +138,8 @@ assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
   };
   await handle(syntheticReq, syntheticRes);
   assert.equal(fetchCalls, 1);
-  assert.equal(syntheticRes.statusCode, 201);
+  assert.equal(syntheticRes.statusCode, 200,
+    "tiny-stream timing fixture is not a canonical 201 checkout receipt");
   assert.deepEqual(output, literal, "one-byte stream must preserve raw JSON");
   assert.equal(readCalls, literal.length + 1, "exercise all 4,098 tiny reads");
   assert.ok(createdTimers >= readCalls + 1,
