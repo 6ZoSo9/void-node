@@ -1349,6 +1349,60 @@ for (const failureCase of ["headers_property", "headers_get_method"]) {
   assert.equal(recovered.calls, 2);
 }
 
+// Reader cancellation must be captured before a timeout dispatches abort.
+// An earlier synchronous listener can otherwise replace reader.cancel and
+// reject the read before bounded cleanup observes the original capability.
+{
+  let rejectRead;
+  let originalCancelCalls = 0;
+  let fakeCancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((_, reject) => { rejectRead = reject; });
+  const fixture = makeFetch((signal) => {
+    const reader = {
+      read() {
+        return readPromise;
+      },
+      cancel() {
+        originalCancelCalls += 1;
+        return new Promise(() => {});
+      },
+      releaseLock() {
+        releaseCalls += 1;
+      },
+    };
+    signal.addEventListener("abort", () => {
+      reader.cancel = () => {
+        fakeCancelCalls += 1;
+        return Promise.resolve();
+      };
+      rejectRead(new Error("synthetic_abort_swapped_reader_rejection"));
+    }, { once: true });
+    return {
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: { getReader() { return reader; } },
+    };
+  });
+  const baseUrl = "https://abort-swaps-reader-cancel.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 40, maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(originalCancelCalls, 1,
+    "must invoke reader cancellation captured before abort");
+  assert.equal(fakeCancelCalls, 0, "must never invoke forged reader cancel");
+  assert.equal(releaseCalls, 0,
+    "unconfirmed original cancellation must retain reader lock");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "unconfirmed reader cancellation must retain one origin generation");
+}
+
 {
   let cancelCalls = 0;
   let releaseCalls = 0;
@@ -1408,6 +1462,7 @@ console.log("mutable_status_redirect_refusal=true");
 console.log("throwing_status_and_header_origin_quarantined=true");
 console.log("mutable_cancel_method_snapshot=true");
 console.log("cancel_method_pinned_before_abort=true");
+console.log("reader_cancel_method_pinned_before_abort=true");
 console.log("late_fetch_mutable_cancel_snapshot=true");
 console.log("throwing_body_getter_origin_quarantined=true");
 console.log("throwing_cancel_getter_primary_error_preserved=true");

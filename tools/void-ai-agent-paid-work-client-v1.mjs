@@ -282,11 +282,7 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
   };
 }
 
-async function settleCancellationBounded(target, controller, onConfirmed = null) {
-  // Capture the exact cancellation capability before abort dispatch: an
-  // injected synchronous AbortSignal listener can replace a pending cancel
-  // with a resolved no-op. Failing capture still aborts but never qualifies
-  // cleanup or releases an unresolved origin.
+function captureCancellationCapabilityV1(target) {
   let cancelMethod;
   let captureFailed = false;
   try {
@@ -294,6 +290,21 @@ async function settleCancellationBounded(target, controller, onConfirmed = null)
   } catch {
     captureFailed = true;
   }
+  return { cancelMethod, captureFailed };
+}
+
+async function settleCancellationBounded(
+  target,
+  controller,
+  onConfirmed = null,
+  capturedCapability = null,
+) {
+  // Capture the exact cancellation capability before abort dispatch: an
+  // injected synchronous AbortSignal listener can replace a pending cancel
+  // with a resolved no-op. A reader path may supply the capability captured
+  // before its pending read began.
+  const { cancelMethod, captureFailed } =
+    capturedCapability ?? captureCancellationCapabilityV1(target);
   if (!controller.signal.aborted) {
     controller.abort();
   }
@@ -551,9 +562,13 @@ async function boundedRead(getHeader, responseBody, maximumBytes, controller, re
   const chunks = [];
   let total = 0;
   let readerReleaseDeferred = false;
+  let readerCancellationCapability = null;
 
   try {
     while (true) {
+      // Capture before the pending read: an earlier synchronous abort
+      // listener may otherwise replace reader.cancel before cleanup begins.
+      readerCancellationCapability = captureCancellationCapabilityV1(reader);
       const { done, value } = await readAgainstOwnedDeadlineV1(
         reader,
         controller,
@@ -577,7 +592,7 @@ async function boundedRead(getHeader, responseBody, maximumBytes, controller, re
       // settlement or confirmed cancellation plus actual read settlement.
       await settleCancellationBounded(reader, controller, () => {
         readGeneration.pendingReadCleanup?.confirmCancellation();
-      });
+      }, readerCancellationCapability);
     } else {
       // A non-deadline reader/chunk failure can also leave an active body.
       // Keep its lock and origin slot until cancellation really succeeds.
@@ -587,7 +602,7 @@ async function boundedRead(getHeader, responseBody, maximumBytes, controller, re
         if (releaseReaderLockBestEffortV1(reader)) {
           retireResponseGenerationV1(readScope, readGeneration);
         }
-      });
+      }, readerCancellationCapability);
     }
     throw error;
   } finally {
