@@ -34,10 +34,11 @@ persistence.
   a timely original 201 remains acceptable. The final guard now runs
   **after** all untrusted upstream header reads but **before** staging any
   public 201 response status or headers. A getter that advances the clock
-  past the absolute expiry cannot leave the old ETag or Content-Length on
-  the generic uncertain 502. A second actual-handler regression advances
-  the monotonic clock inside the upstream ETag getter and requires exactly
-  that no stale private ETag or 201 byte length is published.
+  past the absolute expiry cannot leave an old 201 Content-Length on the
+  generic uncertain 502. A second actual-handler regression advances the
+  monotonic clock inside an allowed response-header getter and requires
+  no stale HTTP 201 byte length or upstream identity to be published.
+  Opaque upstream ETag is never forwarded, including valid new-request 201.
 
 The gateway does not gain a general mutation proxy.
 
@@ -73,6 +74,16 @@ The gateway does not gain a general mutation proxy.
   settled timers and at most one concurrent timer. The extra fence covers the Node 22 case where an aborted
   stream reader never settles. The upstream is contacted with redirects
   forbidden.
+- A 201 must ALSO bind its actionable `payment_instructions` to the
+  original buyer's destination and amount, and to source-reviewed canonical
+  USDC payment identities **independently of the upstream's claim**: exact
+  Base/8453 or Ethereum/1 USDC token address, token decimals 6, fixed
+  receiver `0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5`,
+  matching sender, chain, amount and request ID, shared launch expiry and
+  required request-first/sender-control flags. A response showing another
+  payment receiver or token is generic uncertain 502, never a buyer-facing
+  instruction to send funds. The source-only proof mutates those fields
+  individually in otherwise valid 201 receipts and requires rejection.
 - HTTP 201 **created-request** responses must also match the canonical
   node's actual `void_public_buy_void_checkout_request_result_v1` schema,
   `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1` marker, `ok: true`,
@@ -88,9 +99,11 @@ The gateway does not gain a general mutation proxy.
   legacy two-key shape is accepted as a successful 201 only after the rest
   of the receipt and buyer-intent contract qualifies; the edge **removes**
   the internal `file` key and forwards a sanitized canonical response
-  with `persisted:{ok:true}`. It discards a stale upstream ETag when it
-  changes those bytes. Any other persistence metadata or a nonstring or
-  empty legacy file field HOLDS as uncertain 502 rather than leaking data.
+  with `persisted:{ok:true}`. **All** upstream ETag values are dropped
+  even for a valid current-writer 201; a non-cacheable POST receipt cannot
+  authenticate an opaque upstream ETag. Any other persistence metadata or
+  a nonstring or empty legacy file field HOLDS as uncertain 502 rather than
+  leaking data.
   The focused HTTP proof covers both minimal and full checkout receipts
   with the old server-private file path, preserved public payment fields,
   safe byte-for-byte pass-through for path-free receipts, and malformed
