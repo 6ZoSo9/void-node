@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "8198912a70c8db0c81dad5d341cb4a779906c851"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "764c2dd200dd9783bdd3c92beee74c18679606ac"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "0634951f6076233b291fe67929b75d69bab31864"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "e738e32601c68b70ebc7cbf922b24f055cc3e91d"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "732f6ac162bbc18360bedf3566a54cc03a01053a"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -77,6 +77,7 @@ jobs:
             'legacy_insecure_and_symlink_sidecars_hold_before_append=true' \
             'sidecar_preopen_inode_replacement_holds=true' \
             'sidecar_first_create_exclusive_holds=true' \
+            'sidecar_exclusive_reserved_before_journal_append=true' \
             'sidecar_postwrite_rebind_holds=true' \
             'journal_existing_fd_pinned_from_read_through_append=true' \
             'journal_leaf_substitution_holds_without_visible_append=true' \
