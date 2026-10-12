@@ -45,6 +45,12 @@ export const SOURCE_BLOBS = Object.freeze({
     "d184aef61760e4f0109b016d6f5331e93136048d",
   "src/economic/buy_void_epoch2_signer_control_v1.ts":
     "0ce33a35da61199b597bad80fa019dca26ffade1",
+  // The successor's separate systemd credential and its inert adversarial
+  // proof are independent of the frozen E1 signer evidence.
+  "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts":
+    "5fd9296d10d810b1976c159578f13cca5d1594fe",
+  "scripts/prove_buy_void_epoch2_credential_signer_v1.ts":
+    "7d83b87e1e2e5825f8aa3b0ae12a44f49bbc225c",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
     "4e5d9a633b05d9254424c2132fc6620b94ff3692",
   [CANDIDATE]: "269174bbb9c128e1625e73f8f66b9ab643f59bba",

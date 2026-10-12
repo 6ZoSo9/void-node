@@ -22,7 +22,15 @@ assert.equal(original.status,STATUS);
 assert.equal(original.credential_binding_established,false);
 assert.equal(original.runtime_or_payment_activation_authorized,false);
 assert.equal(original.historical_v1_authority_inherited,false);
-assert.ok(Object.keys(SOURCE_BLOBS).length >= 16);
+assert.ok(Object.keys(SOURCE_BLOBS).length >= 18);
+assert.equal(
+  SOURCE_BLOBS["src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"],
+  "5fd9296d10d810b1976c159578f13cca5d1594fe",
+);
+assert.equal(
+  SOURCE_BLOBS["scripts/prove_buy_void_epoch2_credential_signer_v1.ts"],
+  "7d83b87e1e2e5825f8aa3b0ae12a44f49bbc225c",
+);
 const clone = v => structuredClone(v);
 function bad(name,change) {
   const c=clone(candidate), l=clone(legacy), t=clone(target);
