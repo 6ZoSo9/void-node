@@ -357,7 +357,7 @@ function validateFrontdoorSourceSemantics(sources){
     // Only the exact newly reviewed gateway generation is admitted; its
     // public checkout path must remain one narrow POST, with fail-closed
     // buyer receipt and uncertain-retry contracts.
-    ['"VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1"',
+    ["VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1",
       "VOIDCHAIN_INGRESS_CURRENT_CHECKOUT_MARKER_MISSING"],
     ['"/__void/buy-void/request"',
       "VOIDCHAIN_INGRESS_CURRENT_CHECKOUT_ROUTE_MISSING"],
