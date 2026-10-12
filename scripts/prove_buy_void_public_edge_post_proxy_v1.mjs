@@ -230,15 +230,59 @@ let headerRejectedSocketClosed = false;
 // Match the *actual* node's 201 creation envelope, not an invented marker.
 // Deliberately reverse field ordering and retain whitespace to catch any
 // edge that parses and reserializes a successful buyer receipt.
+const accepted201CreatedAtMs = Date.now();
+const accepted201ExpiresAtMs = accepted201CreatedAtMs + 4 * 60 * 1000;
+const accepted201Destination = "0x1111111111111111111111111111111111111111";
+const accepted201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const accepted201Usdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const accepted201RequestId = "buyvoid_edge_201_aaaaaaaa";
 const exactAccepted201Receipt = {
   request: {
     persisted: { ok: true },
+    created_at_ms: accepted201CreatedAtMs,
+    launch_authority: { expires_at_ms: accepted201ExpiresAtMs },
     status: "awaiting_payment_tx_hash",
-    request_id: "buyvoid_edge_201_aaaaaaaa",
+    tx_hash: "",
+    request_id: accepted201RequestId,
     source_chain: "base",
-    void_destination_address: "0x1111111111111111111111111111111111111111",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    asset_in: "USDC",
+    usdc_decimals: 6,
+    usdc_contract: accepted201Usdc,
+    receive_address: accepted201Receiver,
+    delivery_chain: "void",
+    delivery_chain_id: 2050,
+    void_destination_address: accepted201Destination,
+    delivery_address: accepted201Destination,
+    delivery_wallet: accepted201Destination,
     requested_amount_usdc: 10,
     usdc_amount: 10,
+    request_contract: {
+      request_before_payment_required: true,
+      one_active_request_per_void_destination: true,
+      payment_sender_must_equal_void_destination: true,
+      payment_tx_hash_bound_after_request_by_operator: true,
+    },
+    safety: {
+      automatic_fulfillment: false,
+      manual_review_required: true,
+    },
+    payment_instructions: {
+      request_id: accepted201RequestId,
+      amount: 10,
+      send_asset: "USDC",
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: accepted201Usdc,
+      token_decimals: 6,
+      send_to: accepted201Receiver,
+      send_from: accepted201Destination,
+      expires_at_ms: accepted201ExpiresAtMs,
+      do_not_send_before_request: true,
+      do_not_send_from_exchange_or_pooled_custody: true,
+      keep_transaction_hash: true,
+    },
     ok: true,
     marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
     schema: "void_public_buy_void_checkout_request_v1",
@@ -390,10 +434,10 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
     let headerStallObserved = false;
     response.headers = {
       get(name) {
-        if (name === "etag") {
+        if (name === "x-content-type-options") {
           headerStallObserved = true;
           clock.tick = 9001; // delayed timer callback has not fired
-          return '"PRIVATE_CUSTODY_RECEIPT_ETAG"';
+          return "nosniff";
         }
         return normalHeaders.get(name);
       },
@@ -572,7 +616,9 @@ const upstream = http.createServer(
           "content-type": "application/json; charset=utf-8",
           "cache-control": "public,max-age=60",
           "content-length": String(Buffer.byteLength(payload)),
-          ...(isLegacy ? { etag: '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"' } : {}),
+          etag: isLegacy
+            ? '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"'
+            : '"SENTINEL_VALID_RECEIPT_OPAQUE_ETAG"',
         });
         res.end(payload);
         return;
@@ -644,6 +690,7 @@ const upstream = http.createServer(
           "content-type": "application/json; charset=utf-8",
           "cache-control": "public,max-age=60",
           "content-length": String(Buffer.byteLength(exactAccepted201Json)),
+          etag: '"SENTINEL_VALID_201_OPAQUE_ETAG"',
         });
         res.end(exactAccepted201Json);
         return;
@@ -669,7 +716,18 @@ const upstream = http.createServer(
           proofCase === "wrong_inner_marker_201" ||
           proofCase === "wrong_intent_destination_201" ||
           proofCase === "wrong_intent_amount_201" ||
-          proofCase === "wrong_intent_chain_201") {
+          proofCase === "wrong_intent_chain_201" ||
+          proofCase === "wrong_payment_receiver_201" ||
+          proofCase === "wrong_payment_sender_201" ||
+          proofCase === "wrong_payment_token_201" ||
+          proofCase === "wrong_payment_chain_id_201" ||
+          proofCase === "wrong_payment_amount_201" ||
+          proofCase === "wrong_payment_expiry_201" ||
+          proofCase === "wrong_payment_request_id_201" ||
+          proofCase === "missing_payment_instructions_201" ||
+          proofCase === "wrong_public_receiver_201" ||
+          proofCase === "unsafe_payment_flag_201" ||
+          proofCase === "unsupported_payment_contract_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
@@ -717,6 +775,50 @@ const upstream = http.createServer(
         }
         if (proofCase === "wrong_intent_chain_201") {
           mutated.request = { ...mutated.request, source_chain: "ethereum" };
+        }
+        if ([
+          "wrong_payment_receiver_201",
+          "wrong_payment_sender_201",
+          "wrong_payment_token_201",
+          "wrong_payment_chain_id_201",
+          "wrong_payment_amount_201",
+          "wrong_payment_expiry_201",
+          "wrong_payment_request_id_201",
+          "missing_payment_instructions_201",
+          "wrong_public_receiver_201",
+          "unsafe_payment_flag_201",
+          "unsupported_payment_contract_201",
+        ].includes(proofCase)) {
+          const checkout = { ...mutated.request };
+          const payment = { ...checkout.payment_instructions };
+          if (proofCase === "wrong_payment_receiver_201") {
+            payment.send_to = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "wrong_payment_sender_201") {
+            payment.send_from = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "wrong_payment_token_201") {
+            payment.token_contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+          }
+          if (proofCase === "wrong_payment_chain_id_201") payment.send_chain_id = 1;
+          if (proofCase === "wrong_payment_amount_201") payment.amount = 11;
+          if (proofCase === "wrong_payment_expiry_201") payment.expires_at_ms += 10;
+          if (proofCase === "wrong_payment_request_id_201") payment.request_id += "_other";
+          if (proofCase === "wrong_public_receiver_201") {
+            checkout.receive_address = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "unsafe_payment_flag_201") {
+            payment.do_not_send_before_request = false;
+          }
+          if (proofCase === "unsupported_payment_contract_201") {
+            checkout.usdc_contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+          }
+          if (proofCase === "missing_payment_instructions_201") {
+            delete checkout.payment_instructions;
+          } else {
+            checkout.payment_instructions = payment;
+          }
+          mutated.request = checkout;
         }
         if (proofCase === "private_path_201" ||
             proofCase === "nonstring_file_201" ||
@@ -1174,6 +1276,8 @@ try {
   };
   const valid201 = await postProof("valid_201");
   assert.equal(valid201.status, 201, "legitimate checkout HTTP 201 retained");
+  assert.equal(valid201.headers.get("etag"), null,
+    "opaque upstream ETag is not public receipt authority");
   assert.equal(valid201.headers.get("content-type"),
     "application/json; charset=utf-8");
   const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
@@ -1220,6 +1324,8 @@ try {
   // browser Draft #2818 owns *actual consumer* validation of these fields.
   const full201 = await postProof("full_client_contract_201");
   assert.equal(full201.status, 201);
+  assert.equal(full201.headers.get("etag"), null,
+    "even a fully qualified nonlegacy receipt must not forward upstream ETag");
   const full201Bytes = Buffer.from(await full201.arrayBuffer());
   assert.deepEqual(full201Bytes, Buffer.from(fullAccepted201Json, "utf8"),
     "full native-USDC buyer receipt must preserve every original byte");
@@ -1399,6 +1505,17 @@ try {
     "wrong_intent_destination_201",
     "wrong_intent_amount_201",
     "wrong_intent_chain_201",
+    "wrong_payment_receiver_201",
+    "wrong_payment_sender_201",
+    "wrong_payment_token_201",
+    "wrong_payment_chain_id_201",
+    "wrong_payment_amount_201",
+    "wrong_payment_expiry_201",
+    "wrong_payment_request_id_201",
+    "missing_payment_instructions_201",
+    "wrong_public_receiver_201",
+    "unsafe_payment_flag_201",
+    "unsupported_payment_contract_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -1553,6 +1670,8 @@ try {
   console.log("public_request_legacy_intent_aliases_preserved=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("full_native_usdc_independent_chain_amount_identities=true");
+  console.log("canonical_payment_instructions_recipient_token_rail_and_amount_bound=true");
+  console.log("all_201_upstream_etags_suppressed=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
   console.log("independent_201_missing_false_nonobject_persistence_refused=true");
   console.log("independent_201_request_id_ok_marker_refused=true");
