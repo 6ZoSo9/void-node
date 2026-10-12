@@ -258,6 +258,10 @@ const exactAccepted201Receipt = {
     delivery_wallet: accepted201Destination,
     requested_amount_usdc: 10,
     usdc_amount: 10,
+    quoted_void: 20,
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    pool_void_total: 10000000,
     request_contract: {
       request_before_payment_required: true,
       one_active_request_per_void_destination: true,
@@ -504,6 +508,10 @@ const fullAccepted201Receipt = {
     usdc_contract: full201BaseUsdc,
     usdc_amount: 10,
     requested_amount_usdc: 10,
+    quoted_void: 20,
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    pool_void_total: 10000000,
     receive_address: full201Receiver,
     void_destination_address: full201Destination,
     delivery_address: full201Destination,
@@ -727,7 +735,14 @@ const upstream = http.createServer(
           proofCase === "missing_payment_instructions_201" ||
           proofCase === "wrong_public_receiver_201" ||
           proofCase === "unsafe_payment_flag_201" ||
-          proofCase === "unsupported_payment_contract_201") {
+          proofCase === "unsupported_payment_contract_201" ||
+          proofCase === "wrong_void_quote_201" ||
+          proofCase === "wrong_void_price_201" ||
+          proofCase === "wrong_void_rate_201" ||
+          proofCase === "wrong_void_pool_201" ||
+          proofCase === "wrong_original_usdc_201" ||
+          proofCase === "wrong_quote_precision_201" ||
+          proofCase === "private_instruction_key_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
@@ -819,6 +834,28 @@ const upstream = http.createServer(
             checkout.payment_instructions = payment;
           }
           mutated.request = checkout;
+        }
+        // Independent API-level quote and nested-instruction falsifiers.
+        if ([
+          "wrong_void_quote_201", "wrong_void_price_201",
+          "wrong_void_rate_201", "wrong_void_pool_201",
+          "wrong_original_usdc_201", "wrong_quote_precision_201",
+          "private_instruction_key_201",
+        ].includes(proofCase)) {
+          const checkout={...mutated.request};
+          if (proofCase==="wrong_void_quote_201") checkout.quoted_void=21;
+          if (proofCase==="wrong_void_price_201") checkout.price_usdc_per_void="0.25";
+          if (proofCase==="wrong_void_rate_201") checkout.rate_void_per_usdc="3";
+          if (proofCase==="wrong_void_pool_201") checkout.pool_void_total=5000000;
+          if (proofCase==="wrong_original_usdc_201") checkout.usdc_amount=11;
+          if (proofCase==="wrong_quote_precision_201") checkout.quoted_void=20.0000001;
+          if (proofCase==="private_instruction_key_201") {
+            checkout.payment_instructions={
+              ...checkout.payment_instructions,
+              private_request_dir:"SENTINEL_PRIVATE_REQUEST_DIRECTORY",
+            };
+          }
+          mutated.request=checkout;
         }
         if (proofCase === "private_path_201" ||
             proofCase === "nonstring_file_201" ||
@@ -1516,6 +1553,13 @@ try {
     "wrong_public_receiver_201",
     "unsafe_payment_flag_201",
     "unsupported_payment_contract_201",
+    "wrong_void_quote_201",
+    "wrong_void_price_201",
+    "wrong_void_rate_201",
+    "wrong_void_pool_201",
+    "wrong_original_usdc_201",
+    "wrong_quote_precision_201",
+    "private_instruction_key_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -1672,6 +1716,8 @@ try {
   console.log("full_native_usdc_independent_chain_amount_identities=true");
   console.log("canonical_payment_instructions_recipient_token_rail_and_amount_bound=true");
   console.log("all_201_upstream_etags_suppressed=true");
+  console.log("public_api_201_void_quote_rate_price_pool_exact=true");
+  console.log("public_api_201_extra_payment_instruction_key_rejected=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
   console.log("independent_201_missing_false_nonobject_persistence_refused=true");
   console.log("independent_201_request_id_ok_marker_refused=true");
