@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           node --check tools/void-voidchain-path-preserving-ingress-current-gateway-v2.mjs
           node --check scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs
-          node scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs | tee ingress-v2-node-${{ matrix.node }}.txt
+          node scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs | tee ${{ runner.temp }}/ingress-v2-node-${{ matrix.node }}.txt
           for marker in \
             "VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2_PROOF_GREEN" \
             "frozen_ingress_v1_rejects_current_gateway=true" \
@@ -64,7 +64,7 @@ jobs:
             "installation_authorized=false" \
             "ingress_activation_authorized=false" \
             "independent_public_acceptance=false"; do
-            grep -Fx "$marker" ingress-v2-node-${{ matrix.node }}.txt
+            grep -Fx "$marker" ${{ runner.temp }}/ingress-v2-node-${{ matrix.node }}.txt
           done
       - name: Diff hygiene
         env:
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ingress-current-gateway-v2-node-${{ matrix.node }}
-          path: ingress-v2-node-${{ matrix.node }}.txt
+          path: ${{ runner.temp }}/ingress-v2-node-${{ matrix.node }}.txt
           retention-days: 1
           if-no-files-found: error
   compare:
