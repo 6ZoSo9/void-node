@@ -62,13 +62,13 @@ jobs:
           set -Eeuo pipefail
           node --check tools/void-precision-web-recovery-evidence-v2.mjs
           node --check scripts/prove_void_precision_web_recovery_evidence_v2.mjs
-          node scripts/prove_void_precision_web_recovery_evidence_v2.mjs | tee "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V2_PROOF_GREEN' "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'frozen_v1_new_gateway_rejection_intact=true' "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'current_source_generation_bound=true' "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'hostile_path_git_substitution_rejected=true' "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'installation_authorized=false' "precision-gateway-v2-node-${{ matrix.node }}.txt"
-          grep -Fx 'independent_acceptance=false' "precision-gateway-v2-node-${{ matrix.node }}.txt"
+          node scripts/prove_void_precision_web_recovery_evidence_v2.mjs | tee "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V2_PROOF_GREEN' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'frozen_v1_new_gateway_rejection_intact=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'current_source_generation_bound=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'hostile_path_git_substitution_rejected=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'installation_authorized=false' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'independent_acceptance=false' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
       - name: Requalify exact checkout gateway behavior with disposable HTTP
         run: |
           set -Eeuo pipefail
@@ -87,7 +87,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: precision-current-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: precision-gateway-v2-node-${{ matrix.node }}.txt
+          path: ${{ runner.temp }}/precision-gateway-v2-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
 
