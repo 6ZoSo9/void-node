@@ -55,7 +55,30 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         totalBytes >
         VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES
       ) {
+        // An oversized *unfinished* chunked upload has already consumed
+        // its authority. Sending 413 must also terminate the transport:
+        // otherwise clearing the upload deadline leaves the peer free to
+        // trickle additional bytes indefinitely on its original socket.
+        // Close only AFTER the small 413 body is flushed, to preserve the
+        // client-visible rejection instead of replacing it with ECONNRESET.
+        const oversizedSocket = req.socket;
+        res.shouldKeepAlive = false;
+        res.once("finish", () => {
+          if (!oversizedSocket || oversizedSocket.destroyed) return;
+          try {
+            if (typeof oversizedSocket.destroySoon === "function") {
+              oversizedSocket.destroySoon();
+            } else {
+              oversizedSocket.destroy();
+            }
+          } catch {
+            // Transport teardown uncertainty cannot authorize a new
+            // upstream checkout request or an HTTP 201 success.
+            if (!oversizedSocket.destroyed) oversizedSocket.destroy();
+          }
+        });
         res.statusCode = 413;
+        res.setHeader("connection", "close");
         res.setHeader(
           "content-type",
           "application/json; charset=utf-8",
