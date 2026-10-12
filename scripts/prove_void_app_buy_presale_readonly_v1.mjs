@@ -331,6 +331,88 @@ vm.runInNewContext(instrumentedClient, sandbox, {
 const buyTest = sandbox.__voidBuyTestV1;
 assert.ok(buyTest);
 
+// Header/deadline fast refusal must release an UNLOCKED upstream body.
+// HTTP 201 may have been committed before these bytes arrived, so rejecting
+// the body must preserve the original uncertain-outcome/no-retry contract.
+// Cancellation may hang, reject or throw; never acquire a reader or await it.
+for (const fixture of [
+  {
+    label: "precheck_invalid_deadline",
+    deadline: 0,
+    contentType: "application/json",
+    length: null,
+    expected: /invalid Buy VOID body deadline/u,
+    cancel: () => new Promise(() => undefined),
+  },
+  {
+    label: "precheck_non_json_body",
+    deadline: 100,
+    contentType: "text/plain",
+    length: null,
+    expected: /non-JSON Buy VOID response/u,
+    cancel: () => Promise.reject(new Error("synthetic_header_cancel_rejected")),
+  },
+  {
+    label: "precheck_declared_oversize",
+    deadline: 100,
+    contentType: "application/json",
+    length: "131073",
+    expected: /Buy VOID response exceeds byte limit/u,
+    cancel: () => { throw new Error("synthetic_header_cancel_threw"); },
+  },
+  {
+    label: "precheck_throwing_headers",
+    deadline: 100,
+    contentType: "throw",
+    length: null,
+    expected: /synthetic_header_get_failed/u,
+    cancel: () => new Promise(() => undefined),
+  },
+]) {
+  let readersAcquired = 0;
+  let cancellationCalls = 0;
+  const response = {
+    headers: {
+      get(name) {
+        if (fixture.contentType === "throw") {
+          throw new Error("synthetic_header_get_failed");
+        }
+        return name === "content-type" ? fixture.contentType : fixture.length;
+      },
+    },
+    body: {
+      getReader() {
+        readersAcquired += 1;
+        throw new Error("header_rejection_must_not_lock_reader");
+      },
+      cancel() {
+        cancellationCalls += 1;
+        return fixture.cancel();
+      },
+    },
+  };
+  let clockTimeout = null;
+  const outcome = await Promise.race([
+    buyTest.strictJson(response, fixture.deadline).then(
+      () => ({ kind: "incorrect_accept" }),
+      (error) => ({ kind: "held", message: String(error?.message || error) }),
+    ),
+    new Promise((resolve) => {
+      clockTimeout = setTimeout(
+        () => resolve({ kind: "cancel_blocked" }), 250);
+    }),
+  ]);
+  clearTimeout(clockTimeout);
+  assert.equal(outcome.kind, "held",
+    fixture.label + ": nonsettling cancel must never delay refusal");
+  assert.match(outcome.message, fixture.expected,
+    fixture.label + ": cancellation must not replace original error");
+  assert.equal(readersAcquired, 0,
+    fixture.label + ": early failure must not acquire a stream reader");
+  assert.equal(cancellationCalls, 1,
+    fixture.label + ": one best-effort unlocked-body cancellation");
+}
+
 // An unavailable clock must reject BEFORE getReader() acquires a stream.
 // An earlier implementation acquired and then threw, retaining a locked
 // response body without any cancellation path. Use the actual Buy client.
@@ -1838,6 +1920,7 @@ console.log("dual_rail_open_message_bound=true");
 console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
+console.log("buy_header_refusal_unlocked_body_cancellation_bounded=true");
 console.log("buy_response_cancel_never_blocks_checkout_hold=true");
 console.log("buy_response_body_absolute_read_deadline=true");
 console.log("buy_response_infinite_trickle_deadline_cannot_reset=true");
