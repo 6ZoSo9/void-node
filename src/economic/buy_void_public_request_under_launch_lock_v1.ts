@@ -553,6 +553,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // append, verified against its original durable row, and kept open
     // until the eventual revision write or every error cleanup.
     let revisionSidecarFd: number | null = null;
+    let reservedNewSidecarFd: number | null = null;
     try {
     const durableRequestHistory = heldHistory.rows;
     // A tolerant reader might return one row while omitting a different
@@ -704,6 +705,30 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       assertPinnedPrivateRequestDirV1(dir, dirFd);
     }
     assertPinnedPrivateRequestDirV1(dir, dirFd);
+    // Refuse a post-preflight same-UID orphan BEFORE the economic journal
+    // append. O_CREAT|O_EXCL atomically reserves this exact request leaf and
+    // prevents a later ordinary open from replacing a newly appeared sidecar.
+    // A crash at this point may leave an empty private reservation sidecar:
+    // that uncertainty remains a HOLD, not automatic payment recovery.
+    if (!txHashRevision) {
+      try {
+        reservedNewSidecarFd = fs.openSync(file,
+          fs.constants.O_RDWR | fs.constants.O_CREAT |
+          fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+      } catch (error: any) {
+        if (error?.code === "EEXIST") {
+          holdHistoryV1("sidecar_appeared_before_create");
+        }
+        throw error;
+      }
+      const reserved = assertPrivateSidecarIdentityV1(
+        file, reservedNewSidecarFd, null,
+      );
+      if (reserved.size !== 0n) {
+        holdHistoryV1("sidecar_reservation_not_empty");
+      }
+      assertPinnedPrivateRequestDirV1(dir, dirFd);
+    }
     // Last synchronous admission check: no await may intervene.
     assertCurrentAuthority();
     if (journalFd === null) {
@@ -758,13 +783,15 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     try {
       // For operator revisions the exactly authenticated original descriptor
       // has stayed open from before journal append. Do not reopen a pathname.
-      sidecarFd = revisionSidecarFd !== null
-        ? revisionSidecarFd
-        : fs.openSync(file, fs.constants.O_RDWR |
-            fs.constants.O_NOFOLLOW |
-            (sidecarBefore ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL),
-          0o600);
-      revisionSidecarFd = null; // ownership moves to the publication finally
+      if (revisionSidecarFd !== null) {
+        sidecarFd = revisionSidecarFd;
+        revisionSidecarFd = null;
+      } else if (reservedNewSidecarFd !== null) {
+        sidecarFd = reservedNewSidecarFd;
+        reservedNewSidecarFd = null;
+      } else {
+        holdHistoryV1("sidecar_publication_reservation_missing");
+      }
     } catch (error: any) {
       if (!sidecarBefore && error?.code === "EEXIST") {
         holdHistoryV1("sidecar_appeared_before_create");
@@ -816,14 +843,21 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       // Preserve fail-closed ownership uncertainty while always attempting
       // closure of the independently retained original journal descriptor.
       try {
-        if (revisionSidecarFd !== null) {
-          try { fs.closeSync(revisionSidecarFd); }
-          catch { holdHistoryV1("revision_original_sidecar_close_uncertain"); }
+        if (reservedNewSidecarFd !== null) {
+          try { fs.closeSync(reservedNewSidecarFd); }
+          catch { holdHistoryV1("reserved_new_sidecar_close_uncertain"); }
         }
       } finally {
-        if (journalFd !== null) {
-          try { fs.closeSync(journalFd); }
-          catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
+        try {
+          if (revisionSidecarFd !== null) {
+            try { fs.closeSync(revisionSidecarFd); }
+            catch { holdHistoryV1("revision_original_sidecar_close_uncertain"); }
+          }
+        } finally {
+          if (journalFd !== null) {
+            try { fs.closeSync(journalFd); }
+            catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
+          }
         }
       }
     }
