@@ -1,5 +1,34 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 pinned journal read-to-append generation — source only
+
+The original strict request-history reader authenticated a journal inode and
+then closed its FD. Later O_APPEND opened a pathname without a proven
+relationship to those bytes. A same-UID actor could replace the journal
+between read and append, or introduce an unreviewed first-generation journal
+between ENOENT and O_CREAT, causing an unqualified write.
+
+The current candidate now opens an existing verified 0600 journal as
+O_RDWR|O_APPEND|O_NOFOLLOW under the launch lock and retains **the same
+descriptor** from byte-framed strict history parsing through the event append,
+file fsync, private-sidecar publication and directory fsync. At each authority
+boundary it compares the retained inode's bigint dev/ino, mode, size, owner,
+ctime/mtime and link count to the visible leaf. A nonexistent journal may be
+created only once using O_CREAT|O_EXCL|O_NOFOLLOW, with identity checked
+before use. A changed or missing visible leaf HOLDS without a success receipt,
+even when the already pinned original file had been modified.
+
+The source-only actual compiled-helper proof covers one single open for an
+existing journal despite a subsequent append, a same-UID pathname replacement
+immediately before the descriptor write (replacement bytes untouched), and
+an unexpected first-generation file inserted before exclusive create.
+Checks require the full Node22/24/26 and cross-node suite.
+
+This is not a continuous same-UID tamper-proof lease. It still **does not**
+atomically commit the JSONL record and its sidecar, repair a partial commit
+after crash, validate all operator-event history, or qualify production
+payment acceptance, custody, Nimo installation, WC/VOID launch or funds.
+
 ## October 11 sidecar inode-binding security repair — source only
 
 An existing verified private 0600 request sidecar used to be opened again by
@@ -141,8 +170,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `c3c9c21bfa21e74316210bd05243e7d6f7c243ff`. Actual source-only
-regression Git blob: `1c7177071fe9cd31f8705402b4172fbf6d1bc57e`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `fdf29c987068c79b41f4956378d466c4fb8aacbf`. Actual source-only
+regression Git blob: `f9c6dc331925aa51309dd54a17b8f1d2cb6cbf1a`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -166,7 +195,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `c3c9c21bfa21e74316210bd05243e7d6f7c243ff`). The existing
+(Git blob `fdf29c987068c79b41f4956378d466c4fb8aacbf`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

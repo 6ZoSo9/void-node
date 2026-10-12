@@ -815,6 +815,110 @@ for (const existing of [false, true]) {
     }
   }
 }
+// Strict request-history admission must retain its original journal inode
+// THROUGH append and sidecar fsync. All interventions operate only on
+// per-test throwaway directories, never on a live customer ledger.
+{
+  const nativeOpen=fs.openSync, nativeWriteFile=fs.writeFileSync;
+  function newFixture(name) {
+    const root=temp(),prior=process.env.VOID_BUY_REQUEST_DIR;
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const readers=factory(oldPersist,root);
+    const persist=(obj)=>persistBuyVoidPublicRequestUnderLaunchLockV1(obj,[
+      readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true,
+    ]);
+    return {root,prior,persist,ledger:path.join(root,"requests.jsonl"),
+      restore(){
+        fs.openSync=nativeOpen;
+        fs.writeFileSync=nativeWriteFile;
+        if(prior===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+        else process.env.VOID_BUY_REQUEST_DIR=prior;
+        fs.rmSync(root,{recursive:true,force:true});
+      }};
+  }
+  function exactSubstitute(name,body){
+    const fd=nativeOpen(name,fs.constants.O_CREAT|
+      fs.constants.O_EXCL|fs.constants.O_WRONLY,0o600);
+    try { fs.writeSync(fd,body); fs.fsyncSync(fd); }
+    finally { fs.closeSync(fd); }
+  }
+  // A nonempty previously validated journal is opened exactly ONCE for
+  // strict read and append, not closed then reopened as a pathname.
+  {
+    const f=newFixture("stable");
+    try {
+      await f.persist(request("buyvoid_journal_first_aaaaaaaa","3","base","1"));
+      let journalOpens=0;
+      fs.openSync=function(file,flags,mode){
+        if(String(file).endsWith("/requests.jsonl")){
+          journalOpens++;
+          assert.ok((flags & fs.constants.O_RDWR)!==0,
+            "strict read must pin the append-capable existing FD");
+          assert.ok((flags & fs.constants.O_APPEND)!==0);
+        }
+        return nativeOpen(file,flags,mode);
+      };
+      await f.persist(request("buyvoid_journal_next_bbbbbbbb","3","base","2"));
+      assert.equal(journalOpens,1,"existing journal must not reopen to append");
+      assert.equal(lines(f.root).length,2);
+    }finally{f.restore();}
+  }
+
+  // The old pathname writer could append to a substituted visible journal.
+  // Swap its name just before the actual FD write: new source must append
+  // only the held inode and HOLD when the pathname no longer names it.
+  {
+    const f=newFixture("swap");
+    let replaced=false;
+    const sentinel="OPAQUE_UNQUALIFIED_REPLACEMENT_LEDGER";
+    try {
+      await f.persist(request("buyvoid_journal_swap_aaaaaaaa","3","base","3"));
+      fs.writeFileSync=function(target,bytes,options){
+        if(!replaced && typeof target==="number" &&
+            fs.readlinkSync("/proc/self/fd/"+target)===f.ledger &&
+            String(bytes).endsWith("\n")){
+          fs.renameSync(f.ledger,f.ledger+".held");
+          exactSubstitute(f.ledger,sentinel);
+          replaced=true;
+        }
+        return nativeWriteFile(target,bytes,options);
+      };
+      await assert.rejects(
+        ()=>f.persist(request("buyvoid_journal_swap_bbbbbbbb","3","base","4")),
+        /buy_void_request_history_under_lock_journal_visible_identity_changed/u,
+        "journal name replacement must HOLD, not publish success");
+      assert.equal(replaced,true);
+      assert.equal(fs.readFileSync(f.ledger,"utf8"),sentinel,
+        "replacement ledger must remain byte-for-byte unmodified");
+    }finally{f.restore();}
+  }
+
+  // A new name introduced after the strict reader saw ENOENT cannot be
+  // opened with ordinary O_CREAT: require O_EXCL and leave it untouched.
+  {
+    const f=newFixture("first-create");
+    let introduced=false;
+    const sentinel="OPAQUE_FIRST_CREATE_INTERLOPER";
+    try {
+      fs.openSync=function(file,flags,mode){
+        if(!introduced && String(file).endsWith("/requests.jsonl") &&
+            (flags & fs.constants.O_CREAT)!==0){
+          assert.ok((flags & fs.constants.O_EXCL)!==0,
+            "fresh-generation journal publication requires O_EXCL");
+          exactSubstitute(f.ledger,sentinel);
+          introduced=true;
+        }
+        return nativeOpen(file,flags,mode);
+      };
+      await assert.rejects(
+        ()=>f.persist(request("buyvoid_journal_new_aaaaaaaa","3","base","5")),
+        /buy_void_request_history_under_lock_journal_appeared_before_exclusive_create/u);
+      assert.equal(introduced,true);
+      assert.equal(fs.readFileSync(f.ledger,"utf8"),sentinel);
+    }finally{f.restore();}
+  }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -836,6 +940,9 @@ console.log("legacy_insecure_and_symlink_sidecars_hold_before_append=true");
 console.log("sidecar_preopen_inode_replacement_holds=true");
 console.log("sidecar_first_create_exclusive_holds=true");
 console.log("sidecar_postwrite_rebind_holds=true");
+console.log("journal_existing_fd_pinned_from_read_through_append=true");
+console.log("journal_leaf_substitution_holds_without_visible_append=true");
+console.log("journal_first_create_exclusive_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");

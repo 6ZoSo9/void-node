@@ -141,9 +141,16 @@ function sameHistoryFileV1(left: any, right: any): boolean {
 // that line. Never admit a second paid obligation from such partial history.
 // Read exactly the already-persisted JSONL under the same launch lock and
 // require every durable request ID to survive the legacy reader's projection.
+type PinnedRequestHistoryV1 = {
+  rows: any[];
+  fd: number | null;
+  identity: fs.BigIntStats | null;
+};
+// Keep the *same* verified existing journal FD from strict read to append.
+// An absent journal is created later by O_EXCL under the launch lock.
 function assertCompleteRequestHistoryUnderLockV1(
   dir: string, observed: unknown,
-): any[] {
+): PinnedRequestHistoryV1 {
   if (!Array.isArray(observed)) holdHistoryV1("reader_not_array");
   const ledger = path.join(dir, "requests.jsonl");
   let visible: any;
@@ -153,7 +160,7 @@ function assertCompleteRequestHistoryUnderLockV1(
     if (error?.code !== "ENOENT") holdHistoryV1("metadata_unavailable");
     if (observed.length !== 0) holdHistoryV1("missing_with_observed_rows");
     assertNoSurvivingRequestHistoryV1(dir);
-    return [];
+    return { rows: [], fd: null, identity: null };
   }
   if (!visible.isFile() || visible.isSymbolicLink() ||
       visible.nlink !== 1n || visible.size < 0n ||
@@ -161,9 +168,10 @@ function assertCompleteRequestHistoryUnderLockV1(
     holdHistoryV1("leaf_unqualified");
   }
   let fd: number | null = null;
+  let retainForAppend = false;
   try {
-    fd = fs.openSync(ledger, fs.constants.O_RDONLY |
-      (fs.constants.O_NOFOLLOW || 0));
+    fd = fs.openSync(ledger, fs.constants.O_RDWR |
+      fs.constants.O_APPEND | (fs.constants.O_NOFOLLOW || 0));
     const opened = fs.fstatSync(fd, { bigint: true });
     if (!opened.isFile() || !sameHistoryFileV1(visible, opened)) {
       holdHistoryV1("identity_changed_before_read");
@@ -186,7 +194,8 @@ function assertCompleteRequestHistoryUnderLockV1(
     if (limit === 0) {
       if (observed.length !== 0) holdHistoryV1("empty_with_observed_rows");
       assertNoSurvivingRequestHistoryV1(dir);
-      return [];
+      retainForAppend = true;
+      return { rows: [], fd, identity: closedRead };
     }
     // Derive every row boundary from immutable numeric octets, never a
     // mutable String.prototype.split/slice/endsWith call. Independently
@@ -241,13 +250,14 @@ function assertCompleteRequestHistoryUnderLockV1(
       frameStart = cursor + 1;
     }
     if (frameStart !== limit) holdHistoryV1("framing_invalid");
-    return durableRows;
+    retainForAppend = true;
+    return { rows: durableRows, fd, identity: closedRead };
   } catch (error: any) {
     if (String(error?.message || "").startsWith(
       "buy_void_request_history_under_lock_")) throw error;
     holdHistoryV1("read_unavailable");
   } finally {
-    if (fd !== null) {
+    if (fd !== null && !retainForAppend) {
       try { fs.closeSync(fd); }
       catch { holdHistoryV1("descriptor_close_uncertain"); }
     }
@@ -360,8 +370,13 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Expired launch authority takes precedence after awaited reads; never
     // interpret the filesystem when the original lock lease has lapsed.
     assertCurrentAuthority();
-    const durableRequestHistory =
+    const heldHistory =
       assertCompleteRequestHistoryUnderLockV1(pinnedDir, requestHistory);
+    // A retained original FD must be closed on ALL return and error paths,
+    // including public idempotent reuse and rejected operator revisions.
+    let journalFd: number | null = heldHistory.fd;
+    try {
+    const durableRequestHistory = heldHistory.rows;
     // A tolerant reader might return one row while omitting a different
     // durable row with the *same request_id*. Only the independently parsed
     // complete JSONL snapshot may drive destination admission.
@@ -452,7 +467,13 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Qualify both existing destinations before the first append. Refuse
     // any group/other-readable history rather than publishing new secrets.
     assertPrivateRequestDirV1(dir);
-    assertPrivateRequestLeafV1(ledger);
+    const ledgerBefore = assertPrivateRequestLeafV1(ledger);
+    if ((heldHistory.identity === null && ledgerBefore !== null) ||
+        (heldHistory.identity !== null &&
+         (ledgerBefore === null ||
+          !sameHistoryFileV1(heldHistory.identity, ledgerBefore)))) {
+      holdHistoryV1("journal_leaf_changed_after_read");
+    }
     const sidecarBefore = assertPrivateRequestLeafV1(file);
     if (typeof fs.constants.O_NOFOLLOW !== "number") {
       holdHistoryV1("private_no_follow_unavailable");
@@ -460,15 +481,41 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     assertPinnedPrivateRequestDirV1(dir, dirFd);
     // Last synchronous admission check: no await may intervene.
     assertCurrentAuthority();
-    const ledgerFd = fs.openSync(ledger,
-      fs.constants.O_WRONLY | fs.constants.O_APPEND |
-      fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
-    try {
-      assertPrivateOpenLeafV1(ledgerFd);
-      fs.writeFileSync(ledgerFd, json + "\n");
-      fs.fsyncSync(ledgerFd);
-    } finally {
-      fs.closeSync(ledgerFd);
+    if (journalFd === null) {
+      // Fresh-generation O_EXCL forbids a new inode that appeared after
+      // strict ENOENT history qualification. Never append to it.
+      try {
+        journalFd = fs.openSync(ledger, fs.constants.O_WRONLY |
+          fs.constants.O_APPEND | fs.constants.O_CREAT |
+          fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+      } catch (error: any) {
+        if (error?.code === "EEXIST") {
+          holdHistoryV1("journal_appeared_before_exclusive_create");
+        }
+        throw error;
+      }
+    }
+    const journalOpened = assertPrivateOpenLeafV1(journalFd);
+    if ((heldHistory.identity &&
+         !sameHistoryFileV1(heldHistory.identity, journalOpened)) ||
+        (!heldHistory.identity && journalOpened.size !== 0n)) {
+      holdHistoryV1("journal_open_identity_changed");
+    }
+    // The verified FD is retained during both the following append and
+    // the sidecar publication; pathname substitution can only cause HOLD.
+    let journalVisible: fs.BigIntStats;
+    try { journalVisible = fs.lstatSync(ledger, { bigint: true }); }
+    catch { holdHistoryV1("journal_visible_unavailable_before_append"); }
+    if (!sameHistoryFileV1(journalOpened, journalVisible)) {
+      holdHistoryV1("journal_visible_identity_changed");
+    }
+    fs.writeFileSync(journalFd, json + "\n");
+    fs.fsyncSync(journalFd);
+    const journalAfter = fs.fstatSync(journalFd, { bigint: true });
+    try { journalVisible = fs.lstatSync(ledger, { bigint: true }); }
+    catch { holdHistoryV1("journal_visible_unavailable_after_append"); }
+    if (!sameHistoryFileV1(journalAfter, journalVisible)) {
+      holdHistoryV1("journal_visible_identity_changed");
     }
     // The legacy sidecar is still non-atomic relative to the journal.
     // Avoid O_CREAT for an existing verified inode, and require O_EXCL
@@ -503,8 +550,22 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     fs.fsyncSync(dirFd);
     assertPinnedPrivateRequestDirV1(dir, dirFd);
     assertPrivateSidecarStillVisibleV1(file, sidecarOpened!);
+    let journalAtSuccess: fs.BigIntStats;
+    try { journalAtSuccess = fs.lstatSync(ledger, { bigint: true }); }
+    catch { holdHistoryV1("journal_visible_unavailable_at_success"); }
+    if (!sameHistoryFileV1(journalAfter,
+          fs.fstatSync(journalFd, { bigint: true })) ||
+        !sameHistoryFileV1(journalAfter, journalAtSuccess)) {
+      holdHistoryV1("journal_visible_identity_changed");
+    }
     return { dir, file: path.join(dir, reqObj.request_id + ".json"),
       reused_request: null };
+    } finally {
+      if (journalFd !== null) {
+        try { fs.closeSync(journalFd); }
+        catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
+      }
+    }
     } finally {
       fs.closeSync(dirFd);
     }
