@@ -31,7 +31,13 @@ persistence.
   HOLD. The test evaluates the actual handler with synthetic clock advancement
   while timers deliberately remain unfired: a late completed upload performs
   zero upstream requests, late upstream headers yield uncertain 502, and
-  a timely original 201 remains acceptable.
+  a timely original 201 remains acceptable. The final guard now runs
+  **after** all untrusted upstream header reads but **before** staging any
+  public 201 response status or headers. A getter that advances the clock
+  past the absolute expiry cannot leave the old ETag or Content-Length on
+  the generic uncertain 502. A second actual-handler regression advances
+  the monotonic clock inside the upstream ETag getter and requires exactly
+  that no stale private ETag or 201 byte length is published.
 
 The gateway does not gain a general mutation proxy.
 
