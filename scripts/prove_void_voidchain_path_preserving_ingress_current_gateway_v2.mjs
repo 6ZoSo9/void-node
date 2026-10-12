@@ -432,10 +432,18 @@ try{
     {...request,output_dir:path.join(ROOT,".voidchain-ingress-plan-test")},
     /VOIDCHAIN_INGRESS_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY/u,
   );
-  rejectPrepare(
-    {...request,output_dir:output},
-    /VOIDCHAIN_INGRESS_OUTPUT_ALREADY_EXISTS/u,
-  );
+  // A fully published *identical* private packet is safe to requalify
+  // without replacing any of its canonical source-bound output leaves.
+  const priorFiles=new Map(fs.readdirSync(output).map(name=>[
+    name,fs.readFileSync(path.join(output,name))]));
+  const repeated=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+    ...request,output_dir:output,
+  });
+  assert.equal(repeated.plan_id,packet.plan_id);
+  for(const [name,bytes] of priorFiles){
+    assert.deepEqual(fs.readFileSync(path.join(output,name)),bytes,
+      "exact same-path replay may not rewrite previously accepted leaf");
+  }
 
   {
     const configPath=path.join(output,"cloudflared-config.yml");
