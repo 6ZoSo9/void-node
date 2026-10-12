@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "8198912a70c8db0c81dad5d341cb4a779906c851"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "9b8f995bd9bf5df910ea4bd203a9e82005133c4f"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "f0d0a4886793273efe9e7dcebb4c365cd2d22d81"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "c3c9c21bfa21e74316210bd05243e7d6f7c243ff"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "1c7177071fe9cd31f8705402b4172fbf6d1bc57e"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -75,6 +75,9 @@ jobs:
             'fsync_failures_reject_without_false_success=true' \
             'directory_rebind_during_fsync_holds=true' \
             'legacy_insecure_and_symlink_sidecars_hold_before_append=true' \
+            'sidecar_preopen_inode_replacement_holds=true' \
+            'sidecar_first_create_exclusive_holds=true' \
+            'sidecar_postwrite_rebind_holds=true' \
             'prior_multi_active_destination_never_idempotent=true' \
             'prior_multi_active_conflicting_rail_and_amount_holds=true' \
             'malformed_durable_request_history_holds=true' \

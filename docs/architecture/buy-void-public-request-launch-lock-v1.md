@@ -1,5 +1,30 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 sidecar inode-binding security repair — source only
+
+An existing verified private 0600 request sidecar used to be opened again by
+pathname without binding the returned descriptor to the original preflight
+inode. The writer could then truncate a newly substituted same-UID 0600 leaf
+despite the earlier successful check. A missing sidecar likewise permitted a
+substitute created between its ENOENT preflight and ordinary O_CREAT open.
+
+The writer now pins bigint dev/ino/owner/mode/link-count evidence for existing
+sidecars, opens an existing leaf without O_CREAT, and requires exact preflight
+identity before any truncate. An absent leaf is created using O_CREAT|O_EXCL
+and O_NOFOLLOW; an intervening new pathname causes an explicit HOLD. The
+opened descriptor's identity is rechecked against its visible directory child
+before modification, after file fsync, and again after the directory fsync.
+These are bounded checks, not an adversary-resistant lifetime inode lease.
+
+A focused inert compiled-helper regression injects a same-UID old-leaf swap
+just before open, a new matching private leaf just before exclusive create,
+and a postwrite swap during sidecar fsync; all must HOLD rather than report
+success or truncate the substituted leaf. A failed append may already have
+modified the original journal: this patch **does not** guarantee multi-file
+crash atomicity or establish the journal read-to-append same-inode boundary.
+Those and broader customer/privacy/production gates remain explicit HOLDs.
+No runtime/host/payment/presale/WC/VOID/funds action is authorized.
+
 ## October 11 private buyer-record permissions — source only
 
 At ordinary process umask 0022 the older writer could create the public
@@ -116,8 +141,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `9b8f995bd9bf5df910ea4bd203a9e82005133c4f`. Actual source-only
-regression Git blob: `f0d0a4886793273efe9e7dcebb4c365cd2d22d81`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `c3c9c21bfa21e74316210bd05243e7d6f7c243ff`. Actual source-only
+regression Git blob: `1c7177071fe9cd31f8705402b4172fbf6d1bc57e`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -141,7 +166,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `9b8f995bd9bf5df910ea4bd203a9e82005133c4f`). The existing
+(Git blob `c3c9c21bfa21e74316210bd05243e7d6f7c243ff`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

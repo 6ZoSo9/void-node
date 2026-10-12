@@ -71,26 +71,62 @@ function assertPinnedPrivateRequestDirV1(dir: string, fd: number): void {
     holdHistoryV1("pinned_directory_rebound");
   }
 }
-function assertPrivateRequestLeafV1(file: string): void {
-  let observed: fs.Stats;
-  try { observed = fs.lstatSync(file); }
+function assertPrivateRequestLeafV1(file: string): fs.BigIntStats | null {
+  let observed: fs.BigIntStats;
+  try { observed = fs.lstatSync(file, { bigint: true }); }
   catch (error: any) {
-    if (error?.code === "ENOENT") return;
+    if (error?.code === "ENOENT") return null;
     holdHistoryV1("private_leaf_metadata_unavailable");
   }
   if (!observed.isFile() || observed.isSymbolicLink() ||
-      observed.nlink !== 1 ||
-      observed.uid !== process.getuid?.() ||
-      (observed.mode & 0o7777) !== 0o600) {
+      observed.nlink !== 1n ||
+      observed.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (observed.mode & 0o7777n) !== 0o600n) {
     holdHistoryV1("private_existing_leaf_owner_or_mode");
   }
+  return observed;
 }
-function assertPrivateOpenLeafV1(fd: number): void {
-  const opened = fs.fstatSync(fd);
-  if (!opened.isFile() || opened.nlink !== 1 ||
-      opened.uid !== process.getuid?.() ||
-      (opened.mode & 0o7777) !== 0o600) {
+function assertPrivateOpenLeafV1(fd: number): fs.BigIntStats {
+  const opened = fs.fstatSync(fd, { bigint: true });
+  if (!opened.isFile() || opened.nlink !== 1n ||
+      opened.uid !== BigInt(process.getuid?.() ?? -1) ||
+      (opened.mode & 0o7777n) !== 0o600n) {
     holdHistoryV1("private_open_leaf_owner_or_mode");
+  }
+  return opened;
+}
+// An opened request sidecar must remain the visible, single-link private
+// inode that was qualified. Creation is exclusive when preflight was absent.
+// This rejects same-UID replacements instead of truncating a substitute file.
+function assertPrivateSidecarIdentityV1(
+  file: string, fd: number, expected: fs.BigIntStats | null,
+): fs.BigIntStats {
+  const opened = assertPrivateOpenLeafV1(fd);
+  if (expected && !sameHistoryFileV1(expected, opened)) {
+    holdHistoryV1("sidecar_changed_before_open");
+  }
+  let visible: fs.BigIntStats;
+  try { visible = fs.lstatSync(file, { bigint: true }); }
+  catch { holdHistoryV1("sidecar_visibility_unavailable"); }
+  if (!visible.isFile() || visible.isSymbolicLink() ||
+      opened.dev !== visible.dev || opened.ino !== visible.ino ||
+      opened.uid !== visible.uid || opened.gid !== visible.gid ||
+      opened.mode !== visible.mode || opened.nlink !== visible.nlink) {
+    holdHistoryV1("sidecar_visible_inode_changed");
+  }
+  return opened;
+}
+function assertPrivateSidecarStillVisibleV1(
+  file: string, expected: fs.BigIntStats,
+): void {
+  let visible: fs.BigIntStats;
+  try { visible = fs.lstatSync(file, { bigint: true }); }
+  catch { holdHistoryV1("sidecar_postwrite_visibility_unavailable"); }
+  if (!visible.isFile() || visible.isSymbolicLink() ||
+      expected.dev !== visible.dev || expected.ino !== visible.ino ||
+      expected.uid !== visible.uid || expected.gid !== visible.gid ||
+      expected.mode !== visible.mode || expected.nlink !== visible.nlink) {
+    holdHistoryV1("sidecar_visible_inode_changed");
   }
 }
 
@@ -417,7 +453,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // any group/other-readable history rather than publishing new secrets.
     assertPrivateRequestDirV1(dir);
     assertPrivateRequestLeafV1(ledger);
-    assertPrivateRequestLeafV1(file);
+    const sidecarBefore = assertPrivateRequestLeafV1(file);
     if (typeof fs.constants.O_NOFOLLOW !== "number") {
       holdHistoryV1("private_no_follow_unavailable");
     }
@@ -435,15 +471,30 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       fs.closeSync(ledgerFd);
     }
     // The legacy sidecar is still non-atomic relative to the journal.
-    // Keep the leaf no-follow and mode 0600; separate crash recovery HOLDs.
-    const sidecarFd = fs.openSync(file,
-      fs.constants.O_WRONLY | fs.constants.O_CREAT |
-      fs.constants.O_NOFOLLOW, 0o600);
+    // Avoid O_CREAT for an existing verified inode, and require O_EXCL
+    // when preflight found no file. No replaced child may be truncated.
+    let sidecarFd: number;
     try {
-      assertPrivateOpenLeafV1(sidecarFd);
+      sidecarFd = fs.openSync(file, fs.constants.O_WRONLY |
+        fs.constants.O_NOFOLLOW |
+        (sidecarBefore ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL),
+      0o600);
+    } catch (error: any) {
+      if (!sidecarBefore && error?.code === "EEXIST") {
+        holdHistoryV1("sidecar_appeared_before_create");
+      }
+      throw error;
+    }
+    let sidecarOpened: fs.BigIntStats;
+    try {
+      sidecarOpened = assertPrivateSidecarIdentityV1(
+        file, sidecarFd, sidecarBefore,
+      );
       fs.ftruncateSync(sidecarFd, 0);
       fs.writeFileSync(sidecarFd, JSON.stringify(reqObj, null, 2));
       fs.fsyncSync(sidecarFd);
+      // A late same-UID pathname swap must not produce a success receipt.
+      assertPrivateSidecarStillVisibleV1(file, sidecarOpened);
     } finally {
       fs.closeSync(sidecarFd);
     }
@@ -451,6 +502,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // Interrupted journal/sidecar updates still require recovery review.
     fs.fsyncSync(dirFd);
     assertPinnedPrivateRequestDirV1(dir, dirFd);
+    assertPrivateSidecarStillVisibleV1(file, sidecarOpened!);
     return { dir, file: path.join(dir, reqObj.request_id + ".json"),
       reused_request: null };
     } finally {

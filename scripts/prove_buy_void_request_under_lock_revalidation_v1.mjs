@@ -688,6 +688,133 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// Sidecar inode-binding security regression. Each attack is timed AFTER
+// the lock-held preflight but BEFORE open, or AFTER fsync but BEFORE success.
+// A failed write can leave a partial journal append: no false success is the
+// bounded claim, not cross-file crash atomicity or installed-host acceptance.
+{
+  const nativeOpen = fs.openSync;
+  const nativeFsync = fs.fsyncSync;
+  function seed(root, suffix) {
+    const base = request("buyvoid_"+suffix,"3","base","8");
+    const old = factory(oldPersist,root);
+    const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      row,[old.withLock,old.readRequests,old.readEvents,
+        old.applyEvents,old.terminalStatus,()=>true]);
+    return {base,persist};
+  }
+  function substitute(sidecar, payload) {
+    const fd=nativeOpen(sidecar,
+      fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_WRONLY,0o600);
+    try { fs.writeSync(fd,payload); nativeFsync(fd); }
+    finally { fs.closeSync(fd); }
+  }
+
+  // An already qualified sidecar can be replaced with another private
+  // regular inode between lstat and O_WRONLY. The replacement must never
+  // be truncated, even though its mode and owner look acceptable.
+  {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const {base,persist}=seed(root,"existing_aaaaaaaa");
+    const sidecar=path.join(root,base.request_id+".json");
+    let replaced=false;
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      await persist(base);
+      const updated={...base,
+        status:"payment_submitted_pending_manual_review",
+        tx_hash:"0x"+"a".repeat(64),
+        payment_submitted_at_ms:1800000000400};
+      fs.openSync=function(file,flags,mode){
+        if (!replaced && String(file).endsWith("/"+base.request_id+".json") &&
+            (flags & fs.constants.O_WRONLY)!==0) {
+          fs.renameSync(sidecar,sidecar+".held");
+          substitute(sidecar,"OPAQUE_SUBSTITUTE_EXISTING");
+          replaced=true;
+        }
+        return nativeOpen(file,flags,mode);
+      };
+      await assert.rejects(()=>persist(updated),
+        /buy_void_request_history_under_lock_sidecar_changed_before_open/u);
+      assert.equal(replaced,true);
+      assert.equal(fs.readFileSync(sidecar,"utf8"),
+        "OPAQUE_SUBSTITUTE_EXISTING","replacement may not be truncated");
+    } finally {
+      fs.openSync=nativeOpen;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+
+  // A first creation uses O_EXCL. If a same-UID actor inserts a new
+  // secure-looking 0600 leaf after the ENOENT preflight, its contents
+  // must be preserved and the purchase request must HOLD.
+  {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const {base,persist}=seed(root,"absent_bbbbbbbb");
+    const sidecar=path.join(root,base.request_id+".json");
+    let inserted=false;
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      fs.openSync=function(file,flags,mode){
+        if(!inserted && String(file).endsWith("/"+base.request_id+".json") &&
+            (flags & fs.constants.O_CREAT)!==0 &&
+            (flags & fs.constants.O_EXCL)!==0) {
+          substitute(sidecar,"OPAQUE_SUBSTITUTE_ABSENT");
+          inserted=true;
+        }
+        return nativeOpen(file,flags,mode);
+      };
+      await assert.rejects(()=>persist(base),
+        /buy_void_request_history_under_lock_sidecar_appeared_before_create/u);
+      assert.equal(inserted,true);
+      assert.equal(fs.readFileSync(sidecar,"utf8"),
+        "OPAQUE_SUBSTITUTE_ABSENT");
+    } finally {
+      fs.openSync=nativeOpen;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+
+  // The sidecar can be swapped after the correct FD has been written
+  // and fsynced. The late pathname-inode check must refuse success.
+  {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const {base,persist}=seed(root,"after_ffffffff");
+    const sidecar=path.join(root,base.request_id+".json");
+    let swapped=false;
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      await persist(base);
+      const updated={...base,
+        status:"payment_submitted_pending_manual_review",
+        tx_hash:"0x"+"b".repeat(64),
+        payment_submitted_at_ms:1800000000400};
+      fs.fsyncSync=function(fd){
+        nativeFsync(fd);
+        const visible=fs.readlinkSync("/proc/self/fd/"+fd);
+        if(!swapped && visible===sidecar){
+          fs.renameSync(sidecar,sidecar+".held");
+          substitute(sidecar,"OPAQUE_SUBSTITUTE_POSTWRITE");
+          swapped=true;
+        }
+      };
+      await assert.rejects(()=>persist(updated),
+        /buy_void_request_history_under_lock_sidecar_visible_inode_changed/u);
+      assert.equal(swapped,true);
+      assert.equal(fs.readFileSync(sidecar,"utf8"),
+        "OPAQUE_SUBSTITUTE_POSTWRITE");
+    } finally {
+      fs.fsyncSync=nativeFsync;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+}
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -706,6 +833,9 @@ console.log("journal_sidecar_and_directory_fsync_order=true");
 console.log("fsync_failures_reject_without_false_success=true");
 console.log("directory_rebind_during_fsync_holds=true");
 console.log("legacy_insecure_and_symlink_sidecars_hold_before_append=true");
+console.log("sidecar_preopen_inode_replacement_holds=true");
+console.log("sidecar_first_create_exclusive_holds=true");
+console.log("sidecar_postwrite_rebind_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");
