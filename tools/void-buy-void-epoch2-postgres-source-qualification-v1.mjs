@@ -50,7 +50,7 @@ export const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts":
     "5fd9296d10d810b1976c159578f13cca5d1594fe",
   "scripts/prove_buy_void_epoch2_credential_signer_v1.ts":
-    "7d83b87e1e2e5825f8aa3b0ae12a44f49bbc225c",
+    "19c991849243f3d751e3b924d551a9ece0ec0486",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
     "4e5d9a633b05d9254424c2132fc6620b94ff3692",
   [CANDIDATE]: "269174bbb9c128e1625e73f8f66b9ab643f59bba",
