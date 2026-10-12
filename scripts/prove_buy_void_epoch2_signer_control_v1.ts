@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { Wallet, verifyMessage } from "ethers";
 
 import {
@@ -129,11 +130,57 @@ assert.deepEqual(buildBuyVoidEpoch2SignerControlChallengeV1({
   expires_at_ms: NOW + 60_000,
 }), { ok: false, status: "HOLD", reason: "challenge_invalid" });
 
+// Exercise the real operator CLI's no-file, no-private-key interactive path
+// with a deliberately INVALID PUBLIC signature. The child may not claim
+// signer control or runtime authority; it never reads a credential or key.
+const interactive = await new Promise<{
+  code: number | null; stdout: string; stderr: string; signature_sent: boolean;
+}>((resolve, reject) => {
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", "scripts/void_buy_void_epoch2_signer_control_cli_v1.ts",
+      "--interactive"],
+    { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] },
+  );
+  let stdout = "";
+  let stderr = "";
+  let signatureSent = false;
+  const deadline = setTimeout(() => {
+    child.kill();
+    reject(new Error("interactive_challenge_deadline_exceeded"));
+  }, 20_000);
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (data: string) => {
+    stdout += data;
+    if (!signatureSent &&
+        stdout.includes("Paste PUBLIC EIP-191 signature")) {
+      signatureSent = true;
+      child.stdin.end("0x" + "0".repeat(130) + "\n");
+    }
+  });
+  child.stderr.on("data", (data: string) => { stderr += data; });
+  child.on("error", error => { clearTimeout(deadline); reject(error); });
+  child.on("close", code => {
+    clearTimeout(deadline);
+    resolve({ code, stdout, stderr, signature_sent: signatureSent });
+  });
+});
+assert.equal(interactive.signature_sent, true);
+assert.equal(interactive.code, 2);
+assert.match(interactive.stdout, /OFFCHAIN_PROOF_OF_CONTROL_ONLY/u);
+assert.match(interactive.stdout, /signer_control_proven=false/u);
+assert.match(interactive.stdout, /runtime_credential_installed_verified=false/u);
+assert.match(interactive.stdout, /live_payment_signing_authorized=false/u);
+assert.match(interactive.stdout, /presale_activation_authorized=false/u);
+assert.equal(interactive.stderr.includes("PRIVATE_KEY"), false);
+
 console.log("VOID_BUY_VOID_EPOCH2_SIGNER_CONTROL_V1_PROOF_GREEN");
 console.log("offchain_challenge_fixed_epoch2_contract_and_production_rpc=true");
 console.log("synthetic_eip191_signature_recovered=true");
 console.log("synthetic_signer_not_accepted_as_live_epoch2_fulfiller=true");
 console.log("expired_wrong_head_wrong_target_tampered_payload_hold=true");
+console.log("interactive_public_signature_invalid_holds_without_files=true");
 console.log("production_epoch2_signer_signature_present=false");
 console.log("runtime_credential_installed_verified=false");
 console.log("public_payment_or_presale_authority=false");

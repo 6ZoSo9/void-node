@@ -13,6 +13,25 @@ Run from an exact reviewed, stable commit of `6ZoSo9/void-node`:
 node --import tsx scripts/void_buy_void_epoch2_signer_control_cli_v1.ts --issue
 ```
 
+For a **single-command, no-file** challenge and verification workflow, use
+`--interactive` instead:
+
+```bash
+node --import tsx scripts/void_buy_void_epoch2_signer_control_cli_v1.ts --interactive
+```
+
+It displays the same randomized five-minute public challenge, then waits for
+the **public EIP-191 signature** obtained from an independently trusted signer.
+Paste **only the public signature**, never a private key, seed phrase or systemd
+credential. The CLI validates the real immutable fulfiller address before the
+challenge expires and prints only the decision and message digest. It neither
+writes a challenge/receipt file nor persists the public signature. An incorrect
+signature, expired challenge, or wrong wallet HOLDs; a correct signature still
+does not authorize signing a live transaction or opening checkout.
+
+The older `--issue` / `--verify` file-receipt workflow remains supported for
+operators who prefer separate issue and verification steps.
+
 The CLI prints one public EIP-191 signing message bound to a unique random
 nonce, the checkout target, the local Git HEAD, and a five-minute expiry.
 An authorized human may sign **the exact printed message**, using their
