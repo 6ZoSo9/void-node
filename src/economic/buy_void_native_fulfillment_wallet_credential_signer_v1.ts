@@ -1,5 +1,4 @@
 import {
-  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
   buyVoidPresaleAccessListExactV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
@@ -142,10 +141,9 @@ function renderTransaction(
       accessList?: Array<{ address: string; storageKeys: string[] }>;
     }
   ).accessList;
-  if (marker !== undefined &&
-      !buyVoidPresaleAccessListExactV1(
-        marker, VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
-      )) {
+  // Both the marker and its absence are validated against the actual
+  // destination. E2 may never omit it; legacy targets may never carry it.
+  if (!buyVoidPresaleAccessListExactV1(marker, transaction.to)) {
     throw new Error("buy_void_credential_signer_epoch2_marker_invalid");
   }
   return {

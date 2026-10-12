@@ -94,6 +94,43 @@ try {
     } as any),
     /buy_void_credential_signer_epoch2_marker_invalid/u,
   );
+  // E2 cannot downgrade to an omitted marker, even if a downstream
+  // payment-keyed caller normally supplies it.
+  await assert.rejects(
+    () => ready.signer.sign_transaction({
+      ...e2Unsigned,
+      accessList: undefined,
+    } as any),
+    /buy_void_credential_signer_epoch2_marker_invalid/u,
+    "unsigned E2 target without the domain marker must HOLD before signing",
+  );
+  await assert.rejects(
+    () => ready.signer.sign_transaction({
+      ...e2Unsigned,
+      accessList: [],
+    } as any),
+    /buy_void_credential_signer_epoch2_marker_invalid/u,
+    "explicit empty E2 access list must HOLD before signing",
+  );
+
+  // A legacy/other target cannot smuggle the E2 signing-domain marker
+  // through this reusable credential boundary.
+  await assert.rejects(
+    () => ready.signer.sign_transaction({
+      ...e2Unsigned,
+      to: Wallet.createRandom().address,
+      accessList: epoch2Marker,
+    } as any),
+    /buy_void_credential_signer_epoch2_marker_invalid/u,
+    "non-E2 target with E2 marker must HOLD before signing",
+  );
+  const historicalSigned = await ready.signer.sign_transaction({
+    ...e2Unsigned,
+    to: Wallet.createRandom().address,
+    accessList: undefined,
+  } as any);
+  assert.deepEqual(Transaction.from(historicalSigned).accessList, [],
+    "historical non-E2 transaction remains without domain marker");
 
   const mismatch =
     createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
