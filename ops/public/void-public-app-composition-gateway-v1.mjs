@@ -274,7 +274,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     if (responseBytes === 0) {
       throw new Error("buy_void_post_upstream_empty_response");
     }
-    const responseBody = Buffer.concat(responseChunks, responseBytes);
+    let responseBody = Buffer.concat(responseChunks, responseBytes);
+    let privatePersistedPathRemoved = false;
     // Content-Type is not proof of JSON validity. Never send a malformed
     // HTTP 201 checkout receipt through the public edge as an accepted order.
     let parsedBody;
@@ -345,6 +346,14 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           returnedUsdcAmount !== intendedAmount) {
         throw new Error("buy_void_post_created_receipt_intent_mismatch");
       }
+      // Canonical main may still emit {ok:true,file:<private disk path>},
+      // whereas the next request-writer generation emits only {ok:true}.
+      // Both are valid server receipts, but no internal file location may
+      // cross the unauthenticated edge. Refuse any other persisted metadata.
+      const persisted = checkout?.persisted;
+      const persistedKeys = persisted && typeof persisted === "object" &&
+        !Array.isArray(persisted) ? Object.keys(persisted) : [];
+      const hasLegacyFile = persistedKeys.includes("file");
       if (parsedBody.schema !==
             "void_public_buy_void_checkout_request_result_v1" ||
           parsedBody.marker !==
@@ -360,12 +369,25 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           typeof checkout.request_id !== "string" ||
           !/^[A-Za-z0-9_-]{1,128}$/.test(checkout.request_id) ||
           checkout.status !== "awaiting_payment_tx_hash" ||
-          !checkout.persisted || typeof checkout.persisted !== "object" ||
-          Array.isArray(checkout.persisted) ||
-          !Object.hasOwn(checkout.persisted, "ok") ||
-          Object.keys(checkout.persisted).length !== 1 ||
-          checkout.persisted.ok !== true) {
+          !persisted || typeof persisted !== "object" ||
+          Array.isArray(persisted) ||
+          !Object.hasOwn(persisted, "ok") ||
+          persistedKeys.length !== (hasLegacyFile ? 2 : 1) ||
+          persistedKeys.some((key) => key !== "ok" && key !== "file") ||
+          (hasLegacyFile && (typeof persisted.file !== "string" ||
+            persisted.file.length === 0)) ||
+          persisted.ok !== true) {
         throw new Error("buy_void_post_upstream_created_receipt_invalid");
+      }
+      if (hasLegacyFile) {
+        // Re-encode ONLY after removing the verified legacy private leaf.
+        // Safe {ok:true} receipts retain their original noncanonical bytes.
+        const publicReceipt = {
+          ...parsedBody,
+          request: { ...checkout, persisted: { ok: true } },
+        };
+        responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
+        privatePersistedPathRemoved = true;
       }
     }
 
@@ -407,6 +429,9 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         "x-content-type-options",
       ]
     ) {
+      // An upstream ETag may describe the original unsanitized private
+      // document and must not be sent as an identity for rewritten bytes.
+      if (headerName === "etag" && privatePersistedPathRemoved) continue;
       const headerValue =
         upstreamResponse.headers.get(headerName);
       if (headerValue) {
