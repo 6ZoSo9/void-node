@@ -204,6 +204,67 @@ try{
   assert.equal(verified.independent_public_acceptance,false);
   assert.equal(fs.existsSync(executedMarker),false);
 
+  // An outside hard-link gives a different path read access to the same
+  // packet bytes while preserving hashes/modes. Both generated and final
+  // packet leaves must reject this alias until the second link is removed.
+  for(const name of ["cloudflared-config.yml","packet.json"]){
+    const leaf=path.join(output,name);
+    const external=path.join(temp,"external-hardlink-"+name.replaceAll("/","-"));
+    fs.linkSync(leaf,external);
+    try {
+      assert.equal(fs.statSync(leaf).nlink,2);
+      assert.throws(
+        ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+        new RegExp("VOIDCHAIN_INGRESS_PACKET_LEAF_CUSTODY_INVALID:"+name.replaceAll(".","\\.")),
+        "same bytes but extra hardlink must not qualify as private packet",
+      );
+    } finally {
+      fs.unlinkSync(external);
+    }
+    assert.equal(fs.statSync(leaf).nlink,1);
+    assert.equal(
+      verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}).ok,
+      true,
+      "after hardlink removal, original packet must requalify",
+    );
+  }
+
+  // A person could add e.g. activation_authorized:true, recompute the
+  // packet plan_id, and preserve every old validated field. Reject the
+  // *whole* unreviewed nested contract, not merely an invalid digest.
+  {
+    const jsonPath=path.join(output,"packet.json");
+    const original=fs.readFileSync(jsonPath);
+    const originalPacket=JSON.parse(original.toString("utf8"));
+    for(const [nestedField,unreviewedField,value] of [
+      ["activation","activation_authorized",true],
+      ["frontdoor","private_route_exposed","/private/operator"],
+      ["precision_recovery_prerequisite","false_installed_acceptance",true],
+    ]){
+      const altered=structuredClone(originalPacket);
+      altered[nestedField][unreviewedField]=value;
+      const body={...altered};
+      delete body.plan_id;
+      altered.plan_id="voidvci2_"+sha256(Buffer.from(canonicalJson(body),"utf8"));
+      assert.notEqual(altered.plan_id,originalPacket.plan_id);
+      try {
+        fs.writeFileSync(jsonPath,JSON.stringify(altered,null,2)+"\n");
+        assert.throws(
+          ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+          /VOIDCHAIN_INGRESS_PACKET_NESTED_CONTRACT_DRIFT/u,
+          "rehashing unknown nested authority cannot qualify source packet",
+        );
+      } finally {
+        fs.writeFileSync(jsonPath,original);
+      }
+      assert.deepEqual(fs.readFileSync(jsonPath),original);
+      assert.equal(
+        verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}).ok,
+        true,
+      );
+    }
+  }
+
   // An interrupted packet publication is not a reason to delete real
   // private evidence or choose a different output identity. At every file
   // and parent fsync boundary, throw AFTER the durable syscall, then require
@@ -548,6 +609,8 @@ try{
   console.log("private_packet_same_path_midwrite_resume=true");
   console.log("conflicting_partial_never_overwritten=true");
   console.log("packet_json_last_recovery_guard=true");
+  console.log("packet_leaf_hardlink_alias_rejected=true");
+  console.log("nested_packet_authority_injection_rejected=true");
   console.log("gateway_current_sha=ec998138c382196f6b0302c6d6ed665c4553cdcb");
   console.log("ingress_version=2");
   console.log("git_config_parameters_rejected=true");
