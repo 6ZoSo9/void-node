@@ -89,14 +89,14 @@ try {
   assert.ok(beforeCorruption.length > before.length);
 
   // A verified journal must never be reopened by visible pathname for append.
-  // Swap the entire directory at the first actual event write: an old
+  // Swap the journal leaf at the first actual event write: an old
   // appendFileSync(path) would alter the replacement journal. The held
   // descriptor writer must instead HOLD, leaving that replacement unchanged.
   {
     const raceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "void-terminal-path-swap-"),
     );
-    const detachedRoot = raceRoot + "-detached";
+    const detachedLedger = path.join(raceRoot, "operator-events.detached.jsonl");
     fs.chmodSync(raceRoot, 0o700);
     const raceLedger = path.join(raceRoot, "operator-events.jsonl");
     const originalHistory = JSON.stringify(event(other, "reviewed", 900)) + "\n";
@@ -109,8 +109,7 @@ try {
         if (!swapped && Buffer.isBuffer(bytes) &&
             bytes.includes(Buffer.from('"marked_at_ms":901'))) {
           swapped = true;
-          fs.renameSync(raceRoot, detachedRoot);
-          fs.mkdirSync(raceRoot, { mode: 0o700 });
+          fs.renameSync(raceLedger, detachedLedger);
           fs.writeFileSync(raceLedger, originalHistory, { mode: 0o600 });
         }
         return Reflect.apply(originalWriteSync, fs, args);
@@ -135,7 +134,7 @@ try {
     } finally {
       (fs as any).writeSync = originalWriteSync;
       fs.rmSync(raceRoot, { recursive: true, force: true });
-      fs.rmSync(detachedRoot, { recursive: true, force: true });
+
     }
   }
 
