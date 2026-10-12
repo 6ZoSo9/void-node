@@ -1155,6 +1155,7 @@ for (const existing of [false, true]) {
         tx_hash:"0x"+"a".repeat(64),
         payment_submitted_at_ms:1800000000400,
       } : owner;
+      const finalReadOrdinal=isRevision?2:1;
       fs.readSync=function(fd,buffer,offset,length,position){
         const read=nativeRead(fd,buffer,offset,length,position);
         if(read>0) {
@@ -1162,8 +1163,12 @@ for (const existing of [false, true]) {
           try { resolved=fs.readlinkSync("/proc/self/fd/"+fd); }catch{}
           if(resolved===sidecar) {
             readCalls+=1;
-            buffer[offset]=buffer[offset]===0x42?0x43:0x42;
-            injected=true;
+            // On a revision, let the original sidecar pass its mandatory
+            // *preappend* byte check. Attack only the later final readback.
+            if(readCalls===finalReadOrdinal) {
+              buffer[offset]=buffer[offset]===0x42?0x43:0x42;
+              injected=true;
+            }
           }
         }
         return read;
@@ -1172,7 +1177,8 @@ for (const existing of [false, true]) {
         /buy_void_request_history_under_lock_sidecar_final_content_mismatch/u,
         "first create and revision must reject corrupted final FD readback");
       assert.equal(injected,true,"must exercise final sidecar byte read");
-      assert.equal(readCalls,1,"new or revised sidecar final read occurs once");
+      assert.equal(readCalls,finalReadOrdinal,
+        "original revision read and final publication read must both occur");
       assert.equal(fs.readFileSync(sidecar,"utf8"),
         JSON.stringify(intended,null,2),
         "read buffer adversary must not mutate original disk sidecar");
@@ -1181,6 +1187,60 @@ for (const existing of [false, true]) {
         "failure can leave durable journal append; must not claim no write");
     }finally{
       fs.readSync=nativeRead;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+}
+
+// A first operator tx-hash revision must never erase a corrupted or missing
+// ORIGINAL buyer sidecar. Qualify it against the canonical pre-revision
+// journal row before any new durable append or truncation.
+{
+  for(const missingOriginalSidecar of [false,true]) {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const owner=request("buyvoid_original_guard_aaaaaaaa","3","base","2");
+    const readers=factory(oldPersist,root);
+    const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      row,[readers.withLock,readers.readRequests,readers.readEvents,
+        readers.applyEvents,readers.terminalStatus,()=>true]);
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      await persist(owner);
+      const sidecar=path.join(root,owner.request_id+".json");
+      const journal=path.join(root,"requests.jsonl");
+      const journalBefore=fs.readFileSync(journal);
+      const original=fs.readFileSync(sidecar);
+      let corrupted=null;
+      if(missingOriginalSidecar) {
+        fs.unlinkSync(sidecar);
+      } else {
+        corrupted=Buffer.from(original);
+        const offset=corrupted.indexOf(Buffer.from(owner.request_id,"utf8"));
+        assert.ok(offset>=0);
+        corrupted[offset]=corrupted[offset]===0x42?0x43:0x42;
+        fs.writeFileSync(sidecar,corrupted);
+        assert.equal(fs.statSync(sidecar).mode&0o7777,0o600);
+      }
+      const revised={
+        ...owner,status:"payment_submitted_pending_manual_review",
+        tx_hash:"0x"+"b".repeat(64),
+        payment_submitted_at_ms:1800000000400,
+      };
+      await assert.rejects(()=>persist(revised),
+        missingOriginalSidecar
+          ? /buy_void_request_history_under_lock_operator_revision_original_sidecar_missing/u
+          : /buy_void_request_history_under_lock_sidecar_final_content_mismatch/u);
+      assert.deepEqual(fs.readFileSync(journal),journalBefore,
+        "corrupted original sidecar must block operator journal append");
+      if(missingOriginalSidecar) {
+        assert.equal(fs.existsSync(sidecar),false);
+      } else {
+        assert.deepEqual(fs.readFileSync(sidecar),corrupted,
+          "cannot overwrite corrupted original buyer evidence");
+      }
+    }finally{
       if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
       else process.env.VOID_BUY_REQUEST_DIR=saved;
       fs.rmSync(root,{recursive:true,force:true});
@@ -1216,6 +1276,7 @@ console.log("missing_sidecar_recovered_only_from_fsynced_journal=true");
 console.log("same_inode_equal_length_final_sidecar_rewrite_holds=true");
 console.log("final_sidecar_byte_readback_mismatch_holds=true");
 console.log("first_create_and_operator_revision_final_bytes_verified=true");
+console.log("operator_revision_original_sidecar_preappend_qualified=true");
 console.log("mismatched_or_interloped_sidecar_never_rewritten=true");
 console.log("unsafe_legacy_request_id_sidecar_path_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
