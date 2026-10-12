@@ -63,7 +63,7 @@ assert.doesNotMatch(currentPost,/const existingRequests\s*=\s*await __voidReadBu
 assert.doesNotMatch(currentPost,/const existingEvents\s*=\s*await __voidReadBuyVoidOperatorEventsV1\(/u);
 assert.doesNotMatch(currentPost,/idempotent:true/u);
 assert.match(currentPost,/if\(persisted\.reused_request\)\s*\{\s*return res\.status\(409\)\.json\(/u);
-assert.match(currentPost,/d\?"one_active_request_per_void_destination"/u);
+assert.match(currentPost,/conflict\?"one_active_request_per_void_destination"/u);
 
 // Execute the exact compiled-safe current route response branch with a
 // stranger's same-intent request; no prior ID, account, note or payment
