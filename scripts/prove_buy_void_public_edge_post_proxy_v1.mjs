@@ -54,6 +54,98 @@ assert.match(postHandlerSource, /reader\.read\(\)/u);
 assert.match(postHandlerSource, /clearTimeout\(deadlineTimer\)/u);
 assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
 
+// Execute the *actual source handler* in a disposable no-network harness.
+// Count deadline timer allocations/releases across thousands of one-byte
+// completed reads. A single never-settling shared Promise would register
+// unbounded losing reactions; this test requires a per-operation timer that
+// is detached at every fulfilled fetch/read, not just a matching code string.
+{
+  const handlerStart = source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(",
+  );
+  const handlerClose = source.indexOf("\n}\n", handlerStart);
+  const definitionsStart = source.indexOf(
+    "const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES =",
+  );
+  assert.ok(definitionsStart > 0 && handlerStart > definitionsStart);
+  assert.ok(handlerClose > handlerStart);
+  const actualHandlerSource = source.slice(definitionsStart, handlerClose + 2);
+  let createdTimers = 0;
+  let clearedTimers = 0;
+  let peakTimers = 0;
+  const outstandingTimers = new Set();
+  const scopedSetTimeout = (callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    createdTimers += 1;
+    outstandingTimers.add(timer);
+    peakTimers = Math.max(peakTimers, outstandingTimers.size);
+    return timer;
+  };
+  const scopedClearTimeout = (timer) => {
+    if (outstandingTimers.delete(timer)) clearedTimers += 1;
+    clearTimeout(timer);
+  };
+  const literal = Buffer.from("{" + " ".repeat(4096) + "}", "utf8");
+  let readCalls = 0;
+  let fetchCalls = 0;
+  const scopedFetch = async () => {
+    fetchCalls += 1;
+    return {
+      status: 201,
+      headers: new Headers({
+        "content-type": "application/json; charset=utf-8",
+      }),
+      body: {
+        getReader() {
+          return {
+            async read() {
+              const position = readCalls++;
+              if (position >= literal.length) return { done: true };
+              return { done: false, value: literal.subarray(position, position + 1) };
+            },
+            releaseLock() {},
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    };
+  };
+  // A separate callable copies *only* the current handler and adjacent
+  // production response ceilings. It cannot bind a real socket or key.
+  const evalHandler = new Function(
+    "fetch", "setTimeout", "clearTimeout", "process",
+    actualHandlerSource +
+      "\nreturn voidBuyVoidPublicEdgePostProxyV1;",
+  );
+  const handle = evalHandler(
+    scopedFetch, scopedSetTimeout, scopedClearTimeout,
+    { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+  );
+  const syntheticReq = {
+    headers: { "content-type": "application/json" },
+    async *[Symbol.asyncIterator]() { yield Buffer.from("{}", "utf8"); },
+  };
+  let output = null;
+  const syntheticRes = {
+    statusCode: 0,
+    writableEnded: false,
+    headers: {},
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(bytes) { output = Buffer.from(bytes); this.writableEnded = true; },
+  };
+  await handle(syntheticReq, syntheticRes);
+  assert.equal(fetchCalls, 1);
+  assert.equal(syntheticRes.statusCode, 201);
+  assert.deepEqual(output, literal, "one-byte stream must preserve raw JSON");
+  assert.equal(readCalls, literal.length + 1, "exercise all 4,098 tiny reads");
+  assert.ok(createdTimers >= readCalls + 1,
+    "every tiny read must have an independently detachable deadline timer");
+  assert.equal(clearedTimers, createdTimers,
+    "all settled operations must detach their deadline timer");
+  assert.equal(outstandingTimers.size, 0);
+  assert.ok(peakTimers <= 1, "no accumulating pending per-read deadlines");
+}
+
 async function freePort() {
   const server = net.createServer();
   server.listen(0, "127.0.0.1");
@@ -159,7 +251,9 @@ const upstream = http.createServer(
       }
       if (proofCase === "primitive_201") {
         res.writeHead(201, { "content-type": "application/json" });
-        res.end("null");
+        // Truthy valid JSON primitive specifically falsifies removal of
+        // the typeof === object gate; null alone is too weak a negative.
+        res.end("true");
         return;
       }
       if (proofCase === "array_201") {
@@ -622,6 +716,8 @@ try {
   console.log("raw_noncanonical_201_bytes_preserved=true");
   console.log("header_refusal_upstream_socket_closed_early=true");
   console.log("per_read_deadline_timer_detached=true");
+  console.log("tiny_chunk_deadline_timer_lifetime_proven=true");
+  console.log("truthy_json_primitive_201_refused=true");
   console.log("upstream_total_deadline_bounded=true");
   console.log("max_response_size_boundary_accepted=true");
   console.log(
