@@ -112,7 +112,7 @@ try {
   const candidate = createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1(
     base,
   );
-  if (!candidate.ok) throw Error(
+  if (candidate.ok === false) throw Error(
     "source_valid_e2_bootstrap_held:" + candidate.reason,
   );
   assert.equal(candidate.status, "ready");
