@@ -638,7 +638,21 @@ function normalizeOutputDir(raw){
   if(!path.isAbsolute(output)||isInside(ROOT,output)){
     fail("VOIDCHAIN_INGRESS_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY");
   }
-  if(fs.existsSync(output)) fail("VOIDCHAIN_INGRESS_OUTPUT_ALREADY_EXISTS");
+  // An existing destination can be resumed only after exact private custody
+  // and immutable-byte validation. No silent chmod, deletion or overwrite.
+  let existing=null;
+  try { existing=fs.lstatSync(output); }
+  catch(error){ if(error?.code!=="ENOENT") fail("VOIDCHAIN_INGRESS_OUTPUT_LSTAT_UNAVAILABLE"); }
+  if(existing){
+    let real;
+    try { real=fs.realpathSync.native(output); }
+    catch { fail("VOIDCHAIN_INGRESS_OUTPUT_PATH_UNAVAILABLE"); }
+    if(real!==output||!existing.isDirectory()||existing.isSymbolicLink()||
+       (existing.mode&0o7777)!==0o700||
+       existing.uid!==process.getuid?.()){
+      fail("VOIDCHAIN_INGRESS_OUTPUT_EXISTING_CUSTODY_HOLD");
+    }
+  }
   const parent=path.dirname(output);
   let realParent;
   let parentStat;
@@ -658,6 +672,98 @@ function writeExclusive(file,text,mode=0o600){
   fs.writeFileSync(file,text,{encoding:"utf8",flag:"wx",mode});
   const fd=fs.openSync(file,"r+");
   try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+}
+
+// Pin one directory inode for all create-only writes and previous-leaf reads.
+// The caller must keep this FD until final directory fsync and path rebind.
+function assertPinnedOutputDirectoryV2(output,fd){
+  let visible;
+  let opened;
+  try {
+    visible=fs.lstatSync(output,{bigint:true});
+    opened=fs.fstatSync(fd,{bigint:true});
+  }catch{fail("VOIDCHAIN_INGRESS_OUTPUT_DIR_INODE_UNAVAILABLE");}
+  if(!visible.isDirectory()||visible.isSymbolicLink()||
+     !opened.isDirectory()||opened.dev!==visible.dev||
+     opened.ino!==visible.ino||opened.uid!==visible.uid||
+     opened.gid!==visible.gid||opened.mode!==visible.mode||
+     opened.uid!==BigInt(process.getuid?.()??-1)||
+     (opened.mode&0o7777n)!==0o700n){
+    fail("VOIDCHAIN_INGRESS_OUTPUT_DIR_REBOUND_OR_INSECURE");
+  }
+}
+
+function expectedOutputEntryV2(text){
+  const bytes=Buffer.from(text,"utf8");
+  if(bytes.length<1||bytes.length>MAX_PACKET_FILE_BYTES){
+    fail("VOIDCHAIN_INGRESS_EXPECTED_OUTPUT_SIZE_HOLD");
+  }
+  return Object.freeze({
+    bytes:String(bytes.length),
+    sha256:sha256(bytes),
+    mode:"0600",
+  });
+}
+
+function assertExistingOutputLeafV2(file,expected){
+  let fd;
+  try {
+    fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  }catch{fail("VOIDCHAIN_INGRESS_RESUME_LEAF_UNAVAILABLE:"+path.basename(file));}
+  try {
+    const before=fs.fstatSync(fd,{bigint:true});
+    const visible=fs.lstatSync(file,{bigint:true});
+    const owner=BigInt(process.getuid?.()??-1);
+    if(!before.isFile()||visible.isSymbolicLink()||!visible.isFile()||
+       before.dev!==visible.dev||before.ino!==visible.ino||
+       before.uid!==owner||visible.uid!==owner||
+       before.uid!==visible.uid||before.gid!==visible.gid||
+       before.mode!==visible.mode||before.nlink!==1n||
+       visible.nlink!==1n||(before.mode&0o7777n)!==0o600n||
+       before.size!==BigInt(expected.length)){
+      fail("VOIDCHAIN_INGRESS_RESUME_LEAF_IDENTITY_HOLD:"+path.basename(file));
+    }
+    const observed=Buffer.alloc(expected.length);
+    for(let offset=0;offset<observed.length;){
+      const read=fs.readSync(fd,observed,offset,observed.length-offset,offset);
+      if(read<=0)fail("VOIDCHAIN_INGRESS_RESUME_LEAF_SHORT_READ:"+path.basename(file));
+      offset+=read;
+    }
+    const after=fs.fstatSync(fd,{bigint:true});
+    const still=fs.lstatSync(file,{bigint:true});
+    if(!observed.equals(expected)||
+       ["dev","ino","size","uid","gid","mode","nlink","mtimeNs","ctimeNs"]
+         .some(key=>before[key]!==after[key]||after[key]!==still[key])){
+      fail("VOIDCHAIN_INGRESS_RESUME_LEAF_CONTENT_OR_SOURCE_DRIFT:"+path.basename(file));
+    }
+    // Complete any interrupted fsync only AFTER proving exact retained bytes.
+    fs.fsyncSync(fd);
+  }finally{
+    if(fd!==undefined)fs.closeSync(fd);
+  }
+}
+
+function publishOrVerifyOutputLeafV2(file,text,wasPresent){
+  const expected=Buffer.from(text,"utf8");
+  if(expected.length<1||expected.length>MAX_PACKET_FILE_BYTES){
+    fail("VOIDCHAIN_INGRESS_PUBLISH_BYTES_INVALID:"+path.basename(file));
+  }
+  if(wasPresent){
+    assertExistingOutputLeafV2(file,expected);
+    return;
+  }
+  const fd=fs.openSync(file,fs.constants.O_WRONLY|fs.constants.O_CREAT|
+    fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);
+  try {
+    let written=0;
+    while(written<expected.length){
+      const n=fs.writeSync(fd,expected,written,expected.length-written,written);
+      if(n<=0)fail("VOIDCHAIN_INGRESS_PUBLISH_SHORT_WRITE:"+path.basename(file));
+      written+=n;
+    }
+    fs.fsyncSync(fd);
+  }finally{fs.closeSync(fd);}
+  assertExistingOutputLeafV2(file,expected);
 }
 
 function fileEntry(file){
@@ -793,49 +899,78 @@ export function prepareVoidchainPathPreservingIngressCurrentGatewayV2(input={}){
     "VOIDCHAIN_INGRESS_CLOUDFLARED",
   );
   const outputDir=normalizeOutputDir(request.output_dir);
-
-  fs.mkdirSync(outputDir,{mode:0o700});
-  fs.chmodSync(outputDir,0o700);
   const configPath=path.join(outputDir,"cloudflared-config.yml");
   const unitPath=path.join(outputDir,"void-voidchain-ingress-current-gateway-v2.service");
   const instructionPath=path.join(outputDir,"REVIEW.txt");
-  const config=renderConfig({
-    tunnelId,
-    credentialPath:credential.path,
-  });
-  const unit=renderUnit({
-    cloudflaredPath:cloudflared.path,
-    configPath,
-    tunnelId,
-  });
-  const instructions=renderInstructions({
-    outputDir,
-    head:repository.head,
-  });
-  writeExclusive(configPath,config);
-  writeExclusive(unitPath,unit);
-  writeExclusive(instructionPath,instructions);
+  const config=renderConfig({tunnelId,credentialPath:credential.path});
+  const unit=renderUnit({cloudflaredPath:cloudflared.path,configPath,tunnelId});
+  const instructions=renderInstructions({outputDir,head:repository.head});
 
-  const generatedFiles=Object.freeze({
-    "cloudflared-config.yml":fileEntry(configPath),
-    "void-voidchain-ingress-current-gateway-v2.service":fileEntry(unitPath),
-    "REVIEW.txt":fileEntry(instructionPath),
+  // Source-bound expected packet is computed BEFORE publishing any file.
+  // A resumed private output may contain only this exact subset of leaves;
+  // conflicting/extra/symlinked/wrong-owner files HOLD without mutation.
+  const leafText=Object.freeze({
+    "cloudflared-config.yml":config,
+    "void-voidchain-ingress-current-gateway-v2.service":unit,
+    "REVIEW.txt":instructions,
   });
+  const generatedFiles=Object.freeze(
+    Object.fromEntries(Object.entries(leafText)
+      .map(([name,txt])=>[name,expectedOutputEntryV2(txt)])));
   const body=packetBody({
-    repository,
-    tunnelId,
-    credential,
-    cloudflared,
-    generatedFiles,
+    repository,tunnelId,credential,cloudflared,generatedFiles,
   });
   const packet=Object.freeze({
     ...body,
     plan_id:"voidvci2_"+sha256(Buffer.from(canonicalJson(body),"utf8")),
   });
-  const packetPath=path.join(outputDir,"packet.json");
-  writeExclusive(packetPath,JSON.stringify(packet,null,2)+"\n");
-  const dirFd=fs.openSync(outputDir,"r");
-  try{fs.fsyncSync(dirFd);}finally{fs.closeSync(dirFd);}
+  const packetText=JSON.stringify(packet,null,2)+"\n";
+  const permitted=Object.freeze({
+    ...leafText,
+    "packet.json":packetText,
+  });
+
+  // O_EXCL at directory creation never overwrites another identity.
+  // EEXIST is accepted only after an exact private inode and leaf census.
+  try{fs.mkdirSync(outputDir,{mode:0o700});}
+  catch(error){if(error?.code!=="EEXIST")throw error;}
+  const dirFd=fs.openSync(outputDir,fs.constants.O_RDONLY|
+    fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW);
+  try{
+    assertPinnedOutputDirectoryV2(outputDir,dirFd);
+    const pinnedDir="/proc/self/fd/"+String(dirFd);
+    const found=fs.readdirSync(pinnedDir);
+    const present=new Set(found);
+    for(const name of found){
+      if(!Object.hasOwn(permitted,name)){
+        fail("VOIDCHAIN_INGRESS_RESUME_UNEXPECTED_ENTRY:"+name);
+      }
+      assertExistingOutputLeafV2(path.join(pinnedDir,name),
+        Buffer.from(permitted[name],"utf8"));
+    }
+    // packet.json is the last published success marker. A packet alongside
+    // absent predecessor leaves is inconsistent, never silently "repaired".
+    if(present.has("packet.json")&&
+       Object.keys(leafText).some(name=>!present.has(name))){
+      fail("VOIDCHAIN_INGRESS_RESUME_PREMATURE_PACKET");
+    }
+    for(const [name,text] of Object.entries(leafText)){
+      publishOrVerifyOutputLeafV2(path.join(pinnedDir,name),
+        text,present.has(name));
+    }
+    // Fully verify each expected predecessor before the final packet name.
+    for(const [name,text] of Object.entries(leafText)){
+      assertExistingOutputLeafV2(path.join(pinnedDir,name),
+        Buffer.from(text,"utf8"));
+    }
+    assertPinnedOutputDirectoryV2(outputDir,dirFd);
+    publishOrVerifyOutputLeafV2(path.join(pinnedDir,"packet.json"),
+      packetText,present.has("packet.json"));
+    fs.fsyncSync(dirFd);
+    assertPinnedOutputDirectoryV2(outputDir,dirFd);
+  }finally{
+    fs.closeSync(dirFd);
+  }
   return packet;
 }
 
