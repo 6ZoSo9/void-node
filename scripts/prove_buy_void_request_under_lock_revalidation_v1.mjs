@@ -13,7 +13,7 @@ import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/b
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="91151bb6ba5addf061a1a713aeceab142a814312";
+const NEW_BLOB="40239e0f76aa1edce43523d18c1b57691e41e8cf";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0"))
