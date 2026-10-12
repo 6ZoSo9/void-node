@@ -1,5 +1,6 @@
 import {
   buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleMarkerFingerprintLinesV1,
   buyVoidPresaleRequiredAccessListV1,
   isBuyVoidEpoch2PresaleTargetV1,
@@ -273,7 +274,7 @@ function validateRequest(
 
   const nonceBig = decimal(input.nonce, false);
   const gasLimit = decimal(input.gas_limit, true);
-  const maxFee = decimal(input.max_fee_per_gas_wei, true);
+  const maxFee = decimal(input.max_fee_per_gas_wei, false);
   const priorityFee = decimal(input.max_priority_fee_per_gas_wei, false);
   const voidAmount = decimal(input.void_amount_units, true);
   const tokenAtoms = decimal(input.token_amount_atoms, true);
@@ -283,6 +284,7 @@ function validateRequest(
     gasLimit === null ||
     maxFee === null ||
     priorityFee === null ||
+    !buyVoidPresaleFeeEnvelopeValidV1(maxFee, priorityFee, target) ||
     priorityFee > maxFee ||
     voidAmount === null ||
     tokenAtoms === null ||

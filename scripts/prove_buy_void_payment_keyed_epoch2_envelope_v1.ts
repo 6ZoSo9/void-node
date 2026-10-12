@@ -1,6 +1,7 @@
 import {
   VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
   buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleRequiredAccessListV1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import assert from "node:assert/strict";
@@ -141,7 +142,10 @@ const policy = {
   max_response_bytes: 65536,
 };
 
-function planningTransport(options: { wrongChain?: boolean } = {}) {
+function planningTransport(options: {
+  wrongChain?: boolean;
+  zeroGasPrice?: boolean;
+} = {}) {
   const calls: BuyVoidPaymentKeyedTransactionPreparationRpcCallV1[] = [];
   const transport: BuyVoidPaymentKeyedTransactionPreparationTransportV1 =
     async (call) => {
@@ -152,11 +156,11 @@ function planningTransport(options: { wrongChain?: boolean } = {}) {
         case "eth_getTransactionCount":
           return "0x7";
         case "eth_gasPrice":
-          return "0x3b9aca00";
+          return options.zeroGasPrice ? "0x0" : "0x3b9aca00";
         case "eth_estimateGas":
           return "0x186a0";
         case "eth_getBalance":
-          return "0xde0b6b3a7640000";
+          return options.zeroGasPrice ? "0x0" : "0xde0b6b3a7640000";
       }
     };
   return { transport, calls };
@@ -355,8 +359,11 @@ function applyDependencies(options: {
   claim?: boolean;
   throwBroadcast?: boolean;
   omitEpoch2Marker?: boolean;
+  zeroGasPrice?: boolean;
 } = {}) {
-  const planned = planningTransport();
+  const planned = planningTransport({
+    zeroGasPrice: options.zeroGasPrice,
+  });
   const calls = {
     signer_address: 0,
     sign: 0,
@@ -554,6 +561,68 @@ assert.equal(
   "wrong E2 marker storage key must HOLD",
 );
 
+// The pinned Epoch-2 Besu runtime supports zero-native-gas transfers.
+// E2-only zero fee must survive planning, custody fingerprints, synthetic
+// credential signing and the pre-broadcast signed-envelope admission wall.
+{
+  const zeroPrice = planningTransport({ zeroGasPrice: true });
+  const zeroPolicy = { ...policy, max_priority_fee_per_gas_wei: "0" };
+  const dry = await runBuyVoidPaymentKeyedExecutionCompositionV1({
+    ...input(zeroPrice.transport),
+    policy: zeroPolicy,
+  });
+  if (dry.ok === false) throw new Error("epoch2_zero_fee_dry:" + dry.reason);
+  assert.equal(dry.status, "dry_run");
+  const estimate = zeroPrice.calls.find(call => call.method === "eth_estimateGas");
+  assert.ok(estimate);
+  const params = estimate.params[0] as Record<string, unknown>;
+  assert.equal(params.maxFeePerGas, "0x0");
+  assert.equal(params.maxPriorityFeePerGas, "0x0");
+  assert.deepEqual(
+    params.accessList,
+    buyVoidPresaleRequiredAccessListV1(CONTRACT),
+  );
+  const dependencies = applyDependencies({ zeroGasPrice: true });
+  const accepted = await runBuyVoidPaymentKeyedExecutionCompositionV1({
+    ...input(dependencies.planned.transport),
+    policy: zeroPolicy,
+    apply: true,
+    sign_confirmation:
+      VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_SIGNER_CONFIRMATION_V1,
+    broadcast_confirmation:
+      VOID_BUY_VOID_PAYMENT_KEYED_CUSTODIAN_BROADCAST_CONFIRMATION_V1,
+    dependencies: dependencies.value,
+  });
+  if (accepted.ok === false) throw new Error("epoch2_zero_fee_apply:" + accepted.reason);
+  assert.equal(accepted.status, "broadcast_accepted");
+  assert.equal(dependencies.calls.sign, 1);
+  assert.equal(dependencies.calls.claim, 1);
+  assert.equal(dependencies.calls.broadcast, 1);
+  assert.equal(accepted.inventory_mutation_performed, false);
+  assert.equal(accepted.receipt_verified, false);
+  assert.equal(accepted.public_fulfilled_closeout_performed, false);
+  assert.equal(accepted.raw_signed_transaction_persisted, false);
+}
+{
+  const zeroPrice = planningTransport({ zeroGasPrice: true });
+  const invalidPriority = await runBuyVoidPaymentKeyedExecutionCompositionV1({
+    ...input(zeroPrice.transport),
+    policy,
+  });
+  assert.equal(invalidPriority.ok, false);
+  assert.equal(invalidPriority.reason,
+    "payment_keyed_transaction_preparation_priority_fee_exceeds_computed_max_fee");
+  assert.equal(
+    buyVoidPresaleFeeEnvelopeValidV1(0n, 0n, CONTRACT), true,
+  );
+  assert.equal(
+    buyVoidPresaleFeeEnvelopeValidV1(0n, 1n, CONTRACT), false,
+  );
+  assert.equal(
+    buyVoidPresaleFeeEnvelopeValidV1(0n, 0n, "0x" + "a".repeat(40)), false,
+    "retired, generic and off-target contracts must reject zero fees",
+  );
+}
 assert.equal(
   VOID_BUY_VOID_PAYMENT_KEYED_EXECUTION_COMPOSITION_AUTHORITY_V1
     .runtime_route_mount,
@@ -586,6 +655,8 @@ assert.equal(
 );
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_ENVELOPE_V1_GREEN");
+console.log("epoch2_zero_native_gas_signature_and_broadcast_synthetic=true");
+console.log("zero_fee_legacy_target_and_priority_mismatch_hold=true");
 console.log("epoch2_payment_fulfill_signed_marker_exact=true");
 console.log("missing_and_wrong_markers_hold_before_broadcast=true");
 console.log("historical_epoch1_fixture_unchanged=true");

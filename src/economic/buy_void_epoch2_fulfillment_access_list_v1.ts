@@ -67,6 +67,23 @@ export function buyVoidPresaleAccessListExactV1(
 
 // Only the new successor changes its unsigned preimage. Historical
 // Epoch-1 requests and their SHA-256 identities remain byte-identical.
+// Zero gas fees are supported only for the exact Epoch-2 presale, whose
+// reviewed Besu successor was proven capable of zero-native-gas execution.
+// The caller must still observe actual RPC gas price and bind the configured
+// priority fee; never infer zero fees merely from this address.
+export function buyVoidPresaleFeeEnvelopeValidV1(
+  maximumFeePerGas: unknown,
+  priorityFeePerGas: unknown,
+  target: unknown,
+): boolean {
+  return typeof maximumFeePerGas === "bigint" &&
+    typeof priorityFeePerGas === "bigint" &&
+    maximumFeePerGas >= 0n &&
+    priorityFeePerGas >= 0n &&
+    priorityFeePerGas <= maximumFeePerGas &&
+    (maximumFeePerGas !== 0n || isBuyVoidEpoch2PresaleTargetV1(target));
+}
+
 export function buyVoidPresaleMarkerFingerprintLinesV1(
   target: unknown,
 ): string[] {

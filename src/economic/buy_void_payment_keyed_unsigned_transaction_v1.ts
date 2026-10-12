@@ -1,4 +1,5 @@
 import {
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleMarkerFingerprintLinesV1,
   buyVoidPresaleRequiredAccessListV1,
   isBuyVoidEpoch2PresaleTargetV1,
@@ -218,7 +219,7 @@ function normalizePolicy(
   const contract = address(input?.fulfillment_contract_address);
   const maxAmount = parsePositive(input?.max_void_amount_units);
   const maxGas = parsePositive(input?.max_gas_limit);
-  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
   const maxPriority = parseNonNegative(input?.max_priority_fee_per_gas_wei);
   if (
     !wallet ||
@@ -387,6 +388,9 @@ function normalizedPlan(
     gasLimit > policy.max_gas_limit ||
     maxFee === null ||
     maxFee > policy.max_fee_per_gas_wei ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      maxFee, priorityFee, policy.fulfillment_contract_address,
+    ) ||
     priorityFee === null ||
     priorityFee > policy.max_priority_fee_per_gas_wei ||
     priorityFee > maxFee

@@ -833,7 +833,8 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
   const gasPriceResponse = await callRpc("eth_gasPrice", []);
   if (gasPriceResponse.ok === false) return gasPriceResponse.decision;
   const observedGasPrice = parseHexQuantity(gasPriceResponse.value);
-  if (observedGasPrice === null || observedGasPrice <= 0n) {
+  if (observedGasPrice === null || (observedGasPrice === 0n &&
+      !isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address))) {
     return held("payment_keyed_transaction_preparation_gas_price_invalid", {
       attempt_id: binding.attempt_id,
       rpc_url_fingerprint_sha256: policy.rpc_url_fingerprint_sha256,
@@ -850,6 +851,9 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
             accessList: buyVoidPresaleRequiredAccessListV1(
               policy.fulfillment_contract_address,
             ),
+            ...(observedGasPrice === 0n
+              ? { maxFeePerGas: "0x0", maxPriorityFeePerGas: "0x0" }
+              : {}),
           }
         : {}),
       from: policy.fulfillment_wallet_address,
@@ -899,7 +903,8 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
     BPS_DENOMINATOR,
   );
   if (
-    computedMaxFee <= 0n ||
+    (computedMaxFee === 0n &&
+      !isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)) ||
     computedMaxFee > policy.max_fee_per_gas_wei
   ) {
     return held(

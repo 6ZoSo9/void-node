@@ -299,10 +299,11 @@ function validateUnsignedFulfillment(
     !Number.isSafeInteger(transaction.nonce) ||
     transaction.nonce < 0 ||
     transaction.gasLimit <= 0n ||
-    transaction.maxFeePerGas <= 0n ||
-    transaction.maxPriorityFeePerGas < 0n ||
-    transaction.maxPriorityFeePerGas >
-      transaction.maxFeePerGas ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      transaction.maxFeePerGas,
+      transaction.maxPriorityFeePerGas,
+      expectedContract,
+    ) ||
     target !== expectedContract ||
     transaction.value !== 0n ||
     !buyVoidPresaleAccessListExactV1(transaction.accessList, expectedContract)

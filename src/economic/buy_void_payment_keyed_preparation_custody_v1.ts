@@ -1,3 +1,4 @@
+import { isBuyVoidEpoch2PresaleTargetV1 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -412,7 +413,10 @@ function validateRequestShape(
     !/^0x[0-9a-f]+$/i.test(text(request.transaction_calldata)) ||
     !SHA256.test(text(request.transaction_calldata_sha256).toLowerCase()) ||
     !/^[1-9][0-9]*$/.test(text(request.gas_limit)) ||
-    !/^[1-9][0-9]*$/.test(text(request.max_fee_per_gas_wei)) ||
+    (!/^[1-9][0-9]*$/.test(text(request.max_fee_per_gas_wei)) &&
+      !(text(request.max_fee_per_gas_wei) === "0" &&
+        text(request.max_priority_fee_per_gas_wei) === "0" &&
+        isBuyVoidEpoch2PresaleTargetV1(request.transaction_to))) ||
     !/^(0|[1-9][0-9]*)$/.test(text(request.max_priority_fee_per_gas_wei)) ||
     !SHA256.test(text(request.canonical_payment_key_sha256).toLowerCase()) ||
     !ADDRESS.test(text(request.delivery_address).toLowerCase()) ||

@@ -1,5 +1,6 @@
 import {
   buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleMarkerFingerprintLinesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
@@ -251,7 +252,7 @@ function normalizePolicy(
   const contract = address(input?.fulfillment_contract_address);
   const maxVoid = parsePositive(input?.max_void_amount_units);
   const maxGas = parsePositive(input?.max_gas_limit);
-  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
   const maxPriority = parseNonNegative(
     input?.max_priority_fee_per_gas_wei,
   );
@@ -419,6 +420,9 @@ function normalizePlan(
     gasLimit > policy.max_gas_limit ||
     maxFee === null ||
     maxFee > policy.max_fee_per_gas_wei ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      maxFee, priorityFee, policy.fulfillment_contract_address,
+    ) ||
     priorityFee === null ||
     priorityFee > policy.max_priority_fee_per_gas_wei ||
     priorityFee > maxFee

@@ -1,5 +1,6 @@
 import {
   buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleMarkerFingerprintLinesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
@@ -347,7 +348,7 @@ function validateInput(
 
   const nonceValue = parseNonNegative(request.nonce);
   const gasLimit = parsePositive(request.gas_limit);
-  const maxFee = parsePositive(request.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(request.max_fee_per_gas_wei);
   const priorityFee = parseNonNegative(
     request.max_priority_fee_per_gas_wei,
   );
@@ -359,6 +360,7 @@ function validateInput(
     gasLimit === null ||
     maxFee === null ||
     priorityFee === null ||
+    !buyVoidPresaleFeeEnvelopeValidV1(maxFee, priorityFee, target) ||
     priorityFee > maxFee ||
     voidAmount === null ||
     tokenAtoms === null ||
