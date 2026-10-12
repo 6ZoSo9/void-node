@@ -15,6 +15,9 @@ on:
       - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts"
+      - "tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs"
+      - "scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs"
+      - "docs/operators/buy-void-epoch2-fulfillment-readonly-estimate-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -41,6 +44,9 @@ jobs:
           set -euo pipefail
           npm run typecheck
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts
+          node --check tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs
+          node --check scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
+          node --import tsx scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
           node --import tsx scripts/prove_buy_void_payment_keyed_execution_composition_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_unsigned_transaction_v1.ts
           git diff --check
