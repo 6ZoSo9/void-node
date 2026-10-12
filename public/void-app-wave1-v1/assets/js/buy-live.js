@@ -95,8 +95,10 @@ function armReceiptExpiryTimer(monoDeadlineMs) {
 }
 const touchedFields = new Set();
 let activeBuyView = null;
+let buyViewGeneration = 0;
 const beginBuyViewInstance = (view) => {
   if (view === activeBuyView) return false;
+  buyViewGeneration += 1;
   clearReceiptExpiryTimer();
   activeBuyView = view;
   touchedFields.clear();
@@ -517,6 +519,18 @@ async function submitBuy(event) {
   const button = one('[data-buy-submit]');
   if (!button || button.disabled) return;
 
+  // A POST may finish after this Buy DOM instance is replaced. Only its
+  // original view generation can receive a checkout receipt or error copy.
+  // The document-lifetime attemptedIntentKeys fence survives either way.
+  const submittingBuyView = activeBuyView;
+  const submittingBuyGeneration = buyViewGeneration;
+  const stillOwnsSubmittingView = () =>
+    submittingBuyView !== null &&
+    submittingBuyGeneration === buyViewGeneration &&
+    activeBuyView === submittingBuyView &&
+    currentRoute() === 'buy' &&
+    one('[data-buy-view]') === submittingBuyView;
+
   const amount = String(one('[data-buy-amount]').value || '').trim();
   const destination = String(one('[data-buy-destination]').value || '').trim();
   const chain = selectedChain();
@@ -567,6 +581,7 @@ async function submitBuy(event) {
       signal: AbortSignal.timeout(10000),
     });
     const body = await strictJson(response);
+    if (!stillOwnsSubmittingView()) return;
     if (
       !response.ok ||
       response.status !== 201 ||
@@ -683,6 +698,7 @@ async function submitBuy(event) {
     // finally/updateSubmit path renders it solely on verified OPEN and
     // only for the matching canonical intent.
   } catch (error) {
+    if (!stillOwnsSubmittingView()) return;
     attemptedResultText = [
       'REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT',
       'A request may have been recorded even though this page did not receive a valid confirmation.',
