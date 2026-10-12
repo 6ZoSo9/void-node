@@ -194,6 +194,10 @@ const syntheticFs = {
 };
 const context = vm.createContext({
   exports: {},
+  // The writer declaration is extracted into a synthetic VM; mirror its exact
+  // production Symbol.for import without executing host/runtime modules.
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1:
+    Symbol.for("VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1"),
   process: { pid: 1, getuid: () => 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
   path,
   Buffer,
