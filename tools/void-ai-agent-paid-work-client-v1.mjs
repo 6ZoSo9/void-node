@@ -289,8 +289,12 @@ async function settleCancellationBounded(target, controller, onConfirmed = null)
   // A custom cancel getter may throw. That is not confirmed cleanup.
   let cancellation;
   try {
-    if (!target || typeof target.cancel !== "function") return;
-    cancellation = Promise.resolve(target.cancel());
+    if (!target) return;
+    const cancelMethod = target.cancel;
+    if (typeof cancelMethod !== "function") return;
+    // One property read and the original receiver: an accessor may change
+    // between reads, so a later no-op must never imply confirmed cleanup.
+    cancellation = Promise.resolve(Reflect.apply(cancelMethod, target, []));
   } catch {
     return;
   }
@@ -378,8 +382,11 @@ async function fetchAgainstOwnedDeadlineV1(
           }
           // If a late body cannot be cancelled, retain the fail-closed slot;
           // allowing another generation would accumulate abandoned bodies.
-          if (typeof body.cancel !== "function") return;
-          const cancellation = Promise.resolve(body.cancel());
+          const cancelMethod = body.cancel;
+          if (typeof cancelMethod !== "function") return;
+          const cancellation = Promise.resolve(
+            Reflect.apply(cancelMethod, body, []),
+          );
           // A rejecting or permanently pending cancellation cannot prove
           // cleanup. Only the exact successful settlement retires this slot.
           void cancellation.then(retire, () => undefined);
@@ -486,11 +493,21 @@ function admittedResponseBodyV1(response, controller, generation) {
   }
 }
 
-async function boundedRead(response, maximumBytes, controller, readScope, readGeneration) {
-  const responseBody = admittedResponseBodyV1(response, controller, readGeneration);
-  const contentLengthRaw = response.headers.get("content-length");
+async function boundedRead(getHeader, responseBody, maximumBytes, controller, readScope, readGeneration) {
+  let contentLengthRaw;
+  try {
+    contentLengthRaw = getHeader("content-length");
+  } catch (error) {
+    // Headers are untrusted until parsed. A throwing getter must not
+    // release a still-live, already admitted body generation.
+    await cancelBodyWithGenerationV1(
+      responseBody, controller, readScope, readGeneration,
+    );
+    throw error;
+  }
   if (contentLengthRaw !== null) {
-    const contentLengthText = contentLengthRaw.trim();
+    const contentLengthText =
+      typeof contentLengthRaw === "string" ? contentLengthRaw.trim() : "";
     if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
       await cancelBodyWithGenerationV1(
         responseBody, controller, readScope, readGeneration,
@@ -622,23 +639,40 @@ async function fetchBoundedV1({
     const response = await fetchAgainstOwnedDeadlineV1(
       fetchPromise, controller, readScope, readGeneration,
     );
-    if (response.status >= 300 && response.status < 400) {
-      const responseBody = admittedResponseBodyV1(
-        response, controller, readGeneration,
-      );
+    const responseBody = admittedResponseBodyV1(
+      response, controller, readGeneration,
+    );
+    let status;
+    let getHeader;
+    try {
+      // Read each untrusted response accessor exactly once.
+      status = response.status;
+      const headers = response.headers;
+      const headerMethod = headers?.get;
+      if (!Number.isInteger(status) || status < 100 || status > 599 ||
+          typeof headerMethod !== "function") {
+        fail("response_http_envelope_invalid");
+      }
+      getHeader = (name) => Reflect.apply(headerMethod, headers, [name]);
+    } catch (error) {
       await cancelBodyWithGenerationV1(
         responseBody, controller, readScope, readGeneration,
       );
-      fail(`redirect_forbidden:${response.status}`);
+      throw error;
+    }
+    if (status >= 300 && status < 400) {
+      await cancelBodyWithGenerationV1(
+        responseBody, controller, readScope, readGeneration,
+      );
+      fail(`redirect_forbidden:${status}`);
     }
     const raw = await boundedRead(
-      response,
-      maximumBytes,
-      controller,
-      readScope,
-      readGeneration,
+      getHeader, responseBody,
+      maximumBytes, controller, readScope, readGeneration,
     );
-    return { response, raw };
+    // Callers consume a stable numeric status and one captured Header method,
+    // never a second mutable getter on the response-like object.
+    return { response: { status, headers: { get: getHeader } }, raw };
   } finally {
     clearTimeout(timer);
     // Normal/error completion retires only its own slot. An unresolved read
