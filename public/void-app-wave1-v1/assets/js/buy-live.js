@@ -176,8 +176,17 @@ const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) =
     cancelUnopenedBody();
     throw error;
   }
-  const reader = response.body?.getReader?.();
-  if (!reader) throw new Error('Buy VOID response stream unavailable');
+  // A malformed/missing/throwing reader acquisition leaves the response
+  // body unopened. Retire it exactly as for header-stage refusals rather
+  // than retaining a possibly committed checkout connection.
+  let reader;
+  try {
+    reader = response.body?.getReader?.();
+    if (!reader) throw new Error('Buy VOID response stream unavailable');
+  } catch (error) {
+    cancelUnopenedBody();
+    throw error;
+  }
   const assertBodyWithinDeadline = () => {
     const now = receiptMonotonicNow();
     if (now === null || now < bodyStartedMonoMs ||
