@@ -47,14 +47,18 @@ jobs:
           set -euo pipefail
           node --check tools/void-public-participant-production-composition-current-gateway-v2.mjs
           node --check scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs
-          node scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs | tee participant-current-gateway-v2-${{ matrix.node }}.txt
+          # The proof binds a clean Git checkout. Capturing stdout inside
+          # the worktree creates an untracked receipt before preflight runs.
+          # Store execution output outside the repository instead.
+          receipt="$RUNNER_TEMP/participant-current-gateway-v2-${{ matrix.node }}.txt"
+          node scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs | tee "$receipt"
           for proof_marker in \
             'VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_PREFLIGHT_V2_PROOF_GREEN' \
             'historical_v1_new_generation_negative_preserved=true' \
             'current_gateway_exact_git_blob_qualified=true' \
             'source_composition_ready=true' \
             'runtime_activation_authorized=false'; do
-            grep -Fx "$proof_marker" participant-current-gateway-v2-${{ matrix.node }}.txt
+            grep -Fx "$proof_marker" "$receipt"
           done
       - name: Check exact reviewed path whitespace
         run: |
