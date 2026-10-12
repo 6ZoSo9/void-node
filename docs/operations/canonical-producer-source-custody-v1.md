@@ -59,7 +59,7 @@ versioned source-blob selector. The noncanonical follower role is unaffected.
 ## Automated non-operational qualification
 
 `scripts/prove_canonical_producer_source_custody_v1.mjs` creates one uniquely
-named **disposable root-owned fixture under /opt on a GitHub-hosted Linux
+named **disposable root-owned fixture under /var/lib on a GitHub-hosted Linux
 runner** using runner-local `sudo -n`. It runs the real Node checker under
 the runner's non-root identity. It requires both successful protected-tree
 acceptance and actual kernel-denied attempts to write the root-owned source,
