@@ -13,7 +13,7 @@ import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/b
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="1249848f1875b3f81c6f90aed2bb3c3a0bda50e4";
+const NEW_BLOB="8198912a70c8db0c81dad5d341cb4a779906c851";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -89,6 +89,45 @@ assert.equal(observedReuse.body?.error,"one_active_request_per_void_destination"
 const reuseWire=JSON.stringify(observedReuse.body);
 for(const value of Object.values(storedSecrets)){
   assert.equal(reuseWire.includes(value),false,"private prior request leaked");
+}
+
+// The old public exception handler also reflected arbitrary internal
+// filesystem/customer error strings. Execute the exact source catch body
+// (old negative control, current positive) under inert response objects.
+function extractPublicCatch(post){
+  const marker="}catch(e:any){";
+  const begin=post.lastIndexOf(marker),end=post.lastIndexOf("}\\n    });");
+  assert.ok(begin>=0&&end>begin,"missing mounted POST catch");
+  return new Function("e","res",post.slice(begin+marker.length,end));
+}
+function runPublicCatch(handler,errorText){
+  const captured={status_code:0,body:null,
+    status(v){this.status_code=v;return this;},
+    json(v){this.body=v;return this;}};
+  handler(new Error(errorText),captured);
+  return captured;
+}
+const previousCatch=extractPublicCatch(oldPost);
+const currentCatch=extractPublicCatch(currentPost);
+const exceptionSecret="SECRET_SOURCE_PATH_AND_CUSTOMER_METADATA";
+const previousError=runPublicCatch(previousCatch,exceptionSecret);
+assert.equal(JSON.stringify(previousError.body).includes(exceptionSecret),true,
+  "historical public raw-error reflection negative control");
+const currentError=runPublicCatch(currentCatch,exceptionSecret);
+assert.equal(currentError.status_code,500);
+assert.equal(currentError.body?.error,"buy_void_checkout_request_failed");
+assert.equal(JSON.stringify(currentError.body).includes(exceptionSecret),false);
+assert.equal(Object.hasOwn(currentError.body,"message"),false);
+for(const [reason,expected] of [
+  ["request_launch_authority_expired_or_superseded",
+    "request_launch_authority_expired_or_superseded"],
+  ["buy_void_request_active_destination_changed_during_lock",
+    "one_active_request_per_void_destination"],
+]){
+  const response=runPublicCatch(currentCatch,reason);
+  assert.equal(response.status_code,409);
+  assert.equal(response.body?.error,expected);
+  assert.equal(Object.hasOwn(response.body,"message"),false);
 }
 
 function factory(persistBlock,dir){
@@ -429,6 +468,8 @@ console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
 console.log("public_unauthenticated_reuse_private_conflict=true");
 console.log("public_prelock_fast_return_removed=true");
+console.log("public_unknown_internal_exception_details_redacted=true");
+console.log("public_safe_known_conflicts_preserved=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");

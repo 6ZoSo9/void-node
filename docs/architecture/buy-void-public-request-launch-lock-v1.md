@@ -1,5 +1,17 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 public exception redaction — source only
+
+The public request POST's catch branch previously returned raw exception text
+in `message`. That could leak internal filesystem and buyer-processing details
+to an unauthenticated caller. The source now emits fixed public error codes
+only: known lease/destination conflicts remain HTTP 409, and unexpected errors
+remain HTTP 500 with generic `buy_void_checkout_request_failed`. A
+source-extracted adversary executes the old and current catch expressions,
+proves the historical leak, and requires no internal sentinel bytes in the
+new response. This does not establish authenticated caller recovery or
+production acceptance.
+
 ## October 11 public privacy and strict-history route successor — source only
 
 The public POST now lets the existing launch-locked persistor decide every
@@ -38,7 +50,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `20d0ec09dba80260d533346f719ad292d40ed5d4`. Actual source-only
-regression Git blob: `3aede2478d9ffefd17616c17743f3108743f1891`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `a1ae411d824437956e3a586212c97eb7690774ce`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -59,7 +71,7 @@ guards one local client only and does not solve cross-tab or concurrent
 HTTP requests.
 
 This correction keeps a short `src/index.ts` bridge (exact Git blob
-`1249848f1875b3f81c6f90aed2bb3c3a0bda50e4`) **within its hard size
+`8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
 (Git blob `20d0ec09dba80260d533346f719ad292d40ed5d4`). The existing

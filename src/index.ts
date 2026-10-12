@@ -19079,7 +19079,21 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           one_active_request_cap_enforced: true,
           request: requestObj
         });
-      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded",d=m==="buy_void_request_active_destination_changed_during_lock";return res.status(h||d?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:d?"one_active_request_per_void_destination":h?m:"buy_void_checkout_request_failed",message:m})}
+      }catch(e:any){
+        // A public caller must not receive raw internal exception data
+        // (filesystem paths, source-state details, or request metadata).
+        const reason=String(e?.message||e);
+        const lease=reason==="request_launch_authority_expired_or_superseded";
+        const conflict=reason==="buy_void_request_active_destination_changed_during_lock";
+        return res.status(lease||conflict?409:500).json({
+          schema:"void_public_buy_void_checkout_request_result_v1",
+          marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok:false,
+          error:conflict?"one_active_request_per_void_destination":
+            lease?"request_launch_authority_expired_or_superseded":
+            "buy_void_checkout_request_failed"
+        });
+      }
     });
 
 
