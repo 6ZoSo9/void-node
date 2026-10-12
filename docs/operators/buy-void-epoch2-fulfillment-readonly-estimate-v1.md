@@ -48,8 +48,10 @@ The qualification checks:
   `0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942`.
   A chain that shares genesis but not this reviewed history must HOLD;
 - Exact immutable three-validator QBFT roster (Precision, Nimo, Xiphos)
-  queried at the initial observed head; unknown, missing, and duplicate
-  validator addresses HOLD even when two peers report connected;
+  independently queried at **both pinned initial and final block heights**.
+  The initial head can be valid while the final head has drifted; missing,
+  changed, duplicate, or malformed validators at either height HOLD even if
+  peer count is two and blocks were produced;
 - two live peers, and **at
   least one new block** across a deliberate 12-second post-estimate observation
   window (more than two reviewed five-second QBFT periods). Connected peers
@@ -66,10 +68,17 @@ The qualification checks:
   to `320001` (HOLD). A green simulation does not substitute for the later
   production runtime configuration and credential attestation.
 
+All RPC methods remain read-only on fixed `127.0.0.1:18553`, with a
+separate **6-second absolute total-request deadline** covering connection,
+headers and full response body, as well as the existing socket inactivity
+timeout and 65,536-byte response bound. A peer trickling data indefinitely
+must not postpone a definitive HOLD. All timers and the request transport are
+closed on timeout, error, and normal completion.
+
 An RPC error, missing/different accepted block 3,854, oversized/malformed
 response, wrong contract/code, wrong storage,
-quorum loss, validator-set drift, excessive estimate or source identity
-mismatch is a **HOLD**.
+quorum loss, validator-set drift (including final-head drift), excessive
+estimate, absolute RPC deadline or source identity mismatch is a **HOLD**.
 Only an exact qualified read-only estimate reports
 `READONLY_EPOCH2_DELIVERY_ESTIMATE_GREEN`.
 
@@ -87,5 +96,10 @@ The inert source proof loads the already-reviewed client-neutral Epoch-2
 genesis manifest (including real contract runtime hex) and a synthetic
 JSON-RPC result set, without opening any listener or touching a running node.
 The companion PR workflow runs this proof on Node 22, 24 and 26.
+It also injects an inert simulated Node HTTP transport with a deliberately slow
+response trickle, verifies the absolute deadline terminates it with zero
+outstanding synthetic sockets or intervals, and rejects a final validator
+roster that changed after a legitimate initial roster and block progression.
+This proof invokes no production RPC endpoint or real signer.
 
 **Production intake and WC/VOID market stay OFF. PROTECT THE CORE.**

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Inert regression: uses reviewed E2 genesis bytecode and synthetic RPC values.
 // No HTTP calls, wallet operations, signing or broadcasting.
+import { EventEmitter } from "node:events";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { Interface } from "ethers";
@@ -8,6 +9,7 @@ import {
   VOID_BUY_VOID_EPOCH2_READONLY_DELIVERY_ESTIMATE_V1,
   buildBuyVoidEpoch2ReadOnlyEstimateV1,
   classifyBuyVoidEpoch2ReadOnlyEstimateV1,
+  rpcReadWithTransportV1,
 } from "../tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs";
 import {
   VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
@@ -73,6 +75,11 @@ const valid = Object.freeze({
     "0x02f967953386188397b992c208239d3a25180db6",
     "0x461bf06270d9d28962f7570182c061b828799b66",
   ],
+  validators_after: [
+    "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+    "0x02f967953386188397b992c208239d3a25180db6",
+    "0x461bf06270d9d28962f7570182c061b828799b66",
+  ],
   presale_code: epoch2.runtime_code_hex,
   token_code: token.runtime_code_hex,
   token_presale_balance: word(10_000_000n * 10n ** 18n),
@@ -90,6 +97,7 @@ assert.equal(green.accepted_history_block, "3854");
 assert.equal(green.accepted_history_hash,
   "0x67e0ceaeee70c966271d37ebda1b07ee8d33c9b16bf4016a0d9eaefc3126c942");
 assert.equal(green.exact_reviewed_validator_roster, true);
+assert.equal(green.initial_and_final_pinned_roster_verified, true);
 assert.equal(green.blocks_produced_in_window, "2");
 assert.equal(green.observation_window_ms, "12000");
 const reviewedProductionCandidate = JSON.parse(fs.readFileSync(
@@ -166,6 +174,24 @@ fails("duplicate_validator_in_three_member_roster", {
 fails("short_validator_roster", {
   validators: valid.validators.slice(0, 2),
 }, "epoch2_validator_roster_mismatch");
+fails("missing_final_validator_roster", {
+  validators_after: undefined,
+}, "epoch2_validator_roster_mismatch");
+fails("final_validator_roster_drift_despite_progress", {
+  validators_after: [
+    ...valid.validators_after.slice(0, 2),
+    "0x" + "d".repeat(40),
+  ],
+}, "epoch2_validator_roster_mismatch");
+fails("duplicate_final_validator_roster", {
+  validators_after: [
+    ...valid.validators_after.slice(0, 2),
+    valid.validators_after[1],
+  ],
+}, "epoch2_validator_roster_mismatch");
+fails("malformed_final_validator_roster", {
+  validators_after: ["not-an-address"],
+}, "epoch2_validator_roster_mismatch");
 fails("history_rollback", { block_after:"0x16f4d" },
   "epoch2_quorum_or_history_not_qualified");
 fails("stalled_two_peer_quorum", { block_after:valid.block_before },
@@ -191,6 +217,90 @@ fails("gas_over_ceiling", { estimate_gas:"0x4e201" },
 fails("malformed_gas", { estimate_gas:"0x0002" },
   "epoch2_rpc_evidence_malformed");
 
+// Request factory mocks the Node HTTP transport using inert EventEmitters.
+// No listener, external network, wallet or signer is exercised. The synthetic
+// stream delivers short data chunks below the socket-inactivity limit but
+// never finishes: only a total-operation deadline is able to abort it.
+function inertRpcFactory({ trickle = false } = {}) {
+  let active = 0;
+  let destroyed = 0;
+  let intervals = 0;
+  const factory = (options, onResponse) => {
+    assert.equal(options.hostname, "127.0.0.1");
+    assert.equal(options.port, 18553);
+    assert.equal(options.method, "POST");
+    assert.equal(options.timeout, 6000);
+    const req = new EventEmitter();
+    let interval = null;
+    let closed = false;
+    req.destroy = () => {
+      if (closed) return;
+      closed = true;
+      destroyed += 1;
+      if (interval !== null) {
+        clearInterval(interval);
+        intervals -= 1;
+      }
+      active -= 1;
+      req.emit("error", new Error("synthetic_request_destroyed"));
+    };
+    req.end = body => {
+      const parsed = JSON.parse(body.toString("utf8"));
+      assert.equal(parsed.method, "eth_chainId");
+      active += 1;
+      const response = new EventEmitter();
+      response.statusCode = 200;
+      response.headers = { "content-type": "application/json" };
+      response.resume = () => {};
+      response.destroy = () => req.destroy();
+      queueMicrotask(() => {
+        if (closed) return;
+        onResponse(response);
+        if (trickle) {
+          intervals += 1;
+          interval = setInterval(() => {
+            if (!closed) response.emit("data", Buffer.from(" "));
+          }, 15);
+        } else {
+          response.emit("data", Buffer.from(JSON.stringify({
+            jsonrpc: "2.0", id: parsed.id, result: "0x802",
+          })));
+          response.emit("end");
+          active -= 1;
+          closed = true;
+        }
+      });
+    };
+    return req;
+  };
+  return { factory, counts: () => ({ active, destroyed, intervals }) };
+}
+
+const quick = inertRpcFactory();
+assert.equal(
+  await rpcReadWithTransportV1("eth_chainId", [], quick.factory, 120),
+  "0x802",
+);
+assert.equal(quick.counts().active, 0);
+const slow = inertRpcFactory({ trickle: true });
+await assert.rejects(
+  rpcReadWithTransportV1("eth_chainId", [], slow.factory, 95),
+  /rpc_total_deadline_exceeded/u,
+  "slow data trickle cannot extend the absolute read-only RPC deadline",
+);
+assert.deepEqual(slow.counts(), {
+  active: 0, destroyed: 1, intervals: 0,
+});
+await assert.rejects(
+  rpcReadWithTransportV1(
+    "eth_sendRawTransaction", ["0xdead"], slow.factory, 95,
+  ),
+  /rpc_method_not_read_only/u,
+);
+assert.deepEqual(slow.counts(), {
+  active: 0, destroyed: 1, intervals: 0,
+});
+
 console.log("VOID_BUY_VOID_EPOCH2_READONLY_DELIVERY_ESTIMATE_V1_PROOF_GREEN");
 console.log("canonical_rpc_genesis_and_accepted_block_3854_bound=true");
 console.log("synthetic_two_void_fulfill_calldata_proven=true");
@@ -198,6 +308,9 @@ console.log("epoch2_marker_included_and_zero_fee=true");
 console.log("real_epoch2_contract_bytecode_fixture_proven=true");
 console.log("wrong_chain_inventory_contract_gas_and_quorum_hold=true");
 console.log("unknown_or_duplicate_epoch2_validator_roster_holds=true");
+console.log("initial_and_final_epoch2_rosters_bound_to_pinned_heads=true");
+console.log("slow_trickle_absolute_rpc_deadline_holds=true");
+console.log("absolute_timeout_clears_transport_and_interval=true");
 console.log("gas_limit_multiplier_bps=15000");
 console.log("raw_estimate_213333_computed_320000_green=true");
 console.log("raw_estimate_213334_computed_320001_hold=true");

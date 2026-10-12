@@ -142,14 +142,18 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
     if (after <= before || before < 3854n || peers < 2n) {
       return hold("epoch2_quorum_or_history_not_qualified");
     }
-    // Two connected peers and block progress do not prove the reviewed
-    // validator authority: require the exact frozen three-member roster.
-    if (!Array.isArray(observed.validators) ||
-        observed.validators.length !== EXPECTED_VALIDATORS.length ||
-        !observed.validators.every(v =>
-          typeof v === "string" && /^0x[0-9a-fA-F]{40}$/u.test(v)) ||
-        observed.validators.map(v => v.toLowerCase()).sort()
-          .some((v, i) => v !== EXPECTED_VALIDATORS[i])) {
+    // Both the initial and the final *pinned* block must have the exact
+    // three reviewed validators. One initial roster cannot authorize a later
+    // head that progressed under a different validator set.
+    const reviewedRoster = rows =>
+      Array.isArray(rows) &&
+      rows.length === EXPECTED_VALIDATORS.length &&
+      rows.every(v =>
+        typeof v === "string" && /^0x[0-9a-fA-F]{40}$/u.test(v)) &&
+      rows.map(v => v.toLowerCase()).sort()
+        .every((v, i) => v === EXPECTED_VALIDATORS[i]);
+    if (!reviewedRoster(observed.validators) ||
+        !reviewedRoster(observed.validators_after)) {
       return hold("epoch2_validator_roster_mismatch");
     }
     const balance = storageWord(observed.token_presale_balance);
@@ -184,6 +188,7 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
       observation_window_ms: String(OBSERVATION_WINDOW_MS),
       peer_count: peers.toString(),
       exact_reviewed_validator_roster: true,
+      initial_and_final_pinned_roster_verified: true,
       presale_balance_atoms: balance.toString(),
       presale_fulfilled_atoms: fulfilled.toString(),
       zero_fee_type2_marker_estimate_accepted: true,
@@ -201,69 +206,113 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
 }
 
 let requestId = 0;
-async function rpcRead(method, params) {
+// Injectable *transport only* for inert tests. Production rpcRead always
+// supplies node:http, the fixed reviewed loopback endpoint and a 6s deadline.
+// No signer, mutation or arbitrary RPC target is injected.
+export async function rpcReadWithTransportV1(
+  method, params, requestTransport = http.request, deadlineMs = 6000,
+) {
   if (!RPC_ALLOWED.has(method)) throw new Error("rpc_method_not_read_only");
-  if (RPC_URL !== "http://127.0.0.1:18553/") throw new Error("rpc_binding_invalid");
+  if (RPC_URL !== "http://127.0.0.1:18553/") {
+    throw new Error("rpc_binding_invalid");
+  }
+  if (typeof requestTransport !== "function" ||
+      !Number.isSafeInteger(deadlineMs) ||
+      deadlineMs < 20 || deadlineMs > 6000) {
+    throw new Error("rpc_transport_or_deadline_invalid");
+  }
   const id = ++requestId;
   const body = Buffer.from(JSON.stringify({
     jsonrpc: "2.0", id, method, params,
   }), "utf8");
   return await new Promise((resolve, reject) => {
-    const request = http.request({
-      hostname: "127.0.0.1",
-      port: 18553,
-      path: "/",
-      method: "POST",
-      agent: false,
-      timeout: 6000,
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": body.length,
-        "Connection": "close",
-      },
-    }, response => {
-      if (response.statusCode !== 200 ||
-          !String(response.headers["content-type"] || "")
-            .toLowerCase().startsWith("application/json")) {
-        response.resume();
-        reject(new Error("rpc_http_or_content_type_invalid"));
-        return;
+    let request = null;
+    let settled = false;
+    let deadline = null;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      if (deadline !== null) clearTimeout(deadline);
+      if (error) {
+        if (request !== null) request.destroy();
+        reject(error);
+      } else {
+        resolve(value);
       }
-      let size = 0;
-      const chunks = [];
-      response.on("data", chunk => {
-        size += chunk.length;
-        if (size > 65536) {
-          request.destroy(new Error("rpc_response_oversize"));
+    };
+    // Absolute wall-clock bound covers DNS/connect, headers AND entire body.
+    // Socket timeout alone is inactivity-only and allows slow trickle abuse.
+    deadline = setTimeout(
+      () => finish(new Error("rpc_total_deadline_exceeded")),
+      deadlineMs,
+    );
+    deadline.unref?.();
+    try {
+      request = requestTransport({
+        hostname: "127.0.0.1",
+        port: 18553,
+        path: "/",
+        method: "POST",
+        agent: false,
+        timeout: 6000,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": body.length,
+          "Connection": "close",
+        },
+      }, response => {
+        if (settled) { response.destroy?.(); return; }
+        if (response.statusCode !== 200 ||
+            !String(response.headers["content-type"] || "")
+              .toLowerCase().startsWith("application/json")) {
+          response.resume();
+          finish(new Error("rpc_http_or_content_type_invalid"));
           return;
         }
-        chunks.push(chunk);
-      });
-      response.on("end", () => {
-        try {
-          const responseBody = JSON.parse(
-            new TextDecoder("utf-8", { fatal: true })
-              .decode(Buffer.concat(chunks)),
-          );
-          if (responseBody?.jsonrpc !== "2.0" ||
-              responseBody.id !== id ||
-              responseBody.error !== undefined ||
-              responseBody.result === undefined ||
-              responseBody.result === null) {
-            throw new Error(
-              "rpc_" + safeError(method) + "_" +
-              safeError(responseBody?.error?.message || "invalid_response"),
-            );
+        let size = 0;
+        const chunks = [];
+        response.on("data", chunk => {
+          if (settled) return;
+          size += chunk.length;
+          if (size > 65536) {
+            finish(new Error("rpc_response_oversize"));
+            return;
           }
-          resolve(responseBody.result);
-        } catch (error) { reject(error); }
+          chunks.push(chunk);
+        });
+        response.on("end", () => {
+          if (settled) return;
+          try {
+            const responseBody = JSON.parse(
+              new TextDecoder("utf-8", { fatal: true })
+                .decode(Buffer.concat(chunks)),
+            );
+            if (responseBody?.jsonrpc !== "2.0" ||
+                responseBody.id !== id ||
+                responseBody.error !== undefined ||
+                responseBody.result === undefined ||
+                responseBody.result === null) {
+              throw new Error(
+                "rpc_" + safeError(method) + "_" +
+                safeError(responseBody?.error?.message || "invalid_response"),
+              );
+            }
+            finish(null, responseBody.result);
+          } catch (error) { finish(error); }
+        });
+        response.on("error", error => finish(error));
+        response.on("aborted", () => finish(new Error("rpc_response_aborted")));
       });
-      response.on("error", reject);
-    });
-    request.on("error", reject);
-    request.on("timeout", () => request.destroy(new Error("rpc_timeout")));
-    request.end(body);
+      request.on("error", error => finish(error));
+      request.on("timeout", () => finish(new Error("rpc_inactivity_timeout")));
+      request.end(body);
+    } catch (error) {
+      finish(error);
+    }
   });
+}
+async function rpcRead(method, params) {
+  return rpcReadWithTransportV1(method, params);
 }
 
 export async function observeBuyVoidEpoch2ReadOnlyEstimateV1() {
@@ -298,6 +347,11 @@ export async function observeBuyVoidEpoch2ReadOnlyEstimateV1() {
   await new Promise(resolve => setTimeout(resolve, OBSERVATION_WINDOW_MS));
   observed.block_after = await rpcRead("eth_blockNumber", []);
   observed.peers = await rpcRead("net_peerCount", []);
+  // Bind the final observation to its exact captured head, not a subsequent
+  // floating "latest" selector that could mask a validator-set transition.
+  observed.validators_after = await rpcRead(
+    "qbft_getValidatorsByBlockNumber", [observed.block_after],
+  );
   return classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed);
 }
 
