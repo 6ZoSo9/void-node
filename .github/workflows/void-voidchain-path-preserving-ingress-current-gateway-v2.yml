@@ -1,0 +1,103 @@
+name: VOID voidchain ingress current gateway v2
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-voidchain-path-preserving-ingress-current-gateway-v2.yml"
+      - "tools/void-voidchain-path-preserving-ingress-current-gateway-v2.mjs"
+      - "scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs"
+      - "docs/operators/voidchain-path-preserving-ingress-current-gateway-v2.md"
+      - "tools/void-voidchain-path-preserving-ingress-plan-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "scripts/prove_void_public_frontdoor_v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "docs/operators/precision-web-recovery-evidence-v1.md"
+      - "public/void-public-frontdoor-v1/index.html"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    name: inert ingress v2 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Require exact historic/current source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git hash-object tools/void-voidchain-path-preserving-ingress-plan-v1.mjs)" = "92d3cfb85596a25e9d1e39dbcf549b3aa7a37ee5"
+          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "ec998138c382196f6b0302c6d6ed665c4553cdcb"
+      - name: Check source/proof syntax and inert behavior
+        run: |
+          set -euo pipefail
+          node --check tools/void-voidchain-path-preserving-ingress-current-gateway-v2.mjs
+          node --check scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs
+          node scripts/prove_void_voidchain_path_preserving_ingress_current_gateway_v2.mjs | tee ingress-v2-node-${{ matrix.node }}.txt
+          for marker in \
+            "VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2_PROOF_GREEN" \
+            "frozen_ingress_v1_rejects_current_gateway=true" \
+            "gateway_current_sha=ec998138c382196f6b0302c6d6ed665c4553cdcb" \
+            "ingress_version=2" \
+            "installation_authorized=false" \
+            "ingress_activation_authorized=false" \
+            "independent_public_acceptance=false"; do
+            grep -Fx "$marker" ingress-v2-node-${{ matrix.node }}.txt
+          done
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -z "$BASE" ]; then BASE="$(git rev-parse HEAD^1)"; fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ingress-current-gateway-v2-node-${{ matrix.node }}
+          path: ingress-v2-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+  compare:
+    name: exact 22 24 26 parity
+    needs: [qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ingress-current-gateway-v2-node-*
+          merge-multiple: true
+          path: ./proof
+      - run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "proof/ingress-v2-node-$v.txt"; done
+          cmp proof/ingress-v2-node-22.txt proof/ingress-v2-node-24.txt
+          cmp proof/ingress-v2-node-22.txt proof/ingress-v2-node-26.txt
+          echo VOID_VOIDCHAIN_INGRESS_CURRENT_GATEWAY_V2_THREE_NODE_GREEN
+          echo ingress_activation_authorized=false
+          echo funds_moved=false
