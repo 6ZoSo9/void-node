@@ -38,9 +38,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/index.ts)" = "8198912a70c8db0c81dad5d341cb4a779906c851"
+          test "$(git hash-object src/index.ts)" = "91151bb6ba5addf061a1a713aeceab142a814312"
           test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "e738e32601c68b70ebc7cbf922b24f055cc3e91d"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "732f6ac162bbc18360bedf3566a54cc03a01053a"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "374f1d30a02fcfcb4c9cd0ae2a9f6a8508ed26de"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -65,6 +65,7 @@ jobs:
             'missing_under_lock_revalidator_holds=true' \
             'current_same_intent_returns_existing_request=true' \
             'public_unauthenticated_reuse_private_conflict=true' \
+            'public_created_receipt_private_path_redacted=true' \
             'public_prelock_fast_return_removed=true' \
             'public_unknown_internal_exception_details_redacted=true' \
             'public_safe_known_conflicts_preserved=true' \
