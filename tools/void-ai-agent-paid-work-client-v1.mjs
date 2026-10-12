@@ -283,17 +283,23 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
 }
 
 async function settleCancellationBounded(target, controller, onConfirmed = null) {
+  // Capture the exact cancellation capability before abort dispatch: an
+  // injected synchronous AbortSignal listener can replace a pending cancel
+  // with a resolved no-op. Failing capture still aborts but never qualifies
+  // cleanup or releases an unresolved origin.
+  let cancelMethod;
+  let captureFailed = false;
+  try {
+    cancelMethod = target?.cancel;
+  } catch {
+    captureFailed = true;
+  }
   if (!controller.signal.aborted) {
     controller.abort();
   }
-  // A custom cancel getter may throw. That is not confirmed cleanup.
+  if (captureFailed || typeof cancelMethod !== "function") return;
   let cancellation;
   try {
-    if (!target) return;
-    const cancelMethod = target.cancel;
-    if (typeof cancelMethod !== "function") return;
-    // One property read and the original receiver: an accessor may change
-    // between reads, so a later no-op must never imply confirmed cleanup.
     cancellation = Promise.resolve(Reflect.apply(cancelMethod, target, []));
   } catch {
     return;
