@@ -20,6 +20,110 @@ const REQUEST_HISTORY_JSON_PARSE_V1 = JSON.parse;
 const REQUEST_HISTORY_JSON_STRINGIFY_V1 = JSON.stringify;
 const REQUEST_HISTORY_SET_PROTO_V1 = Object.setPrototypeOf;
 
+const REQUEST_HISTORY_KEYS_V1 = Object.keys;
+const REQUEST_HISTORY_OWN_NAMES_V1 = Object.getOwnPropertyNames;
+const REQUEST_HISTORY_OWN_SYMBOLS_V1 = Object.getOwnPropertySymbols;
+const REQUEST_HISTORY_OWN_DESCRIPTOR_V1 = Object.getOwnPropertyDescriptor;
+const REQUEST_HISTORY_GET_PROTO_V1 = Object.getPrototypeOf;
+const REQUEST_HISTORY_CREATE_V1 = Object.create;
+const REQUEST_HISTORY_IS_ARRAY_V1 = Array.isArray;
+const REQUEST_HISTORY_HAS_OWN_V1 = Object.hasOwn;
+const REQUEST_HISTORY_FINITE_V1 = Number.isFinite;
+
+// A new buyer request is admitted only from this closed, owned, detached
+// snapshot. Even a captured native JSON.stringify invokes an inherited
+// Object.prototype.toJSON on a plain object; null-prototype deep copying
+// prevents one ambient hook from changing admitted amount or destination.
+// This is NOT a new payment, signer or wallet authority.
+function detachCanonicalRequestDataV1(input: unknown): any {
+  const seen = new WeakSet<object>();
+  let visited = 0;
+  const visit = (value: unknown, depth: number): unknown => {
+    if (++visited > 8192 || depth > 24) {
+      holdHistoryV1("request_snapshot_bounds");
+    }
+    if (value === null || typeof value === "string" ||
+        typeof value === "boolean") return value;
+    if (typeof value === "number") {
+      if (!REQUEST_HISTORY_FINITE_V1(value)) holdHistoryV1("request_snapshot_number_invalid");
+      return value;
+    }
+    if (!value || typeof value !== "object") {
+      holdHistoryV1("request_snapshot_value_invalid");
+    }
+    if (seen.has(value)) holdHistoryV1("request_snapshot_cycle");
+    const array = REQUEST_HISTORY_IS_ARRAY_V1(value);
+    const prototype = REQUEST_HISTORY_GET_PROTO_V1(value);
+    if (array ? prototype !== Array.prototype && prototype !== null
+              : prototype !== Object.prototype && prototype !== null) {
+      holdHistoryV1("request_snapshot_prototype_invalid");
+    }
+    const keys = REQUEST_HISTORY_KEYS_V1(value);
+    const names = REQUEST_HISTORY_OWN_NAMES_V1(value);
+    if (keys.length > 2048 || REQUEST_HISTORY_OWN_SYMBOLS_V1(value).length) {
+      holdHistoryV1("request_snapshot_properties_invalid");
+    }
+    seen.add(value);
+    let detached: any;
+    if (array) {
+      if (value.length > 2048 || names.length !== keys.length + 1) {
+        holdHistoryV1("request_snapshot_array_invalid");
+      }
+      detached = [];
+      REQUEST_HISTORY_SET_PROTO_V1(detached, null);
+      for (let i = 0; i < value.length; i += 1) {
+        const descriptor = REQUEST_HISTORY_OWN_DESCRIPTOR_V1(value, String(i));
+        if (!descriptor || !REQUEST_HISTORY_HAS_OWN_V1(descriptor, "value")) {
+          holdHistoryV1("request_snapshot_sparse_or_accessor_array");
+        }
+        detached[i] = visit(descriptor.value, depth + 1);
+      }
+      if (keys.length !== value.length) {
+        holdHistoryV1("request_snapshot_array_extra_keys");
+      }
+    } else {
+      if (names.length !== keys.length) {
+        holdHistoryV1("request_snapshot_hidden_properties");
+      }
+      detached = REQUEST_HISTORY_CREATE_V1(null);
+      // The mutable Array.prototype iterator is NOT a trust boundary.
+      // Numeric own-index traversal preserves every captured economic key.
+      for (let i = 0; i < keys.length; i += 1) {
+        const key = keys[i];
+        if (key === "toJSON" || key === "__proto__" ||
+            key === "constructor" || key === "prototype") {
+          holdHistoryV1("request_snapshot_forbidden_key");
+        }
+        const descriptor = REQUEST_HISTORY_OWN_DESCRIPTOR_V1(value, key);
+        if (!descriptor || !REQUEST_HISTORY_HAS_OWN_V1(descriptor, "value")) {
+          holdHistoryV1("request_snapshot_accessor");
+        }
+        detached[key] = visit(descriptor.value, depth + 1);
+      }
+      // Prove the detached own keyset and order exactly match the reviewed
+      // input regardless of any post-import Array iterator interference.
+      const copiedKeys = REQUEST_HISTORY_KEYS_V1(detached);
+      if (copiedKeys.length !== keys.length) {
+        holdHistoryV1("request_snapshot_keyset_mismatch");
+      }
+      for (let i = 0; i < keys.length; i += 1) {
+        if (copiedKeys[i] !== keys[i] ||
+            !REQUEST_HISTORY_HAS_OWN_V1(detached, keys[i])) {
+          holdHistoryV1("request_snapshot_keyset_mismatch");
+        }
+      }
+    }
+    seen.delete(value);
+    return detached;
+  };
+  const snapshot = visit(input, 0);
+  if (!snapshot || typeof snapshot !== "object" ||
+      REQUEST_HISTORY_IS_ARRAY_V1(snapshot)) {
+    holdHistoryV1("request_snapshot_root_invalid");
+  }
+  return snapshot;
+}
+
 function holdHistoryV1(reason: string): never {
   throw new Error("buy_void_request_history_under_lock_" + reason);
 }
@@ -500,9 +604,10 @@ export type BuyVoidPublicRequestLaunchLockCallbacksV1 = readonly [
 ];
 
 export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
-  reqObj: any,
+  inputRequest: any,
   callbacks: BuyVoidPublicRequestLaunchLockCallbacksV1,
 ): Promise<{ dir: string; file: string | null; reused_request: any | null }> {
+  const reqObj = detachCanonicalRequestDataV1(inputRequest);
   const dir = String(process.env.VOID_BUY_REQUEST_DIR ||
     ".runtime/public-buy-void-requests-v1");
   const [
@@ -654,7 +759,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       }
     }
 
-    const json = JSON.stringify(reqObj);
+    const json = REQUEST_HISTORY_JSON_STRINGIFY_V1(reqObj);
     const ledger = path.join(pinnedDir, "requests.jsonl");
     const file = path.join(pinnedDir, reqObj.request_id + ".json");
     // Qualify both existing destinations before the first append. Refuse
