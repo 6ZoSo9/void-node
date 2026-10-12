@@ -162,6 +162,26 @@ for(const [reason,expected] of [
   assert.equal(Object.hasOwn(response.body,"message"),false);
 }
 
+// The public amount/rail privacy boundary is a *byte-identical wire shape*:
+// an unauthenticated retry with matching payment terms and another with
+// changed terms must both produce indistinguishable HTTP 409 responses.
+// Execute both branches as extracted from the actual mounted source, not an
+// independently reimplemented response formatter.
+const changedTermsConflict=runPublicCatch(currentCatch,
+  "buy_void_request_active_destination_changed_during_lock");
+assert.equal(changedTermsConflict.status_code,409);
+assert.deepEqual(changedTermsConflict.body,observedReuse.body,
+  "anonymous amount/rail inference via differing 409 response object");
+assert.equal(JSON.stringify(changedTermsConflict.body),reuseWire,
+  "anonymous matching/mismatching intents require identical JSON field order");
+assert.deepEqual(Object.keys(changedTermsConflict.body).sort(),[
+  "schema","marker","ok","error","one_active_request_cap_enforced",
+].sort(),"generic 409 must not include private buyer details");
+for(const value of Object.values(storedSecrets)){
+  assert.equal(JSON.stringify(changedTermsConflict.body).includes(value),false,
+    "private buyer metadata reflected by mismatch conflict");
+}
+
 function factory(persistBlock,dir){
   const script=sources.join("\n")+"\n"+persistBlock;
   const transformed=ts.transpileModule(script,{
@@ -1400,6 +1420,7 @@ console.log("expired_launch_lease_before_reused_response_holds=true");
 console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
 console.log("public_unauthenticated_reuse_private_conflict=true");
+console.log("anonymous_matching_and_changed_terms_409_identical=true");
 console.log("public_created_receipt_private_path_redacted=true");
 console.log("public_prelock_fast_return_removed=true");
 console.log("public_unknown_internal_exception_details_redacted=true");
