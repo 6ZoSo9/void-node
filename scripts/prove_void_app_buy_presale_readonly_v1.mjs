@@ -118,6 +118,10 @@ for (const required of [
   "source_chain: chain",
   "request.payment_instructions?.send_chain",
   "request.payment_instructions?.token_contract",
+  "let buyViewGeneration = 0;",
+  "submittingBuyGeneration === buyViewGeneration",
+  "activeBuyView === submittingBuyView",
+  "if (!stillOwnsSubmittingView()) return;",
   "request.payment_instructions?.keep_transaction_hash",
   "request.payment_instructions?.do_not_send_before_request",
   "request.payment_instructions?.amount",
@@ -1031,6 +1035,85 @@ assert.equal(submitButton.disabled, false,
   "previous attempts must not block a distinct bounded new intent");
 assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u);
 
+// An old POST may settle AFTER a new Buy view has replaced its DOM. Its
+// continuation must never bind a valid HTTP-201 receipt (or error text) into
+// that later view, even when the browser restores the identical Buy intent.
+// Keep the document-lifetime attempted-intent fence and decline all retries.
+for (const [label, amount, outcome] of [
+  ["deferred_valid_201", "210", "success"],
+  ["deferred_fetch_rejection", "211", "failure"],
+]) {
+  chainInput.value = "ethereum";
+  amountInput.value = amount;
+  destinationInput.value = "0x1111111111111111111111111111111111111111";
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false,
+    label + ": distinct source-view request may begin");
+
+  let settleStale;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Promise((resolve, reject) => {
+      settleStale = { resolve, reject };
+    });
+  };
+  const before = fetchCalls.length;
+  const pendingOldViewPost = buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, before + 1);
+  assert.ok(settleStale, label + ": old view POST must be pending");
+
+  // Simulate route-away/route-back while the original POST is unresolved.
+  // The new DOM restores the exact same destination, chain and USDC amount.
+  replaceBuyView();
+  assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
+  chainInput.value = "ethereum";
+  amountInput.value = amount;
+  destinationInput.value = "0x1111111111111111111111111111111111111111";
+  buyTest.setState(ethereumSnapshot, false, true);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  assert.equal(submitButton.disabled, true);
+  assert.doesNotMatch(buyResultNode.textContent,
+    /REQUEST CREATED|Send exactly:|buyvoid_stale_post_/u);
+
+  if (outcome === "success") {
+    const restoredReceipt = structuredClone(verifiedEthereumNewRequestBody);
+    const id = "buyvoid_stale_post_" + amount;
+    const expires = Date.now() + 60_000;
+    restoredReceipt.request.request_id = id;
+    restoredReceipt.request.created_at_ms = Date.now();
+    restoredReceipt.request.requested_amount_usdc = amount;
+    restoredReceipt.request.void_destination_address = destinationInput.value;
+    restoredReceipt.request.payment_instructions.request_id = id;
+    restoredReceipt.request.payment_instructions.amount = Number(amount);
+    restoredReceipt.request.payment_instructions.send_from = destinationInput.value;
+    restoredReceipt.request.launch_authority.expires_at_ms = expires;
+    restoredReceipt.request.payment_instructions.expires_at_ms = expires;
+    settleStale.resolve(new Response(JSON.stringify(restoredReceipt), {
+      status: 201,
+      headers: { "content-type": "application/json" },
+    }));
+  } else {
+    settleStale.reject(new Error("synthetic_old_view_network_disconnected"));
+  }
+
+  await pendingOldViewPost;
+  buyTest.renderSnapshot(ethereumSnapshot);
+  buyTest.updateSubmit();
+  assert.match(buyResultNode.textContent,
+    /PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS/u,
+    label + ": only conservative outcome may be shown in replacement view");
+  assert.doesNotMatch(buyResultNode.textContent,
+    /REQUEST CREATED|Send exactly:|Request ID:|buyvoid_stale_post_|synthetic_old_view_network_disconnected/u,
+    label + ": old continuation must not disclose receipt or error");
+  assert.equal(submitButton.disabled, true,
+    label + ": same intent must remain no-retry across view replacement");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, before + 1,
+    label + ": stale settlement must not allow a second POST");
+}
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -1061,6 +1144,7 @@ console.log("same_intent_repost_after_receipt_blocked=1");
 console.log("same_intent_repost_after_timeout_blocked=1");
 console.log("same_intent_repost_after_spa_navigation_blocked=1");
 console.log("spa_navigation_never_revives_old_payment_receipt=1");
+console.log("stale_spa_post_success_and_failure_cannot_rebind_receipt=true");
 console.log("first_intent_preserved_after_second_post=1");
 console.log("multi_intent_guard_memory_bounded=32");
 console.log("prior_receipt_not_misbound_to_different_intent=1");
