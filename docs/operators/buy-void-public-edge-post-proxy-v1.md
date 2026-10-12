@@ -48,7 +48,14 @@ The gateway does not gain a general mutation proxy.
   canonical embedded checkout-request object with request ID, awaiting
   payment-hash status and `persisted.ok: true`. An empty, unrelated, false,
   reused or malformed 201 cannot be forwarded as a newly created payment
-  request. The validated successful **original bytes** are still forwarded
+  request. The nested `request.persisted` must contain **exactly**
+  `{ok:true}`, never an internal `file` path or other disk metadata.
+  This matches the public-redaction successor in source-only request-intake
+  PR #2811, while preventing an older backend with private-path leakage
+  from being exposed as a successful checkout through the public edge.
+  The focused synthetic HTTP proof uses a redacted valid 201 and refuses
+  an otherwise-valid 201 containing a sentinel absolute buyer sidecar path.
+  The validated successful **original bytes** are still forwarded
   exactly without reserialization.
 - Upstream responses must be strict UTF-8 JSON **objects**, not just a
   JSON `Content-Type` header. Malformed JSON, invalid UTF-8, null/primitive values and arrays refuse
