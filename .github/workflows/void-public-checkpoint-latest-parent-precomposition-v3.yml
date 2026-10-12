@@ -1,0 +1,123 @@
+name: VOID public checkpoint latest parent precomposition V3
+
+on:
+  pull_request:
+    paths:
+      - "src/index.ts"
+      - "scripts/prove_void_public_checkpoint_latest_parent_precomposition_v3.mjs"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_current_v2.mjs"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs"
+      - ".github/workflows/void-public-checkpoint-latest-parent-precomposition-v3.yml"
+      - "docs/architecture/void-public-checkpoint-latest-parent-precomposition-v3.md"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-checkpoint-parent-precomposition-v3-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Current parent source proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact child without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require immutable source generations and a clean child
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/index.ts)" = "91151bb6ba5addf061a1a713aeceab142a814312"
+          test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs)" = "033018d6caee821b370001d558fcfb81edda48f1"
+          test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_current_v2.mjs)" = "b03a985c9c4a3dc78ebe3221ee1f2d8b87023b27"
+          test "$(git hash-object scripts/prove_void_public_checkpoint_latest_parent_precomposition_v3.mjs)" = "49f19bc986db0f04e95d2a957bee3a2eb9adf830"
+          git cat-file -e '38fee809db1337610b4b516757c18d6907776743^{commit}'
+          test "$(git show 38fee809db1337610b4b516757c18d6907776743:src/index.ts | git hash-object --stdin)" = "40239e0f76aa1edce43523d18c1b57691e41e8cf"
+      - name: Install supported Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify current parent checkpoint by frozen behavioral replay
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_public_checkpoint_latest_parent_precomposition_v3.mjs
+          node scripts/prove_void_public_checkpoint_latest_parent_precomposition_v3.mjs \
+            | tee "$RUNNER_TEMP/checkpoint-parent-v3-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_PUBLIC_CHECKPOINT_LATEST_PARENT_PRECOMPOSITION_V3_GREEN' \
+            'exact_original_and_latest_parent_commits_verified=true' \
+            'latest_source_409_privacy_delta_only=true' \
+            'checkpoint_parent_and_frozen_main_region_bytes_identical=true' \
+            'reviewed_original_v2_behavior_replayed=true' \
+            'frozen_v1_and_v2_proof_blobs_unchanged=true' \
+            'virtual_merge_execution_performed=false' \
+            'child_branch_source_still_old_generation=true' \
+            'installed_checkpoint_or_presale_acceptance=false' \
+            'wallet_signer_credentials_funds_access=false'
+          do
+            grep -Fx "$marker" "$RUNNER_TEMP/checkpoint-parent-v3-node-${{ matrix.node }}.txt"
+          done
+      - name: Typecheck and compile on Node 24
+        if: matrix.node == 24
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Keep exact raw evidence outside the source worktree
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: checkpoint-parent-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/checkpoint-parent-v3-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 2
+      - name: Check no unreviewed generated or whitespace source
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+          if [ -n "$BASE" ]; then
+            base="$(git merge-base "$BASE" HEAD)"
+          else
+            base="$(git rev-parse HEAD^1)"
+          fi
+          git diff --check "$base" HEAD
+
+  compare:
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact-head receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: checkpoint-parent-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require identical source and safety observations
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "proof/checkpoint-parent-v3-node-$v.txt"; done
+          cmp proof/checkpoint-parent-v3-node-22.txt proof/checkpoint-parent-v3-node-24.txt
+          cmp proof/checkpoint-parent-v3-node-22.txt proof/checkpoint-parent-v3-node-26.txt
+          grep -Fx "virtual_merge_execution_performed=false" proof/checkpoint-parent-v3-node-22.txt
+          grep -Fx "installed_checkpoint_or_presale_acceptance=false" proof/checkpoint-parent-v3-node-22.txt
+          echo "VOID_CHECKPOINT_PARENT_PRECOMPOSITION_THREE_NODE_GREEN"
+          echo "production_source_integration=false"
