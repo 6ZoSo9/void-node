@@ -61,15 +61,21 @@ The gateway does not gain a general mutation proxy.
   canonical embedded checkout-request object with request ID, awaiting
   payment-hash status and `persisted.ok: true`. An empty, unrelated, false,
   reused or malformed 201 cannot be forwarded as a newly created payment
-  request. The nested `request.persisted` must contain **exactly**
-  `{ok:true}`, never an internal `file` path or other disk metadata.
-  This matches the public-redaction successor in source-only request-intake
-  PR #2811, while preventing an older backend with private-path leakage
-  from being exposed as a successful checkout through the public edge.
-  The focused synthetic HTTP proof uses a redacted valid 201 and refuses
-  an otherwise-valid 201 containing a sentinel absolute buyer sidecar path.
-  The validated successful **original bytes** are still forwarded
-  exactly without reserialization.
+  request. Two source generations are supported without leaking custody
+  paths: the request-intake successor in Draft #2811 emits
+  `request.persisted: {ok:true}` and its valid HTTP 201 original bytes are
+  forwarded **unchanged**. Canonical `main` still emits
+  `request.persisted: {ok:true,file:<private server path>}`. That exact
+  legacy two-key shape is accepted as a successful 201 only after the rest
+  of the receipt and buyer-intent contract qualifies; the edge **removes**
+  the internal `file` key and forwards a sanitized canonical response
+  with `persisted:{ok:true}`. It discards a stale upstream ETag when it
+  changes those bytes. Any other persistence metadata or a nonstring or
+  empty legacy file field HOLDS as uncertain 502 rather than leaking data.
+  The focused HTTP proof covers both minimal and full checkout receipts
+  with the old server-private file path, preserved public payment fields,
+  safe byte-for-byte pass-through for path-free receipts, and malformed
+  persisted-state refusals.
   The edge additionally compares HTTP 201 `request.void_destination_address`,
   `source_chain`, `requested_amount_usdc` and `usdc_amount` to the
   **actual submitted JSON intent**, rather than trusting only the upstream
@@ -140,7 +146,8 @@ delivery chain 2050, exact 10 USDC six-decimal amount, sender/destination
 identity, request/payment IDs, request-first flags, 4-minute lease,
 `persisted:{ok:true}` and disabled automatic fulfillment. Changing the
 fixture and receipt together can no longer silently redefine these identity
-claims; no internal persistence file path is accepted.
+claims; the additional full legacy HTTP 201 fixture has a server-private
+persisted file path that MUST be removed before a public receipt is delivered.
 
 **This is not yet an executable cross-PR browser acceptance test.** Browser
 Draft #2818 has additional time, view-generation, receipt-retry and
