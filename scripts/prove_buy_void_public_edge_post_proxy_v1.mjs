@@ -742,7 +742,13 @@ const upstream = http.createServer(
           proofCase === "wrong_void_pool_201" ||
           proofCase === "wrong_original_usdc_201" ||
           proofCase === "wrong_quote_precision_201" ||
-          proofCase === "private_instruction_key_201") {
+          proofCase === "private_instruction_key_201" ||
+          proofCase === "expired_instruction_201" ||
+          proofCase === "overlong_instruction_201" ||
+          proofCase === "future_created_201" ||
+          proofCase === "extra_outer_private_201" ||
+          proofCase === "extra_checkout_private_201" ||
+          proofCase === "extra_legacy_checkout_private_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
@@ -856,6 +862,46 @@ const upstream = http.createServer(
             };
           }
           mutated.request=checkout;
+        }
+        if (proofCase === "expired_instruction_201" ||
+            proofCase === "overlong_instruction_201" ||
+            proofCase === "future_created_201") {
+          const now = Date.now();
+          const checkout = { ...mutated.request };
+          const payment = { ...checkout.payment_instructions };
+          const authority = { ...checkout.launch_authority };
+          if (proofCase === "expired_instruction_201") {
+            checkout.created_at_ms = now - 6 * 60_000;
+            payment.expires_at_ms = now - 60_000;
+          } else if (proofCase === "overlong_instruction_201") {
+            checkout.created_at_ms = now;
+            payment.expires_at_ms = now + 20 * 60_000;
+          } else {
+            checkout.created_at_ms = now + 60_000;
+            payment.expires_at_ms = checkout.created_at_ms + 4 * 60_000;
+          }
+          authority.expires_at_ms = payment.expires_at_ms;
+          checkout.launch_authority = authority;
+          checkout.payment_instructions = payment;
+          mutated.request = checkout;
+        }
+        if (proofCase === "extra_outer_private_201") {
+          mutated.internal_custody_path =
+            "SENTINEL_PRIVATE_BUY_ALLOCATION_CUSTODY_PATH";
+        }
+        if (proofCase === "extra_checkout_private_201" ||
+            proofCase === "extra_legacy_checkout_private_201") {
+          mutated.request = {
+            ...mutated.request,
+            internal_ledger_path:
+              "SENTINEL_PRIVATE_BUY_REQUESTS_LEDGER_PATH",
+          };
+          if (proofCase === "extra_legacy_checkout_private_201") {
+            mutated.request.persisted = {
+              ok: true,
+              file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+            };
+          }
         }
         if (proofCase === "private_path_201" ||
             proofCase === "nonstring_file_201" ||
@@ -1560,6 +1606,12 @@ try {
     "wrong_original_usdc_201",
     "wrong_quote_precision_201",
     "private_instruction_key_201",
+    "expired_instruction_201",
+    "overlong_instruction_201",
+    "future_created_201",
+    "extra_outer_private_201",
+    "extra_checkout_private_201",
+    "extra_legacy_checkout_private_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -1718,6 +1770,8 @@ try {
   console.log("all_201_upstream_etags_suppressed=true");
   console.log("public_api_201_void_quote_rate_price_pool_exact=true");
   console.log("public_api_201_extra_payment_instruction_key_rejected=true");
+  console.log("public_api_201_stale_overlong_future_lease_refused=true");
+  console.log("public_api_201_unknown_outer_and_request_keys_refused=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
   console.log("independent_201_missing_false_nonobject_persistence_refused=true");
   console.log("independent_201_request_id_ok_marker_refused=true");
