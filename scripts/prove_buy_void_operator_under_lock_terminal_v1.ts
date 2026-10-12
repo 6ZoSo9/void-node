@@ -9,6 +9,9 @@ import { TextDecoder } from "node:util";
 import {
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+} from "../src/economic/buy_void_fulfilled_reconciliation_mode_v1.js";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-status-under-lock-"));
 const first = {
@@ -41,6 +44,22 @@ const noLaunch = async () => {
 const noSale = async () => {
   assert.fail("status-only terminal proof must not read sale state");
 };
+function reconciliationOnlyEvent<T extends Record<string, any>>(
+  value: T,
+): T {
+  const detached = { ...value } as T;
+  Object.defineProperty(
+    detached,
+    VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+    {
+      value: true,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+  );
+  return detached;
+}
 async function mark(
   request: typeof first,
   status: "reviewed" | "rejected" | "fulfilled",
@@ -54,12 +73,85 @@ async function mark(
     read_sale_state: noSale,
   });
 }
+async function reconcileFulfilled(
+  request: typeof first,
+  time: number,
+) {
+  return writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+    event: reconciliationOnlyEvent(event(request, "fulfilled", time)),
+    request,
+    request_dir: root,
+    with_launch_authority_mutation: noLaunch,
+    read_sale_state: noSale,
+  });
+}
 const historyPath = path.join(root, "operator-events.jsonl");
 try {
   fs.chmodSync(root, 0o700);
   const initial = await mark(first, "reviewed", 100);
   assert.equal(initial.ok, true);
   assert.equal(fs.existsSync(historyPath), true);
+
+  // Recovery-only authority comes from the exact journal row observed under
+  // the request lock, never from a stale caller snapshot. A supplied fulfilled
+  // event with no matching under-lock row cannot append or create a sidecar.
+  {
+    const staleRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-stale-reconcile-"),
+    );
+    fs.chmodSync(staleRoot, 0o700);
+    const staleLedger = path.join(staleRoot, "operator-events.jsonl");
+    const unrelated = JSON.stringify(event(other, "reviewed", 777)) + "\n";
+    fs.writeFileSync(staleLedger, unrelated, { mode: 0o600 });
+    const staleEvent = reconciliationOnlyEvent(
+      event(first, "fulfilled", 778),
+    );
+    try {
+      await assert.rejects(
+        () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: staleEvent,
+          request: first,
+          request_dir: staleRoot,
+          with_launch_authority_mutation: noLaunch,
+          read_sale_state: noSale,
+        }),
+        /buy_void_operator_fulfilled_reconciliation_missing_under_lock/u,
+      );
+      assert.equal(fs.readFileSync(staleLedger, "utf8"), unrelated);
+      assert.equal(
+        fs.existsSync(path.join(
+          staleRoot,
+          "operator-event-" + first.request_id + "-778.json",
+        )),
+        false,
+      );
+    } finally {
+      fs.rmSync(staleRoot, { recursive: true, force: true });
+    }
+  }
+  {
+    const absentRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-absent-reconcile-"),
+    );
+    fs.chmodSync(absentRoot, 0o700);
+    const absentLedger = path.join(absentRoot, "operator-events.jsonl");
+    try {
+      await assert.rejects(
+        () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: reconciliationOnlyEvent(event(first, "fulfilled", 779)),
+          request: first,
+          request_dir: absentRoot,
+          with_launch_authority_mutation: noLaunch,
+          read_sale_state: noSale,
+        }),
+        /buy_void_operator_fulfilled_reconciliation_missing_under_lock/u,
+      );
+      assert.equal(fs.existsSync(absentLedger), false,
+        "recovery-only marker must not create a missing journal");
+    } finally {
+      fs.rmSync(absentRoot, { recursive: true, force: true });
+    }
+  }
 
   // Simulate an *already committed* valid terminal row between a stale
   // route projection and this writer's request-lock acquisition.
@@ -84,7 +176,7 @@ try {
 
   // A journaled fulfillment with no derived sidecar is recoverable ONLY
   // when the retry supplies the byte-for-byte same original event.
-  const recoveredTerminal: any = await mark(first, "fulfilled", 200);
+  const recoveredTerminal: any = await reconcileFulfilled(first, 200);
   assert.equal(recoveredTerminal.ok, true);
   assert.equal(recoveredTerminal.journal_reused, true);
   assert.equal(recoveredTerminal.sidecar_recovered, true);
@@ -93,7 +185,7 @@ try {
   const terminalSidecar = path.join(root,
     "operator-event-" + first.request_id + "-200.json");
   assert.deepEqual(JSON.parse(fs.readFileSync(terminalSidecar, "utf8")), terminal);
-  const existingTerminal: any = await mark(first, "fulfilled", 200);
+  const existingTerminal: any = await reconcileFulfilled(first, 200);
   assert.equal(existingTerminal.journal_reused, true);
   assert.equal(existingTerminal.sidecar_recovered, false);
   assert.deepEqual(fs.readFileSync(historyPath), before);
@@ -115,6 +207,16 @@ try {
     const persist = async (incoming: typeof recoverEvent): Promise<any> =>
       writeBuyVoidOperatorEventWithCapacityAdmissionV1({
         event: incoming, request: first, request_dir: recoverRoot,
+        with_launch_authority_mutation: noLaunch,
+        read_sale_state: noSale,
+      });
+    const reconcilePersist = async (
+      incoming: typeof recoverEvent,
+    ): Promise<any> =>
+      writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: reconciliationOnlyEvent(incoming),
+        request: first,
+        request_dir: recoverRoot,
         with_launch_authority_mutation: noLaunch,
         read_sale_state: noSale,
       });
@@ -150,7 +252,7 @@ try {
       assert.equal(authoritative.toString("utf8"),
         JSON.stringify(recoverEvent) + "\n");
       assert.equal(fs.existsSync(recoverSidecar), false);
-      const exactRetry = await persist(recoverEvent);
+      const exactRetry = await reconcilePersist(recoverEvent);
       assert.equal(exactRetry.ok, true);
       assert.equal(exactRetry.journal_reused, true);
       assert.equal(exactRetry.sidecar_recovered, true);
@@ -158,19 +260,19 @@ try {
         "crash retry must not append a second fulfilled row");
       assert.equal(fs.readFileSync(recoverSidecar, "utf8"),
         JSON.stringify(recoverEvent, null, 2));
-      const stableRetry = await persist(recoverEvent);
+      const stableRetry = await reconcilePersist(recoverEvent);
       assert.equal(stableRetry.journal_reused, true);
       assert.equal(stableRetry.sidecar_recovered, false);
       assert.deepEqual(fs.readFileSync(recoverLedger), authoritative);
 
       await assert.rejects(
-        () => persist({ ...recoverEvent, quoted_void: 999 }),
+        () => reconcilePersist({ ...recoverEvent, quoted_void: 999 }),
         /buy_void_operator_fulfilled_terminal_under_lock/u,
         "changed fulfillment payload must not inherit exact replay authority",
       );
       fs.writeFileSync(recoverSidecar, '{"forged":true}', { mode: 0o600 });
       await assert.rejects(
-        () => persist(recoverEvent),
+        () => reconcilePersist(recoverEvent),
         /buy_void_operator_terminal_sidecar_conflict/u,
         "an existing mismatched sidecar must not be overwritten",
       );
@@ -182,7 +284,7 @@ try {
       fs.appendFileSync(recoverLedger, JSON.stringify(downgraded) + "\n");
       const ambiguous = fs.readFileSync(recoverLedger);
       await assert.rejects(
-        () => persist(recoverEvent),
+        () => reconcilePersist(recoverEvent),
         /buy_void_operator_fulfilled_terminal_under_lock/u,
         "historical fulfilled followed by a downgrade cannot recover as clean",
       );

@@ -7,6 +7,9 @@ import type {
 import {
   resolveBuyVoidConfirmedStatesByRequestV1 as listBuyVoidConfirmedStatesV1,
 } from "./buy_void_confirmed_state_request_resolution_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+} from "./buy_void_fulfilled_reconciliation_mode_v1.js";
 
 export const VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1 =
   "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1";
@@ -132,16 +135,46 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
       // never a second fulfillment or a new terminal event.
       if (historical_fulfilled_event_for_reconciliation !== null) {
         try {
-          await __voidWriteBuyVoidOperatorEventV1(
-            historical_fulfilled_event_for_reconciliation,
+          const reconciliationEvent = {
+            ...historical_fulfilled_event_for_reconciliation,
+          };
+          Object.defineProperty(
+            reconciliationEvent,
+            VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+            {
+              value: true,
+              enumerable: false,
+              writable: false,
+              configurable: false,
+            },
           );
+          await __voidWriteBuyVoidOperatorEventV1(reconciliationEvent);
         } catch (error: any) {
+          const reconciliationError = String(error?.message || error);
           if (
-            error?.message !==
-              "buy_void_operator_fulfilled_terminal_under_lock"
+            [
+              "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+              "buy_void_operator_fulfilled_terminal_under_lock",
+              "buy_void_operator_terminal_history_changed_since_read",
+              "buy_void_operator_terminal_sidecar_conflict",
+            ].includes(reconciliationError)
           ) {
-            throw error;
+            return {
+              ok: false,
+              status_code: 409,
+              body: {
+                schema: "void_buy_void_operator_mark_v1",
+                ok: false,
+                error: "manual_fulfilled_reconciliation_conflict",
+                request_id: id,
+                operator_status,
+                void_delivery_tx_hash,
+                prior_status: effective_prior_status,
+                reconciliation_error: reconciliationError,
+              },
+            };
           }
+          throw error;
         }
       }
       return {

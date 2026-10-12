@@ -24,6 +24,9 @@ import {
   classifyBuyVoidPreappendVerifiedPaymentLineageV1,
   classifyBuyVoidVerifiedAllocationReplayBindingV1,
 } from "./buy_void_verified_allocation_replay_binding_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+} from "./buy_void_fulfilled_reconciliation_mode_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1";
@@ -2562,6 +2565,28 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
 
+  // A reconciliation marker is an explicit restriction, never an authority
+  // grant. It is deliberately non-enumerable so canonical persisted event
+  // bytes remain identical to the historical JSON row. Forging the marker can
+  // only disable the append path; it cannot create a fulfillment.
+  const reconciliationDescriptor = Object.getOwnPropertyDescriptor(
+    event,
+    VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+  );
+  const reconciliationOnly = reconciliationDescriptor !== undefined;
+  if (
+    reconciliationOnly &&
+    (
+      !Object.hasOwn(reconciliationDescriptor, "value") ||
+      reconciliationDescriptor.value !== true ||
+      reconciliationDescriptor.enumerable !== false ||
+      reconciliationDescriptor.writable !== false ||
+      reconciliationDescriptor.configurable !== false
+    )
+  ) {
+    fail("buy_void_operator_fulfilled_reconciliation_marker_invalid");
+  }
+
   // Status authority must already be a primitive own data property.
   // Do not invoke an accessor or let an event-level toJSON synthesize a
   // different status during serialization.
@@ -2580,6 +2605,9 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_status_noncanonical");
   }
   const admittedOperatorStatus = statusDescriptor.value;
+  if (reconciliationOnly && admittedOperatorStatus !== "fulfilled") {
+    fail("buy_void_operator_fulfilled_reconciliation_status_invalid");
+  }
 
   // Serialize exactly once before choosing the payment/nonpayment path. The
   // detached bytes are the only bytes that may be persisted.
@@ -2635,10 +2663,17 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           const code = "buy_void_operator_terminal_history";
           operatorLedger = openPinnedLedgerV1(
             directory, "operator-events.jsonl", code,
-            { writable: true, create: true },
+            {
+              writable: !reconciliationOnly,
+              create: !reconciliationOnly,
+            },
           );
           if (operatorLedger === null) {
-            fail("buy_void_operator_terminal_history_unavailable");
+            fail(
+              reconciliationOnly
+                ? "buy_void_operator_fulfilled_reconciliation_missing_under_lock"
+                : "buy_void_operator_terminal_history_unavailable",
+            );
           }
           const strictRead = readPinnedLedgerBytesV1(operatorLedger, code);
           const priorEvents = parseStrictJsonLinesV1(
@@ -2686,6 +2721,11 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           const atUse = assertPinnedLedgerVisibleV1(operatorLedger, code);
           if (!sameFileIdentityV1(strictRead.stat, atUse)) {
             fail("buy_void_operator_terminal_history_changed_since_read");
+          }
+          if (reconciliationOnly && !fulfilledAlreadyCommitted) {
+            fail(
+              "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+            );
           }
           const sidecarNameCode = "buy_void_operator_terminal_sidecar";
           const sidecarBytes = Buffer.from(
@@ -2735,6 +2775,11 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
           }
 
           if (!fulfilledAlreadyCommitted) {
+            if (reconciliationOnly) {
+              fail(
+                "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+              );
+            }
             // The exact canonical bytes are appended once to the held inode
             // and fsynced before publishing the derived sidecar.
             appendPaymentVerifiedEventDurableV1(
