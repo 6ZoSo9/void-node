@@ -128,6 +128,49 @@ function canonicalReceipt(amount, post) {
     },
   };
 }
+// Successful HTTP-201 bytes still need browser-side safety qualification.
+ // These cases traverse the actual pinned gateway, which forwards them as
+ // canonical-shaped 201 replies. The pinned browser must reject each one.
+ const unsafe201 = new Map([
+   ["18", ["request_first_false", (body) => {
+     body.request.request_contract.request_before_payment_required = false;
+   }]],
+   ["19", ["request_first_missing", (body) => {
+     delete body.request.request_contract.request_before_payment_required;
+   }]],
+   ["20", ["one_active_destination_false", (body) => {
+     body.request.request_contract.one_active_request_per_void_destination = false;
+   }]],
+   ["21", ["sender_destination_binding_false", (body) => {
+     body.request.request_contract.payment_sender_must_equal_void_destination = false;
+   }]],
+   ["22", ["operator_tx_hash_binding_false", (body) => {
+     body.request.request_contract.payment_tx_hash_bound_after_request_by_operator = false;
+   }]],
+   ["23", ["automatic_fulfillment_claim_true", (body) => {
+     body.request.safety.automatic_fulfillment = true;
+   }]],
+   ["24", ["manual_review_false", (body) => {
+     body.request.safety.manual_review_required = false;
+   }]],
+   ["25", ["manual_review_missing", (body) => {
+     delete body.request.safety.manual_review_required;
+   }]],
+   ["26", ["send_before_request_allowed", (body) => {
+     body.request.payment_instructions.do_not_send_before_request = false;
+   }]],
+   ["27", ["no_transaction_hash_retention", (body) => {
+     body.request.payment_instructions.keep_transaction_hash = false;
+   }]],
+   ["28", ["exchange_custody_allowed", (body) => {
+     body.request.payment_instructions.do_not_send_from_exchange_or_pooled_custody = false;
+   }]],
+   ["29", ["exchange_custody_warning_missing", (body) => {
+     delete body.request.payment_instructions.do_not_send_from_exchange_or_pooled_custody;
+   }]],
+ ]);
+ assert.equal(unsafe201.size, 12, "all receipt-safety independent negatives mounted");
+
 function reply(res, status, body, extra = {}) {
   const bytes = Buffer.from(JSON.stringify(body, null, 2) + "\n");
   res.writeHead(status, { "content-type": "application/json; charset=utf-8",
@@ -150,7 +193,7 @@ async function syntheticNode(req, res) {
   const post = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   assert.equal(post.source_chain, "base");
   assert.equal(post.void_destination_address, destination);
-  assert.match(post.requested_amount_usdc, /^(?:1[0-7])$/);
+  assert.match(post.requested_amount_usdc, /^(?:1[0-9]|2[0-9])$/);
   for (const ack of [
     "ack_self_custody", "ack_native_usdc", "ack_request_before_payment",
     "ack_sender_equals_void_destination", "ack_no_automatic_fulfillment"
@@ -174,6 +217,8 @@ async function syntheticNode(req, res) {
     return;
   }
   const body = canonicalReceipt(amount, post);
+  const unsafeVariant = unsafe201.get(amount);
+  if (unsafeVariant) unsafeVariant[1](body);
   if (amount === "11") {
     body.request.payment_instructions.send_to =
       "0x2222222222222222222222222222222222222222";
@@ -322,6 +367,7 @@ try {
     ["15", 502, false, "upstream_500_private"],
     ["16", 400, false, "upstream_400_private"],
     ["17", 503, false, "upstream_503_private"],
+    ...Array.from(unsafe201, ([amount, [label]]) => [amount, 201, false, label]),
   ];
   for (const [amount, expectedStatus, success, label] of outcomes) {
     buy.amount.value = amount;
@@ -338,6 +384,12 @@ try {
     assert.equal(result.status, expectedStatus, label + ": edge status");
     assert.equal(result.cache, "no-store", label + ": browser-facing no-store");
     assert.equal(buy.button.disabled, true, label + ": no repeat POST");
+    if (unsafe201.has(amount)) {
+      assert.equal(result.status, 201,
+        label + ": gateway must have forwarded canonical-shaped unsafe 201");
+      assert.equal(result.wire, expectedRaw201.get(amount),
+        label + ": actual gateway forwarded original unsafe 201 bytes");
+    }
     if (success) {
       assert.equal(result.wire, expectedRaw201.get(amount),
         "actual gateway must preserve exact canonical original-buyer 201 bytes");
@@ -373,7 +425,9 @@ try {
   console.log("malformed_201_browser_refuses_funds=true");
   console.log("retired_200_and_409_privacy_leaks_blocked=true");
   console.log("400_503_500_upstream_private_body_never_forwarded=true");
-  console.log("all_8_attempted_intents_fenced_against_repost=true");
+  console.log("all_attempted_intents_fenced_against_repost=" + outcomes.length);
+  console.log("actual_gateway_forwarded_all_unsafe_201_receipts=" + unsafe201.size);
+  console.log("composed_201_request_contract_safety_instruction_negatives=true");
   console.log("actual_request_writer_integration=false");
   console.log("production_runtime_or_wallet_access=false");
   console.log("presale_or_wc_void_activation=false");
