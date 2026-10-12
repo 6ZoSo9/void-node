@@ -1,0 +1,74 @@
+name: VOID Buy browser public-edge exact source composition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-buy-browser-public-edge-composition-v1.yml"
+      - "scripts/prove_void_buy_browser_public_edge_composition_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-buy-browser-edge-composition-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-composition:
+    name: source-composition (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source with reachable Draft commits
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git cat-file -e cf0d2f252b2f05b7f1f9730f6b7d8ed43683d3a1^{commit}
+          git cat-file -e 27ba9e2194c1b3e027b50da74142c6983cd3226f^{commit}
+          test -z "$(git status --porcelain=v1)"
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove actual browser -> actual public gateway -> synthetic node
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_browser_public_edge_composition_v1.mjs
+          node scripts/prove_void_buy_browser_public_edge_composition_v1.mjs | tee exact-source-composition.txt
+          grep -Fx 'VOID_BUY_VOID_BROWSER_PUBLIC_EDGE_SOURCE_COMPOSITION_V1_GREEN' exact-source-composition.txt
+          grep -Fx 'actual_browser_post_through_actual_gateway=true' exact-source-composition.txt
+          grep -Fx 'native_base_201_original_bytes_and_instructions_accepted=true' exact-source-composition.txt
+          grep -Fx 'retired_200_and_409_privacy_leaks_blocked=true' exact-source-composition.txt
+          grep -Fx '400_503_500_upstream_private_body_never_forwarded=true' exact-source-composition.txt
+          grep -Fx 'actual_request_writer_integration=false' exact-source-composition.txt
+          grep -Fx 'presale_or_wc_void_activation=false' exact-source-composition.txt
+      - name: Confirm checkout cleanliness
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
