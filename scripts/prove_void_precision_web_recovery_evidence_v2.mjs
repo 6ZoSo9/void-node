@@ -426,7 +426,7 @@ for(const [key,value] of Object.entries(VOID_PRECISION_WEB_RECOVERY_AUTHORITY_V2
 }
 
 const source=fs.readFileSync(
-  "tools/void-precision-web-recovery-evidence-v1.mjs",
+  "tools/void-precision-web-recovery-evidence-v2.mjs",
   "utf8",
 );
 for(const forbidden of [
