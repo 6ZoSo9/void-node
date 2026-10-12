@@ -84,6 +84,46 @@ for (const expected of [
   assert.ok(runner.includes(expected), "missing exact runner source gate: " + expected);
 }
 
+// Exercise only the launcher's source switch in an inert shell fixture.
+// It cannot call the node launcher, load keys, or touch a service.
+const startOfSelector = runner.indexOf('  case "$producer_index_blob" in');
+const endOfSelector = runner.indexOf("\n  esac", startOfSelector);
+assert.ok(startOfSelector >= 0 && endOfSelector > startOfSelector,
+  "canonical selector source not found");
+const selector = runner.slice(startOfSelector,
+  endOfSelector + "\n  esac".length);
+assert.equal(runner.indexOf('  case "$producer_index_blob" in',
+  startOfSelector + 1), -1, "duplicate selector");
+
+function inertSelectSource(sourceSha) {
+  const result = spawnSync("bash", [
+    "-c",
+    'set -euo pipefail\nROOT=/synthetic\nproducer_index_blob="$1"\n' +
+      selector + '\nprintf "%s\n" "${canonical_self_http_preload[1]}"\n',
+    "--",
+    sourceSha,
+  ], {
+    encoding: "utf8",
+    timeout: 2_000,
+    maxBuffer: 64 * 1024,
+    env: { PATH: "/usr/bin:/bin" },
+  });
+  assert.equal(result.error, undefined, "synthetic selector launch failed");
+  return result;
+}
+for (const [sha, expectedGuard] of [
+  [OLD_SOURCE, oldGuardPath],
+  [NEW_SOURCE, newGuardPath],
+]) {
+  const selected = inertSelectSource(sha);
+  assert.equal(selected.status, 0, selected.stderr);
+  assert.equal(selected.stdout.trim(), "/synthetic/" + expectedGuard);
+}
+const unknown = inertSelectSource("0".repeat(40));
+assert.notEqual(unknown.status, 0, "unreviewed source was accepted");
+assert.match(unknown.stderr,
+  /VOID_CANONICAL_PRODUCER_SOURCE_GENERATION_HOLD/);
+
 if (indexBlob === OLD_SOURCE) {
   runProof(oldProofPath);
   process.stdout.write(MARKER + "_GREEN " + JSON.stringify({
