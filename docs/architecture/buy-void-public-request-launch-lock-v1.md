@@ -1,5 +1,24 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 anonymous-retry response-shape parity — current source-only
+
+The actual public POST handler must not reveal a prior buyer's private
+payment amount or source chain through small changes in anonymous HTTP 409
+error shape. Its former same-destination, matching-terms branch contained
+`one_active_request_cap_enforced:true`, while a changed amount/rail lacked
+that field. The currently reviewed `src/index.ts` source adds the **same**
+field to the changed-terms conflict, preserving 409 in both cases, the generic
+`one_active_request_per_void_destination` error, and redaction of account,
+request ID, path, note, payment details or the original buyer's terms.
+
+Current index source identity: `40239e0f76aa1edce43523d18c1b57691e41e8cf`.
+The source-extracted request proof identity is
+`607b96292dfc0f8992061f1a63183c616d34710c`. The dedicated
+Node 22/24/26 workflow is pinned to those Git objects and still requires
+separate exact live privacy, original sidecar and crash-recovery gates.
+These source-only checks do **not** authorize live payments or launch.
+
+
 ## October 12 public successful-receipt private path redaction — source only
 
 The public successful HTTP 201 response used to embed
@@ -16,7 +35,7 @@ directory, filename or `file` key anywhere on the public wire. It also
 retains the historical old-source leak as a negative control.
 
 New exact source blob `src/index.ts:
-91151bb6ba5addf061a1a713aeceab142a814312`; the final helper and
+40239e0f76aa1edce43523d18c1b57691e41e8cf`; the final helper and
 privacy adversarial proof are bound by the dedicated workflow. This is
 source-only redaction, not a custody permission change or production install.
 Because the index source generation changed, the stacked canonical-producer
@@ -335,7 +354,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `e738e32601c68b70ebc7cbf922b24f055cc3e91d`. Actual source-only
-regression Git blob: `374f1d30a02fcfcb4c9cd0ae2a9f6a8508ed26de`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `607b96292dfc0f8992061f1a63183c616d34710c`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -356,7 +375,7 @@ guards one local client only and does not solve cross-tab or concurrent
 HTTP requests.
 
 This correction keeps a short `src/index.ts` bridge (exact Git blob
-`91151bb6ba5addf061a1a713aeceab142a814312`) **within its hard size
+`40239e0f76aa1edce43523d18c1b57691e41e8cf`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
 (Git blob `e738e32601c68b70ebc7cbf922b24f055cc3e91d`). The existing
