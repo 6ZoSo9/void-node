@@ -25,7 +25,7 @@ const BOUND=Object.freeze({
   "src/economic/buy_void_preappend_plain_input_v1.ts":
     "945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f",
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":
-    "92563480c44492a5cf1c36375960e8c0b971ca6b",
+    "9074b31a2b36a97e6222e0ae584b16b91db02d6b",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":
     "8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":

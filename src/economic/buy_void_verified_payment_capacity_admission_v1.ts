@@ -2575,7 +2575,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   );
   const reconciliationOnly = reconciliationDescriptor !== undefined;
   if (
-    reconciliationOnly &&
+    reconciliationDescriptor !== undefined &&
     (
       !Object.hasOwn(reconciliationDescriptor, "value") ||
       reconciliationDescriptor.value !== true ||
