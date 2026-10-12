@@ -28,6 +28,10 @@ import {
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
+// An upstream request may be committed before this public edge observes
+// its reply. Bound the full upstream response and never synthesize success.
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
   try {
@@ -83,11 +87,17 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         || "application/json",
     );
 
+    // This is a total, not an inactivity timeout. It covers the upstream
+    // headers AND its entire response stream, including endless trickles.
+    const upstreamSignal = AbortSignal.timeout(
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
+    );
     const upstreamResponse = await fetch(
       upstreamUrl,
       {
         method: "POST",
-        redirect: "manual",
+        redirect: "error",
+        signal: upstreamSignal,
         headers: {
           "content-type": contentType,
           "user-agent":
@@ -97,9 +107,68 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       },
     );
 
-    const responseBody = Buffer.from(
-      await upstreamResponse.arrayBuffer(),
-    );
+    // A redirect/HTML page is never evidence of a created Buy VOID request.
+    // Do not buffer a peer-controlled body through Response.arrayBuffer().
+    const mediaType = String(
+      upstreamResponse.headers.get("content-type") || "",
+    ).split(";")[0].trim().toLowerCase();
+    if (
+      mediaType !== "application/json"
+      || (upstreamResponse.status >= 300 && upstreamResponse.status < 400)
+    ) {
+      throw new Error("buy_void_post_upstream_response_unqualified");
+    }
+    const declaredLength = upstreamResponse.headers.get("content-length");
+    if (
+      declaredLength !== null
+      && (
+        !/^(?:0|[1-9][0-9]*)$/.test(declaredLength)
+        || BigInt(declaredLength)
+          > BigInt(VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES)
+      )
+    ) {
+      throw new Error("buy_void_post_upstream_declared_length_invalid");
+    }
+    const reader = upstreamResponse.body?.getReader?.();
+    if (!reader) {
+      throw new Error("buy_void_post_upstream_body_missing");
+    }
+    const responseChunks = [];
+    let responseBytes = 0;
+    let readComplete = false;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          readComplete = true;
+          break;
+        }
+        if (!(value instanceof Uint8Array) || value.byteLength === 0) {
+          throw new Error("buy_void_post_upstream_stream_invalid");
+        }
+        responseBytes += value.byteLength;
+        if (
+          responseBytes
+          > VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES
+        ) {
+          throw new Error("buy_void_post_upstream_response_too_large");
+        }
+        responseChunks.push(Buffer.from(value));
+      }
+    } finally {
+      if (!readComplete) {
+        try {
+          void Promise.resolve(reader.cancel()).catch(() => {});
+        } catch {
+          // The upstream is already untrusted; the public reply fails closed.
+        }
+      }
+      try { reader.releaseLock(); } catch {}
+    }
+    if (responseBytes === 0) {
+      throw new Error("buy_void_post_upstream_empty_response");
+    }
+    const responseBody = Buffer.concat(responseChunks, responseBytes);
 
     res.statusCode = upstreamResponse.status;
 
@@ -122,6 +191,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       }
     }
 
+    res.setHeader("cache-control", "no-store");
+    res.setHeader("x-content-type-options", "nosniff");
     res.setHeader(
       "x-void-public-buy-void-post-proxy",
       "v1",
