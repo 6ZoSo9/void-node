@@ -1,5 +1,6 @@
 import {
   buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleFulfillerMatchesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
