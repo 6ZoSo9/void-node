@@ -600,12 +600,20 @@ async function submitBuy(event) {
     if (
       request.status !== 'awaiting_payment_tx_hash' ||
       request.tx_hash !== '' ||
+      request.delivery_chain !== 'void' ||
+      request.delivery_chain_id !== 2050 ||
+      request.asset_in !== 'USDC' ||
+      request.usdc_decimals !== 6 ||
+      request.request_contract?.request_before_payment_required !== true ||
+      request.request_contract?.one_active_request_per_void_destination !== true ||
+      request.request_contract?.payment_sender_must_equal_void_destination !== true ||
+      request.request_contract?.payment_tx_hash_bound_after_request_by_operator !== true ||
       !String(request.request_id || '').trim() ||
       String(request.receive_address || '').toLowerCase() !== CANONICAL_RECEIVER ||
       String(request.void_destination_address || '').toLowerCase() !== destination.toLowerCase() ||
       String(request.source_chain || '').toLowerCase() !== chain ||
       String(request.payment_chain || '').toLowerCase() !== chain ||
-      Number(request.payment_chain_id) !== rail.chainId ||
+      request.payment_chain_id !== rail.chainId ||
       String(request.usdc_contract || '').toLowerCase() !== rail.contract.toLowerCase()
     ) {
       throw new Error('returned request identity mismatch');
@@ -658,15 +666,16 @@ async function submitBuy(event) {
       instructedAtoms === null ||
       instructedAtoms !== submittedAtoms ||
       request.payment_instructions?.request_id !== request.request_id ||
+      request.payment_instructions?.send_asset !== 'USDC' ||
       request.payment_instructions?.do_not_send_before_request !== true ||
       request.payment_instructions?.keep_transaction_hash !== true ||
       request.safety?.automatic_fulfillment !== false ||
       request.safety?.manual_review_required !== true ||
       request.payment_instructions?.do_not_send_from_exchange_or_pooled_custody !== true ||
       String(request.payment_instructions?.send_chain || '').toLowerCase() !== chain ||
-      Number(request.payment_instructions?.send_chain_id) !== rail.chainId ||
+      request.payment_instructions?.send_chain_id !== rail.chainId ||
       String(request.payment_instructions?.token_contract || '').toLowerCase() !== rail.contract.toLowerCase() ||
-      Number(request.payment_instructions?.token_decimals) !== 6 ||
+      request.payment_instructions?.token_decimals !== 6 ||
       String(request.payment_instructions?.send_to || '').toLowerCase() !== CANONICAL_RECEIVER ||
       String(request.payment_instructions?.send_from || '').toLowerCase() !== destination.toLowerCase()
     ) {
