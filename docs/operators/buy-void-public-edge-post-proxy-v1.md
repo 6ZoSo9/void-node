@@ -64,7 +64,18 @@ The gateway does not gain a general mutation proxy.
   streaming; unannounced oversized bodies stop at the byte ceiling.
   Header-rejected response bodies receive an immediate best-effort
   cancellation without waiting on an untrusted cancellation promise.
-- A refused or timed-out upstream result becomes a generic **502** with
+- **Partial-upgrade privacy:** the historic node currently merged in
+  `main` can return a prior buyer's full request on HTTP 200 idempotent
+  reuse, or their request ID/status on HTTP 409 conflict. This public edge
+  **never forwards any non-201 upstream response body or headers**.
+  Upstream 400, 409 and 503 retain only their coarse HTTP status with a
+  fixed generic no-store response; every other non-201 status (including
+  retired 200 success/reuse) becomes generic **502**. Neither case discloses
+  buyer IDs, accounts, notes, payment hashes or payment instructions, even
+  if this edge is installed before the #2811 request-writer privacy fix.
+  A rejected, lost or uncertain upstream result does not prove whether any
+  economic obligation was persisted and is **never** authority to retry.
+- A refused or timed-out upstream result becomes a fixed generic error with
   no checkout request, transaction identity, private data, or payment
   instructions in the edge-generated response.
 - A 502 does **not** establish that no request was recorded upstream.
@@ -101,8 +112,12 @@ cannot be assumed uncommitted or safely retried. No real funds move.
 
 `scripts/prove_buy_void_public_edge_post_proxy_v1.mjs` starts an isolated fake
 node upstream and a temporary composition gateway. It proves that the exact
-POST route preserves method, body, upstream status, and application response,
-while every non-allowlisted mutation remains blocked. It also
+POST route preserves method/body and only the exact qualified created
+HTTP 201 response unchanged, while other upstream responses get fixed
+redacted bodies. It simulates the *actual retired writer* HTTP 200 idempotent
+prior-buyer record and HTTP 409 prior-ID/status response, proving no sentinel
+private fields or upstream ETag cross the public wire. All unrelated methods
+remain blocked. It also
 tests the exact maximum accepted JSON reply, byte-for-byte forwarding
 of a deliberately noncanonical valid HTTP 201 receipt, malformed/invalid-UTF-8,
 truthy primitive (`true`), array and six malformed/wrong
