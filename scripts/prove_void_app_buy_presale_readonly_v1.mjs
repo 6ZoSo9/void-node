@@ -118,6 +118,16 @@ for (const required of [
   "source_chain: chain",
   "request.payment_instructions?.send_chain",
   "request.payment_instructions?.token_contract",
+  "request.delivery_chain !== 'void'",
+  "request.delivery_chain_id !== 2050",
+  "request.asset_in !== 'USDC'",
+  "request.usdc_decimals !== 6",
+  "request.request_contract?.request_before_payment_required !== true",
+  "request.request_contract?.one_active_request_per_void_destination !== true",
+  "request.request_contract?.payment_sender_must_equal_void_destination !== true",
+  "request.request_contract?.payment_tx_hash_bound_after_request_by_operator !== true",
+  "request.payment_instructions?.send_asset !== 'USDC'",
+  "request.payment_instructions?.token_decimals !== 6",
   "let buyViewGeneration = 0;",
   "submittingBuyGeneration === buyViewGeneration",
   "activeBuyView === submittingBuyView",
@@ -282,6 +292,19 @@ const instrumentedClient = client + `
   setReadinessPending(value) {
     readinessPending = value;
   },
+  // Test harness only: each independent malformed receipt gets a fresh
+  // synthetic document state after all existing no-retry proofs complete.
+  resetForIndependentReceiptFixtures() {
+    attemptedIntentKeys.clear();
+    attemptedIntentKey = null;
+    attemptedResultText = null;
+    attemptedResultExpiresAtMs = null;
+    attemptedResultMonoDeadlineMs = null;
+    attemptedResultAcceptedMonoMs = null;
+    attemptedResultAcceptedWallMs = null;
+    attemptedResultExpired = false;
+    clearReceiptExpiryTimer();
+  },
 };
 `;
 vm.runInNewContext(instrumentedClient, sandbox, {
@@ -444,6 +467,16 @@ sandbox.fetch = async (...args) => {
     schema: "void_public_buy_void_checkout_request_result_v1",
     idempotent: false,
     request: {
+      delivery_chain: "void",
+      delivery_chain_id: 2050,
+      asset_in: "USDC",
+      usdc_decimals: 6,
+      request_contract: {
+        request_before_payment_required: true,
+        one_active_request_per_void_destination: true,
+        payment_sender_must_equal_void_destination: true,
+        payment_tx_hash_bound_after_request_by_operator: true,
+      },
       request_id: "buyvoid_ethereum_open_v1",
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
@@ -458,6 +491,7 @@ sandbox.fetch = async (...args) => {
       requested_amount_usdc: "10",
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        send_asset: "USDC",
         expires_at_ms: receiptExpiryAtMs,
         request_id: "buyvoid_ethereum_open_v1",
         amount: 10,
@@ -664,6 +698,16 @@ for (const [caseLabel, closedSnapshot] of [
     schema: "void_public_buy_void_checkout_request_result_v1",
     idempotent: false,
     request: {
+      delivery_chain: "void",
+      delivery_chain_id: 2050,
+      asset_in: "USDC",
+      usdc_decimals: 6,
+      request_contract: {
+        request_before_payment_required: true,
+        one_active_request_per_void_destination: true,
+        payment_sender_must_equal_void_destination: true,
+        payment_tx_hash_bound_after_request_by_operator: true,
+      },
       request_id: requestId,
       status: "awaiting_payment_tx_hash",
       tx_hash: "",
@@ -678,6 +722,7 @@ for (const [caseLabel, closedSnapshot] of [
       requested_amount_usdc: amount,
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
+        send_asset: "USDC",
         expires_at_ms: receiptExpiryAtMs,
         request_id: requestId,
         amount: Number(amount),
@@ -1114,6 +1159,79 @@ for (const [label, amount, outcome] of [
     label + ": stale settlement must not allow a second POST");
 }
 
+// Independent malformed receipt-body tests begin only AFTER the original
+// document-lifetime 32-intent replay and SPA lifetime proofs above. Resetting
+// a synthetic VM's Set here is test-only; the shipping browser has no reset.
+buyTest.resetForIndependentReceiptFixtures();
+const badDeliveryReceipts = [
+  ["wrong_delivery_chain", (body) => { body.request.delivery_chain = "ethereum"; }],
+  ["wrong_delivery_chain_id", (body) => { body.request.delivery_chain_id = 1; }],
+  ["coerced_delivery_chain_id", (body) => { body.request.delivery_chain_id = "2050"; }],
+  ["wrong_asset_in", (body) => { body.request.asset_in = "USDbC"; }],
+  ["coerced_usdc_decimals", (body) => { body.request.usdc_decimals = "6"; }],
+  ["request_first_flag_false", (body) => {
+    body.request.request_contract.request_before_payment_required = false;
+  }],
+  ["active_destination_cap_false", (body) => {
+    body.request.request_contract.one_active_request_per_void_destination = false;
+  }],
+  ["sender_destination_binding_false", (body) => {
+    body.request.request_contract.payment_sender_must_equal_void_destination = false;
+  }],
+  ["operator_tx_hash_binding_false", (body) => {
+    body.request.request_contract.payment_tx_hash_bound_after_request_by_operator = false;
+  }],
+  ["instructions_wrong_send_asset", (body) => {
+    body.request.payment_instructions.send_asset = "USDbC";
+  }],
+  ["coerced_payment_chain_id", (body) => { body.request.payment_chain_id = "1"; }],
+  ["coerced_instructions_chain_id", (body) => {
+    body.request.payment_instructions.send_chain_id = "1";
+  }],
+  ["coerced_instructions_decimals", (body) => {
+    body.request.payment_instructions.token_decimals = "6";
+  }],
+];
+for (let i = 0; i < badDeliveryReceipts.length; i += 1) {
+  const [label, corrupt] = badDeliveryReceipts[i];
+  const amount = String(301 + i);
+  const id = "buyvoid_malformed_delivery_" + i;
+  const responseBody = structuredClone(verifiedEthereumNewRequestBody);
+  responseBody.request.request_id = id;
+  responseBody.request.created_at_ms = Date.now();
+  const expiry = Date.now() + 60_000;
+  responseBody.request.launch_authority.expires_at_ms = expiry;
+  responseBody.request.payment_instructions.expires_at_ms = expiry;
+  responseBody.request.requested_amount_usdc = amount;
+  responseBody.request.payment_instructions.request_id = id;
+  responseBody.request.payment_instructions.amount = Number(amount);
+  corrupt(responseBody);
+  amountInput.value = amount;
+  chainInput.value = "ethereum";
+  destinationInput.value = "0x1111111111111111111111111111111111111111";
+  buyTest.setState(ethereumSnapshot, false, false);
+  buyTest.renderSnapshot(ethereumSnapshot);
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false, label + ": independent attempt must be eligible");
+  const countBefore = fetchCalls.length;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Response(JSON.stringify(responseBody), {
+      status: 201,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, countBefore + 1, label + ": one inert POST");
+  assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+    label + ": a malformed checkout receipt cannot authorize payment");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:|buyvoid_malformed_delivery_/u,
+    label + ": no actionable private checkout instructions or returned ID");
+  assert.equal(submitButton.disabled, true, label + ": ambiguous attempt remains no-retry");
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, countBefore + 1, label + ": same intent cannot POST twice");
+}
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -1136,6 +1254,9 @@ console.log("returned_request_intent_bound=1");
 console.log("browser_rejects_reused_or_non201_buy_receipts=true");
 console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
 console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
+console.log("buy_receipt_native_usdc_chain2050_delivery_bound=true");
+console.log("buy_receipt_request_first_and_operator_bind_flags_required=true");
+console.log("buy_receipt_numeric_chain_fields_type_strict=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
 console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
