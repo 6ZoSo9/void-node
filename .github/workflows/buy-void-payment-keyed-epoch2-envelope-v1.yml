@@ -5,6 +5,9 @@ on:
     paths:
       - ".github/workflows/buy-void-payment-keyed-epoch2-envelope-v1.yml"
       - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+      - "src/economic/buy_void_epoch2_credential_source_binding_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
       - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
       - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
@@ -15,6 +18,8 @@ on:
       - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts"
       - "scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts"
+      - "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
       - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
@@ -49,6 +54,8 @@ jobs:
           set -euo pipefail
           npm run typecheck
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts
+          node --import tsx scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts
           node --check tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs
           node --check scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs

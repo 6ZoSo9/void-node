@@ -22,7 +22,7 @@ assert.equal(original.status,STATUS);
 assert.equal(original.credential_binding_established,false);
 assert.equal(original.runtime_or_payment_activation_authorized,false);
 assert.equal(original.historical_v1_authority_inherited,false);
-assert.ok(Object.keys(SOURCE_BLOBS).length >= 18);
+assert.ok(Object.keys(SOURCE_BLOBS).length >= 23);
 assert.equal(
   SOURCE_BLOBS["src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"],
   "5fd9296d10d810b1976c159578f13cca5d1594fe",
@@ -42,6 +42,13 @@ function bad(name,change) {
   assert.equal(result.runtime_or_payment_activation_authorized,false,name);
   assert.equal(result.historical_v1_authority_inherited,false,name);
 }
+bad("missing_epoch2_public_source_binding",c=>{
+  delete c.candidate_configuration.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID;
+});
+bad("forged_epoch2_public_source_binding",c=>{
+  c.candidate_configuration.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID =
+    "f".repeat(64);
+});
 bad("retired_8545",c=>{
   c.candidate_configuration.VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL =
     "http://127.0.0.1:8545/";
@@ -116,4 +123,4 @@ console.log("historical_e1_qualification_objects_unchanged=true");
 console.log("candidate_only=true");
 console.log("signer_credential_observed=false");
 console.log("runtime_or_payment_activation=false");
-console.log("tampered_or_forged_input_classes_held=19");
+console.log("tampered_or_forged_input_classes_held=21");

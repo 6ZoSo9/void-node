@@ -36,15 +36,20 @@ and proves that it cannot be admitted as the immutable E2 signer. No actual
 private signer key is included, derived, accessed, installed, copied, or
 committed by this lane.
 
-Current runtime integration remains deliberately HOLD. The existing
-`VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID` attests **only**
-the retired E1 wallet. The E2 signer module is not automatically selected
-by the old payment runtime, and none of the current E1 binding IDs or
-public intake/market enable bits are changed. A later reviewed admission
-must independently verify actual host-installed E2 credential control,
-generation and public address and bind the correct current runtime,
-without rewriting E1 evidence. Then a separately approved real-current-chain
-canary and coupled WC/VOID opening gate remain.
+Draft #2821 now wires this distinct E2 factory into the **current**
+payment-keyed parent and directly called PostgreSQL dependency bootstrap.
+The E2 path requires an exact SHA-256 source-policy selector in
+`VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID` and **refuses** the
+historical E1 `VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID`.
+The public source selector is **not an installed credential attestation**.
+The signer file is read only inside an explicitly invoked signing operation,
+where it must derive the contract's immutable public fulfiller. Missing,
+wrong, or old E1 files fail closed. All live enable/apply bits remain OFF.
+
+Production remains HOLD pending a separately authorized installed E2
+credential/control check, current runtime deployment and source acceptance,
+a real current-chain canary, and coupled WC/VOID Sovereign launch. None of
+the E1 credential evidence IDs or the July purchase history is rewritten.
 
 Focused inert verification:
 

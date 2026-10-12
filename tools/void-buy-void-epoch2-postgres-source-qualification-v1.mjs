@@ -27,10 +27,20 @@ const RPC = "http://127.0.0.1:18553/";
 export const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
+  "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
+    "4de9832a0f8e384e477177b55975e8557ec9147c",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
-    "0dfcd6ff9854cc11f0c12db90ef04cdd84b165dd",
+    "9f6e6068e575659dfdab8d956a2ec4b21dc510c8",
   "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts":
-    "a119dc8dc6613b60b7392cec1fc7278a8587f9e4",
+    "1c72f07509521a4bc2a57a2865851f623a3955ad",
+  "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts":
+    "a0c64bee56d38af5e879524ea2ca75f5d2d707a6",
+  "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts":
+    "b2b72528b5f52fa62e45df343cba45e6b3fd3f83",
+  "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts":
+    "667f9c6614d1d330b0223ef166f00f323710a4d3",
+  "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts":
+    "0d9eb90c27031b9820a139be2af63c4c07433e20",
   "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts":
     "aa2f60c57c4cb8fed280d67397636ddd08a415cc",
   "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts":
@@ -53,7 +63,7 @@ export const SOURCE_BLOBS = Object.freeze({
     "19c991849243f3d751e3b924d551a9ece0ec0486",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
     "4e5d9a633b05d9254424c2132fc6620b94ff3692",
-  [CANDIDATE]: "269174bbb9c128e1625e73f8f66b9ab643f59bba",
+  [CANDIDATE]: "2c861c021192c034c98404989cd25b26788cd0f0",
   [LEGACY]: "1b605ebf698b69ef3a27eb2546df700878b53cf9",
   "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs":
     "db6a56b56eea4fe150ad1ebc98519bc263b70ee2",
@@ -144,15 +154,19 @@ export function classifyEpoch2ClaimSourceV1(candidate, legacy, target) {
   const old = legacy?.candidate_configuration;
   const selection = target?.selection;
   if (!c || !old || !selection ||
-      !exactFields(c, Object.keys(old).filter(
-        k => !["CREDENTIALS_DIRECTORY",
-              "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID"].includes(k)
-      ))) return bad("candidate_configuration_keys_changed");
+      !exactFields(c, [
+        ...Object.keys(old).filter(
+          k => !["CREDENTIALS_DIRECTORY",
+                "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID"].includes(k)
+        ),
+        "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID",
+      ])) return bad("candidate_configuration_keys_changed");
   const differences = new Set([
     "VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL",
     "VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS",
     "VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS",
     "VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI",
+    "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID",
   ]);
   for (const [key,value] of Object.entries(c)) {
     if (typeof value !== "string" || (!differences.has(key) && value !== old[key])) {
@@ -162,6 +176,8 @@ export function classifyEpoch2ClaimSourceV1(candidate, legacy, target) {
   if (c.VOID_BUY_VOID_PAYMENT_KEYED_CHAIN2050_RPC_URL !== RPC ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS !== PRESALE ||
       c.VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS !== FULFILLER ||
+      c.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID !==
+        "5fde8cc7fcd0493619c105ac9f367063fbdacd74e8ae50df76454c6d298206f1" ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI !== "0" ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED !== "0" ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED !== "0" ||

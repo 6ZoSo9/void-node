@@ -73,6 +73,13 @@ import {
   type BuyVoidPaymentKeyedRuntimeDependenciesV1,
 } from "./buy_void_payment_keyed_runtime_dependency_bootstrap_v1.js";
 import {
+  buyVoidEpoch2CredentialSourceBindingMatchesV1,
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+} from "./buy_void_epoch2_credential_source_binding_v1.js";
+import {
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
+import {
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
 } from "./buy_void_erc20_production_credential_binding_evidence_v1.js";
@@ -182,6 +189,9 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1 = {
     "CREDENTIALS_DIRECTORY",
   credential_binding_evidence_id:
     "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID",
+  // Public selector only. A matching source ID is NOT installed signer proof.
+  epoch2_credential_source_binding_id:
+    "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID",
 } as const;
 
 export type BuyVoidPaymentKeyedFullRuntimeStageV1 =
@@ -426,18 +436,46 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
       invalid_envs: [names.rpc_url],
     };
   }
-  const evidenceWallet = address(
-    VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1
-      .derived_wallet_address,
+  const candidateContract = address(
+    env[names.fulfillment_contract_address],
   );
-  if (!evidenceWallet || wallet !== evidenceWallet) {
-    return {
-      configured: false,
-      reason:
-        "payment_keyed_full_runtime_wallet_evidence_mismatch",
-      missing_envs: [],
-      invalid_envs: [],
-    };
+  const epoch2 = isBuyVoidEpoch2PresaleTargetV1(candidateContract);
+  if (epoch2) {
+    // An E1 key or its evidence cannot authorize E2 by renaming an env var.
+    if (text(env[names.credential_binding_evidence_id])) {
+      return {
+        configured: false,
+        reason: "payment_keyed_full_runtime_epoch2_e1_evidence_forbidden",
+        missing_envs: [],
+        invalid_envs: [names.credential_binding_evidence_id],
+      };
+    }
+    if (!buyVoidEpoch2CredentialSourceBindingMatchesV1(
+      text(env[names.epoch2_credential_source_binding_id]),
+      candidateContract, text(env[names.rpc_url]), wallet,
+    )) {
+      return {
+        configured: false,
+        reason: "payment_keyed_full_runtime_epoch2_source_binding_missing",
+        missing_envs: [names.epoch2_credential_source_binding_id],
+        invalid_envs: [],
+      };
+    }
+  } else {
+    // Frozen historical E1 wallet binding is retained for archival/dry proofs;
+    // all actual apply targets still require the exact reviewed E2 tuple.
+    const evidenceWallet = address(
+      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1
+        .derived_wallet_address,
+    );
+    if (!evidenceWallet || wallet !== evidenceWallet) {
+      return {
+        configured: false,
+        reason: "payment_keyed_full_runtime_wallet_evidence_mismatch",
+        missing_envs: [],
+        invalid_envs: [],
+      };
+    }
   }
 
   const contract = address(
@@ -633,8 +671,11 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
         preparation.policy_fingerprint_sha256,
       "receipt_policy_fingerprint_sha256=" +
         receipt.policy_fingerprint_sha256,
-      "credential_binding_evidence_id=" +
-        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      ...(epoch2
+        ? ["epoch2_credential_source_binding_id=" +
+            VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1]
+        : ["credential_binding_evidence_id=" +
+            VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1]),
       "void_token_address=" + token,
       "max_token_amount_atoms=" +
         maxAtoms.toString(),
@@ -1081,7 +1122,21 @@ function bootstrapDependencies(
   const evidenceId = text(
     env[names.credential_binding_evidence_id],
   );
-  if (!credentials || !evidenceId) {
+  const epoch2SourceId = text(
+    env[names.epoch2_credential_source_binding_id],
+  );
+  const epoch2 = isBuyVoidEpoch2PresaleTargetV1(
+    policy.fulfillment_contract_address,
+  );
+  if (!credentials ||
+      (epoch2
+        ? Boolean(evidenceId) ||
+          !buyVoidEpoch2CredentialSourceBindingMatchesV1(
+            epoch2SourceId, policy.fulfillment_contract_address,
+            policy.server_policy.preparation_policy.rpc_url,
+            policy.fulfillment_wallet_address,
+          )
+        : !evidenceId)) {
     return {
       ok: false,
       reason:
@@ -1095,6 +1150,9 @@ function bootstrapDependencies(
     )({
       enabled: true,
       credential_binding_evidence_id: evidenceId,
+      ...(epoch2
+        ? { epoch2_credential_source_binding_id: epoch2SourceId }
+        : {}),
       credentials_directory: credentials,
       fulfillment_wallet_address:
         policy.fulfillment_wallet_address,
@@ -1727,7 +1785,16 @@ export function buyVoidPaymentKeyedFullRuntimeStatusV1(
     dependency_bootstrap_marker:
       VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1,
     credential_binding_evidence_id:
-      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      policy.configured === true &&
+      isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)
+        ? null
+        : VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+    epoch2_credential_source_binding_id:
+      policy.configured === true &&
+      isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)
+        ? VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1 : null,
+    epoch2_credential_installed_verified: false,
+    epoch2_signer_control_verified: false,
     ...(policy.configured === true
       ? {
           full_runtime_policy_fingerprint_sha256:

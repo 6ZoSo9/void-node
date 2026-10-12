@@ -5,6 +5,9 @@ import {
   buyVoidCurrentPresaleApplyTargetV1,
   buyVoidPresaleFulfillerMatchesV1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
+import {
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+} from "../src/economic/buy_void_epoch2_credential_source_binding_v1.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -324,8 +327,10 @@ function fixture(scenario: Scenario) {
       [VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1.credentials_directory]:
         "/run/credentials/void-node",
       [VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1
-        .credential_binding_evidence_id]:
-        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+        .credential_binding_evidence_id]: "",
+      [VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1
+        .epoch2_credential_source_binding_id]:
+        VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
     },
     policy_state: () => configuredPolicy,
     read_attempt: () => attempt(scenario.attempt_status),

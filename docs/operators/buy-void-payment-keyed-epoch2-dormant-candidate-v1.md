@@ -24,6 +24,19 @@ must observe and validate the selected RPC's actual fee response before
 constructing a transaction. This candidate is not proof of future gas
 pricing or sufficient balances.
 
+## Distinct public source-policy selector — NOT signer evidence
+
+The dormant candidate now carries
+`VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID` with exact SHA-256
+`5fde8cc7fcd0493619c105ac9f367063fbdacd74e8ae50df76454c6d298206f1`.
+It binds the reviewed E2 chain, contract, RPC, immutable fulfiller and the
+**separate** systemd credential leaf name `buy-void-epoch2-fulfiller-v1`.
+This ID is publicly computable. It is **not a signature, not installed
+credential evidence, not runtime application authorization** and cannot
+replace an operator-controlled current-generation signer attestation.
+The E1 credential evidence field is still deliberately omitted. Candidate
+FULL_RUNTIME_ENABLED and FULL_RUNTIME_APPLY_ENABLED remain 0.
+
 ## Deliberate signing HOLD
 
 `VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID` and

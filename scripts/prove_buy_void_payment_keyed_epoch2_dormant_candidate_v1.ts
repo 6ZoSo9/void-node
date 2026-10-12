@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Source-only E2 presale configuration qualification. Reads checked-in public
 // JSON and constants; never reads a credential or contacts Chain 2050.
+import {
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+} from "../src/economic/buy_void_epoch2_credential_source_binding_v1.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
@@ -33,9 +36,12 @@ const changes = new Set([
   "VOID_BUY_VOID_PAYMENT_KEYED_FULFILLMENT_CONTRACT_ADDRESS",
   "VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS",
   "VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI",
+  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID",
 ]);
-const expectedKeys = Object.keys(prior)
-  .filter(key => !forbidden.includes(key as any)).sort();
+const expectedKeys = [
+  ...Object.keys(prior).filter(key => !forbidden.includes(key as any)),
+  "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID",
+].sort();
 const chosen = dest.destinations.find(
   (x: any) => x.successor_label === "VoidEpoch2PresaleFulfillmentV1",
 );
@@ -80,6 +86,8 @@ function sourceQualified(value: any): boolean {
         VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
       c.VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS !==
         VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1 ||
+      c.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID !==
+        VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1 ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_MAX_PRIORITY_FEE_PER_GAS_WEI !== "0" ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_GAS_LIMIT_MULTIPLIER_BPS !== "15000" ||
       c.VOID_BUY_VOID_PAYMENT_KEYED_MAX_GAS_LIMIT !== "320000") return false;
@@ -129,6 +137,13 @@ bad("legacy_contract_does_not_reenter", x => {
 bad("legacy_wallet_does_not_reenter", x => {
   x.candidate_configuration.VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS =
     prior.VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS;
+});
+bad("tampered_public_e2_source_binding", x => {
+  x.candidate_configuration.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID =
+    "f".repeat(64);
+});
+bad("missing_public_e2_source_binding", x => {
+  delete x.candidate_configuration.VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID;
 });
 bad("old_credential_binding_not_inherited", x => {
   x.candidate_configuration.VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID =
