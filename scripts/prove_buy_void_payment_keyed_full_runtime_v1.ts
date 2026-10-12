@@ -629,6 +629,27 @@ async function runScenario(
     assert.equal(decision.transaction_broadcast_performed, false, name);
     assert.equal(f.calls.bootstrap, 0, name);
     assert.equal(f.calls.preparation.length, 0, name);
+    const exactBootstrap = createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
+      enabled: true,
+      credential_binding_evidence_id:
+        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      credentials_directory: path.join(tmp, "missing-credentials"),
+      fulfillment_wallet_address: signer,
+      fulfillment_contract_address: contract,
+      max_token_amount_atoms: "10000000000000000000000000",
+      submission_guard_root_dir: path.join(tmp, "never-created-guard"),
+      rpc_url: rpc,
+      request_timeout_ms: 5000,
+      max_response_bytes: 65536,
+    });
+    assert.equal(exactBootstrap.ok, false, name);
+    if (exactBootstrap.ok) throw Error(name + "_bootstrap_unexpected_ready");
+    assert.equal(exactBootstrap.reason, name === "wrong_epoch2_fulfiller"
+      ? "payment_keyed_runtime_epoch2_fulfiller_mismatch"
+      : "payment_keyed_runtime_current_epoch2_target_required", name);
+    assert.equal(exactBootstrap.credential_read_performed, false, name);
+    assert.equal(exactBootstrap.submission_guard_write_performed, false, name);
+    assert.equal(exactBootstrap.transaction_broadcast_performed, false, name);
   }
   assert.equal(buyVoidCurrentPresaleApplyTargetV1(
     VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,

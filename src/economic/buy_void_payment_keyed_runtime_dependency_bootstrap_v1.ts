@@ -1,4 +1,5 @@
 import {
+  buyVoidCurrentPresaleApplyTargetV1,
   buyVoidPresaleAccessListExactV1,
   buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleFulfillerMatchesV1,
@@ -273,6 +274,16 @@ function normalize(
   }
   if (!buyVoidPresaleProductionRpcMatchesV1(contract, text(input.rpc_url))) {
     return held("payment_keyed_runtime_epoch2_rpc_not_selected");
+  }
+
+  // The claimed-PostgreSQL dispatcher may call this bootstrap directly,
+  // bypassing the parent runtime's apply guard. Reject the same retired E1
+  // and noncanonical E2 execution targets before creating a submission guard,
+  // constructing a broadcaster or ever opening the signing credential.
+  if (!buyVoidCurrentPresaleApplyTargetV1(
+    contract, text(input.rpc_url), wallet,
+  )) {
+    return held("payment_keyed_runtime_current_epoch2_target_required");
   }
 
   return {
