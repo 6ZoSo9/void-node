@@ -463,15 +463,18 @@ try{
   }
 
   {
-    const original=fs.readFileSync(credential);
+    // Exercise strictly *metadata-only* credential refusal. Never read or
+    // rewrite even synthetic opaque credential bytes during the mode test.
     const originalMode=fs.statSync(credential).mode&0o777;
-    fs.chmodSync(credential,0o644);
-    assert.throws(
-      ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
-      /VOIDCHAIN_INGRESS_CREDENTIAL_MODE_INVALID/u,
-    );
-    fs.chmodSync(credential,originalMode);
-    fs.writeFileSync(credential,original);
+    try {
+      fs.chmodSync(credential,0o644);
+      assert.throws(
+        ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+        /VOIDCHAIN_INGRESS_CREDENTIAL_MODE_INVALID/u,
+      );
+    } finally {
+      fs.chmodSync(credential,originalMode);
+    }
   }
 
   {
@@ -553,6 +556,7 @@ try{
   console.log("credential_path_yaml_quoted=true");
   console.log("cloudflared_executed=false");
   console.log("credential_content_read=false");
+  console.log("credential_mode_test_did_not_read_or_rewrite_bytes=true");
   console.log("precision_recovery_independent_acceptance_required=true");
   console.log("install_plan_defined=false");
   console.log("rollback_plan_defined=false");
