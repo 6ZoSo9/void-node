@@ -314,12 +314,51 @@ const upstream = http.createServer(
           proofCase === "idempotent_201" ||
           proofCase === "missing_request_201" ||
           proofCase === "wrong_request_status_201" ||
-          proofCase === "private_path_201") {
+          proofCase === "private_path_201" ||
+          proofCase === "wrong_outer_schema_201" ||
+          proofCase === "missing_outer_schema_201" ||
+          proofCase === "wrong_inner_schema_201" ||
+          proofCase === "missing_inner_schema_201" ||
+          proofCase === "missing_persisted_201" ||
+          proofCase === "false_persisted_ok_201" ||
+          proofCase === "nonobject_persisted_201" ||
+          proofCase === "missing_request_id_201" ||
+          proofCase === "false_request_ok_201" ||
+          proofCase === "wrong_inner_marker_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
         if (proofCase === "idempotent_201") mutated.idempotent = true;
+        if (proofCase === "wrong_outer_schema_201") mutated.schema = "unrelated";
+        if (proofCase === "missing_outer_schema_201") delete mutated.schema;
         if (proofCase === "missing_request_201") delete mutated.request;
+        if (proofCase === "wrong_inner_schema_201") {
+          mutated.request = { ...mutated.request, schema: "unrelated" };
+        }
+        if (proofCase === "missing_inner_schema_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.schema;
+        }
+        if (proofCase === "missing_persisted_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.persisted;
+        }
+        if (proofCase === "false_persisted_ok_201") {
+          mutated.request = { ...mutated.request, persisted: { ok: false } };
+        }
+        if (proofCase === "nonobject_persisted_201") {
+          mutated.request = { ...mutated.request, persisted: true };
+        }
+        if (proofCase === "missing_request_id_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.request_id;
+        }
+        if (proofCase === "false_request_ok_201") {
+          mutated.request = { ...mutated.request, ok: false };
+        }
+        if (proofCase === "wrong_inner_marker_201") {
+          mutated.request = { ...mutated.request, marker: "UNRELATED_MARKER" };
+        }
         if (proofCase === "wrong_request_status_201") {
           mutated.request = { ...mutated.request, status: "fulfilled" };
         }
@@ -668,6 +707,16 @@ try {
     "missing_request_201",
     "wrong_request_status_201",
     "private_path_201",
+    "wrong_outer_schema_201",
+    "missing_outer_schema_201",
+    "wrong_inner_schema_201",
+    "missing_inner_schema_201",
+    "missing_persisted_201",
+    "false_persisted_ok_201",
+    "nonobject_persisted_201",
+    "missing_request_id_201",
+    "false_request_ok_201",
+    "wrong_inner_marker_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -803,6 +852,9 @@ try {
   console.log("upstream_redirect_and_nonjson_rejected=true");
   console.log("valid_checkout_201_pass_through=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
+  console.log("independent_201_missing_false_nonobject_persistence_refused=true");
+  console.log("independent_201_request_id_ok_marker_refused=true");
   console.log("public_201_private_persistence_path_refused=true");
   console.log("malformed_json_201_rejected=true");
   console.log("invalid_utf8_201_rejected=true");
