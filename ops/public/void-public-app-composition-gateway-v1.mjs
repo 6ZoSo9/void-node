@@ -250,7 +250,11 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           typeof checkout.request_id !== "string" ||
           !/^[A-Za-z0-9_-]{1,128}$/.test(checkout.request_id) ||
           checkout.status !== "awaiting_payment_tx_hash" ||
-          checkout.persisted?.ok !== true) {
+          !checkout.persisted || typeof checkout.persisted !== "object" ||
+          Array.isArray(checkout.persisted) ||
+          !Object.hasOwn(checkout.persisted, "ok") ||
+          Object.keys(checkout.persisted).length !== 1 ||
+          checkout.persisted.ok !== true) {
         throw new Error("buy_void_post_upstream_created_receipt_invalid");
       }
     }
