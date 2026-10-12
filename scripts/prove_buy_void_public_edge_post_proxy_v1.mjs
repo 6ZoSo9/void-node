@@ -389,6 +389,8 @@ const upstream = http.createServer(
         res.writeHead(200, {
           "content-type": "application/json",
           "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "cache-control": "public,max-age=3600",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
         });
         res.end(JSON.stringify({
           schema: "void_public_buy_void_checkout_request_result_v1",
@@ -410,6 +412,8 @@ const upstream = http.createServer(
         res.writeHead(409, {
           "content-type": "application/json",
           "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "cache-control": "public,max-age=3600",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
         });
         res.end(JSON.stringify({
           schema: "void_public_buy_void_checkout_request_result_v1",
@@ -1141,6 +1145,7 @@ try {
   console.log("retired_409_prior_buyer_identity_redacted=true");
   console.log("all_non201_backend_json_sanitized=true");
   console.log("all_non201_200_400_409_503_500_sentinels_redacted=true");
+  console.log("all_non201_fixtures_seed_private_identity_and_cache_headers=true");
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
