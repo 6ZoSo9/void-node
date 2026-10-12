@@ -29,7 +29,7 @@ assert.equal(
 );
 assert.equal(
   SOURCE_BLOBS["scripts/prove_buy_void_epoch2_credential_signer_v1.ts"],
-  "7d83b87e1e2e5825f8aa3b0ae12a44f49bbc225c",
+  "19c991849243f3d751e3b924d551a9ece0ec0486",
 );
 const clone = v => structuredClone(v);
 function bad(name,change) {
