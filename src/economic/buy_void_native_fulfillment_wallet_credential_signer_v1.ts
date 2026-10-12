@@ -1,3 +1,7 @@
+import {
+  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  buyVoidPresaleAccessListExactV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -131,6 +135,19 @@ function held(
 function renderTransaction(
   transaction: Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1>,
 ): Record<string, unknown> {
+  // The native-transfer v1 type remains unchanged. The payment-keyed E2
+  // composer supplies a separately bound optional access-list extension.
+  const marker = (
+    transaction as Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1> & {
+      accessList?: Array<{ address: string; storageKeys: string[] }>;
+    }
+  ).accessList;
+  if (marker !== undefined &&
+      !buyVoidPresaleAccessListExactV1(
+        marker, VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+      )) {
+    throw new Error("buy_void_credential_signer_epoch2_marker_invalid");
+  }
   return {
     type: 2,
     chainId: transaction.chainId,
@@ -141,9 +158,7 @@ function renderTransaction(
     to: transaction.to,
     value: transaction.value,
     data: transaction.data,
-    ...(transaction.accessList !== undefined
-      ? { accessList: transaction.accessList }
-      : {}),
+    ...(marker !== undefined ? { accessList: marker } : {}),
   };
 }
 
