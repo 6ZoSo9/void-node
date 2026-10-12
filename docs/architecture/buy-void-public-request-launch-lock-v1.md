@@ -11,7 +11,12 @@ null-prototype before canonical comparison. A post-import
 active obligation. The existing disposable compiled-helper proof now
 **positively exercises** a split hook that hides one of two same-destination
 rows, then requires unchanged bytes and a multiple-active HOLD with zero
-poisoned split callbacks.
+poisoned split callbacks. The regression's positive-control hook now
+intercepts the actual LF separator used by the historical parser, not the
+unrelated two-byte literal backslash-n string. The proof first demonstrates
+that one of two conflicting raw request rows can disappear through the
+legacy split hook, then requires the hardened byte-framed parser to preserve
+both and invoke zero injected callbacks.
 
 A missing or zero-byte `requests.jsonl` is not authenticated fresh genesis
 if an operator-event history or a per-request JSON sidecar survives in the
@@ -22,7 +27,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `20d0ec09dba80260d533346f719ad292d40ed5d4`. Actual source-only
-regression Git blob: `cb0ed3aab6e8452b3841e93d63bca2201ad58035`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `11807022d98c9ce9266bb23892c636bf10ef2459`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.

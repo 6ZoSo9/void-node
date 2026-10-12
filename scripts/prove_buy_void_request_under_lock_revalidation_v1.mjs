@@ -246,21 +246,22 @@ function temp(){
    assert.equal(fs.existsSync(path.join(root,"candidate-new-request.json")),false);
 
    // Positive-control hostile string framing: the previous parser used
-   // text.slice(0, -1).split("\\n"), so a same-process split replacement
+   // text.slice(0, -1).split("\n"), so a same-process split replacement
    // could erase one valid active obligation. The hardened helper must
    // derive both frames from actual octets and never invoke this hook.
    const originalSplit=String.prototype.split;
    const framedText=conflict.slice(0,-1);
+   assert.ok(framedText.includes("\n"),"positive-control fixture must contain real LF");
    let splitPoisonCalls=0;
    try {
      String.prototype.split=function(separator,...args){
-       if(separator==="\\n" && String(this)===framedText){
+       if(separator==="\n" && String(this)===framedText){
          splitPoisonCalls++;
          return [JSON.stringify(sameIdFirst)];
        }
        return originalSplit.call(this,separator,...args);
      };
-     assert.deepEqual(framedText.split("\\n"),[JSON.stringify(sameIdFirst)],
+     assert.deepEqual(framedText.split("\n"),[JSON.stringify(sameIdFirst)],
        "split adversary positive control must actually erase one row");
      assert.equal(splitPoisonCalls,1);
      splitPoisonCalls=0;
