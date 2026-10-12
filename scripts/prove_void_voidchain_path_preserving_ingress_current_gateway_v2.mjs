@@ -223,7 +223,8 @@ try{
     fs.fsyncSync=function(fd){
       originalFsync(fd);
       let target="";
-      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}
+      catch{target=""; /* unknown FD cannot satisfy a test injection */}
       const match=leaf ? target===path.join(partial,leaf) : target===partial;
       if(match&&!injected){
         injected=true;
@@ -273,7 +274,8 @@ try{
     fs.fsyncSync=function(fd){
       originalFsync(fd);
       let target="";
-      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}
+      catch{target=""; /* unknown FD cannot satisfy a test injection */}
       if(!injected&&target===path.join(partial,"cloudflared-config.yml")){
         injected=true;throw new Error("synthetic_first_leaf_partial");
       }
