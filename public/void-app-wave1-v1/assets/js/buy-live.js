@@ -630,6 +630,9 @@ async function submitBuy(event) {
   const chain = selectedChain();
   const rail = selectedRail();
   if (!rail) return;
+  // Keep the qualified price and pool snapshot from this original POST.
+  // An asynchronous readiness refresh must not silently rebind its quote.
+  const checkoutPolicyAtSubmit = currentSnapshot;
   const acks = acknowledgements();
   const intentKey = buyIntentKey();
   if (intentKey === null || attemptedIntentKeys.has(intentKey) ||
@@ -736,6 +739,24 @@ async function submitBuy(event) {
       returnedAtoms !== submittedAtoms
     ) {
       throw new Error('returned request amount mismatch');
+    }
+    // A correctly addressed USDC instruction is not a verified VOID quote.
+    // Bind the original server-side amount fields and the exact micro-VOID
+    // obligation to the approved 2 VOID / USDC policy before payment copy.
+    const originalUsdcAtoms = typeof request.usdc_amount === 'number'
+      ? canonicalUsdcLimitAtoms(request.usdc_amount) : null;
+    const quotedVoidAtoms = typeof request.quoted_void === 'number'
+      ? canonicalUsdcLimitAtoms(request.quoted_void) : null;
+    if (
+      typeof request.requested_amount_usdc !== 'number' ||
+      canonicalUsdcLimitAtoms(request.requested_amount_usdc) !== submittedAtoms ||
+      originalUsdcAtoms !== submittedAtoms ||
+      request.rate_void_per_usdc !== checkoutPolicyAtSubmit?.config.rate_void_per_usdc ||
+      request.price_usdc_per_void !== checkoutPolicyAtSubmit?.config.price_usdc_per_void ||
+      request.pool_void_total !== checkoutPolicyAtSubmit?.sale.pool_void_total ||
+      quotedVoidAtoms !== submittedAtoms * 2n
+    ) {
+      throw new Error('returned request VOID quote mismatch');
     }
     // Bind the actionable instructions themselves, not merely the
     // top-level request summary. Amounts are compared as native USDC atoms.

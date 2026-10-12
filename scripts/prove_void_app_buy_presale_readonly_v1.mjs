@@ -102,6 +102,10 @@ for (const required of [
   "body.schema !== 'void_public_buy_void_checkout_request_result_v1'",
   "request.void_destination_address",
   "returned request amount mismatch",
+  "returned request VOID quote mismatch",
+  "quotedVoidAtoms !== submittedAtoms * 2n",
+  "request.rate_void_per_usdc !== checkoutPolicyAtSubmit?.config.rate_void_per_usdc",
+  "request.price_usdc_per_void !== checkoutPolicyAtSubmit?.config.price_usdc_per_void",
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
   "attemptedIntentKey",
@@ -951,7 +955,12 @@ sandbox.fetch = async (...args) => {
       payment_chain: "ethereum",
       payment_chain_id: 1,
       usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      requested_amount_usdc: "10",
+      usdc_amount: 10,
+      requested_amount_usdc: 10,
+      rate_void_per_usdc: "2",
+      price_usdc_per_void: "0.50",
+      pool_void_total: validSale.pool_void_total,
+      quoted_void: 20,
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
         send_asset: "USDC",
@@ -1188,7 +1197,12 @@ for (const [caseLabel, closedSnapshot] of [
       payment_chain: "ethereum",
       payment_chain_id: 1,
       usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48",
-      requested_amount_usdc: amount,
+      usdc_amount: Number(amount),
+      requested_amount_usdc: Number(amount),
+      rate_void_per_usdc: "2",
+      price_usdc_per_void: "0.50",
+      pool_void_total: validSale.pool_void_total,
+      quoted_void: Number(amount) * 2,
       safety: { automatic_fulfillment: false, manual_review_required: true },
       payment_instructions: {
         send_asset: "USDC",
@@ -1293,7 +1307,9 @@ for (let i = 0; i < bogusReceipts.length; i += 1) {
   const id = "buyvoid_synthetic_adversary_" + i;
   const responseBody = structuredClone(verifiedEthereumNewRequestBody);
   responseBody.request.request_id = id;
-  responseBody.request.requested_amount_usdc = amount;
+  responseBody.request.requested_amount_usdc = Number(amount);
+  responseBody.request.usdc_amount = Number(amount);
+  responseBody.request.quoted_void = Number(amount) * 2;
   responseBody.request.payment_instructions.request_id = id;
   responseBody.request.payment_instructions.amount = Number(amount);
   responseBody.request.created_at_ms = Date.now();
@@ -1437,7 +1453,9 @@ try {
     body.request.launch_authority.expires_at_ms = expires;
     body.request.payment_instructions.expires_at_ms = expires;
     body.request.payment_instructions.request_id = id;
-    body.request.requested_amount_usdc = String(amount);
+    body.request.requested_amount_usdc = amount;
+    body.request.usdc_amount = amount;
+    body.request.quoted_void = amount * 2;
     body.request.payment_instructions.amount = amount;
     amountInput.value = String(amount);
     chainInput.value = "ethereum";
@@ -1604,7 +1622,9 @@ for (const [label, amount, outcome] of [
     const expires = Date.now() + 60_000;
     restoredReceipt.request.request_id = id;
     restoredReceipt.request.created_at_ms = Date.now();
-    restoredReceipt.request.requested_amount_usdc = amount;
+    restoredReceipt.request.requested_amount_usdc = Number(amount);
+    restoredReceipt.request.usdc_amount = Number(amount);
+    restoredReceipt.request.quoted_void = Number(amount) * 2;
     restoredReceipt.request.void_destination_address = destinationInput.value;
     restoredReceipt.request.payment_instructions.request_id = id;
     restoredReceipt.request.payment_instructions.amount = Number(amount);
@@ -1703,7 +1723,9 @@ for (let i = 0; i < badDeliveryReceipts.length; i += 1) {
   const expiry = Date.now() + 60_000;
   responseBody.request.launch_authority.expires_at_ms = expiry;
   responseBody.request.payment_instructions.expires_at_ms = expiry;
-  responseBody.request.requested_amount_usdc = amount;
+  responseBody.request.requested_amount_usdc = Number(amount);
+  responseBody.request.usdc_amount = Number(amount);
+  responseBody.request.quoted_void = Number(amount) * 2;
   responseBody.request.payment_instructions.request_id = id;
   responseBody.request.payment_instructions.amount = Number(amount);
   corrupt(responseBody);
@@ -1865,6 +1887,10 @@ const fullAccepted201Receipt = {
     usdc_contract: full201BaseUsdc,
     usdc_amount: 10,
     requested_amount_usdc: 10,
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    pool_void_total: validSale.pool_void_total,
+    quoted_void: 20,
     receive_address: full201Receiver,
     void_destination_address: full201Destination,
     delivery_address: full201Destination,
@@ -1950,6 +1976,7 @@ const corruptBaseReceipt = structuredClone(fullAccepted201Receipt);
 corruptBaseReceipt.request.request_id = "buyvoid_edge_full_base_corrupt_aaaaaaaa";
 corruptBaseReceipt.request.requested_amount_usdc = 11;
 corruptBaseReceipt.request.usdc_amount = 11;
+corruptBaseReceipt.request.quoted_void = 22;
 corruptBaseReceipt.request.payment_instructions.request_id =
   corruptBaseReceipt.request.request_id;
 corruptBaseReceipt.request.payment_instructions.amount = 11;
@@ -1977,6 +2004,88 @@ assert.equal(submitButton.disabled, true,
   "corrupt full-Base receipt preserves no-repeat POST");
 await buyTest.submitBuy({ preventDefault() {} });
 assert.equal(fetchCalls.length, corruptBasePostBefore + 1);
+
+// Bind native USDC and VOID using exact integer micro-units, independent of
+// the top-level 201/receipt schema and individually trusted USDC instructions.
+buyTest.resetForIndependentReceiptFixtures();
+replaceBuyView();
+assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
+chainInput.value = "base";
+destinationInput.value = full201Destination;
+buyTest.setState(validSnapshot, false, false);
+const freshQuoteReceipt = (rawAmount, quotedAmount, id) => {
+  const receipt = structuredClone(fullAccepted201Receipt);
+  const amount = Number(rawAmount);
+  receipt.request.request_id = id;
+  receipt.request.usdc_amount = amount;
+  receipt.request.requested_amount_usdc = amount;
+  receipt.request.quoted_void = quotedAmount;
+  receipt.request.payment_instructions.request_id = id;
+  receipt.request.payment_instructions.amount = amount;
+  receipt.request.created_at_ms = Date.now();
+  const expiry = receipt.request.created_at_ms + 240000;
+  receipt.request.launch_authority.expires_at_ms = expiry;
+  receipt.request.payment_instructions.expires_at_ms = expiry;
+  return receipt;
+};
+// Positive fractional quote: 12.000001 USDC = 24.000002 VOID exactly.
+{
+  const receipt = freshQuoteReceipt("12.000001", 24.000002,
+    "buyvoid_exact_fractional_quote");
+  amountInput.value = "12.000001";
+  buyTest.renderSnapshot(validSnapshot);
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false);
+  const before = fetchCalls.length;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Response(JSON.stringify(receipt), {
+      status: 201, headers: { "content-type": "application/json" },
+    });
+  };
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, before + 1);
+  assert.match(buyResultNode.textContent,
+    /REQUEST CREATED — VERIFY BEFORE PAYMENT/u,
+    "exact six-decimal quote remains accepted");
+}
+const badEconomicQuoteReceipts = [
+  ["VOID_quote_under", (x) => { x.request.quoted_void -= 1; }],
+  ["VOID_quote_over", (x) => { x.request.quoted_void += 1; }],
+  ["VOID_quote_string", (x) => { x.request.quoted_void = String(x.request.quoted_void); }],
+  ["VOID_quote_sub_micro", (x) => { x.request.quoted_void += 0.0000001; }],
+  ["VOID_quote_missing", (x) => { delete x.request.quoted_void; }],
+  ["VOID_rate_changed", (x) => { x.request.rate_void_per_usdc = "3"; }],
+  ["VOID_price_changed", (x) => { x.request.price_usdc_per_void = "0.75"; }],
+  ["VOID_pool_changed", (x) => { x.request.pool_void_total += 1; }],
+  ["original_USDC_changed", (x) => { x.request.usdc_amount += 1; }],
+  ["public_USDC_changed", (x) => { x.request.requested_amount_usdc += 1; }],
+];
+for (let i = 0; i < badEconomicQuoteReceipts.length; i += 1) {
+  const [label, corrupt] = badEconomicQuoteReceipts[i];
+  const amt = String(30 + i);
+  const receipt = freshQuoteReceipt(amt, Number(amt) * 2,
+    "buyvoid_bad_quote_" + i);
+  corrupt(receipt);
+  amountInput.value = amt;
+  buyTest.renderSnapshot(validSnapshot);
+  buyTest.updateSubmit();
+  assert.equal(submitButton.disabled, false, label + ": unique valid attempt");
+  const before = fetchCalls.length;
+  sandbox.fetch = async (...args) => {
+    fetchCalls.push(args);
+    return new Response(JSON.stringify(receipt), {
+      status: 201, headers: { "content-type": "application/json" },
+    });
+  };
+  await buyTest.submitBuy({ preventDefault() {} });
+  assert.equal(fetchCalls.length, before + 1, label + ": one synthetic POST");
+  assert.match(buyResultNode.textContent, /REQUEST OUTCOME UNCONFIRMED/u,
+    label + ": economic mismatch cannot be called successful");
+  assert.doesNotMatch(buyResultNode.textContent, /REQUEST CREATED|Send exactly:/u,
+    label + ": no actionable instructions on economic mismatch");
+  assert.equal(submitButton.disabled, true, label + ": never auto retry");
+}
 
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
@@ -2016,6 +2125,8 @@ console.log("impossible_five_minute_plus_one_receipt_refused=true");
 console.log("browser_rejects_reused_or_non201_buy_receipts=true");
 console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
 console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
+console.log("buyer_quoted_VOID_micro_units_exactly_bound=true");
+console.log("buyer_rejects_mismatched_void_quote_price_and_original_usdc=true");
 console.log("buy_receipt_native_usdc_chain2050_delivery_bound=true");
 console.log("buy_receipt_request_first_and_operator_bind_flags_required=true");
 console.log("buy_receipt_numeric_chain_fields_type_strict=true");
