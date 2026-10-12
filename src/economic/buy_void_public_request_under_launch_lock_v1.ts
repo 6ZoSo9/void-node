@@ -667,6 +667,12 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       holdHistoryV1("journal_leaf_changed_after_read");
     }
     const sidecarBefore = assertPrivateRequestLeafV1(file);
+    // New obligations must never truncate a surviving orphan sidecar whose
+    // request ID is not in the canonical journal. Such a file is evidence
+    // of loss/rollback or an interloper, not a blank slot for a new sale.
+    if (!txHashRevision && sidecarBefore !== null) {
+      holdHistoryV1("new_request_orphan_sidecar");
+    }
     if (typeof fs.constants.O_NOFOLLOW !== "number") {
       holdHistoryV1("private_no_follow_unavailable");
     }
@@ -806,13 +812,19 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       catch { holdHistoryV1("published_sidecar_close_uncertain"); }
     }
     } finally {
-      if (revisionSidecarFd !== null) {
-        try { fs.closeSync(revisionSidecarFd); }
-        catch { holdHistoryV1("revision_original_sidecar_close_uncertain"); }
-      }
-      if (journalFd !== null) {
-        try { fs.closeSync(journalFd); }
-        catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
+      // A failed revision-sidecar close must not bypass journal cleanup.
+      // Preserve fail-closed ownership uncertainty while always attempting
+      // closure of the independently retained original journal descriptor.
+      try {
+        if (revisionSidecarFd !== null) {
+          try { fs.closeSync(revisionSidecarFd); }
+          catch { holdHistoryV1("revision_original_sidecar_close_uncertain"); }
+        }
+      } finally {
+        if (journalFd !== null) {
+          try { fs.closeSync(journalFd); }
+          catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
+        }
       }
     }
     } finally {
