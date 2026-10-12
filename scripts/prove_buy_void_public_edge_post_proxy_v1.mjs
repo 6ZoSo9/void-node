@@ -385,6 +385,60 @@ try {
     },
   );
 
+
+  // Everything below is an inert POST to the isolated fake upstream.
+  // The public edge must not turn oversized/stalled replies into receipts.
+  const edgeUrl = `http://127.0.0.1:${gatewayPort}/__void/buy-void/request`;
+  const postProof = async (proofCase, signal) => {
+    const before = upstreamCalls.length;
+    const response = await fetch(edgeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ __edge_proof_case: proofCase }),
+      redirect: "manual",
+      ...(signal ? { signal } : {}),
+    });
+    assert.equal(upstreamCalls.length, before + 1, proofCase);
+    assert.equal(response.headers.get(
+      "x-void-public-buy-void-post-proxy"), "v1", proofCase);
+    assert.equal(response.headers.get("cache-control"), "no-store", proofCase);
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff", proofCase);
+    return response;
+  };
+  const maximumValid = await postProof("max_size_valid");
+  assert.equal(maximumValid.status, 400);
+  const maximumValidBytes = Buffer.from(await maximumValid.arrayBuffer());
+  assert.equal(maximumValidBytes.length, 131072);
+  assert.equal(JSON.parse(maximumValidBytes.toString("utf8")).ok, false);
+
+  for (const scenario of [
+    "declared_oversize",
+    "chunked_oversize",
+    "non_json",
+    "redirect",
+  ]) {
+    const refused = await postProof(scenario);
+    assert.equal(refused.status, 502, scenario);
+    assert.deepEqual(await refused.json(), {
+      ok: false,
+      error: "buy_void_request_upstream_unavailable",
+    }, scenario);
+  }
+
+  const stallStartedAt = Date.now();
+  const stalled = await postProof(
+    "hanging_reply",
+    AbortSignal.timeout(14000),
+  );
+  const stalledElapsedMs = Date.now() - stallStartedAt;
+  assert.equal(stalled.status, 502, "stalled upstream body must fail closed");
+  assert.deepEqual(await stalled.json(), {
+    ok: false,
+    error: "buy_void_request_upstream_unavailable",
+  });
+  assert.ok(stalledElapsedMs >= 5000 && stalledElapsedMs < 13000,
+    "upstream response must have a finite total deadline");
+
   const unrelatedPost =
     await fetch(
       `http://127.0.0.1:${gatewayPort}/__void/buy-void/config.json`,
@@ -475,6 +529,12 @@ try {
   console.log(
     "upstream_status_preserved=true",
   );
+  console.log("upstream_response_byte_ceiling=131072");
+  console.log("upstream_declared_oversize_rejected=true");
+  console.log("upstream_streamed_oversize_rejected=true");
+  console.log("upstream_redirect_and_nonjson_rejected=true");
+  console.log("upstream_total_deadline_bounded=true");
+  console.log("max_response_size_boundary_accepted=true");
   console.log(
     "proxy_response_marker_green=true",
   );
@@ -525,6 +585,8 @@ try {
     child.kill("SIGKILL");
   }
 
+  // Terminate the deliberate hanging-reply socket even after a failed test.
+  upstream.closeAllConnections();
   await new Promise(
     (resolve, reject) => {
       upstream.close(
