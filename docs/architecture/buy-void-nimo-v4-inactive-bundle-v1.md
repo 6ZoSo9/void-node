@@ -109,15 +109,22 @@ on raceable pathname metadata. Publication fsync uncertainty returns HOLD
 without deleting the already visible canonical stage.
 `--inspect-stage` retains each leaf and subtree descriptor through the
 **entire** inspection and compares their original metadata with the
-post-scan visible names after all subtrees have been read. This rejects
-late changes to an earlier subtree observed before acceptance; it is a
-bounded observation, not a continuous installed-host attestation.
+post-scan visible names after all subtrees have been read. A Linux
+inotify watch is installed on each pinned directory inode before
+its subtree scan: any entry or metadata mutation anywhere in the
+inspected tree, including during the final identity pass or an inotify
+overflow/watch loss, must HOLD. The disposable self-test injects an
+early-leaf replacement specifically during a later leaf's final stat,
+after the early leaf's own final check, and requires the watch to HOLD.
+This is a bounded observation, **not** a lease or continuous
+installed-host attestation. A same-UID mutation after the final
+observation remains outside this source-only inspection guarantee.
 It is still not acceptance of production installed bytes.
 
 The existing Node22/24/26 workflow now tests both V4 private-stage
 `--plan` and `--self-test` on the newly derived canonical archive,
 binds the exact private-stage Git blob
-`34a3f2bb26312eec198e809f59e2c281ea9cfc3e`, and requires exact
+`b2bedf3757e42b787869cb905a7df023ef3ce3c1`, and requires exact
 cross-toolchain stage receipts in addition to full archive equality.
 The prior 4/4 SUCCESS is **historical predecessor CI only**;
 this expanded head must independently pass before stage qualification.

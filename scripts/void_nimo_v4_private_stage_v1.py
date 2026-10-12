@@ -237,10 +237,37 @@ def expected_tree() -> dict:
 
 
 def inspect_tree(fd: int, tree: dict, prefix: str = "") -> int:
-    # Keep every validated leaf and subtree descriptor open until the whole
-    # scan finishes. Earlier subtrees must not become stale while later
-    # branches are read. This observes a bounded moment, not a lease.
+    # Keep descriptors open until inspection ends. A final identity pass
+    # alone is not a snapshot: an early leaf can be replaced while a later
+    # entry is rechecked. Linux inotify observes modifications in every
+    # opened parent directory throughout BOTH passes. A watcher loss/overflow
+    # or any event is a HOLD, never acceptance of a possibly changed tree.
+    if sys.platform != "linux":
+        hold("stage_watch_linux_required")
+    libc = ctypes.CDLL(None, use_errno=True)
+    init = getattr(libc, "inotify_init1", None)
+    add = getattr(libc, "inotify_add_watch", None)
+    if init is None or add is None:
+        hold("stage_watch_unavailable")
+    init.argtypes = [ctypes.c_int]
+    init.restype = ctypes.c_int
+    add.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    add.restype = ctypes.c_int
+    watchfd = init(os.O_NONBLOCK | os.O_CLOEXEC)
+    if watchfd < 0:
+        hold("stage_watch_unavailable")
+    # All modifications, metadata changes, entry rebinding, and watch loss
+    # are relevant. Kernel queue overflow is also delivered and must HOLD.
+    watch_mask = (0x0002 | 0x0004 | 0x0008 | 0x0040 | 0x0080 |
+                  0x0100 | 0x0200 | 0x0400 | 0x0800)
     retained = []
+
+    def watch_directory(dirfd: int) -> None:
+        # /proc/self/fd pins the already validated directory inode, not
+        # a pathname re-resolved after an attacker-controlled rename.
+        procfd = os.fsencode("/proc/self/fd/" + str(dirfd))
+        if add(watchfd, procfd, watch_mask) < 0:
+            hold("stage_watch_add_failed")
 
     def walk(curfd: int, expected: dict, relative: str) -> int:
         initial = set(os.listdir(curfd))
@@ -297,6 +324,7 @@ def inspect_tree(fd: int, tree: dict, prefix: str = "") -> int:
                         hold("stage_directory_rebound")
                     retained.append((curfd, name, dirfd, opened, "dir:" + rel))
                     held = True
+                    watch_directory(dirfd)
                     count += walk(dirfd, child, rel + "/")
                 finally:
                     if not held:
@@ -306,18 +334,26 @@ def inspect_tree(fd: int, tree: dict, prefix: str = "") -> int:
         return count
 
     try:
+        watch_directory(fd)
         count = walk(fd, tree, prefix)
-        # This second identity pass occurs after all subtree reads, while
-        # every parent and target descriptor is still pinned and open.
+        # Retain the original identity pass and descriptors. The watch
+        # additionally rejects a rebind AFTER an earlier final check.
         for parentfd, name, openedfd, previous, kind in retained:
             current = os.fstat(openedfd)
             visible = os.stat(name, dir_fd=parentfd, follow_symlinks=False)
             if not exact_file(previous, current) or not exact_file(current, visible):
                 hold("stage_global_rebound:" + kind)
+        try:
+            observed_events = os.read(watchfd, 4096)
+        except BlockingIOError:
+            observed_events = b""
+        if observed_events:
+            hold("stage_mutated_during_inspection")
         return count
     finally:
         for _, _, openedfd, _, _ in reversed(retained):
             os.close(openedfd)
+        os.close(watchfd)
 
 
 def inspect_stage(parent: str) -> int:
@@ -564,6 +600,43 @@ def self_test(payload: dict[str, bytes]) -> None:
             os.pread = original_pread
         if not swapped:
             hold("selftest_late_subtree_race_not_exercised")
+
+    # Regression: after the early leaf has PASSED the final identity loop,
+    # a later-leaf os.stat hook replaces that earlier name with identical
+    # bytes and mode. Final metadata-only passes used to accept this race.
+    with tempfile.TemporaryDirectory(prefix="void-nimo-v4-stage-final-pass-") as temp:
+        os.chmod(temp, 0o700)
+        stage_into(payload, temp)
+        early = Path(temp, STAGE_NAME, RUNTIME[0][0])
+        moved = early.with_name(early.name + ".moved")
+        original_stat = os.stat
+        later_name = RUNTIME[1][0].rsplit("/", 1)[-1]
+        observed_later = 0
+        mutated = False
+        def rebind_during_final_pass(name, *args, **kwargs):
+            nonlocal observed_later, mutated
+            visible = original_stat(name, *args, **kwargs)
+            if name == later_name and kwargs.get("dir_fd") is not None:
+                observed_later += 1
+                if observed_later == 3:
+                    early.rename(moved)
+                    early.write_bytes(payload[RUNTIME[0][0]])
+                    os.chmod(early, 0o400)
+                    mutated = True
+            return visible
+        try:
+            os.stat = rebind_during_final_pass
+            try:
+                inspect_stage(temp)
+            except ValueError as exc:
+                if "stage_mutated_during_inspection" not in str(exc):
+                    raise
+            else:
+                hold("selftest_final_pass_race_accepted")
+        finally:
+            os.stat = original_stat
+        if not mutated or observed_later != 3:
+            hold("selftest_final_pass_race_not_exercised")
 
 def main() -> None:
     require_unprivileged()
