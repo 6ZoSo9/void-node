@@ -886,16 +886,18 @@ try {
   assert.equal(upstreamCalls.length, upstreamBeforeSlowUploads,
     "stalled or trickled public uploads must not create upstream requests");
 
-  const postProof = async (proofCase, signal) => {
+  const postProof = async (proofCase, signal, intentOverrides = null) => {
     const before = upstreamCalls.length;
     const response = await fetch(edgeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         __edge_proof_case: proofCase,
-        void_destination_address: "0x1111111111111111111111111111111111111111",
-        requested_amount_usdc: "10.000000",
-        source_chain: "base",
+        ...(intentOverrides ?? {
+          void_destination_address: "0x1111111111111111111111111111111111111111",
+          requested_amount_usdc: "10.000000",
+          source_chain: "base",
+        }),
       }),
       redirect: "manual",
       ...(signal ? { signal } : {}),
@@ -916,6 +918,28 @@ try {
     "HTTP 201 byte-for-byte body must not be parsed and reserialized");
   assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
     exactAccepted201Receipt);
+
+  // Backend accepts reviewed legacy field aliases; the added receipt/
+  // intent-binding check must not silently break a valid older API client.
+  for (const acceptedLegacyIntent of [
+    {
+      delivery_wallet: "0x1111111111111111111111111111111111111111",
+      usdc_amount: "10.000000",
+      payment_chain: "base",
+    },
+    {
+      wallet: "0x1111111111111111111111111111111111111111",
+      amount: "10.000000",
+      chain: "base",
+    },
+  ]) {
+    const alias201 = await postProof("valid_201", undefined,
+      acceptedLegacyIntent);
+    assert.equal(alias201.status, 201,
+      "legacy accepted amount/wallet/rail spelling must remain valid");
+    assert.deepEqual(Buffer.from(await alias201.arrayBuffer()),
+      Buffer.from(exactAccepted201Json, "utf8"));
+  }
 
   // This is a second, complete receipt forwarding check. The independent
   // browser Draft #2818 owns *actual consumer* validation of these fields.
@@ -1235,6 +1259,7 @@ try {
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("http201_destination_amount_chain_match_submitted_intent=true");
+  console.log("public_request_legacy_intent_aliases_preserved=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("full_native_usdc_independent_chain_amount_identities=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
