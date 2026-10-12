@@ -37,6 +37,8 @@ let receiptExpiryTimer = null;
 // An untrusted/rolled-back wall clock must never revive instructions.
 const BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000;
 const BUY_RECEIPT_MAX_POST_DURATION_MS = 10000;
+// The canonical coupled live-activation lease is never longer than 5 minutes.
+const BUY_RECEIPT_MAX_LIVE_LEASE_MS = 5 * 60 * 1000;
 function receiptMonotonicNow() {
   try {
     const now = globalThis.performance?.now?.();
@@ -654,11 +656,18 @@ async function submitBuy(event) {
       postElapsedMs <= BUY_RECEIPT_MAX_POST_DURATION_MS &&
       createdAtMs <= receiptWallMs + BUY_RECEIPT_MAX_CLOCK_SKEW_MS &&
       receiptWallMs <= createdAtMs + postElapsedMs + BUY_RECEIPT_MAX_CLOCK_SKEW_MS;
-    const conservativeRemainingMs = instructionExpiresAtMs - createdAtMs -
+    // The server's live activation policy caps this lease at five minutes.
+    // Equal matching expiry fields alone cannot authenticate a long-lived
+    // payment instruction that canonical launch authority cannot issue.
+    const serverLeaseDurationMs = instructionExpiresAtMs - createdAtMs;
+    const conservativeRemainingMs = serverLeaseDurationMs -
       postElapsedMs - BUY_RECEIPT_MAX_CLOCK_SKEW_MS;
     if (
       !receiptClockQualified ||
       !Number.isSafeInteger(instructionExpiresAtMs) ||
+      !Number.isSafeInteger(serverLeaseDurationMs) ||
+      serverLeaseDurationMs <= 0 ||
+      serverLeaseDurationMs > BUY_RECEIPT_MAX_LIVE_LEASE_MS ||
       !Number.isFinite(conservativeRemainingMs) ||
       conservativeRemainingMs <= 0 ||
       !Number.isSafeInteger(request.launch_authority?.expires_at_ms) ||
