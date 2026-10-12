@@ -413,6 +413,10 @@ async function readAgainstOwnedDeadlineV1(
         retireResponseGenerationV1(readScope, readGeneration);
       };
       void readPromise.then(releaseLateGeneration, releaseLateGeneration);
+      // A reader may register an earlier AbortSignal listener than this
+      // deadline race. Preserve the owned result even if that reader's
+      // rejection wins the Promise.race scheduling order.
+      throw new DOMException("response_body_read_timeout", "AbortError");
     }
     throw error;
   } finally {
