@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git cat-file -e e261923cab5f70f5e77bb2b08f3f12946f1ce489^{commit}
-          test "$(git hash-object scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs)" = "371b8fb363d7a425d765166e99882a205a137895"
+          test "$(git hash-object scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs)" = "ac9684ac06947678bd4a3996b62b23e9cca4fbdf"
           test -z "$(git status --porcelain=v1)"
       - name: Use supported Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -55,6 +55,7 @@ jobs:
           grep -Fx 'actual_pinned_private_request_writer_executed=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
           grep -Fx 'public_201_original_receipt_path_private=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
           grep -Fx 'same_changed_amount_public_409_byte_equivalent=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'same_changed_rail_public_409_byte_equivalent=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
           grep -Fx 'strict_durable_history_fails_closed=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
           grep -Fx 'real_install_or_full_index_bootstrap_exercised=false' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
           grep -Fx 'economic_quote_and_launch_authority_synthetic=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
