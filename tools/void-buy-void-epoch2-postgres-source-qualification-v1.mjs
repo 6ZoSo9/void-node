@@ -30,13 +30,13 @@ export const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
     "4de9832a0f8e384e477177b55975e8557ec9147c",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
-    "9f6e6068e575659dfdab8d956a2ec4b21dc510c8",
+    "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts":
     "1c72f07509521a4bc2a57a2865851f623a3955ad",
   "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts":
     "a0c64bee56d38af5e879524ea2ca75f5d2d707a6",
   "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts":
-    "b2b72528b5f52fa62e45df343cba45e6b3fd3f83",
+    "4159894a4188f02d8c40e80e515840e6cc11225d",
   "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts":
     "f0c7baeb7057a74f150c2e9e50634ca7948f92ae",
   "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts":
