@@ -557,6 +557,135 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// Early rejection can leave an already-admitted response body unresolved.
+// Even if its nominal byte ceiling fails before reading, failed cleanup must
+// not allow repeated same-origin bodies to accumulate.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return Promise.reject(new Error("synthetic_oversize_cancel_rejection"));
+      },
+    },
+  }));
+  const baseUrl = "https://oversize-cancel-rejected.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "failed oversize cancellation must retain origin");
+  assert.equal(cancelCalls, 1);
+}
+
+// Malformed declared length with a permanently non-settling cancellation
+// retains the original generation but does not hang the original caller.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "invalid" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+  }));
+  const baseUrl = "https://invalid-length-cancel-stall.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const started = Date.now();
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_content_length_invalid:invalid");
+  assert.ok(Date.now() - started < 650, "malformed length cancellation unbounded");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  assert.equal(cancelCalls, 1);
+}
+
+// An oversize streamed chunk is a non-deadline failure. Its owner keeps the
+// reader lock until cancellation is proven, even if cancellation rejects.
+{
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        return {
+          read: async () => ({ done: false, value: bytes("z".repeat(2048)) }),
+          cancel() {
+            cancelCalls += 1;
+            return Promise.reject(new Error("synthetic_stream_cancel_rejection"));
+          },
+          releaseLock() { releaseCalls += 1; },
+        };
+      },
+    },
+  }));
+  const baseUrl = "https://stream-oversize-cancel-rejected.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0, "unconfirmed cancellation must retain reader");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  assert.equal(releaseCalls, 0);
+}
+
+// The initiating response may already have returned its bounded size error.
+// A genuinely later successful cancellation must retire its original origin
+// generation, but not before the cancellation promise actually resolves.
+{
+  let finishCancel;
+  let cancelCalls = 0;
+  const pendingCancel = new Promise((resolve) => { finishCancel = resolve; });
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: {
+      cancel() { cancelCalls += 1; return pendingCancel; },
+    },
+  }));
+  const baseUrl = "https://oversize-cancel-late-success.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  finishCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
 // A partial late read is not proof that the body is terminal. If cancellation
 // rejects, neither its lock nor the origin slot may be released.
 {
@@ -926,6 +1055,10 @@ console.log("stalled_body_total_deadline=true");
 console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
 console.log("partial_late_read_failed_cancel_quarantined=true");
+console.log("oversize_body_rejected_cancel_quarantined=true");
+console.log("malformed_length_pending_cancel_quarantined=true");
+console.log("stream_oversize_failed_cancel_retains_reader=true");
+console.log("late_successful_oversize_cancel_releases_origin=true");
 console.log("partial_late_read_late_confirmed_cancel_recovery=true");
 console.log("concurrent_read_generation_singleflight=true");
 console.log("signal_ignoring_fetch_total_deadline=true");
