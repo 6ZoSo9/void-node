@@ -34,6 +34,7 @@ const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
+  let upstreamDeadlineTimer = null;
   try {
     const chunks = [];
     let totalBytes = 0;
@@ -92,7 +93,18 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     const upstreamSignal = AbortSignal.timeout(
       VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
     );
-    const upstreamResponse = await fetch(
+    // The abort signal alone is insufficient: Node 22's stream read can
+    // ignore abort until the client has already timed out. Race a single
+    // absolute deadline against both fetch headers and every body read.
+    const deadlineExpired = new Promise((_, reject) => {
+      upstreamDeadlineTimer = setTimeout(
+        () => reject(new Error("buy_void_post_upstream_total_deadline")),
+        VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
+      );
+    });
+    const awaitUpstream = (operation) =>
+      Promise.race([operation, deadlineExpired]);
+    const upstreamResponse = await awaitUpstream(fetch(
       upstreamUrl,
       {
         method: "POST",
@@ -105,10 +117,18 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         },
         body: Buffer.concat(chunks),
       },
-    );
+    ));
 
     // A redirect/HTML page is never evidence of a created Buy VOID request.
     // Do not buffer a peer-controlled body through Response.arrayBuffer().
+    const cancelRejectedBody = () => {
+      try {
+        const cancelResult = upstreamResponse.body?.cancel?.();
+        if (cancelResult) void Promise.resolve(cancelResult).catch(() => {});
+      } catch {
+        // Cleanup is best-effort; a rejected checkout response is never success.
+      }
+    };
     const mediaType = String(
       upstreamResponse.headers.get("content-type") || "",
     ).split(";")[0].trim().toLowerCase();
@@ -116,6 +136,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       mediaType !== "application/json"
       || (upstreamResponse.status >= 300 && upstreamResponse.status < 400)
     ) {
+      cancelRejectedBody();
       throw new Error("buy_void_post_upstream_response_unqualified");
     }
     const declaredLength = upstreamResponse.headers.get("content-length");
@@ -127,6 +148,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           > BigInt(VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES)
       )
     ) {
+      cancelRejectedBody();
       throw new Error("buy_void_post_upstream_declared_length_invalid");
     }
     const reader = upstreamResponse.body?.getReader?.();
@@ -138,7 +160,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     let readComplete = false;
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        const { done, value } = await awaitUpstream(reader.read());
         if (done) {
           readComplete = true;
           break;
@@ -169,6 +191,20 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       throw new Error("buy_void_post_upstream_empty_response");
     }
     const responseBody = Buffer.concat(responseChunks, responseBytes);
+    // Content-Type is not proof of JSON validity. Never send a malformed
+    // HTTP 201 checkout receipt through the public edge as an accepted order.
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(responseBody),
+      );
+      if (!parsedBody || typeof parsedBody !== "object" ||
+          Array.isArray(parsedBody)) {
+        throw new Error("buy_void_post_upstream_json_object_required");
+      }
+    } catch {
+      throw new Error("buy_void_post_upstream_json_invalid");
+    }
 
     res.statusCode = upstreamResponse.status;
 
@@ -227,6 +263,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         error: "buy_void_request_upstream_unavailable",
       }),
     );
+  } finally {
+    if (upstreamDeadlineTimer !== null) clearTimeout(upstreamDeadlineTimer);
   }
 }
 
