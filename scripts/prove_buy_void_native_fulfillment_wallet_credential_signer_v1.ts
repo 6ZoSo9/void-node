@@ -141,6 +141,236 @@ try {
   if (!("reason" in mismatch)) throw new Error("expected mismatch hold");
   assert.equal(mismatch.reason, "credential_wallet_address_mismatch");
 
+  // Descriptor-bound credential read regression. All keys below are inert,
+  // randomly generated synthetic fixtures, never systemd/operator material.
+  const makeRaceRoot = (label: string) => {
+    const dir = fs.mkdtempSync(path.join(root, "fd-" + label + "-"));
+    fs.chmodSync(dir, 0o700);
+    const file = path.join(dir,
+      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1);
+    fs.writeFileSync(file, wallet.privateKey + "\n", { mode: 0o400 });
+    fs.chmodSync(file, 0o400);
+    return { dir, file };
+  };
+  const checked = makeRaceRoot("positive");
+  const checkedSigner = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+    credentials_directory: checked.dir,
+    expected_wallet_address: wallet.address,
+  });
+  assert.equal(checkedSigner.ok, true, "0400 credential FD read must pass");
+
+  // The file path is swapped to a symlink after its lstat but immediately
+  // before the fixed-name O_NOFOLLOW open through /proc/self/fd.
+  const raceSymlink = makeRaceRoot("symlink");
+  let symlinkInjected = false;
+  let symlinkReadCount = 0;
+  {
+    const originalOpen = fs.openSync;
+    const originalRead = fs.readSync;
+    (fs as any).openSync = function(file: any, flags: any, mode?: any) {
+      if (!symlinkInjected &&
+          String(file).startsWith("/proc/self/fd/") &&
+          String(file).endsWith("/" +
+            VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1)) {
+        symlinkInjected = true;
+        fs.renameSync(raceSymlink.file, raceSymlink.file + ".held");
+        fs.symlinkSync(raceSymlink.file + ".held", raceSymlink.file);
+      }
+      return (originalOpen as any)(file, flags, mode);
+    };
+    (fs as any).readSync = function(...args: any[]) {
+      symlinkReadCount += 1;
+      return (originalRead as any)(...args);
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: raceSymlink.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+    } finally {
+      (fs as any).openSync = originalOpen;
+      (fs as any).readSync = originalRead;
+    }
+  }
+  assert.equal(symlinkInjected, true);
+  assert.equal(symlinkReadCount, 0,
+    "symlink substitution must HOLD before any credential bytes are read");
+
+  // An equally private, same-sized second inode must not inherit an earlier
+  // lstat admission. The original source bytes must not be read by the FD.
+  const raceInode = makeRaceRoot("inode");
+  let inodeInjected = false;
+  let inodeReadCount = 0;
+  {
+    const originalOpen = fs.openSync;
+    const originalRead = fs.readSync;
+    (fs as any).openSync = function(file: any, flags: any, mode?: any) {
+      if (!inodeInjected &&
+          String(file).startsWith("/proc/self/fd/") &&
+          String(file).endsWith("/" +
+            VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1)) {
+        inodeInjected = true;
+        fs.renameSync(raceInode.file, raceInode.file + ".saved");
+        fs.writeFileSync(raceInode.file, wallet.privateKey + "\n",
+          { mode: 0o400 });
+        fs.chmodSync(raceInode.file, 0o400);
+      }
+      return (originalOpen as any)(file, flags, mode);
+    };
+    (fs as any).readSync = function(...args: any[]) {
+      inodeReadCount += 1;
+      return (originalRead as any)(...args);
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: raceInode.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+    } finally {
+      (fs as any).openSync = originalOpen;
+      (fs as any).readSync = originalRead;
+    }
+  }
+  assert.equal(inodeInjected, true);
+  assert.equal(inodeReadCount, 0,
+    "same-mode inode replacement must HOLD before credential FD read");
+
+  // Directory namespace replacement after the parent stat, before the
+  // directory FD acquisition must not redirect the credential authority.
+  const raceParent = makeRaceRoot("parent");
+  let parentInjected = false;
+  {
+    const originalOpen = fs.openSync;
+    (fs as any).openSync = function(file: any, flags: any, mode?: any) {
+      if (!parentInjected && String(file) === raceParent.dir &&
+          typeof flags === "number" &&
+          (flags & fs.constants.O_DIRECTORY) !== 0) {
+        parentInjected = true;
+        fs.renameSync(raceParent.dir, raceParent.dir + ".detached");
+        fs.mkdirSync(raceParent.dir, { mode: 0o700 });
+      }
+      return (originalOpen as any)(file, flags, mode);
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: raceParent.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+    } finally {
+      (fs as any).openSync = originalOpen;
+    }
+  }
+  assert.equal(parentInjected, true);
+
+  // Hardlinks must not be accepted as authority over mutable credentials.
+  const multipleLinks = makeRaceRoot("hardlink");
+  fs.linkSync(multipleLinks.file, multipleLinks.file + ".other");
+  const linksHeld = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+    credentials_directory: multipleLinks.dir,
+    expected_wallet_address: wallet.address,
+  });
+  assert.equal(linksHeld.ok, false);
+  if (linksHeld.ok) throw new Error("hardlink accepted");
+  assert.equal(linksHeld.reason, "credential_owner_or_links_invalid");
+
+  // Simulate a wrong-owner lstat without changing the host's permissions.
+  const wrongOwner = makeRaceRoot("owner");
+  {
+    const originalLstat = fs.lstatSync;
+    (fs as any).lstatSync = function(file: any, options?: any) {
+      const stat = (originalLstat as any)(file, options);
+      if (String(file) === wrongOwner.file && options?.bigint === true) {
+        return new Proxy(stat, {
+          get(target: any, key: any) {
+            if (key === "uid") return BigInt(process.getuid!() + 1);
+            return Reflect.get(target, key);
+          },
+        });
+      }
+      return stat;
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: wrongOwner.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+    } finally {
+      (fs as any).lstatSync = originalLstat;
+    }
+  }
+
+  // Growth during the bounded FD read must be detected and no signer
+  // returned; the original admitted inode remains pinned.
+  const raceGrowth = makeRaceRoot("growth");
+  let growthInjected = false;
+  {
+    const originalRead = fs.readSync;
+    (fs as any).readSync = function(...args: any[]) {
+      if (!growthInjected && typeof args[0] === "number") {
+        growthInjected = true;
+        fs.chmodSync(raceGrowth.file, 0o600);
+        fs.appendFileSync(raceGrowth.file, "X");
+        fs.chmodSync(raceGrowth.file, 0o400);
+      }
+      return (originalRead as any)(...args);
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: raceGrowth.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+    } finally {
+      (fs as any).readSync = originalRead;
+    }
+  }
+  assert.equal(growthInjected, true);
+
+  // Even if closeSync throws after the OS closes the FD, authority is
+  // uncertain and must HOLD rather than constructing a signer.
+  const raceClose = makeRaceRoot("close");
+  let closeInjected = false;
+  let credentialFd = -1;
+  {
+    const originalOpen = fs.openSync;
+    const originalClose = fs.closeSync;
+    (fs as any).openSync = function(file: any, flags: any, mode?: any) {
+      const fd = (originalOpen as any)(file, flags, mode);
+      if (String(file).startsWith("/proc/self/fd/") &&
+          String(file).endsWith("/" +
+            VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1)) {
+        credentialFd = fd;
+      }
+      return fd;
+    };
+    (fs as any).closeSync = function(fd: number) {
+      (originalClose as any)(fd);
+      if (!closeInjected && fd === credentialFd) {
+        closeInjected = true;
+        throw new Error("synthetic_close_uncertain");
+      }
+    };
+    try {
+      const decision = createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+        credentials_directory: raceClose.dir,
+        expected_wallet_address: wallet.address,
+      });
+      assert.equal(decision.ok, false);
+      if (decision.ok) throw new Error("close uncertainty accepted");
+      assert.equal(decision.reason, "credential_fd_close_uncertain");
+    } finally {
+      (fs as any).openSync = originalOpen;
+      (fs as any).closeSync = originalClose;
+    }
+  }
+  assert.equal(closeInjected, true);
+  console.log("credential_inode_and_namespace_substitution_refused=true");
+  console.log("credential_fd_growth_and_close_uncertainty_refused=true");
+
   fs.chmodSync(credential, 0o644);
   const broad =
     createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
