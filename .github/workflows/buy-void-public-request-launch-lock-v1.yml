@@ -1,0 +1,162 @@
+name: VOID Buy VOID public request launch-lock revalidation v1
+
+on:
+  pull_request:
+    paths:
+      - "src/index.ts"
+      - "src/economic/buy_void_public_request_under_launch_lock_v1.ts"
+      - "scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs"
+      - ".github/workflows/buy-void-public-request-launch-lock-v1.yml"
+      - "docs/architecture/buy-void-public-request-launch-lock-v1.md"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: Actual request-lock proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify clean exact checkout and reviewed source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object src/index.ts)" = "40239e0f76aa1edce43523d18c1b57691e41e8cf"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "eded467ff7b6116694b7f6a9f5897862f93ef98f"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "da4f8e217da7eb79fdfb52ed39571520fd6efa01"
+      - name: Install supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact lockfile without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile and typecheck actual source
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Prove old concurrent write and new under-lock revalidation
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs
+          node scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs | tee "request-lock-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN' \
+            'negative_predecessor_duplicate_append_observed=true' \
+            'current_concurrent_same_intent_exactly_one_append=true' \
+            'expired_launch_lease_after_history_read_holds=true' \
+            'expired_launch_lease_before_reused_response_holds=true' \
+            'missing_under_lock_revalidator_holds=true' \
+            'current_same_intent_returns_existing_request=true' \
+            'public_unauthenticated_reuse_private_conflict=true' \
+            'anonymous_matching_and_changed_terms_409_identical=true' \
+            'public_created_receipt_private_path_redacted=true' \
+            'public_prelock_fast_return_removed=true' \
+            'public_unknown_internal_exception_details_redacted=true' \
+            'public_safe_known_conflicts_preserved=true' \
+            'operator_same_id_tx_hash_revision_appended=true' \
+            'operator_revision_conflicting_history_holds=true' \
+            'private_customer_directory_and_files_0700_0600=true' \
+            'journal_sidecar_and_directory_fsync_order=true' \
+            'fsync_failures_reject_without_false_success=true' \
+            'directory_rebind_during_fsync_holds=true' \
+            'legacy_insecure_and_symlink_sidecars_hold_before_append=true' \
+            'sidecar_preopen_inode_replacement_holds=true' \
+            'sidecar_first_create_exclusive_holds=true' \
+            'sidecar_exclusive_reserved_before_journal_append=true' \
+            'sidecar_postwrite_rebind_holds=true' \
+            'journal_existing_fd_pinned_from_read_through_append=true' \
+            'journal_leaf_substitution_holds_without_visible_append=true' \
+            'journal_first_create_exclusive_holds=true' \
+            'missing_sidecar_recovered_only_from_fsynced_journal=true' \
+            'same_inode_equal_length_final_sidecar_rewrite_holds=true' \
+            'final_sidecar_byte_readback_mismatch_holds=true' \
+            'first_create_and_operator_revision_final_bytes_verified=true' \
+            'operator_revision_original_sidecar_preappend_qualified=true' \
+            'orphan_request_sidecar_rejected_before_journal_append=true' \
+            'journal_descriptor_closed_on_revision_sidecar_close_failure=true' \
+            'mismatched_or_interloped_sidecar_never_rewritten=true' \
+            'unsafe_legacy_request_id_sidecar_path_holds=true' \
+            'prior_multi_active_destination_never_idempotent=true' \
+            'prior_multi_active_conflicting_rail_and_amount_holds=true' \
+            'malformed_durable_request_history_holds=true' \
+            'silently_omitted_durable_request_holds=true' \
+            'same_id_partial_history_never_authoritative=true' \
+            'hostile_string_split_cannot_drop_durable_rows=true' \
+            'missing_ledger_with_surviving_history_holds=true' \
+            'empty_ledger_with_surviving_sidecar_holds=true' \
+            'current_mismatched_amount_and_rail_hold_without_append=true' \
+            'different_destination_allowed=true' \
+            'terminal_status_allows_subsequent_request=true' \
+            'existing_economic_writers_modified=false' \
+            'compiled_public_request_admission_helper_used=true' \
+            'src_index_size_guard_preserved=true' \
+            'production_request_route_deployed=false' \
+            'live_payment_or_allocation_performed=false' \
+            'new_request_inherited_tojson_snapshot_integrity=true' \
+            'new_request_nonplain_snapshot_holds_without_mutation=true' \
+            'ambient_array_iterator_payment_terms_preserved=true' \
+            'operator_immutable_nested_payment_instructions_iterator_guard=true' \
+            'operator_immutable_nested_payment_instructions_tojson_guard=true' \
+            'presale_activation=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" "request-lock-node-${{ matrix.node }}.txt"
+          done
+      - name: Upload exact-head source-only receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: request-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: request-lock-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          if [ -n "${BASE:-}" ]; then
+            git merge-base --is-ancestor "$BASE" "$HEAD"
+          else
+            BASE="$(git rev-parse "$HEAD^1")"
+          fi
+          git diff --check "$BASE" "$HEAD"
+
+  compare:
+    needs: [qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download independently generated Node receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: request-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require exact raw 22 24 26 parity
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "proof/request-lock-node-$v.txt"; done
+          cmp proof/request-lock-node-22.txt proof/request-lock-node-24.txt
+          cmp proof/request-lock-node-22.txt proof/request-lock-node-26.txt
+          echo "VOID_BUY_VOID_REQUEST_LOCK_THREE_NODE_GREEN"
+          echo "production_payment_and_allocation_ready=false"
+          echo "funds_moved=false"
