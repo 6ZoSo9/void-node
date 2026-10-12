@@ -64,6 +64,15 @@ The gateway does not gain a general mutation proxy.
   an otherwise-valid 201 containing a sentinel absolute buyer sidecar path.
   The validated successful **original bytes** are still forwarded
   exactly without reserialization.
+  The edge additionally compares HTTP 201 `request.void_destination_address`,
+  `source_chain`, `requested_amount_usdc` and `usdc_amount` to the
+  **actual submitted JSON intent**, rather than trusting only the upstream
+  envelope. Mismatches are generic uncertain 502; this guards against an
+  otherwise-valid created receipt describing a different buyer destination,
+  amount or payment rail. The focused proof exercises all three mismatches.
+  This is a bounded consistency check; the independent browser still checks
+  canonical receiver, USDC contract, acknowledgements and payment instructions
+  before displaying payment directions.
 - Upstream responses must be strict UTF-8 JSON **objects**, not just a
   JSON `Content-Type` header. Malformed JSON, invalid UTF-8, null/primitive values and arrays refuse
   even on HTTP 201. The maximum accepted response body is
