@@ -32,6 +32,23 @@ function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+// Independent canonical plan-ID recomputation for hostile packet edits.
+// Match the reviewed generator's sorted, integer-only deterministic JSON
+// rather than relying on a digest supplied by the packet under test.
+function proofCanonicalJson(value){
+  if(value===null)return "null";
+  if(typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="boolean")return value?"true":"false";
+  if(typeof value==="number"&&Number.isSafeInteger(value))return String(value);
+  if(Array.isArray(value))return "["+value.map(proofCanonicalJson).join(",")+"]";
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    return "{"+Object.keys(value).sort((a,b)=>a<b?-1:a>b?1:0)
+      .map(key=>JSON.stringify(key)+":"+proofCanonicalJson(value[key]))
+      .join(",")+"}";
+  }
+  throw new Error("synthetic_packet_canonical_value_invalid");
+}
+
 function rejectPrepare(input,pattern){
   assert.throws(
     ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2(input),
@@ -245,7 +262,7 @@ try{
       altered[nestedField][unreviewedField]=value;
       const body={...altered};
       delete body.plan_id;
-      altered.plan_id="voidvci2_"+sha256(Buffer.from(canonicalJson(body),"utf8"));
+      altered.plan_id="voidvci2_"+sha256(Buffer.from(proofCanonicalJson(body),"utf8"));
       assert.notEqual(altered.plan_id,originalPacket.plan_id);
       try {
         fs.writeFileSync(jsonPath,JSON.stringify(altered,null,2)+"\n");
