@@ -1,5 +1,43 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 canonical buyer snapshot under hostile ambient prototypes — source-only
+
+The existing strict journal reader already retained its own JSON parser and
+serialization references, but a newly admitted buyer's `reqObj` could still
+inherit a late `Object.prototype.toJSON` hook. Capturing the native
+`JSON.stringify` alone does not prevent that hook from changing the durable
+amount, destination, or payment instructions after the request passed the
+launch-authority admission check. Ambient `Array.prototype[Symbol.iterator]`
+changes can also silently skip one key while naive code copies `Object.keys`.
+
+The current helper now detaches the incoming request **before**
+`withLaunchMutation`, authority comparisons, journal append and sidecar
+publication. It snapshots the entire admitted own-data graph into
+null-prototype objects and arrays, rejects accessors, symbol/hidden or
+forbidden keys, nonfinite numbers, cycles, sparse arrays and oversized/deep
+graphs, then requires exact own-key count/order parity. It traverses the
+`Object.keys` result by **numeric indices**, not the ambient array iterator.
+The same closed snapshot goes through both canonical `JSON.stringify` calls
+(journal row and pretty sidecar) and the in-lock economic checks.
+
+The actual compiled-helper regression shows a positive poisoned
+`Object.prototype.toJSON` control (3 USDC changes to 250 without altering
+the original input), but confirms that the persistor invokes no further
+poisoned hook and durably writes only the original 3-USDC amount and
+destination, including an exact matching sidecar. A second positive control
+drops `payment_instructions` from a naive `for..of Object.keys` copy, but
+the real persistor retains that field and both expected byte strings. Further
+test cases reject own `toJSON`, getter fields, nonfinite numbers and nonplain
+request data before any journal mutation.
+
+**Current source blob:** `84a3fed80e5f2d532dfa2d61f7cb2efbe0aee0db`; **exact proof blob:**
+`ff1694b7017405f09b17219f8e69b59743477310`. The focused Node 22/24/26 workflow pins both and requires
+the new adversarial markers. This protects an in-process integrity seam,
+**not** runtime module/source-custody trust, deployed buyer authorization,
+payment verification, crash atomicity, or full presale/WC readiness.
+
+
+
 ## October 12 anonymous-retry response-shape parity — current source-only
 
 The actual public POST handler must not reveal a prior buyer's private
@@ -13,7 +51,7 @@ request ID, path, note, payment details or the original buyer's terms.
 
 Current index source identity: `40239e0f76aa1edce43523d18c1b57691e41e8cf`.
 The source-extracted request proof identity is
-`50833c30399ab5d71494df79e64d0f35a49bfea4`. In addition to redaction, the proof executes both
+`ff1694b7017405f09b17219f8e69b59743477310`. In addition to redaction, the proof executes both
 actual mounted response branches and requires exactly equal JSON payloads,
 key order and HTTP 409 for matching versus changed anonymous payment
 terms. The dedicated Node 22/24/26 workflow is pinned to those Git
@@ -356,8 +394,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `e738e32601c68b70ebc7cbf922b24f055cc3e91d`. Actual source-only
-regression Git blob: `50833c30399ab5d71494df79e64d0f35a49bfea4`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `84a3fed80e5f2d532dfa2d61f7cb2efbe0aee0db`. Actual source-only
+regression Git blob: `ff1694b7017405f09b17219f8e69b59743477310`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -381,7 +419,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `40239e0f76aa1edce43523d18c1b57691e41e8cf`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `e738e32601c68b70ebc7cbf922b24f055cc3e91d`). The existing
+(Git blob `84a3fed80e5f2d532dfa2d61f7cb2efbe0aee0db`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
