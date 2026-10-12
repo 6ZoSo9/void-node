@@ -285,15 +285,30 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       } catch {
         throw new Error("buy_void_post_submitted_intent_invalid");
       }
-      const intendedDestination = typeof submitted?.void_destination_address
-        === "string" ? submitted.void_destination_address.toLowerCase() : "";
+      // Keep the exact public node's reviewed body-key precedence, including
+      // valid legacy field aliases. A 201 must match the effective submitted
+      // buyer intent, not arbitrarily require one spelling of its fields.
+      const readSubmittedField = (...names) => {
+        for (const name of names) {
+          const value = submitted?.[name];
+          if (value !== undefined && value !== null) return String(value).trim();
+        }
+        return "";
+      };
+      const intendedDestination = readSubmittedField(
+        "void_destination_address", "delivery_address", "delivery_wallet",
+        "wallet",
+      ).toLowerCase();
       const returnedDestination = typeof checkout?.void_destination_address
         === "string" ? checkout.void_destination_address.toLowerCase() : "";
-      const intendedChain = typeof submitted?.source_chain === "string"
-        ? submitted.source_chain.toLowerCase() : "base";
+      const intendedChain = (readSubmittedField(
+        "source_chain", "payment_chain", "chain",
+      ) || "base").toLowerCase();
       const returnedChain = typeof checkout?.source_chain === "string"
         ? checkout.source_chain.toLowerCase() : "";
-      const intendedAmount = Number(submitted?.requested_amount_usdc);
+      const intendedAmount = Number(readSubmittedField(
+        "requested_amount_usdc", "usdc_amount", "amount_usdc", "amount",
+      ));
       const returnedAmount = Number(checkout?.requested_amount_usdc);
       const returnedUsdcAmount = Number(checkout?.usdc_amount);
       if (!/^0x[0-9a-f]{40}$/.test(intendedDestination) ||
