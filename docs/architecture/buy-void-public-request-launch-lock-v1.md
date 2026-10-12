@@ -1,5 +1,28 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 public successful-receipt private path redaction — source only
+
+The public successful HTTP 201 response used to embed
+`requestObj.persisted = { ok:true, file:persisted.file }`. Because the
+server-only sidecar path can be under an absolute `VOID_BUY_REQUEST_DIR`,
+that code exposed private storage layout to unauthenticated buyers.
+
+The mounted public route now retains the private file path **only in the
+server-local `persisted` result** and returns a public-safe
+`request.persisted: {ok:true}` receipt. The focused regression executes
+the exact mounted HTTP 201 response branch using an inert sentinel absolute
+sidecar path; it must report created request status without including the
+directory, filename or `file` key anywhere on the public wire. It also
+retains the historical old-source leak as a negative control.
+
+New exact source blob `src/index.ts:
+91151bb6ba5addf061a1a713aeceab142a814312`; the final helper and
+privacy adversarial proof are bound by the dedicated workflow. This is
+source-only redaction, not a custody permission change or production install.
+Because the index source generation changed, the stacked canonical-producer
+preload Draft #2822 still needs an independent generation update **and its
+open P1 check-to-load race remains unresolved** before any service cutover.
+
 ## October 12 preappend exclusive reservation — source-only candidate
 
 **P2 interloper after ENOENT:** the first-new-request path now opens the
@@ -312,7 +335,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `e738e32601c68b70ebc7cbf922b24f055cc3e91d`. Actual source-only
-regression Git blob: `732f6ac162bbc18360bedf3566a54cc03a01053a`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `374f1d30a02fcfcb4c9cd0ae2a9f6a8508ed26de`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -333,7 +356,7 @@ guards one local client only and does not solve cross-tab or concurrent
 HTTP requests.
 
 This correction keeps a short `src/index.ts` bridge (exact Git blob
-`8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
+`91151bb6ba5addf061a1a713aeceab142a814312`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
 (Git blob `e738e32601c68b70ebc7cbf922b24f055cc3e91d`). The existing
