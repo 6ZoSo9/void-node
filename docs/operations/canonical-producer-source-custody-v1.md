@@ -1,5 +1,20 @@
 # Canonical producer source custody — read-only at-use preflight v1
 
+## Current-main requalification — October 12, 2026
+
+This candidate is a **source-only re-stage**, not a deployment: #2833's
+exact `src/index.ts` Git blob already matches reviewed V3 source identity
+`40239e0f76aa1edce43523d18c1b57691e41e8cf`. The V1/V2/V3
+canonical observer code and frozen behavioral proof identities are copied
+byte-for-byte from historic 22/22-green but superseded Draft #2822.
+The delta is the parent repository generation and fresh CI, not invented
+permission to execute a mutable developer checkout. The original V1
+refusal to start on unknown source remains a correct **negative control**.
+
+This work cannot be merged into main independently of #2833's exact
+source intake branch and an independently planned protected-root
+installation. Real Precision/Nimo/Xiphos hosts are not modified.
+
 ## Why this guard exists
 
 The existing canonical producer launcher checks the checked-out `src/index.ts`
@@ -10,7 +25,8 @@ loader reads executable source. Additional pathname rechecks do not establish
 an immutable execution generation.
 
 This candidate adds a **source-custody prerequisite** before canonical
-producer `exec`. It is part of stacked Draft #2822 and **does not merge,
+producer `exec`. It restages reviewed source from closed, unmerged Draft #2822 in a new
+stacked candidate on current-main Buy VOID intake Draft #2833. It **does not merge,
 install, deploy, restart, or enable** any service.
 
 ## Real acceptance boundary
@@ -92,8 +108,11 @@ suite. `.github/workflows/canonical-producer-legacy-self-http-observers-v1.yml`
 runs the composed proof on Node 22, 24 and 26.
 
 **Important:** GitHub PR checks run on a synthetic merge of the child
-with the parent #2811 branch, while the child's own branch remains
-historically based. Any further parent index change must be accepted as a
+with the #2833 parent generation anchored at
+`b201ce89c6583737042fa21010be4eb6cdcae06b` (base main
+`e8ff33dc7c8873fea1e1fb8ddc67cb45cdb3113b`). Parent and child index
+Git blob `40239e0f76aa1edce43523d18c1b57691e41e8cf` must remain exact.
+Any later parent source or generation change must be accepted as a
 *new reviewed source generation*—never silently repin a frozen guard.
 The separate root-owned protected release ancestry remains the at-use
 prerequisite; a green source test alone is not an installed service proof.
@@ -103,7 +122,7 @@ prerequisite; a green source test alone is not an installed service proof.
 This is a **candidate** source-custody strategy, not unconditional closure of
 the P1 check-to-load race. It requires independent review of source/ancestor
 ownership and filesystem mount trust on the **actual service host**, source
-generation alignment with current parent #2811, complete canonical observer
+generation alignment with current parent #2833, complete canonical observer
 source-contract behavior, startup configuration, and an operation-bound
 immutable release/cutover acceptance. The V1/V2 historical observer proofs
 remain frozen. No readiness, payment, fulfillment, Work Credits, VOID presale,
