@@ -1000,6 +1000,75 @@ for (const existing of [false, true]) {
   }
 }
 
+// A same-UID writer can rewrite the *same private inode* after the earlier
+// byte comparison (or recovered fsync), while preserving its inode/mode/size.
+// Neither path may report an idempotent success using metadata-only checks.
+{
+  const nativeLstat=fs.lstatSync, nativeOpen=fs.openSync;
+  for(const recovered of [false,true]) {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const owner=request("buyvoid_finalbyte_aaaaaaaa","3","base","7");
+    const retry=request("buyvoid_finalbyte_bbbbbbbb","3","base","7");
+    const readers=factory(oldPersist,root);
+    const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      candidate,[readers.withLock,readers.readRequests,readers.readEvents,
+        readers.applyEvents,readers.terminalStatus,()=>true]);
+    let injected=false, sidecarStats=0;
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      await persist(owner);
+      const ledger=path.join(root,"requests.jsonl");
+      const sidecar=path.join(root,owner.request_id+".json");
+      const journalBefore=fs.readFileSync(ledger);
+      const pristine=fs.readFileSync(sidecar);
+      const originalInode=fs.statSync(sidecar).ino;
+      const altered=Buffer.from(pristine);
+      const idOffset=altered.indexOf(Buffer.from(owner.request_id,"utf8"));
+      assert.ok(idOffset>=0,"expected canonical request_id in sidecar");
+      altered[idOffset]=altered[idOffset]===0x62?0x63:0x62;
+      assert.equal(altered.length,pristine.length);
+      if(recovered)fs.unlinkSync(sidecar);
+      // The third visible sidecar stat is the existing-sidecar final
+      // visibility check. A new recovery sidecar has an extra post-fsync
+      // visibility check, so its fourth stat is the final gate.
+      const targetStat=recovered?4:3;
+      fs.lstatSync=function(file,options){
+        const observed=nativeLstat(file,options);
+        if(String(file).endsWith("/"+owner.request_id+".json")) {
+          sidecarStats+=1;
+          if(!injected&&sidecarStats===targetStat) {
+            const held=nativeOpen(sidecar,
+              fs.constants.O_WRONLY|fs.constants.O_NOFOLLOW);
+            try {
+              assert.equal(fs.writeSync(held,altered,0,altered.length,0),
+                altered.length,"same-inode mutation must complete");
+              fs.fsyncSync(held);
+            } finally {fs.closeSync(held);}
+            injected=true;
+          }
+        }
+        return observed;
+      };
+      await assert.rejects(()=>persist(retry),
+        /buy_void_request_history_under_lock_sidecar_final_/u,
+        "equal-length same-inode late rewrite must fail final readback");
+      assert.equal(injected,true,"late final-check adversary must fire");
+      assert.ok(sidecarStats>=targetStat,"must cross exact final gate");
+      assert.equal(fs.statSync(sidecar).ino,
+        recovered?fs.statSync(sidecar).ino:originalInode);
+      assert.equal(fs.readFileSync(sidecar).length,pristine.length);
+      assert.deepEqual(fs.readFileSync(ledger),journalBefore,
+        "reuse under corruption must never append a second obligation");
+    } finally {
+      fs.lstatSync=nativeLstat;
+      fs.openSync=nativeOpen;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+}
+
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -1025,6 +1094,7 @@ console.log("journal_existing_fd_pinned_from_read_through_append=true");
 console.log("journal_leaf_substitution_holds_without_visible_append=true");
 console.log("journal_first_create_exclusive_holds=true");
 console.log("missing_sidecar_recovered_only_from_fsynced_journal=true");
+console.log("same_inode_equal_length_final_sidecar_rewrite_holds=true");
 console.log("mismatched_or_interloped_sidecar_never_rewritten=true");
 console.log("unsafe_legacy_request_id_sidecar_path_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
