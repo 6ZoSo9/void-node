@@ -331,6 +331,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       throw new Error("buy_void_post_upstream_json_invalid");
     }
 
+    let admittedCheckoutExpiryMs = null;
     // This exact creation response is authoritative for whether a buyer
     // should believe a payment request was recorded. "application/json"
     // plus a nonarray object is NOT enough: an empty object, error envelope,
@@ -419,6 +420,30 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           persisted.ok !== true) {
         throw new Error("buy_void_post_upstream_created_receipt_invalid");
       }
+      // The canonical node's request object defines exactly these public
+      // top-level names (src/index.ts checkout request object + persisted).
+      // Unknown fields may contain operator/private payment metadata. Never
+      // spread them into a public HTTP 201 or a legacy redacted copy.
+      const outerFields = new Set([
+        "schema","marker","ok","idempotent",
+        "one_active_request_cap_enforced","request",
+      ]);
+      const requestFields = new Set([
+        "schema","legacy_schema","marker","ok","request_id",
+        "created_at_ms","status","launch_authority","funding_model","account",
+        "source_chain","payment_chain","payment_chain_id","asset_in","usdc_contract",
+        "usdc_decimals","usdc_amount","requested_amount_usdc","rate_void_per_usdc","price_usdc_per_void",
+        "pool_void_total","quoted_void","sale_state_before_request","receive_address","receiver_binding_source",
+        "void_destination_address","delivery_address","delivery_wallet","delivery_chain","delivery_chain_id",
+        "tx_hash","note","acknowledgements","request_contract","payment_instructions",
+        "safety","persisted",
+      ]);
+      if (Object.keys(parsedBody).length !== outerFields.size ||
+          Object.keys(parsedBody).some(key => !outerFields.has(key)) ||
+          Object.keys(checkout).some(key => !requestFields.has(key))) {
+        throw new Error("buy_void_post_created_public_fields_invalid");
+      }
+
       // Payment instructions are displayed as actionable money movement.
       // A correct outer 201 plus buyer destination/amount is insufficient:
       // require independently source-bound USDC contract, rail, receiver and
@@ -471,6 +496,24 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           checkout.safety?.manual_review_required !== true) {
         throw new Error("buy_void_post_created_payment_instructions_invalid");
       }
+
+
+      // Real coupled launch authority is valid for at most five minutes
+      // from activation. A newly created request cannot claim an expired,
+      // overlong or future-dated actionable payment-instruction lease.
+      const receiptCreatedAt = checkout.created_at_ms;
+      const receiptNow = Date.now();
+      const maxCheckoutLeaseMs = 5 * 60 * 1000;
+      if (!Number.isSafeInteger(receiptCreatedAt) ||
+          !Number.isSafeInteger(receiptNow) ||
+          receiptCreatedAt <= 0 || receiptNow <= 0 ||
+          receiptCreatedAt > receiptNow + 30_000 ||
+          instructionExpiry <= receiptNow ||
+          instructionExpiry <= receiptCreatedAt ||
+          instructionExpiry - receiptCreatedAt > maxCheckoutLeaseMs) {
+        throw new Error("buy_void_post_created_instruction_lease_invalid");
+      }
+      admittedCheckoutExpiryMs = instructionExpiry;
 
       // Public API clients need the same exact-amount and VOID quote
       // authentication as the Buy browser before HTTP 201 is published.
@@ -560,6 +603,12 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     // This is the final, immediate-at-publication monotonic authorization.
     // No await or untrusted upstream getter follows this check.
     requireUpstreamBeforeDeadline();
+    const finalCheckoutNow = Date.now();
+    if (admittedCheckoutExpiryMs === null ||
+        !Number.isSafeInteger(finalCheckoutNow) || finalCheckoutNow <= 0 ||
+        admittedCheckoutExpiryMs <= finalCheckoutNow) {
+      throw new Error("buy_void_post_created_instruction_lease_expired");
+    }
     res.statusCode = upstreamResponse.status;
     for (const [headerName, headerValue] of acceptedHeaders) {
       res.setHeader(headerName, headerValue);
