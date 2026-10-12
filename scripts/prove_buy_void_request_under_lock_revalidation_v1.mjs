@@ -1071,6 +1071,65 @@ for (const existing of [false, true]) {
   }
 }
 
+// Separately falsify the *byte-comparison loop itself* without relying on
+// mtime/ctime drift: corrupt only the bytes returned by the final pinned FD
+// read, leaving the real sidecar inode, metadata and on-disk bytes untouched.
+// The first read of a pre-existing sidecar is still canonical; corruption is
+// injected solely during the final successful-boundary readback.
+{
+  const nativeRead=fs.readSync;
+  for(const recovered of [false,true]) {
+    const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+    const owner=request("buyvoid_readback_aaaaaaaa","3","base","6");
+    const retry=request("buyvoid_readback_bbbbbbbb","3","base","6");
+    const readers=factory(oldPersist,root);
+    const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      candidate,[readers.withLock,readers.readRequests,readers.readEvents,
+        readers.applyEvents,readers.terminalStatus,()=>true]);
+    let sidecarReads=0, injected=false;
+    try {
+      process.env.VOID_BUY_REQUEST_DIR=root;
+      await persist(owner);
+      const ledger=path.join(root,"requests.jsonl");
+      const sidecar=path.join(root,owner.request_id+".json");
+      const journalBefore=fs.readFileSync(ledger);
+      const sidecarBefore=fs.readFileSync(sidecar);
+      if(recovered)fs.unlinkSync(sidecar);
+      fs.readSync=function(fd,buffer,offset,length,position){
+        const read=nativeRead(fd,buffer,offset,length,position);
+        if(read>0) {
+          let fdTarget="";
+          try { fdTarget=fs.readlinkSync("/proc/self/fd/"+fd); }
+          catch {}
+          if(fdTarget===sidecar) {
+            sidecarReads+=1;
+            if(!injected&&sidecarReads===(recovered?1:2)) {
+              buffer[offset]=buffer[offset]===0x42?0x43:0x42;
+              injected=true;
+            }
+          }
+        }
+        return read;
+      };
+      await assert.rejects(()=>persist(retry),
+        /buy_void_request_history_under_lock_sidecar_final_content_mismatch/u,
+        "actual final FD byte mismatch must trigger the canonical-content HOLD");
+      assert.equal(injected,true,"final byte-readback must actually execute");
+      assert.equal(sidecarReads,recovered?1:2,
+        "only the expected initial/final sidecar reads were admitted");
+      assert.deepEqual(fs.readFileSync(sidecar),sidecarBefore,
+        "byte-read adversary must not mutate the real private sidecar");
+      assert.deepEqual(fs.readFileSync(ledger),journalBefore,
+        "byte-read HOLD must not append a second purchase");
+    } finally {
+      fs.readSync=nativeRead;
+      if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+      else process.env.VOID_BUY_REQUEST_DIR=saved;
+      fs.rmSync(root,{recursive:true,force:true});
+    }
+  }
+}
+
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -1097,6 +1156,7 @@ console.log("journal_leaf_substitution_holds_without_visible_append=true");
 console.log("journal_first_create_exclusive_holds=true");
 console.log("missing_sidecar_recovered_only_from_fsynced_journal=true");
 console.log("same_inode_equal_length_final_sidecar_rewrite_holds=true");
+console.log("final_sidecar_byte_readback_mismatch_holds=true");
 console.log("mismatched_or_interloped_sidecar_never_rewritten=true");
 console.log("unsafe_legacy_request_id_sidecar_path_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
