@@ -1,0 +1,45 @@
+name: void-economic-self-sustainability-bootstrap-discretion-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/void-economic-self-sustainability-bootstrap-discretion-v1.json"
+      - "scripts/prove_void_economic_self_sustainability_bootstrap_discretion_v1.mjs"
+      - "docs/governance/void-economic-self-sustainability-bootstrap-discretion-v1.md"
+      - "docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md"
+      - "docs/architecture/void-market-distribution-policy-v1.md"
+      - ".github/workflows/void-economic-self-sustainability-bootstrap-discretion-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+      - name: Prove economic self-sustainability policy
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_economic_self_sustainability_bootstrap_discretion_v1.mjs | tee "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'VOID_ECONOMIC_SELF_SUSTAINABILITY_BOOTSTRAP_DISCRETION_V1_GREEN' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'wc_void_supplemental_liquidity=sovereign_discretion_bootstrap_only' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'automatic_wc_void_treasury_top_up=false' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'top_up_entitlement=false' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'premine_permanent_operating_subsidy_target=false' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'routine_network_automation_target=true' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'liquidity_movement=false' "$RUNNER_TEMP/economic-policy.log"
+          grep -Fx 'funds_action=false' "$RUNNER_TEMP/economic-policy.log"
+      - name: Diff hygiene
+        run: git diff --check

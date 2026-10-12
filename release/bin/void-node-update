@@ -1,0 +1,358 @@
+#!/usr/bin/env node
+import childProcess from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import readline from "node:readline/promises";
+import {fileURLToPath, pathToFileURL} from "node:url";
+
+const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
+const ROLLBACK_TRANSACTION_MARKER="VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1";
+const SYSTEMD_INVOCATION_ID=/^[0-9a-f]{32}$/;
+function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
+function say(m=""){console.log(m);}
+function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
+function shaFile(p){return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");}
+function run(cmd,args,opt={}){
+  const r=childProcess.spawnSync(cmd,args,{cwd:opt.cwd,env:{...process.env,...(opt.env||{})},encoding:"utf8",stdio:opt.capture?["ignore","pipe","pipe"]:"inherit",maxBuffer:128*1024*1024});
+  if(r.error)throw r.error;
+  if(r.status!==0){if(opt.capture){process.stderr.write(r.stdout||"");process.stderr.write(r.stderr||"");}if(opt.allowFail)return r;fail(`${cmd} ${args.join(" ")} failed rc=${r.status}`);}
+  return r;
+}
+function commandExists(c){return childProcess.spawnSync("bash",["-lc",`command -v ${JSON.stringify(c)} >/dev/null 2>&1`]).status===0;}
+function managerAvailable(){const r=childProcess.spawnSync("systemctl",["--user","show-environment"],{stdio:"ignore"});return !r.error&&r.status===0;}
+function serviceInvocationId(){
+  const r=childProcess.spawnSync("systemctl",["--user","show","void-node.service","--property=InvocationID","--value"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]});
+  if(r.error||r.status!==0)return null;
+  const id=String(r.stdout||"").trim().toLowerCase();
+  if(!SYSTEMD_INVOCATION_ID.test(id)||/^0{32}$/.test(id))return null;
+  return id;
+}
+function requireServiceInvocationId(label){const id=serviceInvocationId();if(!id)fail(`${label} requires a valid systemd InvocationID`);return id;}
+function readJson(p){return JSON.parse(fs.readFileSync(p,"utf8"));}
+function parseVersion(v){const m=String(v).match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);if(!m)return null;return {core:m.slice(1,4).map(Number),pre:m[4]||""};}
+function compareVersion(a,b){const A=parseVersion(a),B=parseVersion(b);if(!A||!B)fail(`versions must be semver-compatible: ${a} / ${b}`);for(let i=0;i<3;i++){if(A.core[i]!==B.core[i])return A.core[i]<B.core[i]?-1:1;}if(A.pre===B.pre)return 0;if(!A.pre)return 1;if(!B.pre)return -1;return A.pre<B.pre?-1:1;}
+function ensureSafeName(n){if(typeof n!=="string"||!n||n.includes("/")||n.includes("\\")||n==="."||n==="..")fail(`unsafe asset name: ${n}`);return n;}
+function validateChannel(j,allowFile){
+  if(j?.marker!=="VOID_PUBLIC_RELEASE_CHANNEL_V1"||j?.schema_version!==1)fail("invalid channel marker/schema");
+  if(!["stable","candidate"].includes(j.channel))fail("invalid channel");
+  if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(j.repository||""))fail("invalid repository");
+  if(!/^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$/.test(j.release_tag||""))fail("invalid release tag");
+  if(!/^[0-9a-f]{40}$/.test(j.release?.git_commit||""))fail("invalid release commit");
+  if(!parseVersion(j.release?.version))fail("invalid release version");
+  if(j.release?.platform!=="linux-x64"||j.release?.minimum_node_major!==22)fail("unsupported release platform/runtime");
+  if(!/^[0-9a-f]{64}$/.test(j.release?.archive_sha256||""))fail("invalid archive hash");
+  for(const k of ["archive","installer","manifest","checksums","sbom"]){if(!j.assets?.[k])fail(`missing channel asset ${k}`);}
+  for(const [key,a] of Object.entries(j.assets||{})){
+    ensureSafeName(a.name);
+    if(!/^[0-9a-f]{64}$/.test(a.sha256||""))fail(`invalid hash for ${key}`);
+    if(!Number.isSafeInteger(a.bytes)||a.bytes<1)fail(`invalid size for ${key}`);
+    const u=new URL(a.url);if(u.protocol!=="https:"&&!(allowFile&&u.protocol==="file:"))fail(`unsafe URL for ${key}: ${a.url}`);
+    if(u.protocol==="https:"&&u.hostname!=="github.com")fail(`stable channel assets must start at github.com: ${a.url}`);
+    if(u.protocol==="https:"&&!u.pathname.startsWith(`/${j.repository}/releases/download/${j.release_tag}/`))fail(`asset URL escapes repository/tag: ${a.url}`);
+  }
+  if(j.assets.archive.sha256!==j.release.archive_sha256||j.assets.archive.bytes!==j.release.archive_bytes)fail("archive binding mismatch");
+  if(j.verification?.checksum_algorithm!=="sha256"||j.verification?.github_attestation_required!==true||j.verification?.attestation_repository!==j.repository)fail("unsafe verification policy");
+  if(j.publication!==undefined){const publication=j.publication;if(publication.release_immutable!==true||publication.release_verified!==true||publication.release_attestation_required!==true||publication.artifact_attestations_required!==true||publication.revoked!==false||!/^[0-9a-f]{64}$/.test(publication.publication_receipt_sha256||""))fail("unsafe or revoked publication metadata");}
+  if(j.promotion!==undefined){const promotion=j.promotion;if(promotion.state!==j.channel||!Number.isSafeInteger(promotion.ledger_sequence)||promotion.ledger_sequence<1||!/^[0-9a-f]{64}$/.test(promotion.ledger_tip_sha256||"")||(promotion.canary_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.canary_receipt_sha256||""))||(promotion.qualification_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_receipt_sha256||""))||(promotion.qualification_approval_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_approval_sha256||"")))fail("invalid promotion metadata");if(j.channel==="stable"&&(!promotion.canary_receipt_sha256||!promotion.qualification_receipt_sha256||!promotion.qualification_approval_sha256))fail("stable promotion requires qualification receipt and approval binding");}
+  const p=j.policy||{};if(p.downgrade_allowed_by_default!==false||p.service_started_implicitly!==false||p.restart_requires_explicit_flag!==true||p.health_gate_for_running_service!==true||p.rollback_on_health_failure!==true||p.guarded_lanes_activated!==false||(p.channel_frozen!==undefined&&typeof p.channel_frozen!=="boolean"))fail("unsafe update policy");
+  return j;
+}
+function currentInfo(installRoot){const p=path.join(installRoot,"current","BUILD-INFO.json");if(!fs.existsSync(p))fail(`missing current build info: ${p}`);return readJson(p);}
+function verifyRoot(root){const sums=path.join(root,"RELEASE-CONTENTS-SHA256");if(!fs.existsSync(sums))fail(`missing internal checksums: ${sums}`);run("sha256sum",["--check","--strict","RELEASE-CONTENTS-SHA256"],{cwd:root,capture:true});}
+function exists(p){try{fs.lstatSync(p);return true;}catch(e){if(e?.code==="ENOENT")return false;throw e;}}
+function fsyncDirectory(p){const fd=fs.openSync(p,"r");try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}
+function rollbackPaths(installRoot){return {cur:path.join(installRoot,"current"),prev:path.join(installRoot,"previous"),n1:path.join(installRoot,".current.update-next"),n2:path.join(installRoot,".previous.update-next"),journal:path.join(installRoot,".rollback.update-transaction-v1.json"),journalNext:path.join(installRoot,".rollback.update-transaction-v1.json.next"),restartWitness:path.join(installRoot,".rollback.restart-witness-v1")};}
+function pointerTarget(p,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`${name} release pointer is missing`);throw e;}if(!st.isSymbolicLink())fail(`${name} release pointer is not a symlink`);return fs.realpathSync(p);}
+function requireAbsent(p,name){if(exists(p))fail(`unexpected rollback artifact requires operator recovery: ${name}`);}
+function requireStagedLink(p,target,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`missing rollback staging link: ${name}`);throw e;}if(!st.isSymbolicLink()||fs.realpathSync(p)!==target)fail(`invalid rollback staging link: ${name}`);}
+function requireCanonicalReleaseTarget(installRoot,target,label){
+  const releases=fs.realpathSync(path.join(installRoot,"releases"));
+  if(path.dirname(target)!==releases||fs.realpathSync(target)!==target)fail(`${label} escapes canonical releases directory`);
+  verifyRoot(target);return target;
+}
+function readRollbackRecord(file,installRoot,label){
+  const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail(`invalid ${label}`);
+  let j;try{j=JSON.parse(fs.readFileSync(file,"utf8"));}catch{fail(`invalid ${label} JSON`);}
+  const keys=Object.keys(j||{}).sort().join(",");
+  if(keys!=="marker,old_current,old_previous,restart_if_active,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||typeof j.restart_if_active!=="boolean"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail(`invalid ${label} contract`);
+  for(const [name,target] of [["old_current",j.old_current],["old_previous",j.old_previous]])requireCanonicalReleaseTarget(installRoot,target,`${label} ${name}`);
+  return j;
+}
+function readRollbackJournal(paths,installRoot){return exists(paths.journal)?readRollbackRecord(paths.journal,installRoot,"rollback transaction journal"):null;}
+function writeRollbackJournal(installRoot,paths,journal,testInterrupt){
+  const bytes=Buffer.from(`${JSON.stringify(journal)}\n`);const fd=fs.openSync(paths.journalNext,"wx",0o600);
+  try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  if(testInterrupt)fail("test interruption after rollback staging journal fsync");
+  fs.renameSync(paths.journalNext,paths.journal);fsyncDirectory(installRoot);
+}
+function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
+  const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
+  if(current===journal.old_current&&previous===journal.old_previous){
+    requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n1,paths.cur);fsyncDirectory(installRoot);
+    if(testInterrupt)fail("test interruption after current rollback pointer publication");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_previous){
+    requireAbsent(paths.n1,"current staging link");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_current){
+    requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");
+  }else fail("rollback transaction journal does not match canonical pointer state");
+}
+function serviceActive(){return managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;}
+function readRollbackRestartWitness(paths){
+  if(!exists(paths.restartWitness))return null;
+  const st=fs.lstatSync(paths.restartWitness);if(!st.isSymbolicLink())fail("invalid rollback restart witness");
+  const target=fs.readlinkSync(paths.restartWitness);
+  if(target==="inactive")return Object.freeze({active:false,invocation_id:null});
+  const m=target.match(/^active-([0-9a-f]{32})$/);if(!m||/^0{32}$/.test(m[1]))fail("invalid rollback restart witness");
+  return Object.freeze({active:true,invocation_id:m[1]});
+}
+function createRollbackRestartWitness(installRoot,paths){
+  if(exists(paths.restartWitness))return readRollbackRestartWitness(paths);
+  const active=serviceActive();const invocation=active?requireServiceInvocationId("active rollback service before restart"):null;
+  fs.symlinkSync(active?`active-${invocation}`:"inactive",paths.restartWitness);fsyncDirectory(installRoot);
+  return Object.freeze({active,invocation_id:invocation});
+}
+function finalizeRollbackTransaction(installRoot,paths,journal,testInterruptBeforeRestart,testInterruptAfterRestart=false){
+  if(testInterruptBeforeRestart)fail("test interruption after rollback pointer publication before service restart");
+  if(journal.restart_if_active){
+    if(!managerAvailable())fail("rollback transaction requires systemd user manager to restore previously active service");
+    const witness=createRollbackRestartWitness(installRoot,paths);
+    const currentInvocation=serviceInvocationId();
+    const alreadySatisfied=serviceActive()&&currentInvocation&&(!witness.active||currentInvocation!==witness.invocation_id);
+    if(alreadySatisfied){
+      say(`${MARKER}_ROLLBACK_RESTART_ALREADY_SATISFIED`);
+    }else{
+      run("systemctl",["--user","restart","void-node.service"]);
+      const restartedInvocation=serviceInvocationId();
+      if(!serviceActive()||!restartedInvocation||(witness.active&&restartedInvocation===witness.invocation_id))fail("rollback service restart did not produce a new active systemd InvocationID");
+      if(testInterruptAfterRestart)fail("test interruption after successful service restart before rollback journal cleanup");
+    }
+  }
+  fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
+  if(exists(paths.restartWitness)){fs.unlinkSync(paths.restartWitness);fsyncDirectory(installRoot);}
+}
+function recoverRollbackPreparation(installRoot,paths){
+  const hasJournalNext=exists(paths.journalNext),hasN1=exists(paths.n1),hasN2=exists(paths.n2);
+  if(!hasJournalNext&&!hasN1&&!hasN2)return null;
+  const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
+  if(hasJournalNext){
+    const journal=readRollbackRecord(paths.journalNext,installRoot,"rollback transaction staging journal");
+    if(current!==journal.old_current||previous!==journal.old_previous)fail("rollback staging journal does not match canonical pointer state");
+    requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.unlinkSync(paths.n1);fs.unlinkSync(paths.n2);fs.unlinkSync(paths.journalNext);fsyncDirectory(installRoot);
+    say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return "rollback_aborted_before_publication";
+  }
+  requireCanonicalReleaseTarget(installRoot,current,"current release pointer");requireCanonicalReleaseTarget(installRoot,previous,"previous release pointer");if(current===previous)fail("current and previous releases must be distinct");
+  if(!hasN1&&hasN2)fail("orphan previous rollback staging link requires operator recovery");
+  requireStagedLink(paths.n1,previous,"current");
+  if(hasN2)requireStagedLink(paths.n2,current,"previous");
+  fs.unlinkSync(paths.n1);if(hasN2)fs.unlinkSync(paths.n2);fsyncDirectory(installRoot);
+  say(`${MARKER}_ROLLBACK_PREP_RECOVERED`);return "rollback_aborted_before_publication";
+}
+function recoverRollbackTransaction(installRoot){
+  const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths,installRoot);
+  if(!journal&&exists(paths.restartWitness)){
+    if(exists(paths.journalNext)||exists(paths.n1)||exists(paths.n2))fail("orphan rollback restart witness conflicts with rollback preparation artifacts");
+    readRollbackRestartWitness(paths);fs.unlinkSync(paths.restartWitness);fsyncDirectory(installRoot);say(`${MARKER}_ROLLBACK_RESTART_WITNESS_CLEANED`);return "rollback_restart_witness_cleaned";
+  }
+  if(!journal)return recoverRollbackPreparation(installRoot,paths);
+  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);finalizeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return "rollback_committed";
+}
+function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.restartWitness,"restart witness");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
+function swapRollback(installRoot,restart,testAllowFile){
+  requireCleanRollbackState(installRoot);const paths=rollbackPaths(installRoot);
+  const oldCur=requireCanonicalReleaseTarget(installRoot,pointerTarget(paths.cur,"current"),"current release pointer"),oldPrev=requireCanonicalReleaseTarget(installRoot,pointerTarget(paths.prev,"previous"),"previous release pointer");if(oldCur===oldPrev)fail("current and previous releases must be distinct");
+  fs.symlinkSync(oldPrev,paths.n1);
+  if(testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE==="1")fail("test interruption after first rollback staging link");
+  fs.symlinkSync(oldCur,paths.n2);fsyncDirectory(installRoot);
+  const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev,restart_if_active:Boolean(restart)};
+  writeRollbackJournal(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_STAGING_JOURNAL==="1");
+  completeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT==="1");
+  finalizeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART==="1",testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART==="1");
+  say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
+}
+async function boundedCancel(target,reason){
+  if(!target||typeof target.cancel!=="function")return;
+  try{
+    await Promise.race([
+      Promise.resolve(target.cancel(reason)).catch(()=>undefined),
+      new Promise(resolve=>setTimeout(resolve,250)),
+    ]);
+  }catch{}
+}
+function canonicalContentLength(response,label,maxBytes){
+  const raw=response.headers.get("content-length");
+  if(raw===null)return null;
+  if(!/^(?:0|[1-9][0-9]*)$/.test(raw))throw new Error(`${label} content-length is invalid`);
+  const value=BigInt(raw);
+  if(value>BigInt(maxBytes))throw new Error(`${label} exceeds size limit`);
+  return Number(value);
+}
+async function readHttpBytesBounded(u,maxBytes,timeoutMs,label){
+  const requested=u.href;
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(),timeoutMs);
+  let response=null;
+  try{
+    response=await fetch(u,{redirect:"error",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(response.redirected||response.url!==requested)throw new Error(`${label} final URL mismatch`);
+    if(!response.ok)throw new Error(`${label} failed HTTP ${response.status}`);
+    try{canonicalContentLength(response,label,maxBytes);}catch(error){await boundedCancel(response.body,`${label} rejected`);throw error;}
+    if(!response.body||typeof response.body.getReader!=="function")throw new Error(`${label} body is not stream-readable`);
+    const reader=response.body.getReader(),chunks=[];let total=0;
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(!(value instanceof Uint8Array))throw new Error(`${label} response chunk is invalid`);
+        total+=value.byteLength;
+        if(total>maxBytes){await boundedCancel(reader,`${label} exceeds size limit`);throw new Error(`${label} exceeds size limit`);}
+        chunks.push(Buffer.from(value));
+      }
+    }finally{try{reader.releaseLock();}catch{}}
+    return Buffer.concat(chunks,total);
+  }finally{
+    clearTimeout(t);
+    ac.abort();
+  }
+}
+async function readSource(source,allowFile,maxBytes=2*1024*1024){
+  let u;try{u=new URL(source);}catch{u=pathToFileURL(path.resolve(source));}
+  if(u.protocol==="file:"){
+    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");
+    const b=fs.readFileSync(fileURLToPath(u));if(b.length>maxBytes)fail("channel file exceeds size limit");return b;
+  }
+  if(u.protocol!=="https:")fail(`channel URL must use HTTPS: ${source}`);
+  return await readHttpBytesBounded(u,maxBytes,30000,"channel download");
+}
+async function downloadHttpsAssetToFile(u,dest,a){
+  const requested=u.href,ac=new AbortController(),t=setTimeout(()=>ac.abort(),120000);
+  let fd=null,response=null,total=0;
+  const hash=crypto.createHash("sha256");
+  try{
+    response=await fetch(u,{redirect:"error",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(response.redirected||response.url!==requested)throw new Error(`asset final URL mismatch for ${a.name}`);
+    if(!response.ok)throw new Error(`asset download failed ${response.status}: ${u}`);
+    try{canonicalContentLength(response,`asset ${a.name}`,a.bytes);}catch(error){await boundedCancel(response.body,`asset ${a.name} rejected`);throw error;}
+    if(!response.body||typeof response.body.getReader!=="function")throw new Error(`asset body unavailable for ${a.name}`);
+    fd=fs.openSync(dest,"wx",a.name.endsWith(".sh")?0o755:0o644);
+    const reader=response.body.getReader();
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(!(value instanceof Uint8Array))throw new Error(`asset response chunk invalid for ${a.name}`);
+        total+=value.byteLength;
+        if(total>a.bytes){await boundedCancel(reader,`asset ${a.name} exceeds expected bytes`);throw new Error(`asset size mismatch for ${a.name}: >${a.bytes}`);}
+        const chunk=Buffer.from(value);fs.writeSync(fd,chunk);hash.update(chunk);
+      }
+    }finally{try{reader.releaseLock();}catch{}}
+    if(total!==a.bytes)throw new Error(`asset size mismatch for ${a.name}: ${total} != ${a.bytes}`);
+    const digest=hash.digest("hex");if(digest!==a.sha256)throw new Error(`asset checksum mismatch for ${a.name}`);
+    fs.fsyncSync(fd);fs.closeSync(fd);fd=null;
+  }catch(error){
+    if(fd!==null){try{fs.closeSync(fd);}catch{}}
+    try{fs.unlinkSync(dest);}catch{}
+    throw error;
+  }finally{clearTimeout(t);ac.abort();}
+}
+async function downloadAsset(a,dest,allowFile){
+  const u=new URL(a.url);
+  if(u.protocol==="file:"){
+    if(!allowFile)fail("file assets are test-only");
+    const b=fs.readFileSync(fileURLToPath(u));
+    if(b.length!==a.bytes)fail(`asset size mismatch for ${a.name}: ${b.length} != ${a.bytes}`);
+    const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
+    fs.writeFileSync(dest,b,{flag:"wx",mode:a.name.endsWith(".sh")?0o755:0o644});
+    return;
+  }
+  await downloadHttpsAssetToFile(u,dest,a);
+}
+function parseArgs(){
+  const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
+  for(let i=0;i<argv.length;i++){
+    const a=argv[i];
+    if(a==="--channel")o.channel=argv[++i]||fail("--channel needs a source");
+    else if(a==="--install-root")o.installRoot=argv[++i]||fail("--install-root needs a path");
+    else if(a==="--bin-dir")o.binDir=argv[++i]||fail("--bin-dir needs a path");
+    else if(a==="--health-url")o.healthUrl=argv[++i]||fail("--health-url needs a URL");
+    else if(a==="--health-command")o.healthCommand=argv[++i]||fail("--health-command needs a command");
+    else if(a==="--yes")o.yes=true;
+    else if(a==="--allow-downgrade")o.allowDowngrade=true;
+    else if(a==="--allow-candidate")o.allowCandidate=true;
+    else if(a==="--restart-if-running")o.restartIfRunning=true;
+    else if(a==="--test-allow-file")o.testAllowFile=true;
+    else if(a==="--skip-attestation")o.skipAttestation=true;
+    else fail(`unknown argument: ${a}`);
+  }
+  return o;
+}
+async function confirm(o,message){if(o.yes)return; if(!process.stdin.isTTY)fail("--yes is required in non-interactive mode");const rl=readline.createInterface({input:process.stdin,output:process.stdout});const ans=await rl.question(`${message} [type yes]: `);rl.close();if(ans.trim()!=="yes")fail("update cancelled",2);}
+async function healthCheck(o){
+  if(o.healthCommand){if(!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_HEALTH_COMMAND!=="1")fail("--health-command is test/operator-only");return childProcess.spawnSync("bash",["-lc",o.healthCommand],{stdio:"inherit"}).status===0;}
+  if(!o.healthUrl)return true;
+  let u;try{u=new URL(o.healthUrl);}catch{return false;}
+  if(!["http:","https:"].includes(u.protocol)||u.username||u.password)return false;
+  for(let i=0;i<30;i++){
+    try{
+      const body=await readHttpBytesBounded(u,64*1024,3000,"health response");
+      let text;try{text=new TextDecoder("utf-8",{fatal:true}).decode(body);}catch{throw new Error("health response UTF-8 invalid");}
+      const j=JSON.parse(text);
+      if(
+        j?.ready===true &&
+        typeof j?.gap==="number" && Number.isSafeInteger(j.gap) && j.gap===0 &&
+        typeof j?.txroot_live==="number" && Number.isSafeInteger(j.txroot_live) && j.txroot_live===1
+      )return true;
+    }catch{}
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  return false;
+}
+async function main(){
+  const o=parseArgs();const self=fs.realpathSync(process.argv[1]);const releaseRoot=path.dirname(path.dirname(self));const inferredInstall=path.dirname(path.dirname(releaseRoot));
+  const installRoot=path.resolve(o.installRoot||process.env.VOID_NODE_INSTALL_ROOT||inferredInstall);const binDir=path.resolve(o.binDir||process.env.VOID_NODE_BIN_DIR||path.join(os.homedir(),".local","bin"));
+  if(o.command==="help"||o.command==="--help"||o.command==="-h"){
+    say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
+  }
+  const recoveryOutcome=recoverRollbackTransaction(installRoot);requireCleanRollbackState(installRoot);
+  if(o.command==="recover"){say(`recovery_outcome=${recoveryOutcome||"none"}`);return;}
+  if(recoveryOutcome==="rollback_committed"&&o.command==="rollback"){say(`${MARKER}_ROLLBACK_RECOVERY_SATISFIED_REQUEST`);return;}
+  if(o.command==="rollback"){const active=serviceActive();swapRollback(installRoot,active,o.testAllowFile);return;}
+  if(!o.channel)fail("--channel is required");
+  const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
+  say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
+  if(o.command==="check")return;
+  if(o.command!=="apply")fail(`unknown command: ${o.command}`);
+  if(channel.channel==="candidate"&&!o.allowCandidate)fail("candidate channel apply requires --allow-candidate");
+  if(cmp===0){say(`${MARKER}_ALREADY_CURRENT`);return;}
+  if(cmp<0&&!o.allowDowngrade)fail(`downgrade refused: ${cur.version} -> ${channel.release.version}`);
+  await confirm(o,`Apply verified VOID update ${cur.version} -> ${channel.release.version}?`);
+  const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;
+  if(active&&!o.restartIfRunning)fail("service is running; pass --restart-if-running to permit an explicit restart and health gate");
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-node-update-v1-"));
+  try{
+    for(const [key,a] of Object.entries(channel.assets))await downloadAsset(a,path.join(tmp,a.name),o.testAllowFile);
+    const sums=fs.readFileSync(path.join(tmp,channel.assets.checksums.name),"utf8");
+    for(const key of ["archive","installer","manifest","sbom"]){const a=channel.assets[key];const line=`${a.sha256}  ${a.name}`;if(!sums.split(/\r?\n/).includes(line))fail(`SHA256SUMS does not bind ${a.name}`);}
+    if(channel.verification.github_attestation_required&&!o.testAllowFile&&!o.skipAttestation){
+      if(!commandExists("gh"))fail("GitHub CLI is required to verify release attestations");
+      for(const key of ["archive","installer","manifest"]){run("gh",["attestation","verify",path.join(tmp,channel.assets[key].name),"--repo",channel.verification.attestation_repository]);}
+    } else if(o.skipAttestation&&!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_SKIP_ATTESTATION!=="1") fail("--skip-attestation requires explicit operator override");
+    const installer=path.join(tmp,channel.assets.installer.name),archive=path.join(tmp,channel.assets.archive.name),checksums=path.join(tmp,channel.assets.checksums.name),manifest=path.join(tmp,channel.assets.manifest.name);
+    run("bash",[installer,"install","--archive",archive,"--checksums",checksums,"--manifest",manifest,"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:{VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE:process.env.VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE||"",VOID_NODE_ALLOW_ROOT_INSTALL:process.env.VOID_NODE_ALLOW_ROOT_INSTALL||""}});
+    verifyRoot(path.join(installRoot,"current"));
+    if(active&&o.restartIfRunning)run("systemctl",["--user","restart","void-node.service"]);
+    const healthRequired=Boolean(o.healthCommand||o.healthUrl||active);
+    if(active&&!o.healthUrl&&!o.healthCommand)o.healthUrl="http://127.0.0.1:4100/__void/ready.json";
+    if(healthRequired&&!(await healthCheck(o))){
+      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning,o.testAllowFile);fail("updated release failed health gate and was rolled back");
+    }
+    say(`${MARKER}_APPLY_GREEN`);say(`updated_to=${channel.release.version}`);say(`previous_version=${cur.version}`);say(`service_restarted=${active&&o.restartIfRunning}`);say("health_gate_green=true");say("service_started_implicitly=false");say("guarded_lanes_activated=false");
+  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
+}
+main().catch(e=>fail(e?.stack||String(e)));

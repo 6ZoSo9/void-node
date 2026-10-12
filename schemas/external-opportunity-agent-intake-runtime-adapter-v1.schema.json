@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-opportunity-agent-intake-runtime-adapter-v1.schema.json",
+  "title": "VOID External Opportunity Agent Intake Runtime Adapter V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "registration",
+    "handler_binding",
+    "response_mapping",
+    "behavior"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-external-opportunity-agent-intake-runtime-adapter-v1"
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_RUNTIME_ADAPTER_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "method",
+        "registration_count_per_mount",
+        "exact_path_only"
+      ],
+      "properties": {
+        "path": {
+          "const": "/.well-known/void-agent-intake-capability-v1.json"
+        },
+        "method": {
+          "const": "all"
+        },
+        "registration_count_per_mount": {
+          "const": 1
+        },
+        "exact_path_only": {
+          "const": true
+        }
+      }
+    },
+    "handler_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "handler",
+        "etag",
+        "response_body_sha256"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_READONLY_DISCOVERY_ROUTE_V1"
+        },
+        "handler": {
+          "const": "handleExternalOpportunityAgentIntakeDiscoveryV1"
+        },
+        "etag": {
+          "const": "\"sha256-c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a\""
+        },
+        "response_body_sha256": {
+          "const": "a085c9d38ad6d1ab9358c3166a4e60f468ed5dd145060f3edf85e23f54227c97"
+        }
+      }
+    },
+    "response_mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "headers",
+        "body",
+        "empty_body"
+      ],
+      "properties": {
+        "status": {
+          "const": "status"
+        },
+        "headers": {
+          "const": "setHeader"
+        },
+        "body": {
+          "const": "send_or_end"
+        },
+        "empty_body": {
+          "const": "end"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "get",
+        "head",
+        "conditional_304",
+        "unsupported_method_405",
+        "noncanonical_path_404",
+        "structural_application_interface",
+        "express_import",
+        "production_mount",
+        "runtime_host_mutation",
+        "index_mutation",
+        "network_listener",
+        "outbound_network_request",
+        "deployment"
+      ],
+      "properties": {
+        "get": {
+          "const": true
+        },
+        "head": {
+          "const": true
+        },
+        "conditional_304": {
+          "const": true
+        },
+        "unsupported_method_405": {
+          "const": true
+        },
+        "noncanonical_path_404": {
+          "const": true
+        },
+        "structural_application_interface": {
+          "const": true
+        },
+        "express_import": {
+          "const": false
+        },
+        "production_mount": {
+          "const": false
+        },
+        "runtime_host_mutation": {
+          "const": false
+        },
+        "index_mutation": {
+          "const": false
+        },
+        "network_listener": {
+          "const": false
+        },
+        "outbound_network_request": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,80 @@
+name: VOID Buy VOID replay Nimo compare-only forced command v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_compare_only_forced_command_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.yml"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-external-forced-command-v1.mjs"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_ssh_compare_adapter_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-replay-compare-only-forced-command-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: replay compare-only forced command / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Syntax-check compare-only wrapper and proof
+        run: |
+          node --check tools/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs
+          node --check scripts/prove_buy_void_allocation_custody_witness_live_read_replay_compare_only_forced_command_v1.mjs
+
+      - name: Prove compare-only forced command
+        run: node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_compare_only_forced_command_v1.mjs
+
+      - name: Preserve Nimo replay forced command
+        run: node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_v1.mjs
+
+      - name: Preserve pinned SSH compare adapter
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_ssh_compare_adapter_v1.ts
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"

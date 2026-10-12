@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/tor-agent-and-revenue-activation-v1.schema.json",
+  "title": "VOID Tor Agent MCP Read-Only Descriptor V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "status",
+    "generated_at",
+    "transport",
+    "protocol",
+    "identity",
+    "authority",
+    "security",
+    "discovery"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "marker": {
+      "const": "VOID_TOR_AGENT_MCP_READONLY_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "active"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "uri",
+        "onion_hostname",
+        "virtual_port",
+        "path",
+        "descriptor_paths"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "mcp-streamable-http-over-tor-v3"
+        },
+        "uri": {
+          "type": "string",
+          "pattern": "^http://[a-z2-7]{56}\\.onion(?::[1-9][0-9]{0,4})?/mcp$"
+        },
+        "onion_hostname": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{56}\\.onion$"
+        },
+        "virtual_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "path": {
+          "const": "/mcp"
+        },
+        "descriptor_paths": {
+          "const": [
+            "/.well-known/void-agent-mcp-onion-v1.json",
+            "/public-node/agents/mcp-tor-v1.json"
+          ]
+        }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "supported_versions",
+        "methods",
+        "anonymous"
+      ],
+      "properties": {
+        "name": {
+          "const": "mcp-streamable-http"
+        },
+        "supported_versions": {
+          "const": [
+            "2025-11-25",
+            "2026-07-28"
+          ]
+        },
+        "methods": {
+          "const": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        "anonymous": {
+          "const": true
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_void_node_identity",
+        "signed_void_node_binding",
+        "tor_self_authentication",
+        "binding_status",
+        "node_id",
+        "key_type",
+        "public_key_fingerprint_sha256",
+        "issued_at",
+        "expires_at",
+        "binding_paths"
+      ],
+      "properties": {
+        "canonical_void_node_identity": {
+          "const": true
+        },
+        "signed_void_node_binding": {
+          "const": true
+        },
+        "tor_self_authentication": {
+          "const": true
+        },
+        "binding_status": {
+          "const": "signed-node-to-onion-v1"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "key_type": {
+          "const": "ed25519"
+        },
+        "public_key_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "binding_paths": {
+          "const": [
+            "/.well-known/void-node-onion-binding-v1.json",
+            "/public-node/transports/tor-v1-binding.json"
+          ]
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "paid_work_submission",
+        "buy_void_fulfillment",
+        "work_credit_write",
+        "datanet_write",
+        "wallet_or_signer_access",
+        "node_runtime_mutation",
+        "operator_control"
+      ],
+      "properties": {
+        "read_only": {
+          "const": true
+        },
+        "paid_work_submission": {
+          "const": false
+        },
+        "buy_void_fulfillment": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "datanet_write": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "node_runtime_mutation": {
+          "const": false
+        },
+        "operator_control": {
+          "const": false
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_path_allowlist",
+        "fixed_loopback_upstream",
+        "generic_proxy",
+        "credential_headers_accepted",
+        "browser_origin_requests_accepted",
+        "bounded_request_bytes",
+        "bounded_response_bytes",
+        "maximum_concurrent_requests",
+        "upstream_timeout_ms"
+      ],
+      "properties": {
+        "exact_path_allowlist": {
+          "const": true
+        },
+        "fixed_loopback_upstream": {
+          "const": true
+        },
+        "generic_proxy": {
+          "const": false
+        },
+        "credential_headers_accepted": {
+          "const": false
+        },
+        "browser_origin_requests_accepted": {
+          "const": false
+        },
+        "bounded_request_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "bounded_response_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "maximum_concurrent_requests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "upstream_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000
+        }
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tor_transport_descriptor_paths",
+        "signed_node_binding_paths"
+      ],
+      "properties": {
+        "tor_transport_descriptor_paths": {
+          "const": [
+            "/.well-known/void-tor-onion-transport-v1.json",
+            "/public-node/transports/tor-v1.json"
+          ]
+        },
+        "signed_node_binding_paths": {
+          "const": [
+            "/.well-known/void-node-onion-binding-v1.json",
+            "/public-node/transports/tor-v1-binding.json"
+          ]
+        }
+      }
+    }
+  }
+}

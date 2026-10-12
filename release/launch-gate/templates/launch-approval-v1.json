@@ -1,0 +1,10 @@
+{
+  "marker": "VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_APPROVAL_V1",
+  "schema_version": 1,
+  "launch_id": "launch-release-vX.Y.Z-0000000000000000",
+  "packet_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "preparer_id": "release-preparer",
+  "reviewer_id": "independent-release-reviewer",
+  "approved": true,
+  "confirmation": "APPROVE VOID RELEASE LAUNCH release-vX.Y.Z AT COMMIT PACKET SHA256"
+}

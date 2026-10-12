@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID DataNet client-encrypted E2E smoke -> node_exporter textfile
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/void-dn-enc-e2e-textfile-once "http://127.0.0.1:4100" "/var/lib/node_exporter/textfile_collector"
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

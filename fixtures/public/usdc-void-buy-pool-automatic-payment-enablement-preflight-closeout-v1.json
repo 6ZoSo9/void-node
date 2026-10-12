@@ -1,0 +1,64 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1",
+  "scope": "public_read_only_automatic_payment_enablement_preflight",
+  "status": {
+    "manual_fulfillment_readiness_stack_final_synced": true,
+    "public_reviewer_verify_pack_final_synced": true,
+    "automatic_payment_enablement_preflight_closed": true,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "buyer_fulfillment_enabled": false,
+    "wallet_signing_enabled": false,
+    "treasury_movement_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1",
+    "json": "/public-node/usdc-void-buy-pool/automatic-payment-enablement/preflight-closeout-v1.json",
+    "reviewer_verify_pack_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1",
+    "reviewer_verify_pack_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/reviewer-verify-pack-v1.json",
+    "buyer_facing_closeout_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1",
+    "buyer_facing_closeout_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json",
+    "public_readiness_summary_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1",
+    "public_readiness_summary_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json",
+    "dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json"
+  },
+  "sealed_markers": {
+    "reviewer_verify_pack": "VOID_USDC_VOID_BUY_POOL_MANUAL_FULFILLMENT_READINESS_PUBLIC_REVIEWER_VERIFY_PACK_V1",
+    "buyer_facing_closeout": "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1",
+    "public_readiness_summary": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1"
+  },
+  "required_before_actual_enablement": [
+    "private_operator_activation_packet",
+    "explicit_operator_approval_record",
+    "signer_wallet_access_private_and_explicit",
+    "duplicate_payment_guard_in_live_path",
+    "verified_receipt_parser_in_live_path",
+    "inventory_exhaustion_closeout_proof",
+    "rollback_disable_switch_proof",
+    "cross_box_live_activation_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_wallet_secret": false,
+    "contains_private_document_path": false,
+    "contains_execution_material": false,
+    "contains_transfer_instruction": false
+  },
+  "next_private_gate": "operator_activation_packet_required_before_enablement"
+}

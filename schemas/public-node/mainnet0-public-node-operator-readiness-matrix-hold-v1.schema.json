@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.schema.json",
+  "title": "VOID Mainnet-0 Public Node Operator Readiness Matrix Hold v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "lane",
+    "status",
+    "public_surface",
+    "authority",
+    "readiness_categories",
+    "boundary",
+    "operator_summary"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN"
+    },
+    "lane": {
+      "const": "mainnet0-public-node-operator-readiness-matrix-hold-v1"
+    },
+    "status": {
+      "const": "readiness_hold"
+    },
+    "public_surface": {
+      "type": "string",
+      "enum": ["read_only_static_visibility"]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registration_enabled",
+        "validator_activation_enabled",
+        "staking_enabled",
+        "wallet_connect_enabled",
+        "public_mutation_enabled",
+        "ledger_write_enabled",
+        "validator_set_write_enabled",
+        "peer_state_write_enabled"
+      ],
+      "properties": {
+        "registration_enabled": { "const": false },
+        "validator_activation_enabled": { "const": false },
+        "staking_enabled": { "const": false },
+        "wallet_connect_enabled": { "const": false },
+        "public_mutation_enabled": { "const": false },
+        "ledger_write_enabled": { "const": false },
+        "validator_set_write_enabled": { "const": false },
+        "peer_state_write_enabled": { "const": false }
+      }
+    },
+    "readiness_categories": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "status", "operator_guidance"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "status": { "const": "preparation_guidance_only" },
+          "operator_guidance": { "type": "string" }
+        }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "forbidden"],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "forbidden": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "operator_summary": {
+      "type": "string"
+    }
+  }
+}

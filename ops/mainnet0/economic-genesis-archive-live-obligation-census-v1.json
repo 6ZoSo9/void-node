@@ -1,0 +1,70 @@
+{
+  "marker": "VOID_ECONOMIC_GENESIS_ARCHIVE_LIVE_OBLIGATION_CENSUS_V1",
+  "version": 1,
+  "status": "LIVE_OBLIGATION_CENSUS_GREEN",
+  "source_snapshot": {
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "total_supply_atoms": "333333333000000000000000000"
+  },
+  "value_buckets": [
+    {
+      "label": "VoidTreasury",
+      "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+      "balance_atoms": "323207333000000000000000000",
+      "obligation_class": "core_treasury_reserve",
+      "live_obligation_census_complete": true,
+      "third_party_claim_state": "none_proven_at_final_snapshot",
+      "successor_destination_ready": false
+    },
+    {
+      "label": "UpgradeStaking",
+      "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+      "balance_atoms": "126000000000000000000000",
+      "obligation_class": "validator_stake_custody",
+      "live_obligation_census_complete": true,
+      "validator_count": "126",
+      "active_validator_count": "126",
+      "pending_activation_count": "0",
+      "pending_exit_count": "0",
+      "jailed_count": "0",
+      "unbond_sum_atoms": "0",
+      "attributed_liability_atoms": "126000000000000000000000",
+      "liability_sum_matches_balance": true,
+      "successor_destination_ready": false
+    },
+    {
+      "label": "PresaleFulfillment",
+      "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+      "balance_atoms": "10000000000000000000000000",
+      "obligation_class": "presale_inventory_and_fulfillment",
+      "live_obligation_census_complete": true,
+      "remaining_inventory_atoms": "10000000000000000000000000",
+      "total_fulfilled_atoms": "0",
+      "max_inventory_atoms": "10000000000000000000000000",
+      "open_fulfillment_liability_atoms": "0",
+      "accounting_identity_holds": true,
+      "successor_destination_ready": false
+    }
+  ],
+  "coverage": {
+    "every_nonzero_voidtoken_holder_covered": true,
+    "contract_holder_count": 3,
+    "live_obligation_contract_census_complete": true,
+    "all_contract_held_void_attributed_to_named_bucket": true,
+    "destination_manifest_complete": false,
+    "successor_custody_review_complete": false
+  },
+  "authority": {
+    "source_only": true,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

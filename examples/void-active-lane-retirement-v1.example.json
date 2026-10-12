@@ -1,0 +1,11 @@
+{
+  "archive_dir": "/home/example/void-lane-control/example-retirement-20260730T230000Z",
+  "branch": "feat/example-v1",
+  "command": "plan",
+  "marker": "VOID_ACTIVE_LANE_RETIREMENT_V1",
+  "output": "/home/example/Downloads/example-retirement-plan.json",
+  "repo_root": "/home/example/dev/void-node",
+  "require_github": true,
+  "version": 1,
+  "worktree": "/home/example/dev/void-node-example-v1"
+}

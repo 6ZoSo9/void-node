@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VOID Participant Local Node</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0b1020; --panel:#121a31; --panel2:#0f1730; --text:#e7ecff;
+      --muted:#9aa7d1; --accent:#7aa2ff; --ok:#7ee787; --warn:#ffb86b;
+      --err:#ff7b72; --border:#26304f;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; font-family:Inter,system-ui,Arial,sans-serif;
+      background:linear-gradient(180deg,#09101d 0%,#0b1020 100%);
+      color:var(--text);
+    }
+    .wrap { max-width:1100px; margin:0 auto; padding:24px; }
+    .hero { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:16px; }
+    .hero h1 { margin:0 0 10px; }
+    .hero p { margin:0; color:var(--muted); max-width:760px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .card {
+      background:var(--panel); border:1px solid var(--border); border-radius:16px;
+      padding:16px; box-shadow:0 8px 24px rgba(0,0,0,.22);
+    }
+    .card h2 { margin:0 0 12px; font-size:18px; }
+    .stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .stat {
+      background:#0e1630; border:1px solid var(--border); border-radius:12px; padding:12px;
+    }
+    .k { color:var(--muted); font-size:12px; margin-bottom:4px; }
+    .v { font-weight:700; word-break:break-word; }
+    .pill {
+      display:inline-block; padding:4px 8px; border-radius:999px;
+      border:1px solid var(--border); color:var(--muted); font-size:12px;
+    }
+    .ok { color:var(--ok); border-color:#2f6f3b; }
+    .warn { color:var(--warn); border-color:#7a5a2f; }
+    .err { color:var(--err); border-color:#7a2f2f; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    a.btn, button.btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:12px 14px; border-radius:12px; text-decoration:none; cursor:pointer;
+      border:1px solid #284a8b; background:#17305f; color:var(--text); font:inherit;
+    }
+    a.btn.secondary, button.btn.secondary {
+      background:#0f1730; border-color:var(--border);
+    }
+    pre {
+      margin:0; white-space:pre-wrap; word-break:break-word; background:#0a1228;
+      border:1px solid var(--border); border-radius:12px; padding:12px; overflow:auto;
+    }
+    .list { display:grid; gap:10px; }
+    .item { background:#0e1630; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    @media (max-width:900px) {
+      .grid, .stats { grid-template-columns:1fr; }
+      .hero { flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <h1>VOID Participant Local Node</h1>
+        <p>This page is the newcomer view: node health, chain head, update status, latest DataNet object, latest agent job, and exact commands to get started.</p>
+      </div>
+      <div class="row">
+        <span id="healthPill" class="pill">health: checking…</span>
+        <span id="updatePill" class="pill">update trust: checking…</span>
+        <button class="btn secondary" onclick="refreshAll()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Node snapshot</h2>
+        <div class="stats">
+          <div class="stat"><div class="k">Node ID</div><div id="nodeId" class="v"></div></div>
+          <div class="stat"><div class="k">Listen</div><div id="listen" class="v"></div></div>
+          <div class="stat"><div class="k">Head</div><div id="head" class="v"></div></div>
+          <div class="stat"><div class="k">Mempool</div><div id="mempool" class="v"></div></div>
+          <div class="stat"><div class="k">Version</div><div id="version" class="v"></div></div>
+          <div class="stat"><div class="k">Protocol / Channel</div><div id="protocol" class="v"></div></div>
+          <div class="stat"><div class="k">Loopproof</div><div id="loopproof" class="v"></div></div>
+          <div class="stat"><div class="k">Receipts</div><div id="receipts" class="v"></div></div>
+          <div class="stat"><div class="k">Update trust</div><div id="sigState" class="v"></div></div>
+          <div class="stat"><div class="k">Trust detail</div><div id="sigReason" class="v"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Quick start</h2>
+        <div class="row" style="margin-bottom:12px;">
+          <button class="btn" id="copyCommandsBtn" type="button">Copy commands</button>
+          <span class="muted" id="copyCommandsMsg">ready</span>
+        </div>
+        <p class="muted">This local participant setup runs beside your main node with its own service, ports, data directory, and PKCS8 PEM key.</p>
+        <div class="stats">
+          <div class="stat"><div class="k">Service</div><div class="v">void-node-local.service</div></div>
+          <div class="stat"><div class="k">HTTP</div><div class="v">4110</div></div>
+          <div class="stat"><div class="k">P2P</div><div class="v">4710</div></div>
+          <div class="stat"><div class="k">Key format</div><div class="v">PKCS8 PEM</div></div>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <a class="btn" href="/datanet-demo">Open DataNet demo</a>
+          <a class="btn secondary" href="/demo/datanet/">Open legacy demo path</a>
+        </div>
+        <div class="list" style="margin-bottom:12px;">
+          <div><strong>Live base:</strong> <span id="liveBase">http://127.0.0.1:4110</span></div>
+          <div><strong>Service:</strong> <span>void-node-local.service</span></div>
+        </div>
+        <pre id="commands">cd ~/dev/void-node
+ops/voidctl init
+ops/voidctl install-service
+ops/voidctl update-verify
+ops/voidctl doctor</pre>
+      </div>
+
+      <div class="card">
+        <h2>Pending update plan</h2>
+        <p class="muted">This shows whether a local pending update plan exists for this participant node.</p>
+        <div class="stats">
+          <div class="stat"><div class="k">Plan present</div><div id="planPresent" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Parse ok</div><div id="planParseOk" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Plan service</div><div id="planService" class="v">checking…</div></div>
+          <div class="stat"><div class="k">Service match</div><div id="planServiceMatch" class="v">checking…</div></div>
+        </div>
+        <div class="list" style="margin-top:12px;">
+          <div><strong>Plan file:</strong> <span id="planFile">checking…</span></div>
+          <div><strong>Backup dir:</strong> <span id="planBackupDir">checking…</span></div>
+          <div><strong>Plan base:</strong> <span id="planBase">checking…</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>Latest DataNet object</h2>
+        <div id="latestDataset" class="list"></div>
+      </div>
+      <div class="card">
+        <h2>Latest agent job</h2>
+        <div id="latestAgent" class="list"></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>Update check</h2>
+        <pre id="updateOut">{}</pre>
+      </div>
+      <div class="card">
+        <h2>Summary JSON</h2>
+        <pre id="summaryOut">{}</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function pretty(x){ return JSON.stringify(x, null, 2); }
+    async function jfetch(url){
+      const r = await fetch(url);
+      const txt = await r.text();
+      let data;
+      try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+      if (!r.ok) throw new Error((data && (data.err || data.error)) || txt || ("HTTP " + r.status));
+      return data;
+    }
+    function setText(id, txt){ document.getElementById(id).textContent = txt ?? ""; }
+    function setJSON(id, obj){ document.getElementById(id).textContent = pretty(obj); }
+    function setPill(id, text, cls){
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = ("pill " + (cls || "")).trim();
+    }
+
+    async function loadSummary(){
+      const s = await jfetch("/__void/demo/summary.json");
+      const a = await jfetch("/__void/agent/summary.json");
+      setJSON("summaryOut", s);
+
+      setText("nodeId", (s.health || {}).node_id || "");
+      setText("listen", "http:" + ((s.health || {}).http_port ?? "") + " | p2p:" + ((s.health || {}).p2p_port ?? ""));
+      setText("head", String((s.chain || {}).head ?? ""));
+      setText("mempool", String((s.chain || {}).mempool_count ?? ""));
+      setText("version", String((s.update || {}).version ?? ""));
+      setText("protocol", String((s.update || {}).protocol_version ?? "") + " / " + String((s.update || {}).channel ?? ""));
+      setText("loopproof", String((s.datanet || {}).loopproof_ok ?? ""));
+      setText("receipts", String((s.datanet || {}).receipts_count ?? ""));
+
+      const u = await jfetch("/upgrade/check");
+      if (u.signature_present && u.signature_valid) setText("sigState", "signed + valid");
+      else if (u.signature_present && !u.signature_valid) setText("sigState", "signed + not yet verified");
+      else setText("sigState", "unsigned / missing");
+      setText("sigReason", String(u.verification_reason ?? ""));
+
+      const ds = ((s.datanet || {}).latest_dataset || null);
+      document.getElementById("latestDataset").innerHTML = ds ? `
+        <div class="item">
+          <div class="k">Dataset ID</div>
+          <div class="v">${ds.id || ""}</div>
+          <div class="k" style="margin-top:8px;">mime=${ds.mime || ""} | plain=${ds.plaintext_len ?? ""} | cipher=${ds.ciphertext_len ?? ""}</div>
+          <div class="k" style="margin-top:6px;">sha256=${ds.sha256 || ""}</div>
+        </div>` : `<div class="item">No dataset found.</div>`;
+
+      const job = (a.latest_job || null);
+      document.getElementById("latestAgent").innerHTML = job ? `
+        <div class="item">
+          <div class="k">Job ID</div>
+          <div class="v">${job.id || ""}</div>
+          <div class="k" style="margin-top:8px;">type=${job.type || ""} | status=${job.status || ""} | priority=${job.priority ?? ""}</div>
+          <div class="k" style="margin-top:6px;">result_hash=${job.result_hash || ""}</div>
+        </div>` : `<div class="item">No job found.</div>`;
+
+      setPill("healthPill", "health: ok", "ok");
+    }
+
+    async function loadUpdate(){
+      try {
+        const u = await jfetch("/upgrade/check");
+        setJSON("updateOut", u);
+        if (u.compatible && !u.update_available) setPill("updatePill", "update: up to date", "ok");
+        else if (u.compatible && u.update_available) setPill("updatePill", "update: available", "warn");
+        else setPill("updatePill", "update: incompatible", "err");
+      } catch (e) {
+        setPill("updatePill", "update: error", "err");
+        setJSON("updateOut", { ok:false, err:String(e.message || e) });
+      }
+    }
+
+    async function loadPlanStatus(){
+      try {
+        const p = await jfetch("/__void/update/plan-status.json");
+        setText("planPresent", String(!!p.plan_present));
+        setText("planParseOk", String(!!p.parse_ok));
+        setText("planService", (p.plan && p.plan.service) ? String(p.plan.service) : "none");
+        setText("planServiceMatch", p.service_match === null ? "n/a" : String(!!p.service_match));
+        setText("planFile", p.plan_file || "unknown");
+        setText("planBackupDir", (p.plan && p.plan.backup_dir) ? String(p.plan.backup_dir) : "none");
+        setText("planBase", (p.plan && p.plan.base) ? String(p.plan.base) : "none");
+      } catch(e) {
+        setText("planPresent", "unavailable");
+        setText("planParseOk", "unavailable");
+        setText("planService", "unavailable");
+        setText("planServiceMatch", "unavailable");
+        setText("planFile", "fetch_failed");
+        setText("planBackupDir", "fetch_failed");
+        setText("planBase", "fetch_failed");
+      }
+    }
+
+    function wireQuickStart(){
+      const commandsEl = document.getElementById("commands");
+      const copyCommandsBtn = document.getElementById("copyCommandsBtn");
+      const copyCommandsMsg = document.getElementById("copyCommandsMsg");
+      const liveBase = document.getElementById("liveBase");
+
+      const httpText = document.getElementById("listen")?.textContent || "";
+      const m = httpText.match(/http:(\d+)/);
+      if (liveBase && m && m[1]) liveBase.textContent = "http://127.0.0.1:" + m[1];
+
+      if (copyCommandsBtn && commandsEl) {
+        copyCommandsBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(commandsEl.textContent || "");
+            if (copyCommandsMsg) copyCommandsMsg.textContent = "copied";
+          } catch {
+            if (copyCommandsMsg) copyCommandsMsg.textContent = "copy_failed";
+          }
+        });
+      }
+    }
+
+    async function refreshAll(){
+      try { await loadSummary(); }
+      catch(e){
+        setPill("healthPill", "health: error", "err");
+        setJSON("summaryOut", { ok:false, err:String(e.message || e) });
+      }
+      await loadUpdate();
+      await loadPlanStatus();
+      wireQuickStart();
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>

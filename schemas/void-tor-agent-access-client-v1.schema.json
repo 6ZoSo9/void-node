@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-tor-agent-access-client-v1.schema.json",
+  "title": "VOID Tor Agent Access Client Profile V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "transport",
+    "trust",
+    "limits",
+    "required_probes",
+    "optional_probes"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_TOR_AGENT_ACCESS_CLIENT_PROFILE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "onion_hostname",
+        "virtual_port",
+        "socks_proxy"
+      ],
+      "properties": {
+        "onion_hostname": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{56}\\.onion$"
+        },
+        "virtual_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "socks_proxy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host",
+            "port"
+          ],
+          "properties": {
+            "host": {
+              "enum": [
+                "127.0.0.1",
+                "::1"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "public_key_fingerprint_sha256",
+        "binding_sha256",
+        "binding_expires_at"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "public_key_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "binding_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connect_timeout_ms",
+        "request_timeout_ms",
+        "max_response_bytes",
+        "descriptor_future_skew_ms",
+        "request_attempts",
+        "retry_delay_ms"
+      ],
+      "properties": {
+        "connect_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000
+        },
+        "request_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 120000
+        },
+        "max_response_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "descriptor_future_skew_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000
+        },
+        "request_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "retry_delay_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        }
+      }
+    },
+    "required_probes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/requiredProbe"
+      }
+    },
+    "optional_probes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/optionalProbe"
+      }
+    }
+  },
+  "$defs": {
+    "baseProbe": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/[^?#\\\\]*$",
+          "maxLength": 2048
+        },
+        "json": {
+          "type": "boolean"
+        },
+        "expected_marker": {
+          "type": "string"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "requiredProbe": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseProbe"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "path",
+            "expected_status",
+            "expected_sha256",
+            "json"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "expected_status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "expected_sha256": {
+              "type": "string"
+            },
+            "json": {
+              "type": "boolean"
+            },
+            "expected_marker": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "optionalProbe": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseProbe"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "path",
+            "accepted_statuses",
+            "json"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "accepted_statuses": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              }
+            },
+            "json": {
+              "type": "boolean"
+            },
+            "expected_marker": {
+              "type": "string"
+            },
+            "expected_sha256": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

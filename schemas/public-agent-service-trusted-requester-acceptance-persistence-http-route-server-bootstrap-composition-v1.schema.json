@@ -1,0 +1,329 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-persistence-http-route-server-bootstrap-composition-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "integration_confirmation": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_COMMAND_V1"
+        },
+        "mount_confirmation": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "integration_confirmation",
+        "mount_confirmation"
+      ],
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "example_only": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_EXAMPLE_V1"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "app_provider_invoked": {
+          "type": "boolean"
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "authority": {
+          "additionalProperties": false,
+          "properties": {
+            "bootstrap_callsite_integration": {
+              "const": false
+            },
+            "credential_change": {
+              "const": false
+            },
+            "credential_issue": {
+              "const": false
+            },
+            "deployment": {
+              "const": false
+            },
+            "express_app_provider_access": {
+              "type": "boolean"
+            },
+            "express_dispatcher_installation": {
+              "type": "boolean"
+            },
+            "express_route_stack_snapshot_read": {
+              "type": "boolean"
+            },
+            "live_route_registry_integration": {
+              "const": false
+            },
+            "money_movement": {
+              "const": false
+            },
+            "network_listener_creation": {
+              "const": false
+            },
+            "payment_authorization": {
+              "const": false
+            },
+            "payment_execution": {
+              "const": false
+            },
+            "production_acceptance_persistence": {
+              "const": false
+            },
+            "production_http_route_mount": {
+              "const": false
+            },
+            "production_http_submission": {
+              "const": false
+            },
+            "production_replay_write": {
+              "const": false
+            },
+            "production_signing": {
+              "const": false
+            },
+            "runtime_mutation": {
+              "const": false
+            },
+            "server_route_registry_compare_and_swap": {
+              "type": "boolean"
+            },
+            "server_route_registry_snapshot_read": {
+              "type": "boolean"
+            },
+            "service_restart": {
+              "const": false
+            },
+            "source_level_express_registry_adapter": {
+              "const": true
+            },
+            "src_index_modification": {
+              "const": false
+            },
+            "transaction_broadcast": {
+              "const": false
+            },
+            "wallet_or_signer_access": {
+              "const": false
+            },
+            "work_credit_settlement": {
+              "const": false
+            },
+            "work_credit_write": {
+              "const": false
+            },
+            "work_dispatch": {
+              "const": false
+            },
+            "work_execution_authorization": {
+              "const": false
+            }
+          },
+          "required": [
+            "source_level_express_registry_adapter",
+            "express_app_provider_access",
+            "express_route_stack_snapshot_read",
+            "express_dispatcher_installation",
+            "server_route_registry_snapshot_read",
+            "server_route_registry_compare_and_swap",
+            "production_http_route_mount",
+            "network_listener_creation",
+            "live_route_registry_integration",
+            "bootstrap_callsite_integration",
+            "src_index_modification",
+            "production_http_submission",
+            "production_acceptance_persistence",
+            "production_replay_write",
+            "payment_authorization",
+            "payment_execution",
+            "work_execution_authorization",
+            "work_dispatch",
+            "work_credit_write",
+            "work_credit_settlement",
+            "wallet_or_signer_access",
+            "production_signing",
+            "transaction_broadcast",
+            "credential_issue",
+            "credential_change",
+            "runtime_mutation",
+            "service_restart",
+            "deployment",
+            "money_movement"
+          ],
+          "type": "object"
+        },
+        "compare_and_swap_apply_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "compare_and_swap_attempt_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confirmation_verified": {
+          "type": "boolean"
+        },
+        "dispatcher_install_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "exact_managed_route_count": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "integration": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "integration_confirmation_verified": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_RESULT_V1"
+        },
+        "mount_confirmation_verified": {
+          "type": "boolean"
+        },
+        "registry_created": {
+          "type": "boolean"
+        },
+        "route_stack_snapshot_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "upstream_disabled",
+            "planned",
+            "mount_disabled",
+            "route_disabled",
+            "mounted",
+            "already_mounted"
+          ]
+        },
+        "trusted_input_provider_deferred": {
+          "type": "boolean"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "apply",
+        "confirmation_verified",
+        "integration_confirmation_verified",
+        "mount_confirmation_verified",
+        "app_provider_invoked",
+        "registry_created",
+        "route_stack_snapshot_count",
+        "compare_and_swap_attempt_count",
+        "compare_and_swap_apply_count",
+        "dispatcher_install_count",
+        "exact_managed_route_count",
+        "trusted_input_provider_deferred",
+        "integration",
+        "authority"
+      ],
+      "type": "object"
+    },
+    "sealed_registrar_integration_merge": {
+      "const": "f40554e4bcfc09f01e9eca131de78c13eb4c7638"
+    },
+    "topology": {
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap_callsite_integrated": {
+          "const": false
+        },
+        "expected_app_creation": {
+          "const": "const app = express();"
+        },
+        "expected_listener_owner": {
+          "const": "src/index.ts"
+        },
+        "expected_live_app_export": {
+          "const": "(globalThis as any).__void_http_app = app;"
+        }
+      },
+      "required": [
+        "expected_app_creation",
+        "expected_live_app_export",
+        "expected_listener_owner",
+        "bootstrap_callsite_integrated"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "example_only",
+    "sealed_registrar_integration_merge",
+    "config",
+    "command",
+    "topology",
+    "result"
+  ],
+  "title": "Public Agent Service Trusted Requester Acceptance Persistence HTTP Route Server Bootstrap Composition V1 Example",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_SCHEMA_V1"
+}

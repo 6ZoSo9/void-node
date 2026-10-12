@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_PRIVATE_INTAKE_RECEIPT_HOLD_V1",
+  "status": "buyer_packet_private_intake_receipt_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_intake_receipt_hold",
+  "purpose": "Define a private/operator-only receipt hold shape for buyer manual review packets received through a separate private intake channel.",
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "secret_material_recorded": false,
+    "seed_phrase_recorded": false,
+    "private_key_recorded": false,
+    "password_recorded": false
+  },
+  "receipt_hold_states": [
+    "draft_hold",
+    "received_private_packet_unverified",
+    "blocked_missing_required_fields",
+    "blocked_public_submission_attempt",
+    "queued_for_manual_review"
+  ],
+  "private_receipt_record_shape": {
+    "receipt_record_id": "redacted_placeholder_only",
+    "received_at_utc": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_channel": "private_operator_channel",
+    "chain": "redacted_placeholder_only",
+    "transaction_hash": "redacted_placeholder_only",
+    "usdc_amount": "redacted_placeholder_only",
+    "sending_wallet_address": "redacted_placeholder_only",
+    "receiving_void_wallet_address": "redacted_placeholder_only",
+    "buyer_manual_review_acknowledgment_present": true,
+    "private_contact_reference": "redacted_private_reference_only",
+    "receipt_hold_state": "received_private_packet_unverified"
+  },
+  "manual_review_requirements_not_satisfied_by_receipt": {
+    "payment_verification_complete": false,
+    "chain_token_receiver_allowlist_complete": false,
+    "amount_rate_policy_complete": false,
+    "duplicate_payment_guard_complete": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_private_intake_receipt_hold_green": true,
+    "private_operator_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_payment_decision_green": true,
+    "authority_false_green": true
+  }
+}

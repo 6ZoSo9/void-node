@@ -1,0 +1,36 @@
+{
+  "schema": "void_datanet_materialized_public_status_v1",
+  "marker": "VOID_DATANET_MATERIALIZED_PUBLIC_STATUS_V1",
+  "status": "green",
+  "current_baseline_head": "8e6eb939",
+  "current_baseline_checkpoint": "ckpt-datanet-materialized-current-baseline-v1-green-20260605-155821",
+  "baseline_doc": "docs/public/datanet-materialized-current-baseline.md",
+  "baseline_proof": "datanet-materialized-current-baseline-proof",
+  "baseline_closeout_log": "/tmp/datanet-materialized-current-baseline-v1-crossbox-closeout-20260605-155849.log",
+  "stack_sweep_head": "7bb86976",
+  "stack_sweep_checkpoint": "ckpt-no-manual-peer-seed-tailscale-preflight-guard-v1-green-20260605-154722",
+  "stack_sweep_closeout_log": "/tmp/materialized-stack-after-tailscale-preflight-guard-sweep-closeout-20260605-155537.log",
+  "runtime": {
+    "ready": true,
+    "head": 1856587,
+    "gap": 0,
+    "txroot_live": 1
+  },
+  "green_lanes": {
+    "tailscale_preflight_guard": true,
+    "no_manual_peer_seed": true,
+    "materialized_local_persistence": true,
+    "materialized_restart_persistence": true,
+    "materialized_copy_integrity": true,
+    "materialized_provenance": true,
+    "materialized_provenance_status_view": true,
+    "mainnet0_status_smoke": true,
+    "mainnet0_crossbox_status_smoke": true
+  },
+  "safety_invariants": {
+    "buy_void_fulfillment": false,
+    "validator_mutation": false,
+    "wallet_send": false,
+    "wc_to_void_swap": false
+  }
+}

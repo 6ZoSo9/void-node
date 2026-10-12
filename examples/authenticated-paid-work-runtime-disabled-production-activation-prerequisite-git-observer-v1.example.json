@@ -1,0 +1,18 @@
+{
+  "expected": {
+    "install_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-install-v1-exact-green-20260731T190348Z",
+    "install_checkpoint_target": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "install_mechanism_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-install-mechanism-v1-postmerge-exact-green-20260731T184300Z",
+    "install_mechanism_checkpoint_target": "3074bd4f253082841630312a8353946321b5a97e",
+    "packet_commit": "eaa41fdf76044c88eb9c078046bd370acb3ee457",
+    "pr894_merge_commit": "3074bd4f253082841630312a8353946321b5a97e",
+    "prerequisite_main_commit": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+    "prerequisite_merge_commit": "25db3a0b0ff802914ef40bacabcbbda3779866cd",
+    "repair_checkpoint_tag": "ckpt-authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1-postmerge-ci-repair-chain-exact-green-20260801T152006Z",
+    "repair_checkpoint_target": "e46619b4eba306dd0727e93ef87f52b68f724852",
+    "repair_merge_commit": "e46619b4eba306dd0727e93ef87f52b68f724852",
+    "runtime_source_commit": "3b298bc1e31365aec7a20d03c3f425e22fd2f949"
+  },
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_DISABLED_RUNTIME_ACTIVATION_PREREQUISITE_GIT_OBSERVER_CONFIG_V1",
+  "version": 1
+}

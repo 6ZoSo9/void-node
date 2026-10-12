@@ -1,0 +1,14 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_ALLOCATION_RECORD_CREATION_GATE_V1_POLICY_EXAMPLE",
+  "expected_actual_execute_state": "inventory_reserved_and_decremented",
+  "expected_actual_execute_result_status": "inventory_reserved_pending_allocation_record_gate",
+  "canary_candidate_limit": 1,
+  "canary_allocation_records_already_created": 0,
+  "allow_allocation_record_creation": true,
+  "allow_private_allocation_ledger_write": false,
+  "allow_fulfillment_execution": false,
+  "allow_wallet_signing": false,
+  "allow_void_transfer": false,
+  "allow_public_mutation": false,
+  "operator_review_required_after_record_creation": true
+}

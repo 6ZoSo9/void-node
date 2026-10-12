@@ -1,0 +1,13 @@
+groups:
+- name: void-header3-green
+  interval: 15s
+  rules:
+  - alert: VoidHeader3Green
+    expr: void:header3_ok == 1
+    for: 1m
+    labels:
+      severity: info
+      system: void
+    annotations:
+      summary: "header3 healthy"
+      description: "header3_last is tracking head (gap==0 consistently)."

@@ -1,0 +1,90 @@
+{
+  "marker": "VOID_ECONOMIC_EVM_RECONCILIATION_B_V1",
+  "version": 1,
+  "status": "RAW_RECONCILIATION_B_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "implementation": {
+    "repo_source_import": false,
+    "ethers_import": false,
+    "json_rpc_client": "node_http_builtin",
+    "abi_encoding": "manual_selectors",
+    "transfer_log_chunk_size": 997
+  },
+  "receipt_filename": "void_economic_evm_raw_reconciliation_b_precision_v1_20260926T132425Z.json",
+  "receipt_sha256": "e2e02bfd4e9ab830af040d6aa3600a8d988371db9a61ed664eb00e427add1083",
+  "receipt_imported_into_repo": false,
+  "chain_id": "2050",
+  "rpc_scope": "loopback_http_only",
+  "head_before": "37392",
+  "head_after": "37392",
+  "block_number": "37392",
+  "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+  "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+  "void_token_runtime_sha256": "1360507ef5816f53cf32179736190a5c7a3ce605aaee7d0e06bb8a5da7351198",
+  "transfer_log_count": 261,
+  "discovered_holder_address_count": 131,
+  "nonzero_holder_count": 3,
+  "contract_holder_count": 3,
+  "nonzero_holders": [
+    {
+      "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+      "balance_atoms": "323207333000000000000000000",
+      "account_kind": "contract",
+      "runtime_code_sha256": "fdb96b02f6c170b500efc11c0c759131dfbfc216309393a8d2ac6948e20b8fc1"
+    },
+    {
+      "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+      "balance_atoms": "126000000000000000000000",
+      "account_kind": "contract",
+      "runtime_code_sha256": "0d35f9cf3d578cb8065d2e73f5f3d75f3332ea26002c4ae1ba8114aa96884ecd"
+    },
+    {
+      "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+      "balance_atoms": "10000000000000000000000000",
+      "account_kind": "contract",
+      "runtime_code_sha256": "f4ba2690159553b7e01b8af167c7ddd0076b0add5d7da66fa6dc7db2f4df4a07"
+    }
+  ],
+  "total_supply_atoms": "333333333000000000000000000",
+  "holder_balance_sum_atoms": "333333333000000000000000000",
+  "holder_sum_matches_total_supply": true,
+  "presale": {
+    "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+    "token_balance_atoms": "10000000000000000000000000",
+    "remaining_inventory_atoms": "10000000000000000000000000",
+    "total_fulfilled_atoms": "0",
+    "max_inventory_atoms": "10000000000000000000000000",
+    "accounting_identity_holds": true,
+    "token_balance_covers_remaining": true
+  },
+  "comparison_to_reconciliation_a": {
+    "exact_block_identity_match": true,
+    "token_runtime_match": true,
+    "transfer_log_count_match": true,
+    "discovered_holder_count_match": true,
+    "nonzero_holder_count_match": true,
+    "contract_holder_count_match": true,
+    "total_supply_match": true,
+    "holder_sum_match": true,
+    "presale_accounting_match": true,
+    "archive_head_unchanged_since_a": true,
+    "archive_head_unchanged_during_b": true
+  },
+  "authority": {
+    "credential_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  },
+  "interpretation": {
+    "snapshot_reconciliation_b_green": true,
+    "two_independent_reconciliations_agree": true,
+    "final_snapshot_promoted": false,
+    "archive_write_freeze_proven": false
+  }
+}

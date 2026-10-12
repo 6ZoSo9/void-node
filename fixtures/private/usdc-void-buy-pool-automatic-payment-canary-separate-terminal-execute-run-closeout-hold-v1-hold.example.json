@@ -1,0 +1,26 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_EXECUTE_RUN_CLOSEOUT_HOLD_V1",
+  "hold_state": "terminal_execute_run_closeout_hold",
+  "source_terminal_execute_run_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_EXECUTE_RUN_HOLD_V1",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "closed_without_execution": true,
+  "required_before_any_future_execute_resume": [
+    "new private operator authorization proof",
+    "new signer authorization proof",
+    "new transfer instruction proof",
+    "new execution authorization proof",
+    "new terminal execute packet proof",
+    "new closeout supersession proof"
+  ],
+  "authority": {
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "public_mutation_route_created": false
+  }
+}

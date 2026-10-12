@@ -1,0 +1,86 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_public_submission_intake_packet",
+  "version": "v1",
+  "status": "hold_static_submission_packet_template_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_PACKET_HOLD_V1",
+  "created_at": "2026-06-30T14:29:34Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-packet-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-packet-hold-v1.html",
+  "purpose": "Expose the first public-safe submission packet template for a worker to prepare DataNet first work-pack evidence for later operator review.",
+  "source_chain": {
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+    "reviewer_handoff_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_HANDOFF_PACKET_HOLD_V1",
+    "reviewer_evidence_template_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_EVIDENCE_PACKET_TEMPLATE_HOLD_V1",
+    "reviewer_evidence_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_EVIDENCE_PACKET_EXAMPLE_HOLD_V1",
+    "reviewer_evidence_example_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_EVIDENCE_EXAMPLE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+  },
+  "public_submission_intake": {
+    "intake_status": "candidate_template_only",
+    "worker_can_prepare_packet": true,
+    "operator_review_required": true,
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "submission_delivery_method": "manual_operator_channel_out_of_band_until_public_intake_route_exists",
+    "accepted_packet_type": "DataNet first work-pack public-safe evidence packet candidate",
+    "suggested_starter_review_amount_wc": 100,
+    "suggested_amount_is_not_supply_limit": true
+  },
+  "submission_packet_template": {
+    "worker_public_handle": "required string chosen by worker",
+    "contact_route": "optional out-of-band contact route; do not include secrets",
+    "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+    "claimed_completed_tasks": [
+      "mirror or verify the listed DataNet artifact",
+      "record reproducible command/output evidence",
+      "include artifact id/path/hash or reviewer-openable proof reference"
+    ],
+    "evidence_items": [
+      {
+        "kind": "artifact_reference_or_log_excerpt",
+        "description": "short evidence description",
+        "reference": "public-safe reference, local hash, or reviewer-openable URL"
+      }
+    ],
+    "worker_attestation": {
+      "public_safe": true,
+      "no_secret_material": true,
+      "original_work_or_reproducible_verification": true,
+      "understands_operator_review_required": true
+    },
+    "requested_review_note": "short human-readable note to reviewer"
+  },
+  "reviewer_next_step": {
+    "reviewer_action": "copy submitted packet into reviewer evidence review lane once operator intake is intentionally opened",
+    "decision_fixture_created_here": false,
+    "ledger_write_candidate_created_here": false
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false,
+    "operator_review_required": true
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  }
+}

@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-opportunity-self-capital-round-trip-paper-observer-v1.schema.json",
+  "title": "VOID Self-Capital Round-Trip Paper Observer V1 Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "strategy_id",
+    "observed_at",
+    "evaluated_at",
+    "starting_asset",
+    "starting_amount",
+    "starting_value_usd",
+    "forward_quote",
+    "return_quote",
+    "cost_policy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-self-capital-round-trip-paper-input-v1"
+    },
+    "strategy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "starting_asset": {
+      "$ref": "#/$defs/asset"
+    },
+    "starting_amount": {
+      "$ref": "#/$defs/unsignedInteger"
+    },
+    "starting_value_usd": {
+      "$ref": "#/$defs/usd"
+    },
+    "forward_quote": {
+      "$ref": "#/$defs/quoteLeg"
+    },
+    "return_quote": {
+      "$ref": "#/$defs/quoteLeg"
+    },
+    "cost_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capital_at_risk_usd",
+        "capital_lock_seconds",
+        "annual_capital_cost_bps",
+        "risk_reserve_bps",
+        "failure_reserve_usd",
+        "safety_buffer_usd",
+        "maximum_quote_skew_seconds"
+      ],
+      "properties": {
+        "capital_at_risk_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "capital_lock_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 31536000
+        },
+        "annual_capital_cost_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "risk_reserve_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "failure_reserve_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "safety_buffer_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "maximum_quote_skew_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      }
+    }
+  },
+  "$defs": {
+    "unsignedInteger": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "maxLength": 128
+    },
+    "usd": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$",
+      "maxLength": 64
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_id",
+        "address",
+        "symbol",
+        "decimals"
+      ],
+      "properties": {
+        "chain_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$"
+        },
+        "symbol": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        }
+      }
+    },
+    "quoteLeg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "quote_id",
+        "observed_at",
+        "quote_expiry_timestamp",
+        "input_asset",
+        "output_asset",
+        "input_amount",
+        "expected_output_amount",
+        "minimum_output_amount",
+        "expected_output_value_usd",
+        "minimum_output_value_usd",
+        "expected_fill_time_seconds",
+        "quoted_output_includes_provider_fees",
+        "quoted_output_includes_price_impact",
+        "app_fee_usd",
+        "gas_usd"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "quote_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "quote_expiry_timestamp": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4102444800
+        },
+        "input_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "output_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "input_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "expected_output_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "minimum_output_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "expected_output_value_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "minimum_output_value_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "expected_fill_time_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "quoted_output_includes_provider_fees": {
+          "const": true
+        },
+        "quoted_output_includes_price_impact": {
+          "const": true
+        },
+        "app_fee_usd": {
+          "const": "0.000000"
+        },
+        "gas_usd": {
+          "$ref": "#/$defs/usd"
+        }
+      }
+    }
+  }
+}

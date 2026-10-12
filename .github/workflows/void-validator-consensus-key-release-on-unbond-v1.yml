@@ -1,0 +1,99 @@
+name: VOID validator consensus-key release on unbond v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-validator-consensus-key-release-on-unbond-v1.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1.t.sol"
+      - "scripts/prove_void_validator_consensus_key_release_on_unbond_v1.mjs"
+      - "docs/operators/void-validator-consensus-key-release-on-unbond-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-validator-consensus-key-release-on-unbond-v1.yml"
+      - "contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+      - "test/mainnet0/VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1.t.sol"
+      - "scripts/prove_void_validator_consensus_key_release_on_unbond_v1.mjs"
+      - "docs/operators/void-validator-consensus-key-release-on-unbond-v1.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-validator-consensus-key-release-on-unbond-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked JavaScript dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove source liveness and authority boundaries
+        run: |
+          node --check scripts/prove_void_validator_consensus_key_release_on_unbond_v1.mjs
+          node scripts/prove_void_validator_consensus_key_release_on_unbond_v1.mjs
+
+      - name: Run isolated Foundry regression suite
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home-key-release-v1"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out-key-release-v1"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache-key-release-v1"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-validator-key-release-v1-foundry"
+
+          mkdir -p \
+            "$FOUNDRY_HOME" \
+            "$FOUNDRY_OUT" \
+            "$FOUNDRY_CACHE" \
+            "$FOUNDRY_PROJECT/contracts/mainnet0" \
+            "$FOUNDRY_PROJECT/test/mainnet0"
+
+          install -m 0444 \
+            contracts/mainnet0/VoidValidatorCandidateRegistry.sol \
+            "$FOUNDRY_PROJECT/contracts/mainnet0/VoidValidatorCandidateRegistry.sol"
+          install -m 0444 \
+            test/mainnet0/VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1.t.sol \
+            "$FOUNDRY_PROJECT/test/mainnet0/VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1.t.sol"
+
+          docker pull "$FOUNDRY_IMAGE"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --entrypoint forge \
+            -e HOME=/foundry-home \
+            -v "$FOUNDRY_HOME:/foundry-home" \
+            -v "$FOUNDRY_OUT:/foundry-out" \
+            -v "$FOUNDRY_CACHE:/foundry-cache" \
+            -v "$FOUNDRY_PROJECT:/proof:ro" \
+            -w /proof \
+            "$FOUNDRY_IMAGE" \
+            test \
+            --root /proof \
+            --contracts contracts \
+            --match-path test/mainnet0/VoidValidatorCandidateRegistryConsensusKeyReleaseOnUnbondV1.t.sol \
+            --use 0.8.20 \
+            --evm-version paris \
+            --out /foundry-out \
+            --cache-path /foundry-cache \
+            -vvv
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Check diff hygiene
+        run: git diff --check

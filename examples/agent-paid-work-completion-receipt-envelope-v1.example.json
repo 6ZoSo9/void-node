@@ -1,0 +1,98 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_COMPLETION_RECEIPT_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2",
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b",
+  "payment_receipt_id": "voidawper1_33457cefe699a95b5ddad768272e09e9c3593ad1b524f12d7bf0a3c68d06de51",
+  "payment_confirmation_id": "voidawpc1_1c18c9fa3e208faab438b3a1f74a10cc7279096e2b87b6353634ef715d92e668",
+  "work_execution_authorization_id": "voidawwea1_7faf87a936133920fc790700c3fa0a5ff07e8cb5e0c111f3f5952e15babf9a78",
+  "receipt_created_at_utc": "2026-07-25T22:57:10Z",
+  "execution": {
+    "execution_id": "void.execution.paid-work.example.20260725.0001",
+    "attempt_number": 1,
+    "status": "succeeded",
+    "authorization_consumed": true,
+    "authorization_consumed_at_utc": "2026-07-25T22:55:00Z",
+    "started_at_utc": "2026-07-25T22:55:00Z",
+    "finished_at_utc": "2026-07-25T22:57:00Z",
+    "exit_code": 0,
+    "failure_reason_code": null,
+    "sandbox_id": "void.sandbox.paid-work.example.20260725.0001",
+    "environment_image_sha256": "sha256:a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
+  },
+  "executor": {
+    "executor_id": "void.executor.work.datanet.nimo",
+    "provider_id": "void.provider.datanet.verify.precision"
+  },
+  "work_contract": {
+    "task_type": "datanet_fetch_verify",
+    "task_spec_sha256": "sha256:d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5",
+    "input_manifest_sha256": "sha256:e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+    "expected_output_schema_sha256": "sha256:f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7",
+    "result_delivery_channel_id": "void.delivery.paid-work.result.v1"
+  },
+  "result_commitments": {
+    "output_manifest_sha256": "sha256:b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9",
+    "result_payload_sha256": "sha256:cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+    "stdout_sha256": "sha256:dbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdb",
+    "stderr_sha256": "sha256:ecececececececececececececececececececececececececececececececec",
+    "execution_log_sha256": "sha256:fdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfd",
+    "evidence_bundle_sha256": "sha256:1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a"
+  },
+  "resource_usage": {
+    "wall_clock_seconds": 120,
+    "cpu_seconds": 96,
+    "peak_memory_bytes": 268435456,
+    "output_bytes": 2097152,
+    "network_requests": 8,
+    "retry_count": 0
+  },
+  "policy_observation": {
+    "sandbox_enforced": true,
+    "input_integrity_verified": true,
+    "capability_allowlist_observed": true,
+    "network_allowlist_observed": true,
+    "resource_limits_observed": true,
+    "secrets_accessed": false,
+    "wallet_accessed": false,
+    "payment_state_mutated": false,
+    "work_credits_mutated": false,
+    "buy_void_fulfillment_mutated": false,
+    "runtime_administered": false,
+    "host_filesystem_written": false,
+    "unapproved_external_side_effects_observed": false
+  },
+  "executor_authentication": {
+    "signer_id": "void.executor.work.datanet.nimo",
+    "signing_key_id": "void.key.executor.nimo.example.v1",
+    "signature_scheme": "ed25519",
+    "signed_payload_sha256": "sha256:2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+    "signature_evidence_sha256": "sha256:3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c"
+  },
+  "attestation": {
+    "exact_execution_authorization_consumed_once": true,
+    "receipt_unique_per_execution_attempt": true,
+    "authorization_replay_forbidden": true,
+    "result_commitments_recorded": true,
+    "resource_usage_recorded": true,
+    "executor_authentication_required": true,
+    "executor_signature_verification_required": true,
+    "completion_receipt_immutable": true,
+    "independent_completion_verification_required": true,
+    "correctness_verified": false,
+    "work_credit_award_authorized": false,
+    "payment_instruction_authorized": false,
+    "payment_state_mutation_authorized": false,
+    "wallet_or_signer_access_authorized": false,
+    "runtime_administration_authorized": false,
+    "buy_void_fulfillment_authorized": false,
+    "receipt_is_not_independent_completion_verification": true,
+    "receipt_is_not_work_credit_award_instruction": true,
+    "receipt_is_not_payment_instruction": true
+  },
+  "nonce": "work-completion-receipt-example-20260725-0001",
+  "work_completion_receipt_id": "voidawcr1_5886aa766fed6179f78893e30b13d6edf7d011fff103aa3eabdcf5493ba5143e"
+}

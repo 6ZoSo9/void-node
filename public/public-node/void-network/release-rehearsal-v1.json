@@ -1,0 +1,15 @@
+{
+  "marker": "VOID_PUBLIC_FIRST_OFFICIAL_RELEASE_REHEARSAL_V1",
+  "schema_version": 1,
+  "status": "implemented_proof_gated",
+  "scope": "first_official_release_rehearsal_control_plane",
+  "required_stages": 8,
+  "release_tag_published": false,
+  "official_release_published": false,
+  "live_deployment": false,
+  "service_restart": false,
+  "money_movement": false,
+  "guarded_lanes_activated": false,
+  "proof": "make public-first-official-release-rehearsal-v1-proof",
+  "documentation": "/docs/public/first-official-release-rehearsal-v1.md"
+}

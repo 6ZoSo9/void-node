@@ -1,0 +1,69 @@
+{
+  "marker": "VOID_GAMENETWORKINGSOCKETS_TRANSPORT_FEASIBILITY_V1",
+  "version": 1,
+  "upstream": {
+    "repository": "ValveSoftware/GameNetworkingSockets",
+    "candidate_tag": "v1.5.1",
+    "license": "BSD-3-Clause",
+    "steam_client_required": false,
+    "steamworks_partner_required": false,
+    "steam_datagram_relay_required": false,
+    "steam_authentication_required": false,
+    "native_ice_status": "beta",
+    "turn_relay_assumed": false,
+    "custom_signaling_required_for_unknown_ip_p2p": true
+  },
+  "current_void_transport": {
+    "source_path": "src/node_core.ts",
+    "implementation": "node_net_tcp",
+    "frame_prefix_bytes": 4,
+    "max_message_bytes": 65536,
+    "message_types": [
+      "HELLO",
+      "PEERS",
+      "PUB",
+      "SUB"
+    ],
+    "signed_pub_messages_required": true,
+    "authenticated_edge_walls_preserved": true,
+    "signed_trust_policy_preserved": true,
+    "activation_lease_preserved": true
+  },
+  "proposed_phase": {
+    "mode": "optional_loopback_sidecar_benchmark",
+    "default_enabled": false,
+    "replace_current_transport": false,
+    "consensus_dependency": false,
+    "node_identity_dependency": false,
+    "existing_message_signatures_required": true,
+    "existing_wire_messages_preserved": true,
+    "steam_service_dependency": false,
+    "automatic_package_install": false,
+    "automatic_source_download": false,
+    "production_activation_requested": false,
+    "benchmark_profiles": [
+      "control_reliable_priority_0",
+      "block_and_tx_reliable_priority_1",
+      "datanet_bulk_reliable_priority_2",
+      "loss_latency_reordering_simulation"
+    ]
+  },
+  "authority": {
+    "consensus_change": false,
+    "node_identity_change": false,
+    "trust_policy_change": false,
+    "key_or_credential_access": false,
+    "steam_api_key_access": false,
+    "steam_operator_token_access": false,
+    "network_listener_start": false,
+    "external_connection": false,
+    "package_install": false,
+    "source_download": false,
+    "service_restart": false,
+    "deployment": false,
+    "wallet_or_signer_access": false,
+    "work_credit_write": false,
+    "payment_execution": false,
+    "money_movement": false
+  }
+}

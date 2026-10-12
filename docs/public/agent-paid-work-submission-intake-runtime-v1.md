@@ -1,0 +1,186 @@
+# VOID Agent Paid Work Submission Intake Runtime V1
+
+Marker: `VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1`
+
+## Purpose
+
+This source-only lane composes the existing Agent Paid Work Order Envelope V1
+and Agent Paid Work Submission Admission V1 into a bounded external submission
+intake.
+
+It adds:
+
+- one loopback-only receiver;
+- one exact authenticated public-gateway proxy route;
+- append-once intake receipts;
+- deterministic duplicate suppression;
+- deterministic conflicting-duplicate rejection;
+- a disabled example configuration and systemd integration.
+
+The public route is:
+
+```text
+POST /__void/agents/paid-work/submissions/v1
+```
+
+Every response produced by that exact route carries the version marker:
+
+```text
+X-VOID-Agent-Paid-Work-Submission-Route: v1
+```
+
+The marker is present on accepted, duplicate, rejected, authentication-error,
+and method-error responses. Health and unknown-path responses do not carry it.
+Authenticated clients validate this marker before interpreting the bounded JSON
+response contract.
+
+The route remains disabled by default. The gateway exposes it only when
+`VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM` is explicitly configured.
+The receiver itself refuses to start unless its local configuration has
+`enabled=true`.
+
+## Request
+
+A request contains:
+
+- marker `VOID_AGENT_PAID_WORK_SUBMISSION_REQUEST_V1`;
+- version `1`;
+- a caller-selected bounded `submission_id`;
+- one valid `VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1`.
+
+The gateway and receiver independently enforce:
+
+- `application/json`;
+- maximum 65,536-byte request bodies by default;
+- exact bearer authorization syntax;
+- exact `x-void-payload-sha256` binding;
+- no query string or fragment;
+- exact POST-only routing.
+
+The receiver verifies bearer authorization using a timing-safe comparison.
+The default compatibility mode reads one local mode-0600 token file. An
+optional per-agent registry mode reads SHA-256 token digests from a separate
+owner-private registry file. It accepts only loopback sources.
+
+## Admission result
+
+The receiver loads one operator-controlled local admission policy. External
+callers cannot replace or widen that policy.
+
+The receiver evaluates the work order using
+`materializeAgentPaidWorkSubmissionAdmissionV1`.
+
+A mechanically valid order produces one of:
+
+- `accepted_for_review`;
+- `rejected`.
+
+`accepted_for_review` means only that the submission may enter a separate
+review process. It does not select a provider, does not create a quote, does not authorize payment,
+does not execute payment, does not authorize execution, does not dispatch work,
+and does not write Work Credits.
+
+## Append-only state
+
+The receiver stores:
+
+- one receipt named by deterministic `voidawsi1_` receipt ID;
+- one submission index named by `submission_id`.
+
+An identical semantic duplicate returns the existing receipt. Different JSON
+formatting does not create another receipt because duplicate comparison uses a
+canonical request hash.
+
+Reusing a `submission_id` for different request content returns `409` and
+writes no additional receipt.
+
+Receipts preserve the raw payload SHA-256 and the canonical request SHA-256.
+They record authorization verification and loopback origin without recording
+the bearer token.
+
+## Gateway response boundary
+
+The gateway:
+
+- follows no redirect;
+- strips `Location`, `Set-Cookie`, hop-by-hop, and proxy-authentication
+  response headers;
+- bounds the upstream response size;
+- does not expose a generic proxy;
+- keeps the existing operator-notification route independently configured.
+
+## Source-only activation boundary
+
+This lane creates and verifies source artifacts only.
+
+It does not:
+
+- install or enable either example systemd unit;
+- create a bearer token;
+- create a live configuration;
+- restart the AI-agent gateway;
+- restart the VOID node or private RPC;
+- deploy the receiver;
+- activate the public POST route;
+- submit a real work order;
+- select a provider;
+- create a quote;
+- authorize or execute payment;
+- authorize or dispatch work;
+- authorize a WC award;
+- write a WC ledger;
+- access a wallet or signer;
+- mutate Buy VOID.
+
+A later activation lane must separately install an immutable receiver release,
+create segregated credentials and state, run a loopback authenticated canary,
+install the gateway drop-in, restart only the gateway, and run an external
+unauthorized canary before any real submission is invited.
+
+## Files
+
+- `scripts/agent_paid_work_submission_receiver_v1.ts`
+- `scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts`
+- `scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs`
+- `scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs`
+- `schemas/agent-paid-work-submission-request-v1.schema.json`
+- `schemas/agent-paid-work-submission-intake-receipt-v1.schema.json`
+- `fixtures/agent-paid-work/agent-paid-work-submission-request-v1.example.json`
+- `fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json`
+- `examples/systemd/void-agent-paid-work-submission-receiver-v1.service`
+- `examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf`
+## Optional per-agent credential registry
+
+The receiver also supports an optional operator-controlled credential registry
+through:
+
+```text
+VOID_AGENT_PAID_WORK_CREDENTIAL_REGISTRY_FILE
+```
+
+When this variable is absent, the existing mode-0600 single-token file remains
+the exact fallback path. When the registry variable is present, registry
+authentication takes precedence and the fallback token is not read.
+
+The registry stores SHA-256 token digests only. It never stores raw bearer
+tokens. Each credential binds:
+
+- one deterministic credential ID;
+- one bounded agent ID;
+- the exact `agent_paid_work_submit` scope;
+- issuance and required expiration times;
+- an optional revocation time.
+
+Registry authentication uses a timing-safe comparison across the bounded
+credential set. Failed, expired, future, revoked, and unknown credentials all
+return the same external `401 unauthorized` response and create no receipt.
+
+A new receipt records the authentication mode. Registry-authenticated receipts
+also bind the registry ID, credential ID, agent ID, and exact submission scope.
+The authentication binding does not grant provider selection, quote, payment,
+execution, dispatch, Work Credit, wallet, signer, transaction, or Buy VOID
+authority.
+
+This source lane does not create a credential registry, issue a token, read the
+live fallback token, install a registry path, restart the receiver, or deploy
+the integration.

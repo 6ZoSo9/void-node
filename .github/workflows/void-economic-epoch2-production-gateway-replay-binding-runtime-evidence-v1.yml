@@ -1,0 +1,58 @@
+name: VOID economic epoch2 production gateway replay binding runtime evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_void_economic_epoch2_inactive_public_submission_gateway_v1.mjs"
+      - "ops/mainnet0/install-void-economic-epoch2-inactive-public-submission-gateway-v1.sh"
+      - "scripts/run_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.sh"
+      - "tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json"
+      - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
+      - "docs/operators/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.md"
+      - ".github/workflows/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Check runtime package syntax
+        run: |
+          set -euo pipefail
+          bash -n ops/mainnet0/install-void-economic-epoch2-inactive-public-submission-gateway-v1.sh
+          bash -n scripts/run_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.sh
+          node --check scripts/run_void_economic_epoch2_inactive_public_submission_gateway_v1.mjs
+          node --check tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.mjs
+
+      - name: Prove inactive production replay binding runtime evidence contract
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_economic_epoch2_production_gateway_replay_binding_runtime_evidence_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check

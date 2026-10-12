@@ -1,0 +1,64 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_BINDING_V1",
+  "version": 1,
+  "config": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_CONFIG_V1",
+    "version": 1,
+    "enabled": false,
+    "max_body_bytes": 4194304
+  },
+  "status_request": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_REQUEST_V1",
+    "version": 1,
+    "method": "GET",
+    "path": "/__void/operator/public-agent-service-acceptance-persistence-runtime-v1/status",
+    "remote_address": "127.0.0.1",
+    "headers": {},
+    "body": ""
+  },
+  "command_request": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_REQUEST_V1",
+    "version": 1,
+    "method": "POST",
+    "path": "/__void/operator/public-agent-service-acceptance-persistence-runtime-v1/command",
+    "remote_address": "127.0.0.1",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": "{\"marker\":\"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_RUNTIME_COMMAND_V1\",\"version\":1,\"apply\":false,\"confirmation\":\"\",\"recorded_at_utc\":\"2026-07-28T23:59:00Z\",\"requester_authentication_input\":{},\"acceptance_draft\":{}}"
+  },
+  "disabled_response": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_RESPONSE_V1",
+    "version": 1,
+    "status_code": 404,
+    "headers": {
+      "cache-control": "no-store",
+      "content-length": "108",
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff"
+    },
+    "body": "{\"marker\":\"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ERROR_V1\",\"version\":1,\"error\":\"not_found\"}\n",
+    "route_enabled": false,
+    "loopback_verified": false,
+    "runtime_config_loaded": false,
+    "runtime_invoked": false,
+    "runtime_status": null
+  },
+  "authority": {
+    "production_http_route_mounted": false,
+    "network_listener_created": false,
+    "external_http_submission": false,
+    "production_acceptance_persistence_performed": false,
+    "production_replay_write_performed": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "execution_authorization": false,
+    "work_dispatch": false,
+    "production_signing": false,
+    "transaction_broadcast": false,
+    "work_credit_write": false,
+    "runtime_mutation": false,
+    "service_change": false,
+    "money_movement": false
+  }
+}

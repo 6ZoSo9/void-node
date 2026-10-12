@@ -1,0 +1,51 @@
+name: public-python-bytecode-hygiene-v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-python-bytecode-hygiene-v1.yml'
+      - 'ops/security/public-python-bytecode-hygiene-v1-proof.sh'
+      - 'scripts/prove_public_python_bytecode_hygiene_v1.mjs'
+      - 'ops/release/normalize-github-ssh-remote-v1.sh'
+      - '.gitignore'
+      - '**/*.py'
+      - '**/*.pyc'
+      - '**/*.pyo'
+      - '**/*.pyd'
+      - '**/__pycache__/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-python-bytecode-hygiene-v1.yml'
+      - 'ops/security/public-python-bytecode-hygiene-v1-proof.sh'
+      - 'scripts/prove_public_python_bytecode_hygiene_v1.mjs'
+      - 'ops/release/normalize-github-ssh-remote-v1.sh'
+      - '.gitignore'
+      - '**/*.py'
+      - '**/*.pyc'
+      - '**/*.pyo'
+      - '**/*.pyd'
+      - '**/__pycache__/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  bytecode-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Configure external Python bytecode cache
+        shell: bash
+        run: |
+          echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/void-python-bytecode-hygiene-v1" \
+            >> "$GITHUB_ENV"
+      - name: Prove tracked Python bytecode is zero
+        run: bash ops/security/public-python-bytecode-hygiene-v1-proof.sh

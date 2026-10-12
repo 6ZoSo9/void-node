@@ -1,0 +1,11 @@
+{
+  "rpc_status": 200,
+  "receipt_present": true,
+  "receipt_status_success": true,
+  "transfer_log_match": true,
+  "chain_allowed": true,
+  "token_allowed": true,
+  "receiver_allowed": true,
+  "duplicate_payment_identity": false,
+  "finality_confirmations_met": true
+}

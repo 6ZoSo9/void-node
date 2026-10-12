@@ -1,0 +1,73 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_TRANSFER_INSTRUCTION_LIVE_PATH_HOLD_V1",
+  "scope": "private_fulfillment_transfer_instruction_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "transfer_instruction_live_path_enabled": false,
+    "transfer_instruction_creation_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "transaction_broadcast_enabled": false,
+    "fulfillment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "required_prerequisite_results": [
+    "fulfillment_execution_authorization_pass",
+    "fulfillment_record_creation_pass",
+    "allocation_claim_creation_pass",
+    "inventory_reserve_decrement_pass",
+    "amount_rate_policy_pass",
+    "verified_receipt_parser_pass",
+    "duplicate_payment_guard_pass",
+    "wallet_policy_pass"
+  ],
+  "transfer_instruction_key_fields": [
+    "buyer_identity_binding_key",
+    "payment_verification_key",
+    "allocation_claim_key",
+    "fulfillment_record_key",
+    "execution_authorization_key",
+    "destination_binding_key",
+    "derived_void_amount",
+    "transfer_instruction_key"
+  ],
+  "rejected_transfer_instruction_states": [
+    "missing_execution_authorization_key",
+    "missing_fulfillment_record_key",
+    "missing_destination_binding_key",
+    "missing_derived_void_amount",
+    "transfer_amount_mismatch",
+    "duplicate_transfer_instruction_key",
+    "transfer_instruction_before_execution_authorization",
+    "transfer_instruction_after_failed_payment",
+    "transfer_instruction_after_duplicate_payment",
+    "transfer_instruction_after_insufficient_inventory",
+    "transfer_instruction_with_wallet_secret",
+    "transfer_instruction_with_wallet_signing_enabled",
+    "transfer_instruction_with_void_transfer_enabled",
+    "transfer_instruction_with_transaction_broadcast_enabled",
+    "transfer_instruction_with_public_mutation_enabled",
+    "fulfilled_state_from_instruction_only"
+  ],
+  "authority": {
+    "transfer_instruction_creation": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "transaction_broadcast": false,
+    "fulfillment_execution": false,
+    "automatic_fulfillment": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_destination_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

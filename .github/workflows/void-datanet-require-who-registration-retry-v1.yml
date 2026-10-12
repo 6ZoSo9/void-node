@@ -1,0 +1,40 @@
+name: VOID DataNet who guard registration retry v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-datanet-require-who-registration-retry-v1.yml"
+      - "src/diag/patch_datanet_require_who_v1.cjs"
+      - "scripts/prove_void_datanet_require_who_registration_retry_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-datanet-require-who-registration-retry-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove retry-safe DataNet who guard registration
+        run: |
+          set -euo pipefail
+          node --check src/diag/patch_datanet_require_who_v1.cjs
+          node --check scripts/prove_void_datanet_require_who_registration_retry_v1.mjs
+          node scripts/prove_void_datanet_require_who_registration_retry_v1.mjs

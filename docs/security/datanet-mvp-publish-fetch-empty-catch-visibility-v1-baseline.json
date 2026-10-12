@@ -1,0 +1,8 @@
+{
+  "marker": "VOID_DATANET_MVP_PUBLISH_FETCH_EMPTY_CATCH_VISIBILITY_V1",
+  "file": "src/diag/datanet_mvp_publish_fetch_v1.cjs",
+  "before_real_empty_catch_count": 10,
+  "after_real_empty_catch_count": 0,
+  "closed_count": 10,
+  "sha256": "b4e7a99e08a3e7d5f10a25a88d8e799122d38ed8be8e864772946bc1c11440a7"
+}

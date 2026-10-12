@@ -1,0 +1,39 @@
+name: void-ai-agent-first-contact-runtime-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-ai-agent-first-contact-runtime-v1.yml"
+      - "docs/public/ai-agent-first-contact-runtime-v1.md"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs"
+      - "src/index.ts"
+      - "fixtures/ops/guard-baselines/index-ts-size-v1.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-ai-agent-first-contact-runtime-v1.yml"
+      - "docs/public/ai-agent-first-contact-runtime-v1.md"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs"
+      - "src/index.ts"
+      - "fixtures/ops/guard-baselines/index-ts-size-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs
+      - run: bash tools/check_index_size.sh
+      - run: npm run build

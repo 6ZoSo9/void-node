@@ -1,0 +1,131 @@
+# VOID Mainnet-0 Final Path
+
+> **Runtime-census boundary — 2026-09-25:** the epoch, validator-count, total-power, next-candidate, and machine-readiness values retained below are checkpoint evidence from the May launch lineage, not a live census. Keep the public-launch/candidate-only policy distinctions, but re-observe current runtime state before using any numbered validator or host value operationally. Present-tense claims must follow fresh runtime evidence.
+
+status: active
+launch_state: public_mainnet0_live
+updated_at: 2026-05-24
+operator_label: zoso
+
+## Current green checkpoint
+
+- checkpoint: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500
+- commit: 4c3aa800
+- Historical Precision checkpoint: ready=true, gap=0, txroot_live=1
+- Historical retired second-host checkpoint: ready=true, gap=0, txroot_live=1
+- Historical cross-box status smoke: green
+- Validator runtime truth: epoch127
+- Validator count: 126
+- Total power: 126000000000000000000000
+- Epoch127 published: true
+- Epoch127 publishedMatch: true
+- Next operator selector: vault126 / epoch128 / expectedValidatorCount=127
+- Public validator admission: candidate/waiting only; public active admission disabled
+- Mainnet-0 public launch: public_mainnet0_live
+- Final path proof now includes wallet-ui-cleanup-proof
+- Wallet setup/send-action cleanup is cross-box proven
+
+## What is already green
+
+1. The May checkpoint recorded Precision and the retired second host at the same checkpoint; current cross-box agreement must be re-proven with an explicit peer.
+2. Validator runtime truth recovered through epoch127.
+3. Local 8545 recovery lane was repaired after vault125 admission.
+4. Historical status smoke passed on both May checkpoint hosts; current cross-box smoke requires an explicitly reviewed peer.
+5. Buy VOID Base watcher config is present.
+6. Mainnet-0 public launch state is promoted and proof-backed.
+7. Dangerous live validator env is not set.
+8. Public validator registration remains candidate/waiting only.
+9. Participant public clarity rollup is cross-box green.
+10. Home / Start Here clarity is rendered.
+11. Buy VOID public safety clarity is rendered.
+12. Stake/Register active-admission clarity is rendered.
+13. Wallet backup/self-custody clarity is rendered.
+14. Wallet setup path and advanced send-action cleanup are proof-guarded.
+15. Public release sanitization is cross-box green.
+16. Sanitized public release export is gitleaks-clean with findings=0.
+
+## Remaining guarded post-launch boundaries
+
+### 1. Public launch approval is complete
+
+Mainnet-0 is public_mainnet0_live after explicit launch approval, live OpsTreasury seed, promotion artifact, and cross-box proof.
+
+Definition of done:
+- mainnet0-status-proof passes.
+- `VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke` passes with an explicitly reviewed nonlocal current-fleet peer.
+- public launch promotion proof remains green while validator/spend guardrails remain explicit.
+
+### 2. Public validator admission path is not launched
+
+Operator/bootstrap validator admission is green through epoch127, but public validator promotion/admission remains blocked.
+
+Public validator registration is intentionally candidate/waiting-only for Mainnet-0, and public active promotion/admission remains disabled.
+
+Definition of done:
+- Public candidate/waiting path is clearly separated from active validator admission.
+- Any public active admission path has a guarded owner/operator transition.
+- Runtime truth, status docs, and UI copy agree.
+- No public registration endpoint directly mutates the active validator set.
+
+### 3. UI/product polish baseline is green, but final visual polish remains
+
+The core public-safety copy is now proof-backed across Home, Buy VOID, Stake/Register, Wallet backup, Wallet setup, and advanced Wallet send-action cleanup. Remaining UI work is visual/tidiness polish, not basic launch-safety clarity.
+
+Definition of done:
+- Home/start flow remains clear.
+- Wallet/account setup remains easy.
+- Send Local WC and Send VOID remain behind advanced wallet-action sections.
+- Wallet setup path remains visible.
+- Buy VOID flow keeps supported-chain warnings visible.
+- Stake/validator copy continues to explain candidate vs active validator.
+- Advanced/operator controls remain hidden from normal users.
+- Final visual layout pass does not weaken any public clarity marker.
+
+### 4. Buy VOID hardening remains
+
+Buy VOID has been proven. Product hardening remains post-launch work and does not authorize blind deposits or unverified fulfillment.
+
+Definition of done:
+- Supported chains/assets are clear.
+- Blind deposits remain unsupported.
+- Custodial/exchange sends remain warned against.
+- Payment confirmation and VOID fulfillment remain separate auditable transitions.
+- Operator fulfillment proof remains explicit.
+
+### 5. Release/update path must stay green
+
+Update safety is Mainnet-0 critical.
+
+Definition of done:
+- Update safety exporter is green.
+- Critical update notification path is documented.
+- Node restart/recovery behavior is tested.
+- Rollback path is preserved.
+
+### 6. Final public release hygiene baseline is green
+
+The public export/release sanitization gate is now cross-box green. The sanitized public release tree passes gitleaks with findings=0. This must remain green through launch.
+Public release export is gitleaks-clean at 72f536d0 / ckpt-public-release-export-gitleaks-clean-green-20260523-091412 with gitleaks_rc=0 and findings=0.
+
+Definition of done:
+- Secrets are not committed.
+- Public release export passes.
+- Gitleaks/security checks pass with findings=0.
+- README/runbook is clear enough for early users.
+- Final launch candidate reruns the sanitization gate after the last code change.
+
+## Next recommended execution order
+
+1. Keep this final-path doc current.
+2. Keep public clarity rollup green.
+3. Keep public release sanitization green.
+4. Harden remaining Buy VOID fulfillment/operator flow.
+5. Run update-safety and prelaunch safety proofs.
+6. Run final go/no-go bundle.
+7. Only then consider Mainnet-0 launch approval.
+
+## Hard rule
+
+Ready signals are not launch approval.
+
+Mainnet-0 is public_mainnet0_live. Future validator admission, vault126 onboarding, Buy VOID fulfillment, and treasury spend remain separately proof-gated.

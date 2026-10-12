@@ -1,0 +1,39 @@
+name: Public Agent Service Trusted Requester Acceptance Persistence Runtime Binding V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.yml"
+      - "docs/public-agent/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.md"
+      - "examples/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.example.json"
+      - "schemas/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.schema.json"
+      - "scripts/prove_public_agent_service_trusted_requester_acceptance_persistence_runtime_binding_v1.ts"
+      - "scripts/public_agent_service_trusted_requester_acceptance_persistence_runtime_binding_v1.ts"
+      - "scripts/public_agent_service_trusted_requester_acceptance_persistence_composition_v1.ts"
+      - "scripts/prove_public_agent_service_trusted_requester_acceptance_persistence_composition_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.yml"
+      - "docs/public-agent/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.md"
+      - "examples/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.example.json"
+      - "schemas/public-agent-service-trusted-requester-acceptance-persistence-runtime-binding-v1.schema.json"
+      - "scripts/prove_public_agent_service_trusted_requester_acceptance_persistence_runtime_binding_v1.ts"
+      - "scripts/public_agent_service_trusted_requester_acceptance_persistence_runtime_binding_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_public_agent_service_trusted_requester_acceptance_persistence_runtime_binding_v1.ts

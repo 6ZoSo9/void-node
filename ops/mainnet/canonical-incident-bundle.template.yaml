@@ -1,0 +1,44 @@
+incident_id: INC-YYYYMMDD-001
+started_at: TBD
+operator_label: TBD
+severity_tier: TBD
+classification: TBD
+
+local_head_height: TBD
+local_head_hash: TBD
+peer_head_height: TBD
+peer_head_hash: TBD
+disputed_height: TBD
+disputed_hash: TBD
+parent_height: TBD
+parent_hash: TBD
+
+accepted_checkpoint_height: TBD
+accepted_checkpoint_hash: TBD
+checkpoint_challenged: false
+checkpoint_crossed_by_reorg: false
+checkpoint_notes: ""
+
+observed_reorg_depth: TBD
+observed_reorg_frequency: TBD
+convergence_status: TBD
+validator_convergence_status: TBD
+branch_notes: ""
+
+suspected_bad_block: false
+suspected_invalid_state: false
+txroot_or_header_evidence: ""
+persisted_state_evidence: ""
+reproduced_on_multiple_nodes: false
+evidence_notes: ""
+
+validators_on_branch_a: []
+validators_on_branch_b: []
+validators_unresponsive: []
+validator_notes: ""
+
+response_level: TBD
+canonical_guidance_issued: false
+rollback_or_fork_considered: false
+rollback_or_fork_justification: ""
+operator_notes: ""

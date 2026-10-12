@@ -1,0 +1,98 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_FINALITY_CONFIRMATIONS_CHECK_RESULT_HOLD_V1",
+  "status": "buyer_packet_finality_confirmations_check_result_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_finality_confirmations_check_result_hold",
+  "purpose": "Define a private/operator-only hold shape for recording the result of checking a buyer-identity-bound candidate against the finality confirmations rule.",
+  "prerequisite_state": {
+    "buyer_identity_binding_check_result_hold_required": true,
+    "buyer_identity_binding_check_recorded_unverified_required": true,
+    "payment_eligibility_not_started": true,
+    "operator_approval_not_started": true
+  },
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_route": false,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "raw_rpc_payload_published": false,
+    "secret_material_recorded": false
+  },
+  "finality_confirmations_check_scope": {
+    "finality_confirmations_check_result_recording_only": true,
+    "operator_controlled_finality_confirmations_check_result_allowed": true,
+    "chain_reference_checked": true,
+    "transaction_hash_reference_checked": true,
+    "transaction_block_reference_checked": true,
+    "current_comparison_block_reference_checked": true,
+    "required_confirmations_checked": true,
+    "observed_confirmations_recorded": true,
+    "finality_threshold_passed_recorded": true,
+    "finality_confirmations_passed_recorded": true,
+    "finality_confirmations_candidate_unverified_for_payment_eligibility": true,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_approval_complete": false
+  },
+  "finality_confirmations_check_result_hold_states": [
+    "draft_hold",
+    "blocked_buyer_identity_binding_check_result_not_ready",
+    "blocked_block_reference_missing",
+    "blocked_confirmations_below_required",
+    "finality_confirmations_check_recorded_unverified",
+    "held_for_payment_eligibility_decision"
+  ],
+  "example_finality_confirmations_check_result_record": {
+    "finality_confirmations_check_result_id": "redacted_placeholder_only",
+    "buyer_identity_binding_check_result_id": "redacted_placeholder_only",
+    "duplicate_payment_guard_check_result_id": "redacted_placeholder_only",
+    "amount_rate_policy_check_result_id": "redacted_placeholder_only",
+    "allowlist_check_result_id": "redacted_placeholder_only",
+    "parse_result_id": "redacted_placeholder_only",
+    "receipt_read_result_id": "redacted_placeholder_only",
+    "work_item_id": "redacted_placeholder_only",
+    "queue_record_id": "redacted_placeholder_only",
+    "receipt_record_id": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_buyer_identity_binding_check_result_state": "buyer_identity_binding_check_recorded_unverified",
+    "finality_confirmations_check_result_state": "finality_confirmations_check_recorded_unverified",
+    "field_values_redacted": true,
+    "chain": "redacted_placeholder_only",
+    "transaction_hash": "redacted_placeholder_only",
+    "transaction_block_reference": "redacted_placeholder_only",
+    "current_comparison_block_reference": "redacted_placeholder_only",
+    "required_confirmations": "redacted_placeholder_only",
+    "observed_confirmations": "redacted_placeholder_only",
+    "finality_threshold_passed": true,
+    "finality_confirmations_passed": true
+  },
+  "not_satisfied_by_finality_confirmations_check_result_hold": {
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false,
+    "allocation_claim_creation_complete": false,
+    "inventory_reservation_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_finality_confirmations_check_result_hold_green": true,
+    "private_operator_only_green": true,
+    "finality_confirmations_check_result_recording_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_payment_decision_green": true,
+    "no_claim_or_inventory_green": true,
+    "authority_false_green": true
+  }
+}

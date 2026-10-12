@@ -1,0 +1,35 @@
+name: External Opportunity Agent Intake Read-Only Discovery Route V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-readonly-discovery-route-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-readonly-discovery-route-v1.md"
+      - "fixtures/external-opportunity/agent-intake-readonly-discovery-route-v1.example.json"
+      - "schemas/external-opportunity-agent-intake-readonly-discovery-route-v1.schema.json"
+      - "scripts/prove_external_opportunity_agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_capability_v1.ts"
+  push:
+    paths:
+      - ".github/workflows/external-opportunity-agent-intake-readonly-discovery-route-v1.yml"
+      - "docs/architecture/external-opportunity-agent-intake-readonly-discovery-route-v1.md"
+      - "fixtures/external-opportunity/agent-intake-readonly-discovery-route-v1.example.json"
+      - "schemas/external-opportunity-agent-intake-readonly-discovery-route-v1.schema.json"
+      - "scripts/prove_external_opportunity_agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_readonly_discovery_route_v1.ts"
+      - "src/external_opportunity/agent_intake_capability_v1.ts"
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install tsx scripts/prove_external_opportunity_agent_intake_readonly_discovery_route_v1.ts
+      - run: npm run build

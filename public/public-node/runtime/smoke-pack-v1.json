@@ -1,0 +1,40 @@
+{
+  "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1",
+  "purpose": "public_safe_smoke_pack_for_local_multibox_runtime_discovery_chain",
+  "status": "runtime_smoke_pack_ready",
+  "default_base_url": "http://127.0.0.1:4100",
+  "usage": {
+    "set_base": "export PUBLIC_NODE_BASE=http://127.0.0.1:4100",
+    "download_script": "curl -fsS \"$PUBLIC_NODE_BASE/public-node/runtime/smoke-pack-v1.sh\" -o /tmp/void-local-multibox-runtime-smoke-pack-v1.sh",
+    "run_script": "bash /tmp/void-local-multibox-runtime-smoke-pack-v1.sh"
+  },
+  "chain": {
+    "well_known": "/.well-known/void-public-node.json",
+    "public_node_index": "/public-node/index.json",
+    "runtime_discovery": "/public-node/runtime",
+    "runtime_index_json": "/public-node/runtime/index.json",
+    "runtime_status_json": "/public-node/runtime/local-multibox-status-v1.json",
+    "runtime_diag": "/__void/diag/local-multibox-runtime-route-v1.json"
+  },
+  "expected_markers": {
+    "well_known": "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
+    "well_known_runtime_link": "VOID_WELL_KNOWN_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_LINK_V1",
+    "public_node_root_index_link": "VOID_LOCAL_MULTIBOX_RUNTIME_ROOT_INDEX_LINK_V1",
+    "runtime_discovery_index": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+    "runtime_status": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
+    "runtime_route_diag": "VOID_LOCAL_MULTIBOX_RUNTIME_ROUTE_V1"
+  },
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  }
+}

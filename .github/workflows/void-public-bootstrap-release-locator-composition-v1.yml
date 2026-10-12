@@ -1,0 +1,88 @@
+name: VOID public bootstrap release locator composition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-release-locator-composition-v1.yml"
+      - "config/void-bootstrap-record-release-root-v1.json"
+      - "docs/public/void-public-bootstrap-release-locator-composition-v1.md"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs"
+  push:
+    branches:
+      - "feat/bootstrap-release-locator-composition-v1-20260811"
+    paths:
+      - ".github/workflows/void-public-bootstrap-release-locator-composition-v1.yml"
+      - "config/void-bootstrap-record-release-root-v1.json"
+      - "docs/public/void-public-bootstrap-release-locator-composition-v1.md"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Syntax checks
+        run: |
+          node --check scripts/lib/void_public_bootstrap_release_locator_composition_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs
+
+      - name: Prove release-to-manifest composition
+        run: node scripts/prove_void_public_bootstrap_release_locator_composition_v1.mjs
+
+      - name: Re-prove inherited trust primitives
+        run: |
+          node scripts/prove_void_bootstrap_record_release_root_v1.mjs
+          node scripts/prove_void_public_bootstrap_record_v2_locator_resolver_v1.mjs
+          node scripts/prove_void_public_bootstrap_record_v2_mirror_contract_v1.mjs
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

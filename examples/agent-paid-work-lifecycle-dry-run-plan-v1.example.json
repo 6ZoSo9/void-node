@@ -1,0 +1,102 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_LIFECYCLE_DRY_RUN_PLAN_V1",
+  "version": 1,
+  "canary_id": "voidapwec1_e100fbce008c04ec40637af0af91fb2f05aeedc23f856a2d3c0b1580625d755e",
+  "uniqueness_key": "paid-work-economic-canary:voidapwec1_e100fbce008c04ec40637af0af91fb2f05aeedc23f856a2d3c0b1580625d755e",
+  "credential_id": "voidapwc1_17afd17e72a71dd7cc2f7842aa513a6664ad4f525ed21fa21c31a70a44ebe16a",
+  "agent_id": "void.agent.synthetic-dry-run-v1",
+  "destination_wc_account": "void-paid-work-synthetic-dry-run-v1",
+  "created_at": "2026-07-27T21:15:00Z",
+  "lifecycle": [
+    {
+      "phase": "work_order",
+      "artifact_id": "voidapwo1_567dbf8bf0c935899f02cb903fb2126c4aa2e765a4ceec0a63aa2897647e60d4",
+      "artifact_sha256": "bb984c618a80cf5f51937f1234ba44b89200b66e0ffe74addd82da74c68a4db3"
+    },
+    {
+      "phase": "quote",
+      "artifact_id": "voidapwq1_9cc5d6e1b230e7ebcd01e8e184980f22551fcb0ae23775c9f7084d2c21792f61",
+      "artifact_sha256": "8093c817b2292d62a2e0b0635658cf7b10bf8066399fc250f789e4c8e47317f5"
+    },
+    {
+      "phase": "acceptance",
+      "artifact_id": "voidapwa1_c65735fdf4af976a4dc7cc33d1b7931295903c0b4473c31fd7f205391e349dae",
+      "artifact_sha256": "17155abfbb4f2e36b4f5f129ecf60c6f3ae6ccda1fae6b70cbcaa1f8668e564f"
+    },
+    {
+      "phase": "payment_intent",
+      "artifact_id": "voidapwpi1_ae8e0d2af3c260595b4d9131a1439d91b2c191fbe95d95e87aa10694fa94e065",
+      "artifact_sha256": "ec568f972fdeb34acedc5ede74692c1e25109e52b1578885d3078c358cfe2c87"
+    },
+    {
+      "phase": "payment_execution_authorization",
+      "artifact_id": "voidapwpea1_cf83b1c1978cdc35d3e0f84547aab0c574a4178f037fdb94b7ab6b4573e31723",
+      "artifact_sha256": "6cfd4b290bca31b0fa35ac23633cab5cfe7a8a89736d38c6330b47d25b901e89"
+    },
+    {
+      "phase": "payment_receipt",
+      "artifact_id": "voidapwpr1_032b6654c6461ac9ae37251f51fb120fd5590dc9ec1a82ce979b94cef16a953a",
+      "artifact_sha256": "579265b4ad64036d71c8979be63bc389733e6580c59bfb5ae3a882a6ee0c7de4"
+    },
+    {
+      "phase": "independent_payment_confirmation",
+      "artifact_id": "voidapwipc1_96c46dea16a3026606837b06bca6f52455d8730403f4164ad76726b67a7bc923",
+      "artifact_sha256": "564b43710946eaced5a9cb05de2d793abf7bce5d890200693c08abfaf7db037d"
+    },
+    {
+      "phase": "work_execution_authorization",
+      "artifact_id": "voidapwwea1_8b3e550dfb8cb71ef1de47ab90f3d813d0138217236b3b79d966ec1d97c3ee2a",
+      "artifact_sha256": "0d624ec3d6717f8090ec107a26db627de206562dc4b8321e51a23b5e469718cb"
+    },
+    {
+      "phase": "work_completion_receipt",
+      "artifact_id": "voidapwcr1_6b4023cae5e304459de6e5b01c69b568ca25c5f4c2d6fcb808d87cf8eb007af9",
+      "artifact_sha256": "f5968a9969cdbae8509b012d3c494ec6b91d11b37bfefddb317b4f2b6f5358cb"
+    },
+    {
+      "phase": "independent_completion_verification",
+      "artifact_id": "voidapwicv1_29dff2cf778bdcdfc9b997d5b914b031c57607b1b81eb327ff076bba0c1622c7",
+      "artifact_sha256": "49a2d2fbc725cc98da35dd84caefab95fa3d6ec5bd1d0fa39184089d7160c414"
+    },
+    {
+      "phase": "wc_award_authorization",
+      "artifact_id": "voidapwwcaa1_4844b9d90ba3cb1c1ab14d28c696c9ae1007e60e95d7c63d3442f2145a1a645c",
+      "artifact_sha256": "c0d0e74e36b4901a0c8b6a67d9fdba20efa3bb1de9a7ef83ba2b69c48a6976b7"
+    },
+    {
+      "phase": "wc_ledger_write",
+      "artifact_id": "voidapwwclw1_81cbe706991abbdac950ac3c5f65319f69ee0760ce6febe8595330a23e10afd2",
+      "artifact_sha256": "d5a10e65367b034fc08d82290078e98099c9d41fc93fd868b1bb063b22549416"
+    },
+    {
+      "phase": "wc_to_void_settlement",
+      "artifact_id": "voidapwsettle1_e83b57d0829f74f73e49b9fb8944c129b5542806a2b127d033afee25170ae5ba",
+      "artifact_sha256": "c7d81d723eae87dd65ebae0231584c4623c81a12eb1600404f34fe9f90a55354"
+    }
+  ],
+  "requested": {
+    "payment_amount_usdc": "0.01",
+    "wc_award": "3",
+    "settlement_wc": "3"
+  },
+  "prestate": {
+    "wc_redeemable": "0",
+    "void_balance": "0"
+  },
+  "expected_poststate": {
+    "wc_redeemable": "0",
+    "void_balance": "0"
+  },
+  "authority": {
+    "payment_execute": false,
+    "wc_ledger_write": false,
+    "wc_to_void_execute": false,
+    "wallet_access": false,
+    "signer_access": false
+  },
+  "modes": {
+    "payment": "dry_run_no_transfer",
+    "wc_ledger": "dry_run_no_write",
+    "wc_to_void": "dry_run_no_wallet"
+  }
+}

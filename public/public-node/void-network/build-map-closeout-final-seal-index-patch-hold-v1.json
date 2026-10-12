@@ -1,0 +1,42 @@
+{
+  "schema": "void.network.build_map.closeout_final_seal_index_patch.v1",
+  "marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_HOLD_V1",
+  "source_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+  "status": "hold",
+  "title": "VOID Network Build Map Closeout Final Seal Index Patch",
+  "public_surface": true,
+  "read_only": true,
+  "source": {
+    "main_head": "b95c05f6",
+    "subject": "feat: add VOID Network build map closeout final seal",
+    "closeout_marker": "VOID_NETWORK_BUILD_MAP_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "build_map_proof_marker": "VOID_NETWORK_BUILD_MAP_V1_GREEN",
+    "build_map_final_marker": "VOID_NETWORK_BUILD_MAP_V1_POST_MERGE_EXACT_GREEN",
+    "build_map_json": "build-map-v1.json",
+    "build_map_html": "build-map-v1.html",
+    "closeout_json": "build-map-closeout-audit-rollup-hold-v1.json",
+    "closeout_html": "build-map-closeout-audit-rollup-hold-v1.html",
+    "final_seal_json": "build-map-closeout-final-seal-hold-v1.json",
+    "final_seal_html": "build-map-closeout-final-seal-hold-v1.html"
+  },
+  "boundary": {
+    "index_discovery_only": true,
+    "wallet_connection_enabled": false,
+    "signer_access_enabled": false,
+    "secret_material_exposed": false,
+    "ledger_write_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_claim_enabled": false,
+    "void_transfer_enabled": false,
+    "usdc_transfer_enabled": false,
+    "buy_pool_execution_enabled": false,
+    "validator_registration_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_set_write_enabled": false,
+    "epoch_activation_enabled": false,
+    "datanet_object_write_enabled": false,
+    "peer_pin_command_enabled": false,
+    "mirror_command_enabled": false,
+    "autonomous_ai_write_enabled": false
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_EXECUTION_AUTHORIZATION_LIVE_PATH_HOLD_V1",
+  "scope": "private_fulfillment_execution_authorization_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "fulfillment_execution_authorization_live_path_enabled": false,
+    "fulfillment_execution_authorization_enabled": false,
+    "fulfillment_execution_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "required_prerequisite_results": [
+    "fulfillment_record_creation_pass",
+    "allocation_claim_creation_pass",
+    "inventory_reserve_decrement_pass",
+    "amount_rate_policy_pass",
+    "verified_receipt_parser_pass",
+    "duplicate_payment_guard_pass",
+    "wallet_policy_pass",
+    "receiver_allowlist_pass",
+    "operator_activation_packet_pass"
+  ],
+  "execution_authorization_key_fields": [
+    "buyer_identity_binding_key",
+    "payment_verification_key",
+    "reserve_key",
+    "allocation_claim_key",
+    "fulfillment_record_key",
+    "derived_void_amount",
+    "operator_authorization_key",
+    "execution_authorization_key"
+  ],
+  "rejected_execution_authorization_states": [
+    "missing_fulfillment_record_key",
+    "missing_operator_authorization_key",
+    "missing_wallet_policy_pass",
+    "missing_receiver_allowlist_pass",
+    "duplicate_execution_authorization_key",
+    "execution_authorization_before_fulfillment_record",
+    "execution_authorization_after_failed_payment",
+    "execution_authorization_after_duplicate_payment",
+    "execution_authorization_after_insufficient_inventory",
+    "execution_authorization_with_wallet_secret",
+    "execution_authorization_with_wallet_signing_enabled",
+    "execution_authorization_with_void_transfer_enabled",
+    "execution_authorization_with_public_mutation_enabled",
+    "fulfilled_state_without_separate_signer_transfer_authorization"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "fulfillment_execution_authorization": false,
+    "fulfillment_execution": false,
+    "buyer_fulfillment": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

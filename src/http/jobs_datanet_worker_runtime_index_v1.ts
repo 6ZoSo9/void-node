@@ -1,0 +1,673 @@
+// @ts-nocheck
+import * as fs from "node:fs";
+import {
+  AgentPick2JsonlSemanticIndexV1,
+  VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
+  agentPick2JsonlAppendTransitionV1,
+  agentPick2JsonlFileStampFromStatsV1,
+  agentPick2JsonlSameStampV1,
+  type AgentPick2JsonlFileStampV1,
+} from "./agent_pick2_jsonl_semantic_index_v1.js";
+
+export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
+  "VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1";
+export const VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1 = 192;
+
+export function normalizeMaxSeenJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1,
+    requested,
+  );
+}
+
+export function normalizeMaxLocallyDoneJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1,
+    requested,
+  );
+}
+
+type ScanInputV1 = {
+  jobsFile: string;
+  receiptsFile: string;
+  jobStateFile: string;
+};
+
+type ScanJobV1 = {
+  jobId: string;
+  job: any;
+  completionGeneration: string;
+  assertGeneration: () => void;
+};
+
+type PendingJobV1 = {
+  job: any;
+  sourceStamp: AgentPick2JsonlFileStampV1 | null;
+};
+
+export type JobsDatanetWorkerRuntimeScanV1 = {
+  ready: boolean;
+  jobs: ScanJobV1[];
+  doneTruthHas: (id: string) => boolean;
+  holdReason: string | null;
+  scanComplete: boolean;
+  bytesReadThisTick: number;
+  bytesReadTotal: number;
+  completionIo: any;
+};
+
+function boundedIntV1(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+export class JobsDatanetWorkerRuntimeIndexV1 {
+  private readonly completionIndex: AgentPick2JsonlSemanticIndexV1;
+  private readonly maxScanBytesPerTick: number;
+  private readonly maxJobsPerTick: number;
+  private readonly maxSeenJobIds: number;
+  private readonly maxLocallyDoneJobIds: number;
+
+  private jobsDev = "";
+  private jobsIno = "";
+  private jobsOffset = 0;
+  private jobsCarry = Buffer.alloc(0);
+  private jobsSeen = new Set<string>();
+  private pending = new Map<string, PendingJobV1>();
+  private locallyDone = new Set<string>();
+  private jobsAdmittedStamp: AgentPick2JsonlFileStampV1 | null = null;
+  private jobsSourceRejected = false;
+  private jobsSourceRejectReason: string | null = null;
+  private bytesReadTotal = 0;
+
+  constructor(opts: {
+    maxScanBytesPerTick?: number;
+    maxJobsPerTick?: number;
+    maxSeenJobIds?: number;
+    maxLocallyDoneJobIds?: number;
+    maxSyncCompletionRebuildBytes?: number;
+    completionRebuildBackoffMs?: number;
+    maxCompletionIdsPerFile?: number;
+  } = {}) {
+    this.maxScanBytesPerTick = boundedIntV1(
+      opts.maxScanBytesPerTick ??
+        process.env.VOID_JOBS_WORKER_SCAN_BYTES_PER_TICK,
+      1024 * 1024,
+      4096,
+      4 * 1024 * 1024,
+    );
+    this.maxJobsPerTick = boundedIntV1(
+      opts.maxJobsPerTick ?? process.env.VOID_JOBS_WORKER_MAX_JOBS_PER_TICK,
+      8,
+      1,
+      64,
+    );
+    this.maxSeenJobIds = normalizeMaxSeenJobIdsV1(
+      opts.maxSeenJobIds ?? process.env.VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS,
+    );
+    this.maxLocallyDoneJobIds = normalizeMaxLocallyDoneJobIdsV1(
+      opts.maxLocallyDoneJobIds ??
+        process.env.VOID_JOBS_WORKER_MAX_LOCALLY_DONE_JOB_IDS,
+    );
+    this.completionIndex = new AgentPick2JsonlSemanticIndexV1({
+      maxSyncCompletionRebuildBytes: opts.maxSyncCompletionRebuildBytes,
+      completionRebuildBackoffMs: opts.completionRebuildBackoffMs,
+      maxCompletionIdsPerFile:
+        opts.maxCompletionIdsPerFile ??
+        process.env.VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE,
+    });
+  }
+
+  private resetJobsGenerationV1(): void {
+    this.jobsDev = "";
+    this.jobsIno = "";
+    this.jobsOffset = 0;
+    this.jobsCarry = Buffer.alloc(0);
+    this.jobsSeen.clear();
+    this.pending.clear();
+  }
+
+  private clearJobsSourceAuthorityV1(): void {
+    this.jobsAdmittedStamp = null;
+    this.jobsSourceRejected = false;
+    this.jobsSourceRejectReason = null;
+  }
+
+  private rejectJobsSourceV1(reason: string): void {
+    this.resetJobsGenerationV1();
+    this.jobsSourceRejected = true;
+    this.jobsSourceRejectReason = reason;
+  }
+
+  private admitJobsSourceV1(
+    file: string,
+    current: AgentPick2JsonlFileStampV1,
+  ): boolean {
+    if (this.jobsSourceRejected) return false;
+    const prior = this.jobsAdmittedStamp;
+    if (!prior || agentPick2JsonlSameStampV1(prior, current)) {
+      this.jobsAdmittedStamp = { ...current };
+      return true;
+    }
+    const transition = agentPick2JsonlAppendTransitionV1(
+      file,
+      prior,
+      current,
+    );
+    if (!transition.ok) {
+      // Keep the last admitted generation. A later B -> B observation must not
+      // self-authorize a transition that already failed A -> B.
+      this.jobsSourceRejected = true;
+      this.jobsSourceRejectReason = "jobs_unwitnessed_source_change";
+      return false;
+    }
+    this.jobsAdmittedStamp = { ...current };
+    return true;
+  }
+
+  private assertPendingUseAuthorityV1(
+    file: string,
+    jobId: string,
+    entry: PendingJobV1,
+  ): void {
+    let current: AgentPick2JsonlFileStampV1 | null = null;
+    try {
+      const stats = fs.statSync(file, { bigint: true } as any);
+      if (stats.isFile()) {
+        current = agentPick2JsonlFileStampFromStatsV1(stats);
+      }
+    } catch {
+      current = null;
+    }
+    const expected = entry.sourceStamp;
+    if (
+      expected &&
+      current &&
+      this.jobsAdmittedStamp &&
+      !this.jobsSourceRejected &&
+      agentPick2JsonlSameStampV1(expected, current) &&
+      agentPick2JsonlSameStampV1(expected, this.jobsAdmittedStamp)
+    ) {
+      return;
+    }
+    this.resetJobsGenerationV1();
+    throw new Error(
+      "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " +
+        "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED " +
+        `job_id=${jobId} file=${file}`,
+    );
+  }
+
+  private pendingJobForUseV1(
+    file: string,
+    jobId: string,
+    entry: PendingJobV1,
+  ): any {
+    const validate = () =>
+      this.assertPendingUseAuthorityV1(file, jobId, entry);
+    return new Proxy(entry.job, {
+      get: (target, property, receiver) => {
+        validate();
+        return Reflect.get(target, property, receiver);
+      },
+      has: (target, property) => {
+        validate();
+        return Reflect.has(target, property);
+      },
+      ownKeys: (target) => {
+        validate();
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor: (target, property) => {
+        validate();
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
+  }
+
+  private completionSnapshotV1(input: ScanInputV1): any {
+    return this.completionIndex.completionTruthSnapshotV1([
+      input.receiptsFile,
+      input.jobStateFile,
+      input.jobsFile,
+    ]);
+  }
+
+  private assertCompletionGenerationV1(completion: any): void {
+    try {
+      completion.assertGeneration();
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      if (message.includes("COMPLETION_SNAPSHOT_EXPIRED")) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " + message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  completionHasV1(input: ScanInputV1, id: string): boolean {
+    const snapshot = this.completionSnapshotV1(input);
+    if (!snapshot.ready) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD " +
+          String(snapshot.holdReason || "completion_truth_not_ready"),
+      );
+    }
+    this.assertCompletionGenerationV1(snapshot);
+    return snapshot.doneTruthHas(String(id || ""));
+  }
+
+  scan(input: ScanInputV1): JobsDatanetWorkerRuntimeScanV1 {
+    let preflightStamp: AgentPick2JsonlFileStampV1 | null = null;
+    if (fs.existsSync(input.jobsFile)) {
+      const preflight = fs.statSync(input.jobsFile, { bigint: true } as any);
+      if (!preflight.isFile()) {
+        throw new Error(
+          `VOID_JOBS_DATANET_WORKER_JOBS_NON_REGULAR file=${input.jobsFile}`,
+        );
+      }
+      preflightStamp = agentPick2JsonlFileStampFromStatsV1(preflight);
+      if (!this.admitJobsSourceV1(input.jobsFile, preflightStamp)) {
+        this.resetJobsGenerationV1();
+        return {
+          ready: false,
+          jobs: [],
+          doneTruthHas: () => false,
+          holdReason:
+            this.jobsSourceRejectReason || "jobs_unwitnessed_source_change",
+          scanComplete: false,
+          bytesReadThisTick: 0,
+          bytesReadTotal: this.bytesReadTotal,
+          completionIo: {},
+        };
+      }
+    } else {
+      this.resetJobsGenerationV1();
+      this.clearJobsSourceAuthorityV1();
+    }
+
+    const completion = this.completionSnapshotV1(input);
+    if (!completion.ready) {
+      return {
+        ready: false,
+        jobs: [],
+        doneTruthHas: completion.doneTruthHas,
+        holdReason: String(
+          completion.holdReason || "completion_truth_not_ready",
+        ),
+        scanComplete: false,
+        bytesReadThisTick: 0,
+        bytesReadTotal: this.bytesReadTotal,
+        completionIo: completion.io,
+      };
+    }
+
+    for (const id of Array.from(this.locallyDone)) {
+      if (completion.doneTruthHas(id)) {
+        this.locallyDone.delete(id);
+      }
+    }
+    for (const id of Array.from(this.pending.keys())) {
+      if (completion.doneTruthHas(id)) {
+        this.pending.delete(id);
+        this.locallyDone.delete(id);
+        continue;
+      }
+      if (this.locallyDone.has(id)) {
+        this.pending.delete(id);
+      }
+    }
+
+    if (!fs.existsSync(input.jobsFile)) {
+      this.resetJobsGenerationV1();
+      this.clearJobsSourceAuthorityV1();
+      return {
+        ready: true,
+        jobs: [],
+        doneTruthHas: completion.doneTruthHas,
+        holdReason: null,
+        scanComplete: true,
+        bytesReadThisTick: 0,
+        bytesReadTotal: this.bytesReadTotal,
+        completionIo: completion.io,
+      };
+    }
+
+    const stat = fs.statSync(input.jobsFile, { bigint: true } as any);
+    if (!stat.isFile()) {
+      throw new Error(
+        `VOID_JOBS_DATANET_WORKER_JOBS_NON_REGULAR file=${input.jobsFile}`,
+      );
+    }
+
+    const observedStamp = agentPick2JsonlFileStampFromStatsV1(stat);
+    if (
+      !preflightStamp ||
+      !agentPick2JsonlSameStampV1(preflightStamp, observedStamp)
+    ) {
+      this.resetJobsGenerationV1();
+      return {
+        ready: false,
+        jobs: [],
+        doneTruthHas: () => false,
+        holdReason: "jobs_generation_changed",
+        scanComplete: false,
+        bytesReadThisTick: 0,
+        bytesReadTotal: this.bytesReadTotal,
+        completionIo: completion.io,
+      };
+    }
+
+    const dev = observedStamp.dev;
+    const ino = observedStamp.ino;
+    const size = observedStamp.size;
+
+    if (
+      (this.jobsDev && (this.jobsDev !== dev || this.jobsIno !== ino)) ||
+      size < this.jobsOffset
+    ) {
+      this.resetJobsGenerationV1();
+    }
+    if (!this.jobsDev) {
+      this.jobsDev = dev;
+      this.jobsIno = ino;
+    }
+
+    let bytesReadThisTick = 0;
+    // VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1
+    // Drain the already-bounded queued-job chunk before advancing the ledger
+    // cursor again. This prevents pending job objects from accumulating across
+    // history chunks faster than maxJobsPerTick can process them.
+    const canAdvanceHistory = this.pending.size === 0;
+    const remaining = canAdvanceHistory
+      ? Math.max(0, size - this.jobsOffset)
+      : 0;
+    if (remaining > 0) {
+      const want = Math.min(this.maxScanBytesPerTick, remaining);
+      const buffer = Buffer.allocUnsafe(want);
+      const flags =
+        fs.constants.O_RDONLY |
+        ((fs.constants as any).O_NOFOLLOW || 0);
+      const fd = fs.openSync(input.jobsFile, flags);
+      let done = 0;
+      try {
+        const opened = fs.fstatSync(fd, { bigint: true } as any);
+        const openedStamp = opened.isFile()
+          ? agentPick2JsonlFileStampFromStatsV1(opened)
+          : null;
+        if (
+          !openedStamp ||
+          !agentPick2JsonlSameStampV1(openedStamp, observedStamp)
+        ) {
+          this.resetJobsGenerationV1();
+          throw new Error(
+            `VOID_JOBS_DATANET_WORKER_JOBS_GENERATION_CHANGED file=${input.jobsFile}`,
+          );
+        }
+        while (done < want) {
+          const n = fs.readSync(
+            fd,
+            buffer,
+            done,
+            want - done,
+            this.jobsOffset + done,
+          );
+          if (n <= 0) break;
+          done += n;
+        }
+      } finally {
+        fs.closeSync(fd);
+      }
+
+      this.jobsOffset += done;
+      bytesReadThisTick = done;
+      this.bytesReadTotal += done;
+
+      const incoming = buffer.subarray(0, done);
+      const framed =
+        this.jobsCarry.length === 0
+          ? incoming
+          : Buffer.concat(
+              [this.jobsCarry, incoming],
+              this.jobsCarry.length + incoming.length,
+            );
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      let frameStart = 0;
+
+      for (let index = 0; index < framed.length; index += 1) {
+        if (framed[index] !== 0x0a) continue;
+        const rawRecordBytes = framed.subarray(frameStart, index);
+        frameStart = index + 1;
+        if (
+          rawRecordBytes.length >
+          VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+        ) {
+          throw new Error(
+            `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
+          );
+        }
+        let recordBytes = rawRecordBytes;
+        if (
+          recordBytes.length > 0 &&
+          recordBytes[recordBytes.length - 1] === 0x0d
+        ) {
+          recordBytes = recordBytes.subarray(0, recordBytes.length - 1);
+        }
+        if (recordBytes.length === 0) continue;
+
+        let line: string;
+        try {
+          line = decoder.decode(recordBytes).trim();
+        } catch {
+          throw new Error(
+            `VOID_JOBS_DATANET_WORKER_INVALID_UTF8 file=${input.jobsFile}`,
+          );
+        }
+        if (!line) continue;
+
+        let job: any;
+        try {
+          job = JSON.parse(line);
+        } catch {
+          // VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1
+          // Preserve legacy fail-soft semantics for malformed valid-UTF8 JSON.
+          continue;
+        }
+        const jobId = String(job?.job_id || job?.id || "").trim();
+        if (!jobId) continue;
+        if (
+          Buffer.byteLength(jobId, "utf8") >
+          VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+        ) {
+          this.rejectJobsSourceV1("jobs_job_id_too_large");
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE " +
+              `file=${input.jobsFile}`,
+          );
+        }
+        if (this.jobsSeen.has(jobId)) continue;
+        if (this.jobsSeen.size >= this.maxSeenJobIds) {
+          const limit = this.maxSeenJobIds;
+          this.rejectJobsSourceV1("jobs_seen_job_cardinality_hold");
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD " +
+              `limit=${limit} file=${input.jobsFile}`,
+          );
+        }
+        this.jobsSeen.add(jobId);
+        if (String(job?.status || "") !== "queued") continue;
+        if (completion.doneTruthHas(jobId)) {
+          this.locallyDone.delete(jobId);
+          continue;
+        }
+        if (this.locallyDone.has(jobId)) {
+          continue;
+        }
+        this.pending.set(jobId, {
+          job,
+          sourceStamp: null,
+        });
+      }
+
+      this.jobsCarry = Buffer.from(framed.subarray(frameStart));
+      if (
+        this.jobsCarry.length >
+        VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+      ) {
+        throw new Error(
+          `VOID_JOBS_DATANET_WORKER_RECORD_TOO_LARGE file=${input.jobsFile}`,
+        );
+      }
+    }
+
+    const pathAfter = fs.statSync(
+      input.jobsFile,
+      { bigint: true } as any,
+    );
+    const afterStamp = pathAfter.isFile()
+      ? agentPick2JsonlFileStampFromStatsV1(pathAfter)
+      : null;
+    if (
+      !afterStamp ||
+      !agentPick2JsonlSameStampV1(afterStamp, observedStamp) ||
+      afterStamp.size < this.jobsOffset
+    ) {
+      this.resetJobsGenerationV1();
+      return {
+        ready: false,
+        jobs: [],
+        doneTruthHas: completion.doneTruthHas,
+        holdReason: "jobs_generation_changed",
+        scanComplete: false,
+        bytesReadThisTick,
+        bytesReadTotal: this.bytesReadTotal,
+        completionIo: completion.io,
+      };
+    }
+
+    for (const entry of this.pending.values()) {
+      if (!entry.sourceStamp) entry.sourceStamp = { ...observedStamp };
+      if (!agentPick2JsonlSameStampV1(entry.sourceStamp, observedStamp)) {
+        this.resetJobsGenerationV1();
+        return {
+          ready: false,
+          jobs: [],
+          doneTruthHas: () => false,
+          holdReason: "jobs_pending_source_generation_changed",
+          scanComplete: false,
+          bytesReadThisTick,
+          bytesReadTotal: this.bytesReadTotal,
+          completionIo: completion.io,
+        };
+      }
+    }
+
+    const jobs: ScanJobV1[] = [];
+    const locallyDoneBudgetRemaining = Math.max(
+      0,
+      this.maxLocallyDoneJobIds - this.locallyDone.size,
+    );
+    for (const [jobId, entry] of this.pending) {
+      if (completion.doneTruthHas(jobId)) {
+        this.pending.delete(jobId);
+        this.locallyDone.delete(jobId);
+        continue;
+      }
+      if (this.locallyDone.has(jobId)) {
+        this.pending.delete(jobId);
+        continue;
+      }
+      if (jobs.length >= locallyDoneBudgetRemaining) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit} file=${input.jobsFile}`,
+        );
+      }
+      jobs.push({
+        jobId,
+        job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
+        completionGeneration: completion.generation,
+        assertGeneration: () => {
+          // Preserve the established jobs-source error contract when the jobs
+          // and completion tuples share the same changed jobs file.
+          this.assertPendingUseAuthorityV1(input.jobsFile, jobId, entry);
+          this.assertCompletionGenerationV1(completion);
+        },
+      });
+      if (jobs.length >= this.maxJobsPerTick) break;
+    }
+
+    return {
+      ready: true,
+      jobs,
+      doneTruthHas: completion.doneTruthHas,
+      holdReason: null,
+      scanComplete:
+        afterStamp.size === this.jobsOffset &&
+        this.jobsCarry.length === 0,
+      bytesReadThisTick,
+      bytesReadTotal: this.bytesReadTotal,
+      completionIo: completion.io,
+    };
+  }
+
+  markDone(jobId: string): void {
+    const id = String(jobId || "").trim();
+    if (!id) return;
+    if (
+      Buffer.byteLength(id, "utf8") >
+      VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+    ) {
+      this.rejectJobsSourceV1("jobs_locally_done_job_id_too_large");
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_JOB_ID_TOO_LARGE",
+      );
+    }
+    if (!this.locallyDone.has(id)) {
+      if (this.locallyDone.size >= this.maxLocallyDoneJobIds) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit}`,
+        );
+      }
+      this.locallyDone.add(id);
+    }
+    this.pending.delete(id);
+  }
+}

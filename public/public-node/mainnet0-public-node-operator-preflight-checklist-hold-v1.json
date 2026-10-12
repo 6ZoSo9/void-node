@@ -1,0 +1,131 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-preflight-checklist-hold-v1",
+  "status": "preflight_checklist_hold",
+  "public_surface": "read_only_static_preflight_checklist",
+  "source_matrix": {
+    "lane": "mainnet0-public-node-operator-readiness-matrix-hold-v1",
+    "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+    "json": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.json",
+    "html": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.html"
+  },
+  "authority": {
+    "registration_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "peer_state_write_enabled": false,
+    "validator_set_write_enabled": false,
+    "submit_enabled": false
+  },
+  "checklist_items": [
+    {
+      "id": "repository_source_verification",
+      "label": "Repository/source verification",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Confirm you are reading VOID public-node materials from the intended source before preparing any machine."
+    },
+    {
+      "id": "machine_stability",
+      "label": "Machine stability",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Use a machine that can remain stable for long-running node processes and clean restarts."
+    },
+    {
+      "id": "operating_system_hygiene",
+      "label": "Operating system hygiene",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Keep the operating system maintained, patched, and free of unnecessary risky workloads."
+    },
+    {
+      "id": "runtime_dependency_readiness",
+      "label": "Runtime dependency readiness",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Prepare to install and verify only documented runtime dependencies once public node operation instructions are released."
+    },
+    {
+      "id": "firewall_router_review",
+      "label": "Firewall/router review",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Understand local firewall and router behavior before exposing any public node service."
+    },
+    {
+      "id": "public_reachability_plan",
+      "label": "Public reachability plan",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Plan how the node would be reachable later, without treating this checklist as permission to advertise or register a live node."
+    },
+    {
+      "id": "datanet_storage_plan",
+      "label": "DataNet storage plan",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Plan storage capacity, growth, filesystem hygiene, and separation of public data from private/operator-only material."
+    },
+    {
+      "id": "backup_restore_plan",
+      "label": "Backup and restore plan",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Prepare a simple backup and restore routine before relying on the machine for node operation."
+    },
+    {
+      "id": "uptime_power_plan",
+      "label": "Uptime and power plan",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Consider power stability, network stability, and restart procedures."
+    },
+    {
+      "id": "logs_monitoring_plan",
+      "label": "Logs and monitoring plan",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Prepare to retain useful logs locally without leaking secrets or private operator data."
+    },
+    {
+      "id": "secrets_boundary",
+      "label": "Secrets boundary",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Keep secrets, secret key material, secret recovery material, credentials, and operator-only files out of public directories."
+    },
+    {
+      "id": "validator_separation",
+      "label": "Validator separation",
+      "status": "operator_self_check_only",
+      "operator_self_check": "Understand that public node readiness does not equal validator candidacy, validator admission, or active validator status."
+    },
+    {
+      "id": "wallet_funding_boundary",
+      "label": "Wallet and funding boundary",
+      "status": "operator_self_check_only",
+      "operator_self_check": "This checklist does not connect wallets, request stake, request funds, approve payments, or authorize transfers."
+    },
+    {
+      "id": "operator_acknowledgement",
+      "label": "Operator acknowledgement",
+      "status": "operator_self_check_only",
+      "operator_self_check": "A prospective operator should understand that this is preparation guidance only and does not submit anything to VOID."
+    }
+  ],
+  "boundary": {
+    "allowed": [
+      "read-only operator self-check guidance",
+      "static JSON visibility",
+      "static HTML visibility",
+      "public-safe preflight preparation",
+      "source matrix linkage"
+    ],
+    "forbidden": [
+      "node registration",
+      "validator admission",
+      "validator activation",
+      "staking",
+      "wallet connection",
+      "ledger write",
+      "peer-state write",
+      "validator-set write",
+      "public mutation endpoint",
+      "checklist submission"
+    ]
+  },
+  "operator_notice": "This public checklist is preparation guidance only. It does not register a node, activate a validator, connect a wallet, accept stake, submit data, or mutate network state."
+}

@@ -1,0 +1,118 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_CENSUS_CLOSEOUT_V1",
+  "version": 1,
+  "status": "SIGNED_ARTIFACT_CENSUS_COMPLETE_REPLAY_FENCE_HOLD",
+  "chain_id": 2050,
+  "source_execution_epoch": 1,
+  "successor_execution_epoch": 2,
+  "known_lineage_registry": {
+    "path": "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json",
+    "lineage_set_sha256": "84c3b99115d6dbc9f5ec909c190a1c69e7e692d8123c241f66dac79e66a5741d",
+    "known_repository_evidence_lineage_count": 20,
+    "all_retained_epoch1_lineages_stale_under_exact_nonce_continuity": true,
+    "reviewed_chain2050_staleness_unproven_lineage_count": 2,
+    "local_devnet_test_lineage_count": 2
+  },
+  "controlled_store_scope": {
+    "precision_controlled_artifact_lane_complete": true,
+    "nimo_controlled_artifact_lane_complete": true,
+    "encrypted_void_authority_backup_lane_complete": true,
+    "additional_designated_signed_artifact_store_identified": false,
+    "scope_basis": "docs/operators/nimo-epoch2-signed-artifact-metadata-census-v1.md"
+  },
+  "precision_receipt_bound_sweep": {
+    "evidence_class": "operator_observed_private_receipt_bound_sweep",
+    "receipt_stamp": "20260928T162432Z",
+    "receipt_count": 797,
+    "discovered_file_count": 53670,
+    "signed_chain2050_transaction_count": 3,
+    "stale_signed_chain2050_transaction_count": 3,
+    "requires_operator_followup_count": 0,
+    "full_receipt_bound_content_sweep_complete": true,
+    "raw_transaction_printed": false,
+    "raw_transaction_persisted": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false
+  },
+  "nimo_receipt_bound_sweep": {
+    "evidence_class": "operator_observed_private_receipt_bound_sweep",
+    "metadata_receipt_stamp": "20260928T233909Z",
+    "metadata_receipt_count": 5,
+    "metadata_receipt_set_sha256": "449a1f8757f210b739d87d6aad53f772ccd86014417bd5860db283f1906ec95d",
+    "metadata_discovered_file_count": 134,
+    "excluded_encrypted_keystore": {
+      "basename": "keystore.json",
+      "size_bytes": 782,
+      "sha256": "f39be9fd95bd6f116b30e0bcbd86b35596ab71aab4650a73ee167c998e3aedad",
+      "decrypted": false,
+      "parsed": false,
+      "private_key_plaintext_read": false
+    },
+    "derived_nonsecret_file_count": 133,
+    "derived_receipt_count": 5,
+    "derived_receipt_set_sha256": "089fbf5762b02bbec3633d32441e1b90f9bda886e515c97a7b2c26f7626991d3",
+    "content_scanned_total_bytes": 976183,
+    "content_manifest_sha256": "b21f766affc7d76dca33d722a5b70737906960b5e5544ccd5fda45014d6b73f4",
+    "ascii_long_hex_candidate_count": 5,
+    "binary_rlp_candidate_count": 78,
+    "signed_chain2050_transaction_count": 3,
+    "stale_signed_chain2050_transaction_count": 3,
+    "requires_operator_followup_count": 0,
+    "full_receipt_bound_content_sweep_complete": true,
+    "transactions": [
+      {
+        "known_repository_lineage_id": "sovereign_genesis_registry_append",
+        "transaction_hash": "0xd6f2eea882fc9351644072e23c8a5279fbdc085a0ee153d6b9fa73aef247e6e7",
+        "signer_address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+        "transaction_nonce": "0",
+        "frozen_final_nonce": "1",
+        "occurrence_count": 1,
+        "replay_staleness_proven": true
+      },
+      {
+        "known_repository_lineage_id": "buy_void_fulfillment_deployment",
+        "transaction_hash": "0x36d9763907e86f6623f2a548269211ffc8e04f69e1e05622e7486bf61708622b",
+        "signer_address": "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+        "transaction_nonce": "0",
+        "frozen_final_nonce": "1",
+        "occurrence_count": 2,
+        "replay_staleness_proven": true
+      },
+      {
+        "known_repository_lineage_id": "role_authority_deployment",
+        "transaction_hash": "0x8da8cc5a8e126158bdc0e003c5521699939d95a26a72a933969cf6de15d88dd4",
+        "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+        "transaction_nonce": "0",
+        "frozen_final_nonce": "1",
+        "occurrence_count": 1,
+        "replay_staleness_proven": true
+      }
+    ],
+    "private_key_or_secret_content_read": false,
+    "raw_transaction_printed": false,
+    "raw_transaction_persisted": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false
+  },
+  "decision": {
+    "pending_legacy_signed_transaction_census_complete": true,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "private_key_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "migration_activation": false,
+    "public_activation": false,
+    "funds_movement": false
+  },
+  "closeout_id": "voidepoch2census1_32bc149b0e7049dbcb22d6fa9485146b29e8ba2652ecfc5db0fa4cf224e31e14"
+}

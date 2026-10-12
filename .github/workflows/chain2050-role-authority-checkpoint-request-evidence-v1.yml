@@ -1,0 +1,41 @@
+name: chain2050-role-authority-checkpoint-request-evidence-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
+      - "tools/chain2050-role-authority-checkpoint-request-evidence-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_checkpoint_request_evidence_v1.mjs"
+      - "docs/security/chain2050-role-authority-checkpoint-request-evidence-v1.md"
+      - ".github/workflows/chain2050-role-authority-checkpoint-request-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+      - name: Prove exact checkpoint request evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_chain2050_role_authority_checkpoint_request_evidence_v1.mjs | tee "$RUNNER_TEMP/checkpoint-request-evidence.log"
+          grep -Fx 'VOID_CHAIN2050_ROLE_AUTHORITY_CHECKPOINT_REQUEST_PRECISION_EVIDENCE_V1_GREEN' "$RUNNER_TEMP/checkpoint-request-evidence.log"
+          grep -Fx 'checkpoint_request_id=voidcracpr1_c6ebb84ea0dace0e16ad310d7826b68acd62ee00fd0d7b0858a3317ae59319f6' "$RUNNER_TEMP/checkpoint-request-evidence.log"
+          grep -Fx 'confirmation_count=12' "$RUNNER_TEMP/checkpoint-request-evidence.log"
+          grep -Fx 'checkpoint_ancestry_exact=true' "$RUNNER_TEMP/checkpoint-request-evidence.log"
+          grep -Fx 'signing_authorized=false' "$RUNNER_TEMP/checkpoint-request-evidence.log"
+      - name: Diff hygiene
+        run: git diff --check

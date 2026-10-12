@@ -1,0 +1,76 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_available_work_packet_template_hold.v1",
+  "id": "datanet-wc-available-work-packet-template-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Available Work Packet Template Hold v1",
+  "summary": "Public template describing the future packet shape for DataNet availability work that may be reviewed for Work Credits later. This template is not a live earn queue and does not issue Work Credits.",
+  "marker": "VOID_DATANET_WC_AVAILABLE_WORK_PACKET_TEMPLATE_HOLD_V1",
+  "template_kind": "datanet_wc_available_work_packet",
+  "template_status": "shape_only_hold",
+  "intended_future_use": {
+    "lane": "work_credits",
+    "scope": "datanet_availability",
+    "review_model": "future_operator_or_reviewer_evaluation",
+    "public_submission_enabled": false,
+    "live_earn_enabled": false
+  },
+  "packet_template": {
+    "packet_id": "example_datanet_wc_available_work_packet_id",
+    "packet_kind": "datanet_wc_available_work_packet",
+    "packet_status": "draft_or_submitted_for_future_review",
+    "work_type": "datanet_availability",
+    "work_summary": "Human-readable summary of availability work offered or performed.",
+    "claimed_capability": "serve_or_mirror_datanet_content",
+    "evidence": {
+      "public_node_route": "optional_public_status_route",
+      "availability_window": "optional_iso8601_window",
+      "content_reference_mode": "redacted_or_public_safe_reference_only",
+      "operator_notes": "optional_public_safe_notes"
+    },
+    "review": {
+      "review_required": true,
+      "review_status": "not_reviewed",
+      "reviewer_identifier_public": false,
+      "operator_identifier_public": false
+    },
+    "wc_result": {
+      "wc_issued": false,
+      "wc_amount": 0,
+      "wc_ledger_write_performed": false,
+      "void_allocated": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_template_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "issues_work_credits": false,
+    "approves_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

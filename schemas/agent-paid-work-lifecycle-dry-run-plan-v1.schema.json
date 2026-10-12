@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-lifecycle-dry-run-plan-v1.schema.json",
+  "title": "VOID Agent Paid Work Lifecycle Dry Run Plan V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "canary_id",
+    "uniqueness_key",
+    "credential_id",
+    "agent_id",
+    "destination_wc_account",
+    "created_at",
+    "lifecycle",
+    "requested",
+    "prestate",
+    "expected_poststate",
+    "authority",
+    "modes"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_LIFECYCLE_DRY_RUN_PLAN_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "canary_id": {
+      "type": "string",
+      "pattern": "^void[a-z0-9_]{2,160}$"
+    },
+    "uniqueness_key": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 256
+    },
+    "credential_id": {
+      "type": "string",
+      "pattern": "^void[a-z0-9_]{2,160}$"
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+    },
+    "destination_wc_account": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lifecycle": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phase",
+          "artifact_id",
+          "artifact_sha256"
+        ],
+        "properties": {
+          "phase": {
+            "enum": [
+              "work_order",
+              "quote",
+              "acceptance",
+              "payment_intent",
+              "payment_execution_authorization",
+              "payment_receipt",
+              "independent_payment_confirmation",
+              "work_execution_authorization",
+              "work_completion_receipt",
+              "independent_completion_verification",
+              "wc_award_authorization",
+              "wc_ledger_write",
+              "wc_to_void_settlement"
+            ]
+          },
+          "artifact_id": {
+            "type": "string",
+            "pattern": "^void[a-z0-9_]{2,160}$"
+          },
+          "artifact_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "requested": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payment_amount_usdc",
+        "wc_award",
+        "settlement_wc"
+      ],
+      "properties": {
+        "payment_amount_usdc": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "wc_award": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "settlement_wc": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      }
+    },
+    "prestate": {
+      "$ref": "#/$defs/state"
+    },
+    "expected_poststate": {
+      "$ref": "#/$defs/state"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payment_execute",
+        "wc_ledger_write",
+        "wc_to_void_execute",
+        "wallet_access",
+        "signer_access"
+      ],
+      "properties": {
+        "payment_execute": {
+          "const": false
+        },
+        "wc_ledger_write": {
+          "const": false
+        },
+        "wc_to_void_execute": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "signer_access": {
+          "const": false
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payment",
+        "wc_ledger",
+        "wc_to_void"
+      ],
+      "properties": {
+        "payment": {
+          "const": "dry_run_no_transfer"
+        },
+        "wc_ledger": {
+          "const": "dry_run_no_write"
+        },
+        "wc_to_void": {
+          "const": "dry_run_no_wallet"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wc_redeemable",
+        "void_balance"
+      ],
+      "properties": {
+        "wc_redeemable": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "void_balance": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+name: Authenticated Paid Work Submission Provider Selection V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-submission-provider-selection-v1.yml"
+      - "docs/public-agent/authenticated-paid-work-submission-provider-selection-v1.md"
+      - "examples/authenticated-paid-work-submission-provider-selection-v1.example.json"
+      - "schemas/authenticated-paid-work-submission-provider-selection-v1.schema.json"
+      - "scripts/authenticated_paid_work_submission_provider_selection_v1.ts"
+      - "scripts/prove_authenticated_paid_work_submission_provider_selection_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-submission-provider-selection-v1.yml"
+      - "docs/public-agent/authenticated-paid-work-submission-provider-selection-v1.md"
+      - "examples/authenticated-paid-work-submission-provider-selection-v1.example.json"
+      - "schemas/authenticated-paid-work-submission-provider-selection-v1.schema.json"
+      - "scripts/authenticated_paid_work_submission_provider_selection_v1.ts"
+      - "scripts/prove_authenticated_paid_work_submission_provider_selection_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-submission-provider-selection-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Focused proof
+        run: >-
+          node node_modules/tsx/dist/cli.mjs
+          scripts/prove_authenticated_paid_work_submission_provider_selection_v1.ts
+      - name: Focused TypeScript check
+        run: >-
+          node node_modules/typescript/bin/tsc
+          --noEmit
+          --strict
+          --pretty false
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --types node
+          --typeRoots node_modules/@types
+          --skipLibCheck
+          scripts/authenticated_paid_work_submission_provider_selection_v1.ts
+          scripts/prove_authenticated_paid_work_submission_provider_selection_v1.ts

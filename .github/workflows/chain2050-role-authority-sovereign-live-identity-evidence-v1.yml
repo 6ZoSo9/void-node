@@ -1,0 +1,40 @@
+name: chain2050-role-authority-sovereign-live-identity-evidence-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-sovereign-live-identity-evidence-v1.json"
+      - "tools/chain2050-role-authority-sovereign-live-identity-evidence-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_sovereign_live_identity_evidence_v1.mjs"
+      - "docs/security/chain2050-role-authority-sovereign-live-identity-evidence-v1.md"
+      - ".github/workflows/chain2050-role-authority-sovereign-live-identity-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: false
+      - name: Prove SOVEREIGN live identity evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_chain2050_role_authority_sovereign_live_identity_evidence_v1.mjs | tee "$RUNNER_TEMP/sovereign-live-identity.log"
+          grep -Fx 'VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_LIVE_IDENTITY_EVIDENCE_V1_GREEN' "$RUNNER_TEMP/sovereign-live-identity.log"
+          grep -Fx 'live_identity_evidence_id=voidcraslie1_88246d9a99f8a677e851e126ad860e6f57871f35275e1ca4eb9166c71e6536b2' "$RUNNER_TEMP/sovereign-live-identity.log"
+          grep -Fx 'subject_binding_sha256=7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e' "$RUNNER_TEMP/sovereign-live-identity.log"
+          grep -Fx 'chain2050_write=false' "$RUNNER_TEMP/sovereign-live-identity.log"
+      - name: Diff hygiene
+        run: git diff --check

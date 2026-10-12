@@ -1,0 +1,90 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_CARD_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Public Earn Status Card Hold v1",
+  "status": "public_earn_status_card_hold_only_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_public_earn_status_card_hold_v1",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_NO_WRITE_CLOSEOUT_SUMMARY_V1",
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "lane_id",
+    "card_status",
+    "public_title",
+    "public_summary",
+    "earn_status",
+    "wc_issuance_status",
+    "wc_ledger_write_status",
+    "execute_gate_status",
+    "next_required_action",
+    "source_marker",
+    "timestamp",
+    "public_safety_boundary",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "forbidden_public_fields": [
+    "participant_id",
+    "object_id_or_content_root",
+    "content_root",
+    "object_id",
+    "reviewer_id",
+    "operator_id",
+    "proposed_ledger_entry_id",
+    "private_object_material"
+  ],
+  "allowed_card_status": [
+    "public_earn_status_card_held",
+    "blocked_missing_public_no_write_summary",
+    "blocked_private_identifier_present",
+    "blocked_private_object_reference_present",
+    "blocked_unexpected_wc_issuance",
+    "blocked_unexpected_ledger_write"
+  ],
+  "allowed_earn_status": [
+    "reviewed_work_ready_for_future_operator_review_no_wc_issued",
+    "blocked_no_write_closeout_missing",
+    "blocked_private_data_present",
+    "blocked_unexpected_wc_issuance"
+  ],
+  "allowed_wc_issuance_status": [
+    "not_issued"
+  ],
+  "allowed_wc_ledger_write_status": [
+    "not_written"
+  ],
+  "allowed_execute_gate_status": [
+    "held_execute_gate_closed"
+  ],
+  "public_safety_boundary_required_false": [
+    "exposes_participant_identifier",
+    "exposes_object_id",
+    "exposes_content_root",
+    "exposes_reviewer_identifier",
+    "exposes_operator_identifier",
+    "exposes_proposed_ledger_entry_id",
+    "exposes_private_object_material"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "approves_ledger_write",
+    "executes_ledger_write",
+    "authorizes_ledger_write_execution",
+    "opens_execute_gate",
+    "performs_ledger_mutation",
+    "mutates_claim_state"
+  ],
+  "authority_boundary_required_false": [
+    "activates_public_mutation",
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}

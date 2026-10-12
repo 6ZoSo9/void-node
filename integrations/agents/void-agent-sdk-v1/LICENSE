@@ -1,0 +1,53 @@
+VOID Community License (VCL) v1.0
+Copyright (c) 2026 6ZoSo9 and contributors. All rights reserved.
+
+1. Purpose
+   The VOID Community License (VCL) allows individuals to read, run, and modify this code
+   for the sole purpose of participating in and contributing to the VOID ecosystem
+   (including building, testing, validating, or operating nodes and wallet software)
+   and to earn network incentives denominated in VoidStones ($VOID) and WorkCredits ($WC).
+
+2. Grant
+   Subject to the terms below, you are granted a limited, non-exclusive, non-transferable,
+   revocable license to:
+     (a) clone and locally run the Software;
+     (b) modify the Software solely for personal evaluation and/or submission of
+         improvements back to this project via pull requests; and
+     (c) use the Software to connect to and interact with the official VOID network
+         (testnet or mainnet) operated under the 6ZoSo9/VOID governance.
+
+3. Restrictions
+   You may NOT, without prior written permission from the copyright holder:
+     (a) redistribute, publish, or host the Software or any derivative work, in source or binary form;
+     (b) offer the Software (or substantial portion) as a service (SaaS), or include it
+         in any commercial product or service;
+     (c) fork the Software into a new or competing network; launch tokens or economics
+         derived from this code outside the official VOID network;
+     (d) remove or alter copyright, license notices, branding, or project identity;
+     (e) sublicense the Software or grant any rights to third parties, beyond those
+         expressly granted herein.
+
+4. Contributions
+   By submitting code, documentation, or other materials (“Contribution”), you agree to
+   the VOID Contributor License (see CLA.md) and grant the project a perpetual,
+   irrevocable, worldwide, royalty-free license to use, modify, reproduce, prepare
+   derivative works of, display, perform, sublicense, and distribute your Contribution
+   as part of the project and the VOID ecosystem. You represent that you have the right
+   to make the Contribution and it does not infringe the rights of any third party.
+
+5. No Warranty
+   THE SOFTWARE IS PROVIDED “AS IS” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+   USE IS AT YOUR OWN RISK.
+
+6. Termination
+   Any breach of this license automatically terminates your rights. Upon termination,
+   you must cease use and destroy all copies of the Software. The project may update
+   the VCL; material changes will be noted in the repository.
+
+7. Trademarks & Branding
+   “VOID”, “Obelisk Wallet”, and “VoidStones ($VOID)” are proprietary names/marks.
+   No rights are granted to use these marks, except for nominative use to reference
+   this project as permitted by law. See docs/legal/TRADEMARKS.md for details.
+
+8. Governing Law
+   The licensor may enforce this license in any competent jurisdiction.

@@ -1,0 +1,13 @@
+{
+  "allow_held_entries": true,
+  "allowed_root": "/var/lib/void/external-opportunity",
+  "fsync_directory": true,
+  "journal_filename": "paper-classification-journal-v1.jsonl",
+  "marker": "VOID_EXTERNAL_OPPORTUNITY_PAPER_CLASSIFICATION_JOURNAL_FILE_STORE_V1",
+  "max_entries": 100000,
+  "max_file_bytes": 16777216,
+  "max_line_bytes": 262144,
+  "required_file_mode_octal": "0600",
+  "schema": "void-external-opportunity-paper-classification-journal-file-store-config-v1",
+  "version": 1
+}

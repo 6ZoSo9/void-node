@@ -1,0 +1,151 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-order-request-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog_fingerprint_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "catalog_id": {
+      "const": "void.public-agent-services.v1"
+    },
+    "commercial": {
+      "additionalProperties": false,
+      "properties": {
+        "max_total": {
+          "maxLength": 51,
+          "minLength": 1,
+          "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$",
+          "type": "string"
+        },
+        "quote_asset": {
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9._:-]{0,31}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "quote_asset",
+        "max_total"
+      ],
+      "type": "object"
+    },
+    "created_at_utc": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "type": "string"
+    },
+    "execution_limits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_output_bytes": {
+          "maximum": 100000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_runtime_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_runtime_seconds",
+        "max_output_bytes"
+      ],
+      "type": "object"
+    },
+    "expected_outputs": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "expires_at_utc": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "type": "string"
+    },
+    "input_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_V1"
+    },
+    "nonce": {
+      "maxLength": 128,
+      "minLength": 8,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+      "type": "string"
+    },
+    "objective": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "requester": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "maxLength": 128,
+          "minLength": 3,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$",
+          "type": "string"
+        },
+        "callback_uri": {
+          "maxLength": 2048,
+          "minLength": 12,
+          "pattern": "^https://[^\\s#]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id",
+        "callback_uri"
+      ],
+      "type": "object"
+    },
+    "service_id": {
+      "maxLength": 160,
+      "minLength": 8,
+      "pattern": "^void\\.[a-z0-9.-]+\\.v1$",
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "catalog_id",
+    "catalog_fingerprint_sha256",
+    "service_id",
+    "created_at_utc",
+    "expires_at_utc",
+    "requester",
+    "objective",
+    "input_refs",
+    "expected_outputs",
+    "commercial",
+    "execution_limits",
+    "nonce"
+  ],
+  "title": "VOID Public Agent Service Order Request V1",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_REQUEST_SCHEMA_V1"
+}

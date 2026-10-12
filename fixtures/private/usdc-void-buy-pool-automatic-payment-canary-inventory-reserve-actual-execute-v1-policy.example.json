@@ -1,0 +1,15 @@
+{
+  "actual_execute_policy_kind": "automatic_payment_canary_inventory_reserve_actual_execute_policy",
+  "allow_inventory_reserve_mutation": true,
+  "allow_inventory_decrement": true,
+  "allow_allocation_record_creation": false,
+  "allow_private_allocation_ledger_write": false,
+  "allow_fulfillment_execution": false,
+  "allow_wallet_signing": false,
+  "allow_void_transfer": false,
+  "allow_public_mutation": false,
+  "expected_inventory_remaining_before": "200",
+  "expected_inventory_remaining_after": "0",
+  "canary_candidate_limit": 1,
+  "canary_candidates_already_reserved": 0
+}

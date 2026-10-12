@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activation_blockers": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "authority": {
+      "properties": {
+        "activation": {
+          "const": false
+        },
+        "deployment_execution": {
+          "const": false
+        },
+        "receipt_read": {
+          "const": true
+        },
+        "service_restart": {
+          "const": false
+        }
+      },
+      "required": [
+        "receipt_read",
+        "service_restart",
+        "deployment_execution",
+        "activation"
+      ],
+      "type": "object"
+    },
+    "deployment_id": {
+      "pattern": "^voidaosdp1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "deployment_scope": {
+      "additionalProperties": false,
+      "properties": {
+        "activation": {
+          "const": false
+        },
+        "canonical_build_required": {
+          "const": false
+        },
+        "configuration_write": {
+          "const": false
+        },
+        "restart_command": {
+          "const": "systemctl --user restart void-node-live.service"
+        },
+        "service_restart_required": {
+          "const": true
+        }
+      },
+      "required": [
+        "canonical_build_required",
+        "service_restart_required",
+        "restart_command",
+        "configuration_write",
+        "activation"
+      ],
+      "type": "object"
+    },
+    "input_mechanism_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_DISABLED_DEPLOYMENT_V1_PACKET"
+    },
+    "post_restart_requirements": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "preconditions": {
+      "type": "object"
+    },
+    "ready_for_activation": {
+      "const": false
+    },
+    "ready_for_disabled_deployment": {
+      "const": true
+    },
+    "target": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "http_port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "runtime_entry_bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "runtime_entry_relative_path": {
+          "const": "src/index.ts"
+        },
+        "runtime_entry_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "service_exec_start_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "service_fragment_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "service_name": {
+          "const": "void-node-live.service"
+        }
+      },
+      "required": [
+        "commit",
+        "service_name",
+        "service_fragment_sha256",
+        "service_exec_start_sha256",
+        "runtime_entry_relative_path",
+        "runtime_entry_sha256",
+        "runtime_entry_bytes",
+        "http_port"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "deployment_id",
+    "input_mechanism_receipt_sha256",
+    "target",
+    "preconditions",
+    "deployment_scope",
+    "post_restart_requirements",
+    "ready_for_disabled_deployment",
+    "ready_for_activation",
+    "activation_blockers",
+    "authority"
+  ],
+  "type": "object"
+}

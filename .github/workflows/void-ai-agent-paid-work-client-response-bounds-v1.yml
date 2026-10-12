@@ -1,0 +1,53 @@
+name: VOID AI Agent Paid Work Client Response Bounds V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-ai-agent-paid-work-client-response-bounds-v1.yml"
+      - ".github/workflows/void-ai-agent-paid-work-client-v1.yml"
+      - "tools/void-ai-agent-paid-work-client-v1.mjs"
+      - "scripts/prove_void_ai_agent_paid_work_client_v1.mjs"
+      - "scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs"
+      - "docs/public/ai-agent-paid-work-client-response-bounds-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-ai-agent-paid-work-client-response-bounds-v1.yml"
+      - ".github/workflows/void-ai-agent-paid-work-client-v1.yml"
+      - "tools/void-ai-agent-paid-work-client-v1.mjs"
+      - "scripts/prove_void_ai_agent_paid_work_client_v1.mjs"
+      - "scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs"
+      - "docs/public/ai-agent-paid-work-client-response-bounds-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check source and proof syntax
+        run: |
+          node --check tools/void-ai-agent-paid-work-client-v1.mjs
+          node --check scripts/prove_void_ai_agent_paid_work_client_v1.mjs
+          node --check scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs
+      - name: Prove canonical paid-work client
+        run: node scripts/prove_void_ai_agent_paid_work_client_v1.mjs
+      - name: Prove pre-buffer response bounds and teardown
+        run: node scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

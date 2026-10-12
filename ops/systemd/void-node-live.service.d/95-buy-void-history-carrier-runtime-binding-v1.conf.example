@@ -1,0 +1,18 @@
+# VOID Buy VOID durable history-carrier runtime binding v1
+#
+# Source-only designated-host overlay.
+#
+# This overlay adds only the private durable carrier-authority root selector.
+# It does NOT set or change:
+# - VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED
+# - VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED
+# - VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED
+# - credential-loading directives
+# - ExecStart* or service lifecycle directives
+#
+# The selected authority is the production custody root initialized and proven
+# on Precision. Current carrier generation/root are read from that authority;
+# they are not rotated through systemd environment edits.
+#
+[Service]
+Environment=VOID_BUY_VOID_HISTORY_CARRIER_AUTHORITY_ROOT=/home/zoso/.local/state/void-buy-void-history-carrier-root-authority-v1

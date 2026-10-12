@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-packet-assembly-v1.schema.json",
+  "title": "VOID DataNet Promotion Packet Assembly v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "assembled_at_utc",
+    "object",
+    "input_commitments",
+    "publisher",
+    "external_attestation",
+    "evidence",
+    "phase_context",
+    "admission",
+    "authority",
+    "assembly_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_PACKET_ASSEMBLY_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "assembled_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$"
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id_sha256",
+        "content_sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "object_id_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        }
+      }
+    },
+    "input_commitments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_receipt_sha256",
+        "publisher_provenance_sha256",
+        "provider_trust_snapshot_sha256",
+        "attestation_set_sha256"
+      ],
+      "properties": {
+        "local_receipt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "publisher_provenance_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provider_trust_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "attestation_set_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publisher_provenance_id",
+        "publisher_key_id"
+      ],
+      "properties": {
+        "publisher_provenance_id": {
+          "type": "string",
+          "pattern": "^voiddppp1_[0-9a-f]{64}$"
+        },
+        "publisher_key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "external_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attestation_set_id",
+        "trust_snapshot_id",
+        "external_evidence_sha256"
+      ],
+      "properties": {
+        "attestation_set_id": {
+          "type": "string",
+          "pattern": "^voiddpias1_[0-9a-f]{64}$"
+        },
+        "trust_snapshot_id": {
+          "type": "string",
+          "pattern": "^voidapts1_[0-9a-f]{64}$"
+        },
+        "external_evidence_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_bundle_sha256",
+        "evidence_map_sha256",
+        "promotion_candidate_sha256",
+        "candidate_id"
+      ],
+      "properties": {
+        "source_bundle_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_map_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "promotion_candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^voiddcp1_[0-9a-f]{32}$"
+        }
+      }
+    },
+    "phase_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "authority_mode",
+        "validator_admission_authority_active"
+      ],
+      "properties": {
+        "phase": {
+          "const": 0
+        },
+        "authority_mode": {
+          "const": "PHASE0_OPERATOR_ROOTED"
+        },
+        "validator_admission_authority_active": {
+          "const": false
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disposition",
+        "operator_review_required",
+        "canonical_write_authorized",
+        "automatic_promotion"
+      ],
+      "properties": {
+        "disposition": {
+          "const": "PHASE0_OPERATOR_REVIEW_ONLY"
+        },
+        "operator_review_required": {
+          "const": true
+        },
+        "canonical_write_authorized": {
+          "const": false
+        },
+        "automatic_promotion": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_only",
+        "datanet_mutation_authorized",
+        "chain2050_write_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "evidence_only": {
+          "const": true
+        },
+        "datanet_mutation_authorized": {
+          "const": false
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    },
+    "assembly_id": {
+      "type": "string",
+      "pattern": "^voiddppa1_[0-9a-f]{64}$"
+    }
+  }
+}

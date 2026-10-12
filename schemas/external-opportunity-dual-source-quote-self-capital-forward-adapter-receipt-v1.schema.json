@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-opportunity-dual-source-quote-self-capital-forward-adapter-receipt-v1.schema.json",
+  "title": "VOID dual-source quote self-capital forward adapter receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "phase",
+    "reduction_id",
+    "source_input_sha256",
+    "reducer_receipt_sha256",
+    "derivation_verification_sha256",
+    "freshness_sha256",
+    "maximum_quote_age_seconds",
+    "relative_freshness_verified",
+    "evaluation_clock_authenticated",
+    "wall_clock_freshness_verified",
+    "source_identity_authenticated",
+    "expected_amount_collapsed_to_guaranteed",
+    "expected_value_collapsed_to_guaranteed",
+    "self_capital_v1_forward_compatible",
+    "adapted_quote",
+    "network_access_performed",
+    "credential_access_performed",
+    "raw_response_retention",
+    "transaction_payload_retention",
+    "network_mutation_performed",
+    "wallet_or_key_access_performed",
+    "transaction_construction_performed",
+    "transaction_signing_performed",
+    "transaction_submission_performed",
+    "fund_movement_performed",
+    "live_execution_authorized",
+    "execution_authorized",
+    "adapter_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void-dual-source-quote-self-capital-forward-adapter-receipt-v1"
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_DUAL_SOURCE_QUOTE_SELF_CAPITAL_FORWARD_ADAPTER_V1"
+    },
+    "phase": {
+      "const": "paper_self_capital_forward_adapter"
+    },
+    "reduction_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "source_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "reducer_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "derivation_verification_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "freshness_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "maximum_quote_age_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600
+    },
+    "relative_freshness_verified": {
+      "const": true
+    },
+    "evaluation_clock_authenticated": {
+      "const": false
+    },
+    "wall_clock_freshness_verified": {
+      "const": false
+    },
+    "source_identity_authenticated": {
+      "const": false
+    },
+    "expected_amount_collapsed_to_guaranteed": {
+      "const": true
+    },
+    "expected_value_collapsed_to_guaranteed": {
+      "const": true
+    },
+    "self_capital_v1_forward_compatible": {
+      "const": true
+    },
+    "adapted_quote": {
+      "$ref": "#/$defs/quote"
+    },
+    "network_access_performed": {
+      "const": false
+    },
+    "credential_access_performed": {
+      "const": false
+    },
+    "raw_response_retention": {
+      "const": false
+    },
+    "transaction_payload_retention": {
+      "const": false
+    },
+    "network_mutation_performed": {
+      "const": false
+    },
+    "wallet_or_key_access_performed": {
+      "const": false
+    },
+    "transaction_construction_performed": {
+      "const": false
+    },
+    "transaction_signing_performed": {
+      "const": false
+    },
+    "transaction_submission_performed": {
+      "const": false
+    },
+    "fund_movement_performed": {
+      "const": false
+    },
+    "live_execution_authorized": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "adapter_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_id",
+        "address",
+        "symbol",
+        "decimals"
+      ],
+      "properties": {
+        "chain_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "symbol": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "quote_id",
+        "observed_at",
+        "quote_expiry_timestamp",
+        "input_asset",
+        "output_asset",
+        "input_amount",
+        "expected_output_amount",
+        "minimum_output_amount",
+        "expected_output_value_usd",
+        "minimum_output_value_usd",
+        "expected_fill_time_seconds",
+        "quoted_output_includes_provider_fees",
+        "quoted_output_includes_price_impact",
+        "app_fee_usd",
+        "gas_usd"
+      ],
+      "properties": {
+        "provider": {
+          "const": "dual-source-conservative-self-capital"
+        },
+        "quote_id": {
+          "type": "string",
+          "pattern": "^voiddsqsca1_[0-9a-f]{64}$"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "quote_expiry_timestamp": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4102444800
+        },
+        "input_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "output_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "input_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "expected_output_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "minimum_output_amount": {
+          "$ref": "#/$defs/unsignedInteger"
+        },
+        "expected_output_value_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "minimum_output_value_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "expected_fill_time_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "quoted_output_includes_provider_fees": {
+          "const": true
+        },
+        "quoted_output_includes_price_impact": {
+          "const": true
+        },
+        "app_fee_usd": {
+          "const": "0.000000"
+        },
+        "gas_usd": {
+          "$ref": "#/$defs/usd"
+        }
+      }
+    },
+    "unsignedInteger": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "maxLength": 128
+    },
+    "usd": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$",
+      "maxLength": 64
+    }
+  }
+}

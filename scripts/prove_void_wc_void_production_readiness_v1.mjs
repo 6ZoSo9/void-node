@@ -1,0 +1,351 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  VOID_WC_VOID_PRODUCTION_READINESS_AUTHORITY_V1,
+  VOID_WC_VOID_PRODUCTION_READINESS_V1,
+  classifyVoidWcVoidProductionReadinessV1,
+} from "../tools/void-wc-void-production-readiness-v1.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "..");
+const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const candidate = JSON.parse(
+  read("ops/mainnet0/wc-void-production-candidate-v1.json"),
+);
+
+assert.equal(
+  VOID_WC_VOID_PRODUCTION_READINESS_V1,
+  "VOID_WC_VOID_PRODUCTION_READINESS_V1",
+);
+assert.equal(
+  VOID_WC_VOID_PRODUCTION_READINESS_AUTHORITY_V1.source_classification_only,
+  true,
+);
+for (const [key, value] of Object.entries(
+  VOID_WC_VOID_PRODUCTION_READINESS_AUTHORITY_V1,
+)) {
+  if (key === "source_classification_only") continue;
+  assert.equal(value, false, `authority.${key}`);
+}
+
+const held = classifyVoidWcVoidProductionReadinessV1(candidate);
+assert.equal(held.ok, false);
+assert.equal(held.status, "HOLD");
+assert.equal(held.reason, "production_gates_incomplete");
+assert.deepEqual(held.missing_gates, [
+  "market_vault_address_required",
+  "market_vault_runtime_code_sha256_required",
+  "market_vault_independent_verification_required",
+  "inventory_funding_required",
+  "inventory_lock_proof_required",
+  "wc_ledger_persistence_verification_required",
+  "quote_reserve_custody_verification_required",
+  "participant_opening_claim_policy_required",
+  "duplicate_replay_protection_required",
+  "bounded_canary_required",
+  "coupled_activation_ready_required",
+]);
+assert.equal(held.authority.market_activation, false);
+assert.equal(held.authority.public_presale_activation, false);
+assert.equal(held.authority.funds_movement, false);
+assert.equal(candidate.market_vault_compiled_identity_committed, true);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.packet_id,
+  "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05",
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.identity_id,
+  "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance
+    .compiled_identity_accepted,
+  true,
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance.deployment_attested,
+  false,
+);
+assert.equal(
+  candidate.market_vault_compiled_identity_acceptance
+    .inventory_funding_verified,
+  false,
+);
+assert.equal(candidate.wc_settlement_adapter_independently_reviewed, true);
+assert.equal(
+  candidate.wc_settlement_adapter_review.review_id,
+  "voidwcsar1_0e51724c2c8b8aee08e3da7a12dc78ae93179b6c9427ceca1915c26a114a972c",
+);
+assert.equal(
+  candidate.wc_settlement_adapter_review.live_ledger_persistence_verified,
+  false,
+);
+assert.equal(
+  candidate.wc_settlement_adapter_review.quote_reserve_custody_verified,
+  false,
+);
+
+function clone() {
+  return JSON.parse(JSON.stringify(candidate));
+}
+
+for (const [label, mutate, reason] of [
+  [
+    "fixed conversion",
+    (v) => {
+      v.fixed_conversion = true;
+    },
+    "fixed_wc_void_price_authority_forbidden",
+  ],
+  [
+    "fixed opening price",
+    (v) => {
+      v.fixed_opening_price = true;
+    },
+    "fixed_wc_void_price_authority_forbidden",
+  ],
+  [
+    "nonzero protocol WC seed",
+    (v) => {
+      v.protocol_wc_seed_units = "1";
+    },
+    "protocol_wc_seed_must_be_zero",
+  ],
+  [
+    "wrong VOID inventory",
+    (v) => {
+      v.protocol_void_inventory_atoms = "9999999999999999999999999";
+    },
+    "protocol_void_inventory_mismatch",
+  ],
+  [
+    "wrong opening price source",
+    (v) => {
+      v.opening_price_source = "one_sided_market_discovery";
+    },
+    "opening_price_source_mismatch",
+  ],
+  [
+    "wrong WC source",
+    (v) => {
+      v.wc_source_profile.source_domain = "erc20";
+    },
+    "wc_source_profile_mismatch",
+  ],
+  [
+    "wrong market vault contract",
+    (v) => {
+      v.market_vault_contract_name = "WCVoidMarketVaultV1";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "wrong market vault source path",
+    (v) => {
+      v.market_vault_source_path = "contracts/mainnet/WCVoidMarketVaultV1.sol";
+    },
+    "market_vault_source_identity_mismatch",
+  ],
+  [
+    "market vault source missing",
+    (v) => {
+      v.market_vault_source_implemented = false;
+    },
+    "market_vault_source_implementation_missing",
+  ],
+  [
+    "market vault lock semantics unproven",
+    (v) => {
+      v.market_vault_lock_semantics_proven = false;
+    },
+    "market_vault_lock_semantics_not_proven",
+  ],
+  [
+    "market vault recovery path disabled",
+    (v) => {
+      v.market_vault_recovery_path_ready = false;
+    },
+    "market_vault_recovery_path_not_ready",
+  ],
+  [
+    "market vault compiler profile unlocked",
+    (v) => {
+      v.market_vault_compiler_profile_locked = false;
+    },
+    "market_vault_compiler_profile_not_locked",
+  ],
+  [
+    "market vault dual compiler gate missing",
+    (v) => {
+      v.market_vault_dual_compiler_gate_implemented = false;
+    },
+    "market_vault_dual_compiler_gate_missing",
+  ],
+  [
+    "compiled identity packet drift",
+    (v) => {
+      v.market_vault_compiled_identity_acceptance.packet_id =
+        "voidwcvcia1_" + "0".repeat(64);
+    },
+    "market_vault_compiled_identity_acceptance_mismatch",
+  ],
+  [
+    "compiled identity bare boolean without accepted packet",
+    (v) => {
+      v.market_vault_compiled_identity_committed = false;
+    },
+    "market_vault_compiled_identity_commitment_mismatch",
+  ],
+  [
+    "settlement adapter id drift",
+    (v) => {
+      v.wc_settlement_adapter_id = "other-adapter";
+    },
+    "wc_settlement_adapter_id_mismatch",
+  ],
+  [
+    "settlement adapter review packet drift",
+    (v) => {
+      v.wc_settlement_adapter_review.review_id =
+        "voidwcsar1_" + "0".repeat(64);
+    },
+    "wc_settlement_adapter_review_mismatch",
+  ],
+  [
+    "settlement adapter bare boolean without review binding",
+    (v) => {
+      v.wc_settlement_adapter_independently_reviewed = false;
+    },
+    "wc_settlement_adapter_review_commitment_mismatch",
+  ],
+  [
+    "devnet relayer reuse",
+    (v) => {
+      v.legacy_devnet_relayer_reused = true;
+    },
+    "devnet_or_default_secret_path_forbidden",
+  ],
+  [
+    "default private key",
+    (v) => {
+      v.default_private_key_allowed = true;
+    },
+    "devnet_or_default_secret_path_forbidden",
+  ],
+  [
+    "default wallet",
+    (v) => {
+      v.default_wallet_allowed = true;
+    },
+    "devnet_or_default_secret_path_forbidden",
+  ],
+]) {
+  const value = clone();
+  mutate(value);
+  const decision = classifyVoidWcVoidProductionReadinessV1(value);
+  assert.equal(decision.ok, false, label);
+  assert.equal(decision.reason, reason, label);
+}
+
+const ready = clone();
+Object.assign(ready, {
+  status: "source_ready",
+  market_vault_address: "0x1111111111111111111111111111111111111111",
+  market_vault_runtime_code_sha256: "a".repeat(64),
+  market_vault_recovery_path_ready: true,
+  market_vault_compiler_profile_locked: true,
+  market_vault_dual_compiler_gate_implemented: true,
+  market_vault_compiled_identity_committed: true,
+  market_vault_independently_verified: true,
+  inventory_funded: true,
+  inventory_lock_proven: true,
+  opening_discovery_implemented: true,
+  wc_settlement_adapter_id: "void-wc-ledger-opening-settlement-v1",
+  wc_settlement_adapter_implemented: true,
+  wc_settlement_adapter_independently_reviewed: true,
+  wc_ledger_persistence_verifier_implemented: true,
+  wc_ledger_persistence_verified: true,
+  quote_reserve_custody_verified: true,
+  participant_opening_claim_policy_ready: true,
+  duplicate_replay_protection_proven: true,
+  bounded_canary_green: true,
+  coupled_activation_ready: true,
+});
+const readyDecision = classifyVoidWcVoidProductionReadinessV1(ready);
+assert.equal(readyDecision.ok, true);
+assert.equal(readyDecision.status, "SOURCE_READY");
+assert.equal(readyDecision.protocol_void_inventory_atoms, "10000000000000000000000000");
+assert.equal(readyDecision.protocol_wc_seed_units, "0");
+assert.equal(readyDecision.opening_price_source, "settled_wc_reserve_ratio");
+assert.equal(
+  readyDecision.market_vault_compiled_identity_packet_id,
+  candidate.market_vault_compiled_identity_acceptance.packet_id,
+);
+assert.equal(
+  readyDecision.market_vault_compiled_identity_id,
+  candidate.market_vault_compiled_identity_acceptance.identity_id,
+);
+assert.equal(
+  readyDecision.wc_settlement_adapter_review_id,
+  candidate.wc_settlement_adapter_review.review_id,
+);
+assert.equal(readyDecision.activation_authority, false);
+assert.equal(readyDecision.funding_authority, false);
+assert.equal(readyDecision.authority.market_activation, false);
+assert.equal(readyDecision.authority.public_presale_activation, false);
+assert.equal(readyDecision.authority.funds_movement, false);
+
+const stillHeld = clone();
+Object.assign(stillHeld, ready, { status: "hold" });
+const statusHeld = classifyVoidWcVoidProductionReadinessV1(stillHeld);
+assert.equal(statusHeld.ok, false);
+assert.equal(statusHeld.reason, "source_ready_status_required");
+
+const toolSource = read("tools/void-wc-void-production-readiness-v1.mjs");
+assert.doesNotMatch(toolSource, /ANVIL_PK/);
+assert.doesNotMatch(toolSource, /0xac0974bec39a17d36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80/i);
+assert.doesNotMatch(toolSource, /100\s*WC\s*=\s*1\s*VOID/i);
+
+const legacyRelayer = read("ops/wc-relayer-v1.cjs");
+assert.match(legacyRelayer, /ANVIL_PK/);
+assert.equal(candidate.legacy_devnet_relayer_reused, false);
+assert.equal(candidate.default_private_key_allowed, false);
+assert.equal(candidate.default_wallet_allowed, false);
+
+console.log("VOID_WC_VOID_PRODUCTION_READINESS_V1_PROOF_GREEN");
+console.log("candidate_status=HOLD");
+console.log("market_vault_contract_name=WCVoidMarketVaultV2");
+console.log("market_vault_source_implemented=true");
+console.log("market_vault_lock_semantics_proven=true");
+console.log("market_vault_recovery_path_ready=true");
+console.log("market_vault_compiler_profile_locked=true");
+console.log("market_vault_dual_compiler_gate_implemented=true");
+console.log("market_vault_compiled_identity_committed=true");
+console.log(
+  "market_vault_compiled_identity_packet_id=" +
+    candidate.market_vault_compiled_identity_acceptance.packet_id,
+);
+console.log("market_vault_compiled_identity_id=voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a");
+console.log("market_vault_deployment_attested=false");
+console.log("market_vault_address_present=false");
+console.log("inventory_funded=false");
+console.log("opening_discovery_implemented=true");
+console.log("wc_settlement_adapter_id=void-wc-ledger-opening-settlement-v1");
+console.log("wc_settlement_adapter_implemented=true");
+console.log("wc_settlement_adapter_independently_reviewed=true");
+console.log("wc_settlement_adapter_review_id=voidwcsar1_0e51724c2c8b8aee08e3da7a12dc78ae93179b6c9427ceca1915c26a114a972c");
+console.log("wc_ledger_persistence_verifier_implemented=true");
+console.log("wc_ledger_persistence_verified=false");
+console.log("quote_reserve_custody_verified=false");
+console.log("participant_opening_claim_policy_ready=false");
+console.log("legacy_devnet_relayer_reused=false");
+console.log("fixed_wc_void_redemption=false");
+console.log("protocol_wc_seed_units=0");
+console.log("source_ready_classifier_proven=true");
+console.log("market_activation=false");
+console.log("public_presale_activation=false");
+console.log("funds_movement=false");

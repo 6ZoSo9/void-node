@@ -1,0 +1,101 @@
+name: Buy VOID production private services activation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-production-private-services-activation-v1.yml"
+      - "docs/operators/buy-void-production-private-services-activation-v1.md"
+      - "scripts/prove_buy_void_production_private_services_activation_v1.ts"
+      - "src/economic/buy_void_production_private_services_activation_v1.ts"
+      - "src/economic/buy_void_production_rpc_readiness_v1.ts"
+      - "src/economic/buy_void_production_activation_plan_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-production-private-services-activation-v1.yml"
+      - "docs/operators/buy-void-production-private-services-activation-v1.md"
+      - "scripts/prove_buy_void_production_private_services_activation_v1.ts"
+      - "src/economic/buy_void_production_private_services_activation_v1.ts"
+      - "src/economic/buy_void_production_rpc_readiness_v1.ts"
+      - "src/economic/buy_void_production_activation_plan_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-production-private-services-activation-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Preserve legacy focused Buy VOID TypeScript compile
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_*.ts
+      - name: Prove production private-services activation boundary
+        run: npx --no-install tsx scripts/prove_buy_void_production_private_services_activation_v1.ts
+      - name: Preserve production RPC readiness boundary
+        run: npx --no-install tsx scripts/prove_buy_void_production_rpc_readiness_v1.ts
+      - name: Preserve production activation plan
+        run: npx --no-install tsx scripts/prove_buy_void_production_activation_plan_v1.ts
+      - name: Preserve private-service activation primitives
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_custodian_credential_activation_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts
+      - name: Preserve synthetic end-to-end rehearsal
+        run: npx --no-install tsx scripts/prove_buy_void_synthetic_end_to_end_fulfillment_rehearsal_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

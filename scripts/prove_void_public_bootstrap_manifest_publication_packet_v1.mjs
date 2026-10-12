@@ -1,0 +1,622 @@
+#!/usr/bin/env node
+import childProcess from "node:child_process";
+import nodeAssert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import {
+  buildBootstrapManifest,
+  createQualificationReceipt,
+} from "./lib/void_public_seed_receipt_v1.mjs";
+import { objectWithId } from "./lib/void_public_seed_common_v1.mjs";
+import {
+  verifyPublicationPacket,
+} from "./lib/void_public_bootstrap_manifest_publication_v1.mjs";
+import {
+  validatePredecessorManifest,
+} from "./lib/void_public_bootstrap_manifest_publication_state_v1.mjs";
+
+const MARKER = "VOID_PUBLIC_BOOTSTRAP_MANIFEST_PUBLICATION_PACKET_V1_PROOF_GREEN";
+const ROOT = fs.realpathSync(process.cwd());
+const TEMP = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-public-bootstrap-publication-packet-v1-"),
+);
+const FIXTURE_REPO = path.join(TEMP, "fixture-repository");
+const ARTIFACT = path.join(TEMP, "qualification-output");
+const PACKET = path.join(TEMP, "publication-packet");
+const STABLE_FIXTURE_REPO = path.join(TEMP, "stable-fixture-repository");
+const STABLE_ARTIFACT = path.join(TEMP, "stable-qualification-output");
+const STABLE_PACKET = path.join(TEMP, "stable-publication-packet");
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function run(command, args, { expectSuccess = true, cwd = ROOT } = {}) {
+  const result = childProcess.spawnSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (expectSuccess && result.status !== 0) {
+    process.stderr.write(result.stdout || "");
+    process.stderr.write(result.stderr || "");
+    throw new Error(`${command} ${args.join(" ")} failed with rc=${result.status}`);
+  }
+  if (!expectSuccess && result.status === 0) {
+    throw new Error(`${command} ${args.join(" ")} unexpectedly succeeded`);
+  }
+  return result;
+}
+
+function sha(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function write(filePath, bytes) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(filePath, bytes, { mode: 0o600 });
+}
+
+function jsonBytes(value) {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function artifactSums(dir) {
+  const names = ["qualification.json", "public-bootstrap-v1.json", "source.txt"];
+  const lines = names.map((name) => {
+    const bytes = fs.readFileSync(path.join(dir, name));
+    return `${sha(bytes)}  ${name}`;
+  });
+  write(path.join(dir, "SHA256SUMS"), Buffer.from(`${lines.join("\n")}\n`));
+}
+
+function copyDirectory(source, destination) {
+  fs.cpSync(source, destination, { recursive: true, force: false });
+}
+
+function authorityFalse() {
+  return {
+    private_routes_exposed: false,
+    wallet_authority: false,
+    signer_authority: false,
+    validator_authority: false,
+    treasury_authority: false,
+    work_credit_authority: false,
+    money_movement_authority: false,
+  };
+}
+
+function fixtureHoldManifest() {
+  return objectWithId(
+    "voidpbm1_",
+    {
+      schema: "void_public_bootstrap_v1",
+      network: "VOID Network",
+      chain_id: 2050,
+      status: "hold_no_stable_seed",
+      generated_at: "2026-08-06T09:23:00.000Z",
+      sync_endpoints: [],
+      onion_endpoints: [],
+      private_tailnet_endpoints_published: false,
+      authority: authorityFalse(),
+      notes:
+        "Isolated proof fixture. No stable public HTTPS seed is published by this fixture.",
+    },
+    "manifest_id",
+  );
+}
+
+function fixtureStableManifest() {
+  return objectWithId(
+    "voidpbm1_",
+    {
+      schema: "void_public_bootstrap_v1",
+      network: "VOID Network",
+      chain_id: 2050,
+      status: "stable_https_seed",
+      generated_at: "2026-09-27T15:35:15.171Z",
+      expires_at: "2026-09-30T15:35:15.171Z",
+      sync_endpoints: [
+        {
+          transport: "https",
+          base: "https://seed.previous.example.org",
+          priority: 10,
+          enabled: true,
+          temporary: false,
+          qualification_id: `voidpsq1_${"1".repeat(64)}`,
+          qualified_at: "2026-09-27T15:35:15.108Z",
+          qualified_head: 1951058,
+        },
+      ],
+      onion_endpoints: [],
+      private_tailnet_endpoints_published: false,
+      authority: authorityFalse(),
+      notes: "Isolated stable predecessor renewal fixture.",
+    },
+    "manifest_id",
+  );
+}
+
+function resealPredecessor(manifest, mutate) {
+  const copy = structuredClone(manifest);
+  mutate(copy);
+  delete copy.manifest_id;
+  return objectWithId("voidpbm1_", copy, "manifest_id");
+}
+
+function initializeFixtureRepository({
+  repoRoot = FIXTURE_REPO,
+  predecessor = fixtureHoldManifest(),
+  message = "fixture: canonical hold predecessor",
+} = {}) {
+  fs.mkdirSync(repoRoot, { mode: 0o700 });
+  run("git", ["init", "-q"], { cwd: repoRoot });
+
+  const predecessorPath = path.join(repoRoot, "public", "bootstrap", "v1.json");
+  write(predecessorPath, jsonBytes(predecessor));
+
+  run("git", ["add", "--", "public/bootstrap/v1.json"], { cwd: repoRoot });
+  run(
+    "git",
+    [
+      "-c",
+      "user.name=VOID Publication Proof",
+      "-c",
+      "user.email=void-publication-proof@example.invalid",
+      "-c",
+      "commit.gpgSign=false",
+      "commit",
+      "-q",
+      "-m",
+      message,
+    ],
+    { cwd: repoRoot },
+  );
+
+  const sourceSha = run("git", ["rev-parse", "HEAD"], {
+    cwd: repoRoot,
+  }).stdout.trim();
+  const predecessorBlob = run(
+    "git",
+    ["rev-parse", "HEAD:public/bootstrap/v1.json"],
+    { cwd: repoRoot },
+  ).stdout.trim();
+  const status = run(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    { cwd: repoRoot },
+  ).stdout.trim();
+
+  assert(/^[0-9a-f]{40}$/.test(sourceSha), "fixture source SHA is invalid");
+  assert(/^[0-9a-f]{40}$/.test(predecessorBlob), "fixture predecessor blob is invalid");
+  assert(status === "", "fixture repository is not clean");
+  assert(fs.realpathSync(repoRoot) !== ROOT, "fixture repository was not isolated");
+
+  return { sourceSha, predecessorBlob, repoRoot };
+}
+
+function builderArgs({
+  artifact = ARTIFACT,
+  output = PACKET,
+  sourceSha,
+  predecessorBlob,
+  repoRoot = FIXTURE_REPO,
+}) {
+  return [
+    "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs",
+    "--artifact",
+    artifact,
+    "--repo-root",
+    repoRoot,
+    "--expected-source-sha",
+    sourceSha,
+    "--expected-predecessor-blob",
+    predecessorBlob,
+    "--output",
+    output,
+  ];
+}
+
+function verifierArgs({
+  packet = PACKET,
+  sourceSha,
+  predecessorBlob,
+  repoRoot = FIXTURE_REPO,
+}) {
+  return [
+    "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs",
+    "--packet",
+    packet,
+    "--repo-root",
+    repoRoot,
+    "--expected-source-sha",
+    sourceSha,
+    "--expected-predecessor-blob",
+    predecessorBlob,
+  ];
+}
+
+try {
+  const rootSourceSha = run("git", ["rev-parse", "HEAD"]).stdout.trim();
+  assert(/^[0-9a-f]{40}$/.test(rootSourceSha), "harness source SHA is invalid");
+
+  const { sourceSha, predecessorBlob } = initializeFixtureRepository();
+
+  const nowMs = Date.now();
+  const heads = [2050, 2051, 2052];
+  const observed = [nowMs - 70_000, nowMs - 35_000, nowMs];
+  const samples = observed.map((time, index) => ({
+    observed_at: new Date(time).toISOString(),
+    ready: true,
+    ready_head: heads[index],
+    gap: 0,
+    txroot_live: 1,
+    head: heads[index],
+    range_head: heads[index],
+    gateway_header: "v1",
+    private_route_status: 404,
+    private_route_error: "route_not_public",
+    mutation_status: 405,
+    mutation_error: "method_not_allowed",
+    dns_addresses: ["93.184.216.34"],
+    connected_addresses: ["93.184.216.34"],
+  }));
+  const receipt = createQualificationReceipt({
+    endpoint: "https://seed.example.org",
+    samples,
+    generatedAt: new Date(nowMs).toISOString(),
+  });
+  const candidate = buildBootstrapManifest([receipt], {
+    nowMs,
+    validityMs: 72 * 60 * 60 * 1000,
+  });
+
+  fs.mkdirSync(ARTIFACT, { mode: 0o700 });
+  write(path.join(ARTIFACT, "qualification.json"), jsonBytes(receipt));
+  write(path.join(ARTIFACT, "public-bootstrap-v1.json"), jsonBytes(candidate));
+  write(path.join(ARTIFACT, "source.txt"), Buffer.from(`source_sha=${sourceSha}\n`));
+  artifactSums(ARTIFACT);
+
+  const built = run(process.execPath, builderArgs({ sourceSha, predecessorBlob }));
+  assert(built.stdout.includes("publication_authorized=false"), "builder authority marker missing");
+  const verified = run(process.execPath, verifierArgs({ sourceSha, predecessorBlob }));
+  assert(verified.stdout.includes("repository_mutated=false"), "verifier mutation marker missing");
+
+  const directVerified = verifyPublicationPacket({
+    repoRoot: FIXTURE_REPO,
+    packetDir: PACKET,
+    expectedSourceSha: sourceSha,
+    expectedPredecessorBlob: predecessorBlob,
+    nowMs,
+  });
+  assert(directVerified.packet.candidate.manifest_id === candidate.manifest_id);
+
+  const staleReceiptNowMs = nowMs + (2 * 60 * 60 * 1000) + 1;
+  nodeAssert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: staleReceiptNowMs,
+    }),
+    /qualification receipt is stale/,
+  );
+
+  const expiredCandidateNowMs = Date.parse(candidate.expires_at) + 1;
+  nodeAssert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: expiredCandidateNowMs,
+    }),
+    /publication candidate manifest is expired/,
+  );
+
+  const packet = JSON.parse(fs.readFileSync(path.join(PACKET, "packet.json"), "utf8"));
+  const packetCandidate = fs.readFileSync(
+    path.join(PACKET, "candidate", "public", "bootstrap", "v1.json"),
+  );
+  const artifactCandidate = fs.readFileSync(path.join(ARTIFACT, "public-bootstrap-v1.json"));
+  assert(packetCandidate.equals(artifactCandidate), "packet candidate is not byte-exact artifact output");
+  assert(packet.destination === "public/bootstrap/v1.json", "packet destination escaped one file");
+  assert(packet.source_sha === sourceSha, "packet source is not the isolated fixture source");
+  assert(packet.predecessor.git_blob_sha === predecessorBlob, "predecessor blob binding missing");
+  assert(packet.candidate.precondition_manifest_id === packet.predecessor.manifest_id, "candidate precondition mismatch");
+  assert(packet.rollback.precondition_manifest_id === packet.candidate.manifest_id, "rollback precondition mismatch");
+  assert(packet.publication_authorized === false, "packet authorized publication");
+
+  const rollback = JSON.parse(
+    fs.readFileSync(
+      path.join(PACKET, "rollback", "public", "bootstrap", "v1.json"),
+      "utf8",
+    ),
+  );
+  assert(rollback.status === "hold_no_stable_seed", "rollback is not a hold manifest");
+  assert(rollback.sync_endpoints.length === 0, "rollback publishes a seed");
+  assert(rollback.onion_endpoints.length === 0, "rollback publishes onion endpoints");
+  assert(
+    Object.values(rollback.authority).every((value) => value === false),
+    "rollback carries authority",
+  );
+
+  const review = fs.readFileSync(path.join(PACKET, "REVIEW.txt"), "utf8");
+  for (const forbidden of ["git push", "gh pr", "sudo ", "systemctl ", "curl "]) {
+    assert(!review.includes(forbidden), `review text contains active command ${forbidden}`);
+  }
+
+  const stablePredecessor = fixtureStableManifest();
+  for (const [name, mutate, expectedError] of [
+    [
+      "status_array",
+      (manifest) => { manifest.status = ["stable_https_seed"]; },
+      /predecessor status must be a string/,
+    ],
+    [
+      "chain_id_string",
+      (manifest) => { manifest.chain_id = "2050"; },
+      /predecessor chain_id must be the exact integer Chain-2050 ID/,
+    ],
+    [
+      "generated_at_array",
+      (manifest) => { manifest.generated_at = [manifest.generated_at]; },
+      /predecessor generated_at must be a string/,
+    ],
+    [
+      "expires_at_array",
+      (manifest) => { manifest.expires_at = [manifest.expires_at]; },
+      /predecessor expires_at must be a string/,
+    ],
+    [
+      "qualification_id_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualification_id =
+          [manifest.sync_endpoints[0].qualification_id];
+      },
+      /qualification ID must be a string/,
+    ],
+    [
+      "qualified_at_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualified_at =
+          [manifest.sync_endpoints[0].qualified_at];
+      },
+      /qualified_at must be a string/,
+    ],
+    [
+      "base_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = [manifest.sync_endpoints[0].base];
+      },
+      /base must be a string/,
+    ],
+    [
+      "base_path",
+      (manifest) => {
+        manifest.sync_endpoints[0].base =
+          "https://seed.previous.example.org/not-an-origin";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_private_ip",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://127.0.0.1";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_noncanonical_trailing_slash",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://seed.previous.example.org/";
+      },
+      /not acceptable public HTTPS/,
+    ],
+  ]) {
+    const malformed = resealPredecessor(stablePredecessor, mutate);
+    nodeAssert.throws(
+      () => validatePredecessorManifest(malformed),
+      expectedError,
+      name,
+    );
+  }
+  const {
+    sourceSha: stableSourceSha,
+    predecessorBlob: stablePredecessorBlob,
+  } = initializeFixtureRepository({
+    repoRoot: STABLE_FIXTURE_REPO,
+    predecessor: stablePredecessor,
+    message: "fixture: stable predecessor renewal",
+  });
+  copyDirectory(ARTIFACT, STABLE_ARTIFACT);
+  write(
+    path.join(STABLE_ARTIFACT, "source.txt"),
+    Buffer.from(`source_sha=${stableSourceSha}\n`),
+  );
+  artifactSums(STABLE_ARTIFACT);
+
+  const stableBuilt = run(
+    process.execPath,
+    builderArgs({
+      artifact: STABLE_ARTIFACT,
+      output: STABLE_PACKET,
+      sourceSha: stableSourceSha,
+      predecessorBlob: stablePredecessorBlob,
+      repoRoot: STABLE_FIXTURE_REPO,
+    }),
+  );
+  assert(
+    stableBuilt.stdout.includes("publication_authorized=false"),
+    "stable renewal builder authority marker missing",
+  );
+  const stableVerified = run(
+    process.execPath,
+    verifierArgs({
+      packet: STABLE_PACKET,
+      sourceSha: stableSourceSha,
+      predecessorBlob: stablePredecessorBlob,
+      repoRoot: STABLE_FIXTURE_REPO,
+    }),
+  );
+  assert(
+    stableVerified.stdout.includes("repository_mutated=false"),
+    "stable renewal verifier mutation marker missing",
+  );
+
+  const stablePacket = JSON.parse(
+    fs.readFileSync(path.join(STABLE_PACKET, "packet.json"), "utf8"),
+  );
+  assert(stablePacket.predecessor.status === "stable_https_seed");
+  assert(stablePacket.predecessor.manifest_id === stablePredecessor.manifest_id);
+  assert(
+    stablePacket.candidate.precondition_manifest_id === stablePredecessor.manifest_id,
+    "stable renewal candidate precondition mismatch",
+  );
+  assert(
+    stablePacket.rollback.precondition_manifest_id === stablePacket.candidate.manifest_id,
+    "stable renewal rollback precondition mismatch",
+  );
+  const stableRollback = JSON.parse(
+    fs.readFileSync(
+      path.join(STABLE_PACKET, "rollback", "public", "bootstrap", "v1.json"),
+      "utf8",
+    ),
+  );
+  assert(
+    stableRollback.status === "hold_no_stable_seed",
+    "stable renewal rollback must fail closed to HOLD",
+  );
+  assert(stableRollback.sync_endpoints.length === 0);
+  assert(
+    Object.values(stableRollback.authority).every((value) => value === false),
+    "stable renewal rollback carries authority",
+  );
+
+  const checksumTamper = path.join(TEMP, "artifact-checksum-tamper");
+  copyDirectory(ARTIFACT, checksumTamper);
+  fs.appendFileSync(path.join(checksumTamper, "qualification.json"), " ");
+  run(
+    process.execPath,
+    builderArgs({
+      artifact: checksumTamper,
+      output: path.join(TEMP, "packet-checksum-tamper"),
+      sourceSha,
+      predecessorBlob,
+    }),
+    { expectSuccess: false },
+  );
+
+  const resealedUnknown = path.join(TEMP, "artifact-resealed-unknown");
+  copyDirectory(ARTIFACT, resealedUnknown);
+  const unknown = JSON.parse(
+    fs.readFileSync(path.join(resealedUnknown, "public-bootstrap-v1.json"), "utf8"),
+  );
+  unknown.rpc_authority = true;
+  delete unknown.manifest_id;
+  const resealed = objectWithId("voidpbm1_", unknown, "manifest_id");
+  write(path.join(resealedUnknown, "public-bootstrap-v1.json"), jsonBytes(resealed));
+  artifactSums(resealedUnknown);
+  run(
+    process.execPath,
+    builderArgs({
+      artifact: resealedUnknown,
+      output: path.join(TEMP, "packet-resealed-unknown"),
+      sourceSha,
+      predecessorBlob,
+    }),
+    { expectSuccess: false },
+  );
+
+  const wrongSource = path.join(TEMP, "artifact-wrong-source");
+  copyDirectory(ARTIFACT, wrongSource);
+  write(path.join(wrongSource, "source.txt"), Buffer.from(`source_sha=${"a".repeat(40)}\n`));
+  artifactSums(wrongSource);
+  run(
+    process.execPath,
+    builderArgs({
+      artifact: wrongSource,
+      output: path.join(TEMP, "packet-wrong-source"),
+      sourceSha,
+      predecessorBlob,
+    }),
+    { expectSuccess: false },
+  );
+
+  const forbiddenOutput = path.join(FIXTURE_REPO, ".void-publication-packet-forbidden");
+  run(
+    process.execPath,
+    builderArgs({
+      output: forbiddenOutput,
+      sourceSha,
+      predecessorBlob,
+    }),
+    { expectSuccess: false },
+  );
+  assert(!fs.existsSync(forbiddenOutput), "forbidden in-repository output was created");
+
+  run(
+    process.execPath,
+    builderArgs({
+      output: path.join(TEMP, "packet-wrong-predecessor"),
+      sourceSha,
+      predecessorBlob: "b".repeat(40),
+    }),
+    { expectSuccess: false },
+  );
+
+  const tamperedPacket = path.join(TEMP, "packet-tampered");
+  copyDirectory(PACKET, tamperedPacket);
+  fs.appendFileSync(
+    path.join(tamperedPacket, "candidate", "public", "bootstrap", "v1.json"),
+    " ",
+  );
+  run(
+    process.execPath,
+    verifierArgs({ packet: tamperedPacket, sourceSha, predecessorBlob }),
+    { expectSuccess: false },
+  );
+
+  const newFiles = [
+    "scripts/lib/void_public_bootstrap_manifest_publication_v1.mjs",
+    "scripts/lib/void_public_bootstrap_manifest_publication_contract_v1.mjs",
+    "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs",
+    "scripts/lib/void_public_bootstrap_manifest_publication_build_v1.mjs",
+    "scripts/lib/void_public_bootstrap_manifest_publication_verify_v1.mjs",
+    "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs",
+    "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs",
+    "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs",
+  ];
+  for (const file of newFiles) {
+    const source = fs.readFileSync(file, "utf8");
+    assert(!/catch\s*\{/.test(source), `${file} contains a raw empty catch`);
+  }
+
+  console.log(MARKER);
+  console.log(`harness_source_sha=${rootSourceSha}`);
+  console.log(`fixture_source_sha=${sourceSha}`);
+  console.log("fixture_repository_isolated=true");
+  console.log("repository_manifest_state_independent=true");
+  console.log("artifact_checksums_bound=true");
+  console.log("qualification_source_bound=true");
+  console.log("predecessor_git_blob_bound=true");
+  console.log("candidate_byte_exact=true");
+  console.log("candidate_destination_count=1");
+  console.log("rollback_hold_deterministic=true");
+  console.log("stable_predecessor_renewal_packet=true");
+  console.log("predecessor_exact_json_types_enforced=true");
+  console.log("predecessor_public_seed_origin_contract_reused=true");
+  console.log("predecessor_negative_controls=10");
+  console.log("verifier_receipt_freshness_enforced=true");
+  console.log("verifier_candidate_expiry_enforced=true");
+  console.log("publication_authorized=false");
+  console.log("repository_mutated=false");
+  console.log("services_changed=false");
+  console.log("wallet_signer_validator_wc_money_authority=0");
+} finally {
+  fs.rmSync(TEMP, { recursive: true, force: true });
+}

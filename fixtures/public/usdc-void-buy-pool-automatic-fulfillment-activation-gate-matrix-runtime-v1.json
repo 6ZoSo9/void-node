@@ -1,0 +1,151 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+  "status": "automatic_fulfillment_activation_gate_matrix_runtime_authority_false",
+  "public_matrix_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "automatic_fulfillment_target_state": "allowed_later_after_all_activation_gates_green",
+  "automatic_fulfillment_enabled_now": false,
+  "overall_activation_state": "blocked_all_gates_pending",
+  "gate_count": 14,
+  "gates": [
+    {
+      "gate_key": "live_receipt_fetch_or_observation_scheduler_gate",
+      "gate_state": "blocked_pending_runtime_scheduler_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "chain_allowlist_and_rpc_endpoint_policy_gate",
+      "gate_state": "blocked_pending_policy_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "receiver_allowlist_gate",
+      "gate_state": "blocked_pending_receiver_policy_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "usdc_token_address_allowlist_gate",
+      "gate_state": "blocked_pending_token_policy_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "amount_and_rate_policy_gate",
+      "gate_state": "blocked_pending_rate_policy_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "buyer_identity_binding_gate",
+      "gate_state": "blocked_pending_identity_binding_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "duplicate_payment_guard_gate",
+      "gate_state": "blocked_pending_duplicate_guard_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "finality_confirmation_policy_gate",
+      "gate_state": "blocked_pending_finality_policy_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "private_allocation_ledger_write_gate",
+      "gate_state": "blocked_pending_private_ledger_write_gate_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "inventory_reserve_gate",
+      "gate_state": "blocked_pending_inventory_reserve_gate_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "fulfillment_signer_transfer_gate",
+      "gate_state": "blocked_pending_signer_transfer_gate_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "operator_kill_switch_gate",
+      "gate_state": "blocked_pending_kill_switch_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "rollback_and_audit_evidence_pack_gate",
+      "gate_state": "blocked_pending_rollback_audit_pack_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    },
+    {
+      "gate_key": "public_mutation_boundary_audit_gate",
+      "gate_state": "blocked_pending_public_mutation_boundary_runtime_proof",
+      "gate_green": false,
+      "required_before_automatic": true,
+      "authority_effect_now": "none",
+      "may_activate_later_by_separate_proof": true
+    }
+  ],
+  "linked_notice_marker": "VOID_USDC_VOID_BUY_POOL_EVIDENCE_LINK_AUTOMATIC_READINESS_NOTICE_V1",
+  "linked_notice_json_route": "/public-node/usdc-void-buy-pool/evidence-link-automatic-readiness-notice-v1.json",
+  "linked_notice_html_route": "/public-node/usdc-void-buy-pool/evidence-link-automatic-readiness-notice-v1",
+  "linked_evidence_bundle_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_EVIDENCE_BUNDLE_V1",
+  "linked_evidence_bundle_json_route": "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1.json",
+  "linked_evidence_bundle_html_route": "/public-node/usdc-void-buy-pool/external-receipt-observation-evidence-bundle-v1",
+  "reviewer_warnings": {
+    "not_payment_approval": true,
+    "not_finality_verification": true,
+    "not_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "automatic_fulfillment_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "void_transfer_now": false
+  }
+}

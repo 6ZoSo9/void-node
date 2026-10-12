@@ -1,0 +1,68 @@
+{
+  "input": {
+    "return_package_path": "/private/participant-receipt-return-package-v1.json",
+    "executor_receipt_expected_plan_path": "/private/advanced-plan-executor-receipt-expected-v1.json",
+    "finalization_profile_path": "/private/precision-finalization-profile-v1.json",
+    "binding_registry_path": "/private/credential-wc-account-binding-registry-v1.json",
+    "started_at_utc": "2026-07-29T00:00:00Z"
+  },
+  "profile": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_PRECISION_FINALIZATION_PROFILE_V1",
+    "version": 1,
+    "coordinator": {
+      "tailscale_ip": "100.122.245.125",
+      "node_id": "9d89483769e469e0473b489dc50dba96"
+    },
+    "fixed_award_wc": 3,
+    "runtime": {
+      "acceptance_source": {
+        "path": "/repo/src/economic/wc_verified_receipt_acceptance_v1.ts",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "adapter_cli": {
+        "path": "/repo/scripts/agent_paid_work_wc_earning_adapter_cli_v1.ts",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "adapter_core": {
+        "path": "/repo/src/economic/agent_paid_work_wc_earning_adapter_v1.ts",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    },
+    "transports": {
+      "acceptance": {
+        "runner_id": "verified_receipt_acceptance_wrapper_v1",
+        "command": "/private/run-verified-receipt-acceptance-v1",
+        "argv": [
+          "{participant_receipt_path}",
+          "{acceptance_receipt_path}"
+        ],
+        "timeout_ms": 60000,
+        "success_exit_code": 0
+      },
+      "adapter": {
+        "runner_id": "canonical_paid_work_adapter_wrapper_v1",
+        "command": "/private/run-paid-work-adapter-finalization-v1",
+        "argv": [
+          "{adapter_plan_path}",
+          "{binding_registry_path}",
+          "{adapter_receipt_path}"
+        ],
+        "timeout_ms": 180000,
+        "success_exit_code": 0
+      }
+    }
+  },
+  "authority": {
+    "participant_receipt_acceptance": true,
+    "canonical_adapter_execute": true,
+    "adapter_duplicate_probe": true,
+    "wc_ledger_write": true,
+    "ticket_issuance": false,
+    "ticket_transfer": false,
+    "remote_work_execution": false,
+    "payment_transfer": false,
+    "wc_to_void_settlement": false,
+    "service_restart": false,
+    "deployment": false
+  }
+}

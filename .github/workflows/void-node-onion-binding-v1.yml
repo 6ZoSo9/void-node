@@ -1,0 +1,57 @@
+name: VOID Node Onion Binding V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-node-onion-binding-v1.yml"
+      - "docs/public-node/void-node-onion-binding-v1.md"
+      - "examples/void-node-onion-binding-v1.example.json"
+      - "ops/tor/void-node-onion-binding-v1.sh"
+      - "ops/tor/void-tor-onion-transport-v1.sh"
+      - "schemas/void-node-onion-binding-v1.schema.json"
+      - "schemas/void-tor-onion-transport-v1.schema.json"
+      - "scripts/prove_void_node_onion_binding_v1.mjs"
+      - "scripts/prove_void_tor_onion_transport_v1.mjs"
+      - "tools/lib/void-node-onion-binding-v1.mjs"
+      - "tools/lib/void-tor-onion-descriptor-v1.mjs"
+      - "tools/void-node-onion-binding-v1.mjs"
+      - "tools/void-tor-onion-descriptor-v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-node-onion-binding-v1.yml"
+      - "docs/public-node/void-node-onion-binding-v1.md"
+      - "examples/void-node-onion-binding-v1.example.json"
+      - "ops/tor/void-node-onion-binding-v1.sh"
+      - "ops/tor/void-tor-onion-transport-v1.sh"
+      - "schemas/void-node-onion-binding-v1.schema.json"
+      - "schemas/void-tor-onion-transport-v1.schema.json"
+      - "scripts/prove_void_node_onion_binding_v1.mjs"
+      - "scripts/prove_void_tor_onion_transport_v1.mjs"
+      - "tools/lib/void-node-onion-binding-v1.mjs"
+      - "tools/lib/void-tor-onion-descriptor-v1.mjs"
+      - "tools/void-node-onion-binding-v1.mjs"
+      - "tools/void-tor-onion-descriptor-v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Shell syntax
+        run: |
+          bash -n ops/tor/void-tor-onion-transport-v1.sh
+          bash -n ops/tor/void-node-onion-binding-v1.sh
+      - name: Tor regression proof
+        run: node scripts/prove_void_tor_onion_transport_v1.mjs
+      - name: Signed node-to-onion proof
+        run: node scripts/prove_void_node_onion_binding_v1.mjs

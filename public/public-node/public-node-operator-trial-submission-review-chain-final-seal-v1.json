@@ -1,0 +1,98 @@
+{
+  "kind": "public_node_operator_trial_submission_review_chain_final_seal_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_FINAL_SEAL_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_FINAL_SEAL_V1_GREEN",
+  "status": "trial_submission_review_chain_final_seal_ready",
+  "title": "VOID Public Node Operator Trial Submission Review Chain Final Seal v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Final public-safe seal for the public node operator trial submission review chain.",
+  "html": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.html",
+  "json": "/public-node/public-node-operator-trial-submission-review-chain-final-seal-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "final_seal_only": true,
+    "public_queue_mutation_enabled": false,
+    "public_upload_route_enabled": false,
+    "public_form_enabled": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "seal_status": {
+    "submission_review_chain_rollup_bound": true,
+    "submission_review_decision_example_bound": true,
+    "submission_review_queue_bound": true,
+    "submission_intake_bound": true,
+    "trial_closeout_rollup_bound": true,
+    "trial_root_link_bound": true,
+    "final_seal_public_safe": true,
+    "final_seal_read_only": true,
+    "live_authority_enabled": false,
+    "queue_mutation_enabled": false,
+    "public_upload_route_enabled": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "sealed_components": [
+    {
+      "key": "submission_review_chain_rollup",
+      "route": "/public-node/public-node-operator-trial-submission-review-chain-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_CHAIN_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "submission_review_decision_example",
+      "route": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "submission_review_queue",
+      "route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1_GREEN"
+    },
+    {
+      "key": "submission_intake",
+      "route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1_GREEN"
+    },
+    {
+      "key": "trial_closeout_rollup",
+      "route": "/public-node/public-node-operator-trial-closeout-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "trial_root_link",
+      "route": "/public-node/public-node-operator-trial-root-link-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1_GREEN"
+    }
+  ],
+  "do_not_infer": [
+    "live operator authority",
+    "public queue mutation",
+    "public upload endpoint",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}

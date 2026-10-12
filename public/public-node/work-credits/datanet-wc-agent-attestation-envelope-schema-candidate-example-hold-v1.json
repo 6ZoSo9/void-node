@@ -1,0 +1,39 @@
+{
+  "schema": "void.datanet.wc.agent_attestation_envelope.v1",
+  "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+  "attestation_id": "datanet-wc-agent-attestation-envelope-example-hold-v1",
+  "actor": {
+    "actor_id": "agent-or-runner-placeholder",
+    "actor_type": "agent",
+    "identity_envelope_ref": "identity-envelope-placeholder"
+  },
+  "work_artifact": {
+    "artifact_ref": "artifact-ref-placeholder",
+    "artifact_kind": "datanet-verification-work"
+  },
+  "evidence": {
+    "evidence_packet_ref": "evidence-packet-placeholder",
+    "proof_command_ref": "proof-command-placeholder"
+  },
+  "review": {
+    "review_status": "review_pending",
+    "decision_ref": "operator-review-decision-placeholder"
+  },
+  "work_credit_status": {
+    "award_state": "none",
+    "work_credits_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work"
+  },
+  "boundary": {
+    "schema_candidate_only": true,
+    "identity_registry_write_enabled": false,
+    "attestation_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}

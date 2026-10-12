@@ -1,0 +1,80 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_TERMINAL_READINESS_ROLLUP_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_live_path_terminal_readiness_rollup_hold_v1",
+  "status": "terminal_rollup_hold_only",
+  "visibility": "private",
+  "public_safe": false,
+  "private_only": true,
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "void_transfer": false
+  },
+  "terminal_rollup": {
+    "purpose": "aggregate automatic payment live-path hold prerequisites before any future activation",
+    "activation_enabled": false,
+    "runtime_enabled": false,
+    "wallet_values_exposed": false,
+    "signer_values_exposed": false,
+    "receiver_values_exposed": false,
+    "buyer_execution_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "required_prerequisite_markers": [
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_VERIFIED_RECEIPT_PARSER_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DUPLICATE_PAYMENT_GUARD_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_AMOUNT_RATE_POLICY_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_INVENTORY_RESERVE_DECREMENT_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ALLOCATION_CLAIM_CREATION_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_RECORD_CREATION_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_EXECUTION_AUTHORIZATION_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_TRANSFER_INSTRUCTION_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_SIGNER_AUTHORIZATION_LIVE_PATH_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_WALLET_POLICY_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_RECEIVER_ALLOWLIST_CONFIRMATION_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_ACTIVATION_PACKET_HOLD_V1",
+    "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1",
+    "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ENABLEMENT_PREFLIGHT_CLOSEOUT_V1"
+  ],
+  "required_prerequisite_proofs": [
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-verified-receipt-parser-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-duplicate-payment-guard-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-amount-rate-policy-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-inventory-reserve-decrement-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-allocation-claim-creation-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-fulfillment-record-creation-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-fulfillment-execution-authorization-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-fulfillment-transfer-instruction-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-fulfillment-signer-authorization-live-path-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-fulfillment-wallet-policy-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-receiver-allowlist-confirmation-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-operator-activation-packet-hold-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-dual-chain-usdc-acceptance-allowlist-v1-proof.sh",
+    "ops/mainnet0/usdc-void-buy-pool-automatic-payment-enablement-preflight-closeout-v1-proof.sh"
+  ],
+  "reject_states": [
+    "auto_enable_without_operator_activation_packet",
+    "auto_enable_without_signer_authorization",
+    "auto_enable_without_wallet_policy",
+    "auto_enable_without_receiver_allowlist_confirmation",
+    "auto_enable_without_duplicate_payment_guard",
+    "auto_enable_without_amount_rate_policy",
+    "auto_enable_without_inventory_underflow_guard",
+    "auto_enable_with_public_mutation",
+    "auto_enable_with_buyer_execution",
+    "auto_enable_with_secret_values_exposed"
+  ],
+  "activation_blockers": {
+    "requires_future_operator_activation": true,
+    "requires_future_live_rpc_enablement": true,
+    "requires_future_signer_access_enablement": true,
+    "requires_future_wallet_fulfillment_enablement": true,
+    "requires_future_inventory_write_enablement": true
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_readiness_summary_hold.v1",
+  "id": "datanet-wc-public-earn-readiness-summary-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Public Earn Readiness Summary Hold v1",
+  "summary": "Public summary of the DataNet Work Credits earn-readiness stack. This summary explains what exists, what remains held, and what must happen before earning can open. It does not perform packet intake, review decision, WC approval, WC issuance, ledger mutation, VOID allocation, payment handling, signer access, wallet access, runtime routing, or mutation handling.",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_READINESS_SUMMARY_HOLD_V1",
+  "summary_status": "public_earn_readiness_summary_only_hold",
+  "what_exists": [
+    {
+      "id": "public_wc_index",
+      "status": "present",
+      "path": "/public-node/work-credits/index.json"
+    },
+    {
+      "id": "availability_status_card",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json"
+    },
+    {
+      "id": "work_packet_template",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json"
+    },
+    {
+      "id": "work_packet_example",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-example-hold-v1.json"
+    },
+    {
+      "id": "review_criteria",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-criteria-hold-v1.json"
+    },
+    {
+      "id": "review_checklist",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-checklist-hold-v1.json"
+    },
+    {
+      "id": "review_result_template",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-result-template-hold-v1.json"
+    },
+    {
+      "id": "review_result_example",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-result-example-hold-v1.json"
+    },
+    {
+      "id": "review_lane_rollup",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-public-review-lane-rollup-hold-v1.json"
+    }
+  ],
+  "what_is_held": {
+    "packet_intake": "held",
+    "public_submission_endpoint": "held",
+    "active_review_decision": "held",
+    "live_earning": "held",
+    "wc_approval": "held",
+    "wc_issuance": "held",
+    "wc_ledger_write": "held",
+    "void_allocation": "held",
+    "void_transfer": "held",
+    "usdc_autofulfillment": "held",
+    "wallet_access": "held",
+    "signer_access": "held",
+    "runtime_route": "held",
+    "mutation_handler": "held"
+  },
+  "before_earning_can_open": [
+    "define a held packet intake candidate",
+    "define an operator-only review queue candidate",
+    "define a review decision packet candidate",
+    "define a WC ledger write approval gate",
+    "prove duplicate-claim handling",
+    "prove reviewer/operator identity boundary",
+    "prove private DataNet material remains private",
+    "prove no wallet, signer, USDC, or VOID movement occurs until a later explicit authority gate"
+  ],
+  "readiness_boundary": {
+    "summary_only": true,
+    "public_discovery_only": true,
+    "creates_authority": false,
+    "opens_earn_lane": false,
+    "opens_review_lane": false,
+    "opens_packet_intake": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

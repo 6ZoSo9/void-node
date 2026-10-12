@@ -1,0 +1,83 @@
+{
+  "kind": "public_node_operator_trial_lane_final_seal_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1_GREEN",
+  "status": "trial_lane_final_seal_ready",
+  "title": "VOID Public Node Operator Trial Lane Final Seal v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Final public-safe seal for the public node operator trial lane chain.",
+  "html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+  "json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "sealed_chain": [
+    {
+      "key": "trial_packet",
+      "title": "Public Node Operator Trial Packet v1",
+      "route": "/public-node/public-node-operator-trial-packet-v1.json",
+      "html": "/public-node/public-node-operator-trial-packet-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1_GREEN"
+    },
+    {
+      "key": "trial_receipt_example",
+      "title": "Public Node Operator Trial Receipt Example v1",
+      "route": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+      "html": "/public-node/public-node-operator-trial-receipt-example-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "trial_review_decision_example",
+      "title": "Public Node Operator Trial Review Decision Example v1",
+      "route": "/public-node/public-node-operator-trial-review-decision-example-v1.json",
+      "html": "/public-node/public-node-operator-trial-review-decision-example-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "trial_lane_rollup",
+      "title": "Public Node Operator Trial Lane Rollup v1",
+      "route": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+      "html": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1_GREEN"
+    }
+  ],
+  "seal_statement": {
+    "trial_packet_bound": true,
+    "trial_receipt_example_bound": true,
+    "trial_review_decision_example_bound": true,
+    "trial_lane_rollup_bound": true,
+    "final_seal_is_public_safe": true,
+    "final_seal_is_read_only": true,
+    "operator_review_required_for_real_receipts": true
+  },
+  "do_not_infer": [
+    "live operator authority",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}

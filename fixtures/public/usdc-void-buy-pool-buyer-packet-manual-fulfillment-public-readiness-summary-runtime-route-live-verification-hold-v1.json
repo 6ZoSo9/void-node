@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_LIVE_VERIFICATION_HOLD_V1",
+  "version": 1,
+  "scope": "public_node_runtime_live_verification_read_only",
+  "purpose": "verify_buyer_safe_public_readiness_summary_runtime_routes_live",
+  "live_verification_state": "hold_shape_only_default_static",
+  "runtime_route_commit": "ef1bd625",
+  "runtime_route_local_tag": "ckpt-usdc-void-buy-pool-buyer-packet-manual-fulfillment-public-readiness-summary-runtime-route-hold-v1-local-green-20260624-141357",
+  "runtime_route_cross_box_tag": "ckpt-usdc-void-buy-pool-buyer-packet-manual-fulfillment-public-readiness-summary-runtime-route-hold-v1-cross-box-green-20260624-141615",
+  "service": {
+    "name": "void-node-live.service",
+    "restart_required_for_live_verification": true,
+    "live_restart_default_enabled": false,
+    "live_restart_requires_env": "VOID_RUNTIME_LIVE_VERIFY=1"
+  },
+  "origins": {
+    "local": "http://127.0.0.1:4100",
+    "public": "https://zoso-alienware-aurora-r7.taila47fd.ts.net"
+  },
+  "routes": {
+    "json": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json",
+    "html": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1"
+  },
+  "expected_runtime_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1",
+  "expected_live_assertions": {
+    "json_route_live_local": false,
+    "json_route_live_public": false,
+    "html_route_live_local": false,
+    "html_route_live_public": false,
+    "live_assertions_default_false_until_runtime_check": true
+  },
+  "read_only_boundary": {
+    "allowed_methods": ["GET"],
+    "mutation_methods_allowed": false,
+    "buyer_execution_authority": false,
+    "manual_fulfillment_authority": false,
+    "record_write_authority": false,
+    "record_apply_authority": false,
+    "allocation_claim_authority": false,
+    "void_transfer_authority": false,
+    "wallet_signing_authority": false,
+    "treasury_movement_authority": false,
+    "automatic_fulfillment_authority": false,
+    "authority_activation": false,
+    "lane_reopen": false
+  },
+  "public_safety": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_private_lane_identifier": false,
+    "contains_private_document_path": false,
+    "contains_wallet_secret": false,
+    "contains_ledger_internal": false,
+    "contains_execution_material": false,
+    "contains_transfer_instruction": false,
+    "contains_mutation_instruction": false,
+    "buyer_safe": true,
+    "reviewer_safe": true
+  }
+}

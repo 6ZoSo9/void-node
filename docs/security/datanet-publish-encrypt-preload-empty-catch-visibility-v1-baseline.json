@@ -1,0 +1,8 @@
+{
+  "marker": "VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1",
+  "file": "src/diag/datanet_publish_encrypt_preload_v1.cjs",
+  "before_real_empty_catch_count": 20,
+  "after_real_empty_catch_count": 0,
+  "closed_count": 20,
+  "sha256": "4b08d8d18eb8c95050a23ab4dfe742b244fa73230a29416c5a436cb6cb803d58"
+}

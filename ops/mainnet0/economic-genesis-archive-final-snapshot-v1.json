@@ -1,0 +1,92 @@
+{
+  "marker": "VOID_ECONOMIC_GENESIS_ARCHIVE_FINAL_SNAPSHOT_V1",
+  "version": 1,
+  "status": "FINAL_EPOCH1_SNAPSHOT",
+  "execution_epoch": 1,
+  "chain_id": 2050,
+  "source_implementation": "anvil",
+  "source_disposition": "immutable_economic_genesis_archive",
+  "final_block_number": "37392",
+  "final_block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+  "void_token": {
+    "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "runtime_sha256": "1360507ef5816f53cf32179736190a5c7a3ce605aaee7d0e06bb8a5da7351198",
+    "total_supply_atoms": "333333333000000000000000000",
+    "holder_balance_sum_atoms": "333333333000000000000000000",
+    "holder_sum_matches_total_supply": true,
+    "discovered_transfer_holder_addresses": 131,
+    "nonzero_holder_count": 3,
+    "nonzero_holders": [
+      {
+        "address": "0x554ecc7be6f0b7cc3d1c578c2bb848e535c02514",
+        "label": "VoidTreasury",
+        "account_kind": "contract",
+        "balance_atoms": "323207333000000000000000000",
+        "runtime_sha256": "fdb96b02f6c170b500efc11c0c759131dfbfc216309393a8d2ac6948e20b8fc1",
+        "successor_disposition": "destination_manifest_required"
+      },
+      {
+        "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+        "label": "UpgradeStaking",
+        "account_kind": "contract",
+        "balance_atoms": "126000000000000000000000",
+        "runtime_sha256": "0d35f9cf3d578cb8065d2e73f5f3d75f3332ea26002c4ae1ba8114aa96884ecd",
+        "successor_disposition": "beneficiary_obligation_census_and_destination_manifest_required"
+      },
+      {
+        "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+        "label": "PresaleFulfillment",
+        "account_kind": "contract",
+        "balance_atoms": "10000000000000000000000000",
+        "runtime_sha256": "f4ba2690159553b7e01b8af167c7ddd0076b0add5d7da66fa6dc7db2f4df4a07",
+        "successor_disposition": "presale_obligation_and_destination_manifest_required"
+      }
+    ]
+  },
+  "presale": {
+    "address": "0xa40a43adfd174f88309173cb3daa6e09c10154a7",
+    "remaining_inventory_atoms": "10000000000000000000000000",
+    "total_fulfilled_atoms": "0",
+    "max_inventory_atoms": "10000000000000000000000000",
+    "accounting_identity_holds": true,
+    "token_balance_covers_remaining": true
+  },
+  "durable_archive_checkpoint": {
+    "checkpoint_id_sha256": "c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906",
+    "state_sha256": "94b25d36990d32616a7328f5419f5075fee757c15a955617c79ef30497a14505",
+    "state_bytes": 161576656,
+    "manifest_sha256": "4d8b4f6df9c06cadcd27fd89606e846c83e8303fed9ca45c2b64f65c3baf4a1c",
+    "complete_sha256": "191c2d2fdc55bdc099569c2bd96719fb6fafe5baa99ea61459fcc8d9b4330dbf"
+  },
+  "reconciliation": {
+    "path_a_green": true,
+    "path_a_receipt_sha256": "38fa278d7e1c6a9ace0bdcbad131c1e0d5c0572de01bd0e64d340c256e45879b",
+    "path_b_green": true,
+    "path_b_receipt_sha256": "e2e02bfd4e9ab830af040d6aa3600a8d988371db9a61ed664eb00e427add1083",
+    "independent_paths_agree": true
+  },
+  "freeze": {
+    "write_freeze_proven": true,
+    "freeze_receipt_sha256": "7347d0c2ae24c471edd43fde326cc45e39e9a503d7257fc969aea1a5820a34de",
+    "service": "void-private-chain2050-rpc-v1.service",
+    "service_active_after": "inactive",
+    "service_enabled_after": "disabled",
+    "port_8545_listener_count_after": 0,
+    "freeze_marker_sha256": "b7280a9ea56c4a89bb9f1d6b5701dfa5e03bbb4f5a09d3f4b35ad49155c26e2c",
+    "freeze_dropin_sha256": "f7ed32fbcd47993b1689f65e361fb6c8c33825fcea406d5caedaf6b81b40a8a4",
+    "automatic_restart_guard_present": true
+  },
+  "promotion": {
+    "final_snapshot_identity_verified": true,
+    "all_nonzero_value_holders_enumerated": true,
+    "final_supply_verified": true,
+    "legacy_write_rpc_disabled": true,
+    "source_snapshot_public_evidence_ready": true,
+    "successor_equivalence_proven": false,
+    "contract_holder_destination_manifest_ready": false,
+    "live_obligation_contract_census_complete": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMOTION_V1",
+  "version": 1,
+  "status": "PRODUCTION_VALIDATOR_RUNTIME_ENFORCEMENT_PROMOTED_CROSS_EPOCH_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "validator_count": 3,
+  "validators": [
+    {
+      "machine_role": "precision",
+      "evidence_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-precision-v1.json",
+      "import_receipt_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-precision-import-v1.json",
+      "evidence_file_sha256": "d06089355eebb0e12ce5923d5723d68b078c9e4e1969a198dea80e37beeb7c36",
+      "evidence_id": "voide2ve1_de71932e1d8b1e9545872015dcceaa755ed8fe5e89bd0d795ffd498fd2710e1b",
+      "import_evaluated_at_utc": "2026-09-29T16:03:00Z",
+      "void_node_id": "9d89483769e469e0473b489dc50dba96",
+      "besu_validator_address": "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863"
+    },
+    {
+      "machine_role": "nimo",
+      "evidence_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-nimo-v1.json",
+      "import_receipt_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-nimo-import-v1.json",
+      "evidence_file_sha256": "b1729ddf8b3bd7223f1110f9244214bcb74e201a8b4ef0ab711377d610b570ec",
+      "evidence_id": "voide2ve1_ca2d4c54cfd0436aa8859231ef5b3b5486eaaea529575a44f7b536fbc0f53b53",
+      "import_evaluated_at_utc": "2026-09-29T15:03:41Z",
+      "void_node_id": "12babb04b0f88de7b74e17d04b343007",
+      "besu_validator_address": "0x02f967953386188397b992c208239d3a25180db6"
+    },
+    {
+      "machine_role": "xiphos",
+      "evidence_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-v1.json",
+      "import_receipt_file": "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-xiphos-import-v1.json",
+      "evidence_file_sha256": "c1c74916ee54224e1391da6d11cbc3ddd054b4d2ab9f9374a03d38354e940b3f",
+      "evidence_id": "voide2ve1_3456e043718d9541f2cc97a699c03398f243156eab66f9dbaab1701a76ac9750",
+      "import_evaluated_at_utc": "2026-09-29T16:17:58Z",
+      "void_node_id": "057593d7f3039b710bd904a081f83d17",
+      "besu_validator_address": "0x461bf06270d9d28962f7570182c061b828799b66"
+    }
+  ],
+  "verification": {
+    "all_three_import_receipts_verified": true,
+    "all_three_evidence_file_hashes_verified": true,
+    "all_three_evidence_ids_verified": true,
+    "all_three_runtime_rows_semantically_verified": true,
+    "canonical_binding_reverified": true
+  },
+  "gates": {
+    "upstream_runtime_evidence_semantically_verified": true,
+    "all_production_validators_epoch_domain_enforced": true,
+    "cross_epoch_replay_protection_proven": false,
+    "production_validator_set_bound": false,
+    "authoritative_chain2050_write": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "source_promotion_only": true,
+    "service_action": false,
+    "validator_mutation": false,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}

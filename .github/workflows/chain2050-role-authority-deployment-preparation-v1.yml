@@ -1,0 +1,71 @@
+name: chain2050-role-authority-deployment-preparation-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/chain2050-role-authority-sovereign-bytecode-acceptance-v1.json"
+      - "tools/chain2050-role-authority-deployment-preparation-v1.mjs"
+      - "scripts/prove_chain2050_role_authority_deployment_preparation_v1.mjs"
+      - "docs/security/chain2050-role-authority-deployment-preparation-v1.md"
+      - ".github/workflows/chain2050-role-authority-deployment-preparation-v1.yml"
+      - "contracts/mainnet0/VoidChain2050RoleAuthorityRegistryV1.sol"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact accepted creation bytecode with isolated solc-js
+        run: |
+          set -Eeuo pipefail
+          INPUT="$RUNNER_TEMP/role-authority-solc-input.json"
+          OUTPUT="$RUNNER_TEMP/role-authority-solc-output.json"
+          CREATION="$RUNNER_TEMP/role-authority-creation.hex"
+          SOLC_DIR="$RUNNER_TEMP/role-authority-solc"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import {
+            CONTRACT_PATH,
+            buildStandardJsonInput,
+          } from "./tools/chain2050-role-authority-registry-dual-compiler-v1.mjs";
+          const source=fs.readFileSync(CONTRACT_PATH,"utf8");
+          fs.writeFileSync(
+            process.env.RUNNER_TEMP+"/role-authority-solc-input.json",
+            JSON.stringify(buildStandardJsonInput(source))+"\n",
+          );
+          NODE
+          npm init --yes --prefix "$SOLC_DIR" >/dev/null
+          npm install --prefix "$SOLC_DIR" --ignore-scripts --no-audit --no-fund --save-exact solc@0.8.20
+          "$SOLC_DIR/node_modules/.bin/solcjs" --standard-json <"$INPUT" >"$OUTPUT"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const raw=fs.readFileSync(process.env.RUNNER_TEMP+"/role-authority-solc-output.json","utf8");
+          const start=raw.indexOf("{");
+          if(start<0) throw new Error("compiler output missing json");
+          const value=JSON.parse(raw.slice(start));
+          const c=value.contracts?.["contracts/mainnet0/VoidChain2050RoleAuthorityRegistryV1.sol"]?.VoidChain2050RoleAuthorityRegistryV1;
+          const creation=String(c?.evm?.bytecode?.object||"").toLowerCase();
+          if(!/^[0-9a-f]+$/.test(creation)||creation.length%2!==0) throw new Error("creation bytecode missing");
+          fs.writeFileSync(process.env.RUNNER_TEMP+"/role-authority-creation.hex","0x"+creation+"\n");
+          NODE
+          ROLE_AUTHORITY_CREATION_BYTECODE_FILE="$CREATION" \
+            node scripts/prove_chain2050_role_authority_deployment_preparation_v1.mjs
+      - if: matrix.node == 24
+        run: |
+          node scripts/prove_chain2050_role_authority_sovereign_bytecode_review_packet_v1.mjs
+          node scripts/prove_chain2050_role_authority_registry_dual_compiler_v1.mjs
+          npm run typecheck

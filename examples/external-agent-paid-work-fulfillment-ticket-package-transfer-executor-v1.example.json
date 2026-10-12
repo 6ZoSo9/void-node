@@ -1,0 +1,21 @@
+{
+  "destination_profile": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_DESTINATION_PROFILE_V1",
+    "version": 1,
+    "created_at_utc": "2026-07-28T22:31:00Z",
+    "tailscale_ip": "100.122.198.38",
+    "node_id": "befd84d4fe47341af81b1a8aef8bcb97",
+    "transport_destination": "zoso-N153B:",
+    "identity_receipt_marker": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_IDENTITY_RECEIPT_V1",
+    "identity_receipt_path": "/private/executor-identity-receipt-v1.json",
+    "identity_receipt_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "transfer_profile": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_PACKAGE_TRANSFER_PROFILE_V1",
+    "version": 1,
+    "transport_id": "tailscale_file_cp_v1",
+    "command_argv": ["sudo", "tailscale", "file", "cp", "{package_path}", "{destination}"],
+    "success_exit_code": 0,
+    "timeout_ms": 120000
+  }
+}

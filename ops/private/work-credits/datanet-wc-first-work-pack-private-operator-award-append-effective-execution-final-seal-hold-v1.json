@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_FINAL_SEAL_HOLD_V1",
+  "kind": "datanet-wc-first-work-pack-private-operator-award-append-effective-execution-final-seal-hold-v1",
+  "status": "hold",
+  "visibility": "private_operator_only",
+  "seal_type": "effective_execution_final_seal",
+  "chain": {
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+    "amount_recommendation_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_ledger_write_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_ledger_write_approval_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_award_status_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_award_append_preflight_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_PREFLIGHT_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_award_append_decision_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_DECISION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_award_append_approval_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_APPROVAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_ledger_write_authorization_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_LEDGER_WRITE_AUTHORIZATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_ledger_line_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_LEDGER_LINE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_ledger_append_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_LEDGER_APPEND_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_final_execution_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_FINAL_EXECUTION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_effective_execution_preflight_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_PREFLIGHT_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_effective_execution_authorization_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_AUTHORIZATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "private_effective_execution_candidate_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_CANDIDATE_HOLD_V1",
+    "private_effective_execution_example_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_EXAMPLE_HOLD_V1",
+    "private_effective_execution_closeout_marker": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_EFFECTIVE_EXECUTION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+  },
+  "final_seal": {
+    "effective_execution_closeout_bound": true,
+    "candidate_bound": true,
+    "example_bound": true,
+    "seal_state": "final_seal_hold_for_review",
+    "execution_state": "not_executed",
+    "ledger_append_state": "not_appended",
+    "wc_policy": "unlimited_uncapped_useful_verifiable_work_accounting",
+    "operator_review_required": true
+  },
+  "boundary": {
+    "private_operator_only": true,
+    "no_public_route": true,
+    "no_public_mutation": true,
+    "no_private_ledger_mutation": true,
+    "no_live_execution_authorization": true,
+    "no_effective_execution_performed": true,
+    "no_ledger_append": true,
+    "no_wc_issuance": true,
+    "no_wc_settlement": true,
+    "no_void_transfer": true,
+    "no_wallet_or_signer_access": true,
+    "no_broadcast": true,
+    "no_automatic_reward": true
+  }
+}

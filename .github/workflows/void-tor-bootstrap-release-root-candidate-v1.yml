@@ -1,0 +1,40 @@
+name: VOID Tor Bootstrap Release Root Candidate V1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-tor-bootstrap-release-root-candidate-v1.mjs"
+      - "scripts/prove_void_tor_bootstrap_release_root_candidate_v1.mjs"
+      - "scripts/lib/void_tor_bootstrap_release_root_v1.mjs"
+      - "docs/operations/void-tor-bootstrap-release-root-candidate-v1.md"
+      - ".github/workflows/void-tor-bootstrap-release-root-candidate-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-tor-bootstrap-release-root-candidate-v1.mjs"
+      - "scripts/prove_void_tor_bootstrap_release_root_candidate_v1.mjs"
+      - "scripts/lib/void_tor_bootstrap_release_root_v1.mjs"
+      - "docs/operations/void-tor-bootstrap-release-root-candidate-v1.md"
+      - ".github/workflows/void-tor-bootstrap-release-root-candidate-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove public-key-only Tor release-root candidate builder
+        run: node scripts/prove_void_tor_bootstrap_release_root_candidate_v1.mjs

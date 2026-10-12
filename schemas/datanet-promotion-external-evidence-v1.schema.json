@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-external-evidence-v1.schema.json",
+  "title": "VOID DataNet Promotion External Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "corroboration_evidence",
+    "reproducibility_evidence",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_datanet_promotion_external_evidence_v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_EXTERNAL_EVIDENCE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "corroboration_evidence": {
+      "$ref": "#/$defs/corroboration"
+    },
+    "reproducibility_evidence": {
+      "$ref": "#/$defs/reproducibility"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locator": {
+      "type": "string",
+      "pattern": "^evidence://[^\\s]{1,480}$"
+    },
+    "corroboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "source_locator",
+        "independent_source_count",
+        "conflict_detected",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "independent_source_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "conflict_detected": {
+          "const": false
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "sha256",
+        "source_locator",
+        "independent_verifier_count",
+        "replay_verified",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "source_locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "independent_verifier_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "replay_verified": {
+          "const": true
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_only",
+        "chain2050_write_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "evidence_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,58 @@
+name: Ops Guards (autostart)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-guards-autostart.yml'
+      - 'ops/systemd/user/void-node.service.d/**'
+      - 'scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_auto_stop_shadow_route_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'ops/run-void-node-live-v1.sh'
+      - 'scripts/void_health.sh'
+      - 'scripts/void-heal-ready.sh'
+      - 'ops/bin/void-proposer-auto.sh'
+      - 'ops/bin/void-noop-drip.sh'
+      - 'ops/bin/void-proposer-autostart-http.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  pull_request:
+    paths:
+      - '.github/workflows/ops-guards-autostart.yml'
+      - 'ops/systemd/user/void-node.service.d/**'
+      - 'scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_auto_stop_shadow_route_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'ops/run-void-node-live-v1.sh'
+      - 'scripts/void_health.sh'
+      - 'scripts/void-heal-ready.sh'
+      - 'ops/bin/void-proposer-auto.sh'
+      - 'ops/bin/void-noop-drip.sh'
+      - 'ops/bin/void-proposer-autostart-http.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Ensure single ExecStartPost drop-in
+        run: |
+          set -euo pipefail
+          c=$(grep -Rl "ExecStartPost=.*proposer-autostart-http.sh" ops/systemd/user/void-node.service.d | wc -l || true)
+          if [ "$c" -ne 1 ]; then
+            echo "Expected exactly one autostart ExecStartPost drop-in, found $c"; exit 1
+          fi
+      - name: Prove proposer auto-start mutation guard
+        run: npx tsx scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts
+      - name: Prove proposer auto-stop shadow route closure
+        run: npx tsx scripts/prove_proposer_auto_stop_shadow_route_v1.ts

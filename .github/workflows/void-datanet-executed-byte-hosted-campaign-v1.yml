@@ -1,0 +1,123 @@
+name: VOID DataNet executed-byte hosted campaign v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-datanet-executed-byte-hosted-campaign-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
+      - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
+      - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/void-datanet-executed-byte-hosted-campaign-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-protected-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-receipt-dag-v1.yml'
+      - '.github/workflows/void-datanet-executed-byte-source-inventory-v1.yml'
+      - 'docs/architecture/datanet-executed-byte-designated-host-v1.md'
+      - 'docs/architecture/datanet-executed-byte-hosted-campaign-v1.md'
+      - 'docs/architecture/datanet-executed-byte-protected-v1.md'
+      - 'docs/architecture/datanet-executed-byte-receipt-dag-v1.md'
+      - 'docs/architecture/datanet-executed-byte-source-inventory-v1.md'
+      - 'ops/datanet/run-executed-byte-designated-host-v1.sh'
+      - 'scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs'
+      - 'scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs'
+      - 'scripts/datanet_executed_byte_protected_v1.py'
+      - 'scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_datanet_executed_byte_hosted_campaign_v1.py'
+      - 'scripts/prove_datanet_executed_byte_protected_v1.py'
+      - 'scripts/prove_void_datanet_executed_byte_receipt_dag_v1.mjs'
+      - 'scripts/prove_void_datanet_executed_byte_source_inventory_v1.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  member:
+    name: hosted member (Node ${{ matrix.node }}, ${{ matrix.profile }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+        profile: [current, protected]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Execute exact hosted member
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          VOID_EXECUTED_BYTE_HOST_TIER: hosted
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m py_compile scripts/datanet_executed_byte_protected_v1.py scripts/prove_datanet_executed_byte_hosted_campaign_v1.py
+          bash -n ops/datanet/run-executed-byte-designated-host-v1.sh
+          node --check scripts/lib/void_datanet_executed_byte_receipt_dag_v1.mjs
+          node --check scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs
+          node --check scripts/aggregate_void_datanet_executed_byte_two_tier_v1.mjs
+          python3 scripts/prove_datanet_executed_byte_hosted_campaign_v1.py "$(command -v node)" "${{ matrix.profile }}" "${RUNNER_TEMP}/member"
+          git diff --exit-code
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-executed-byte-hosted-member-${{ matrix.node }}-${{ matrix.profile }}
+          path: ${{ runner.temp }}/member/member.json
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: hosted six-member tier
+    needs: member
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: datanet-executed-byte-hosted-member-*
+          path: ${{ runner.temp }}/members
+      - name: Recursively validate hosted tier
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs
+          node scripts/aggregate_void_datanet_executed_byte_hosted_tier_v1.mjs "${RUNNER_TEMP}/members" "${RUNNER_TEMP}/tier" hosted
+          git diff --exit-code
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: datanet-executed-byte-hosted-tier
+          path: ${{ runner.temp }}/tier/hosted-tier.json
+          if-no-files-found: error
+          retention-days: 14

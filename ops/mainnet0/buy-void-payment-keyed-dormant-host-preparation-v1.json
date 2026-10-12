@@ -1,0 +1,62 @@
+{
+  "authority": {
+    "carrier_root_snapshot_pin_only": true,
+    "chain2050_write": false,
+    "credential_content_read": false,
+    "funds_movement": false,
+    "host_mutation": false,
+    "inventory_mutation": false,
+    "live_carrier_root_rotation_authority": false,
+    "public_activation": false,
+    "runtime_apply_enabled": false,
+    "runtime_enabled": false,
+    "service_action": false,
+    "source_only_preparation": true,
+    "transaction_broadcast": false,
+    "transaction_signing": false,
+    "treasury_or_liquidity_action": false,
+    "wallet_or_signer_access": false
+  },
+  "dropin": {
+    "environment_count": 23,
+    "environment_sha256": "e27af7da5754b160ff535486972f93fb740fe869ccd336161da866462da68312",
+    "path": "ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example",
+    "sha256": "d244e9e6a8e2fc14179861676fa7843a7be6cc5e05b3481afd7bf72eb6ef3e9c"
+  },
+  "inputs": {
+    "activation_evidence": {
+      "blob_sha1": "69b4d32f712e99c09da20938c37e32c58e22f8d9",
+      "path": "ops/mainnet0/buy-void-production-activation-evidence-v1.json"
+    },
+    "carrier_attestation": {
+      "attestation_id": "voidbvhca1_0b7f99cbbf4dfbd8c3673d8915350b1d972bf1579d3798a52ab052eb3acb3465",
+      "blob_sha1": "85c7855c7c1a048933c9124ee510aa59d62f7bf0",
+      "carrier_root_sha256": "32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a",
+      "merge_commit": "ea93f9276195d677c0064d14cfce66cf194cb9a8",
+      "path": "ops/mainnet0/buy-void-production-history-carrier-attestation-v1.json"
+    },
+    "production_candidate": {
+      "blob_sha1": "1b605ebf698b69ef3a27eb2546df700878b53cf9",
+      "path": "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
+    },
+    "terminal_projection": {
+      "blob_sha1": "836f9a5d8ee8f121fc1c5b04ec7e3b8a5dcd295d",
+      "carrier_root_env": "VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256",
+      "origin_pr": 1669,
+      "origin_merge_commit": "68746191f075826cb191a07d2ae4cc52aac0077e",
+      "compatibility_pr": 1744,
+      "compatibility_merge_commit": "3d0385bf5b115b9d962a423d44f3ec5f98679f0a",
+      "path": "src/economic/buy_void_payment_history_terminal_projection_v1.ts"
+    }
+  },
+  "issue_number": 1679,
+  "marker": "VOID_BUY_VOID_PAYMENT_KEYED_DORMANT_HOST_PREPARATION_V1",
+  "preparation_id": "voidbvhdp1_1777bd1058b987a886d03d686eb471dd9d6dd356e3d100b039c9587b5ce093f0",
+  "prepared_environment": {
+    "VOID_BUY_VOID_HISTORY_CARRIER_ROOT_SHA256": "32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED": "0",
+    "VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED": "0"
+  },
+  "status": "source_prepared_pending_precision_host_apply",
+  "version": 1
+}

@@ -1,0 +1,46 @@
+name: official-network-authenticity-wall-v1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/official-network-authenticity-wall-v1.yml"
+      - "config/official-network-identity-v1.json"
+      - "config/source-forensic-fingerprint-registry-v1.json"
+      - "docs/legal/INFRINGEMENT_EVIDENCE_V1.md"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1.md"
+      - "genesis.json"
+      - "LICENSE"
+      - "docs/legal/TRADEMARKS.md"
+      - "schemas/official-network-identity-v1.schema.json"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "src/security/official_network_identity_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/official-network-authenticity-wall-v1.yml"
+      - "config/official-network-identity-v1.json"
+      - "config/source-forensic-fingerprint-registry-v1.json"
+      - "docs/legal/INFRINGEMENT_EVIDENCE_V1.md"
+      - "docs/legal/OFFICIAL_NETWORK_AUTHENTICITY_WALL_V1.md"
+      - "genesis.json"
+      - "LICENSE"
+      - "docs/legal/TRADEMARKS.md"
+      - "schemas/official-network-identity-v1.schema.json"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "src/security/official_network_identity_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_official_network_authenticity_wall_v1.mjs
+      - run: npm run build
+      - run: git diff --check

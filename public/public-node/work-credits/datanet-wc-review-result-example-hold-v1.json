@@ -1,0 +1,76 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_review_result_example_hold.v1",
+  "id": "datanet-wc-review-result-example-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Review Result Example Hold v1",
+  "summary": "Public-safe example showing the shape of a future DataNet Work Credits review result. This is example-only: no review was performed, no WC approval occurred, no WC issuance occurred, no ledger write occurred, and no VOID allocation occurred.",
+  "marker": "VOID_DATANET_WC_REVIEW_RESULT_EXAMPLE_HOLD_V1",
+  "example_status": "public_safe_example_only",
+  "template_reference": {
+    "id": "datanet-wc-review-result-template-hold-v1",
+    "path": "/public-node/work-credits/datanet-wc-review-result-template-hold-v1.json"
+  },
+  "example_review_result": {
+    "result_id": "example_datanet_wc_review_result_redacted_hold_v1",
+    "result_kind": "datanet_wc_review_result",
+    "result_status": "example_only_not_reviewed",
+    "source_packet_id": "example_datanet_wc_available_work_packet_redacted_hold_v1",
+    "review_basis": {
+      "criteria_reference": "/public-node/work-credits/datanet-wc-review-criteria-hold-v1.json",
+      "checklist_reference": "/public-node/work-credits/datanet-wc-review-checklist-hold-v1.json",
+      "review_window": "example_window_redacted_not_observed",
+      "public_safe_evidence_reviewed": false
+    },
+    "review_outcome": {
+      "decision": "none",
+      "eligible_for_future_wc_action": false,
+      "reason": "example_only_no_review_performed",
+      "reviewer_identifier_public": false,
+      "operator_identifier_public": false
+    },
+    "wc_result": {
+      "wc_approval_performed": false,
+      "wc_issuance_performed": false,
+      "wc_amount": 0,
+      "wc_ledger_write_performed": false,
+      "ledger_entry_id": "none",
+      "void_allocation_performed": false,
+      "void_transfer_performed": false
+    }
+  },
+  "public_safety_boundary": {
+    "public_example_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

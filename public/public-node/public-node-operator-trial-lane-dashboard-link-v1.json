@@ -1,0 +1,55 @@
+{
+  "kind": "public_node_operator_trial_lane_dashboard_link_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1_GREEN",
+  "status": "trial_lane_dashboard_link_ready",
+  "title": "VOID Public Node Operator Trial Lane Dashboard Link v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Public-safe dashboard entrypoint link for the sealed public node operator trial lane.",
+  "html": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.html",
+  "json": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
+  "dashboard": {
+    "html": "/public-node/public-node-operator-dashboard-v1.html",
+    "json": "/public-node/public-node-operator-dashboard-v1.json",
+    "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1"
+  },
+  "linked_trial_lane": {
+    "final_seal_html": "/public-node/public-node-operator-trial-lane-final-seal-v1.html",
+    "final_seal_json": "/public-node/public-node-operator-trial-lane-final-seal-v1.json",
+    "final_seal_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1",
+    "final_seal_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_FINAL_SEAL_V1_GREEN",
+    "rollup_html": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
+    "rollup_json": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+    "rollup_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1",
+    "rollup_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1_GREEN"
+  },
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "do_not_infer": [
+    "live operator authority",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_STATUS_ROLLUP_ROUTE_RUNTIME_LIVE_VERIFICATION_HOLD_V1",
+  "kind": "runtime_live_verification_hold",
+  "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+  "runtime_public_file": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+  "source_route_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_STATUS_ROLLUP_ROUTE_V1",
+  "source_status_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_STATUS_ROLLUP_V1",
+  "expected_status": "canary_separate_terminal_lane_closed_without_execution",
+  "read_only": true,
+  "observation_only": true,
+  "runtime_check_optional": true,
+  "authority": {
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "public_mutation_route_created": false,
+    "terminal_lane_reopened": false
+  }
+}

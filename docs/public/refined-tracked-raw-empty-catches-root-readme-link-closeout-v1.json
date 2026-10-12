@@ -1,0 +1,16 @@
+{
+  "buckets": {},
+  "ci_guard_step": "Prove root README public discovery link remains green",
+  "ci_guard_workflow": ".github/workflows/refined-tracked-raw-empty-catches-terminal-zero.yml",
+  "exact_main": "0f6bf86848f8ba9b6f9a3f375a21ba95c63d29e1",
+  "marker": "VOID_REFINED_TRACKED_RAW_EMPTY_CATCHES_ROOT_README_LINK_CLOSEOUT_V1",
+  "public_readme_link": "docs/public/README.md -> refined-tracked-raw-empty-catches-public-discovery-index-v1.md",
+  "receipt": "/home/zoso/void-precision-smoke/three-box-pr587-root-readme-link-zero-guard-exact-main-p2p-strict-runtime-clean-watch-20260711-141529.txt",
+  "receipt_sha256": "6b9bd70fbbee4710c495a52b44cee83226ef4558abd082646bd90d86f5d29fae",
+  "repo_wide_refined_tracked_raw_empty_catches": 0,
+  "root_readme_link": "README.md -> docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md",
+  "status": "root_readme_link_closeout",
+  "summary": "Root README and docs/public README now expose the refined tracked raw-empty-catch public discovery index, and CI protects the root README discovery path.",
+  "tag": "ckpt-refined-tracked-raw-empty-catches-root-readme-link-zero-guard-v1-post-merge-exact-green-20260711-135527",
+  "version": 1
+}

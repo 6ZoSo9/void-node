@@ -1,0 +1,52 @@
+name: Legacy txroot forensics bundle retirement
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/legacy-txroot-forensics-bundle-retirement.yml'
+      - 'scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'src/diag/txroot_forensics_bundle_v5_v73.js'
+      - 'ops/security/public-sensitive-route-guard-proof.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  pull_request:
+    paths:
+      - '.github/workflows/legacy-txroot-forensics-bundle-retirement.yml'
+      - 'scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'src/diag/txroot_forensics_bundle_v5_v73.js'
+      - 'ops/security/public-sensitive-route-guard-proof.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  retirement-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove legacy txroot forensics bundle remains retired
+        run: npx tsx scripts/prove_legacy_txroot_forensics_bundle_retirement_v1.ts

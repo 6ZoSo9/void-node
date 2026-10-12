@@ -1,0 +1,268 @@
+{
+  "catalog_fingerprint_sha256": "4b717c0bbc6a8ac853cfa9c85917546cff167c56fed23f11ecd76a53470cad03",
+  "catalog_id": "void.public-agent-services.v1",
+  "catalog_status": "descriptive_only",
+  "honesty": {
+    "automatic_payment_execution_available": false,
+    "credential_issuance": false,
+    "external_paid_work_execution_available": false,
+    "money_movement": false,
+    "runtime_mutation": false,
+    "service_mutation": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "wallet_access": false
+  },
+  "marker": "VOID_PUBLIC_AGENT_SERVICES_CATALOG_V1",
+  "schema": "void.public-agent-services-catalog.v1",
+  "services": [
+    {
+      "availability": "public",
+      "category": "discovery",
+      "evidence": {
+        "paths": [
+          "docs/public/agent-paid-work-public-discovery-v1.json",
+          "schemas/agent-paid-work-public-discovery-v1.schema.json"
+        ]
+      },
+      "execution": {
+        "external_available": false,
+        "mode": "read_only",
+        "mutation_authority": false
+      },
+      "interface": {
+        "kind": "static_manifest",
+        "method": "GET",
+        "path": "docs/public/agent-paid-work-public-discovery-v1.json"
+      },
+      "maturity": "public_static",
+      "operator_notes": [
+        "This surface is informational and read-only.",
+        "It does not promise work, payment, WC earning, or execution."
+      ],
+      "pricing": {
+        "amount": 0,
+        "currency": null,
+        "payment_execution_available": false,
+        "status": "free"
+      },
+      "service_id": "void.agent-paid-work.protocol-discovery.v1",
+      "summary": "Read-only machine-readable discovery of the bounded agent paid-work protocol and ordered envelope lineage.",
+      "title": "Agent Paid-Work Protocol Discovery",
+      "verification": {
+        "deterministic_receipts": true,
+        "independent_verification_available": true,
+        "receipt_paths": [
+          ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+          ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+          "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+          "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+          "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+          "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+          "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+          "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+          "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+        ]
+      }
+    },
+    {
+      "availability": "operator_review_required",
+      "category": "onboarding",
+      "evidence": {
+        "paths": [
+          ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+          ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+          "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+          "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+          "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+          "scripts/agent_paid_work_credential_request_intake_v1.ts",
+          "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+          "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+        ]
+      },
+      "execution": {
+        "external_available": false,
+        "mode": "operator_review",
+        "mutation_authority": false
+      },
+      "interface": {
+        "kind": "operator_cli",
+        "method": null,
+        "path": "scripts/agent_paid_work_credential_request_intake_v1.ts"
+      },
+      "maturity": "operator_review_required",
+      "operator_notes": [
+        "Submitting a request does not issue a credential.",
+        "Credential application remains a separate explicit operator action."
+      ],
+      "pricing": {
+        "amount": 0,
+        "currency": null,
+        "payment_execution_available": false,
+        "status": "free"
+      },
+      "service_id": "void.agent-paid-work.credential-request-intake.v1",
+      "summary": "Machine-readable operator-review intake for an external agent requesting the bounded agent_paid_work_submit scope.",
+      "title": "Paid-Work Credential Request Intake",
+      "verification": {
+        "deterministic_receipts": true,
+        "independent_verification_available": false,
+        "receipt_paths": [
+          ".github/workflows/agent-paid-work-credential-request-gateway-v1.yml",
+          ".github/workflows/agent-paid-work-credential-request-intake-v1.yml",
+          "docs/operators/agent-paid-work-credential-request-gateway-v1.md",
+          "docs/operators/agent-paid-work-credential-request-intake-v1.md",
+          "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+          "scripts/agent_paid_work_credential_request_intake_v1.ts",
+          "scripts/prove_agent_paid_work_credential_request_gateway_v1.ts",
+          "scripts/prove_agent_paid_work_credential_request_intake_v1.ts"
+        ]
+      }
+    },
+    {
+      "availability": "conditional",
+      "category": "paid_work_intake",
+      "evidence": {
+        "paths": [
+          ".github/workflows/agent-paid-work-submission-admission-v1.yml",
+          ".github/workflows/agent-paid-work-submission-intake-runtime-v1.yml",
+          "docs/public/agent-paid-work-submission-admission-v1.md",
+          "docs/public/agent-paid-work-submission-intake-runtime-v1.md",
+          "examples/agent-paid-work-submission-admission-v1.example.json",
+          "examples/agent-paid-work-submission-intake-receipt-v1.example.json",
+          "examples/systemd/void-agent-paid-work-submission-receiver-v1.service",
+          "examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf",
+          "fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json",
+          "fixtures/agent-paid-work/agent-paid-work-submission-request-v1.example.json",
+          "schemas/agent-paid-work-submission-admission-v1.schema.json",
+          "schemas/agent-paid-work-submission-intake-receipt-v1.schema.json",
+          "schemas/agent-paid-work-submission-request-v1.schema.json",
+          "scripts/agent_paid_work_submission_admission_v1.ts",
+          "scripts/agent_paid_work_submission_receiver_v1.ts",
+          "scripts/prove_agent_paid_work_submission_admission_v1.ts",
+          "scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs",
+          "scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs",
+          "scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts"
+        ]
+      },
+      "execution": {
+        "external_available": false,
+        "mode": "conditional_intake",
+        "mutation_authority": false
+      },
+      "interface": {
+        "kind": "http_route",
+        "method": "POST",
+        "path": "/__void/agents/paid-work/submissions/v1"
+      },
+      "maturity": "conditionally_available",
+      "operator_notes": [
+        "The route is disabled unless its exact receiver upstream is configured.",
+        "Successful intake does not itself dispatch work or execute payment."
+      ],
+      "pricing": {
+        "amount": null,
+        "currency": null,
+        "payment_execution_available": false,
+        "status": "quote_required"
+      },
+      "service_id": "void.agent-paid-work.submission-intake.v1",
+      "summary": "Bounded authenticated POST intake for agent paid-work requests when the dedicated loopback receiver is configured.",
+      "title": "Authenticated Paid-Work Submission Intake",
+      "verification": {
+        "deterministic_receipts": true,
+        "independent_verification_available": true,
+        "receipt_paths": [
+          ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+          ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+          "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+          "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+          "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+          "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+          "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+          "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+          "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+        ]
+      }
+    },
+    {
+      "availability": "contract_only",
+      "category": "verifiable_work",
+      "evidence": {
+        "paths": [
+          "docs/public/void-public-earn-no-node-client-v1.md",
+          "docs/public/wc-public-ticket-claim-v1.md",
+          "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+          "examples/agent-paid-work-execution-authorization-envelope-v1.example.json",
+          "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+          "ops/datanet-job-runner-v1.cjs",
+          "ops/live-runner-publish-verify-redundancy-proof.sh",
+          "ops/live-runner-selection-persistence-proof.sh",
+          "ops/mainnet0/wc-public-earning-participant-v1.sh",
+          "ops/mainnet0/wc-public-ticket-claim-v1.sh",
+          "ops/pick2-isolated-proof-exporter.sh",
+          "ops/pick2-weighted-mixed-proof.sh",
+          "ops/prune_stale_jobs_v1.py",
+          "ops/public/void-public-app-composition-gateway-v1.mjs",
+          "ops/runner-safety-proof.sh",
+          "ops/two-box-cross-machine-datanet-lifecycle-proof.sh",
+          "ops/two-box-datanet-workloop-proof.sh",
+          "ops/two-box-full-useful-work-loop-proof.sh",
+          "ops/two-box-peer-fetch-repair-proof.sh",
+          "ops/two-box-pick2-fairness-proof.sh"
+        ]
+      },
+      "execution": {
+        "external_available": false,
+        "mode": "contract_only",
+        "mutation_authority": false
+      },
+      "interface": {
+        "kind": "work_type",
+        "method": null,
+        "path": "datanet_fetch_verify"
+      },
+      "maturity": "contract_defined",
+      "operator_notes": [
+        "No public price or automatic payment rail is claimed.",
+        "External execution remains unavailable until separately activated."
+      ],
+      "pricing": {
+        "amount": null,
+        "currency": null,
+        "payment_execution_available": false,
+        "status": "not_published"
+      },
+      "service_id": "void.datanet.fetch-verify.v1",
+      "summary": "Verifiable bounded work type for fetching DataNet content and returning deterministic review evidence.",
+      "title": "DataNet Fetch and Verification",
+      "verification": {
+        "deterministic_receipts": true,
+        "independent_verification_available": true,
+        "receipt_paths": [
+          ".github/workflows/agent-paid-work-completion-receipt-envelope-v1.yml",
+          ".github/workflows/agent-paid-work-independent-completion-verification-envelope-v1.yml",
+          "docs/public/agent-paid-work-completion-receipt-envelope-v1.md",
+          "docs/public/agent-paid-work-independent-completion-verification-envelope-v1.md",
+          "examples/agent-paid-work-completion-receipt-envelope-v1.example.json",
+          "examples/agent-paid-work-independent-completion-verification-envelope-v1.example.json",
+          "schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+          "schemas/agent-paid-work-independent-completion-verification-envelope-v1.schema.json",
+          "scripts/agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/agent_paid_work_independent_completion_verification_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_completion_receipt_envelope_v1.ts",
+          "scripts/prove_agent_paid_work_independent_completion_verification_envelope_v1.ts"
+        ]
+      }
+    }
+  ],
+  "source_commit": "c13f214f2aeb353d4c639ba86dc62c9d7275fdd5",
+  "source_commit_time": "2026-07-27T15:27:49-05:00",
+  "version": 1
+}

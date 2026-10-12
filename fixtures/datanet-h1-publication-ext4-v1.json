@@ -1,0 +1,39 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_H1_PUBLICATION_EXT4_CONTROL_V1",
+  "quota_key": "6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e",
+  "slot": 1,
+  "slot_name": "datanet-6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e-s1.v1",
+  "payload_bytes": 67108864,
+  "io_block_bytes": 65536,
+  "payload_sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+  "filesystem_type": "ext4",
+  "filesystem_magic_hex": "ef53",
+  "image_bytes": 402653184,
+  "fallocate_path": "/usr/bin/fallocate",
+  "fallocate_sha256": "aeb8fd4c49875dd053ea120966a7ad227ff4adeb31e04418ed8c96ebf8044e72",
+  "link_path": "/usr/bin/ln",
+  "link_sha256": "059a363e62adcc10e14e55b5c82df6945509303eb32370b02c461311329ad261",
+  "helper_timeout_ms": 5000,
+  "helper_stderr_max_bytes": 8192,
+  "one_publication_ledger": {
+    "write_calls": 1024,
+    "write_requested_bytes": 67108864,
+    "write_completed_bytes": 67108864,
+    "prepublication_read_calls": 1025,
+    "prepublication_read_requested_bytes": 67108865,
+    "prepublication_read_returned_bytes": 67108864,
+    "postpublication_read_calls": 1025,
+    "postpublication_read_requested_bytes": 67108865,
+    "postpublication_read_returned_bytes": 67108864
+  },
+  "v29_composed_success_ledger": {
+    "calls": 13322,
+    "requested_bytes": 872415242,
+    "completed_or_returned_bytes": 872415232,
+    "writes": 3072,
+    "reads": 10250,
+    "nonempty_calls": 13312,
+    "eof_probes": 10
+  }
+}

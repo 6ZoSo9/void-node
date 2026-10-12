@@ -1,0 +1,43 @@
+name: Mainnet0 Buy VOID truth v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/mainnet0-buy-void-truth-v1.yml"
+      - "ops/mainnet/mainnet0-blockers-proof.sh"
+      - "ops/mainnet/mainnet0-blockers.current.md"
+      - "ops/mainnet/mainnet0-status.current.md"
+      - "scripts/classify_mainnet0_buy_void_truth_v1.py"
+      - "scripts/prove_mainnet0_buy_void_truth_v1.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/mainnet0-buy-void-truth-v1.yml"
+      - "ops/mainnet/mainnet0-blockers-proof.sh"
+      - "ops/mainnet/mainnet0-blockers.current.md"
+      - "ops/mainnet/mainnet0-status.current.md"
+      - "scripts/classify_mainnet0_buy_void_truth_v1.py"
+      - "scripts/prove_mainnet0_buy_void_truth_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Classify current Buy VOID artifacts
+        run: |
+          python3 scripts/classify_mainnet0_buy_void_truth_v1.py \
+            --blockers ops/mainnet/mainnet0-blockers.current.md \
+            --status ops/mainnet/mainnet0-status.current.md
+      - name: Prove fail-closed Buy VOID truth classification
+        run: python3 scripts/prove_mainnet0_buy_void_truth_v1.py
+      - name: Check shell syntax
+        run: bash -n ops/mainnet/mainnet0-blockers-proof.sh

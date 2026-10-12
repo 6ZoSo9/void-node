@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_AWARD_RECOMMENDATION_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Award Recommendation Hold v1",
+  "status": "award_recommendation_hold_no_wc_issuance",
+  "packet_kind": "datanet_wc_availability_award_recommendation_hold_v1",
+  "upstream_required": {
+    "quest_lane_marker": "VOID_DATANET_WC_AVAILABILITY_QUEST_LANE_V1",
+    "evidence_packet_marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+    "reviewer_decision_marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_DECISION_PACKET_V1",
+    "required_reviewer_decision": "approved_for_wc_review"
+  },
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "participant_id",
+    "object_id_or_content_root",
+    "reviewer_decision_marker",
+    "reviewer_decision",
+    "recommended_wc_min",
+    "recommended_wc_max",
+    "recommendation_reason",
+    "duplicate_guard_status",
+    "reviewer_id",
+    "timestamp",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "allowed_duplicate_guard_status": [
+    "not_duplicate",
+    "duplicate_suspected",
+    "duplicate_confirmed",
+    "not_checked"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "bypasses_later_approval",
+    "bypasses_later_ledger_write_proof"
+  ],
+  "authority_boundary_required_false": [
+    "activates_public_mutation",
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}

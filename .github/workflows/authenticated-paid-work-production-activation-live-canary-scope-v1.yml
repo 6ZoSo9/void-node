@@ -1,0 +1,51 @@
+name: Authenticated Paid Work Production Activation Live Canary Scope v1
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-live-canary-scope-v1.yml
+      - docs/operations/authenticated-paid-work-production-activation-live-canary-scope-v1.md
+      - ops/mainnet0/authenticated-paid-work-production-activation-live-canary-scope-v1.json
+      - schemas/authenticated-paid-work-production-activation-live-canary-scope-v1.schema.json
+      - scripts/prove_authenticated_paid_work_production_activation_live_canary_scope_v1.mjs
+      - ops/mainnet0/authenticated-paid-work-production-activation-execution-confirmation-v1.json
+      - ops/mainnet0/authenticated-paid-work-production-activation-bounded-replay-snapshot-v1.json
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/authenticated-paid-work-production-activation-live-canary-scope-v1.yml
+      - docs/operations/authenticated-paid-work-production-activation-live-canary-scope-v1.md
+      - ops/mainnet0/authenticated-paid-work-production-activation-live-canary-scope-v1.json
+      - schemas/authenticated-paid-work-production-activation-live-canary-scope-v1.schema.json
+      - scripts/prove_authenticated_paid_work_production_activation_live_canary_scope_v1.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-production-activation-live-canary-scope-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: Prove source-only final live canary scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parse exact artifact and schema
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync("ops/mainnet0/authenticated-paid-work-production-activation-live-canary-scope-v1.json","utf8"))'
+          node -e 'JSON.parse(require("node:fs").readFileSync("schemas/authenticated-paid-work-production-activation-live-canary-scope-v1.schema.json","utf8"))'
+      - name: Prove reviewed source chain
+        run: |
+          node scripts/prove_authenticated_paid_work_production_activation_bounded_replay_snapshot_v1.mjs
+          node scripts/prove_authenticated_paid_work_production_activation_execution_confirmation_v1.mjs
+      - name: Prove final live canary scope and non-execution
+        run: node scripts/prove_authenticated_paid_work_production_activation_live_canary_scope_v1.mjs

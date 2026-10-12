@@ -1,0 +1,3 @@
+# HELP void_head_number Latest persisted block number
+# TYPE void_head_number gauge
+void_head_number 170834

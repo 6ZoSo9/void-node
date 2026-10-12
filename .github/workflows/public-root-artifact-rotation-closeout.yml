@@ -1,0 +1,32 @@
+name: public-root-artifact-rotation-closeout
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/public-root-artifact-rotation-closeout.yml'
+      - 'tools/check_public_root_artifact_history_exposure_rotation_closeout_v1.sh'
+      - 'tools/check_public_repo_hygiene.sh'
+      - 'docs/security/public-root-artifact-history-exposure-rotation-closeout-v1.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/public-root-artifact-rotation-closeout.yml'
+      - 'tools/check_public_root_artifact_history_exposure_rotation_closeout_v1.sh'
+      - 'tools/check_public_repo_hygiene.sh'
+      - 'docs/security/public-root-artifact-history-exposure-rotation-closeout-v1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  public-root-artifact-rotation-closeout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public root artifact history exposure and rotation closeout
+        run: bash tools/check_public_root_artifact_history_exposure_rotation_closeout_v1.sh

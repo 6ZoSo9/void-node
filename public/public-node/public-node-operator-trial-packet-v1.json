@@ -1,0 +1,104 @@
+{
+  "kind": "public_node_operator_trial_packet_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1_GREEN",
+  "status": "trial_packet_ready",
+  "title": "VOID Public Node Operator Trial Packet v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "One public-safe packet for an outside operator or tester to follow the public node operator path and return evidence for manual review.",
+  "html": "/public-node/public-node-operator-trial-packet-v1.html",
+  "json": "/public-node/public-node-operator-trial-packet-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required": true
+  },
+  "operator_path": [
+    {
+      "step": 1,
+      "label": "Read the public operator quickstart",
+      "route": "/public-node/public-node-operator-quickstart-v1.html"
+    },
+    {
+      "step": 2,
+      "label": "Open the connect pack",
+      "route": "/public-node/connect/public-node-connect-pack-v1.html"
+    },
+    {
+      "step": 3,
+      "label": "Use the receipt template",
+      "route": "/public-node/connect/public-node-connect-receipt-template-v1.html"
+    },
+    {
+      "step": 4,
+      "label": "Compare against the receipt example",
+      "route": "/public-node/public-node-operator-receipt-example-v1.html"
+    },
+    {
+      "step": 5,
+      "label": "Package the handoff evidence",
+      "route": "/public-node/public-node-operator-handoff-packet-v1.html"
+    },
+    {
+      "step": 6,
+      "label": "Operator reviews against checklist",
+      "route": "/public-node/public-node-operator-receipt-review-checklist-v1.html"
+    },
+    {
+      "step": 7,
+      "label": "Operator records a decision",
+      "route": "/public-node/public-node-operator-receipt-review-decision-template-v1.html"
+    }
+  ],
+  "trial_scope": [
+    "Verify the public node index and public operator dashboard are reachable.",
+    "Verify the quickstart, connect pack, receipt template, receipt example, handoff packet, review checklist, and decision template routes are reachable.",
+    "Submit only public-safe machine, route, timestamp, and command/result evidence.",
+    "Allow an operator to classify the returned receipt as accepted, needs_changes, rejected, or informational."
+  ],
+  "evidence_requested": [
+    "tester handle or operator alias",
+    "UTC timestamp",
+    "public node route tested",
+    "local environment summary safe to disclose",
+    "commands run, excluding secrets and private paths",
+    "observed result",
+    "errors or mismatch notes",
+    "receipt template filled with public-safe evidence only"
+  ],
+  "do_not_submit": [
+    "wallet private keys",
+    "mnemonics",
+    "env files",
+    "node keys",
+    "API tokens",
+    "RPC credentials",
+    "private IPs unless intentionally disclosed by the tester",
+    "funds transfer claims",
+    "validator admission claims",
+    "claims that tester receipts are network truth"
+  ],
+  "pairs_with": {
+    "quickstart": "/public-node/public-node-operator-quickstart-v1.json",
+    "connect_pack": "/public-node/connect/public-node-connect-pack-v1.json",
+    "receipt_template": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "receipt_example": "/public-node/public-node-operator-receipt-example-v1.json",
+    "handoff_packet": "/public-node/public-node-operator-handoff-packet-v1.json",
+    "review_checklist": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+    "decision_template": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "decision_example": "/public-node/public-node-operator-receipt-review-decision-example-v1.json",
+    "review_lane_rollup": "/public-node/public-node-operator-review-lane-rollup-v1.json",
+    "operator_dashboard": "/public-node/public-node-operator-dashboard-v1.json"
+  }
+}

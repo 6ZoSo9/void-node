@@ -1,0 +1,70 @@
+<html lang="en">
+<head><meta charset="utf-8"><title>VOID Public Node Operator Trial Tester Instruction Pack v1</title></head>
+<body>
+<h1>VOID Public Node Operator Trial Tester Instruction Pack v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1</code></p>
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1_GREEN</code></p>
+<p>This is a human-facing public-safe instruction pack for outside testers/operators following the sealed public node operator trial lane.</p>
+<h2>Tester steps</h2>
+<ol>
+<li><strong>Start at the public entrypoint</strong>: Open the public node operator trial public entrypoint and confirm the terminal final seal is present. <a href="/public-node/public-node-operator-trial-public-entrypoint-v1.html">Open route</a></li>
+<li><strong>Read the trial packet</strong>: Open the trial packet and understand the read-only boundary before doing anything. <a href="/public-node/public-node-operator-trial-packet-v1.html">Open route</a></li>
+<li><strong>Open the connect pack</strong>: Use only the public-safe connect pack route. Do not assume this enables a live public mutation or upload flow. <a href="/public-node/connect/public-node-connect-pack-v1.html">Open route</a></li>
+<li><strong>Fill a receipt locally</strong>: Use the receipt template to prepare a public-safe receipt. Keep private keys, secrets, wallet seed phrases, private IPs, private logs, and sensitive account details out of the receipt. <a href="/public-node/connect/public-node-connect-receipt-template-v1.html">Open route</a></li>
+<li><strong>Compare against examples</strong>: Compare your receipt against the trial receipt example and the review decision example so your evidence is structured correctly. <a href="/public-node/public-node-operator-trial-receipt-example-v1.html">Open route</a></li>
+<li><strong>Submit through an operator-provided channel only</strong>: Submit the receipt only through a channel explicitly provided by the operator. This repository does not provide a public upload route or public queue mutation route. <a href="/public-node/public-node-operator-trial-submission-intake-v1.html">Open route</a></li>
+<li><strong>Wait for manual operator review</strong>: Your submission enters manual operator review. Queue presence, receipt submission, or a status artifact does not create network truth or authorize any reward. <a href="/public-node/public-node-operator-trial-submission-review-queue-v1.html">Open route</a></li>
+</ol>
+<h2>Required receipt fields</h2>
+<ol>
+<li>tester_alias_or_handle</li>
+<li>operator_trial_packet_route_used</li>
+<li>connect_pack_route_used</li>
+<li>receipt_template_version</li>
+<li>timestamp_utc</li>
+<li>machine_or_environment_summary</li>
+<li>public_routes_opened</li>
+<li>observed_result</li>
+<li>logs_or_screenshots_if_public_safe</li>
+<li>boundary_acknowledgement</li>
+<li>requested_operator_review_outcome</li>
+</ol>
+<h2>Do not include</h2>
+<ul>
+<li>private keys</li>
+<li>seed phrases</li>
+<li>wallet secrets</li>
+<li>private API tokens</li>
+<li>private IP addresses unless explicitly approved</li>
+<li>sensitive logs</li>
+<li>personal identity documents</li>
+<li>payment secrets</li>
+<li>anything that should not be public</li>
+</ul>
+<h2>Submission policy</h2>
+<ul>
+<li>Operator-provided submission channel required: true</li>
+<li>Manual operator review required: true</li>
+<li>Public upload route enabled: false</li>
+<li>Public form enabled: false</li>
+<li>Public queue mutation enabled: false</li>
+<li>Submission does not authorize WC, ledger writes, wallet sends, money movement, Buy VOID fulfillment, or validator admission.</li>
+<li>Submitted receipts are not network truth.</li>
+</ul>
+<h2>Linked routes</h2>
+<ul>
+<li>terminal_final_seal: <a href="/public-node/public-node-operator-trial-terminal-final-seal-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_FINAL_SEAL_V1</code></a></li>
+<li>terminal_closeout_rollup: <a href="/public-node/public-node-operator-trial-terminal-closeout-rollup-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_TERMINAL_CLOSEOUT_ROLLUP_V1</code></a></li>
+<li>public_entrypoint: <a href="/public-node/public-node-operator-trial-public-entrypoint-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1</code></a></li>
+<li>trial_packet: <a href="/public-node/public-node-operator-trial-packet-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1</code></a></li>
+<li>connect_pack: <a href="/public-node/connect/public-node-connect-pack-v1.html"><code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code></a></li>
+<li>receipt_template: <a href="/public-node/connect/public-node-connect-receipt-template-v1.html"><code>VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1</code></a></li>
+<li>submission_intake: <a href="/public-node/public-node-operator-trial-submission-intake-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1</code></a></li>
+<li>submission_review_queue: <a href="/public-node/public-node-operator-trial-submission-review-queue-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1</code></a></li>
+<li>submission_review_decision_example: <a href="/public-node/public-node-operator-trial-submission-review-decision-example-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1</code></a></li>
+<li>trial_receipt_example: <a href="/public-node/public-node-operator-trial-receipt-example-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1</code></a></li>
+<li>operator_dashboard: <a href="/public-node/public-node-operator-dashboard-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1</code></a></li>
+</ul>
+<p><a href="/public-node/public-node-operator-trial-tester-instruction-pack-v1.json">Machine-readable JSON</a></p>
+</body>
+</html>

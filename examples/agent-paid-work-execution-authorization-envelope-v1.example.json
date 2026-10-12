@@ -1,0 +1,97 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_EXECUTION_AUTHORIZATION_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2",
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b",
+  "payment_receipt_id": "voidawper1_33457cefe699a95b5ddad768272e09e9c3593ad1b524f12d7bf0a3c68d06de51",
+  "payment_confirmation_id": "voidawpc1_1c18c9fa3e208faab438b3a1f74a10cc7279096e2b87b6353634ef715d92e668",
+  "created_at_utc": "2026-07-25T22:54:00Z",
+  "expires_at_utc": "2026-07-25T23:09:00Z",
+  "requester": {
+    "agent_id": "agent.example.researcher"
+  },
+  "provider": {
+    "provider_id": "void.provider.datanet.verify.precision"
+  },
+  "executor": {
+    "executor_id": "void.executor.work.datanet.nimo"
+  },
+  "authorizer": {
+    "authority_id": "void.authority.work.operator",
+    "authority_policy_id": "void.policy.paid-work-execution.v1"
+  },
+  "completion_verifier": {
+    "verifier_id": "void.verifier.work.independent.precision",
+    "verification_policy_id": "void.policy.paid-work-completion-verification.v1"
+  },
+  "work_contract": {
+    "task_type": "datanet_fetch_verify",
+    "task_spec_sha256": "sha256:d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5",
+    "input_manifest_sha256": "sha256:e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+    "expected_output_schema_sha256": "sha256:f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7",
+    "result_delivery_channel_id": "void.delivery.paid-work.result.v1"
+  },
+  "resource_limits": {
+    "max_wall_clock_seconds": 300,
+    "max_cpu_seconds": 180,
+    "max_memory_bytes": 536870912,
+    "max_output_bytes": 10485760,
+    "max_network_requests": 20,
+    "max_retry_count": 1
+  },
+  "capability_policy": {
+    "allowed_capability_ids": [
+      "void.capability.datanet.read.v1",
+      "void.capability.hash.sha256.v1"
+    ],
+    "network_allowlist_ids": [
+      "void.network.datanet.public.v1"
+    ],
+    "data_classification": "public",
+    "sandbox_required": true,
+    "secrets_allowed": false,
+    "wallet_access_allowed": false,
+    "payment_mutation_allowed": false,
+    "work_credit_mutation_allowed": false,
+    "buy_void_fulfillment_allowed": false,
+    "runtime_administration_allowed": false,
+    "host_filesystem_write_allowed": false,
+    "external_side_effects_allowed": false
+  },
+  "authorization": {
+    "work_execution_authorized": true,
+    "exact_payment_confirmation_only": true,
+    "exact_task_spec_only": true,
+    "one_time_use_required": true,
+    "replay_protection_required": true,
+    "atomic_consumption_required": true,
+    "single_active_execution_authorization_per_confirmation_required": true,
+    "requester_authentication_required": true,
+    "provider_authentication_required": true,
+    "executor_authentication_required": true,
+    "authorizer_authentication_required": true,
+    "authorization_signature_required": true,
+    "authority_policy_binding_required": true,
+    "provider_executor_binding_required": true,
+    "authorizer_executor_separation_required": true,
+    "completion_verifier_executor_separation_required": true,
+    "completion_verifier_authorizer_separation_required": true,
+    "resource_limits_enforced": true,
+    "capability_allowlist_enforced": true,
+    "network_allowlist_enforced": true,
+    "input_integrity_verification_required": true,
+    "output_commitment_required": true,
+    "completion_receipt_required": true,
+    "independent_completion_verification_required": true,
+    "payment_state_immutable": true,
+    "authorization_is_not_completion_receipt": true,
+    "authorization_is_not_work_completion_confirmation": true,
+    "authorization_is_not_wc_award_instruction": true,
+    "authorization_is_not_payment_instruction": true
+  },
+  "nonce": "work-execution-authorization-example-20260725-0001",
+  "work_execution_authorization_id": "voidawwea1_7faf87a936133920fc790700c3fa0a5ff07e8cb5e0c111f3f5952e15babf9a78"
+}

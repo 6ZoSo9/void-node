@@ -1,0 +1,38 @@
+name: Buy VOID observe-and-claim candidate readiness CLI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-observe-and-claim-candidate-readiness-cli-v1.yml"
+      - "docs/operators/buy-void-observe-and-claim-candidate-readiness-cli-v1.md"
+      - "fixtures/buy-void/observe-and-claim-candidate-readiness-v1.example.json"
+      - "schemas/buy-void-observe-and-claim-candidate-readiness-v1.schema.json"
+      - "scripts/buy_void_observe_and_claim_candidate_readiness_v1.ts"
+      - "scripts/prove_buy_void_observe_and_claim_candidate_readiness_cli_v1.ts"
+      - "scripts/prove_buy_void_observe_and_claim_candidate_readiness_v1.ts"
+      - "src/economic/buy_void_observe_and_claim_candidate_readiness_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node --esModuleInterop --allowSyntheticDefaultImports --downlevelIteration --skipLibCheck scripts/buy_void_observe_and_claim_candidate_readiness_v1.ts scripts/prove_buy_void_*.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_candidate_readiness_v1.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_candidate_readiness_cli_v1.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_fixture_canary_gate_v1.ts
+      - run: npx tsx scripts/prove_buy_void_observe_and_claim_fixture_canary_gate_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_bounded_orchestrator_apply_activation_gate_v1.ts
+      - run: npx tsx scripts/prove_buy_void_bounded_orchestrator_apply_activation_gate_runtime_v1.ts
+      - run: npx tsx scripts/prove_buy_void_bounded_orchestrator_apply_activation_gate_guard_v1.ts
+      - run: npm run build
+      - run: git diff --check

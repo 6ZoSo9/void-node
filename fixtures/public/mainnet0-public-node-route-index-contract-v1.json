@@ -1,0 +1,49 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_ROUTE_INDEX_CONTRACT_V1",
+  "version": 1,
+  "scope": "mainnet0_public_node_discovery",
+  "purpose": "prove the public-node dashboard and route index are remotely reachable, machine-readable, and do not advertise sensitive namespaces",
+  "required_remote_public_paths": [
+    {
+      "path": "/public-node",
+      "allowed_status": [200],
+      "reason": "human public-node dashboard"
+    },
+    {
+      "path": "/public-node/route-index.json",
+      "allowed_status": [200],
+      "reason": "machine-readable public route index"
+    }
+  ],
+  "required_route_index": {
+    "marker": "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
+    "must_include_paths": [
+      "/public-node",
+      "/public-node/route-index.json"
+    ],
+    "forbidden_path_prefixes": [
+      "/__void/diag/",
+      "/__void/dev/",
+      "/__void/operator/",
+      "/__void/admin/",
+      "/__debug/",
+      "/dev/"
+    ],
+    "forbidden_exact_paths": [
+      "/__void/participant/wallet/export"
+    ]
+  },
+  "authority": {
+    "public_mutation_authority": false,
+    "remote_diag_authority": false,
+    "remote_dev_authority": false,
+    "remote_operator_authority": false,
+    "remote_admin_authority": false,
+    "remote_wallet_export_authority": false
+  },
+  "nested_proofs_required": [
+    "public-route-contract-v1",
+    "public-live-boundary-v1",
+    "canonical-tx-hotpath-v1"
+  ]
+}

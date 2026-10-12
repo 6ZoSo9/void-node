@@ -1,0 +1,33 @@
+{
+  "buckets": {},
+  "campaign": "refined_tracked_raw_empty_catches_visibility_cleanup",
+  "closed_prs": [
+    572,
+    573,
+    574,
+    575,
+    577,
+    578,
+    579,
+    580,
+    581,
+    582
+  ],
+  "final_pr": 582,
+  "final_proof_marker": "VOID_SRC_INDEX_JS_RAW_EMPTY_CATCHES_WINDOW_0101_0119_V1_GREEN",
+  "final_raw_empty_catch_main": "0ce76f61bbb0d11139d548fc9f33154068eae4b8",
+  "final_raw_empty_catch_tag": "ckpt-src-index-js-raw-empty-catches-window-0101-0119-v1-post-merge-exact-green-20260711-074736",
+  "final_three_box_receipt": "/home/zoso/void-precision-smoke/three-box-pr582-exact-main-p2p-strict-runtime-clean-watch-20260711-075620.txt",
+  "final_three_box_receipt_sha256": "11ee95ed8f5c39eb12c1875e5484024eceb02b02ded5e0a4d131c954f055e92b",
+  "marker": "VOID_REFINED_TRACKED_RAW_EMPTY_CATCHES_TERMINAL_FINAL_SEAL_V1",
+  "repo_wide_refined_tracked_raw_empty_catches": 0,
+  "runtime_status": {
+    "alienware": "NO_FRESH_ALIENWARE_RUNTIME_ERRORS",
+    "nimo": "NO_FRESH_NIMO_RUNTIME_ERRORS",
+    "precision": "NO_FRESH_PRECISION_RUNTIME_ERRORS"
+  },
+  "status": "terminal_final_seal",
+  "strict_p2p_marker": "VOID_THREE_BOX_P2P_ID_ADDR_STRICT_CHECK_GREEN",
+  "summary": "All refined tracked raw empty catches reached zero on exact main, with src_diag zero, src_index_js zero, no remaining buckets, three-box exact-main sync, strict P2P ID/address green, and no fresh runtime errors.",
+  "version": 1
+}

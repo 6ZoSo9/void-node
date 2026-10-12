@@ -1,0 +1,73 @@
+name: VOID P2P reachability classification contract v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-p2p-reachability-classification-contract-v1.yml"
+      - "docs/public/p2p-reachability-classification-contract-v1.md"
+      - "scripts/lib/void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/prove_void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/verify_void_p2p_reachability_classification_contract_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-p2p-reachability-classification-contract-v1.yml"
+      - "docs/public/p2p-reachability-classification-contract-v1.md"
+      - "scripts/lib/void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/prove_void_p2p_reachability_classification_contract_v1.mjs"
+      - "scripts/verify_void_p2p_reachability_classification_contract_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-p2p-reachability-classification-contract-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Use supported Node.js major
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax-check reachability contract
+        run: |
+          node --check scripts/lib/void_p2p_reachability_classification_contract_v1.mjs
+          node --check scripts/prove_void_p2p_reachability_classification_contract_v1.mjs
+          node --check scripts/verify_void_p2p_reachability_classification_contract_v1.mjs
+      - name: Run focused reachability proof
+        run: node scripts/prove_void_p2p_reachability_classification_contract_v1.mjs
+
+  repository-gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check HEAD^ HEAD

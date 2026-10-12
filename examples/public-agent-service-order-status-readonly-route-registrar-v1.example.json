@@ -1,0 +1,34 @@
+{
+  "adapter": {
+    "default_max_bytes": 1048576,
+    "deterministic_clock_injected": true,
+    "registrar_method": "get",
+    "responder_method": "write",
+    "source_root_bound": true
+  },
+  "authority": {
+    "abstract_route_registration": true,
+    "authenticated_submission_post": false,
+    "deployment": false,
+    "live_http_route_registration": false,
+    "network_listener": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ROUTE_REGISTRAR_V1",
+  "registration_id": "voidaosreg1_4c9601453ef6a65dad9b8930e54eebf11e57d7647bbab4955f4e20be1125d01e",
+  "route": {
+    "method": "GET",
+    "path": "/public-agent/services/v1/orders/:submission_id/status.json"
+  },
+  "version": 1
+}

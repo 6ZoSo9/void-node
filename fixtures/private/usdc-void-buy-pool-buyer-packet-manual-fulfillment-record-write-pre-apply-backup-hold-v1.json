@@ -1,0 +1,68 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_RECORD_WRITE_PRE_APPLY_BACKUP_HOLD_V1",
+  "version": 1,
+  "scope": "private_operator_only",
+  "purpose": "record_manual_fulfillment_record_write_pre_apply_backup_hold_shape",
+  "prior_required_state": "ready_for_separate_manual_fulfillment_record_write_apply_packet",
+  "pre_apply_backup_hold_state": "held_pre_apply_backup_shape_only",
+  "allowed_pre_apply_backup_hold_states": [
+    "draft_hold",
+    "blocked_missing_write_apply_readiness_hold",
+    "blocked_write_apply_readiness_not_ready",
+    "blocked_missing_append_only_target",
+    "blocked_missing_backup_target",
+    "held_pre_apply_backup_shape_only",
+    "ready_for_separate_duplicate_record_key_guard_hold"
+  ],
+  "references": {
+    "buyer_packet_reference": "private_operator_redacted",
+    "manual_fulfillment_record_write_apply_readiness_hold_reference": "private_operator_redacted",
+    "manual_fulfillment_record_write_hold_reference": "private_operator_redacted",
+    "manual_fulfillment_record_creation_hold_reference": "private_operator_redacted",
+    "proposed_append_only_target_reference": "private_operator_redacted",
+    "pre_apply_backup_target_reference": "private_operator_redacted",
+    "pre_apply_backup_artifact_reference": "private_operator_redacted"
+  },
+  "proposed_pre_apply_backup": {
+    "backup_required": true,
+    "backup_created": false,
+    "backup_verified": false,
+    "append_only_target_present": false,
+    "proposed_manual_fulfillment_record_key": "fixture_shape_only_not_written",
+    "backup_reason_codes": [
+      "fixture_shape_only",
+      "no_real_buyer_packet",
+      "no_real_write_apply_readiness_hold",
+      "no_append_only_target",
+      "no_backup_created",
+      "no_backup_verified",
+      "no_record_written"
+    ],
+    "blocked_reason_codes": [],
+    "next_required_operator_action": "separate_duplicate_record_key_guard_hold_required"
+  },
+  "authority": {
+    "public_node_mutation_authority": false,
+    "public_route_mounted": false,
+    "backup_write_authority": false,
+    "manual_fulfillment_record_write_authority": false,
+    "manual_fulfillment_record_apply_authority": false,
+    "append_only_ledger_write_authority": false,
+    "allocation_claim_creation_authority": false,
+    "void_transfer_authority": false,
+    "wallet_signing_authority": false,
+    "treasury_movement_authority": false,
+    "automatic_fulfillment_authority": false
+  },
+  "non_goals": [
+    "manual_fulfillment_record_write",
+    "manual_fulfillment_record_apply",
+    "append_only_ledger_write",
+    "allocation_claim_creation",
+    "void_transfer",
+    "wallet_signing",
+    "treasury_movement",
+    "automatic_fulfillment",
+    "public_node_mutation"
+  ]
+}

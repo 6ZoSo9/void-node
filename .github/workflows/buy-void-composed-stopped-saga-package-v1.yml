@@ -1,0 +1,154 @@
+name: VOID Buy VOID composed saga stopped-image candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/architecture/buy-void-composed-stopped-saga-package-v1.md"
+      - ".github/workflows/buy-void-composed-stopped-saga-package-v1.yml"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-composed-saga-stopped-positive-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source-only PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove inherited source-read and Git trust helpers
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+          node scripts/prove_buy_void_reviewed_git_invocation_v1.mjs --self-test
+      - name: Syntax, substitute-file negative, and source-only staging review
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs
+          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs --self-test
+          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs --source \
+            > "composed-saga-positive-source-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const a=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(a.saga_source_copy_declared,true);
+            assert.equal(a.stopped_image_saga_byte_identity_verified,false);
+            assert.equal(a.executed_saga_loader_qualified,false);
+            assert.equal(a.image_generation_accepted,false);
+            assert.equal(a.production_source_finality_authority_ready,false);
+            console.log("VOID_SAGA_SOURCE_COPY_CANDIDATE_NO_ACCEPTANCE_GREEN");
+          ' "composed-saga-positive-source-${{ matrix.node }}.json"
+      - name: Upload source candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-composed-composed-saga-positive-source-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: composed-saga-positive-source-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff whitespace guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  stopped-image:
+    needs: [source-review]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Build and inspect a STOPPED image only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          docker build --iidfile "$RUNNER_TEMP/composed-saga-positive-candidate-image-id" .
+          IMAGE_ID="$(cat "$RUNNER_TEMP/composed-saga-positive-candidate-image-id")"
+          [[ "$IMAGE_ID" =~ ^sha256:[a-f0-9]{64}$ ]]
+          CID="$(docker create "$IMAGE_ID")"
+          cleanup() { docker rm "$CID" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
+          test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
+          test "$(docker inspect --format '{{json .Mounts}}' "$CID")" = "[]"
+          test "$(docker inspect --format '{{.Image}}' "$CID")" = "$IMAGE_ID"
+          docker inspect "$CID" > "$RUNNER_TEMP/composed-saga-positive-inspect-before.json"
+          ROOT="$RUNNER_TEMP/void-composed-saga-positive-stopped-root"
+          mkdir -p "$ROOT/dist/economic"
+          docker cp "$CID:/app/dist/economic/buy_void_erc20_execution_composition_v1.js" "$ROOT/dist/economic/"
+          docker cp "$CID:/app/tools" "$ROOT/tools"
+          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs --stopped-root "$ROOT" \
+            | tee "$RUNNER_TEMP/composed-saga-positive-package-identity.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(p.stopped_image_saga_byte_identity_verified,true);
+            assert.equal(p.unreviewed_broadcaster_and_custodian_absent,true);
+            assert.equal(p.executed_saga_loader_qualified,false);
+            assert.equal(p.tool_runtime_side_effects_reviewed,false);
+            assert.equal(p.image_generation_accepted,false);
+            assert.equal(p.deployed_artifact_generation_verified,false);
+            assert.equal(p.runtime_mount_authority,false);
+            assert.equal(p.production_source_finality_authority_ready,false);
+            console.log("VOID_SAGA_STOPPED_IMAGE_EXACT_BYTES_PRESENT_NO_AUTHORITY_GREEN");
+          ' "$RUNNER_TEMP/composed-saga-positive-package-identity.json"
+          docker inspect "$CID" > "$RUNNER_TEMP/composed-saga-positive-inspect-after.json"
+          cmp "$RUNNER_TEMP/composed-saga-positive-inspect-before.json" "$RUNNER_TEMP/composed-saga-positive-inspect-after.json"
+          test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
+          test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
+      - name: Preserve immutable stopped image proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-composed-saga-positive-stopped-image-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/composed-saga-positive-package-identity.json
+          if-no-files-found: error
+          retention-days: 1

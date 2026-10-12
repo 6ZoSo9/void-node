@@ -1,0 +1,44 @@
+name: VOID jobs submit E2E local evidence binding v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-jobs-submit-e2e-local-evidence-binding-v1.yml"
+      - "ops/jobs-submit-e2e-proof.sh"
+      - "scripts/prove_void_jobs_submit_e2e_local_evidence_binding_v1.mjs"
+      - "docs/operators/void-jobs-submit-e2e-local-evidence-binding-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-jobs-submit-e2e-local-evidence-binding-v1.yml"
+      - "ops/jobs-submit-e2e-proof.sh"
+      - "scripts/prove_void_jobs_submit_e2e_local_evidence_binding_v1.mjs"
+      - "docs/operators/void-jobs-submit-e2e-local-evidence-binding-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax only
+        run: |
+          bash -n ops/jobs-submit-e2e-proof.sh
+          node --check scripts/prove_void_jobs_submit_e2e_local_evidence_binding_v1.mjs
+      - name: Prove local-evidence binding without executing submission
+        run: node scripts/prove_void_jobs_submit_e2e_local_evidence_binding_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

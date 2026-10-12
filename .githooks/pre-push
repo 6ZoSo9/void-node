@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Crash-proof pre-push wrapper:
+# - runs preflight with stdout/stderr redirected to a file
+# - prints only a small tail to the terminal
+# - strips control characters from what it prints
+# - hard timeouts
+
+TS="$(date +%Y%m%d-%H%M%S)"
+LOG="/tmp/void-pre-push.$TS.log"
+TAIL_SAFE="/tmp/void-pre-push.$TS.tail.txt"
+
+# Use a sane PATH (hooks sometimes run with minimal env)
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
+# Always run from repo root if possible
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "${ROOT:-}" ] && [ -d "$ROOT" ]; then
+  cd "$ROOT"
+fi
+
+run_preflight() {
+  if [ -x ./ops/void-pillars-preflight.sh ]; then
+    timeout 90s ./ops/void-pillars-preflight.sh
+    return $?
+  fi
+  if [ -x ./ops/bin/pillars-preflight-ultralow.sh ]; then
+    timeout 90s ./ops/bin/pillars-preflight-ultralow.sh
+    return $?
+  fi
+  echo "[FAIL] no preflight runner found (expected ./ops/void-pillars-preflight.sh)" >&2
+  return 2
+}
+
+# Run and capture output only to file (never spam terminal directly)
+set +e
+( run_preflight ) >"$LOG" 2>&1
+RC=$?
+set -e
+
+# Prepare a *safe* tail (remove ANSI/control chars)
+# - drop \r and other control chars
+# - keep tabs/newlines
+tail -n 160 "$LOG" \
+| sed -r 's/\x1B\[[0-9;]*[A-Za-z]//g' \
+| tr -d '\r' \
+| tr -cd '\11\12\15\40-\176' \
+> "$TAIL_SAFE" || true
+
+if [ "$RC" -ne 0 ]; then
+  echo "[ERR] pre-push failed (rc=$RC). Showing last 120 safe lines from: $LOG" >&2
+  tail -n 120 "$TAIL_SAFE" >&2 || true
+  exit 1
+fi
+
+echo "[ok] pre-push: pillars-preflight passed (log: $LOG)" >&2
+exit 0

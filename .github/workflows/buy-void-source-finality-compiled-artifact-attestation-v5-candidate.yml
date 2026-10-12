@@ -1,0 +1,170 @@
+name: VOID Buy VOID V5 compiled-artifact candidate derivation
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v5-candidate.md"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v5-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-source-finality-compiled-v5-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Preserve immutable V4 predecessor
+        run: node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs
+
+      - name: Build exact current artifacts
+        run: npm run build
+
+      - name: Prove V5 descriptor boundary
+        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --self-test
+
+      - name: Derive unaccepted V5 candidate
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive             > "v5-candidate-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE' "v5-candidate-${{ matrix.node }}.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_source_finality_compiled_artifact_attestation_v5");
+          assert.equal(j.marker,"VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5");
+          assert.equal(j.version,5);
+          assert.equal(j.source_stack_head,"22a30e3ffad6047a472488104c769140bd050878");
+          assert.equal(j.predecessor?.manifest_git_blob_sha1,
+            "a07f2e9b03958a58280c4d940fe49097a9413af5");
+          assert.equal(j.predecessor?.compiled_artifact_generation_sha256,
+            "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06");
+          assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1,
+            "d371b1b08d2afc383d5e4ad831464752843791a3");
+          assert.equal(j.verified_payment_v2_source_git_blob_sha1,
+            "550ede02fc0b7d6874c324af58b5ef9c5591b311");
+          assert.equal(j.artifact_count,6);
+          assert.equal(j.artifacts.length,6);
+          assert.deepEqual(j.changed_artifact_paths,[
+            "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
+            "dist/economic/buy_void_payment_rpc_observer_v1.js",
+            "dist/economic/buy_void_verified_payment_v2.js",
+          ]);
+          assert.equal(j.compiled_artifact_generation_verified,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.runtime_mount_authority,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          console.log("V5_CANDIDATE_NODE_SHAPE_AND_HOLD_GREEN");
+          NODE
+
+      - name: Verify candidate cannot claim locked acceptance
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs               > v5-acceptance-attempt.stderr 2>&1; then
+            echo "UNEXPECTED_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -F 'v5_candidate_derivation_only_not_locked_or_production_authority'             v5-acceptance-attempt.stderr
+          rm -f v5-acceptance-attempt.stderr
+
+      - name: Upload derivation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v5-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: v5-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exactly three V5 candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v5-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./v5-candidates
+
+      - name: Require byte-identical Node 22 24 26 candidate
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "v5-candidates/v5-candidate-$v.json"
+          done
+          cmp v5-candidates/v5-candidate-22.json v5-candidates/v5-candidate-24.json
+          cmp v5-candidates/v5-candidate-22.json v5-candidates/v5-candidate-26.json
+          node --input-type=module - <<'NODE'
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("v5-candidates/v5-candidate-22.json");
+          const j=JSON.parse(bytes);
+          if (j.compiled_artifact_generation_verified !== false ||
+              j.deployed_artifact_generation_verified !== false ||
+              j.runtime_mount_authority !== false ||
+              j.production_source_finality_authority_ready !== false) process.exit(1);
+          console.log("V5_CANDIDATE_CROSS_NODE_EXACT_BYTES_GREEN");
+          console.log("v5_candidate_sha256="+
+            crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("v5_candidate_generation="+j.compiled_artifact_generation_sha256);
+          console.log("v5_candidate_acceptance=false");
+          console.log("funds_moved=false");
+          NODE

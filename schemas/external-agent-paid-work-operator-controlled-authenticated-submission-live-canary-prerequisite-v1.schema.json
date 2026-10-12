@@ -1,0 +1,641 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.schema.json",
+  "title": "VOID External-Agent Paid-Work Operator-Controlled Authenticated Submission Live-Canary Prerequisite V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "command"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PREREQUISITE_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "allowed_base_origins",
+        "allowed_endpoint_paths",
+        "max_execution_plan_bytes",
+        "max_operator_decision_bytes",
+        "max_request_bytes",
+        "max_prerequisite_ttl_seconds",
+        "min_remaining_execution_candidate_ttl_seconds",
+        "max_clock_skew_seconds",
+        "max_preflight_age_seconds",
+        "max_known_replay_keys",
+        "max_known_lease_ids",
+        "max_credential_file_bytes",
+        "max_http_timeout_ms",
+        "max_response_bytes"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PREREQUISITE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed_base_origins": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[?::1\\]?)(:|/|$))"
+          }
+        },
+        "allowed_endpoint_paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "contains": {
+            "const": "/__void/agents/paid-work/submissions/v1"
+          },
+          "items": {
+            "type": "string",
+            "pattern": "^/[^?#]*$"
+          }
+        },
+        "max_execution_plan_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 8388608
+        },
+        "max_operator_decision_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 2097152
+        },
+        "max_request_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 1048576
+        },
+        "max_prerequisite_ttl_seconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "min_remaining_execution_candidate_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "max_clock_skew_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        },
+        "max_preflight_age_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "max_known_replay_keys": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "max_known_lease_ids": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "max_credential_file_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "max_http_timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 120000
+        },
+        "max_response_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "operation_id",
+        "evaluated_at_utc",
+        "prerequisite_expires_at_utc",
+        "execution_plan_path",
+        "execution_operator_decision_path",
+        "request_path",
+        "credential_source_path",
+        "replay_state_directory",
+        "lease_state_directory",
+        "output_directory",
+        "expected",
+        "credential_source",
+        "endpoint_preflight",
+        "replay_staging",
+        "lease_staging",
+        "live_canary_contract",
+        "operator_intent"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PREREQUISITE_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+        },
+        "evaluated_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "prerequisite_expires_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "execution_plan_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "execution_operator_decision_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "request_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "credential_source_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "replay_state_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "lease_state_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "output_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "execution_candidate_operation_id",
+            "execution_candidate_id",
+            "base_origin",
+            "endpoint_path",
+            "submission_id",
+            "work_order_id",
+            "payload_sha256",
+            "replay_key",
+            "credential_reference_id"
+          ],
+          "properties": {
+            "execution_candidate_operation_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+            },
+            "execution_candidate_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "base_origin": {
+              "type": "string",
+              "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[?::1\\]?)(:|/|$))"
+            },
+            "endpoint_path": {
+              "const": "/__void/agents/paid-work/submissions/v1"
+            },
+            "submission_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+            },
+            "work_order_id": {
+              "type": "string",
+              "pattern": "^voidawo1_[0-9a-f]{64}$"
+            },
+            "payload_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "replay_key": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "credential_reference_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+            }
+          }
+        },
+        "credential_source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reference_id",
+            "source_locator_sha256",
+            "expected_scope",
+            "expected_uid",
+            "expected_mode",
+            "expected_min_bytes",
+            "expected_max_bytes",
+            "inspect_only"
+          ],
+          "properties": {
+            "reference_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+            },
+            "source_locator_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "expected_scope": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{2,127}$"
+            },
+            "expected_uid": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "expected_mode": {
+              "const": 384
+            },
+            "expected_min_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            },
+            "expected_max_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            },
+            "inspect_only": {
+              "const": true
+            }
+          }
+        },
+        "endpoint_preflight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "marker",
+            "version",
+            "observed_at_utc",
+            "base_origin",
+            "hostname",
+            "dns_resolved",
+            "tls_required",
+            "tls_verified",
+            "discovery_path",
+            "discovery_marker",
+            "submission_path",
+            "route_probe_method",
+            "route_probe_status",
+            "authorization_header_present",
+            "request_body_sent",
+            "submission_post_sent",
+            "evidence_nonce",
+            "evidence_sha256"
+          ],
+          "properties": {
+            "marker": {
+              "const": "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_ENDPOINT_PREFLIGHT_RECEIPT_V1"
+            },
+            "version": {
+              "const": 1
+            },
+            "observed_at_utc": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+            },
+            "base_origin": {
+              "type": "string",
+              "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[?::1\\]?)(:|/|$))"
+            },
+            "hostname": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253
+            },
+            "dns_resolved": {
+              "const": true
+            },
+            "tls_required": {
+              "type": "boolean"
+            },
+            "tls_verified": {
+              "type": "boolean"
+            },
+            "discovery_path": {
+              "const": "/.well-known/void-agent-discovery.json"
+            },
+            "discovery_marker": {
+              "const": "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1"
+            },
+            "submission_path": {
+              "const": "/__void/agents/paid-work/submissions/v1"
+            },
+            "route_probe_method": {
+              "const": "GET"
+            },
+            "route_probe_status": {
+              "const": 405
+            },
+            "authorization_header_present": {
+              "const": false
+            },
+            "request_body_sent": {
+              "const": false
+            },
+            "submission_post_sent": {
+              "const": false
+            },
+            "evidence_nonce": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+            },
+            "evidence_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "replay_staging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expected_replay_key",
+            "known_replay_keys",
+            "reservation_file_name",
+            "reservation_strategy",
+            "reserve_during_prerequisite"
+          ],
+          "properties": {
+            "expected_replay_key": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "known_replay_keys": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "reservation_file_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}\\.json$"
+            },
+            "reservation_strategy": {
+              "const": "exclusive_create"
+            },
+            "reserve_during_prerequisite": {
+              "const": false
+            }
+          }
+        },
+        "lease_staging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lease_id",
+            "known_lease_ids",
+            "lease_file_name",
+            "lease_strategy",
+            "write_during_prerequisite",
+            "maximum_attempt_count",
+            "automatic_retry"
+          ],
+          "properties": {
+            "lease_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+            },
+            "known_lease_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+              }
+            },
+            "lease_file_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}\\.json$"
+            },
+            "lease_strategy": {
+              "const": "exclusive_create"
+            },
+            "write_during_prerequisite": {
+              "const": false
+            },
+            "maximum_attempt_count": {
+              "const": 1
+            },
+            "automatic_retry": {
+              "const": false
+            }
+          }
+        },
+        "live_canary_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool_relative_path",
+            "execute_confirmation",
+            "execute_stage_required",
+            "allow_live_submit_flag_required",
+            "same_clean_commit_required",
+            "token_file_owner_private_required",
+            "maximum_attempt_count",
+            "automatic_retry",
+            "ambiguous_outcome_policy"
+          ],
+          "properties": {
+            "tool_relative_path": {
+              "const": "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs"
+            },
+            "execute_confirmation": {
+              "const": "confirmVoidAgentMcpAuthenticatedSubmissionLiveCanaryV1"
+            },
+            "execute_stage_required": {
+              "const": true
+            },
+            "allow_live_submit_flag_required": {
+              "const": true
+            },
+            "same_clean_commit_required": {
+              "const": true
+            },
+            "token_file_owner_private_required": {
+              "const": true
+            },
+            "maximum_attempt_count": {
+              "const": 1
+            },
+            "automatic_retry": {
+              "const": false
+            },
+            "ambiguous_outcome_policy": {
+              "const": "hold_manual_reconciliation_no_retry"
+            }
+          }
+        },
+        "operator_intent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expect_new",
+            "confirmation_expires_at_utc",
+            "expected_prerequisite_id",
+            "live_canary_authorized",
+            "separate_operator_live_canary_required"
+          ],
+          "properties": {
+            "expect_new": {
+              "type": "boolean"
+            },
+            "confirmation_expires_at_utc": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+            },
+            "expected_prerequisite_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "live_canary_authorized": {
+              "const": false
+            },
+            "separate_operator_live_canary_required": {
+              "const": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "properties": {
+              "apply": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "properties": {
+              "confirmation": {
+                "const": ""
+              },
+              "operator_intent": {
+                "properties": {
+                  "expected_prerequisite_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "command": {
+            "properties": {
+              "apply": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": {
+            "properties": {
+              "confirmation": {
+                "const": "reviewExternalAgentPaidWorkOperatorControlledAuthenticatedSubmissionLiveCanaryPrerequisiteV1"
+              },
+              "operator_intent": {
+                "properties": {
+                  "expected_prerequisite_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

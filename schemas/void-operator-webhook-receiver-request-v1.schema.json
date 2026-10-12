@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/void-operator-webhook-receiver-request-v1",
+  "title": "VOID operator webhook receiver request V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "candidate_stage",
+    "notification_id_sha256",
+    "request_id",
+    "alert_fingerprint_sha256",
+    "plan_fingerprint_sha256",
+    "readiness_report_sha256",
+    "required_orchestrator_confirmation",
+    "required_delegated_confirmation",
+    "required_stage_confirmation",
+    "required_canary_confirmation",
+    "operator_action",
+    "source_notification_sha256",
+    "created_at",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_candidate_operator_webhook_payload_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CANDIDATE_OPERATOR_WEBHOOK_PAYLOAD_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "candidate_stage": {
+      "const": "observe_and_claim"
+    },
+    "notification_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{3,160}$"
+    },
+    "alert_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "plan_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "readiness_report_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "required_orchestrator_confirmation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "required_delegated_confirmation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "required_stage_confirmation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "required_canary_confirmation": {
+      "const": "buyVoidArmExactObserveAndClaimCanary"
+    },
+    "operator_action": {
+      "const": "review_exact_one_candidate_for_separate_arming_lane"
+    },
+    "source_notification_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authority": {
+      "type": "object"
+    }
+  }
+}

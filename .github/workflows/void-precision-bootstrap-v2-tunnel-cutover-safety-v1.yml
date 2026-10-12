@@ -1,0 +1,303 @@
+name: VOID Precision bootstrap v2 tunnel cutover safety v1
+
+on:
+  pull_request:
+    paths:
+      - ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py
+      - .github/workflows/void-precision-bootstrap-v2-tunnel-cutover-safety-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Python syntax and exact route containment
+        run: |
+          python3 - <<'PY'
+          import ast
+          import importlib.util
+          import re
+          from pathlib import Path
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          ast.parse(src.read_text(encoding="utf-8"), filename=str(src))
+          spec = importlib.util.spec_from_file_location("cutover", src)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          assert module.EXPECTED_OLD_SHA == "2f32e965e000d756e2706fbf05bc1488e9f4b6e820c43a18877cd8d58c402c52"
+          assert module.EXPECTED_CANDIDATE_SHA == "38d5a4055c4e5b5ccb0fbc1bf199e3d732d0025754063dacb11a4718fd579ea5"
+          assert module.EXPECTED_MANIFEST_SHA == "b72071b42e0fbce7fa4079ce8000b6521377e4e55cdfba05ca610015c9e3ddd4"
+          before = b"tunnel: fixed\ncredentials-file: /no/key\noriginRequest:\n  connectTimeout: 10s\ningress:\n" + module.ANCHOR + b"  - service: http_status:404\n"
+          source_text = src.read_text(encoding="utf-8")
+          assert "candidate = build_candidate_config(original)" in source_text
+          after = module.build_candidate_config(before)
+          assert after == before.replace(module.ANCHOR, module.ADDITION + module.ANCHOR, 1)
+          assert after.count(module.ANCHOR) == 1
+          assert after.replace(module.ADDITION, b"", 1) == before
+          unsafe = before.replace(module.ANCHOR, module.ADDITION, 1)
+          assert unsafe != after and unsafe.count(module.ANCHOR) == 0
+          for malformed in (
+              before.replace(module.ANCHOR, module.ANCHOR + module.ANCHOR, 1),
+              before + b"void/bootstrap/v2/forbidden",
+          ):
+              try:
+                  module.build_candidate_config(malformed)
+              except module.Hold as exc:
+                  assert str(exc) == "source_config_routes_changed"
+              else:
+                  raise AssertionError("candidate builder accepted mutated source")
+          pattern = module.ADDITION.split(b"path: '", 1)[1].split(b"'\n", 1)[0].decode("ascii")
+          assert re.fullmatch(pattern, module.NEW_PATH)
+          assert re.fullmatch(pattern, module.OLD_PATH)
+          assert not re.fullmatch(pattern, "/void/bootstrap/v2/records/voidpbr2_" + "0" * 64 + ".json")
+          assert not re.fullmatch(pattern, "/__void/ready.json")
+          assert not re.fullmatch(pattern, "/admin")
+          assert not re.fullmatch(pattern, "/void/bootstrap/v2/manifests/latest.json")
+          expected = {
+              module.NEW_PATH: "http://127.0.0.1:8080",
+              module.OLD_PATH: "http://127.0.0.1:8080",
+              "/__void/ready.json": "http://127.0.0.1:4111",
+              "/__void/public-earn-gateway-v1/status.json": "http://127.0.0.1:4122",
+              "/public-node/economic/epoch2/read-status-v1.json": "http://127.0.0.1:8082",
+          }
+          for route, origin in module.ROUTES:
+              if route in expected:
+                  assert expected[route] == origin
+          print("source_syntax=GREEN")
+          print("bootstrap_v2_route_containment=GREEN")
+          print("seed_earn_economic_routes_unchanged=true")
+          PY
+
+      - name: Pinned UnsetEnvironment drop-in admission negatives
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          script = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("guarded_cutover", script)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          assert m.EXPECTED_DROPIN_SHA == "4a03777846ab539b1de0885f99ebf9fcd32813516fbd767f174e54e4c239425d"
+          assert m.EXPECTED_DROPIN_NAME == "90-void-nullfeed-clean-environment.conf"
+
+          with TemporaryDirectory() as td:
+              home = Path(td)
+              directory = home / ".config/systemd/user" / (m.UNIT + ".d")
+              directory.mkdir(parents=True)
+              p = directory / m.EXPECTED_DROPIN_NAME
+              original = b"[Service]\nUnsetEnvironment=FOO BAR\n"
+              p.write_bytes(original)
+              p.chmod(0o600)
+
+              def fake_show(_unit, _key):
+                  assert _unit == m.UNIT and _key == "DropInPaths"
+                  return str(p)
+
+              def expect_hold(text):
+                  try:
+                      m.verify_dropin()
+                  except m.Hold as e:
+                      assert str(e) == text, str(e)
+                  else:
+                      raise AssertionError("admission unexpectedly accepted invalid override")
+
+              with patch.object(m.Path, "home", return_value=home), \
+                   patch.object(m, "system_value", side_effect=fake_show), \
+                   patch.object(m, "EXPECTED_DROPIN_SHA", m.digest(original)):
+                  m.verify_dropin()
+
+                  p.write_bytes(b"[Service]\nUnsetEnvironment=DIFFERENT\n")
+                  expect_hold("dropin_digest_changed")
+
+                  malformed = b"[Service]\nExecStart=/bin/false\n"
+                  p.write_bytes(malformed)
+                  with patch.object(m, "EXPECTED_DROPIN_SHA", m.digest(malformed)):
+                      expect_hold("dropin_directive_unexpected")
+
+                  p.write_bytes(original)
+                  p.chmod(0o622)
+                  expect_hold("dropin_group_or_world_writable")
+                  p.chmod(0o600)
+                  with patch.object(m, "system_value", return_value=str(p) + " /additional.conf"):
+                      expect_hold("unexpected_service_dropins")
+          print("pinned_override_admission=GREEN")
+          print("tampered_override_rejected=true")
+          print("unsafe_directive_rejected=true")
+          print("extra_dropin_rejected=true")
+          PY
+
+      - name: Reject poisoned PATH and inherited subprocess environment
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          import os
+          from pathlib import Path
+          import subprocess
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("pinned_bootstrap_cutover", src)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          with TemporaryDirectory() as tmp:
+              fake = Path(tmp) / "fake-bin"
+              fake.mkdir()
+              for selector in ("systemctl", "git", "curl"):
+                  bait = fake / selector
+                  bait.write_text("#!/bin/sh\necho FAKE_COMMAND_SELECTED\n", encoding="utf8")
+                  assert bait.read_bytes().startswith(b"#!/bin/sh\n")
+                  bait.chmod(0o755)
+
+              poisoned = {
+                  "PATH": str(fake) + ":/usr/bin:/bin",
+                  "LD_PRELOAD": "/nonexistent/poison-preload.so",
+                  "GIT_DIR": str(fake),
+                  "GIT_WORK_TREE": str(fake),
+                  "GIT_CONFIG_COUNT": "1",
+                  "CURL_HOME": str(fake),
+                  "DBUS_SESSION_BUS_ADDRESS": "tcp:host=untrusted.invalid,port=1",
+                  "XDG_RUNTIME_DIR": str(fake),
+              }
+              with patch.dict(os.environ, poisoned):
+                  child_env = m.trusted_subprocess_env()
+                  assert child_env["PATH"] == "/usr/bin:/bin"
+                  assert child_env["HOME"] != str(fake)
+                  assert child_env["XDG_RUNTIME_DIR"] == "/run/user/" + str(os.geteuid())
+                  assert child_env["DBUS_SESSION_BUS_ADDRESS"] == (
+                      "unix:path=" + child_env["XDG_RUNTIME_DIR"] + "/bus")
+                  for key in ("LD_PRELOAD", "GIT_DIR", "GIT_WORK_TREE",
+                              "GIT_CONFIG_COUNT", "CURL_HOME"):
+                      assert key not in child_env, key
+
+                  for selector, expected in (
+                      ("systemctl", b"systemd"),
+                      ("git", b"git version"),
+                      ("curl", b"curl "),
+                  ):
+                      data = m.cmd([selector, "--version"], selector + "_version", timeout=10)
+                      assert expected in data, selector
+                      assert b"FAKE_COMMAND_SELECTED" not in data
+
+                  selected = []
+                  real_popen = subprocess.Popen
+                  def recorder(argv, **kw):
+                      selected.append((argv, kw))
+                      return real_popen(argv, **kw)
+                  with patch.object(m.subprocess, "Popen", side_effect=recorder):
+                      data = m.cmd(["systemctl", "--version"], "mock_systemd_version", timeout=10)
+                      assert b"systemd" in data
+                  assert len(selected) == 1
+                  argv, kw = selected[0]
+                  assert argv[0] == "/usr/bin/systemctl"
+                  assert kw["env"] == child_env
+                  assert kw["stdin"] is subprocess.DEVNULL
+                  assert kw["stdout"] is subprocess.PIPE
+                  assert kw["stderr"] is subprocess.PIPE
+
+                  for forbidden in ("sh", "/bin/sh", "/usr/bin/env", "python3"):
+                      try:
+                          m.cmd([forbidden, "--version"], "forbidden_command")
+                      except m.Hold as exc:
+                          assert str(exc) == "unreviewed_subprocess_command", str(exc)
+                      else:
+                          raise AssertionError("unreviewed subprocess command accepted")
+
+          print("trusted_system_helpers_absolute=true")
+          print("fake_PATH_commands_not_executed=true")
+          print("inherited_loader_git_curl_environment_stripped=true")
+          print("canonical_user_bus_context_derived=true")
+          print("operator_service_mutation=false")
+          PY
+
+      - name: Bound streaming child output and local manifest reads
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
+
+          src = Path("ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py")
+          spec = importlib.util.spec_from_file_location("bounded_cutover", src)
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+
+          assert m.MAX_HTTP_BODY_BYTES == 2 * 1024 * 1024
+          assert m.MAX_MANIFEST_BYTES == 1024 * 1024
+          assert m.MAX_CHILD_STDERR_BYTES <= 64 * 1024
+
+          with TemporaryDirectory() as td:
+              temp = Path(td)
+              emitter = temp / "emit-oversized-http"
+              emitter.write_text(
+                  "#!/usr/bin/python3\n"
+                  "import sys\n"
+                  "sys.stdout.buffer.write(b'x' * (3 * 1024 * 1024))\n"
+                  "sys.stdout.flush()\n",
+                  encoding="utf-8",
+              )
+              emitter.chmod(0o755)
+
+              with patch.object(
+                  m, "trusted_subprocess_binary", return_value=str(emitter),
+              ):
+                  try:
+                      m.fetch("https://example.invalid/oversized", "oversized_http")
+                  except m.Hold as exc:
+                      assert str(exc) == "body_too_large_oversized_http", str(exc)
+                  else:
+                      raise AssertionError("oversized streaming body was accepted")
+
+              root = temp / "root"
+              manifests = root / "public/void/bootstrap/v2/manifests"
+              manifests.mkdir(parents=True)
+              renewed = manifests / (m.NEW_ID + ".json")
+              with renewed.open("wb") as handle:
+                  handle.truncate(m.MAX_MANIFEST_BYTES + 1)
+
+              fetch_called = False
+              def forbidden_fetch(*_args, **_kwargs):
+                  nonlocal_fetch = "network fetch must not occur after local oversize"
+                  raise AssertionError(nonlocal_fetch)
+
+              with patch.object(m, "ROOT", root), \
+                   patch.object(m, "fetch", side_effect=forbidden_fetch):
+                  try:
+                      m.check_mirrors()
+                  except m.Hold as exc:
+                      assert str(exc) == "renewed_local_size", str(exc)
+                  else:
+                      raise AssertionError("oversized local manifest was accepted")
+
+          print("subprocess_streaming_output_bounded=true")
+          print("oversized_http_body_rejected_before_full_buffer=true")
+          print("oversized_local_manifest_rejected_before_read=true")
+          print("operator_service_mutation=false")
+          PY
+
+      - name: Wrong-host plan and apply fail closed without creating state
+        run: |
+          set -Eeuo pipefail
+          script="ops/precision/void_precision_bootstrap_v2_tunnel_cutover_v1.py"
+          state="$HOME/.local/state/void/precision-bootstrap-v2-tunnel-cutover-20261008-v1"
+          for mode in --plan --apply; do
+            set +e
+            output="$(python3 "$script" "$mode" 2>&1)"
+            status=$?
+            set -e
+            test "$status" -eq 2
+            printf '%s\n' "$output" | grep -Fq "HOLD_host_or_user"
+            test ! -e "$state"
+          done
+          echo "wrong_host_fails_closed=true"
+          echo "runtime_mutation=false"

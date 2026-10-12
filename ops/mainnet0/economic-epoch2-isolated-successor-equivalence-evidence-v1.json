@@ -1,0 +1,37 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_ISOLATED_SUCCESSOR_EQUIVALENCE_EVIDENCE_V1",
+  "version": 1,
+  "status": "ISOLATED_SUCCESSOR_EQUIVALENCE_GREEN",
+  "source_commit": "48bab586809cead81fcc77ebfb601687154759dd",
+  "receipt_filename": "void_economic_epoch2_isolated_successor_equivalence_precision_v1_20260926T213008Z.json",
+  "receipt_file_sha256": "8d4bdd7e053d6a790e879ec89f59879c734d7a9e1768d62056156fb03e4af17a",
+  "receipt_material_sha256": "467b2c8088d84d4856d16b37b591f2b9b8c3f3b424ea633cdf4e56a3fef7325d",
+  "verified_storage_entry_count": 1268,
+  "successor_total_supply_atoms": "333333333000000000000000000",
+  "successor_holder_sum_atoms": "333333333000000000000000000",
+  "staking_validator_count": 126,
+  "staking_active_validator_count": 126,
+  "staking_stake_sum_atoms": "126000000000000000000000",
+  "retired_source_balance_sum_atoms": "0",
+  "retired_source_code_count": 0,
+  "gates": {
+    "voidtoken_balance_storage_equivalence_verified": true,
+    "voidtoken_supply_storage_equivalence_verified": true,
+    "source_successor_holder_balance_equivalence_proven": true,
+    "source_successor_total_supply_equivalence_proven": true,
+    "source_successor_open_obligation_equivalence_proven": true,
+    "unmapped_voidtoken_atomic_verified_zero": true,
+    "orphan_contract_held_void_atomic_verified_zero": true,
+    "isolated_successor_state_equivalence_proven": true,
+    "offline_successor_equivalence_proven": false,
+    "client_specific_genesis_built": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "authoritative_chain2050_write": false,
+    "transaction_submission": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_GENESIS_APPEND_RECONCILIATION_EVIDENCE_V1",
+  "version": 1,
+  "status": "green_exact_single_sovereign_genesis_registry_append_reconciled",
+  "reconciliation_evidence_id": "voidcrasgarce1_31f02a7a3da637eab8813ca1224b165575d4608265bed9be0efda0e2a552c162",
+  "authorization_id": "voidcrasgaa1_fb46e3048b5921da3856de4548823b61f32e64f423bf5e7fd4758b9e04e27355",
+  "append_request_id": "voidcrasgar1_e97b68fcbb085aec3b0e502d4e00b5e662d3a13374a87cbe51e0a8a687e27481",
+  "signed_transaction_hash": "0xd6f2eea882fc9351644072e23c8a5279fbdc085a0ee153d6b9fa73aef247e6e7",
+  "receipt": {
+    "status": 1,
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "gas_used": "371459",
+    "effective_gas_cost_wei": "371459002600213",
+    "block_transaction_occurrence_count": 1
+  },
+  "post_state": {
+    "owner_nonce_at_receipt_block": "1",
+    "owner_nonce_latest": "1",
+    "owner_nonce_pending": "1",
+    "owner_balance_at_receipt_block_wei": "128540997399787",
+    "owner_balance_latest_wei": "128540997399787",
+    "registry_entry_count": "1",
+    "registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041",
+    "entry0_exact": true
+  },
+  "entry0": {
+    "identity_id": "sovereign.zoso",
+    "role": "SOVEREIGN",
+    "role_authority_generation": "0",
+    "role_record_sha256": "1492c4d55f5c6d4873a28ca08d641196ba51d9e5c0a7c1cc31f27bf1a6405b0b",
+    "previous_registry_root_sha256": "d50b8a122e11454b6cca6a03b312ecac6af6ea1a5d5c5d5f9dd3fdd03b1faea7",
+    "registry_root_sha256": "54619d93d1f94746cb92c3bb4de038d014d5c90b73789581486b4a12b4322041"
+  },
+  "execution": {
+    "rpc_send_invocation_count": 1,
+    "automatic_retry_performed": false,
+    "replacement_transaction_created": false,
+    "value_transfer_performed": false,
+    "chain2050_write_performed": true,
+    "registry_append_performed": true,
+    "prior_post_send_nonce_read_was_stale_or_cached": true
+  },
+  "authority": {
+    "authorization_consumed": true,
+    "further_submission_authorized": false,
+    "automatic_retry_authorized": false,
+    "replacement_transaction_authorized": false,
+    "additional_registry_append_authorized": false
+  },
+  "next_gate": "canonical_role_authority_query_and_identity_session_integration_read_only"
+}

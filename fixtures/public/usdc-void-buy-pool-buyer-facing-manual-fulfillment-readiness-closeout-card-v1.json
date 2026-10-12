@@ -1,0 +1,49 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_FACING_MANUAL_FULFILLMENT_READINESS_CLOSEOUT_CARD_V1",
+  "summary_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_RUNTIME_ROUTE_HOLD_V1",
+  "discovery_marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_MANUAL_FULFILLMENT_PUBLIC_READINESS_SUMMARY_DISCOVERY_V1",
+  "scope": "buyer_facing_public_read_only_closeout",
+  "status": {
+    "manual_evidence_chain_sealed": true,
+    "public_readiness_summary_live": true,
+    "buyer_fulfilled": false,
+    "manual_fulfillment_record_written": false,
+    "manual_fulfillment_record_applied": false,
+    "allocation_claim_created": false,
+    "void_transfer_performed": false,
+    "wallet_signing_performed": false,
+    "treasury_movement_performed": false,
+    "automatic_fulfillment_active": false,
+    "public_mutation_authorized": false,
+    "private_operator_material_withheld": true
+  },
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1",
+    "json": "/public-node/usdc-void-buy-pool/manual-fulfillment/readiness-closeout-v1.json",
+    "public_readiness_summary_html": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1",
+    "public_readiness_summary_json": "/public-node/usdc-void-buy-pool/manual-fulfillment/public-readiness-summary-v1.json"
+  },
+  "discovery_surfaces": {
+    "public_node_dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json"
+  },
+  "authority": {
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "automatic_fulfillment_activation": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "contains_private_buyer_data": false,
+    "contains_private_operator_notes": false,
+    "contains_wallet_secret": false,
+    "contains_private_document_path": false,
+    "contains_execution_material": false,
+    "contains_transfer_instruction": false
+  }
+}

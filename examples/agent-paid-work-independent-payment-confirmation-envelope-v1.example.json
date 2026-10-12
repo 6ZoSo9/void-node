@@ -1,0 +1,83 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_INDEPENDENT_PAYMENT_CONFIRMATION_ENVELOPE_V1",
+  "version": 1,
+  "work_order_id": "voidawo1_24ae161dcf66354926cd8ef3c29c719398a77bd4488f048658a9ca3c53e5b34c",
+  "quote_id": "voidawq1_411784a818acdc3bea84291cc3f8929f47fc61a8888d0209c2378a21a8be675e",
+  "acceptance_id": "voidawa1_7bb7b211291dafe6eb6b26bc9518ecf9b33ce53ab8105cb24e627462ec641ec5",
+  "payment_intent_id": "voidawpi1_8f49079dffbc17bf18fa9bfae498b43f6acb5e63f637235687406085f77739f2",
+  "payment_execution_authorization_id": "voidawpea1_00cebb5b27c8065485d68a15926b6153c456e37ed8d28e5457715838cd1ba72b",
+  "payment_receipt_id": "voidawper1_33457cefe699a95b5ddad768272e09e9c3593ad1b524f12d7bf0a3c68d06de51",
+  "settlement_observed_at_utc": "2026-07-25T22:53:00Z",
+  "confirmed_at_utc": "2026-07-25T22:53:10Z",
+  "requester": {
+    "agent_id": "agent.example.researcher"
+  },
+  "provider": {
+    "provider_id": "void.provider.datanet.verify.precision"
+  },
+  "executor": {
+    "executor_id": "void.executor.payment.precision"
+  },
+  "authorizer": {
+    "authority_id": "void.authority.payment.operator",
+    "authority_policy_id": "void.policy.paid-work-payment-execution.v1"
+  },
+  "resolution": {
+    "resolver_id": "void.resolver.payment.precision",
+    "payment_rail_resolution_id": "void.prr.example.20260725.0001",
+    "provider_destination_binding_id": "void.pdb.example.20260725.0001"
+  },
+  "confirmer": {
+    "confirmer_id": "void.confirmer.payment.independent.one",
+    "confirmation_policy_id": "void.policy.payment-confirmation.external-prepaid.v1"
+  },
+  "commercial": {
+    "quote_asset": "USD",
+    "service_total": "3.50",
+    "actual_fee_total": "0.18",
+    "payment_total": "3.68",
+    "payment_rail_id": "void.external.prepaid.v1"
+  },
+  "evidence": {
+    "rail_receipt_id": "void.rail.receipt.example.20260725.0001",
+    "payment_evidence_sha256": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "independent_observation_id": "void.confirm.obs.example.20260725.0001",
+    "settlement_reference_id": "void.settlement.ref.example.20260725.0001",
+    "confirmation_evidence_sha256": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+  },
+  "confirmation": {
+    "payment_settlement_confirmed": true,
+    "exact_payment_receipt_only": true,
+    "confirmer_authentication_required": true,
+    "confirmer_signature_required": true,
+    "confirmation_policy_binding_required": true,
+    "confirmer_independent_from_requester_required": true,
+    "confirmer_independent_from_provider_required": true,
+    "confirmer_independent_from_executor_required": true,
+    "confirmer_independent_from_authorizer_required": true,
+    "confirmer_independent_from_resolver_required": true,
+    "receipt_executor_signature_verified": true,
+    "receipt_and_payment_evidence_digest_verified": true,
+    "allowlisted_payment_rail_required": true,
+    "rail_receipt_resolved": true,
+    "provider_destination_binding_verified": true,
+    "rail_asset_compatibility_verified": true,
+    "payment_amount_verified": true,
+    "settlement_finality_policy_satisfied": true,
+    "settlement_not_reversed_at_confirmation": true,
+    "settlement_not_disputed_at_confirmation": true,
+    "single_confirmation_per_receipt_required": true,
+    "independent_observation_id_unique_required": true,
+    "settlement_reference_id_unique_required": true,
+    "confirmation_evidence_immutable": true,
+    "replay_protection_required": true,
+    "confirmation_is_not_payment_execution": true,
+    "work_execution_authorization_separate": true,
+    "work_execution_authorization_granted": false,
+    "confirmation_is_not_work_execution_instruction": true,
+    "confirmation_is_not_transaction_signature": true,
+    "post_confirmation_reversal_requires_separate_dispute_record": true
+  },
+  "nonce": "payment-confirmation-example-20260725-0001",
+  "payment_confirmation_id": "voidawpc1_1c18c9fa3e208faab438b3a1f74a10cc7279096e2b87b6353634ef715d92e668"
+}

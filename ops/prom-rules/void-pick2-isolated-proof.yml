@@ -1,0 +1,28 @@
+groups:
+- name: void-pick2-isolated-proof
+  rules:
+  - record: void:pick2_isolated_proof:ok:last_15m
+    expr: max_over_time(void_pick2_isolated_proof_ok[15m])
+
+  - record: void:pick2_isolated_proof:max_streak:last_15m
+    expr: max_over_time(void_pick2_isolated_proof_max_streak[15m])
+
+  - alert: VoidPick2IsolatedProofFailed
+    expr: void:pick2_isolated_proof:ok:last_15m < 1
+    for: 10m
+    labels:
+      severity: warning
+      pillar: agent
+    annotations:
+      summary: "VOID pick2 isolated fairness proof is failing"
+      description: "The isolated pick2 fairness proof has not produced an OK result in the last 15 minutes."
+
+  - alert: VoidPick2IsolatedProofStreakRegression
+    expr: void:pick2_isolated_proof:max_streak:last_15m > 1
+    for: 10m
+    labels:
+      severity: warning
+      pillar: agent
+    annotations:
+      summary: "VOID pick2 isolated fairness proof streak regressed"
+      description: "The isolated pick2 fairness proof observed a max streak greater than 1 in the last 15 minutes."

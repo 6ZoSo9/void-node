@@ -1,0 +1,544 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-wc-ledger-write-receipt-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work WC Ledger Write Receipt Envelope V1",
+  "description": "A deterministic immutable receipt for one exact WC award authorization applied as one atomic earn entry. This schema models a receipt only and does not perform a real ledger write, settle WC to VOID, mutate payment state, access wallets, administer runtime state, or activate Buy VOID fulfillment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "payment_confirmation_id",
+    "work_execution_authorization_id",
+    "work_completion_receipt_id",
+    "independent_completion_verification_id",
+    "wc_award_authorization_id",
+    "receipt_created_at_utc",
+    "beneficiary",
+    "award",
+    "ledger_write",
+    "state_transition",
+    "receipt_evidence",
+    "ledger_executor",
+    "attestation",
+    "nonce",
+    "wc_ledger_write_receipt_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_WC_LEDGER_WRITE_RECEIPT_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    },
+    "work_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawwea1_[0-9a-f]{64}$"
+    },
+    "work_completion_receipt_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawcr1_[0-9a-f]{64}$"
+    },
+    "independent_completion_verification_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawicv1_[0-9a-f]{64}$"
+    },
+    "wc_award_authorization_id": {
+      "type": "string",
+      "minLength": 76,
+      "maxLength": 76,
+      "pattern": "^voidawwcaa1_[0-9a-f]{64}$"
+    },
+    "receipt_created_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "beneficiary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id",
+        "provider_id",
+        "wc_account_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "wc_account_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "award": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "denomination",
+        "amount_wc",
+        "award_reason_code",
+        "award_policy_id",
+        "score_basis_sha256"
+      ],
+      "properties": {
+        "denomination": {
+          "const": "WC"
+        },
+        "amount_wc": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000
+        },
+        "award_reason_code": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+        },
+        "award_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "score_basis_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ledger_write": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_write_id",
+        "ledger_id",
+        "ledger_entry_id",
+        "entry_type",
+        "status",
+        "authorization_consumed",
+        "authorization_consumed_at_utc",
+        "applied_at_utc",
+        "uniqueness_key",
+        "atomic_write_confirmed",
+        "uniqueness_key_enforced",
+        "prestate_matched",
+        "duplicate_detected"
+      ],
+      "properties": {
+        "ledger_write_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "ledger_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "ledger_entry_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "entry_type": {
+          "const": "earn"
+        },
+        "status": {
+          "const": "applied"
+        },
+        "authorization_consumed": {
+          "const": true
+        },
+        "authorization_consumed_at_utc": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "applied_at_utc": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "uniqueness_key": {
+          "type": "string",
+          "minLength": 98,
+          "maxLength": 98,
+          "pattern": "^paid-work-verification:voidawicv1_[0-9a-f]{64}$"
+        },
+        "atomic_write_confirmed": {
+          "const": true
+        },
+        "uniqueness_key_enforced": {
+          "const": true
+        },
+        "prestate_matched": {
+          "const": true
+        },
+        "duplicate_detected": {
+          "const": false
+        }
+      }
+    },
+    "state_transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_prestate_sha256",
+        "observed_prestate_sha256",
+        "poststate_sha256",
+        "ledger_sequence_before",
+        "ledger_sequence_after",
+        "pre_balance",
+        "post_balance"
+      ],
+      "properties": {
+        "expected_prestate_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "observed_prestate_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "poststate_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "ledger_sequence_before": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740990
+        },
+        "ledger_sequence_after": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "pre_balance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "earned_wc",
+            "debited_wc",
+            "redeemable_wc"
+          ],
+          "properties": {
+            "earned_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "debited_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "redeemable_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "post_balance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "earned_wc",
+            "debited_wc",
+            "redeemable_wc"
+          ],
+          "properties": {
+            "earned_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "debited_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "redeemable_wc": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    },
+    "receipt_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger_entry_sha256",
+        "append_log_sha256",
+        "authorization_verification_sha256",
+        "uniqueness_registry_sha256",
+        "balance_snapshot_sha256"
+      ],
+      "properties": {
+        "ledger_entry_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "append_log_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "authorization_verification_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "uniqueness_registry_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "balance_snapshot_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ledger_executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id",
+        "execution_policy_id",
+        "signing_key_id",
+        "signature_scheme",
+        "signed_payload_sha256",
+        "signature_evidence_sha256"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "execution_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "signing_key_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 192,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,191}$"
+        },
+        "signature_scheme": {
+          "const": "ed25519"
+        },
+        "signed_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signature_evidence_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_wc_award_authorization_consumed_once",
+        "atomic_ledger_write_applied",
+        "single_ledger_entry_created",
+        "single_award_per_verification_enforced",
+        "beneficiary_binding_verified",
+        "award_amount_and_cap_verified",
+        "ledger_destination_verified",
+        "uniqueness_key_verified",
+        "expected_prestate_verified",
+        "poststate_verified",
+        "ledger_receipt_immutable",
+        "ledger_entry_immutable",
+        "wc_balance_mutation_recorded",
+        "wc_to_void_settlement_separate",
+        "payment_state_unchanged",
+        "wallet_or_signer_not_accessed",
+        "runtime_not_administered",
+        "buy_void_fulfillment_unchanged",
+        "receipt_is_not_wc_to_void_settlement",
+        "receipt_is_not_payment_instruction"
+      ],
+      "properties": {
+        "exact_wc_award_authorization_consumed_once": {
+          "const": true
+        },
+        "atomic_ledger_write_applied": {
+          "const": true
+        },
+        "single_ledger_entry_created": {
+          "const": true
+        },
+        "single_award_per_verification_enforced": {
+          "const": true
+        },
+        "beneficiary_binding_verified": {
+          "const": true
+        },
+        "award_amount_and_cap_verified": {
+          "const": true
+        },
+        "ledger_destination_verified": {
+          "const": true
+        },
+        "uniqueness_key_verified": {
+          "const": true
+        },
+        "expected_prestate_verified": {
+          "const": true
+        },
+        "poststate_verified": {
+          "const": true
+        },
+        "ledger_receipt_immutable": {
+          "const": true
+        },
+        "ledger_entry_immutable": {
+          "const": true
+        },
+        "wc_balance_mutation_recorded": {
+          "const": true
+        },
+        "wc_to_void_settlement_separate": {
+          "const": true
+        },
+        "payment_state_unchanged": {
+          "const": true
+        },
+        "wallet_or_signer_not_accessed": {
+          "const": true
+        },
+        "runtime_not_administered": {
+          "const": true
+        },
+        "buy_void_fulfillment_unchanged": {
+          "const": true
+        },
+        "receipt_is_not_wc_to_void_settlement": {
+          "const": true
+        },
+        "receipt_is_not_payment_instruction": {
+          "const": true
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "wc_ledger_write_receipt_id": {
+      "type": "string",
+      "minLength": 77,
+      "maxLength": 77,
+      "pattern": "^voidawwclwr1_[0-9a-f]{64}$"
+    }
+  }
+}

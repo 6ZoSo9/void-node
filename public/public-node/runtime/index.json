@@ -1,0 +1,156 @@
+{
+  "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_INDEX_V1",
+  "purpose": "public_safe_runtime_discovery_index_for_local_multibox_status",
+  "status": "runtime_discovery_index_ready",
+  "summary": {
+    "description": "Discovery index for active operator fleet topology and dated local runtime evidence.",
+    "machines": [
+      "Precision",
+      "Nimo/N153B",
+      "Xiphos"
+    ],
+    "local_runtime_visibility_only": true,
+    "public_internet_network_claim": false,
+    "retired_machines": [
+      "Alienware"
+    ],
+    "historical_runtime_observation_available": true,
+    "current_all_fleet_runtime_green_claim": false
+  },
+  "links": {
+    "html": "/public-node/runtime/index.html",
+    "json": "/public-node/runtime/index.json",
+    "status_html": "/public-node/runtime/local-multibox-status-v1.html",
+    "status_json": "/public-node/runtime/local-multibox-status-v1.json",
+    "diag": "/__void/diag/local-multibox-runtime-route-v1.json",
+    "public_node": "/public-node",
+    "smoke_pack": "/public-node/runtime/smoke-pack-v1.json",
+    "smoke_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "smoke_card": "/public-node/runtime#runtime-smoke-check",
+    "closeout_rollup": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "closeout_rollup_html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "local_multibox_runtime_peer_rejoin_card": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "local_multibox_runtime_peer_rejoin_card_html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "local_multibox_nimo_rejoin_operator_runbook": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "local_multibox_nimo_rejoin_operator_runbook_html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
+  },
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  },
+  "smoke_pack": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1",
+    "purpose": "end_to_end_public_safe_runtime_discovery_chain_smoke",
+    "routes": [
+      "/.well-known/void-public-node.json",
+      "/public-node/index.json",
+      "/public-node/runtime",
+      "/public-node/runtime/index.json",
+      "/public-node/runtime/local-multibox-status-v1.json",
+      "/__void/diag/local-multibox-runtime-route-v1.json"
+    ],
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "smoke_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_CARD_V1",
+    "purpose": "human_facing_copyable_runtime_smoke_command",
+    "status": "runtime_smoke_card_ready",
+    "page": "/public-node/runtime",
+    "smoke_pack_json": "/public-node/runtime/smoke-pack-v1.json",
+    "smoke_pack_script": "/public-node/runtime/smoke-pack-v1.sh",
+    "verifies": [
+      "/.well-known/void-public-node.json",
+      "/public-node/index.json",
+      "/public-node/runtime",
+      "/public-node/runtime/index.json",
+      "/public-node/runtime/local-multibox-status-v1.json",
+      "/__void/diag/local-multibox-runtime-route-v1.json"
+    ],
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "public_routes_only": true,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "buy_void_fulfillment_enabled": false,
+      "wc_to_void_swap_enabled": false,
+      "validator_mutation_enabled": false,
+      "validator_admission_enabled": false,
+      "public_wc_self_serve_earning_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "local_multibox_runtime_discovery_closeout_rollup": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1",
+    "json": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.json",
+    "html": "/public-node/runtime/local-multibox-runtime-discovery-closeout-rollup-v1.html",
+    "status": "sealed_closeout_rollup_ready",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN"
+  },
+  "routes": [
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
+  ],
+  "route_markers": {
+    "local_multibox_runtime_peer_rejoin_card": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+    "local_multibox_nimo_rejoin_operator_runbook": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1"
+  },
+  "local_multibox_runtime_peer_rejoin_card": {
+    "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+    "status": "precision_to_nimo_p2p_rejoin_observed",
+    "json": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.json",
+    "html": "/public-node/runtime/local-multibox-runtime-peer-rejoin-card-v1.html",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "runtime_visibility_only": true,
+      "automatic_peer_dial_enabled_by_this_card": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  },
+  "local_multibox_nimo_rejoin_operator_runbook": {
+    "marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1",
+    "status": "operator_runbook_ready",
+    "json": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.json",
+    "html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html",
+    "expected_green_marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1_GREEN",
+    "boundary": {
+      "read_only": true,
+      "operator_guidance_only": true,
+      "automatic_peer_dial_enabled_by_this_runbook": false,
+      "mutation_route_enabled": false,
+      "wallet_send_enabled": false,
+      "money_movement_enabled": false,
+      "validator_admission_enabled": false,
+      "public_internet_mesh_claim": false
+    }
+  }
+}

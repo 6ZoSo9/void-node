@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-independent-payment-confirmation-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Independent Payment Confirmation Envelope V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "settlement_observed_at_utc",
+    "confirmed_at_utc",
+    "requester",
+    "provider",
+    "executor",
+    "authorizer",
+    "resolution",
+    "confirmer",
+    "commercial",
+    "evidence",
+    "confirmation",
+    "nonce",
+    "payment_confirmation_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_INDEPENDENT_PAYMENT_CONFIRMATION_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "settlement_observed_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "confirmed_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_id"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "authorizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_policy_id"
+      ],
+      "properties": {
+        "authority_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolver_id",
+        "payment_rail_resolution_id",
+        "provider_destination_binding_id"
+      ],
+      "properties": {
+        "resolver_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "payment_rail_resolution_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "provider_destination_binding_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "confirmer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmer_id",
+        "confirmation_policy_id"
+      ],
+      "properties": {
+        "confirmer_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "confirmation_policy_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "commercial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quote_asset",
+        "service_total",
+        "actual_fee_total",
+        "payment_total",
+        "payment_rail_id"
+      ],
+      "properties": {
+        "quote_asset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Z][A-Z0-9._:-]{0,31}$"
+        },
+        "service_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+        },
+        "actual_fee_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+        },
+        "payment_total": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 51,
+          "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+        },
+        "payment_rail_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rail_receipt_id",
+        "payment_evidence_sha256",
+        "independent_observation_id",
+        "settlement_reference_id",
+        "confirmation_evidence_sha256"
+      ],
+      "properties": {
+        "rail_receipt_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "payment_evidence_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "independent_observation_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "settlement_reference_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "confirmation_evidence_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payment_settlement_confirmed",
+        "exact_payment_receipt_only",
+        "confirmer_authentication_required",
+        "confirmer_signature_required",
+        "confirmation_policy_binding_required",
+        "confirmer_independent_from_requester_required",
+        "confirmer_independent_from_provider_required",
+        "confirmer_independent_from_executor_required",
+        "confirmer_independent_from_authorizer_required",
+        "confirmer_independent_from_resolver_required",
+        "receipt_executor_signature_verified",
+        "receipt_and_payment_evidence_digest_verified",
+        "allowlisted_payment_rail_required",
+        "rail_receipt_resolved",
+        "provider_destination_binding_verified",
+        "rail_asset_compatibility_verified",
+        "payment_amount_verified",
+        "settlement_finality_policy_satisfied",
+        "settlement_not_reversed_at_confirmation",
+        "settlement_not_disputed_at_confirmation",
+        "single_confirmation_per_receipt_required",
+        "independent_observation_id_unique_required",
+        "settlement_reference_id_unique_required",
+        "confirmation_evidence_immutable",
+        "replay_protection_required",
+        "confirmation_is_not_payment_execution",
+        "work_execution_authorization_separate",
+        "work_execution_authorization_granted",
+        "confirmation_is_not_work_execution_instruction",
+        "confirmation_is_not_transaction_signature",
+        "post_confirmation_reversal_requires_separate_dispute_record"
+      ],
+      "properties": {
+        "payment_settlement_confirmed": {
+          "const": true
+        },
+        "exact_payment_receipt_only": {
+          "const": true
+        },
+        "confirmer_authentication_required": {
+          "const": true
+        },
+        "confirmer_signature_required": {
+          "const": true
+        },
+        "confirmation_policy_binding_required": {
+          "const": true
+        },
+        "confirmer_independent_from_requester_required": {
+          "const": true
+        },
+        "confirmer_independent_from_provider_required": {
+          "const": true
+        },
+        "confirmer_independent_from_executor_required": {
+          "const": true
+        },
+        "confirmer_independent_from_authorizer_required": {
+          "const": true
+        },
+        "confirmer_independent_from_resolver_required": {
+          "const": true
+        },
+        "receipt_executor_signature_verified": {
+          "const": true
+        },
+        "receipt_and_payment_evidence_digest_verified": {
+          "const": true
+        },
+        "allowlisted_payment_rail_required": {
+          "const": true
+        },
+        "rail_receipt_resolved": {
+          "const": true
+        },
+        "provider_destination_binding_verified": {
+          "const": true
+        },
+        "rail_asset_compatibility_verified": {
+          "const": true
+        },
+        "payment_amount_verified": {
+          "const": true
+        },
+        "settlement_finality_policy_satisfied": {
+          "const": true
+        },
+        "settlement_not_reversed_at_confirmation": {
+          "const": true
+        },
+        "settlement_not_disputed_at_confirmation": {
+          "const": true
+        },
+        "single_confirmation_per_receipt_required": {
+          "const": true
+        },
+        "independent_observation_id_unique_required": {
+          "const": true
+        },
+        "settlement_reference_id_unique_required": {
+          "const": true
+        },
+        "confirmation_evidence_immutable": {
+          "const": true
+        },
+        "replay_protection_required": {
+          "const": true
+        },
+        "confirmation_is_not_payment_execution": {
+          "const": true
+        },
+        "work_execution_authorization_separate": {
+          "const": true
+        },
+        "work_execution_authorization_granted": {
+          "const": false
+        },
+        "confirmation_is_not_work_execution_instruction": {
+          "const": true
+        },
+        "confirmation_is_not_transaction_signature": {
+          "const": true
+        },
+        "post_confirmation_reversal_requires_separate_dispute_record": {
+          "const": true
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    }
+  }
+}

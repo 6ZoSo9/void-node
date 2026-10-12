@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-realms-triscale-building-v1.schema.json",
+  "title": "VOID Realms Tri-Scale Building V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "world_name",
+    "microcells_per_standard_edge",
+    "selector",
+    "profiles",
+    "placement_policy",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_REALMS_TRISCALE_BUILDING_CONFIG_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "world_name": {
+      "const": "VOID Realms"
+    },
+    "microcells_per_standard_edge": {
+      "const": 4
+    },
+    "selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum",
+        "maximum",
+        "smallstep",
+        "largestep",
+        "default_index",
+        "orientation"
+      ],
+      "properties": {
+        "minimum": { "const": 0 },
+        "maximum": { "const": 2 },
+        "smallstep": { "const": 1 },
+        "largestep": { "const": 1 },
+        "default_index": { "const": 2 },
+        "orientation": { "const": "horizontal" }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/small"
+        },
+        {
+          "$ref": "#/$defs/medium"
+        },
+        {
+          "$ref": "#/$defs/standard"
+        }
+      ],
+      "items": false
+    },
+    "placement_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis_aligned_only",
+        "whole_piece_break_only",
+        "cross_region_piece_allowed",
+        "client_material_cost_trusted",
+        "server_authoritative_commit_required",
+        "preview_only_luanti_adapter"
+      ],
+      "properties": {
+        "axis_aligned_only": { "const": true },
+        "whole_piece_break_only": { "const": true },
+        "cross_region_piece_allowed": { "const": false },
+        "client_material_cost_trusted": { "const": false },
+        "server_authoritative_commit_required": { "const": true },
+        "preview_only_luanti_adapter": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "world_mutation",
+        "inventory_mutation",
+        "gameplay_state_commit",
+        "network_listener_start",
+        "external_connection",
+        "server_start",
+        "deployment",
+        "work_credit_write",
+        "wallet_or_signer_access",
+        "payment_execution",
+        "money_movement"
+      ],
+      "properties": {
+        "world_mutation": { "const": false },
+        "inventory_mutation": { "const": false },
+        "gameplay_state_commit": { "const": false },
+        "network_listener_start": { "const": false },
+        "external_connection": { "const": false },
+        "server_start": { "const": false },
+        "deployment": { "const": false },
+        "work_credit_write": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "payment_execution": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "small": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selector_index",
+        "name",
+        "edge_microcells",
+        "edge_ratio_numerator",
+        "edge_ratio_denominator",
+        "volume_microcells",
+        "material_units"
+      ],
+      "properties": {
+        "selector_index": { "const": 0 },
+        "name": { "const": "small" },
+        "edge_microcells": { "const": 1 },
+        "edge_ratio_numerator": { "const": 1 },
+        "edge_ratio_denominator": { "const": 4 },
+        "volume_microcells": { "const": 1 },
+        "material_units": { "const": 1 }
+      }
+    },
+    "medium": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selector_index",
+        "name",
+        "edge_microcells",
+        "edge_ratio_numerator",
+        "edge_ratio_denominator",
+        "volume_microcells",
+        "material_units"
+      ],
+      "properties": {
+        "selector_index": { "const": 1 },
+        "name": { "const": "medium" },
+        "edge_microcells": { "const": 2 },
+        "edge_ratio_numerator": { "const": 1 },
+        "edge_ratio_denominator": { "const": 2 },
+        "volume_microcells": { "const": 8 },
+        "material_units": { "const": 8 }
+      }
+    },
+    "standard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selector_index",
+        "name",
+        "edge_microcells",
+        "edge_ratio_numerator",
+        "edge_ratio_denominator",
+        "volume_microcells",
+        "material_units"
+      ],
+      "properties": {
+        "selector_index": { "const": 2 },
+        "name": { "const": "standard" },
+        "edge_microcells": { "const": 4 },
+        "edge_ratio_numerator": { "const": 1 },
+        "edge_ratio_denominator": { "const": 1 },
+        "volume_microcells": { "const": 64 },
+        "material_units": { "const": 64 }
+      }
+    }
+  }
+}

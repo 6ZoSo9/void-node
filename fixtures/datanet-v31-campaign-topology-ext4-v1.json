@@ -1,0 +1,77 @@
+{
+  "v": 1,
+  "format": "VOID_DATANET_V31_CAMPAIGN_TOPOLOGY_EXT4_CONTROL_V1",
+  "parent_pr": 1488,
+  "parent_head": "9f23742730fe63e92860b6213f65aa4bfc9670c3",
+  "accepted_posix_source_git_blob_sha1": "c4d92dcaaed8879bcd98b96e199729098712d5b4",
+  "accepted_s0_s1_fixture_git_blob_sha1": "ffe0df7cd6ed583bf59105e1a20be7d3483fb9f1",
+  "accepted_v1488_publisher_git_blob_sha1": "0ec6b781a2a01e1f0094f27854577441f886af47",
+  "campaign_publisher_git_blob_sha1": "7c4d708ddee16c48fb276540e99defed02fec931",
+  "quota_key": "6104826324f0eabbe2f9b41ad53844e0028670eca202a92f494b384b8ed0063e",
+  "payload_bytes": 67108864,
+  "io_block_bytes": 65536,
+  "payload_sha256": "3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351",
+  "image_bytes": 402653184,
+  "filesystem_magic_hex": "ef53",
+  "phase_deadlines_seconds": {
+    "e0": 120,
+    "r0": 210,
+    "final_verification": 120,
+    "aggregate_publication": 60,
+    "outer_wall": 600
+  },
+  "process_topology": {
+    "observer": 1,
+    "e0_contenders": 8,
+    "e0_classifier": 1,
+    "r0_h0_publisher": 1,
+    "checkpoint_diagnostic_collector": 1,
+    "r0_contenders": 8,
+    "source_distinct_final_verifier": 1,
+    "fallocate_helpers": 3,
+    "link_helpers": 3,
+    "role_lifetimes": 21,
+    "helper_lifetimes": 6,
+    "total_lifetimes": 27,
+    "peak_live": 9
+  },
+  "one_publication_ledger": {
+    "write_calls": 1024,
+    "write_requested_bytes": 67108864,
+    "write_completed_bytes": 67108864,
+    "prepublication_read_calls": 1025,
+    "prepublication_read_requested_bytes": 67108865,
+    "prepublication_read_returned_bytes": 67108864,
+    "postpublication_read_calls": 1025,
+    "postpublication_read_requested_bytes": 67108865,
+    "postpublication_read_returned_bytes": 67108864
+  },
+  "one_classifier_ledger": {
+    "read_calls": 1025,
+    "read_requested_bytes": 67108865,
+    "read_returned_bytes": 67108864
+  },
+  "s1_publisher_existing_s0_ledger": {
+    "read_calls": 1025,
+    "read_requested_bytes": 67108865,
+    "read_returned_bytes": 67108864
+  },
+  "final_verifier_ledger": {
+    "read_calls": 3075,
+    "read_requested_bytes": 201326595,
+    "read_returned_bytes": 201326592
+  },
+  "v31_composed_success_ledger": {
+    "calls": 15372,
+    "requested_bytes": 1006632972,
+    "completed_or_returned_bytes": 1006632960,
+    "writes": 3072,
+    "reads": 12300,
+    "nonempty_calls": 15360,
+    "eof_probes": 12,
+    "completed_mib": 960,
+    "throughput_floor_mib_per_second_numerator": 32,
+    "throughput_floor_mib_per_second_denominator": 15
+  },
+  "v31_ledger_reason": "V30 plus the accepted campaign-safe S1 publisher's independent full S0 verification before S1 candidate allocation"
+}

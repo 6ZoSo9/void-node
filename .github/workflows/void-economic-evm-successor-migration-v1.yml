@@ -1,0 +1,183 @@
+name: VOID economic EVM successor migration v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-signed-artifact-census-closeout-v1.json"
+      - "ops/mainnet0/economic-epoch2-privileged-signer-replay-fence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-import-v1.json"
+      - "scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-raw-transaction-domain-v1.json"
+      - "scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs"
+      - "docs/operators/economic-epoch2-privileged-signer-replay-fence-v1.md"
+      - "docs/architecture/economic-epoch2-signed-submission-replay-domain-v1.md"
+      - "tools/void-economic-epoch2-signed-artifact-census-closeout-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_signed_artifact_census_closeout_v1.mjs"
+      - "docs/operators/economic-epoch2-signed-artifact-census-closeout-v1.md"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-economic-evm-final-value-census-v1.mjs"
+      - "scripts/prove_void_economic_evm_successor_migration_v1.mjs"
+      - "scripts/prove_void_economic_evm_final_value_census_v1.mjs"
+      - "scripts/prove_void_economic_evm_reconciliation_pair_v1.mjs"
+      - "scripts/prove_void_economic_genesis_archive_block37392_checkpoint_v1.mjs"
+      - "scripts/prove_void_economic_epoch1_write_surface_census_v1.mjs"
+      - "scripts/prove_void_economic_genesis_archive_final_snapshot_v1.mjs"
+      - "scripts/prove_void_economic_genesis_archive_live_obligation_census_v1.mjs"
+      - "ops/mainnet0/economic-genesis-archive-staking-obligation-census-v1.json"
+      - "ops/mainnet0/economic-genesis-archive-live-obligation-census-v1.json"
+      - "docs/operators/economic-genesis-archive-live-obligation-census-v1.md"
+      - "ops/mainnet0/economic-genesis-archive-epoch1-freeze-v2.json"
+      - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"
+      - "docs/operators/economic-genesis-archive-final-snapshot-v1.md"
+      - "ops/mainnet0/economic-genesis-archive-authority-census-v1.json"
+      - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
+      - "ops/mainnet0/economic-epoch2-ceremony-role-map-v1.json"
+      - "ops/mainnet0/economic-epoch2-ceremony-backup-continuity-evidence-v1.json"
+      - "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol"
+      - "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol"
+      - "test/epoch2/VoidEpoch2CustodyContractsV1.t.sol"
+      - "scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs"
+      - "tools/void-economic-epoch2-frozen-source-census-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs"
+      - "tools/void-economic-epoch2-legacy-token-semantic-census-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs"
+      - "tools/void-economic-epoch2-staking-state-export-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_staking_state_export_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-staking-state-export-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-runtime-bytecode-manifest-v1.json"
+      - "tools/void-economic-epoch2-client-neutral-state-manifest-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_client_neutral_state_manifest_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-client-neutral-state-manifest-evidence-v1.json"
+      - "tools/void-economic-epoch2-isolated-successor-equivalence-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_isolated_successor_equivalence_v1.mjs"
+      - "tools/void-economic-epoch2-besu-state-equivalence-v1.mjs"
+      - "scripts/prove_void_economic_epoch2_besu_state_equivalence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-besu-state-equivalence-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-nonce-continuity-evidence-v1.json"
+      - "ops/mainnet0/economic-epoch2-besu-free-gas-evidence-v2.json"
+      - "ops/mainnet0/economic-epoch2-qbft-validator-binding-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-qbft-topology-v1.json"
+      - "docs/architecture/economic-epoch2-qbft-validator-binding-v1.md"
+      - "scripts/prove_void_economic_epoch2_qbft_validator_binding_v1.mjs"
+      - "docs/operators/economic-genesis-archive-authority-census-v1.md"
+      - "docs/operators/economic-epoch2-contract-holder-destination-manifest-v1.md"
+      - "docs/operators/economic-epoch2-ceremony-role-map-v1.md"
+      - "ops/mainnet0/economic-epoch1-write-surface-census-v1.json"
+      - "docs/operators/economic-epoch1-write-surface-census-v1.md"
+      - "ops/mainnet0/economic-genesis-archive-block37392-checkpoint-v1.json"
+      - "docs/operators/economic-genesis-archive-block37392-checkpoint-v1.md"
+      - "ops/mainnet0/economic-evm-reconciliation-a-v1.json"
+      - "ops/mainnet0/economic-evm-reconciliation-b-v1.json"
+      - "docs/operators/economic-evm-reconciliation-a-v1.md"
+      - "docs/operators/economic-evm-reconciliation-pair-v1.md"
+      - "docs/operators/economic-evm-successor-migration-v1.md"
+      - ".github/workflows/void-economic-evm-successor-migration-v1.yml"
+      - "ops/mainnet/void-mainnet.deployed.json"
+      - "ops/mainnet/mainnet0-premine-allocation.current.json"
+      - "tools/buy-void-presale-fulfillment-deployer-selection-v1.mjs"
+      - "ops/wc-relayer-v1.cjs"
+      - "ops/mainnet0/wc-devnet-bootstrap-proof.sh"
+      - "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md"
+      - "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md"
+      - "script/mainnet_rebuild/VoidMainnetBootstrapDev.vaults-rebuild.s.sol"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove epoch-2 privileged signer replay fence
+        run: |
+          node --check scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
+          node scripts/prove_void_economic_epoch2_privileged_signer_replay_fence_v1.mjs
+
+      - name: Prove imported Besu raw-domain runtime evidence
+        run: |
+          node --check scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_raw_transaction_validator_runtime_evidence_v1.mjs
+
+      - name: Prove economic EVM successor migration HOLD
+        run: node scripts/prove_void_economic_evm_successor_migration_v1.mjs
+
+      - name: Prove read-only final value census
+        run: node scripts/prove_void_economic_evm_final_value_census_v1.mjs
+
+      - name: Prove independent economic reconciliation pair
+        run: node scripts/prove_void_economic_evm_reconciliation_pair_v1.mjs
+
+      - name: Prove durable economic archive checkpoint
+        run: node scripts/prove_void_economic_genesis_archive_block37392_checkpoint_v1.mjs
+
+      - name: Prove epoch-1 write-surface census
+        run: node scripts/prove_void_economic_epoch1_write_surface_census_v1.mjs
+
+      - name: Prove final epoch-1 economic snapshot
+        run: node scripts/prove_void_economic_genesis_archive_final_snapshot_v1.mjs
+
+      - name: Prove frozen live-obligation census
+        run: node scripts/prove_void_economic_genesis_archive_live_obligation_census_v1.mjs
+
+      - name: Prove epoch-2 contract-holder destination manifest
+        run: node scripts/prove_void_economic_epoch2_contract_holder_destination_manifest_v1.mjs
+
+      - name: Prove epoch-2 frozen source census
+        run: |
+          node --check tools/void-economic-epoch2-frozen-source-census-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs
+          node scripts/prove_void_economic_epoch2_frozen_source_census_v1.mjs
+
+      - name: Prove epoch-2 legacy token semantic census
+        run: |
+          node --check tools/void-economic-epoch2-legacy-token-semantic-census-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs
+          node scripts/prove_void_economic_epoch2_legacy_token_semantic_census_v1.mjs
+
+      - name: Prove epoch-2 exact staking state exporter
+        run: |
+          node --check tools/void-economic-epoch2-staking-state-export-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_staking_state_export_v1.mjs
+          node scripts/prove_void_economic_epoch2_staking_state_export_v1.mjs
+
+      - name: Prove epoch-2 client-neutral state manifest builder
+        run: |
+          node --check tools/void-economic-epoch2-client-neutral-state-manifest-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_client_neutral_state_manifest_v1.mjs
+          node scripts/prove_void_economic_epoch2_client_neutral_state_manifest_v1.mjs
+
+      - name: Prove epoch-2 isolated successor equivalence gates
+        run: |
+          node --check tools/void-economic-epoch2-isolated-successor-equivalence-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_isolated_successor_equivalence_v1.mjs
+          node scripts/prove_void_economic_epoch2_isolated_successor_equivalence_v1.mjs
+
+      - name: Prove epoch-2 Besu client-specific state verifier
+        run: |
+          node --check tools/void-economic-epoch2-besu-state-equivalence-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_besu_state_equivalence_v1.mjs
+          node scripts/prove_void_economic_epoch2_besu_state_equivalence_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check

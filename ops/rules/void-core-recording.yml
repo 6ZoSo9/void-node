@@ -1,0 +1,6 @@
+groups:
+- name: void-core-recording
+  interval: 30s
+  rules:
+  - record: void:header3:last_number
+    expr: max(void_header3_last_number)

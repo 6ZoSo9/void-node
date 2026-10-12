@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/official-network-authenticity-root-admission-v2-1.schema.json",
+  "title": "VOID Official Network Authenticity Root Admission V2.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "status",
+    "project",
+    "repository",
+    "source_repository_commit",
+    "source_public_return_zip_sha256",
+    "root",
+    "network_identity",
+    "supersession",
+    "artifact_sha256",
+    "authority_boundary",
+    "private_key"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void.official-network-authenticity-root-admission.v2.1"
+    },
+    "marker": {
+      "const": "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_PUBLIC_ADMISSION_V2_1"
+    },
+    "status": {
+      "const": "admitted_unactivated"
+    },
+    "project": {
+      "const": "VOID Network"
+    },
+    "repository": {
+      "const": "6ZoSo9/void-node"
+    },
+    "source_repository_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_public_return_zip_sha256": {
+      "const": "8a920f18636c86fff4d6386073b2980092df3c6b95a180bfd8ce04f5e22969d9"
+    },
+    "root": {
+      "type": "object"
+    },
+    "network_identity": {
+      "type": "object"
+    },
+    "supersession": {
+      "type": "object"
+    },
+    "artifact_sha256": {
+      "type": "object",
+      "minProperties": 7
+    },
+    "authority_boundary": {
+      "type": "object"
+    },
+    "private_key": {
+      "type": "object"
+    }
+  }
+}

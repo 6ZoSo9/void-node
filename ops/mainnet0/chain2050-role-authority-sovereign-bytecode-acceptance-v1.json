@@ -1,0 +1,41 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_BYTECODE_ACCEPTANCE_V1",
+  "version": 1,
+  "accepted_review_packet_sha256": "0f7bd135971b0f41d9ab203a579b6b382d4bbf734bc14f0a2cb0fd15030ab1df",
+  "accepted_reproducibility_id": "voidcraregdc1_98ae94aacbf76c6d8de48aa3f57b181dab7e15ee95aaf179fbbb16a40c0c3d73",
+  "accepted_contract_source_sha256": "a6ecf042569223cc1d56b3e2cc3350206a0abd6352b009212b6540699f7c57f6",
+  "accepted_creation_bytecode_sha256": "c0844cd0718ed2dc345bbc01107b57dbb2c2129e325066bff399502031a14733",
+  "accepted_expected_deployed_runtime_sha256": "b2e1938deb9dd2692a322fd837a5128aeb99d3c33095087c8af8d828a6ed930d",
+  "accepted_abi_sha256": "e56ff6fb3c9c1d3847b7bfab49793d623788dcf5d1dc3d1eac4384fc70c356c2",
+  "acceptance_scope": {
+    "sovereign_bytecode_acceptance": true,
+    "compiler_distribution_trust_accepted": true,
+    "exact_compiled_identity_only": true,
+    "owner_selection_authorized": false,
+    "deployer_selection_authorized": false,
+    "transaction_construction_authorized": false,
+    "signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "contract_deployment_authorized": false,
+    "registry_append_authorized": false,
+    "production_activation_authorized": false,
+    "funds_action_authorized": false
+  },
+  "evidence": {
+    "source": "interactive_sovereign_authorization",
+    "cryptographic_signature_present": false,
+    "external_attestation_present": false,
+    "exact_packet_hash_repeated_by_operator": false
+  },
+  "unresolved": {
+    "owner_address": null,
+    "deployer_address": null,
+    "deployment_nonce": null,
+    "gas_limit": null,
+    "max_fee_per_gas_wei": null,
+    "max_priority_fee_per_gas_wei": null,
+    "unsigned_transaction": null,
+    "deployment_address": null
+  },
+  "next_gate": "review_collision_free_owner_and_deployer_pair_then_construct_unsigned_deployment_preparation"
+}

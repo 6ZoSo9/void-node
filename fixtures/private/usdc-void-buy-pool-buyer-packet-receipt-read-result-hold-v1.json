@@ -1,0 +1,97 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_PACKET_RECEIPT_READ_RESULT_HOLD_V1",
+  "status": "buyer_packet_receipt_read_result_hold_green",
+  "scope": "usdc_void_buy_pool_private_buyer_packet_receipt_read_result_hold",
+  "purpose": "Define a private/operator-only hold shape for recording the result of a payment-verification receipt read work item.",
+  "prerequisite_state": {
+    "payment_verification_work_item_hold_required": true,
+    "payment_verification_work_item_prepared_hold_required": true,
+    "transfer_log_parse_not_started": true
+  },
+  "privacy_boundary": {
+    "private_operator_only": true,
+    "public_node_route": false,
+    "public_node_intake": false,
+    "public_submission_endpoint": false,
+    "public_mutation": false,
+    "public_ledger_write": false,
+    "public_contact_collection": false,
+    "raw_rpc_payload_published": false,
+    "secret_material_recorded": false
+  },
+  "receipt_read_scope": {
+    "receipt_read_result_recording_only": true,
+    "operator_controlled_receipt_read_result_allowed": true,
+    "public_node_rpc_receipt_read": false,
+    "transfer_log_parsed": false,
+    "erc20_transfer_log_verified": false,
+    "usdc_contract_allowlist_verified": false,
+    "receiver_address_verified": false,
+    "amount_rate_policy_verified": false,
+    "duplicate_payment_guard_decided": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_verification_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_approval_complete": false
+  },
+  "receipt_read_result_hold_states": [
+    "draft_hold",
+    "blocked_work_item_not_ready",
+    "blocked_receipt_read_missing",
+    "receipt_read_result_recorded_unverified",
+    "held_for_transfer_log_parse"
+  ],
+  "example_receipt_read_result_record": {
+    "receipt_read_result_id": "redacted_placeholder_only",
+    "work_item_id": "redacted_placeholder_only",
+    "queue_record_id": "redacted_placeholder_only",
+    "validation_record_id": "redacted_placeholder_only",
+    "receipt_record_id": "redacted_placeholder_only",
+    "operator_id": "redacted_placeholder_only",
+    "source_work_item_state": "payment_verification_work_item_prepared_hold",
+    "receipt_read_result_state": "receipt_read_result_recorded_unverified",
+    "field_values_redacted": true,
+    "chain": "redacted_placeholder_only",
+    "transaction_hash": "redacted_placeholder_only",
+    "receipt_found": true,
+    "receipt_status": "redacted_placeholder_only",
+    "block_number": "redacted_placeholder_only",
+    "transaction_index": "redacted_placeholder_only",
+    "log_count": "redacted_placeholder_only",
+    "raw_receipt_reference": "private_operator_reference_only"
+  },
+  "not_satisfied_by_receipt_read_result_hold": {
+    "transfer_log_parsed": false,
+    "erc20_transfer_log_verified": false,
+    "payment_verification_complete": false,
+    "chain_token_receiver_allowlist_complete": false,
+    "amount_rate_policy_complete": false,
+    "duplicate_payment_guard_complete": false,
+    "buyer_identity_binding_complete": false,
+    "finality_confirmations_complete": false,
+    "payment_eligibility_decision_complete": false,
+    "operator_review_complete": false
+  },
+  "authority_state": {
+    "operator_authority_active": false,
+    "automatic_fulfillment_enabled": false,
+    "wallet_fulfillment_enabled": false,
+    "buyer_execution_enabled": false,
+    "claim_creation_enabled": false,
+    "inventory_reservation_enabled": false,
+    "void_transfer_enabled": false,
+    "treasury_transfer_enabled": false
+  },
+  "proof_expectations": {
+    "buyer_packet_receipt_read_result_hold_green": true,
+    "private_operator_only_green": true,
+    "receipt_read_result_recording_only_green": true,
+    "redacted_fixture_green": true,
+    "no_public_route_green": true,
+    "no_public_node_rpc_read_green": true,
+    "no_transfer_log_parse_green": true,
+    "no_payment_decision_green": true,
+    "authority_false_green": true
+  }
+}

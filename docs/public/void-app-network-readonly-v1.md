@@ -1,0 +1,134 @@
+# VOID App Network read-only v1
+
+Marker: `VOID_APP_NETWORK_READONLY_V1_PROOF_GREEN`
+
+## Outcome
+
+Replace the VOID App Network route's hard-coded three-machine demonstration values with a bounded, refreshable view of current read-only network evidence.
+
+The view reuses the existing `GET /__void/ui/wave2/home.json` adapter. When that route is served through the public composition gateway, the Network module admits the gateway's exact `public_safe=true` projection as a separate closed contract instead of trying to parse it as the private loopback Home schema. It does not create a second node/network protocol or infer remote-machine health from peer visibility.
+
+A participant opening `#/network` can inspect:
+
+- Mainnet-0 identity;
+- the observed node label and role;
+- operational readiness;
+- a chain head only when the normalized adapter claim exactly agrees with strict numeric raw head evidence;
+- visible native-P2P peer count versus the existing two-peer baseline;
+- source availability for health, readiness, head, and peers; and
+- strict readiness-head / last-mile / gap consistency.
+
+## Browser transport and bounded evidence
+
+The Network module performs same-origin `GET` only with:
+
+- `cache: no-store`;
+- `credentials: omit`;
+- redirects rejected;
+- `mode: same-origin`;
+- `referrerPolicy: no-referrer`;
+- a 5-second total deadline; and
+- a 128 KiB streamed response ceiling before UTF-8 decoding and JSON parsing.
+
+The private loopback Home-adapter snapshot and the public-safe Home projection are validated as two distinct closed contracts. The public projection must preserve its explicit no-account/no-balance/no-authority boundaries, sanitized node identity, source-status envelope, and internally consistent chain/mesh booleans. It is never reinterpreted as the private loopback shape.
+
+For the private loopback contract, nested head/readiness numeric evidence is admitted only when it is already a nonnegative safe integer; strings, booleans, `null`, arrays, objects, and other coercible values remain unavailable. The displayed private chain head is withheld unless the adapter's normalized `network.chain_head` exactly matches the strict numeric raw latest-block evidence.
+
+For the public-safe projection, the already-sanitized `network.chain_head`, peer count, gap, source statuses, and explicit `chain_synchronized` / `mesh_aligned` claims are shown only after the projection validates. Raw readiness-head and last-mile values are not present in the public projection, so those fields remain unavailable rather than being inferred.
+
+## Refresh and request ownership
+
+Refresh is fail closed.
+
+Before a replacement request begins, all previously validated node/head/peer/source/alignment evidence is immediately withheld. The UI shows HOLD/loading values rather than keeping stale evidence visible under a fresh-validation message.
+
+Exactly one Network request generation is owned at a time:
+
+- starting a replacement aborts the previous owned request before any replacement fetch can begin;
+- every streamed `reader.read()` is raced against the owned caller deadline instead of trusting the body to honor abort;
+- rejected/aborted body cancellation gets a separate 250 ms teardown terminal, so the caller reaches a bounded result even if `cancel()` never settles;
+- an aborted generation with unresolved body work remains quarantined and blocks a replacement generation until its read/cancel terminal is actually witnessed;
+- a stream that repeatedly yields zero-length chunks is rejected after a fixed progress bound rather than being allowed to spin indefinitely;
+- normal cancellable responses release ownership before the abort is returned;
+- route departure or view unmount cancels the owned request; and
+- stale/superseded completions cannot render over a newer request.
+
+## Persistent shell truth
+
+The persistent header/footer network status is now owned by exactly one writer per route:
+
+- Home keeps the existing Home-route writer;
+- Network publishes the exact validated Network-view model;
+- Wallet, Earn, Data, Buy, Validate, Foundation, and other non-Home/non-Network routes use a bounded background read of the same read-only network adapter.
+
+Every route transition invalidates the prior background generation. A stale background success or stale background failure is therefore unable to overwrite fresher Network-route truth.
+
+Network-view failure clears prior shell success and marks the persistent status unavailable instead of leaving a stale green claim.
+
+## Wallet snapshot freshness boundary
+
+Wallet account evidence is admitted only when `generated_at` is exact canonical UTC-millisecond ISO-8601. The browser applies the same bounded freshness posture as Network evidence: at most 30 seconds old and at most 5 seconds ahead of the local clock.
+
+Wallet validation is bound to both the request start and the evaluation/render instant. A response that was admissible when requested but becomes stale before it can be rendered is rejected rather than shown as current account truth. Malformed, stale, far-future, and late-completing snapshots therefore enter the existing unavailable/warning path. The client retains only the selected account ID in session storage; it does not retain a historical Wallet snapshot as current evidence.
+
+The shell also distinguishes local service readiness from native-P2P mesh readiness. A node may be operationally ready while the observed peer baseline is not met; that state is displayed as `Service ready · mesh HOLD` rather than implying that the peer mesh is complete. HTTPS synchronization activity is not counted as a native P2P peer.
+
+## Composition and integrity boundary
+
+`wallet-live.js` adds exactly one side-effect import:
+
+```js
+import './network-live.js';
+```
+
+Wallet is already loaded globally by the App shell, while current Network work does not own `app.js`, `views.js`, or `home-live.js`.
+
+Because `wallet-live.js` is content-addressed by the existing Wave-2 and Wave-3 review manifests, and Wave-4 transitively binds those manifests, this lane refreshes only the required repository hashes in those three manifests. It does not alter the historical source-bundle payload hashes or prior visual-approval receipts.
+
+During current-main reconciliation, repository-hash entries already stale on `main` are also refreshed from the exact merged bytes inside those same three manifest files. This repairs integrity metadata only; it does not import additional source/runtime authority into the Network lane.
+
+## Authority boundary
+
+This source cannot:
+
+- dial, connect, disconnect, add, remove, or rewrite a peer/route;
+- probe a remote machine;
+- restart or deploy a node/service;
+- write network or consensus state;
+- connect/unlock a wallet or access a signer;
+- register or activate a validator;
+- write Work Credits;
+- construct, sign, or broadcast a transaction; or
+- move treasury, liquidity, or user funds.
+
+Source-green is not deployment or public-origin acceptance evidence.
+
+## Definition of Done
+
+Source DoD requires:
+
+1. the Network loader is actually integrated into the existing App shell;
+2. same-origin GET-only transport and the 128 KiB ceiling are preserved;
+3. stale evidence is withheld immediately during refresh;
+4. response-body reads obey the caller deadline, teardown has a separate bounded terminal, and at most one unresolved/quarantined request generation can exist;
+5. nested numeric evidence is strict and chain-head display requires raw/normalized agreement;
+6. the focused proof exercises bounded bodies, wrong numeric types, supersession, deadline propagation, unmount cancellation, private no-authority boundaries, and the public-safe gateway projection including contradiction rejection;
+7. the focused workflow is present with immutable action pins and Node.js 22/24/26 coverage;
+8. transitive App integrity manifests remain exact; and
+9. the workflow is also triggered by changes to the public composition gateway projection consumed by this view; and
+10. persistent shell truth is route-exclusive and stale background generations cannot overwrite Network-route truth;
+11. service readiness is visibly separated from native-P2P mesh readiness; and
+12. fresh exact-head focused and proportionate repository checks plus review/collision rereads are green.
+
+Falsification: abandon this lane if truthful Network utility requires a new networking protocol, a mutable topology endpoint, remote probing, credentials/account state, wallet/signing authority, sensitive-path expansion, or a competing owned lane.
+
+## Proof
+
+Run:
+
+```sh
+node scripts/prove_void_app_network_readonly_v1.mjs
+node scripts/prove_void_public_network_shell_truth_v1.mjs
+```
+
+The focused workflow also runs the shared site-theme regression and diff hygiene on Node.js 22, 24, and 26 with immutable GitHub Actions refs.

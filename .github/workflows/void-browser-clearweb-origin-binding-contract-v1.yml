@@ -1,0 +1,79 @@
+name: VOID Browser Clearweb Origin Binding Contract V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-browser-clearweb-origin-binding-contract-v1.yml"
+      - "docs/public-node/void-browser-clearweb-origin-binding-contract-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs"
+      - "schemas/void-browser-clearweb-origin-binding-v1.schema.json"
+      - "scripts/prove_void_browser_clearweb_origin_binding_contract_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-browser-clearweb-origin-binding-contract-v1.yml"
+      - "docs/public-node/void-browser-clearweb-origin-binding-contract-v1.md"
+      - "integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs"
+      - "schemas/void-browser-clearweb-origin-binding-v1.schema.json"
+      - "scripts/prove_void_browser_clearweb_origin_binding_contract_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-browser-clearweb-origin-binding-contract-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source and schema
+        run: |
+          node --check \
+            integrations/browser/void-browser-agent-access-kit-v1/clearweb-origin-binding-v1.mjs
+          node --check \
+            scripts/prove_void_browser_clearweb_origin_binding_contract_v1.mjs
+          python3 -m json.tool \
+            schemas/void-browser-clearweb-origin-binding-v1.schema.json \
+            >/dev/null
+
+      - name: Prove clearweb origin binding contract
+        run: |
+          node scripts/prove_void_browser_clearweb_origin_binding_contract_v1.mjs \
+            | tee /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx \
+            "VOID_BROWSER_CLEARWEB_ORIGIN_BINDING_CONTRACT_V1_PROOF_GREEN" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "ed25519_signature_verified=true" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "exact_https_origin_bound=true" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "clearweb_replay_rejected=true" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "onion_identity_cross_bound=true" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "current_extension_onion_only=true" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "live_binding_created=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "private_key_access=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "deployment=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "mutation=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "payment_authority=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-browser-clearweb-origin-binding-contract-v1.log

@@ -1,0 +1,34 @@
+{
+  "chainId": 2050,
+  "status": "live_frozen_post_bootstrap",
+  "bootstrap_frozen": true,
+  "source_of_truth_node": "Precision",
+  "source_of_truth_rpc": "http://127.0.0.1:8545",
+  "contracts": {
+    "VoidToken": "0x470075B85352Eb86F7d089FB9ba88945f12AAd94",
+    "VoidTreasury": "0x554eCc7be6f0b7cC3d1c578c2BB848e535c02514",
+    "OpsTreasury": "0xf0D64c62A87034e1838dB8ec1e2e33666814E7D9",
+    "AdminGate": "0xDAdb70747fb39E79c867811f5A5592C1611bCb52",
+    "ConfigGate": "0xCf4239EC209bbDB25f5C22903a5AA2050752Dd24",
+    "ValidatorSet": "0x4b3F78e86b0427F750938e7B022d98aA4275F2f7",
+    "EmissionsController": "0x72B2DEaD8cE4728a1F3b800F96502A7acE091b81",
+    "RewardEngine": "0xE2670614aB3caB77999847F3FD2fF6Fc34fe2292"
+  },
+  "handoff": {
+    "validator0": {
+      "reward": "0xD2571D5D471D6574f7d57D0a3aCa5B34D0C8dA6F",
+      "consensusKey": "0x67a0e5bb8887982681cd0fef8d35ec9a02fc74ac2224dd5fef0e97e101800540",
+      "stakeVOID": "1000000000000000000000"
+    },
+    "final": {
+      "validatorAdmin": "0x8DC0d4abc9ecd40b5E8f6b4c2Fe1370822e52Bc4",
+      "adminGateMasterKey": "0x5730ca2ac38F0e39BF46C121Fbdf581638fA72bc"
+    }
+  },
+  "notes": [
+    "This file is the canonical repo-side record of the frozen live deployed Mainnet-0 addresses.",
+    "It intentionally records deployed addresses and frozen handoff values only.",
+    "It does not attempt to store private keys or offline-only operational secrets.",
+    "Planning stubs in ops/mainnet/void-mainnet.live*.json remain separate from this deployed-truth artifact."
+  ]
+}

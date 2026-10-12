@@ -1,0 +1,65 @@
+name: VOID Agent Alliance membership v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-agent-alliance-membership-v1.yml"
+      - "docs/architecture/void-agent-alliance-membership-v1.md"
+      - "docs/architecture/void-agent-alliance-lifecycle-temporal-guard-v1.md"
+      - "docs/architecture/void-agent-alliance-sovereign-admission-guard-v1.md"
+      - "docs/architecture/void-agent-alliance-constitutional-charter-admission-guard-v1.md"
+      - "fixtures/agents/void-agent-alliance-membership-manifest-v1.example.json"
+      - "integrations/agents/void-agent-alliance-v1/**"
+      - "schemas/void-agent-alliance-membership-manifest-v1.schema.json"
+      - "schemas/void-agent-alliance-sovereign-admission-authorization-v1.schema.json"
+      - "schemas/void-agent-alliance-constitutional-charter-admission-binding-v1.schema.json"
+      - "scripts/prove_void_agent_alliance_membership_v1.mjs"
+      - "scripts/prove_void_agent_alliance_lifecycle_temporal_guard_v1.mjs"
+      - "scripts/prove_void_agent_alliance_sovereign_admission_guard_v1.mjs"
+      - "scripts/prove_void_agent_alliance_constitutional_charter_admission_guard_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-agent-alliance-membership-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check integrations/agents/void-agent-alliance-v1/index.mjs
+          node --check integrations/agents/void-agent-alliance-v1/lifecycle-temporal-guard-v1.mjs
+          node --check integrations/agents/void-agent-alliance-v1/sovereign-admission-guard-v1.mjs
+          node --check integrations/agents/void-agent-alliance-v1/constitutional-charter-admission-guard-v1.mjs
+          node --check scripts/prove_void_agent_alliance_membership_v1.mjs
+          node --check scripts/prove_void_agent_alliance_lifecycle_temporal_guard_v1.mjs
+          node --check scripts/prove_void_agent_alliance_sovereign_admission_guard_v1.mjs
+          node --check scripts/prove_void_agent_alliance_constitutional_charter_admission_guard_v1.mjs
+      - name: Parse closed JSON artifacts
+        run: |
+          node -e 'const fs=require("node:fs"); for (const file of process.argv.slice(1)) JSON.parse(fs.readFileSync(file,"utf8"));' \
+            integrations/agents/void-agent-alliance-v1/package.json \
+            fixtures/agents/void-agent-alliance-membership-manifest-v1.example.json \
+            schemas/void-agent-alliance-membership-manifest-v1.schema.json \
+            schemas/void-agent-alliance-sovereign-admission-authorization-v1.schema.json \
+            schemas/void-agent-alliance-constitutional-charter-admission-binding-v1.schema.json
+      - name: Prove alliance membership and lifecycle boundaries
+        run: node scripts/prove_void_agent_alliance_membership_v1.mjs
+      - name: Prove lifecycle temporal guard
+        run: node scripts/prove_void_agent_alliance_lifecycle_temporal_guard_v1.mjs
+      - name: Prove sovereign admission guard
+        run: node scripts/prove_void_agent_alliance_sovereign_admission_guard_v1.mjs
+      - name: Prove constitutional charter admission guard
+        run: node scripts/prove_void_agent_alliance_constitutional_charter_admission_guard_v1.mjs

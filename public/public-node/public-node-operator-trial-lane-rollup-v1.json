@@ -1,0 +1,103 @@
+{
+  "kind": "public_node_operator_trial_lane_rollup_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_ROLLUP_V1_GREEN",
+  "status": "trial_lane_rollup_ready",
+  "title": "VOID Public Node Operator Trial Lane Rollup v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Public-safe rollup that binds the public node operator trial packet, trial receipt example, trial review decision example, review checklist, decision template, review lane rollup, and dashboard.",
+  "html": "/public-node/public-node-operator-trial-lane-rollup-v1.html",
+  "json": "/public-node/public-node-operator-trial-lane-rollup-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "trial_chain": [
+    {
+      "key": "trial_packet",
+      "title": "Public Node Operator Trial Packet v1",
+      "json": "/public-node/public-node-operator-trial-packet-v1.json",
+      "html": "/public-node/public-node-operator-trial-packet-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1",
+      "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PACKET_V1_GREEN"
+    },
+    {
+      "key": "trial_receipt_example",
+      "title": "Public Node Operator Trial Receipt Example v1",
+      "json": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+      "html": "/public-node/public-node-operator-trial-receipt-example-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1",
+      "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "trial_review_decision_example",
+      "title": "Public Node Operator Trial Review Decision Example v1",
+      "json": "/public-node/public-node-operator-trial-review-decision-example-v1.json",
+      "html": "/public-node/public-node-operator-trial-review-decision-example-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1",
+      "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "review_checklist",
+      "title": "Operator Receipt Review Checklist v1",
+      "json": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+      "html": "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1"
+    },
+    {
+      "key": "decision_template",
+      "title": "Operator Receipt Review Decision Template v1",
+      "json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+      "html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1"
+    },
+    {
+      "key": "review_lane_rollup",
+      "title": "Public Node Operator Review Lane Rollup v1",
+      "json": "/public-node/public-node-operator-review-lane-rollup-v1.json",
+      "html": "/public-node/public-node-operator-review-lane-rollup-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_REVIEW_LANE_ROLLUP_V1"
+    },
+    {
+      "key": "operator_dashboard",
+      "title": "Public Node Operator Dashboard v1",
+      "json": "/public-node/public-node-operator-dashboard-v1.json",
+      "html": "/public-node/public-node-operator-dashboard-v1.html",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1"
+    }
+  ],
+  "review_sequence": [
+    "open_trial_packet",
+    "fill_or_compare_receipt_template",
+    "inspect_trial_receipt_example",
+    "apply_review_checklist",
+    "compare_decision_template",
+    "inspect_trial_review_decision_example",
+    "use_review_lane_rollup",
+    "return_to_dashboard"
+  ],
+  "do_not_infer": [
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}

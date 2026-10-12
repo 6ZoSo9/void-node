@@ -1,0 +1,83 @@
+{
+  "activation_blockers": [
+    "explicit_enable_configuration_not_authorized",
+    "absolute_source_root_not_configured",
+    "post_restart_disabled_runtime_proof_required"
+  ],
+  "authority": {
+    "activation": false,
+    "authenticated_submission_post": false,
+    "canonical_build": false,
+    "configuration_write": false,
+    "deployment_execution": false,
+    "live_http_route_registration": false,
+    "network_listener": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "receipt_read": true,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_data_read": false,
+    "source_data_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "deployment_id": "voidaosdp1_756d4e4dfc2e7bda890cfbcc1b8741a3f09c0539e52e68d0ec542c617666ac53",
+  "deployment_scope": {
+    "activation": false,
+    "canonical_build_required": false,
+    "configuration_write": false,
+    "restart_command": "systemctl --user restart void-node-live.service",
+    "service_restart_required": true
+  },
+  "input_mechanism_receipt_sha256": "66a3bcda99419c404bfbca68e973ff832d200596fe8d4cf8d7139ce2c254a2f7",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_DISABLED_DEPLOYMENT_V1_PACKET",
+  "post_restart_requirements": [
+    "service_loaded_active_running",
+    "new_service_invocation",
+    "order_status_enable_env_absent",
+    "order_status_source_root_env_absent",
+    "order_status_max_bytes_env_absent",
+    "health_http_200",
+    "ready_http_200",
+    "order_status_probe_http_404",
+    "order_status_marker_absent",
+    "runtime_entry_src_index_ts_exact_target_bytes"
+  ],
+  "preconditions": {
+    "canonical_main_and_origin_main_frozen": true,
+    "deployment_lane_has_no_unique_commits": true,
+    "disposable_build_green": true,
+    "existing_process_predates_target_commit": true,
+    "health_200": true,
+    "http_integration_proof_green": true,
+    "live_entry_matches_exact_main_rehearsal": true,
+    "order_status_404": true,
+    "order_status_configuration_absent": true,
+    "order_status_marker_absent": true,
+    "readiness_closeout_verified": true,
+    "readiness_proof_green": true,
+    "ready_200": true,
+    "runner_dependency_artifact_excluded": true,
+    "runtime_entry_is_repo_local_src_index_ts": true,
+    "service_loaded_active_running": true,
+    "v4_runner_artifact_superseded": true
+  },
+  "ready_for_activation": false,
+  "ready_for_disabled_deployment": true,
+  "target": {
+    "commit": "3c5ae398366a959c198096f2051ae37cd64e4e7e",
+    "http_port": 4100,
+    "runtime_entry_bytes": 3849108,
+    "runtime_entry_relative_path": "src/index.ts",
+    "runtime_entry_sha256": "21cad5bc4863c78d4a17e8f4289f4dba833fcbe6d98e708edd7bae5c1bbed7c4",
+    "service_exec_start_sha256": "718cad67a66813fbcc1ba5560905ce7b3677d255e9c736e478a9972e17ad0f5a",
+    "service_fragment_sha256": "c3d3d869164774a9b350840a72934cbd1964a8d62e2a8f3f281d78b760f4e967",
+    "service_name": "void-node-live.service"
+  },
+  "version": 1
+}

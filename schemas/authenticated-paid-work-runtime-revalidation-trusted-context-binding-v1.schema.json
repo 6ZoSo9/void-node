@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-runtime-revalidation-trusted-context-binding-v1.schema.json",
+  "title": "Authenticated paid-work runtime revalidation trusted-context binding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authority",
+    "binding_id",
+    "marker",
+    "observation",
+    "protocol",
+    "receipt_id",
+    "trusted_context"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_TRUSTED_CONTEXT_BINDING_V1"
+    },
+    "protocol": {
+      "const": "void-authenticated-paid-work-runtime-revalidation-trusted-context-binding/1"
+    },
+    "binding_id": {
+      "type": "string",
+      "pattern": "^voidapwrtcb1_[a-f0-9]{64}$"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^voidapwrr1_[a-f0-9]{64}$"
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluated_at_utc"
+      ],
+      "properties": {
+        "evaluated_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+        }
+      }
+    },
+    "trusted_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_contents_disclosed",
+        "bundle_contract_marker",
+        "bundle_contract_verified",
+        "bundle_contract_version",
+        "bundle_path_fingerprint_sha256",
+        "bundle_path_fingerprint_verified",
+        "bundle_sha256",
+        "bundle_sha256_verified",
+        "maximum_bundle_bytes",
+        "private_bundle_read_performed",
+        "private_path_disclosed",
+        "provider_binding_verified",
+        "reference_metadata_verified",
+        "secret_material_disclosed",
+        "trusted_context_metadata_commit",
+        "trusted_context_metadata_marker",
+        "trusted_context_metadata_status",
+        "trusted_context_reference_id"
+      ],
+      "properties": {
+        "trusted_context_metadata_commit": {
+          "const": "ac074d53ab937d302c69b6bff54f02d064e37d57"
+        },
+        "trusted_context_metadata_marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_TRUSTED_CONTEXT_REFERENCE_METADATA_V1"
+        },
+        "trusted_context_metadata_status": {
+          "const": "source_reference_only_activation_forbidden"
+        },
+        "trusted_context_reference_id": {
+          "const": "void-authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1"
+        },
+        "bundle_contract_marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1"
+        },
+        "bundle_contract_version": {
+          "const": 1
+        },
+        "bundle_sha256": {
+          "const": "6bf506fa7637fca967a21dd70ba8be7e940194397fc6bf51077309bd7f755a96"
+        },
+        "bundle_path_fingerprint_sha256": {
+          "const": "606f2f3aaec35e0534d12ff5a28ee94301b8c24f370e949ec26e75e91963456a"
+        },
+        "maximum_bundle_bytes": {
+          "const": 25165824
+        },
+        "reference_metadata_verified": {
+          "const": true
+        },
+        "bundle_contract_verified": {
+          "const": true
+        },
+        "bundle_sha256_verified": {
+          "const": true
+        },
+        "bundle_path_fingerprint_verified": {
+          "const": true
+        },
+        "provider_binding_verified": {
+          "const": true
+        },
+        "private_bundle_read_performed": {
+          "const": true
+        },
+        "private_path_disclosed": {
+          "const": false
+        },
+        "bundle_contents_disclosed": {
+          "const": false
+        },
+        "secret_material_disclosed": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "activation_authorized",
+        "deployment",
+        "fund_movement",
+        "live_authentication",
+        "payment_execution",
+        "service_restart",
+        "signing",
+        "transaction_broadcast",
+        "transaction_construction",
+        "wallet_or_signer_access",
+        "work_credit_write",
+        "work_dispatch"
+      ],
+      "properties": {
+        "activation_authorized": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "live_authentication": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "transaction_construction": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "signing": {
+          "const": false
+        },
+        "fund_movement": {
+          "const": false
+        }
+      }
+    }
+  }
+}

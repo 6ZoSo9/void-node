@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-provider-trust-registry-snapshot-v1.schema.json",
+  "title": "VOID Public Agent Service Provider Trust Registry Snapshot V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "evidence_mode",
+    "trust_root",
+    "snapshot_body",
+    "authentication_envelope"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "evidence_mode": {
+      "enum": [
+        "example_fixture",
+        "operator_signed_snapshot"
+      ]
+    },
+    "trust_root": {
+      "$ref": "#/$defs/trust_root"
+    },
+    "snapshot_body": {
+      "$ref": "#/$defs/snapshot_body"
+    },
+    "authentication_envelope": {
+      "$ref": "#/$defs/authentication_envelope"
+    }
+  },
+  "$defs": {
+    "iso_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "public_key_pem": {
+      "type": "string",
+      "minLength": 80,
+      "maxLength": 2048,
+      "pattern": "^-----BEGIN PUBLIC KEY-----\\n[\\s\\S]+\\n-----END PUBLIC KEY-----\\n$"
+    },
+    "trust_root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "trust_status",
+        "authority_scope",
+        "key_id",
+        "public_key_pem",
+        "valid_from_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "root_nonce",
+        "root_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_ROOT_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "trust_status": {
+          "enum": [
+            "example_fixture",
+            "operator_pinned_trust_root"
+          ]
+        },
+        "authority_scope": {
+          "const": "provider_trust_registry_snapshot_verify"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        },
+        "public_key_pem": {
+          "$ref": "#/$defs/public_key_pem"
+        },
+        "valid_from_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "expires_at_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "revoked_at_utc": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/iso_utc"
+            }
+          ]
+        },
+        "root_nonce": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+        },
+        "root_id": {
+          "type": "string",
+          "pattern": "^voidaptr1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provider_key_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "binding_status",
+        "provider_id",
+        "authority_scope",
+        "key_id",
+        "public_key_pem",
+        "valid_from_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "binding_nonce",
+        "binding_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_KEY_BINDING_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "binding_status": {
+          "enum": [
+            "example_fixture",
+            "operator_approved_snapshot"
+          ]
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_scope": {
+          "const": "provider_quote_response_authenticate"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        },
+        "public_key_pem": {
+          "$ref": "#/$defs/public_key_pem"
+        },
+        "valid_from_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "expires_at_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "revoked_at_utc": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/iso_utc"
+            }
+          ]
+        },
+        "binding_nonce": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^voidapkb1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "snapshot_body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "snapshot_status",
+        "registry_id",
+        "sequence",
+        "previous_snapshot_id",
+        "generated_at_utc",
+        "expires_at_utc",
+        "snapshot_nonce",
+        "provider_key_bindings"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_BODY_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "snapshot_status": {
+          "enum": [
+            "example_fixture",
+            "operator_approved_snapshot"
+          ]
+        },
+        "registry_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previous_snapshot_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^voidapts1_[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "generated_at_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "expires_at_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "snapshot_nonce": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+        },
+        "provider_key_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1024,
+          "items": {
+            "$ref": "#/$defs/provider_key_binding"
+          }
+        }
+      }
+    },
+    "authentication_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "signature_scheme",
+        "signature_domain",
+        "canonicalization",
+        "snapshot_id",
+        "trust_root_id",
+        "key_id",
+        "signed_at_utc",
+        "signature_base64",
+        "authentication_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_AUTHENTICATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "signature_scheme": {
+          "const": "ed25519-spki-sha256-v1"
+        },
+        "signature_domain": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_V1"
+        },
+        "canonicalization": {
+          "const": "void-canonical-json-v1"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "pattern": "^voidapts1_[0-9a-f]{64}$"
+        },
+        "trust_root_id": {
+          "type": "string",
+          "pattern": "^voidaptr1_[0-9a-f]{64}$"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        },
+        "signed_at_utc": {
+          "$ref": "#/$defs/iso_utc"
+        },
+        "signature_base64": {
+          "type": "string",
+          "minLength": 88,
+          "maxLength": 88
+        },
+        "authentication_id": {
+          "type": "string",
+          "pattern": "^voidaptsa1_[0-9a-f]{64}$"
+        }
+      }
+    }
+  },
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_PROVIDER_TRUST_REGISTRY_SNAPSHOT_SCHEMA_V1",
+  "x_void_authority": {
+    "provider_selection": false,
+    "quote_publication": false,
+    "quote_acceptance": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "work_execution_authorization": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_access": false,
+    "runtime_mutation": false,
+    "money_movement": false
+  }
+}

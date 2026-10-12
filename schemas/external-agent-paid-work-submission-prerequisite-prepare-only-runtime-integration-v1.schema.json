@@ -1,0 +1,834 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-submission-prerequisite-prepare-only-runtime-integration-v1.schema.json",
+  "title": "VOID External Agent Paid Work Submission Prerequisite Prepare-Only Runtime Integration V1",
+  "description": "Disabled-by-default source-level integration that may create a private-staged Datanet object and private handoff files while forbidding runtime mount, token access, Authorization creation, and authenticated submission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "command_template",
+    "activation"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "max_datanet_object_bytes",
+        "max_prepared_request_bytes"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_INTEGRATION_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_datanet_object_bytes": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 1048576
+        },
+        "max_prepared_request_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 65536
+        }
+      }
+    },
+    "command_template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "operation_id",
+        "paid_work_base_url",
+        "output_directory",
+        "datanet",
+        "submission"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_INTEGRATION_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "paid_work_base_url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "output_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "datanet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "public_base_url",
+            "staging_root",
+            "receipt"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "create",
+                "existing"
+              ]
+            },
+            "public_base_url": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 4096
+            },
+            "staging_root": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "receipt": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/datanetReceipt"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "create"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "staging_root": {
+                    "minLength": 1
+                  },
+                  "receipt": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "existing"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "staging_root": {
+                    "const": ""
+                  },
+                  "receipt": {
+                    "$ref": "#/$defs/datanetReceipt"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "submission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "submission_id",
+            "work_order_draft",
+            "admission_policy",
+            "evaluated_at_utc"
+          ],
+          "properties": {
+            "submission_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            },
+            "work_order_draft": {
+              "$ref": "#/$defs/workOrderDraft"
+            },
+            "admission_policy": {
+              "$ref": "#/$defs/admissionPolicy"
+            },
+            "evaluated_at_utc": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": "prepareExternalAgentPaidWorkSubmissionPrerequisiteRuntimeV1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_enabled",
+        "apply_confirmation",
+        "runtime_mount",
+        "network_listener_creation",
+        "token_read",
+        "authorization_header_materialized",
+        "authenticated_submission_post"
+      ],
+      "properties": {
+        "default_enabled": {
+          "const": false
+        },
+        "apply_confirmation": {
+          "const": "prepareExternalAgentPaidWorkSubmissionPrerequisiteRuntimeV1"
+        },
+        "runtime_mount": {
+          "const": false
+        },
+        "network_listener_creation": {
+          "const": false
+        },
+        "token_read": {
+          "const": false
+        },
+        "authorization_header_materialized": {
+          "const": false
+        },
+        "authenticated_submission_post": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "datanetReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "created_at",
+        "host",
+        "object_id",
+        "dir_id",
+        "sha256",
+        "bytes",
+        "object_path",
+        "receipt_path",
+        "public_path",
+        "receipt_public_path",
+        "url",
+        "verified_locally",
+        "dangerous_paths_touched"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_DATANET_FIELD_OBJECT_CREATE_V1_GREEN"
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "object_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "dir_id": {
+          "type": "string",
+          "pattern": "^sha256-[0-9a-f]{64}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "object_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "receipt_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "public_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "receipt_public_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "verified_locally": {
+          "const": true
+        },
+        "dangerous_paths_touched": {
+          "const": false
+        }
+      }
+    },
+    "workOrderDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "created_at_utc",
+        "expires_at_utc",
+        "requester",
+        "service",
+        "commercial",
+        "execution_limits",
+        "nonce"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "created_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+        },
+        "requester": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent_id",
+            "callback_uri"
+          ],
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128
+            },
+            "callback_uri": {
+              "type": "string",
+              "format": "uri",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capability_id",
+            "objective",
+            "input_refs",
+            "expected_outputs"
+          ],
+          "properties": {
+            "capability_id": {
+              "const": "datanet.fetch_verify"
+            },
+            "objective": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "input_refs": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "expected_outputs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "commercial": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "quote_asset",
+            "max_total",
+            "payment_required_before_execution"
+          ],
+          "properties": {
+            "quote_asset": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9._-]{1,15}$"
+            },
+            "max_total": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"
+            },
+            "payment_required_before_execution": {
+              "type": "boolean"
+            }
+          }
+        },
+        "execution_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_runtime_seconds",
+            "max_output_bytes",
+            "external_side_effects_allowed",
+            "wallet_access_allowed",
+            "money_movement_allowed"
+          ],
+          "properties": {
+            "max_runtime_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            },
+            "external_side_effects_allowed": {
+              "const": false
+            },
+            "wallet_access_allowed": {
+              "const": false
+            },
+            "money_movement_allowed": {
+              "const": false
+            }
+          }
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        }
+      }
+    },
+    "admissionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "policy_id",
+        "allowed_capability_ids",
+        "max_total_by_asset",
+        "max_runtime_seconds",
+        "max_output_bytes",
+        "max_input_refs",
+        "max_expected_outputs",
+        "max_ttl_seconds",
+        "require_https_callback",
+        "callback_policy",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_POLICY_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "allowed_capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "contains": {
+            "const": "datanet.fetch_verify"
+          },
+          "uniqueItems": true
+        },
+        "max_total_by_asset": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 32,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,18})?$"
+          }
+        },
+        "max_runtime_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "max_input_refs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "max_expected_outputs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "max_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 604800
+        },
+        "require_https_callback": {
+          "const": true
+        },
+        "callback_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "forbid_credentials",
+            "forbid_fragment",
+            "forbid_loopback",
+            "forbid_private_ip_literals"
+          ],
+          "properties": {
+            "forbid_credentials": {
+              "const": true
+            },
+            "forbid_fragment": {
+              "const": true
+            },
+            "forbid_loopback": {
+              "const": true
+            },
+            "forbid_private_ip_literals": {
+              "const": true
+            }
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider_selection_authorized",
+            "quote_creation_authorized",
+            "payment_authorized",
+            "work_execution_authorized",
+            "work_dispatch_authorized",
+            "wc_award_authorized",
+            "wc_ledger_write_authorized",
+            "wallet_or_signer_access_authorized",
+            "buy_void_fulfillment_authorized"
+          ],
+          "properties": {
+            "provider_selection_authorized": {
+              "const": false
+            },
+            "quote_creation_authorized": {
+              "const": false
+            },
+            "payment_authorized": {
+              "const": false
+            },
+            "work_execution_authorized": {
+              "const": false
+            },
+            "work_dispatch_authorized": {
+              "const": false
+            },
+            "wc_award_authorized": {
+              "const": false
+            },
+            "wc_ledger_write_authorized": {
+              "const": false
+            },
+            "wallet_or_signer_access_authorized": {
+              "const": false
+            },
+            "buy_void_fulfillment_authorized": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "operation_id",
+        "paid_work_base_url",
+        "output_directory",
+        "datanet",
+        "submission"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_INTEGRATION_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "paid_work_base_url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "output_directory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "datanet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "public_base_url",
+            "staging_root",
+            "receipt"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "create",
+                "existing"
+              ]
+            },
+            "public_base_url": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 4096
+            },
+            "staging_root": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "receipt": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/datanetReceipt"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "create"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "staging_root": {
+                    "minLength": 1
+                  },
+                  "receipt": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "existing"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "staging_root": {
+                    "const": ""
+                  },
+                  "receipt": {
+                    "$ref": "#/$defs/datanetReceipt"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "submission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "submission_id",
+            "work_order_draft",
+            "admission_policy",
+            "evaluated_at_utc"
+          ],
+          "properties": {
+            "submission_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            },
+            "work_order_draft": {
+              "$ref": "#/$defs/workOrderDraft"
+            },
+            "admission_policy": {
+              "$ref": "#/$defs/admissionPolicy"
+            },
+            "evaluated_at_utc": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": "prepareExternalAgentPaidWorkSubmissionPrerequisiteRuntimeV1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

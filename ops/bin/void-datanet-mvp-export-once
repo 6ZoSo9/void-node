@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE="${BASE:-http://127.0.0.1:4100}"
+REPO="${REPO:-$HOME/dev/void-node}"
+TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
+
+OUT_FILE="${OUT_FILE:-$TEXTFILE_DIR/void_datanet_mvp_roundtrip.prom}"
+ROUNDTRIP="${ROUNDTRIP:-$REPO/ops/bin/datanet-mvp-roundtrip.sh}"
+
+NOW="$(date +%s)"
+
+LAST_OK_FILE="${TEXTFILE_DIR}/void_datanet_mvp_roundtrip_last_ok_ts_seconds.txt"
+LAST_OK="0"
+if [ -f "$LAST_OK_FILE" ]; then
+  LAST_OK="$(cat "$LAST_OK_FILE" 2>/dev/null || echo 0)"
+fi
+
+TMP_OUT="$(mktemp)"
+SMOKE_OUT="$(mktemp)"
+
+OK=0
+ERR="roundtrip_failed"
+
+# run roundtrip
+if bash "$ROUNDTRIP" "export-$NOW" >"$SMOKE_OUT" 2>&1; then
+  OK=1
+  ERR="ok"
+  LAST_OK="$NOW"
+  printf '%s\n' "$LAST_OK" >"$LAST_OK_FILE".tmp
+  install -m 0644 "$LAST_OK_FILE".tmp "$LAST_OK_FILE"
+  rm -f "$LAST_OK_FILE".tmp
+fi
+
+cat >"$TMP_OUT" <<EOM
+# HELP void_datanet_mvp_roundtrip_ok DataNet MVP v1 publish->fetch->decrypt roundtrip (1=ok,0=fail)
+# TYPE void_datanet_mvp_roundtrip_ok gauge
+void_datanet_mvp_roundtrip_ok $OK
+# HELP void_datanet_mvp_roundtrip_last_run_ts_seconds Last run timestamp (epoch seconds)
+# TYPE void_datanet_mvp_roundtrip_last_run_ts_seconds gauge
+void_datanet_mvp_roundtrip_last_run_ts_seconds $NOW
+# HELP void_datanet_mvp_roundtrip_last_ok_ts_seconds Last OK timestamp (epoch seconds; 0 if never)
+# TYPE void_datanet_mvp_roundtrip_last_ok_ts_seconds gauge
+void_datanet_mvp_roundtrip_last_ok_ts_seconds $LAST_OK
+# HELP void_datanet_mvp_roundtrip_last_err_info 1 with label err=... when last run failed (err="ok" => value 0)
+# TYPE void_datanet_mvp_roundtrip_last_err_info gauge
+void_datanet_mvp_roundtrip_last_err_info{err="$ERR"} $( [ "$OK" -eq 1 ] && echo 0 || echo 1 )
+EOM
+
+# atomic-ish install
+install -m 0644 "$TMP_OUT" "$OUT_FILE"
+rm -f "$TMP_OUT"
+
+# on failure, print tail + exit nonzero
+if [ "$OK" -ne 1 ]; then
+  echo "[WARN] roundtrip failed; last 60 lines:" >&2
+  tail -n 60 "$SMOKE_OUT" >&2 || true
+  rm -f "$SMOKE_OUT"
+  exit 10
+fi
+
+rm -f "$SMOKE_OUT"
+exit 0

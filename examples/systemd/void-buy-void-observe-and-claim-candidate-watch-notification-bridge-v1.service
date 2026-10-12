@@ -1,0 +1,16 @@
+[Unit]
+Description=VOID Buy VOID candidate-watch notification bridge V1
+After=void-buy-void-observe-and-claim-candidate-watch-v1.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/node_modules/.bin/tsx %h/dev/void-node/scripts/buy_void_observe_and_claim_candidate_watch_notification_bridge_v1.ts --watch-state-dir %h/.local/state/void-buy-void-observe-and-claim-candidate-watch-v1 --watch-output %h/void-precision-smoke/buy-void-observe-and-claim-candidate-watch-latest.json --bridge-state-dir %h/.local/state/void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1 --health-output %h/void-precision-smoke/buy-void-observe-and-claim-candidate-watch-notification-bridge-health-v1.json
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1 %h/void-precision-smoke
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077

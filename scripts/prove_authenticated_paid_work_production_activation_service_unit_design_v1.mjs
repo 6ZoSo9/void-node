@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const A = path.join(ROOT, "ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json");
+const S = path.join(ROOT, "schemas/authenticated-paid-work-production-activation-service-unit-design-v1.schema.json");
+const D = path.join(ROOT, "docs/operations/authenticated-paid-work-production-activation-service-unit-design-v1.md");
+const W = path.join(ROOT, ".github/workflows/authenticated-paid-work-production-activation-service-unit-design-v1.yml");
+const EXPECTED_SHA = "f37bcf3931579e13a76e7ab2d03e9d961260fa0e9ec95ca4507bd06e3df38b07";
+const EXPECTED_PATHS = [".github/workflows/authenticated-paid-work-production-activation-service-unit-design-v1.yml", "docs/operations/authenticated-paid-work-production-activation-service-unit-design-v1.md", "ops/mainnet0/authenticated-paid-work-production-activation-service-unit-design-v1.json", "schemas/authenticated-paid-work-production-activation-service-unit-design-v1.schema.json", "scripts/prove_authenticated_paid_work_production_activation_service_unit_design_v1.mjs"];
+const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const readJson = (filename) => JSON.parse(fs.readFileSync(filename, "utf8"));
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const artifactBytes = fs.readFileSync(A);
+assert.equal(digest(artifactBytes), EXPECTED_SHA);
+const artifact = JSON.parse(artifactBytes);
+const schema = readJson(S);
+const expectedArtifact = {"$schema":"https://void.network/schemas/authenticated-paid-work-production-activation-service-unit-design-v1.schema.json","authority":{"activation_configuration_written":false,"credential_or_token_read":false,"daemon_reload":false,"environment_file_created":false,"fund_movement":false,"payment_execution":false,"runtime_listener_created":false,"separate_activation_execution_lane_required":true,"service_enabled":false,"service_restarted":false,"service_started":false,"service_unit_file_created":false,"service_unit_installed":false,"source_design_created":true,"trusted_context_bundle_read":false,"wallet_or_signer_access":false,"work_credit_write":false,"work_dispatch":false},"design_scope":{"artifact_type":"service_unit_design","closes_blocker":"service_unit_design","contains_secret_material":false,"media_type":"application/json","publication_effect":"source_only_no_service_unit_materialized","readiness_decision_after_publication":"HOLD","reference_id":"void-authenticated-paid-work-production-activation-service-unit-design-v1","remaining_blocker_count":4,"remaining_blockers":["credential_reference_metadata","bounded_replay_snapshot","activation_execution_confirmation","live_canary_scope"],"schema_id":"https://void.network/schemas/authenticated-paid-work-production-activation-service-unit-design-v1.schema.json","separately_reviewed":true},"execution_model":{"automatic_restart_forbidden":true,"automatic_start_forbidden":true,"concurrent_instances_forbidden":true,"invocation_cardinality":"one_prepared_command_per_explicit_start","kill_mode":"mixed","kill_signal":"SIGTERM","network_listener_created_by_unit":false,"remain_after_exit":false,"restart_delay_seconds":0,"restart_policy":"no","send_sigkill":true,"service_type":"oneshot","standard_error":"journal","standard_output":"journal","syslog_identifier":"void-authenticated-paid-work-runtime-v1","timeout_start_seconds":120,"timeout_stop_seconds":30,"umask":"0077"},"marker":"VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1","materialization_contract":{"atomic_no_replace_unit_write_required":true,"daemon_reload_requires_separate_activation_execution":true,"environment_file_write_requires_separate_activation_execution":true,"materialization_performed_by_this_artifact":false,"node_placeholder_must_be_replaced_exactly_once":true,"post_write_byte_digest_required":true,"post_write_mode_owner_verification_required":true,"private_reference_values_must_not_be_logged":true,"service_enable_forbidden":true,"service_start_requires_separate_activation_execution":true,"unit_file_write_requires_separate_activation_execution":true},"network":{"chain_id":2050,"identity":"mainnet0","name":"VOID Mainnet-0"},"pre_start_gates":["all_reviewed_activation_artifact_ids_and_digests_match","node_executable_is_absolute_regular_and_major_22","current_pointer_targets_exact_immutable_release","compiled_entry_matches_installation_manifest","enabled_configuration_matches_reviewed_instance","command_reference_is_absolute_owner_private_regular_file","trusted_context_reference_matches_reviewed_path_fingerprint_and_bundle_sha256","credential_reference_is_attached_without_secret_output","bounded_replay_snapshot_matches_reviewed_state","service_unit_is_inactive_before_start","explicit_activation_execution_confirmation_is_verified"],"provenance":{"activation_configuration":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-configuration-v1.json","sha256":"abe7974246d47a4802a936e78f952d6db76d98cccfccc1ce7130309c56b3ee8f"},"disabled_installer":{"compiled_entry_relative_path":"dist/scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.js","path":"ops/mainnet0/install_authenticated_paid_work_runtime_disabled_production_v1.py","release_id":"paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d","runtime_source_commit":"3b298bc1e31365aec7a20d03c3f425e22fd2f949","runtime_source_sha256":"3248f5720121d699e5ea4fe34554f7c0ee75ae1f751a8ade7f0a93e3ce72f1b7","sha256":"f7dda62a34e9fa436ac45d62d59a6c7b25823e4d9d6eef7b2c4e80064377f624"},"repository":"6ZoSo9/void-node","rollback_plan":{"path":"ops/mainnet0/authenticated-paid-work-runtime-disabled-production-rollback-plan-v1.json","sha256":"31470e837beb091f3fb63617c5b5e1afa6268e8e4d81480037e1e459df426c2c"},"source_base_commit":"ac074d53ab937d302c69b6bff54f02d064e37d57","trusted_context_reference_metadata":{"path":"config/activation-candidates/authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1.json","sha256":"49a84ccd443eab216f38bc926838272fb82999c0530bd76cb3cb259deac5259a"}},"runtime_binding":{"command_path_environment_variable":"VOID_AUTHENTICATED_PAID_WORK_RUNTIME_COMMAND_PATH","compiled_entry_path":"/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/current/dist/scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.js","compiled_entry_resolved_through_current_pointer":true,"current_pointer":"/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/current","enabled_config_path":"/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/enabled-config.json","environment_file_contains_secret_material":false,"environment_file_mode":"0600","environment_file_path":"/home/zoso/.config/void/authenticated-paid-work-runtime-v1.env","exec_start_argv_template":["@VOID_NODE_EXECUTABLE_ABSOLUTE_PATH@","/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/current/dist/scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.js","execute","/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/enabled-config.json","${VOID_AUTHENTICATED_PAID_WORK_RUNTIME_COMMAND_PATH}","${VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH}"],"install_root":"/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1","node_executable_must_be_absolute":true,"node_executable_must_be_regular_file":true,"node_executable_placeholder":"@VOID_NODE_EXECUTABLE_ABSOLUTE_PATH@","node_executable_resolved_by_activation_execution_preflight":true,"node_major_required":22,"release_id":"paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d","runtime_cli_mode":"execute","source_commits_command_path":false,"source_commits_credential_or_token":false,"source_commits_node_path":false,"source_commits_trusted_context_path":false,"trusted_context_path_environment_variable":"VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH"},"status":"reviewed_source_design_materialization_forbidden","stop_and_rollback_contract":{"automatic_reactivation_forbidden":true,"disable_command":["systemctl","--user","disable","void-authenticated-paid-work-runtime-v1.service"],"reset_failed_command":["systemctl","--user","reset-failed","void-authenticated-paid-work-runtime-v1.service"],"stop_before_economic_reconciliation":true,"stop_before_reference_detach":true,"stop_command":["systemctl","--user","stop","void-authenticated-paid-work-runtime-v1.service"],"success_state":{"active_state":"inactive","restart_scheduled":false,"runtime_listener_present":false,"sub_state":"dead","unit_file_state":"static_or_disabled"}},"unit_directive_contract":{"exec_start_rendered_only_after_preflight":true,"forbidden_directives":["Restart=always","Restart=on-failure","RemainAfterExit=yes","WantedBy=","RequiredBy=","Alias=","Socket=","OnCalendar=","PathExists="],"sections":["Unit","Service"],"service":{"EnvironmentFile":"/home/zoso/.config/void/authenticated-paid-work-runtime-v1.env","KillMode":"mixed","KillSignal":"SIGTERM","RemainAfterExit":"no","Restart":"no","SendSIGKILL":"yes","StandardError":"journal","StandardOutput":"journal","SyslogIdentifier":"void-authenticated-paid-work-runtime-v1","TimeoutStartSec":"120s","TimeoutStopSec":"30s","Type":"oneshot","UMask":"0077","WorkingDirectory":"/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1"},"unit":{"Description":"VOID authenticated paid-work runtime v1"}},"unit_identity":{"active_after_materialization":false,"alias_units":[],"enabled_after_materialization":false,"install_section_present":false,"manager_scope":"systemd_user","path_units":[],"socket_units":[],"timer_units":[],"unit_file_mode":"0600","unit_file_owner":"zoso","unit_file_path":"/home/zoso/.config/systemd/user/void-authenticated-paid-work-runtime-v1.service","unit_name":"void-authenticated-paid-work-runtime-v1.service"},"version":1};
+assert.deepEqual(artifact, expectedArtifact);
+assert.equal(schema.additionalProperties, false);
+assert.deepEqual(Object.keys(artifact), schema.required);
+for (const key of schema.required) assert.deepEqual(artifact[key], schema.properties[key].const, key);
+
+for (const ref of [artifact.provenance.disabled_installer, artifact.provenance.activation_configuration, artifact.provenance.trusted_context_reference_metadata, artifact.provenance.rollback_plan]) {
+  assert.equal(digest(fs.readFileSync(path.join(ROOT, ref.path))), ref.sha256, ref.path);
+}
+const installer = fs.readFileSync(path.join(ROOT, artifact.provenance.disabled_installer.path), "utf8");
+const installerPacketId = "voidapwrdp1_64841279f90db042c455ed8bdd3e865cb9a791b224bffc309acae11696bc9784";
+const derivedReleaseId = `paid-work-runtime-disabled-v1-${artifact.provenance.disabled_installer.runtime_source_commit.slice(0, 12)}-${installerPacketId.split("_").at(-1).slice(0, 12)}`;
+assert.equal(artifact.provenance.disabled_installer.release_id, derivedReleaseId);
+for (const token of [artifact.provenance.disabled_installer.runtime_source_commit, artifact.provenance.disabled_installer.runtime_source_sha256, "run-disabled.sh", `"service_unit_required": False`, `"service_restart_required": False`, `"network_listener_required": False`, "RELEASE_ID = (", `"paid-work-runtime-disabled-v1-"`, "RUNTIME_SOURCE_COMMIT[:12]", "PACKET_ID.rsplit('_', 1)[-1][:12]"]) assert.ok(installer.includes(token), token);
+const compiledAssignment = installer.match(/RUNTIME_JS_RELATIVE\s*=\s*\(([\s\S]*?)\)\s*\n/);
+assert.ok(compiledAssignment, "RUNTIME_JS_RELATIVE assignment missing");
+const compiledFragments = [...compiledAssignment[1].matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+assert.equal(compiledFragments.join(""), artifact.provenance.disabled_installer.compiled_entry_relative_path);
+const activation = readJson(path.join(ROOT, artifact.provenance.activation_configuration.path));
+assert.equal(activation.enabled, true);
+assert.equal(activation.persistence_config.allowed_root, "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/activation");
+const trusted = readJson(path.join(ROOT, artifact.provenance.trusted_context_reference_metadata.path));
+assert.equal(trusted.trusted_context_reference.bundle_path_environment_variable, "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH");
+assert.equal(trusted.trusted_context_reference.bundle_path_disclosed_in_source, false);
+const rollback = readJson(path.join(ROOT, artifact.provenance.rollback_plan.path));
+assert.ok(rollback.rollback_sequence.some((step) => step.id === "stop_and_disable_reviewed_runtime_unit"));
+for (const item of ["runtime_service_inactive", "automatic_restart_disabled", "runtime_listener_absent"]) assert.ok(rollback.success_criteria.includes(item));
+
+assert.equal(artifact.design_scope.closes_blocker, "service_unit_design");
+assert.equal(artifact.design_scope.remaining_blocker_count, 4);
+assert.equal(artifact.unit_identity.manager_scope, "systemd_user");
+assert.equal(artifact.unit_identity.install_section_present, false);
+assert.equal(artifact.execution_model.service_type, "oneshot");
+assert.equal(artifact.execution_model.restart_policy, "no");
+assert.equal(artifact.execution_model.automatic_start_forbidden, true);
+assert.equal(artifact.execution_model.automatic_restart_forbidden, true);
+assert.equal(artifact.execution_model.network_listener_created_by_unit, false);
+assert.deepEqual(artifact.runtime_binding.exec_start_argv_template, ["@VOID_NODE_EXECUTABLE_ABSOLUTE_PATH@", "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/current/dist/scripts/authenticated_paid_work_quote_acceptance_payment_authority_activation_persistence_runtime_binding_v1.js", "execute", "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/enabled-config.json", "${VOID_AUTHENTICATED_PAID_WORK_RUNTIME_COMMAND_PATH}", "${VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_BUNDLE_PATH}"]);
+assert.equal(artifact.materialization_contract.service_enable_forbidden, true);
+assert.equal(artifact.stop_and_rollback_contract.success_state.active_state, "inactive");
+assert.equal(artifact.stop_and_rollback_contract.success_state.restart_scheduled, false);
+for (const [key, value] of Object.entries(artifact.authority)) {
+  if (key === "source_design_created" || key === "separate_activation_execution_lane_required") assert.equal(value, true, key);
+  else assert.equal(value, false, key);
+}
+function reject(mutator) { const candidate = clone(artifact); mutator(candidate); assert.notDeepEqual(candidate, expectedArtifact); for (const key of schema.required) { if (JSON.stringify(candidate[key]) !== JSON.stringify(schema.properties[key].const)) return; } assert.fail("mutation accepted"); }
+reject((v) => v.execution_model.restart_policy = "always");
+reject((v) => v.unit_identity.install_section_present = true);
+reject((v) => v.execution_model.service_type = "simple");
+reject((v) => v.execution_model.network_listener_created_by_unit = true);
+reject((v) => v.materialization_contract.service_enable_forbidden = false);
+reject((v) => v.authority.service_unit_installed = true);
+reject((v) => v.design_scope.readiness_decision_after_publication = "READY");
+const workflow = fs.readFileSync(W, "utf8");
+for (const relative of EXPECTED_PATHS) assert.ok(workflow.includes(relative));
+assert.ok(workflow.includes("persist-credentials: false"));
+assert.ok(workflow.includes("node-version: \"22\""));
+const doc = fs.readFileSync(D, "utf8");
+for (const token of [EXPECTED_SHA, "void-authenticated-paid-work-runtime-v1.service", "systemd user oneshot", "Restart=no", "RemainAfterExit=no", "credential_reference_metadata", "bounded_replay_snapshot", "activation_execution_confirmation", "live_canary_scope"]) assert.ok(doc.includes(token), token);
+console.log("VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1_PROOF");
+console.log(`artifact_sha256=${EXPECTED_SHA}`);
+console.log("closes_blocker=service_unit_design");
+console.log("remaining_blocker_count=4");
+console.log("readiness_decision=HOLD");
+console.log("manager_scope=systemd_user");
+console.log("service_type=oneshot");
+console.log("restart_policy=no");
+console.log("install_section_present=false");
+console.log("service_unit_file_created=false");
+console.log("service_unit_installed=false");
+console.log("service_enabled=false");
+console.log("service_started=false");
+console.log("service_restarted=false");
+console.log("runtime_listener_created=false");
+console.log("credential_or_token_read=false");
+console.log("payment_execution=false");
+console.log("work_dispatch=false");
+console.log("work_credit_write=false");
+console.log("wallet_or_signer_access=false");
+console.log("fund_movement=false");
+console.log("VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_SERVICE_UNIT_DESIGN_V1_PROOF_GREEN");

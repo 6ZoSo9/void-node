@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/authenticated-paid-work-direct-quote-activation-authentication-v1.schema.json",
+  "title": "VOID authenticated paid-work direct quote activation authentication v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "evidence_mode",
+    "prepared_packet",
+    "provider_key_binding",
+    "provider_authentication_envelope",
+    "requester_key_binding",
+    "requester_authentication_envelope"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_QUOTE_ACTIVATION_AUTHENTICATION_V1"
+    },
+    "version": { "const": 1 },
+    "evidence_mode": {
+      "enum": ["example_fixture", "operator_signed_direct_lineage"]
+    },
+    "prepared_packet": {
+      "type": "object",
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "source",
+        "prepared_artifacts",
+        "acceptance_gate",
+        "payment_authority_gate",
+        "authority",
+        "packet_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_PACKET_V1"
+        },
+        "version": { "const": 1 },
+        "status": {
+          "const": "prepared_requires_authenticated_atomic_activation"
+        },
+        "packet_id": {
+          "type": "string",
+          "pattern": "^voidawqapa1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provider_key_binding": { "$ref": "#/$defs/provider_key_binding" },
+    "provider_authentication_envelope": {
+      "$ref": "#/$defs/provider_authentication_envelope"
+    },
+    "requester_key_binding": { "$ref": "#/$defs/requester_key_binding" },
+    "requester_authentication_envelope": {
+      "$ref": "#/$defs/requester_authentication_envelope"
+    }
+  },
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^ed25519:[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9+/]{4}){21}[A-Za-z0-9+/]{2}==$"
+    },
+    "provider_key_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "binding_status",
+        "provider_id",
+        "authority_scope",
+        "key_id",
+        "public_key_pem",
+        "valid_from_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "binding_nonce",
+        "binding_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_KEY_BINDING_V1"
+        },
+        "version": { "const": 1 },
+        "binding_status": {
+          "enum": ["example_fixture", "operator_approved_snapshot"]
+        },
+        "provider_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_scope": {
+          "const": "authenticated_paid_work_direct_quote_activate"
+        },
+        "key_id": { "$ref": "#/$defs/key_id" },
+        "public_key_pem": { "type": "string", "minLength": 80, "maxLength": 4096 },
+        "valid_from_utc": { "$ref": "#/$defs/utc" },
+        "expires_at_utc": { "$ref": "#/$defs/utc" },
+        "revoked_at_utc": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/utc" }]
+        },
+        "binding_nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{16,128}$"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^voidadpkb1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "requester_key_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "binding_status",
+        "requester_agent_id",
+        "authority_scope",
+        "key_id",
+        "public_key_pem",
+        "valid_from_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "binding_nonce",
+        "binding_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_KEY_BINDING_V1"
+        },
+        "version": { "const": 1 },
+        "binding_status": {
+          "enum": ["example_fixture", "operator_approved_snapshot"]
+        },
+        "requester_agent_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "authority_scope": { "const": "agent_paid_work_accept" },
+        "key_id": { "$ref": "#/$defs/key_id" },
+        "public_key_pem": { "type": "string", "minLength": 80, "maxLength": 4096 },
+        "valid_from_utc": { "$ref": "#/$defs/utc" },
+        "expires_at_utc": { "$ref": "#/$defs/utc" },
+        "revoked_at_utc": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/utc" }]
+        },
+        "binding_nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{16,128}$"
+        },
+        "binding_id": {
+          "type": "string",
+          "pattern": "^voidadrkb1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provider_authentication_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "signature_scheme",
+        "signature_domain",
+        "canonicalization",
+        "prepared_packet_id",
+        "prepared_packet_fingerprint_sha256",
+        "quote_id",
+        "work_order_id",
+        "acceptance_id",
+        "payment_intent_id",
+        "provider_id",
+        "provider_key_binding_id",
+        "authentication_nonce",
+        "created_at_utc",
+        "expires_at_utc",
+        "signature_base64",
+        "authentication_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_AUTHENTICATION_EVIDENCE_V1"
+        },
+        "version": { "const": 1 },
+        "signature_scheme": { "const": "ed25519-spki-sha256-v1" },
+        "signature_domain": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_AUTHENTICATION_V1"
+        },
+        "canonicalization": { "const": "void-canonical-json-v1" },
+        "prepared_packet_id": {
+          "type": "string",
+          "pattern": "^voidawqapa1_[0-9a-f]{64}$"
+        },
+        "prepared_packet_fingerprint_sha256": { "$ref": "#/$defs/sha256" },
+        "quote_id": { "type": "string", "pattern": "^voidawq1_[0-9a-f]{64}$" },
+        "work_order_id": { "type": "string", "pattern": "^voidawo1_[0-9a-f]{64}$" },
+        "acceptance_id": { "type": "string", "pattern": "^voidawa1_[0-9a-f]{64}$" },
+        "payment_intent_id": { "type": "string", "pattern": "^voidawpi1_[0-9a-f]{64}$" },
+        "provider_id": { "type": "string" },
+        "provider_key_binding_id": {
+          "type": "string",
+          "pattern": "^voidadpkb1_[0-9a-f]{64}$"
+        },
+        "authentication_nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{16,128}$"
+        },
+        "created_at_utc": { "$ref": "#/$defs/utc" },
+        "expires_at_utc": { "$ref": "#/$defs/utc" },
+        "signature_base64": { "$ref": "#/$defs/signature" },
+        "authentication_id": {
+          "type": "string",
+          "pattern": "^voidadpa1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "requester_authentication_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "signature_scheme",
+        "signature_domain",
+        "canonicalization",
+        "prepared_packet_id",
+        "prepared_packet_fingerprint_sha256",
+        "quote_id",
+        "work_order_id",
+        "acceptance_id",
+        "payment_intent_id",
+        "requester_agent_id",
+        "requester_key_binding_id",
+        "provider_authentication_id",
+        "acceptance_nonce",
+        "authentication_nonce",
+        "created_at_utc",
+        "expires_at_utc",
+        "signature_base64",
+        "authentication_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_AUTHENTICATION_EVIDENCE_V1"
+        },
+        "version": { "const": 1 },
+        "signature_scheme": { "const": "ed25519-spki-sha256-v1" },
+        "signature_domain": {
+          "const": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_AUTHENTICATION_V1"
+        },
+        "canonicalization": { "const": "void-canonical-json-v1" },
+        "prepared_packet_id": {
+          "type": "string",
+          "pattern": "^voidawqapa1_[0-9a-f]{64}$"
+        },
+        "prepared_packet_fingerprint_sha256": { "$ref": "#/$defs/sha256" },
+        "quote_id": { "type": "string", "pattern": "^voidawq1_[0-9a-f]{64}$" },
+        "work_order_id": { "type": "string", "pattern": "^voidawo1_[0-9a-f]{64}$" },
+        "acceptance_id": { "type": "string", "pattern": "^voidawa1_[0-9a-f]{64}$" },
+        "payment_intent_id": { "type": "string", "pattern": "^voidawpi1_[0-9a-f]{64}$" },
+        "requester_agent_id": { "type": "string" },
+        "requester_key_binding_id": {
+          "type": "string",
+          "pattern": "^voidadrkb1_[0-9a-f]{64}$"
+        },
+        "provider_authentication_id": {
+          "type": "string",
+          "pattern": "^voidadpa1_[0-9a-f]{64}$"
+        },
+        "acceptance_nonce": { "type": "string" },
+        "authentication_nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{16,128}$"
+        },
+        "created_at_utc": { "$ref": "#/$defs/utc" },
+        "expires_at_utc": { "$ref": "#/$defs/utc" },
+        "signature_base64": { "$ref": "#/$defs/signature" },
+        "authentication_id": {
+          "type": "string",
+          "pattern": "^voidadra1_[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

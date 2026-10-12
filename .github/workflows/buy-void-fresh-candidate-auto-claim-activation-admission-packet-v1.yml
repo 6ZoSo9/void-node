@@ -1,0 +1,29 @@
+name: Buy VOID fresh-candidate activation admission packet V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_fresh_candidate_auto_claim_activation_admission_packet_v1.ts"
+      - "scripts/buy_void_fresh_candidate_auto_claim_activation_admission_packet_v1.ts"
+      - "scripts/prove_buy_void_fresh_candidate_auto_claim_activation_admission_packet_v1.ts"
+      - "scripts/prove_buy_void_fresh_candidate_auto_claim_activation_admission_packet_guard_v1.ts"
+      - "docs/operators/buy-void-fresh-candidate-auto-claim-activation-admission-packet-v1.md"
+      - ".github/workflows/buy-void-fresh-candidate-auto-claim-activation-admission-packet-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install tsx scripts/prove_buy_void_fresh_candidate_auto_claim_activation_admission_packet_v1.ts
+      - run: npx --no-install tsx scripts/prove_buy_void_fresh_candidate_auto_claim_activation_admission_packet_guard_v1.ts

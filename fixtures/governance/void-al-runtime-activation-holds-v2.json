@@ -1,0 +1,62 @@
+{
+  "marker": "VOID_AL_RUNTIME_ACTIVATION_HOLDS_V2_20260824",
+  "status": "source_repair_activation_still_held",
+  "network": {
+    "chain_id": 2050,
+    "name": "VOID Mainnet-0"
+  },
+  "closed_current_main_debts": {
+    "al_zero_mutation_actor_hash_rejected": true,
+    "al_zero_check_evidence_rejected": true,
+    "malformed_decision_binds_rejected_content": true,
+    "emergency_zero_observed_head_hash_rejected": true,
+    "emergency_uint64_exhaustion_terminal_hold": "EMERGENCY_SEQUENCE_EXHAUSTED",
+    "proposer_authority_policy_latched_and_rechecked": true,
+    "canonical_mutation_exception_safe_modes": true,
+    "exact_durable_next_block_head_recovery_no_duplicate_append": true,
+    "direct_head_recovery_reenters_canonical_al": true,
+    "al_startup_head_disagreement_fails_closed": true
+  },
+  "remaining_activation_holds": {
+    "legacy_index_runtime": "HOLD_AL_LEGACY_INDEX_RUNTIME_NOT_RETIRED",
+    "bootstrap": "HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED",
+    "durable_safe_mode": "HOLD_AL_DURABLE_SAFE_MODE_STATE_REQUIRED",
+    "authority_source": "HOLD_AL_PROPOSER_AUTHORITY_SOURCE_OPERATIONAL_VALIDATION_REQUIRED"
+  },
+  "legacy_index_runtime_findings": {
+    "raw_saveBlockCommit_mentions_remain": true,
+    "direct_head_txt_or_heads_json_writers_remain": true,
+    "live_activation_allowed_while_present": false,
+    "retirement_or_canonical_migration_required": true
+  },
+  "authority_policy": {
+    "required_at_install": true,
+    "policy_environment_fingerprint_latched": true,
+    "policy_environment_drift_safe_modes": true,
+    "volatile_epoch_slot_context_excluded_from_policy_fingerprint": true,
+    "weak_or_unsigned_authority_source_declared_activation_ready": false
+  },
+  "storage_recovery": {
+    "physical_exact_head_plus_one_can_heal_head": true,
+    "exact_json_identity_required": true,
+    "durability_reasserted_before_head_advance": true,
+    "duplicate_block_frame_appended_during_head_heal": false,
+    "non_contiguous_head_recovery_allowed": false,
+    "direct_head_recovery_max_span": 10000,
+    "startup_disagreement_auto_healed_when_al_requested": false
+  },
+  "authority_boundary": {
+    "normal_node_entrypoint_changed": false,
+    "al_bootstrap_mounted": false,
+    "live_al_enabled": false,
+    "ordinary_authentication_changed": false,
+    "sovereign_usb_access": false,
+    "production_emergency_signature": false,
+    "chain2050_live_mutation": false,
+    "wallet_or_signer_access": false,
+    "validator_mutation": false,
+    "work_credit_mutation": false,
+    "treasury_mutation": false,
+    "money_movement": false
+  }
+}

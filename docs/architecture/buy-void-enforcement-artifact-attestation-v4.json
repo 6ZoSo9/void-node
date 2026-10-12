@@ -1,0 +1,49 @@
+{
+  "schema": "void_buy_void_enforcement_artifact_attestation_v4",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V4",
+  "version": 4,
+  "repository": "6ZoSo9/void-node",
+  "predecessor": {
+    "schema": "void_buy_void_enforcement_artifact_attestation_v3",
+    "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V3",
+    "manifest_path": "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
+    "manifest_git_blob_sha1": "e06475df2e2f8ad4731c59ece9a7262b5c28f938",
+    "enforcement_artifact_set_sha256": "7d6e000770a83a32e3c4706ac29f3474041a5376f2009c71e5ba00d04a1cdc3f"
+  },
+  "reviewed_source_generation": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5",
+    "source_stack_head": "07b88ef77d98b3806f97fe8df4b3c1699267ab66",
+    "reviewed_source_files_sha256": "554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e"
+  },
+  "compiled_artifact_generation": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
+    "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
+    "manifest_git_blob_sha1": "d6e97784c5d8be93713e733628c7d1ef746bb5c7",
+    "compiled_artifact_generation_sha256": "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add"
+  },
+  "current_enforcement": {
+    "enforcement_artifact_set_sha256": "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
+    "artifact_count": 23,
+    "input_count": 30,
+    "changed_input": {
+      "path": "Dockerfile",
+      "bytes": 2848,
+      "sha256": "11a08827f0b36fc81dabb4f6cbe647bce6e5cb171b64dcb177e3dda012b87e28",
+      "git_blob_sha1": "e8fec19ebe9b2cbad470983b79f824926aa4bec7"
+    }
+  },
+  "predecessor_delta": {
+    "removed_artifact_paths": [],
+    "added_artifact_paths": [],
+    "changed_artifact_paths": [],
+    "unchanged_artifact_count": 23,
+    "removed_input_paths": [],
+    "added_input_paths": [],
+    "changed_input_paths": [
+      "Dockerfile"
+    ],
+    "unchanged_input_count": 29
+  },
+  "production_source_finality_authority_ready": false,
+  "deployed_artifact_generation_verified": false
+}

@@ -1,0 +1,39 @@
+name: authenticated-paid-work-runtime-disabled-production-deployment-packet-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_deployment_packet_v1.mjs"
+      - "tools/void-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.schema.json"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_deployment_packet_v1.mjs"
+      - "tools/void-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax
+        run: |
+          node --check tools/void-authenticated-paid-work-runtime-disabled-production-deployment-packet-v1.mjs
+          node --check scripts/prove_authenticated_paid_work_runtime_disabled_production_deployment_packet_v1.mjs
+      - name: Prove disabled production deployment packet
+        run: node scripts/prove_authenticated_paid_work_runtime_disabled_production_deployment_packet_v1.mjs

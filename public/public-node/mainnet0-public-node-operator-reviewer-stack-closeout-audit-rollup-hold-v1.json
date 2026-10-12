@@ -1,0 +1,51 @@
+{
+  "schema": "void.public_node.mainnet0_public_node_operator_reviewer_stack_closeout_audit_rollup.v1",
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_REVIEWER_STACK_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+  "status": "hold",
+  "kind": "public_node_operator_reviewer_stack_closeout_audit_rollup",
+  "scope": "mainnet0_public_node_operator_reviewer_stack_public_discovery_closeout",
+  "route": "/public-node/mainnet0-public-node-operator-reviewer-stack-closeout-audit-rollup-hold-v1.json",
+  "source_chain": {
+    "reviewer_handoff_pack": {
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_REVIEWER_HANDOFF_PACK_HOLD_V1_GREEN",
+      "route": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.json",
+      "html_route": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.html"
+    },
+    "reviewer_final_seal": {
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+      "json_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+      "html_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html"
+    },
+    "reviewer_final_seal_index_link": {
+      "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_INDEX_LINK_HOLD_V1",
+      "route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-index-link-hold-v1.json"
+    }
+  },
+  "closeout_audit": {
+    "reviewer_handoff_pack_present": true,
+    "reviewer_final_seal_present": true,
+    "reviewer_final_seal_html_present": true,
+    "reviewer_final_seal_index_link_present": true,
+    "root_public_node_discovery_present": true,
+    "latest_handoff_pack_route": "/public-node/mainnet0-public-node-operator-reviewer-handoff-pack-hold-v1.json",
+    "latest_reviewer_final_seal_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+    "latest_reviewer_final_seal_html_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html",
+    "latest_index_link_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-index-link-hold-v1.json",
+    "operator_reviewer_stack_state": "public_visible_read_only_closeout_audited"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "closeout_audit_only": true,
+    "opens_public_validator_submit": false,
+    "opens_candidate_registration_or_intake": false,
+    "opens_stake_lock": false,
+    "opens_wallet_connect": false,
+    "opens_active_validator_admission": false,
+    "opens_epoch_activation": false,
+    "opens_validator_set_write": false,
+    "opens_validator_runtime_truth_write": false,
+    "opens_runtime_mutation_route": false
+  }
+}

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Operator Intake Review Decision Candidate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Operator Intake Review Decision Candidate</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CANDIDATE_HOLD_V1</code></p>
+    <p>Status: static operator decision candidate only.</p>
+
+    <h2>Allowed candidate outcomes</h2>
+    <ul>
+      <li>accept</li>
+      <li>reject</li>
+      <li>needs_more_info</li>
+    </ul>
+
+    <h2>Decision candidate template</h2>
+    <pre>{
+  &quot;operator_decision_id&quot;: &quot;operator-assigned decision id&quot;,
+  &quot;source_operator_review_packet_reference&quot;: &quot;operator review packet reference or copied hash&quot;,
+  &quot;worker_public_handle&quot;: &quot;copied from review packet&quot;,
+  &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+  &quot;decision_inputs&quot;: {
+    &quot;packet_is_public_safe&quot;: &quot;required true before accept&quot;,
+    &quot;no_secret_material&quot;: &quot;required true before accept&quot;,
+    &quot;work_pack_matches_lane&quot;: &quot;required true before accept&quot;,
+    &quot;evidence_is_reproducible_or_reviewer_openable&quot;: &quot;required true before accept&quot;,
+    &quot;duplicate_or_replay_screen&quot;: &quot;required no_duplicate_found before accept&quot;,
+    &quot;operator_notes&quot;: &quot;required human-readable review note&quot;
+  },
+  &quot;decision_options&quot;: {
+    &quot;accept&quot;: {
+      &quot;meaning&quot;: &quot;operator believes work is valid and can move to a future WC amount recommendation candidate&quot;,
+      &quot;allowed_here&quot;: true,
+      &quot;wc_amount_approved_here&quot;: false,
+      &quot;ledger_write_candidate_created_here&quot;: false
+    },
+    &quot;reject&quot;: {
+      &quot;meaning&quot;: &quot;operator believes packet fails lane requirements or safety checks&quot;,
+      &quot;allowed_here&quot;: true,
+      &quot;wc_amount_approved_here&quot;: false,
+      &quot;ledger_write_candidate_created_here&quot;: false
+    },
+    &quot;needs_more_info&quot;: {
+      &quot;meaning&quot;: &quot;operator needs more public-safe evidence before accept/reject&quot;,
+      &quot;allowed_here&quot;: true,
+      &quot;wc_amount_approved_here&quot;: false,
+      &quot;ledger_write_candidate_created_here&quot;: false
+    }
+  },
+  &quot;deterministic_decision_rules&quot;: [
+    &quot;accept requires all public-safety and lane-match checks to pass&quot;,
+    &quot;reject requires at least one failing safety, lane-match, reproducibility, or duplicate/replay check&quot;,
+    &quot;needs_more_info applies when evidence is incomplete but not unsafe&quot;,
+    &quot;no decision here may approve WC amount&quot;,
+    &quot;no decision here may write or append a WC ledger&quot;
+  ],
+  &quot;decision_fixture_created_here&quot;: false,
+  &quot;wc_amount_approved_here&quot;: false,
+  &quot;ledger_write_candidate_created_here&quot;: false
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No decision fixture created.</li>
+      <li>No approved WC amount.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No VOID transfer.</li>
+      <li>No wallet connect.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{
+  "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1",
+  "scope": "first_wc_to_void_settlement_public_reviewer_verify_pack",
+  "status": "ready",
+  "base_url_default": "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "value_wei": "1000000000000000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "review_targets": {
+    "dashboard": "/public-node",
+    "route_index": "/public-node/route-index.json",
+    "closeout_seal_json": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json",
+    "closeout_seal_html": "/public-node/wc-to-void/settlement-evidence-closeout-seal-v1",
+    "evidence_pack_json": "/public-node/wc-to-void/settlement-evidence-pack-v1.json",
+    "evidence_pack_html": "/public-node/wc-to-void/settlement-evidence-pack-v1",
+    "redacted_receipt_json": "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+    "redacted_receipt_html": "/public-node/wc-to-void/redacted-settlement-receipt-v1"
+  },
+  "required_public_markers": [
+    "VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1",
+    "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1",
+    "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1",
+    "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_V1"
+  ],
+  "sealed_heads": {
+    "closeout_seal_dashboard_link_v1": "058cc434",
+    "closeout_seal_runtime_v1": "932fb7be",
+    "closeout_seal_static_v1": "a9d384b3",
+    "evidence_pack_discovery_link_v1": "843f0680",
+    "settlement_evidence_pack_runtime_v1": "f268105d",
+    "settlement_evidence_pack_static_v1": "52f342a1",
+    "redacted_receipt_runtime_scope_fix_v1": "3cf694f7",
+    "public_redacted_settlement_receipt_v1": "6f637649"
+  },
+  "sealed_tags": {
+    "closeout_seal_dashboard_link_cross_box": "ckpt-wc-to-void-closeout-seal-dashboard-link-v1-cross-box-green-20260621-132148",
+    "closeout_seal_runtime_cross_box": "ckpt-wc-to-void-settlement-evidence-closeout-seal-runtime-v1-cross-box-green-20260621-131301",
+    "closeout_seal_static_cross_box": "ckpt-wc-to-void-settlement-evidence-closeout-seal-static-v1-cross-box-green-20260621-130417",
+    "evidence_pack_discovery_link_cross_box": "ckpt-wc-to-void-evidence-pack-discovery-link-v1-cross-box-green-20260621-125753",
+    "evidence_pack_runtime_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-runtime-v1-cross-box-green-20260621-125050",
+    "evidence_pack_static_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-static-v1-cross-box-green-20260621-124512",
+    "redacted_receipt_runtime_scope_fix_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-cross-box-green-20260621-123144",
+    "redacted_receipt_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226"
+  },
+  "copy_paste_verify_command": "base=${VOID_PUBLIC_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}; tmp=$(mktemp -d); set -e; curl -fsS \"$base/public-node\" > \"$tmp/dashboard.html\"; curl -fsS \"$base/public-node/route-index.json\" > \"$tmp/route-index.json\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json\" > \"$tmp/closeout.json\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-closeout-seal-v1\" > \"$tmp/closeout.html\"; curl -fsS \"$base/public-node/wc-to-void/settlement-evidence-pack-v1.json\" > \"$tmp/evidence.json\"; curl -fsS \"$base/public-node/wc-to-void/redacted-settlement-receipt-v1.json\" > \"$tmp/receipt.json\"; grep -F VOID_WC_TO_VOID_CLOSEOUT_SEAL_DASHBOARD_LINK_V1 \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json \"$tmp/dashboard.html\" >/dev/null; grep -F /public-node/wc-to-void/settlement-evidence-closeout-seal-v1.json \"$tmp/route-index.json\" >/dev/null; grep -F VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1 \"$tmp/closeout.html\" >/dev/null; python3 - \"$tmp/closeout.json\" \"$tmp/evidence.json\" \"$tmp/receipt.json\" <<'PY'\nimport json, re, sys\ncloseout=json.load(open(sys.argv[1]))\nevidence=json.load(open(sys.argv[2]))\nreceipt=json.load(open(sys.argv[3]))\ntx='0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717'\nkey='710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1'\nassert closeout['marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1'\nassert closeout['runtime_marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_RUNTIME_V1'\nassert closeout['tx_hash']==tx\nassert closeout['settlement_record_key']==key\nassert evidence['marker']=='VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_V1'\nassert evidence['tx_hash']==tx\nassert receipt['marker']=='VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1'\nassert receipt['tx_hash']==tx\nassert closeout['privacy_boundaries']['plaintext_addresses_redacted'] is True\nassert closeout['privacy_boundaries']['private_settlement_ledger_not_served_publicly'] is True\nassert closeout['closed_boundaries']['does_not_create_public_mutation'] is True\nassert closeout['closed_boundaries']['does_not_send_void'] is True\nassert closeout['closed_boundaries']['does_not_call_rpc'] is True\nblob=json.dumps([closeout,evidence,receipt], sort_keys=True)\nassert re.search(r'0x[0-9a-fA-F]{40}(?![0-9a-fA-F])', blob) is None\nprint('VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN')\nPY",
+  "privacy_boundaries": {
+    "plaintext_addresses_redacted": true,
+    "private_key_seen_by_chat_or_repo": false,
+    "seed_phrase_seen_by_chat_or_repo": false,
+    "private_settlement_ledger_not_served_publicly": true
+  },
+  "closed_boundaries": {
+    "read_only_reviewer_pack": true,
+    "does_not_execute_settlement_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_replace_private_ledger": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "operator_actual_execute_decision": "authorize_separate_actual_inventory_reserve_execute",
+  "reviewer": "operator",
+  "review_note": "dry-run result authorized for separate actual inventory reserve execute",
+  "max_candidate_count": 1
+}

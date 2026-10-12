@@ -1,0 +1,68 @@
+{
+  "marker": "VOID_DATANET_WC_AVAILABILITY_LEDGER_WRITE_PACKET_SHAPE_HOLD_V1",
+  "artifact": "VOID DataNet WC Availability Ledger Write Packet Shape Hold v1",
+  "status": "ledger_write_packet_shape_hold_only_no_wc_issuance_no_wc_ledger_write",
+  "packet_kind": "datanet_wc_availability_ledger_write_packet_shape_hold_v1",
+  "required_upstream_markers": {
+    "quest_lane_marker": "VOID_DATANET_WC_AVAILABILITY_QUEST_LANE_V1",
+    "evidence_packet_marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+    "reviewer_decision_marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_DECISION_PACKET_V1",
+    "award_recommendation_marker": "VOID_DATANET_WC_AVAILABILITY_AWARD_RECOMMENDATION_HOLD_V1",
+    "duplicate_guard_marker": "VOID_DATANET_WC_AVAILABILITY_DUPLICATE_GUARD_V1",
+    "reviewer_rollup_marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_ROLLUP_V1",
+    "ledger_write_gate_hold_marker": "VOID_DATANET_WC_AVAILABILITY_LEDGER_WRITE_GATE_HOLD_V1",
+    "operator_approval_hold_marker": "VOID_DATANET_WC_AVAILABILITY_OPERATOR_APPROVAL_HOLD_V1"
+  },
+  "required_fields": [
+    "packet_kind",
+    "marker",
+    "participant_id",
+    "object_id_or_content_root",
+    "reviewer_decision",
+    "duplicate_guard_result",
+    "recommendation_status",
+    "rollup_status",
+    "gate_status",
+    "approval_status",
+    "operator_id",
+    "proposed_wc_amount",
+    "proposed_ledger_entry_id",
+    "proposed_ledger_append_mode",
+    "packet_status",
+    "timestamp",
+    "required_upstream_markers",
+    "wc_boundary",
+    "authority_boundary"
+  ],
+  "allowed_packet_status": [
+    "held_packet_shape_only",
+    "blocked_missing_operator_approval_hold",
+    "blocked_operator_approval_not_granted",
+    "blocked_gate_not_ready",
+    "blocked_duplicate_guard",
+    "blocked_missing_reviewer_approval",
+    "blocked_missing_award_recommendation"
+  ],
+  "allowed_ledger_append_modes": [
+    "append_only_future_packet_required"
+  ],
+  "wc_boundary_required_false": [
+    "issues_work_credits",
+    "writes_wc_ledger",
+    "creates_ledger_line",
+    "appends_to_ledger_file",
+    "allocates_void",
+    "transfers_void",
+    "automatic_reward",
+    "approves_ledger_write",
+    "executes_ledger_write"
+  ],
+  "authority_boundary_required_false": [
+    "activates_public_mutation",
+    "grants_signer_wallet_access",
+    "authorizes_execution",
+    "moves_funds",
+    "changes_datanet_storage",
+    "exposes_private_objects"
+  ]
+}

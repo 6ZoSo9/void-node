@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VOID release update channel v1</title></head>
+<body><main><h1>VOID release update channel v1</h1>
+<p><strong>Status:</strong> implemented and proof-gated.</p>
+<ul>
+<li>Stable channel binds one immutable release tag and all release assets.</li>
+<li>Checks use exact sizes, SHA-256, internal release checksums, and GitHub attestations.</li>
+<li>Downgrades are refused by default.</li>
+<li>Stopped services remain stopped; running-service restart is explicit.</li>
+<li>A failed readiness gate rolls back to the previous verified release.</li>
+<li>Guarded economic, validator, treasury, and authority lanes remain inactive.</li>
+</ul>
+<p><code>make public-release-update-channel-v1-proof</code></p>
+<p><a href="/public-node/void-network/release-update-channel-v1.json">Machine-readable status</a></p>
+</main></body></html>

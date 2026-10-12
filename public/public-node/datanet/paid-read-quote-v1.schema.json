@@ -1,0 +1,571 @@
+{
+  "$id": "/public-node/datanet/paid-read-quote-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "boundary": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "This is a static public discovery card and deterministic quote contract only.",
+          "type": "string"
+        },
+        {
+          "const": "It does not collect or confirm payment.",
+          "type": "string"
+        },
+        {
+          "const": "It does not admit, authorize, or execute work.",
+          "type": "string"
+        },
+        {
+          "const": "It does not perform a DataNet fetch or mutation.",
+          "type": "string"
+        },
+        {
+          "const": "It does not access a wallet, signer, Work Credit ledger, VOID settlement, treasury, or funds.",
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "canonical_sample": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_sample_sha256": {
+          "const": "d0343ce33cccdfd9f6de239c47d617fe9716570e8d24bb6edae3ffab897f96cf",
+          "type": "string"
+        },
+        "dataset_id": {
+          "const": "ds_public_read_001",
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "const": 1800000900000,
+          "type": "integer"
+        },
+        "fetch_url": {
+          "const": "https://public-node.example/datanet/v1/fetch/ds_public_read_001?who=customer-read-001",
+          "type": "string"
+        },
+        "object_count": {
+          "const": 1,
+          "type": "integer"
+        },
+        "operator_cost_basis_cents": {
+          "const": 0,
+          "type": "integer"
+        },
+        "quote_id": {
+          "const": "60ac49dcefbf8f1ed7e4956f2ce83f6db09380e712ff41f7b3ad83d28e7c3615",
+          "type": "string"
+        },
+        "quoted_total_cents": {
+          "const": 453,
+          "type": "integer"
+        },
+        "read_quote_id": {
+          "const": "58ab3b6103eb6e00392cbd6e540d22b07a705e7b2bdea18a233016f9c2b7fab5",
+          "type": "string"
+        },
+        "request_id": {
+          "const": "request-read-001",
+          "type": "string"
+        },
+        "requested_at_ms": {
+          "const": 1800000000000,
+          "type": "integer"
+        },
+        "requester_id": {
+          "const": "customer-read-001",
+          "type": "string"
+        },
+        "source_base": {
+          "const": "https://public-node.example",
+          "type": "string"
+        },
+        "total_bytes": {
+          "const": 42,
+          "type": "integer"
+        },
+        "who": {
+          "const": "customer-read-001",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "requester_id",
+        "dataset_id",
+        "who",
+        "source_base",
+        "fetch_url",
+        "object_count",
+        "total_bytes",
+        "operator_cost_basis_cents",
+        "requested_at_ms",
+        "expires_at_ms",
+        "quote_id",
+        "read_quote_id",
+        "quoted_total_cents",
+        "canonical_sample_sha256"
+      ],
+      "type": "object"
+    },
+    "controls": {
+      "additionalProperties": false,
+      "properties": {
+        "automatic_execution_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "customer_payment_required_before_work": {
+          "const": true,
+          "type": "boolean"
+        },
+        "datanet_fetch_performed": {
+          "const": false,
+          "type": "boolean"
+        },
+        "datanet_mutation_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "execution_authorized": {
+          "const": false,
+          "type": "boolean"
+        },
+        "fund_movement": {
+          "const": false,
+          "type": "boolean"
+        },
+        "operator_approval_required": {
+          "const": true,
+          "type": "boolean"
+        },
+        "payment_collection_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "payment_confirmation_performed": {
+          "const": false,
+          "type": "boolean"
+        },
+        "quote_only": {
+          "const": true,
+          "type": "boolean"
+        },
+        "transaction_submission": {
+          "const": false,
+          "type": "boolean"
+        },
+        "treasury_access_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "void_settlement": {
+          "const": false,
+          "type": "boolean"
+        },
+        "wallet_or_signer_access": {
+          "const": false,
+          "type": "boolean"
+        },
+        "work_credit_write": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operator_approval_required",
+        "customer_payment_required_before_work",
+        "quote_only",
+        "payment_collection_enabled",
+        "payment_confirmation_performed",
+        "execution_authorized",
+        "automatic_execution_enabled",
+        "datanet_fetch_performed",
+        "datanet_mutation_enabled",
+        "wallet_or_signer_access",
+        "transaction_submission",
+        "work_credit_write",
+        "void_settlement",
+        "treasury_access_enabled",
+        "fund_movement"
+      ],
+      "type": "object"
+    },
+    "id": {
+      "const": "datanet-paid-read-quote-public-discovery-v1",
+      "type": "string"
+    },
+    "index_path": {
+      "const": "/public-node/datanet/index.json",
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_DATANET_PAID_READ_QUOTE_PUBLIC_DISCOVERY_V1",
+      "type": "string"
+    },
+    "public_safety": {
+      "additionalProperties": false,
+      "properties": {
+        "contains_customer_payment_data": {
+          "const": false,
+          "type": "boolean"
+        },
+        "contains_live_customer_request": {
+          "const": false,
+          "type": "boolean"
+        },
+        "contains_private_operator_material": {
+          "const": false,
+          "type": "boolean"
+        },
+        "contains_secret_material": {
+          "const": false,
+          "type": "boolean"
+        },
+        "contains_wallet_material": {
+          "const": false,
+          "type": "boolean"
+        },
+        "public_mutation_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "runtime_route_enabled": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "contains_private_operator_material",
+        "contains_secret_material",
+        "contains_wallet_material",
+        "contains_customer_payment_data",
+        "contains_live_customer_request",
+        "public_mutation_enabled",
+        "runtime_route_enabled"
+      ],
+      "type": "object"
+    },
+    "publication": {
+      "additionalProperties": false,
+      "properties": {
+        "discovery_only": {
+          "const": true,
+          "type": "boolean"
+        },
+        "mutation_handler_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "public_intake_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "public_safe": {
+          "const": true,
+          "type": "boolean"
+        },
+        "read_only": {
+          "const": true,
+          "type": "boolean"
+        },
+        "runtime_mutation_route_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "runtime_route_enabled": {
+          "const": false,
+          "type": "boolean"
+        },
+        "static_discovery_only": {
+          "const": true,
+          "type": "boolean"
+        },
+        "upload_enabled": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "static_discovery_only",
+        "public_safe",
+        "read_only",
+        "discovery_only",
+        "runtime_route_enabled",
+        "runtime_mutation_route_enabled",
+        "mutation_handler_enabled",
+        "public_intake_enabled",
+        "upload_enabled"
+      ],
+      "type": "object"
+    },
+    "quote_contract": {
+      "additionalProperties": false,
+      "properties": {
+        "caller_supplied_requested_at_ms_required": {
+          "const": true,
+          "type": "boolean"
+        },
+        "catalog_marker": {
+          "const": "VOID_PAID_DATANET_SERVICE_CATALOG_V1",
+          "type": "string"
+        },
+        "catalog_quote_schema": {
+          "const": "void-paid-datanet-quote-v1",
+          "type": "string"
+        },
+        "catalog_source_path": {
+          "const": "src/paid_services/datanet_service_catalog_v1.ts",
+          "type": "string"
+        },
+        "catalog_source_sha256": {
+          "const": "452c777bd21f22cfb596276e1a75b923fc1cfb45371f2fbec6a5cde020eabdff",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "type": "boolean"
+        },
+        "proof_path": {
+          "const": "scripts/prove_void_datanet_paid_read_quote_v1.mjs",
+          "type": "string"
+        },
+        "public_source_required": {
+          "const": true,
+          "type": "boolean"
+        },
+        "read_quote_marker": {
+          "const": "VOID_DATANET_PAID_READ_QUOTE_V1",
+          "type": "string"
+        },
+        "read_quote_schema": {
+          "const": "void-datanet-paid-read-quote-v1",
+          "type": "string"
+        },
+        "tool_path": {
+          "const": "tools/void-datanet-paid-read-quote-v1.mjs",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_path",
+        "proof_path",
+        "catalog_source_path",
+        "catalog_source_sha256",
+        "catalog_marker",
+        "catalog_quote_schema",
+        "read_quote_schema",
+        "read_quote_marker",
+        "deterministic",
+        "caller_supplied_requested_at_ms_required",
+        "public_source_required"
+      ],
+      "type": "object"
+    },
+    "references": {
+      "additionalProperties": false,
+      "properties": {
+        "operator_document": {
+          "const": "docs/operations/void-datanet-paid-read-quote-v1.md",
+          "type": "string"
+        },
+        "public_discovery_document": {
+          "const": "docs/public-node/datanet/datanet-paid-read-quote-public-discovery-v1.md",
+          "type": "string"
+        },
+        "terminal_checkpoint_tag": {
+          "const": "ckpt-void-datanet-paid-read-quote-v1-terminal-sample-and-lane-close-exact-green-20260730T184404Z",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operator_document",
+        "public_discovery_document",
+        "terminal_checkpoint_tag"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "void.public_node.datanet.paid_read_quote_public_discovery.v1",
+      "type": "string"
+    },
+    "schema_path": {
+      "const": "/public-node/datanet/paid-read-quote-v1.schema.json",
+      "type": "string"
+    },
+    "scope": {
+      "const": "datanet_paid_read_quote_public_discovery",
+      "type": "string"
+    },
+    "self_path": {
+      "const": "/public-node/datanet/paid-read-quote-v1.json",
+      "type": "string"
+    },
+    "service": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "USD_CENTS",
+          "type": "string"
+        },
+        "exclusions": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "availability guarantees beyond the observed window",
+              "type": "string"
+            },
+            {
+              "const": "private-network access",
+              "type": "string"
+            },
+            {
+              "const": "credential handling",
+              "type": "string"
+            },
+            {
+              "const": "automatic settlement",
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "max_total_bytes": {
+          "const": 134217728,
+          "type": "integer"
+        },
+        "object_count": {
+          "const": 1,
+          "type": "integer"
+        },
+        "pricing": {
+          "additionalProperties": false,
+          "properties": {
+            "base_cents": {
+              "const": 400,
+              "type": "integer"
+            },
+            "minimum_operator_margin_bps": {
+              "const": 3000,
+              "type": "integer"
+            },
+            "per_billable_mib_cents": {
+              "const": 3,
+              "type": "integer"
+            },
+            "per_object_cents": {
+              "const": 50,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "base_cents",
+            "per_object_cents",
+            "per_billable_mib_cents",
+            "minimum_operator_margin_bps"
+          ],
+          "type": "object"
+        },
+        "public_name": {
+          "const": "DataNet Public Retrieval Evidence",
+          "type": "string"
+        },
+        "quote_valid_for_ms": {
+          "const": 900000,
+          "type": "integer"
+        },
+        "required_evidence": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "request-bound object identifiers",
+              "type": "string"
+            },
+            {
+              "const": "retrieval source identity",
+              "type": "string"
+            },
+            {
+              "const": "bounded retrieval result per object",
+              "type": "string"
+            },
+            {
+              "const": "content digest when retrieval succeeds",
+              "type": "string"
+            },
+            {
+              "const": "operator-signed completion receipt",
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "service_code": {
+          "const": "datanet.public-retrieval-evidence.v1",
+          "type": "string"
+        },
+        "target_completion_seconds": {
+          "const": 1800,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "service_code",
+        "public_name",
+        "currency",
+        "object_count",
+        "max_total_bytes",
+        "quote_valid_for_ms",
+        "target_completion_seconds",
+        "pricing",
+        "required_evidence",
+        "exclusions"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "const": "green",
+      "type": "string"
+    },
+    "summary": {
+      "const": "Static machine-readable discovery card for deterministic quotes for one bounded public DataNet read.",
+      "type": "string"
+    },
+    "title": {
+      "const": "Paid DataNet Read Quote V1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "marker",
+    "status",
+    "scope",
+    "title",
+    "summary",
+    "index_path",
+    "self_path",
+    "schema_path",
+    "publication",
+    "service",
+    "quote_contract",
+    "canonical_sample",
+    "controls",
+    "public_safety",
+    "references",
+    "boundary"
+  ],
+  "title": "VOID Paid DataNet Read Quote Public Discovery V1",
+  "type": "object"
+}

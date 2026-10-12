@@ -1,0 +1,132 @@
+name: VOID Buy VOID Docker npm-ci-only candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "scripts/prove_buy_void_docker_npm_ci_only_v1.mjs"
+      - "docs/architecture/buy-void-docker-npm-ci-only-v1.md"
+      - ".github/workflows/buy-void-docker-npm-ci-only-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-docker-npm-ci-only-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source-only PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout SHA
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - name: Install Node for source proof
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove alternate package manager fallback cannot be selected
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_docker_npm_ci_only_v1.mjs
+          node scripts/prove_buy_void_docker_npm_ci_only_v1.mjs --self-test
+          node scripts/prove_buy_void_docker_npm_ci_only_v1.mjs \
+            | tee "npm-ci-only-${{ matrix.node }}.txt"
+          grep -Fx "fallback_package_managers_removed=true" "npm-ci-only-${{ matrix.node }}.txt"
+          grep -Fx "runtime_saga_copy_preserved=true" "npm-ci-only-${{ matrix.node }}.txt"
+          grep -Fx "deployed_artifact_generation_verified=false" "npm-ci-only-${{ matrix.node }}.txt"
+      - name: Upload exact source-only review evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-npm-ci-only-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: npm-ci-only-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Whitespace/diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [source]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download exact-head three Node proofs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-npm-ci-only-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./source-proofs
+      - name: Require byte-identical proof receipts
+        run: |
+          set -euo pipefail
+          for n in 22 24 26; do test -s "source-proofs/npm-ci-only-$n.txt"; done
+          cmp source-proofs/npm-ci-only-22.txt source-proofs/npm-ci-only-24.txt
+          cmp source-proofs/npm-ci-only-22.txt source-proofs/npm-ci-only-26.txt
+          echo "VOID_BUY_VOID_NPM_CI_ONLY_THREE_NODE_PROOFS_GREEN"
+
+  stopped-image:
+    needs: [source]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out exact source-only PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up reviewed Dockerfile source proof
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Build candidate npm-only image without starting it
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          node scripts/prove_buy_void_docker_npm_ci_only_v1.mjs
+          docker build --iidfile "$RUNNER_TEMP/npm-only-image-id" \
+            --label "org.opencontainers.image.revision=$EXPECTED_SHA" .
+          image_id="$(cat "$RUNNER_TEMP/npm-only-image-id")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          cid="$(docker create --entrypoint node "$image_id" --version)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          test "$(docker inspect --format '{{.State.Status}}' "$cid")" = "created"
+          test "$(docker inspect --format '{{.Image}}' "$cid")" = "$image_id"
+          docker cp "$cid:/app/tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs" \
+            "$RUNNER_TEMP/packaged-saga.mjs"
+          cmp tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs \
+            "$RUNNER_TEMP/packaged-saga.mjs"
+          test "$(docker inspect --format '{{.State.Status}}' "$cid")" = "created"
+          echo "VOID_NPM_CI_ONLY_STOPPED_IMAGE_SAGA_COPY_GREEN"
+          echo "image_started=false"
+          echo "runtime_mount_authority=false"
+          echo "production_source_finality_authority_ready=false"
+          echo "funds_movement=false"

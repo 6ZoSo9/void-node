@@ -1,0 +1,34 @@
+name: Buy VOID bounded auto-fulfillment orchestrator V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-bounded-auto-fulfillment-orchestrator-v1.yml"
+      - "docs/operators/buy-void-bounded-auto-fulfillment-orchestrator-v1.md"
+      - "scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_guard_v1.ts"
+      - "scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.ts"
+      - "scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_v1.ts"
+      - "src/economic/buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.ts"
+      - "src/economic/buy_void_bounded_auto_fulfillment_orchestrator_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_v1.ts
+      - run: npx tsx scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.ts
+      - run: npx tsx scripts/prove_buy_void_bounded_auto_fulfillment_orchestrator_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+      - run: npm run build

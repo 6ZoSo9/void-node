@@ -1,0 +1,52 @@
+{
+  "schema": "void.public_node.datanet.public_discovery_reviewer_final_seal_html_card_runtime_visibility.v1",
+  "id": "datanet-public-discovery-reviewer-final-seal-html-card-runtime-visibility-hold-v1",
+  "title": "DataNet Public Discovery Reviewer Final Seal HTML Card Runtime Visibility Hold v1",
+  "status": "hold",
+  "marker": "VOID_DATANET_PUBLIC_DISCOVERY_REVIEWER_FINAL_SEAL_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1",
+  "scope": "datanet_public_discovery_reviewer_final_seal_html_card_runtime_visibility",
+  "summary": "Runtime visibility hold metadata for the browser-visible DataNet public discovery reviewer final seal HTML card.",
+  "runtime_visibility_hold_only": true,
+  "source_html_path": "/public-node/datanet/datanet-public-discovery-reviewer-final-seal-html-card-hold-v1.html",
+  "source_json_path": "/public-node/datanet/datanet-public-discovery-reviewer-final-seal-html-card-hold-v1.json",
+  "final_seal_json_path": "/public-node/datanet/datanet-public-discovery-reviewer-final-seal-hold-v1.json",
+  "visibility_policy": {
+    "static_html_file_required": true,
+    "static_json_file_required": true,
+    "final_seal_json_required": true,
+    "runtime_server_required_for_green": false,
+    "local_runtime_fetch_optional": true,
+    "local_runtime_not_seen_static_html_remains_green": true,
+    "runtime_fetch_success_required": false,
+    "runtime_mutation_route_added": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "visibility_state": {
+    "source_static_html_present": true,
+    "source_static_json_present": true,
+    "final_seal_json_present": true,
+    "source_index_entry_present": true,
+    "runtime_visibility_checked_by_proof": true,
+    "runtime_fetch_required": false,
+    "runtime_fetch_success_required": false,
+    "public_intake_enabled": false,
+    "upload_enabled": false,
+    "object_write_enabled": false,
+    "mirror_command_enabled": false,
+    "peer_pin_command_enabled": false,
+    "wc_claim_enabled": false,
+    "wc_issuance_enabled": false,
+    "wallet_or_signer_accessed": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "wallet_or_signer_required": false
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_LIVE_IDENTITY_EVIDENCE_V1",
+  "version": 1,
+  "status": "live_precision_main_node_key_revalidated",
+  "live_identity_evidence_id": "voidcraslie1_88246d9a99f8a677e851e126ad860e6f57871f35275e1ca4eb9166c71e6536b2",
+  "genesis_preparation_id": "voidcrasgp1_4aac5c1bb4b7500c9dc15df53f36722a44471b9d52b61063528d49602a2348ee",
+  "observer": {
+    "script_sha256": "54e70eab0ff683a9b1506fe909dde2481dfb4390113dd9233195f5f744123b5b",
+    "service": "void-node-live.service",
+    "live_node_privkey_path": "/home/zoso/dev/void-node/.secrets/nodeA.key",
+    "live_process_source_commit": "aa0492e60868dd1fcd8115f154b05ab48de07f85",
+    "live_process_source_tree": "a64791018335fe53f6c534dd08fda684a64605cb",
+    "live_process_source_branch": "main"
+  },
+  "identity": {
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "public_key_der_sha256": "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+    "public_key_jwk_x": "ejYyFziUrf8A2eRhz9_LJMM2SsMFvrEqVN1iC7m_G4g",
+    "subject_binding_sha256": "7945ba03feac32e5268382a8b995eb7c927a084d9dd1d44598ffb340a12a770e"
+  },
+  "verification": {
+    "published_binding_exact": true,
+    "live_service_key_matches_published_binding": true,
+    "live_precision_main_node_key_revalidated": true,
+    "private_key_contents_printed": false,
+    "signature_created": false
+  },
+  "authority": {
+    "evidence_only": true,
+    "transaction_signing_authorized": false,
+    "transaction_broadcast_authorized": false,
+    "chain2050_write_authorized": false,
+    "registry_append_authorized": false,
+    "wallet_or_signer_access_authorized": false,
+    "funds_action_authorized": false
+  },
+  "next_gate": "sovereign_genesis_append_read_only_preflight"
+}

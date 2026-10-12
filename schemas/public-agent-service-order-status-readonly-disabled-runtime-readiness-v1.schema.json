@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activation_blockers": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "authority": {
+      "properties": {
+        "activation": {
+          "const": false
+        }
+      },
+      "required": [
+        "activation"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "input_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_DISABLED_RUNTIME_READINESS_V1_DECISION"
+    },
+    "readiness_id": {
+      "pattern": "^voidaosrr1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "ready_for_activation": {
+      "const": false
+    },
+    "ready_for_disabled_deployment": {
+      "const": true
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "readiness_id",
+    "input_receipt_sha256",
+    "ready_for_disabled_deployment",
+    "ready_for_activation",
+    "activation_blockers",
+    "evidence",
+    "authority"
+  ],
+  "type": "object"
+}

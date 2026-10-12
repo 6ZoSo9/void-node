@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_CHAIN2050_ROLE_AUTHORITY_SOVEREIGN_POLICY_V1",
+  "version": 1,
+  "policy_body": {
+    "schema": "void.chain2050-role-authority-sovereign-policy.v1",
+    "chain_id": 2050,
+    "policy_generation": "1",
+    "identity_id": "sovereign.zoso",
+    "role": "SOVEREIGN",
+    "authority_model": {
+      "role_record_scope": "identity_and_role_authorization_state_only",
+      "constitutional_authority_source": "void_governance_instruments",
+      "technical_capability_implied": false,
+      "validator_authority_implied": false,
+      "wallet_or_signer_authority_implied": false,
+      "transaction_submission_authority_implied": false,
+      "work_credit_mutation_authority_implied": false,
+      "funds_or_treasury_authority_implied": false
+    },
+    "ordinary_authentication": {
+      "subject_schema": "void.participant-subject-binding.v1",
+      "account_id": "sovereign.zoso",
+      "anchor_kind": "existing_main_void_node_identity_key",
+      "expected_node_id": "9d89483769e469e0473b489dc50dba96",
+      "expected_public_key_der_sha256": "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+      "public_binding_marker": "VOID_NODE_ONION_BINDING_V1",
+      "public_binding_path": "public/public-node/evidence/void-node-onion-binding-v1-nimo-verified.json",
+      "challenge_response_required": true,
+      "persistent_authenticated_logical_session": true,
+      "role_generation_revalidation_required": true
+    },
+    "key_separation": {
+      "sovereign_primary_governance_attestation_public_key_der_sha256": "23e2d92ebeb1d4b025eeb2a76f65b7f8ff6e6cc091f542e202569c9d5abbbd30",
+      "sovereign_primary_is_routine_login_key": false,
+      "sovereign_recovery_is_routine_login_key": false,
+      "premine_key_is_governance_or_login_key": false,
+      "nimo_continuity_key_is_unilateral_sovereign_key": false
+    },
+    "governance_boundary": {
+      "sovereign_held_until_explicit_authenticated_handoff": true,
+      "validator_self_handoff_allowed": false,
+      "brood_queen_validator_command_authority": false,
+      "constitutional_amendment_requires_sovereign_ratification_while_sovereign_held": true
+    },
+    "append_boundary": {
+      "registry_append_requires_separate_explicit_sovereign_chain2050_write_authorization": true,
+      "this_policy_authorizes_chain2050_write": false,
+      "this_policy_authorizes_signature_creation": false
+    },
+    "source_markers": [
+      "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
+      "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+      "VOID_SOVEREIGN_AUTHENTICATION_ACTIVATION_GUARD_V1_20260818",
+      "VOID_SOVEREIGN_KEY_ROLE_REGISTRY_V1_20260824",
+      "VOID_CHAIN2050_ROLE_AUTHORITY_RECORD_V1",
+      "VOID_CHAIN2050_ROLE_AUTHORITY_REGISTRY_SOURCE_V1"
+    ]
+  },
+  "policy_body_sha256": "9a8ee80c68cb026b88117710c7d78e8b3063a1c5c2fe1cf6cb555ca80d8f1e75",
+  "authority": {
+    "source_only": true,
+    "chain2050_write_authorized": false,
+    "signature_creation_authorized": false,
+    "wallet_or_signer_access_authorized": false,
+    "funds_action_authorized": false
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-acceptance-persistence-trusted-context-provider-binding-v1.schema.json",
+  "title": "VOID Public Agent Service Acceptance Persistence Trusted Context Provider Binding V1 Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "source_base_commit",
+    "status",
+    "environment",
+    "bundle_contract",
+    "runtime_binding",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "source_base_commit": {
+      "const": "9a9b9a47c4f07fdae4f2f2a765183d9f9a28d7d3"
+    },
+    "status": {
+      "const": "source_only_disabled_by_default"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "apply",
+        "confirmation",
+        "bundle_path"
+      ],
+      "properties": {
+        "enabled": {
+          "const": ""
+        },
+        "apply": {
+          "const": ""
+        },
+        "confirmation": {
+          "const": ""
+        },
+        "bundle_path": {
+          "const": ""
+        }
+      }
+    },
+    "bundle_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "required_keys",
+        "maximum_bytes",
+        "absolute_normalized_path_required",
+        "regular_file_required",
+        "symlink_components_forbidden",
+        "group_or_other_write_forbidden",
+        "owner_must_be_runtime_user_or_root"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "required_keys": {
+          "const": [
+            "marker",
+            "version",
+            "catalog",
+            "work_order",
+            "quote"
+          ]
+        },
+        "maximum_bytes": {
+          "const": 25165824
+        },
+        "absolute_normalized_path_required": {
+          "const": true
+        },
+        "regular_file_required": {
+          "const": true
+        },
+        "symlink_components_forbidden": {
+          "const": true
+        },
+        "group_or_other_write_forbidden": {
+          "const": true
+        },
+        "owner_must_be_runtime_user_or_root": {
+          "const": true
+        }
+      }
+    },
+    "runtime_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_global",
+        "result_global",
+        "install_before_route_callsite",
+        "bundle_read_during_install",
+        "bundle_read_deferred_until_provider_invocation",
+        "provider_global_replace_allowed"
+      ],
+      "properties": {
+        "provider_global": {
+          "const": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_v1"
+        },
+        "result_global": {
+          "const": "__void_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1_result"
+        },
+        "install_before_route_callsite": {
+          "const": true
+        },
+        "bundle_read_during_install": {
+          "const": false
+        },
+        "bundle_read_deferred_until_provider_invocation": {
+          "const": true
+        },
+        "provider_global_replace_allowed": {
+          "const": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network_listener_creation",
+        "external_http_submission",
+        "production_acceptance_persistence",
+        "production_replay_write",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "work_credit_write",
+        "wallet_access",
+        "production_signing",
+        "transaction_broadcast",
+        "service_restart",
+        "deployment_performed",
+        "money_movement"
+      ],
+      "properties": {
+        "network_listener_creation": {
+          "const": false
+        },
+        "external_http_submission": {
+          "const": false
+        },
+        "production_acceptance_persistence": {
+          "const": false
+        },
+        "production_replay_write": {
+          "const": false
+        },
+        "payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "execution_authorization": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "production_signing": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "deployment_performed": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  }
+}

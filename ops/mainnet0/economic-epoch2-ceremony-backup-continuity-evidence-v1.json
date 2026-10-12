@@ -1,0 +1,47 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_CEREMONY_BACKUP_CONTINUITY_EVIDENCE_V1",
+  "version": 1,
+  "status": "GREEN",
+  "ceremony_backup_id": "20260523-122135",
+  "ceremony_public_address_artifact": "ops/mainnet/mainnet0-key-ceremony-result-20260523-122739.md",
+  "ceremony_backup_receipt": "ops/mainnet/mainnet0-key-ceremony-backup-voidkey2-20260523-122135.md",
+  "verifier": {
+    "host": "Nimo",
+    "script_filename": "void_nimo_epoch2_ceremony_backup_continuity_v2.sh",
+    "script_sha256": "bd5415c5eb147b1175e544366307450796167d0dc6ae8a4973ca01c3cf1a2861"
+  },
+  "backup": {
+    "filesystem_label": "VOIDKEY2",
+    "manifest_line_count": 26,
+    "private_manifest_member_count": 13,
+    "public_manifest_member_count": 13,
+    "manifest_unique_member_count": 26,
+    "manifest_verified_total_bytes": 2769
+  },
+  "hashes": {
+    "private_backup_manifest_sha256": "a0e470ecdec26576182d771c48688aca7e4bdbe46cf35a6645387e457f874b6f",
+    "public_address_csv_sha256": "e121d678343daa85deaaaf1c17a1c7167d5f7cf1cafe2fa503f197d6d7e5db43",
+    "public_role_file_sha256": "1e4918e6da0c58b4199b286358ffaace61f4ef2f7a56f4b836db159fe6e9f495"
+  },
+  "verification": {
+    "manifest_all_sha256_verified": true,
+    "public_address_set_matches_may23_ceremony": true,
+    "public_role_set_matches_may23_ceremony": true,
+    "ceremony_backup_continuity_verified": true
+  },
+  "privacy": {
+    "private_member_contents_printed": false,
+    "private_member_contents_parsed": false,
+    "private_member_bytes_hashed_only": true,
+    "credential_decryption": false,
+    "credential_export": false
+  },
+  "authority": {
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}

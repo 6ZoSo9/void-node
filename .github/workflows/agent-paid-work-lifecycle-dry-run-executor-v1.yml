@@ -1,0 +1,41 @@
+name: Agent Paid Work Lifecycle Dry-Run Executor V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-paid-work-lifecycle-dry-run-executor-v1.yml"
+      - "docs/public/agent-paid-work-lifecycle-dry-run-executor-v1.md"
+      - "examples/agent-paid-work-credential-wc-account-binding-v1.example.json"
+      - "examples/agent-paid-work-lifecycle-dry-run-plan-v1.example.json"
+      - "schemas/agent-paid-work-credential-wc-account-binding-v1.schema.json"
+      - "schemas/agent-paid-work-lifecycle-dry-run-plan-v1.schema.json"
+      - "scripts/agent_paid_work_lifecycle_dry_run_executor_v1.mjs"
+      - "scripts/prove_agent_paid_work_lifecycle_dry_run_executor_v1.mjs"
+  push:
+    paths:
+      - ".github/workflows/agent-paid-work-lifecycle-dry-run-executor-v1.yml"
+      - "docs/public/agent-paid-work-lifecycle-dry-run-executor-v1.md"
+      - "examples/agent-paid-work-credential-wc-account-binding-v1.example.json"
+      - "examples/agent-paid-work-lifecycle-dry-run-plan-v1.example.json"
+      - "schemas/agent-paid-work-credential-wc-account-binding-v1.schema.json"
+      - "schemas/agent-paid-work-lifecycle-dry-run-plan-v1.schema.json"
+      - "scripts/agent_paid_work_lifecycle_dry_run_executor_v1.mjs"
+      - "scripts/prove_agent_paid_work_lifecycle_dry_run_executor_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node --check scripts/agent_paid_work_lifecycle_dry_run_executor_v1.mjs
+      - run: node --check scripts/prove_agent_paid_work_lifecycle_dry_run_executor_v1.mjs
+      - run: node scripts/prove_agent_paid_work_lifecycle_dry_run_executor_v1.mjs

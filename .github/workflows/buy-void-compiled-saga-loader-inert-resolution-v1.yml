@@ -1,0 +1,153 @@
+name: VOID Buy VOID exact compiled saga inert loader proof v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+      - ".github/workflows/buy-void-compiled-saga-loader-inert-resolution-v1.yml"
+      - "docs/architecture/buy-void-compiled-saga-loader-inert-resolution-v1.md"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "Dockerfile"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-compiled-saga-inert-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact reviewed PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checkout to head commit
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Node exact source test matrix
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact source/compiler inputs
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove bounded descriptor and reviewed Git helpers
+        run: |
+          node scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs
+          node scripts/prove_buy_void_reviewed_git_invocation_v1.mjs --self-test
+      - name: Build exact emitted loader module
+        run: npm run build
+      - name: Falsify compiled factory and inert target substitution
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs
+          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --self-test \
+            | tee "inert-loader-selftest-${{ matrix.node }}.txt"
+          grep -Fx "exact_compiled_importer_shape_bound=true" "inert-loader-selftest-${{ matrix.node }}.txt"
+          grep -Fx "noncanonical_constructor_and_targets_rejected=true" "inert-loader-selftest-${{ matrix.node }}.txt"
+          grep -Fx "real_saga_module_imported=false" "inert-loader-selftest-${{ matrix.node }}.txt"
+      - name: Derive nonaccepted exact compiled loader evidence
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --derive \
+            > "inert-loader-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const x=JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            assert.equal(x.schema,"void_buy_void_compiled_saga_loader_inert_resolution_v1");
+            assert.equal(x.exact_source_parent,"eeef850affd912a0d1e019bfac2d681b38ea24ed");
+            assert.equal(x.compiled_importer_sha256,"b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1");
+            assert.equal(x.reviewed_saga_source_git_blob_sha1,"d6a2d1cd82e5e255f435c1e21d1783774a44b2b1");
+            assert.equal(x.extracted_compiled_factory_shape_verified,true);
+            assert.equal(x.exact_compiled_factory_executed_with_inert_tool,true);
+            assert.equal(x.inert_loader_resolution_across_working_directories,true);
+            assert.equal(x.missing_inert_target_rejected,true);
+            assert.equal(x.substituted_inert_target_changes_loaded_code,true);
+            for(const flag of ["real_saga_module_imported","real_saga_module_executed",
+              "real_saga_exports_invoked","stopped_image_runtime_loader_qualified",
+              "packaged_image_generation_accepted","deployed_artifact_generation_verified",
+              "production_source_finality_authority_ready",
+              "accepted_enforcement_v5","presale_activation","funds_moved"]) {
+              assert.equal(x[flag],false,flag);
+            }
+            console.log("VOID_EXACT_COMPILED_SAGA_INERT_LOADER_DERIVATION_GREEN");
+          ' "inert-loader-${{ matrix.node }}.json"
+      - name: Prevent accidental locked/production-mode invocation
+        run: |
+          set -euo pipefail
+          if node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs > "$RUNNER_TEMP/denied.txt" 2>&1; then
+            echo "UNEXPECTED_RUNTIME_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -F "compiled_saga_loader_inert_test_only_no_production_authority" "$RUNNER_TEMP/denied.txt"
+      - name: Upload exact-head inert evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-saga-inert-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: inert-loader-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Verify committed diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download original exact-head JSON evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-saga-inert-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+      - name: Compare all three compiled loader evidence objects byte-for-byte
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "evidence/inert-loader-$node.json"; done
+          cmp evidence/inert-loader-22.json evidence/inert-loader-24.json
+          cmp evidence/inert-loader-22.json evidence/inert-loader-26.json
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import crypto from "node:crypto";
+            import fs from "node:fs";
+            const b=fs.readFileSync("evidence/inert-loader-22.json");
+            const x=JSON.parse(b);
+            assert.equal(x.real_saga_module_imported,false);
+            assert.equal(x.stopped_image_runtime_loader_qualified,false);
+            assert.equal(x.accepted_enforcement_v5,false);
+            console.log("VOID_SAGA_EXACT_COMPILED_INERT_THREE_NODE_BYTES_GREEN");
+            console.log("candidate_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+            console.log("real_saga_execution_accepted=false");
+            console.log("production_source_finality_authority_ready=false");
+          '

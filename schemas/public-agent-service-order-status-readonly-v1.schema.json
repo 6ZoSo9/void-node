@@ -1,0 +1,292 @@
+{
+  "$id": "https://void.invalid/schemas/public-agent-service-order-status-readonly-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "authenticated_submission_post": {
+          "const": false
+        },
+        "payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "provider_authentication": {
+          "const": false
+        },
+        "provider_selection": {
+          "const": false
+        },
+        "quote_acceptance": {
+          "const": false
+        },
+        "quote_publication": {
+          "const": false
+        },
+        "runtime_mutation": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_execution_authorization": {
+          "const": false
+        }
+      },
+      "required": [
+        "authenticated_submission_post",
+        "provider_selection",
+        "provider_authentication",
+        "quote_publication",
+        "quote_acceptance",
+        "payment_authorization",
+        "payment_execution",
+        "work_execution_authorization",
+        "work_dispatch",
+        "work_credit_write",
+        "runtime_mutation"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completion_receipt_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dispatch_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "execution_authorization_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "payment_authorization_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "payment_receipt_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_response_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_handoff_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_id": {
+          "maxLength": 256,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "submission_receipt_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "submission_receipt_id",
+        "quote_handoff_id",
+        "quote_id",
+        "provider_response_id",
+        "acceptance_id",
+        "payment_authorization_id",
+        "payment_receipt_id",
+        "execution_authorization_id",
+        "dispatch_id",
+        "completion_receipt_id"
+      ],
+      "type": "object"
+    },
+    "evidence_count": {
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_status": {
+          "enum": [
+            "none",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "completion_status": {
+          "enum": [
+            "none",
+            "completed",
+            "failed"
+          ]
+        },
+        "execution_status": {
+          "enum": [
+            "none",
+            "authorized",
+            "dispatched",
+            "rejected"
+          ]
+        },
+        "payment_status": {
+          "enum": [
+            "none",
+            "authorized",
+            "confirmed",
+            "rejected"
+          ]
+        },
+        "quote_status": {
+          "enum": [
+            "none",
+            "ready_for_provider_quote",
+            "provider_authentication_required",
+            "quote_available",
+            "rejected"
+          ]
+        },
+        "submission_status": {
+          "enum": [
+            "accepted_for_review",
+            "rejected"
+          ]
+        }
+      },
+      "required": [
+        "submission_status",
+        "quote_status",
+        "acceptance_status",
+        "payment_status",
+        "execution_status",
+        "completion_status"
+      ],
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_V1"
+    },
+    "next_action": {
+      "enum": [
+        "await_provider_quote_handoff",
+        "capture_provider_selection_and_authenticated_quote",
+        "capture_real_provider_selection_and_authentication_prerequisite",
+        "await_requester_quote_acceptance",
+        "await_payment_authorization",
+        "await_payment_confirmation",
+        "await_work_execution_authorization",
+        "await_work_dispatch",
+        "await_completion_receipt",
+        "none"
+      ]
+    },
+    "observed_at_utc": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "accepted_for_review",
+        "ready_for_provider_quote",
+        "provider_authentication_required",
+        "quote_available",
+        "requester_accepted",
+        "payment_authorized",
+        "payment_confirmed",
+        "execution_authorized",
+        "dispatched",
+        "completed",
+        "rejected",
+        "failed"
+      ]
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "status_id": {
+      "pattern": "^voidaos1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "submission_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "successful": {
+      "type": "boolean"
+    },
+    "terminal": {
+      "type": "boolean"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "status_id",
+    "observed_at_utc",
+    "submission_id",
+    "work_order_id",
+    "phase",
+    "terminal",
+    "successful",
+    "next_action",
+    "lifecycle",
+    "evidence",
+    "evidence_count",
+    "source_sha256",
+    "authority"
+  ],
+  "title": "VOID Public Agent Service Order Status Readonly V1",
+  "type": "object"
+}

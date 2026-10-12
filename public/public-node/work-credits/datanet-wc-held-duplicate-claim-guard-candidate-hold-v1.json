@@ -1,0 +1,92 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_held_duplicate_claim_guard_candidate_hold.v1",
+  "id": "datanet-wc-held-duplicate-claim-guard-candidate-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Held Duplicate Claim Guard Candidate Hold v1",
+  "summary": "Public candidate shape for a future duplicate-claim guard before any DataNet Work Credits approval or ledger-write path. This is candidate-only: no duplicate scan is active, no claim is accepted, no decision is approved, no WC is issued, no ledger line is created, and no VOID allocation, signer access, wallet access, runtime routing, or mutation handling occurs.",
+  "marker": "VOID_DATANET_WC_HELD_DUPLICATE_CLAIM_GUARD_CANDIDATE_HOLD_V1",
+  "candidate_status": "held_duplicate_claim_guard_candidate_only",
+  "applies_to": {
+    "held_review_decision_packet_candidate": "/public-node/work-credits/datanet-wc-held-review-decision-packet-candidate-hold-v1.json",
+    "held_operator_review_queue_candidate": "/public-node/work-credits/datanet-wc-held-operator-review-queue-candidate-hold-v1.json",
+    "held_intake_queue_candidate": "/public-node/work-credits/datanet-wc-held-intake-queue-candidate-hold-v1.json",
+    "held_intake_candidate_packet": "/public-node/work-credits/datanet-wc-held-intake-candidate-packet-v1.json"
+  },
+  "candidate_guard_shape": {
+    "guard_id": "future_datanet_wc_duplicate_claim_guard_id",
+    "guard_kind": "datanet_wc_duplicate_claim_guard",
+    "guard_status": "held_not_active",
+    "guard_position": "before_wc_approval_before_wc_ledger_write",
+    "source_decision_packet": "future_public_safe_review_decision_packet_reference",
+    "source_packet_reference": "future_public_safe_intake_packet_reference",
+    "claim_fingerprint_shape": {
+      "fingerprint_id": "future_duplicate_claim_fingerprint_id",
+      "fingerprint_status": "held_not_created",
+      "object_claim_reference": "future_public_safe_object_claim_reference",
+      "participant_claim_reference": "future_public_safe_participant_claim_reference",
+      "work_window_reference": "future_public_safe_work_window_reference",
+      "review_decision_reference": "future_public_safe_review_decision_reference"
+    },
+    "guard_state": {
+      "duplicate_scan_active": false,
+      "duplicate_check_performed": false,
+      "claim_fingerprint_created": false,
+      "claim_accepted": false,
+      "claim_rejected": false,
+      "decision_approved": false,
+      "operator_action_enabled": false
+    },
+    "result_state": {
+      "duplicate_status": "none",
+      "eligible_for_wc": false,
+      "wc_amount": 0,
+      "ledger_entry_id": "none",
+      "void_allocation_id": "none"
+    }
+  },
+  "public_safety_boundary": {
+    "public_candidate_only": true,
+    "exposes_private_object_material": false,
+    "exposes_private_content_root": false,
+    "exposes_private_object_id": false,
+    "exposes_participant_identifier": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "requires_private_material": false
+  },
+  "duplicate_claim_guard_boundary": {
+    "guard_active": false,
+    "runs_duplicate_scan": false,
+    "creates_claim_fingerprint": false,
+    "accepts_claim": false,
+    "rejects_claim": false,
+    "approves_decision": false,
+    "activates_review_lane": false,
+    "activates_earn_lane": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

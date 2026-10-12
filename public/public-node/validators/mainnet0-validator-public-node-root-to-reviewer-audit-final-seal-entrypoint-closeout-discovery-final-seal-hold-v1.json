@@ -1,0 +1,42 @@
+{
+  "kind": "mainnet0_validator_public_node_root_to_reviewer_audit_final_seal_entrypoint_closeout_discovery_final_seal",
+  "marker": "VOID_MAINNET0_VALIDATOR_PUBLIC_NODE_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_CLOSEOUT_DISCOVERY_FINAL_SEAL_HOLD_V1",
+  "version": 1,
+  "status": "sealed_public_safe_read_only_final_seal",
+  "route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-final-seal-hold-v1.json",
+  "source_discovery_polish_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-polish-hold-v1.json",
+  "source_discovery_polish_runtime_visibility_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-polish-runtime-visibility-hold-v1.json",
+  "source_closeout_final_seal_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-hold-v1.json",
+  "source_closeout_final_seal_html_card_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-html-card-hold-v1.html",
+  "source_closeout_final_seal_html_card_json_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-html-card-hold-v1.json",
+  "source_closeout_final_seal_html_runtime_visibility_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-html-runtime-visibility-hold-v1.json",
+  "preferred_browser_visible_reviewer_route": "/public-node/validators/mainnet0-validator-public-node-root-to-reviewer-audit-final-seal-entrypoint-closeout-final-seal-html-card-hold-v1.html",
+  "final_seal_assertions": {
+    "discovery_polish_present": true,
+    "discovery_polish_runtime_visibility_present": true,
+    "closeout_final_seal_present": true,
+    "closeout_final_seal_html_card_present": true,
+    "closeout_final_seal_html_runtime_visibility_present": true,
+    "preferred_browser_visible_reviewer_route_present": true,
+    "public_safe_read_only": true,
+    "runtime_mutation_enabled": false
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "final_seal_metadata_only": true,
+    "discovery_polish_visibility_only": true,
+    "static_discovery_only": true,
+    "public_validator_submit": false,
+    "stake_lock": false,
+    "wallet_connect": false,
+    "candidate_registration": false,
+    "candidate_intake": false,
+    "active_validator_admission": false,
+    "epoch_activation": false,
+    "validator_set_write": false,
+    "validator_runtime_truth_write": false,
+    "runtime_mutation_route": false,
+    "mutation_handler": false
+  }
+}

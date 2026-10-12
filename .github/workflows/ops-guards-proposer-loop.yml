@@ -1,0 +1,83 @@
+name: Ops Guards (proposer loop)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-guards-proposer-loop.yml'
+      - 'ops/systemd/user/void-proposer-loop.service'
+      - 'scripts/prove_proposer_seal_rejection_containment_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_true_dry_run_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts'
+      - 'scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/dev_proposer_merge.js'
+      - 'scripts/dev_proposer_merge.ts'
+      - 'ops/proposer-rescue-ping-proof.sh'
+      - 'ops/mainnet0/public-live-boundary-v1-proof.sh'
+      - 'docs/public/mainnet0-public-route-contract-v1.md'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+  pull_request:
+    paths:
+      - '.github/workflows/ops-guards-proposer-loop.yml'
+      - 'ops/systemd/user/void-proposer-loop.service'
+      - 'scripts/prove_proposer_seal_rejection_containment_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_true_dry_run_v1.ts'
+      - 'scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts'
+      - 'scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts'
+      - 'scripts/dev_proposer_merge.js'
+      - 'scripts/dev_proposer_merge.ts'
+      - 'ops/proposer-rescue-ping-proof.sh'
+      - 'ops/mainnet0/public-live-boundary-v1-proof.sh'
+      - 'docs/public/mainnet0-public-route-contract-v1.md'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Ensure proposer loop unit exists in repo
+        run: test -f ops/systemd/user/void-proposer-loop.service
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove proposer seal rejection containment
+        run: npx tsx scripts/prove_proposer_seal_rejection_containment_v1.ts
+
+      - name: Prove sealBlockCommitOnce true dry run
+        run: npx tsx scripts/prove_seal_block_commit_once_true_dry_run_v1.ts
+
+      - name: Prove sealBlockCommitOnce mutation method guard
+        run: npx tsx scripts/prove_seal_block_commit_once_mutation_method_guard_v1.ts
+
+      - name: Prove sealBlockOnce mutation method and confirmation guard
+        run: npx tsx scripts/prove_seal_block_once_mutation_method_confirmation_guard_v1.ts
+
+      - name: Prove remaining sealOnce mutation method and confirmation guards
+        run: npx tsx scripts/prove_remaining_seal_once_mutation_method_confirmation_guard_v1.ts
+
+      - name: Prove dev pick mutation method and confirmation guard
+        run: npx tsx scripts/prove_dev_pick_mutation_method_confirmation_guard_v1.ts
+      - name: Prove proposer sealOnce mutation guard
+        run: npx tsx scripts/prove_proposer_seal_once_mutation_method_confirmation_guard_v1.ts

@@ -1,0 +1,66 @@
+{
+  "marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_HANDOFF_NOTE_V1",
+  "scope": "first_wc_to_void_settlement_public_reviewer_handoff",
+  "status": "ready",
+  "audience": "outside_public_reviewer",
+  "base_url_default": "https://zoso-alienware-aurora-r7.taila47fd.ts.net",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "review_path": [
+    {
+      "step": 1,
+      "label": "Open the public node dashboard",
+      "path": "/public-node",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_DASHBOARD_LINK_V1"
+    },
+    {
+      "step": 2,
+      "label": "Open the public reviewer verify pack",
+      "path": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_VERIFY_PACK_RUNTIME_V1"
+    },
+    {
+      "step": 3,
+      "label": "Open the reviewer verify pack JSON",
+      "path": "/public-node/wc-to-void/public-reviewer-one-command-verify-pack-v1.json",
+      "expected_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1"
+    },
+    {
+      "step": 4,
+      "label": "Copy and run the command from copy_paste_verify_command",
+      "expected_success_marker": "VOID_WC_TO_VOID_PUBLIC_REVIEWER_ONE_COMMAND_VERIFY_PACK_V1_REVIEWER_GREEN"
+    }
+  ],
+  "green_means": [
+    "The public dashboard exposes the reviewer verify pack link.",
+    "The route index exposes the reviewer pack and settlement evidence routes.",
+    "The closeout seal, evidence pack, and redacted receipt are live.",
+    "The tx hash, chain id, VOID amount, and settlement record key match the sealed public evidence.",
+    "The reviewed public JSON payloads do not expose plaintext party addresses.",
+    "The reviewer flow is read-only and does not send VOID, broadcast a transaction, call RPC, or create a public mutation path."
+  ],
+  "closed_boundaries": {
+    "read_only_handoff_note": true,
+    "does_not_execute_settlement_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_expose_private_ledger": true,
+    "does_not_expose_plaintext_party_addresses": true
+  },
+  "sealed_heads": {
+    "public_reviewer_verify_pack_dashboard_link_v1": "dc5b62f0",
+    "public_reviewer_verify_pack_runtime_v1": "b31fa78a",
+    "public_reviewer_one_command_verify_pack_v1": "c9047823",
+    "closeout_seal_dashboard_link_v1": "058cc434"
+  },
+  "sealed_tags": {
+    "public_reviewer_verify_pack_dashboard_link_cross_box": "ckpt-wc-to-void-public-reviewer-verify-pack-dashboard-link-v1-cross-box-green-20260621-154659",
+    "public_reviewer_verify_pack_runtime_cross_box": "ckpt-wc-to-void-public-reviewer-verify-pack-runtime-v1-cross-box-green-20260621-154103",
+    "public_reviewer_one_command_verify_pack_cross_box": "ckpt-wc-to-void-public-reviewer-one-command-verify-pack-v1-cross-box-green-20260621-153341",
+    "closeout_seal_dashboard_link_cross_box": "ckpt-wc-to-void-closeout-seal-dashboard-link-v1-cross-box-green-20260621-132148"
+  }
+}

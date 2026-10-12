@@ -1,0 +1,65 @@
+{
+  "marker": "VOID_AGENT_MCP_READONLY_HTTP_SERVICE_PACKAGE_V1",
+  "version": 1,
+  "service_name": "void-agent-mcp-readonly-http-v1.service",
+  "listener": {
+    "host": "127.0.0.1",
+    "port": 4114,
+    "path": "/mcp",
+    "loopback_only": true,
+    "external_network_listener": false
+  },
+  "gateway": {
+    "origin": "http://127.0.0.1:4112",
+    "role": "isolated_ai_agent_public_gateway"
+  },
+  "mcp": {
+    "protocols": [
+      "2025-11-25",
+      "2026-07-28"
+    ],
+    "tools": [
+      "void_bootstrap_network",
+      "void_prepare_paid_work_submission",
+      "void_probe_paid_work"
+    ],
+    "resources": [
+      "void://agent/capability-status",
+      "void://agent/service-catalog",
+      "void://mainnet0/discovery"
+    ],
+    "submit_tool_registered": false
+  },
+  "systemd": {
+    "scope": "user",
+    "private_devices_omitted_for_user_manager_compatibility": true,
+    "hardening": [
+      "NoNewPrivileges=true",
+      "PrivateTmp=true",
+      "ProtectSystem=strict",
+      "ProtectHome=read-only",
+      "RestrictAddressFamilies=AF_INET AF_UNIX",
+      "UMask=0077"
+    ]
+  },
+  "deployment": {
+    "confirmation": "deployVoidAgentMcpReadonlyHttpServiceV1",
+    "detached_release_worktree": true,
+    "atomic_current_symlink": true,
+    "rollback_disable_before_unit_removal": true,
+    "readiness_detection": "direct_tcp_plus_proc_net_tcp"
+  },
+  "authority": {
+    "deployment_requires_confirmation": true,
+    "submission_enabled": false,
+    "token_file_allowed": false,
+    "external_network_listener": false,
+    "reverse_proxy_configuration": false,
+    "payment_execution": false,
+    "paid_work_execution": false,
+    "wc_ledger_write": false,
+    "void_settlement": false,
+    "wallet_or_signer_access": false,
+    "transaction_broadcast": false
+  }
+}

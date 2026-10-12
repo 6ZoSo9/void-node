@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/mainnet0-public-node-operator-preflight-checklist-hold-v1.schema.json",
+  "title": "VOID Mainnet-0 Public Node Operator Preflight Checklist Hold v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "lane",
+    "status",
+    "public_surface",
+    "source_matrix",
+    "authority",
+    "checklist_items",
+    "boundary",
+    "operator_notice"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN"
+    },
+    "lane": {
+      "const": "mainnet0-public-node-operator-preflight-checklist-hold-v1"
+    },
+    "status": {
+      "const": "preflight_checklist_hold"
+    },
+    "public_surface": {
+      "const": "read_only_static_preflight_checklist"
+    },
+    "source_matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lane", "marker", "json", "html"],
+      "properties": {
+        "lane": {
+          "const": "mainnet0-public-node-operator-readiness-matrix-hold-v1"
+        },
+        "marker": {
+          "const": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN"
+        },
+        "json": {
+          "const": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.json"
+        },
+        "html": {
+          "const": "/public-node/mainnet0-public-node-operator-readiness-matrix-hold-v1.html"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registration_enabled",
+        "validator_activation_enabled",
+        "staking_enabled",
+        "wallet_connect_enabled",
+        "public_mutation_enabled",
+        "ledger_write_enabled",
+        "peer_state_write_enabled",
+        "validator_set_write_enabled",
+        "submit_enabled"
+      ],
+      "properties": {
+        "registration_enabled": { "const": false },
+        "validator_activation_enabled": { "const": false },
+        "staking_enabled": { "const": false },
+        "wallet_connect_enabled": { "const": false },
+        "public_mutation_enabled": { "const": false },
+        "ledger_write_enabled": { "const": false },
+        "peer_state_write_enabled": { "const": false },
+        "validator_set_write_enabled": { "const": false },
+        "submit_enabled": { "const": false }
+      }
+    },
+    "checklist_items": {
+      "type": "array",
+      "minItems": 14,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "status", "operator_self_check"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "status": { "const": "operator_self_check_only" },
+          "operator_self_check": { "type": "string" }
+        }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "forbidden"],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "forbidden": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "operator_notice": {
+      "type": "string"
+    }
+  }
+}

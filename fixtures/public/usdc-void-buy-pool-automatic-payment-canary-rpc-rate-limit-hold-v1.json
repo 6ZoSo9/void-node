@@ -1,0 +1,101 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_RPC_RATE_LIMIT_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_canary_rpc_rate_limit_hold_v1",
+  "visibility": "public_safe_runtime_status",
+  "status": "automatic_payment_canary_rpc_rate_limit_hold_ready",
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/automatic-payment-canary/rpc-rate-limit-hold-v1",
+    "json": "/public-node/usdc-void-buy-pool/automatic-payment-canary/rpc-rate-limit-hold-v1.json"
+  },
+  "source_dependencies": {
+    "candidate_intake_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_CANDIDATE_INTAKE_V1",
+    "candidate_intake_head": "efc41a3d",
+    "candidate_builder_repair_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_CANDIDATE_BUILDER_V1_PROOF_REPAIR_PRECISION_SYNCED_FINAL",
+    "candidate_builder_repair_head": "506642d1"
+  },
+  "rpc_outcome_policy": {
+    "rpc_failure_is_pause_not_rejection": true,
+    "buyer_action_required_on_rate_limit": false,
+    "operator_review_required_if_retry_window_exhausted": true,
+    "retry_allowed": true,
+    "approved_retry_modes": [
+      "backoff_same_rpc",
+      "operator_approved_alternate_rpc",
+      "manual_operator_receipt_read"
+    ]
+  },
+  "classifications": {
+    "200_valid_receipt_transfer_log": {
+      "state": "eligible_candidate_path",
+      "candidate_may_be_built": true,
+      "reason": "receipt and transfer log verified by gates"
+    },
+    "200_null_receipt": {
+      "state": "pending_not_mined_or_not_indexed",
+      "candidate_may_be_built": false,
+      "retry_allowed": true
+    },
+    "403": {
+      "state": "held_rpc_access_blocked",
+      "candidate_may_be_built": false,
+      "retry_allowed": true
+    },
+    "429": {
+      "state": "held_rpc_rate_limited",
+      "candidate_may_be_built": false,
+      "retry_allowed": true
+    },
+    "timeout": {
+      "state": "held_rpc_timeout",
+      "candidate_may_be_built": false,
+      "retry_allowed": true
+    },
+    "rpc_error": {
+      "state": "held_rpc_error",
+      "candidate_may_be_built": false,
+      "retry_allowed": true
+    },
+    "wrong_chain": {
+      "state": "rejected_wrong_chain",
+      "candidate_may_be_built": false,
+      "retry_allowed": false
+    },
+    "wrong_token": {
+      "state": "rejected_wrong_token",
+      "candidate_may_be_built": false,
+      "retry_allowed": false
+    },
+    "wrong_receiver": {
+      "state": "rejected_wrong_receiver",
+      "candidate_may_be_built": false,
+      "retry_allowed": false
+    },
+    "duplicate_payment_identity": {
+      "state": "rejected_duplicate_payment_identity",
+      "candidate_may_be_built": false,
+      "retry_allowed": false
+    }
+  },
+  "held_state_authority": {
+    "candidate_built": false,
+    "allocation_record_created": false,
+    "private_allocation_ledger_write": false,
+    "inventory_reserved": false,
+    "fulfillment_executed": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "public_mutation": false,
+    "public_buyer_execution": false
+  },
+  "eligible_state_required_before_candidate": {
+    "native_usdc_allowlist": true,
+    "receipt_status_success": true,
+    "erc20_transfer_log_match": true,
+    "receiver_match": true,
+    "amount_policy_match": true,
+    "finality_confirmations_met": true,
+    "duplicate_guard_passed": true,
+    "buyer_identity_bound": true,
+    "canary_limit_available": true
+  }
+}

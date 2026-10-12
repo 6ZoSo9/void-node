@@ -1,0 +1,45 @@
+name: steam-readonly-bridge-v1
+
+on:
+  pull_request:
+    paths:
+      - "src/integrations/steam_readonly_bridge_v1.ts"
+      - "scripts/steam_readonly_bridge_probe_v1.ts"
+      - "scripts/prove_steam_readonly_bridge_v1.ts"
+      - "docs/integrations/steam-readonly-bridge-v1.md"
+      - ".github/workflows/steam-readonly-bridge-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Typecheck node source
+        run: npm run typecheck
+      - name: Typecheck Steam bridge scope
+        run: >-
+          ./node_modules/.bin/tsc
+          --noEmit
+          --target ES2022
+          --lib ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --strict
+          --esModuleInterop
+          --skipLibCheck
+          --types node
+          src/integrations/steam_readonly_bridge_v1.ts
+          scripts/steam_readonly_bridge_probe_v1.ts
+          scripts/prove_steam_readonly_bridge_v1.ts
+      - name: Prove Steam bridge
+        run: ./node_modules/.bin/tsx scripts/prove_steam_readonly_bridge_v1.ts

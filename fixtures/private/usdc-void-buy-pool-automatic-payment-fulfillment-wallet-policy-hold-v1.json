@@ -1,0 +1,80 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_WALLET_POLICY_HOLD_V1",
+  "scope": "private_fulfillment_wallet_policy_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "wallet_policy_approved": false,
+    "void_fulfillment_wallet_present": false,
+    "signer_access_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "treasury_movement_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "linked_prerequisites": {
+    "receiver_allowlist_confirmation_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_RECEIVER_ALLOWLIST_CONFIRMATION_HOLD_V1",
+    "operator_activation_packet_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_ACTIVATION_PACKET_HOLD_V1",
+    "dual_chain_usdc_acceptance_allowlist_marker": "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1"
+  },
+  "wallet_policy_slots": {
+    "void_fulfillment_wallet": {
+      "wallet_address": "withheld_required_before_activation",
+      "wallet_address_publicly_disclosed": false,
+      "signer_access": false,
+      "transfer_authority": false,
+      "approval_state": "not_approved"
+    },
+    "ethereum_usdc_receipt_monitor": {
+      "chain_key": "ethereum",
+      "chain_id": 1,
+      "token_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token_contract_lowercase": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "receiver_value": "withheld_by_receiver_allowlist_packet",
+      "signing_required": false
+    },
+    "base_usdc_receipt_monitor": {
+      "chain_key": "base",
+      "chain_id": 8453,
+      "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token_contract_lowercase": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "receiver_value": "withheld_by_receiver_allowlist_packet",
+      "signing_required": false
+    }
+  },
+  "required_before_activation": [
+    "explicit_operator_wallet_policy_approval_record",
+    "signer_access_remains_off_until_activation_command",
+    "private_key_seed_phrase_no_leak_proof",
+    "wallet_address_disclosure_policy_decision",
+    "void_transfer_dry_run_fixture_only",
+    "allocation_claim_write_guard_proof",
+    "inventory_reserve_decrement_proof",
+    "rollback_disable_switch_proof",
+    "cross_box_wallet_policy_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "buyer_fulfillment": false,
+    "manual_fulfillment_record_write": false,
+    "manual_fulfillment_record_apply": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "signer_access": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

@@ -1,0 +1,58 @@
+name: VOID Tor-native public seed v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-public-seed-tor-native-v1.yml'
+      - 'docs/public/public-seed-tor-native-v1.md'
+      - 'scripts/install_void_public_seed_tor_v1.mjs'
+      - 'scripts/qualify_void_public_seed_tor_v1.mjs'
+      - 'scripts/prove_void_public_seed_tor_v1.mjs'
+      - 'tools/void-public-seed-gateway-v1.mjs'
+      - 'tools/void-tor-agent-access-client-v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-seed-tor-native-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  node-compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax-check Tor-native source
+        run: |
+          node --check scripts/install_void_public_seed_tor_v1.mjs
+          node --check scripts/qualify_void_public_seed_tor_v1.mjs
+          node --check scripts/prove_void_public_seed_tor_v1.mjs
+
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Prove Tor-native seed boundary
+        run: node scripts/prove_void_public_seed_tor_v1.mjs
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck repository
+        run: npm run typecheck

@@ -1,0 +1,77 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_SIGNER_AUTHORIZATION_LIVE_PATH_HOLD_V1",
+  "scope": "private_fulfillment_signer_authorization_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "signer_authorization_live_path_enabled": false,
+    "signer_authorization_creation_enabled": false,
+    "signer_access_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "transaction_broadcast_enabled": false,
+    "fulfillment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "required_prerequisite_results": [
+    "transfer_instruction_pass",
+    "fulfillment_execution_authorization_pass",
+    "fulfillment_record_creation_pass",
+    "allocation_claim_creation_pass",
+    "wallet_policy_pass",
+    "operator_activation_packet_pass"
+  ],
+  "signer_authorization_key_fields": [
+    "transfer_instruction_key",
+    "fulfillment_record_key",
+    "execution_authorization_key",
+    "wallet_policy_key",
+    "destination_binding_key",
+    "derived_void_amount",
+    "operator_approval_key",
+    "signer_authorization_key"
+  ],
+  "rejected_signer_authorization_states": [
+    "missing_transfer_instruction_key",
+    "missing_execution_authorization_key",
+    "missing_wallet_policy_key",
+    "missing_operator_approval_key",
+    "missing_destination_binding_key",
+    "missing_derived_void_amount",
+    "duplicate_signer_authorization_key",
+    "signer_authorization_before_transfer_instruction",
+    "signer_authorization_after_failed_payment",
+    "signer_authorization_after_duplicate_payment",
+    "signer_authorization_after_insufficient_inventory",
+    "signer_authorization_with_wallet_address",
+    "signer_authorization_with_wallet_secret",
+    "signer_authorization_with_private_key",
+    "signer_authorization_with_seed_phrase",
+    "signer_authorization_with_wallet_signing_enabled",
+    "signer_authorization_with_void_transfer_enabled",
+    "signer_authorization_with_transaction_broadcast_enabled",
+    "signer_authorization_with_public_mutation_enabled",
+    "fulfilled_state_from_signer_authorization_only"
+  ],
+  "authority": {
+    "signer_authorization_creation": false,
+    "signer_access": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "transaction_broadcast": false,
+    "fulfillment_execution": false,
+    "automatic_fulfillment": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_destination_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

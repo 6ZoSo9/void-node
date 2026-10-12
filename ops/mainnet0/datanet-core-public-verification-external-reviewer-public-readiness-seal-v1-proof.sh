@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+doc="docs/public/public-node-datanet-core-public-verification-external-reviewer-public-readiness-seal-v1.md"
+
+echo "marker=VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_PUBLIC_READINESS_SEAL_PROOF_V1"
+echo "head=$(git rev-parse --short HEAD)"
+
+test -f "$doc"
+
+grep -q 'VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_PUBLIC_READINESS_SEAL_DOC_V1' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_created_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_terminal_safe=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_static_only=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_base_head=0d2890c0' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_frozen_handoff_snapshot_closeout_cross_box_green=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_packet_ready_for_future_external_reviewer_use=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_actual_handoff_record_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_actual_handoff_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_contact_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_acknowledgement_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_result_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_no_decision_record_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_auto_acceptance=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_auto_ingest=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_adds_authority=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_peer_pin_exact_command_reveal_held=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_proof_chain=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_command_reveal=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_route_calls=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_object_fetch=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_duplicate_guard=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_public_readiness_seal_runs_full_live_rollup=false' "$doc"
+grep -q 'public_mutation=false' "$doc"
+grep -q 'ledger_write=false' "$doc"
+grep -q 'wc_credit_award=false' "$doc"
+
+echo "datanet_core_public_verification_external_reviewer_public_readiness_seal_terminal_safe=true"
+echo "datanet_core_public_verification_external_reviewer_public_readiness_seal_static_only=true"
+echo "datanet_core_public_verification_external_reviewer_public_readiness_seal_adds_authority=false"
+echo "public_mutation=false"
+echo "ledger_write=false"
+echo "wc_credit_award=false"
+echo "datanet_core_public_verification_external_reviewer_public_readiness_seal_proof_scope=tiny_static_doc_only_no_proof_chain_no_command_reveal_no_route_calls_no_object_fetch_no_duplicate_guard_no_full_rollup"
+echo "VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_PUBLIC_READINESS_SEAL_PROOF_V1_GREEN"

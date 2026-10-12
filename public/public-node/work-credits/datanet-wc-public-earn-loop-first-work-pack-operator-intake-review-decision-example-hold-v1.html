@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Operator Intake Review Decision Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Operator Intake Review Decision Example</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_EXAMPLE_HOLD_V1</code></p>
+    <p>Status: static operator decision examples only.</p>
+
+    <h2>Example outcomes</h2>
+    <ul>
+      <li>accept</li>
+      <li>reject</li>
+      <li>needs_more_info</li>
+    </ul>
+
+    <h2>Example decision packets</h2>
+    <pre>{
+  &quot;accept_example&quot;: {
+    &quot;operator_decision_id&quot;: &quot;example-decision-accept-001&quot;,
+    &quot;source_operator_review_packet_reference&quot;: &quot;example-operator-review-packet-reference&quot;,
+    &quot;worker_public_handle&quot;: &quot;example-worker-001&quot;,
+    &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+    &quot;selected_option&quot;: &quot;accept&quot;,
+    &quot;decision_reason&quot;: &quot;Example only: all public-safety, lane-match, reproducibility, and duplicate/replay checks are shown as passing.&quot;,
+    &quot;decision_inputs&quot;: {
+      &quot;packet_is_public_safe&quot;: true,
+      &quot;no_secret_material&quot;: true,
+      &quot;work_pack_matches_lane&quot;: true,
+      &quot;evidence_is_reproducible_or_reviewer_openable&quot;: true,
+      &quot;duplicate_or_replay_screen&quot;: &quot;no_duplicate_found&quot;
+    },
+    &quot;example_only&quot;: true,
+    &quot;decision_fixture_created_here&quot;: false,
+    &quot;wc_amount_approved_here&quot;: false,
+    &quot;ledger_write_candidate_created_here&quot;: false
+  },
+  &quot;reject_example&quot;: {
+    &quot;operator_decision_id&quot;: &quot;example-decision-reject-001&quot;,
+    &quot;source_operator_review_packet_reference&quot;: &quot;example-operator-review-packet-reference&quot;,
+    &quot;worker_public_handle&quot;: &quot;example-worker-002&quot;,
+    &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+    &quot;selected_option&quot;: &quot;reject&quot;,
+    &quot;decision_reason&quot;: &quot;Example only: packet fails reproducibility or lane-match requirements.&quot;,
+    &quot;decision_inputs&quot;: {
+      &quot;packet_is_public_safe&quot;: true,
+      &quot;no_secret_material&quot;: true,
+      &quot;work_pack_matches_lane&quot;: false,
+      &quot;evidence_is_reproducible_or_reviewer_openable&quot;: false,
+      &quot;duplicate_or_replay_screen&quot;: &quot;not_applicable_after_failed_lane_match&quot;
+    },
+    &quot;example_only&quot;: true,
+    &quot;decision_fixture_created_here&quot;: false,
+    &quot;wc_amount_approved_here&quot;: false,
+    &quot;ledger_write_candidate_created_here&quot;: false
+  },
+  &quot;needs_more_info_example&quot;: {
+    &quot;operator_decision_id&quot;: &quot;example-decision-needs-more-info-001&quot;,
+    &quot;source_operator_review_packet_reference&quot;: &quot;example-operator-review-packet-reference&quot;,
+    &quot;worker_public_handle&quot;: &quot;example-worker-003&quot;,
+    &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+    &quot;selected_option&quot;: &quot;needs_more_info&quot;,
+    &quot;decision_reason&quot;: &quot;Example only: packet appears public-safe and lane-matched, but evidence is incomplete.&quot;,
+    &quot;decision_inputs&quot;: {
+      &quot;packet_is_public_safe&quot;: true,
+      &quot;no_secret_material&quot;: true,
+      &quot;work_pack_matches_lane&quot;: true,
+      &quot;evidence_is_reproducible_or_reviewer_openable&quot;: &quot;incomplete&quot;,
+      &quot;duplicate_or_replay_screen&quot;: &quot;pending_until_complete_evidence&quot;
+    },
+    &quot;example_only&quot;: true,
+    &quot;decision_fixture_created_here&quot;: false,
+    &quot;wc_amount_approved_here&quot;: false,
+    &quot;ledger_write_candidate_created_here&quot;: false
+  }
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No live decision fixture created.</li>
+      <li>No approved WC amount.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No VOID transfer.</li>
+      <li>No wallet connect.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>

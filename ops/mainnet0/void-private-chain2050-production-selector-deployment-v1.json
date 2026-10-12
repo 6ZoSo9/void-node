@@ -1,0 +1,141 @@
+{
+  "marker": "VOID_PRIVATE_CHAIN2050_PRODUCTION_SELECTOR_DEPLOYMENT_V1",
+  "version": 1,
+  "source_only": true,
+  "installation_performed": false,
+  "service_mutation_performed": false,
+  "checkpoint_promotion_performed": false,
+  "production_state_load_performed": false,
+  "wallet_signer_credential_access": false,
+  "transaction_submission_performed": false,
+  "money_movement_performed": false,
+  "reviewed_source_anchor": "1b3429b9e938b4c590ecc1601677394d8d7081cb",
+  "anvil_binding_repair_source_blobs_require_merged_commit_at_operator_seal": true,
+  "deployment_root": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1",
+  "service_name": "void-private-chain2050-rpc-v1.service",
+  "unit_template_path": "ops/systemd/user/void-private-chain2050-rpc-selected-durable-v1.service.example",
+  "source_files": [
+    {
+      "path": "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
+      "git_blob_sha": "28109ec33fd1467a52624909f53be2276d054591",
+      "deployment_relative_path": "ops/mainnet0/mainnet0-start-8545-selected-durable-state.sh",
+      "mode": "0755"
+    },
+    {
+      "path": "tools/void-private-chain2050-startup-integration-v1.mjs",
+      "git_blob_sha": "061a136a1c103f5e7006665be9abe200a18a9ebf",
+      "deployment_relative_path": "tools/void-private-chain2050-startup-integration-v1.mjs",
+      "mode": "0600"
+    },
+    {
+      "path": "tools/void-private-chain2050-startup-selection-v1.mjs",
+      "git_blob_sha": "074e4429d9b3f534f38e9a0535a123a062b9e37d",
+      "deployment_relative_path": "tools/void-private-chain2050-startup-selection-v1.mjs",
+      "mode": "0600"
+    },
+    {
+      "path": "tools/void-private-chain2050-checkpoint-v1.mjs",
+      "git_blob_sha": "8086330b508c5786ce004dfb2a9ffce73e8f8c77",
+      "deployment_relative_path": "tools/void-private-chain2050-checkpoint-v1.mjs",
+      "mode": "0600"
+    }
+  ],
+  "runtime_seal_requirements": {
+    "node_binary_absolute_path_required": true,
+    "node_binary_sha256_required": true,
+    "node_binary_unit_sentinel": "__SEALED_NODE_BIN__",
+    "anvil_binary_absolute_path_required": true,
+    "anvil_binary_normalized_path_required": true,
+    "anvil_binary_path_component_symlinks_forbidden": true,
+    "anvil_binary_owner_safe_mode_executable_required": true,
+    "anvil_binary_sha256_required_at_plan_and_immediately_before_spawn": true,
+    "anvil_binary_ambient_path_resolution_allowed": false,
+    "pinned_anvil_source_path": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/anvil-v1.5.1-epoch127-20260723T210919Z/bin/anvil",
+    "pinned_anvil_sha256": "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738",
+    "pinned_anvil_deployment_relative_path": "bin/anvil",
+    "pinned_anvil_unit_path": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil",
+    "pinned_anvil_mode": "0700"
+  },
+  "baseline": {
+    "source_wrapper_path": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/anvil-v1.5.1-epoch127-20260723T210919Z/state/epoch127.snapshot.json",
+    "source_wrapper_sha256": "bb58dee389c8129ad68369f413a1469521a95c5eaf224488011ca140834a69c9",
+    "source_wrapper_format": "json_string_anvil_dumpState_hex_gzip",
+    "normalization": "json_string_value_to_raw_anvil_dump_state_hex_without_gzip_inflate",
+    "normalized_deployment_relative_path": "state/epoch127.baseline.anvil-dump-state.hex",
+    "normalized_sha256": "02afeb49a6eced1c1f3889d62f308f07df099c0c75699226e89d60fdb434ede7",
+    "normalized_mode": "0600",
+    "normalized_format": "anvil_dump_state_hex",
+    "block_number": 37367,
+    "block_hash": "0x97b6cc60e4f909d2ecfbe62c506cb8e921368a35abcac987be97ad067fed48f3"
+  },
+  "checkpoint_promotion_plan": {
+    "copy_required": true,
+    "source_root": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/recovery-candidate-checkpoints-v6",
+    "destination_root": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1",
+    "checkpoint_id_sha256": "99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2",
+    "state_sha256": "88937f269bfadb150821794cae874ea312b6b5525b8b81b40bb0b7102b3aa248",
+    "block_number": 37371,
+    "block_hash": "0xe254ecdee2702154d915ca9d5894ef6693f6efb07fdcb789a24ed3a39b455865",
+    "delivery_block_number": 37370,
+    "delivery_block_hash": "0xc1d423bfc9e790f38f9e2db49d54793954513fcd34b009683175412814418983",
+    "delivery_transaction_hash": "0x4557801a27c6c47e032d0a4b599c2d01a76b407638fd87e6f129f8aef13f6ac6",
+    "state_filename": "chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.anvil-dump-state.hex",
+    "manifest_filename": "chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.manifest.json",
+    "complete_filename": "chain2050-block-37371-99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2.complete-v1",
+    "complete_exact_text": "VOID_PRIVATE_CHAIN2050_CHECKPOINT_COMPLETE_V1 99892d8dda6c759e14c42344971019fa42a9aac93d54ec4a25e4d66af60310b2\n",
+    "manifest_sha256_required_at_operator_seal": true,
+    "copy_semantics": "create_only_content_preserving_then_fsync_before_final_marker",
+    "copy_performed_by_source_lane": false
+  },
+  "startup": {
+    "rpc_url": "http://127.0.0.1:8545/",
+    "required_minimum_block_number": 37371,
+    "start_mode": "apply",
+    "confirmation": "startPrivateChain2050FromSelectedDurableState",
+    "accounts": 0,
+    "interval_mining": false,
+    "no_mining": false,
+    "stale_baseline_fallback_allowed": false,
+    "automatic_rollback_to_37367_allowed": false,
+    "failure_policy": "HOLD_WITH_PRODUCTION_ECONOMIC_LANE_DISABLED"
+  },
+  "roots": {
+    "recovery_candidate_root": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/recovery-candidate-checkpoints-v6",
+    "production_checkpoint_root": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1",
+    "startup_derived_root": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1",
+    "buy_void_runtime_root": "/home/zoso/dev/void-node/data_a/buy_void_v1/runtime-integration-v1",
+    "durability_root": "/home/zoso/dev/void-node/data_a/buy_void_v1/runtime-integration-v1/chain2050-durability-v1"
+  },
+  "future_unit_environment": {
+    "VOID_REPO": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1",
+    "VOID_NODE_BIN": "__SEALED_NODE_BIN__",
+    "VOID_MAINNET0_8545_ANVIL_EXECUTABLE": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil",
+    "VOID_MAINNET0_8545_ANVIL_EXECUTABLE_SHA256": "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738",
+    "VOID_MAINNET0_8545_BASELINE_STATE": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/state/epoch127.baseline.anvil-dump-state.hex",
+    "VOID_MAINNET0_8545_BASELINE_STATE_SHA256": "02afeb49a6eced1c1f3889d62f308f07df099c0c75699226e89d60fdb434ede7",
+    "VOID_MAINNET0_8545_BASELINE_STATE_FORMAT": "anvil_dump_state_hex",
+    "VOID_MAINNET0_8545_BASELINE_BLOCK_NUMBER": "37367",
+    "VOID_MAINNET0_8545_BASELINE_BLOCK_HASH": "0x97b6cc60e4f909d2ecfbe62c506cb8e921368a35abcac987be97ad067fed48f3",
+    "VOID_MAINNET0_8545_CHECKPOINT_ROOT": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/checkpoints-v1",
+    "VOID_MAINNET0_8545_MINIMUM_BLOCK_NUMBER": "37371",
+    "VOID_MAINNET0_8545_DERIVED_ROOT": "/home/zoso/.local/state/void-private-chain2050-rpc-v1/startup-derived-v1",
+    "VOID_MAINNET0_8545_RPC_URL": "http://127.0.0.1:8545/",
+    "VOID_MAINNET0_8545_START_MODE": "apply",
+    "VOID_MAINNET0_8545_CONFIRMATION": "startPrivateChain2050FromSelectedDurableState"
+  },
+  "authority": {
+    "operator_seal_preparation_separate_gate": true,
+    "checkpoint_promotion_separate_gate": true,
+    "unit_installation_separate_gate": true,
+    "service_restart_separate_gate": true,
+    "production_state_load_separate_gate": true,
+    "economic_reentry_separate_gate": true,
+    "wallet_signer_credential_access": false,
+    "transaction_broadcast": false,
+    "buy_void_fulfillment": false,
+    "work_credit_mutation": false,
+    "validator_mutation": false,
+    "treasury_mutation": false,
+    "fund_movement": false
+  }
+}

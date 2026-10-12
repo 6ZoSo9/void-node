@@ -1,0 +1,23 @@
+{
+  "marker": "VOID_PUBLIC_RELEASE_QUALIFICATION_INDEX_V1",
+  "schema_version": 1,
+  "status": "implemented_proof_gated",
+  "required_targets": [
+    "ubuntu-22.04-x64",
+    "ubuntu-24.04-x64",
+    "debian-12-x64",
+    "windows-wsl2-ubuntu-24.04-x64",
+    "upgrade-from-current-stable",
+    "rollback-health-failure",
+    "two-node-sync",
+    "participant-ui-smoke"
+  ],
+  "stable_promotion_requires_qualification": true,
+  "independent_reviewer_required": true,
+  "release_tag_published": false,
+  "official_release_published": false,
+  "live_deployment": false,
+  "service_restart": false,
+  "money_movement": false,
+  "guarded_lanes_activated": false
+}

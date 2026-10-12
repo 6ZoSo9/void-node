@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-registry-verification-v1.schema.json",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REGISTRY_VERIFICATION_SCHEMA_V1",
+  "title": "VOID Public Agent Service Trusted Requester Acceptance Registry Verification V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "input",
+    "packet"
+  ],
+  "properties": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "evidence_mode",
+        "expected_requester_trust_root_id",
+        "requester_trust_registry_snapshot_input",
+        "trusted_requester_acceptance_verification_input"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REGISTRY_VERIFICATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "evidence_mode": {
+          "enum": [
+            "example_fixture",
+            "external_requester_evidence"
+          ]
+        },
+        "expected_requester_trust_root_id": {
+          "type": "string",
+          "pattern": "^voidartr1_[0-9a-f]{64}$"
+        },
+        "requester_trust_registry_snapshot_input": {
+          "type": "object"
+        },
+        "trusted_requester_acceptance_verification_input": {
+          "type": "object"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "source",
+        "requester_trust_registry_packet",
+        "trusted_requester_packet",
+        "resolved_requester_binding",
+        "verification",
+        "acceptance_materialization_gate",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_REGISTRY_VERIFICATION_PACKET_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "example_only",
+            "trusted_requester_acceptance_registry_verified"
+          ]
+        },
+        "source": {
+          "type": "object"
+        },
+        "requester_trust_registry_packet": {
+          "type": "object"
+        },
+        "trusted_requester_packet": {
+          "type": "object"
+        },
+        "resolved_requester_binding": {
+          "type": "object"
+        },
+        "verification": {
+          "type": "object",
+          "required": [
+            "requester_snapshot_verified",
+            "requester_snapshot_provenance_verified",
+            "trusted_provider_chain_verified",
+            "requester_signature_verified",
+            "requester_intent_binding_verified",
+            "composed_acceptance_intent_verified",
+            "requester_agent_identity_verified",
+            "requester_binding_identity_verified",
+            "requester_key_identity_verified",
+            "requester_binding_exact_match_verified",
+            "requester_binding_provenance_verified"
+          ]
+        },
+        "acceptance_materialization_gate": {
+          "type": "object",
+          "required": [
+            "eligible_for_acceptance_materialization",
+            "reason",
+            "requester_binding_provenance_required",
+            "separate_acceptance_materialization_required",
+            "requester_authentication_replay_protection_required",
+            "requester_authentication_id_consumption_required",
+            "provider_authentication_id_consumption_required",
+            "acceptance_replay_protection_required",
+            "acceptance_id_consumption_required",
+            "single_active_acceptance_per_quote_required",
+            "acceptance_replay_consumer_verified",
+            "production_persistence_consumer_verified",
+            "quote_acceptance_not_performed"
+          ]
+        },
+        "authority": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DataNet field replication safe serve runbook v1</title>
+</head>
+<body>
+  <main>
+    <h1>DataNet field replication safe serve runbook v1</h1>
+    <p><strong>Status:</strong> repeatable operator runbook.</p>
+    <p>This public-safe runbook repeats the source-node to field-node DataNet replication loop using <code>npm run public-node:serve</code>, not a generic Python HTTP server.</p>
+
+    <h2>Required commands</h2>
+    <ul>
+      <li>Source serve: <code>npm run public-node:serve -- --port 8088</code></li>
+      <li>Field mirror serve: <code>npm run public-node:serve -- --port 8089</code></li>
+      <li>Field runner: <code>npm run datanet:field-replication:run</code></li>
+      <li>Source verifier: <code>npm run datanet:field-object:roundtrip</code></li>
+      <li>Field report: <code>npm run void:field-report</code></li>
+    </ul>
+
+    <h2>Expected markers</h2>
+    <ul>
+      <li><code>VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY</code></li>
+      <li><code>VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN</code></li>
+      <li><code>VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN</code></li>
+      <li><code>VOID_FIELD_REPORT_V1_READY</code></li>
+      <li><code>dangerous_paths_touched=false</code></li>
+      <li><code>match=true</code></li>
+    </ul>
+
+    <h2>Boundaries</h2>
+    <p>This runbook is read-only and does not enable wallet movement, WC settlement, validator admission, public mutation routes, ledger writes, automatic rewards, or secret handling.</p>
+    <p>Private tailnet addresses and hostnames are intentionally redacted from public status.</p>
+
+    <p><a href="./field-replication-status-card-v1.html">Back to DataNet field replication status card</a></p>
+  </main>
+</body>
+</html>

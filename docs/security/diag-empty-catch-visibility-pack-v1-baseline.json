@@ -1,0 +1,19 @@
+{
+  "marker": "VOID_DIAG_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE",
+  "targets": {
+    "src/diag/fs_autoclose_guard_v1.ts": {
+      "exact_empty_catch_count_before": 11,
+      "catch_context_count": 13
+    },
+    "src/diag/fs_autoclose_guard_v2.ts": {
+      "exact_empty_catch_count_before": 11,
+      "catch_context_count": 13
+    }
+  },
+  "total_exact_empty_catch_count_before": 22,
+  "expected_repo_empty_catch_count_before": 1284,
+  "expected_repo_empty_catch_count_after": 1263,
+  "observed_guard_inventory_drop": 21,
+  "target_exact_empty_catch_count_closed": 22,
+  "note": "Target exact matcher closed 22 source empty-catch bodies; repo guard inventory pressure dropped by 21 because the guard inventory counts one fewer pressure item for this diagnostic cluster."
+}

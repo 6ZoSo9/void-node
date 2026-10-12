@@ -1,0 +1,36 @@
+{
+  "authority": {
+    "activation": false,
+    "fund_movement": false,
+    "installation_mutation": false,
+    "payment_execution": false,
+    "service_restart": false
+  },
+  "evidence": {
+    "execution_receipt": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-execution-v1-20260731T185605Z/execution-receipt.json",
+    "execution_receipt_sha256": "297fbd91034587649478e6bc679b9729281edff5c8e23645acb46abaed5a848b",
+    "full_log": "/home/zoso/void-precision-smoke/logs/void-paid-work-disabled-production-install-final-seal-v1-20260731T190348Z.log",
+    "installer_receipt": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/receipts/20260731T185612Z-1845681-install-receipt.json",
+    "installer_receipt_sha256": "f658e5db26a116c1c650e442dcf18cfba6671c28ebe38e0807caefa6e389d4b8",
+    "smoke": "/home/zoso/void-precision-smoke/void-paid-work-disabled-production-install-final-seal-v1-20260731T190348Z/disabled-smoke.json",
+    "smoke_sha256": "1f012f080ce0dc2609280e3f77887d4d2089a3dc6511227df58cc70388f7cd22"
+  },
+  "generated_at_utc": "2026-07-31T19:03:50.526639Z",
+  "install_root": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1",
+  "main_commit": "b9b8189347a12bfe0528f980f4edb7dffd3e6e1a",
+  "marker": "VOID_PAID_WORK_DISABLED_PRODUCTION_INSTALL_FINAL_SEAL_V1",
+  "next": "design-disabled-runtime-activation-prerequisites-v1",
+  "pr894_merge": "3074bd4f253082841630312a8353946321b5a97e",
+  "release_id": "paid-work-runtime-disabled-v1-3b298bc1e313-64841279f90d",
+  "status": "exact_green",
+  "verification": {
+    "disabled_launcher_smoke": "exact_green",
+    "execution_receipt": "exact",
+    "installer_receipt": "exact",
+    "ready_for_activation": false,
+    "release_hashes": "exact",
+    "release_modes": "exact",
+    "release_tree": "exact"
+  },
+  "version": 1
+}

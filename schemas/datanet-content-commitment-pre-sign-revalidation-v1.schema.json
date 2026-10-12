@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-content-commitment-pre-sign-revalidation-v1.schema.json",
+  "title": "VOID DataNet Content Commitment Pre-Sign Revalidation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "marker",
+    "version",
+    "status",
+    "unsigned_call_plan_id",
+    "first_object_preflight_id",
+    "final_object_preflight_id",
+    "final_observation_block_number",
+    "final_observation_block_hash",
+    "policy_fingerprint_sha256",
+    "rpc_url_fingerprint_sha256",
+    "nonce_stable_across_revalidation",
+    "first_pending_nonce",
+    "final_pending_nonce",
+    "first_gas_price_wei",
+    "final_gas_price_wei",
+    "first_estimated_gas",
+    "final_estimated_gas",
+    "first_publisher_balance_wei",
+    "final_publisher_balance_wei",
+    "computed_max_gas_cost_wei",
+    "unsigned_transaction_candidate",
+    "freshness",
+    "authority",
+    "next_gate",
+    "pre_sign_revalidation_id",
+    "rpc_methods_used",
+    "signing_performed",
+    "signer_access_performed",
+    "wallet_access_performed",
+    "transaction_broadcast_performed",
+    "chain2050_mutation_performed",
+    "funds_action_performed",
+    "authority_contract"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_DATANET_CONTENT_COMMITMENT_PRE_SIGN_REVALIDATION_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "fresh_pre_sign_revalidation_green_unsigned_transaction_candidate"
+    },
+    "unsigned_call_plan_id": {
+      "type": "string",
+      "pattern": "^voiddccup1_[0-9a-f]{64}$"
+    },
+    "first_object_preflight_id": {
+      "type": "string",
+      "pattern": "^voiddccop1_[0-9a-f]{64}$"
+    },
+    "final_object_preflight_id": {
+      "type": "string",
+      "pattern": "^voiddccop1_[0-9a-f]{64}$"
+    },
+    "final_observation_block_number": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "final_observation_block_hash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
+    "policy_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rpc_url_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonce_stable_across_revalidation": {
+      "const": true
+    },
+    "first_pending_nonce": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "final_pending_nonce": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "first_gas_price_wei": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "final_gas_price_wei": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "first_estimated_gas": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "final_estimated_gas": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "first_publisher_balance_wei": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "final_publisher_balance_wei": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "computed_max_gas_cost_wei": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "unsigned_transaction_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transaction_type",
+        "chain_id",
+        "nonce",
+        "from_address",
+        "to_address",
+        "value_wei",
+        "calldata",
+        "gas_limit",
+        "max_fee_per_gas_wei",
+        "max_priority_fee_per_gas_wei"
+      ],
+      "properties": {
+        "transaction_type": {
+          "const": 2
+        },
+        "chain_id": {
+          "const": "2050"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "from_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "to_address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]{40}$"
+        },
+        "value_wei": {
+          "const": "0"
+        },
+        "calldata": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "gas_limit": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "max_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "max_priority_fee_per_gas_wei": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      }
+    },
+    "freshness": {
+      "type": "object"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "next_gate": {
+      "const": "bind_exact_publisher_signer_identity_then_revalidate_immediately_before_signing"
+    },
+    "pre_sign_revalidation_id": {
+      "type": "string",
+      "pattern": "^voiddccpsr1_[0-9a-f]{64}$"
+    },
+    "rpc_methods_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signing_performed": {
+      "const": false
+    },
+    "signer_access_performed": {
+      "const": false
+    },
+    "wallet_access_performed": {
+      "const": false
+    },
+    "transaction_broadcast_performed": {
+      "const": false
+    },
+    "chain2050_mutation_performed": {
+      "const": false
+    },
+    "funds_action_performed": {
+      "const": false
+    },
+    "authority_contract": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { min-width: 320px; background: var(--void-bg-canvas); scroll-behavior: smooth; }
+body { margin: 0; min-height: 100vh; color: var(--void-text-primary); background: var(--void-bg-canvas); font-family: var(--void-font-sans); font-size: var(--void-text-14); line-height: var(--void-leading-normal); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(76,229,223,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(76,229,223,.018) 1px, transparent 1px); background-size: 36px 36px; mask-image: linear-gradient(to bottom, rgba(0,0,0,.65), transparent 75%); }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { color: inherit; }
+a { color: inherit; text-decoration: none; }
+svg { display: block; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+img { max-width: 100%; }
+h1, h2, h3, h4, p, dl, dd { margin: 0; }
+h1, h2, h3 { letter-spacing: -0.025em; }
+h1 { font-size: clamp(2rem, 4vw, var(--void-text-40)); line-height: var(--void-leading-tight); }
+h2 { font-size: var(--void-text-24); line-height: var(--void-leading-tight); }
+h3 { font-size: var(--void-text-16); line-height: var(--void-leading-snug); }
+small { font-size: var(--void-text-12); }
+::selection { background: rgba(76,229,223,.22); color: var(--void-text-primary); }
+:focus-visible { outline: 2px solid var(--void-accent-cyan); outline-offset: 3px; }
+[hidden] { display: none; }
+.skip-link { position: fixed; left: 1rem; top: -4rem; z-index: 100; padding: .7rem 1rem; border-radius: var(--void-radius-2); background: var(--void-accent-cyan); color: var(--void-text-inverse); font-weight: 800; transition: top var(--void-duration-base); }
+.skip-link:focus { top: 1rem; }
+.eyebrow { color: var(--void-accent-cyan); font-family: var(--void-font-mono); font-size: var(--void-text-11); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.muted { color: var(--void-text-muted); }
+.mono { font-family: var(--void-font-mono); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto; animation-duration: .01ms; animation-iteration-count: 1; transition-duration: .01ms; } }

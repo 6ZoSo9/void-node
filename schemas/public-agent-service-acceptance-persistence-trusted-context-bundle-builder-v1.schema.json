@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.example/schemas/public-agent-service-acceptance-persistence-trusted-context-bundle-builder-v1.schema.json",
+  "title": "Public Agent Service Acceptance Persistence Trusted Context Bundle Builder V1 Source-Only Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "source_base_commit",
+    "status",
+    "cli",
+    "bundle_contract",
+    "validation",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_BUILDER_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "source_base_commit": {
+      "const": "b119357c60f15a4c0150d99c5081f1e84b1ee39e"
+    },
+    "status": {
+      "const": "source_only_no_bundle_created"
+    },
+    "cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modes",
+        "build_confirmation",
+        "output_flag",
+        "existing_output_policy",
+        "path_reporting"
+      ],
+      "properties": {
+        "modes": {
+          "const": [
+            "plan",
+            "build",
+            "verify"
+          ]
+        },
+        "build_confirmation": {
+          "const": "buildAcceptancePersistenceTrustedContextBundleV1"
+        },
+        "output_flag": {
+          "const": "--output"
+        },
+        "existing_output_policy": {
+          "const": "refuse"
+        },
+        "path_reporting": {
+          "const": "sha256_fingerprint_only"
+        }
+      }
+    },
+    "bundle_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "exact_keys",
+        "maximum_bytes",
+        "encoding",
+        "write_strategy",
+        "file_mode"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "exact_keys": {
+          "const": [
+            "marker",
+            "version",
+            "catalog",
+            "work_order",
+            "quote"
+          ]
+        },
+        "maximum_bytes": {
+          "const": 25165824
+        },
+        "encoding": {
+          "const": "recursively_key_sorted_pretty_json_with_final_newline"
+        },
+        "write_strategy": {
+          "const": "same_directory_fsync_hard_link_no_overwrite"
+        },
+        "file_mode": {
+          "const": "0600"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalog_fingerprint_recomputed",
+        "catalog_service_matches_work_order_capability",
+        "work_order_id_recomputed",
+        "quote_id_recomputed",
+        "quote_bound_to_work_order",
+        "quote_within_work_order_limits",
+        "trusted_input_paths_required",
+        "trusted_output_parent_required",
+        "provider_reader_revalidation"
+      ],
+      "properties": {
+        "catalog_fingerprint_recomputed": {
+          "const": true
+        },
+        "catalog_service_matches_work_order_capability": {
+          "const": true
+        },
+        "work_order_id_recomputed": {
+          "const": true
+        },
+        "quote_id_recomputed": {
+          "const": true
+        },
+        "quote_bound_to_work_order": {
+          "const": true
+        },
+        "quote_within_work_order_limits": {
+          "const": true
+        },
+        "trusted_input_paths_required": {
+          "const": true
+        },
+        "trusted_output_parent_required": {
+          "const": true
+        },
+        "provider_reader_revalidation": {
+          "const": true
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_created",
+        "runtime_activation",
+        "acceptance_persistence",
+        "replay_write",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "work_credit_write",
+        "wallet_access",
+        "signing",
+        "transaction_broadcast",
+        "service_restart",
+        "deployment",
+        "money_movement"
+      ],
+      "properties": {
+        "bundle_created": {
+          "const": false
+        },
+        "runtime_activation": {
+          "const": false
+        },
+        "acceptance_persistence": {
+          "const": false
+        },
+        "replay_write": {
+          "const": false
+        },
+        "payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "execution_authorization": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "signing": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  }
+}

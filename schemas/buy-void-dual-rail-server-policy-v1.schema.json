@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/buy-void-dual-rail-server-policy-v1.schema.json",
+  "title": "VOID Buy VOID dual-rail server policy fixture v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "policy"],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_dual_rail_server_policy_fixture_v1"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "rails",
+        "economics",
+        "fingerprints",
+        "public_summary",
+        "policy_id",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1"
+        },
+        "version": { "const": 1 },
+        "rails": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            { "$ref": "#/$defs/baseRail" },
+            { "$ref": "#/$defs/ethereumRail" }
+          ],
+          "items": false
+        },
+        "economics": {
+          "const": {
+            "marker": "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1",
+            "canonical_presale_max_void": "10000000",
+            "rate_void_units_numerator": "2",
+            "rate_void_units_denominator": "1",
+            "accepted_payment_asset": "USDC",
+            "exact_payment_required": true,
+            "one_payment_one_fulfillment": true,
+            "no_hidden_minimum": true,
+            "no_hidden_per_buyer_throttle_below_remaining_inventory": true
+          }
+        },
+        "fingerprints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base_stable_sha256",
+            "ethereum_stable_sha256",
+            "combined_stable_sha256",
+            "observation_sha256"
+          ],
+          "properties": {
+            "base_stable_sha256": { "$ref": "#/$defs/sha256" },
+            "ethereum_stable_sha256": { "$ref": "#/$defs/sha256" },
+            "combined_stable_sha256": { "$ref": "#/$defs/sha256" },
+            "observation_sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "public_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "advertised_chains",
+            "evm_chain_ids",
+            "min_confirmations_by_chain",
+            "stable_config_sha256",
+            "observation_sha256",
+            "accepted_payment_asset",
+            "canonical_presale_max_void",
+            "rate_void_per_usdc",
+            "exact_payment_required",
+            "one_payment_one_fulfillment"
+          ],
+          "properties": {
+            "advertised_chains": { "const": ["base", "ethereum"] },
+            "evm_chain_ids": {
+              "const": { "base": "8453", "ethereum": "1" }
+            },
+            "min_confirmations_by_chain": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["base", "ethereum"],
+              "properties": {
+                "base": { "$ref": "#/$defs/positiveUint" },
+                "ethereum": { "$ref": "#/$defs/positiveUint" }
+              }
+            },
+            "stable_config_sha256": { "$ref": "#/$defs/sha256" },
+            "observation_sha256": { "$ref": "#/$defs/sha256" },
+            "accepted_payment_asset": { "const": "USDC" },
+            "canonical_presale_max_void": { "const": "10000000" },
+            "rate_void_per_usdc": { "const": "2" },
+            "exact_payment_required": { "const": true },
+            "one_payment_one_fulfillment": { "const": true }
+          }
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^void-buy-void-dual-rail-policy-v1-[0-9a-f]{64}$"
+        },
+        "authority": {
+          "const": {
+            "source_only_reference_contract": true,
+            "simultaneous_dual_rail_runtime_ready": false,
+            "source_chain_rpc_call": false,
+            "source_chain_finality_authority": false,
+            "chain2050_state_transition": false,
+            "chain2050_inventory_mutation": false,
+            "chain2050_fulfillment_anchor_mutation": false,
+            "filesystem_read": false,
+            "filesystem_write": false,
+            "credential_access": false,
+            "wallet_access": false,
+            "signing": false,
+            "transaction_construction": false,
+            "transaction_broadcast": false,
+            "inventory_funding": false,
+            "public_presale_activation": false,
+            "money_movement": false
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uint": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "positiveUint": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,5}$"
+    },
+    "safeId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$"
+    },
+    "finality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter_id",
+        "min_confirmations",
+        "finalized_reference_block"
+      ],
+      "properties": {
+        "adapter_id": { "$ref": "#/$defs/safeId" },
+        "min_confirmations": { "$ref": "#/$defs/positiveUint" },
+        "finalized_reference_block": { "$ref": "#/$defs/uint" }
+      }
+    },
+    "baseRail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_chain",
+        "evm_chain_id",
+        "usdc_contract",
+        "receive_address",
+        "rpc_identity",
+        "finality"
+      ],
+      "properties": {
+        "source_chain": { "const": "base" },
+        "evm_chain_id": { "const": "8453" },
+        "usdc_contract": { "$ref": "#/$defs/address" },
+        "receive_address": { "$ref": "#/$defs/address" },
+        "rpc_identity": { "$ref": "#/$defs/safeId" },
+        "finality": { "$ref": "#/$defs/finality" }
+      }
+    },
+    "ethereumRail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_chain",
+        "evm_chain_id",
+        "usdc_contract",
+        "receive_address",
+        "rpc_identity",
+        "finality"
+      ],
+      "properties": {
+        "source_chain": { "const": "ethereum" },
+        "evm_chain_id": { "const": "1" },
+        "usdc_contract": { "$ref": "#/$defs/address" },
+        "receive_address": { "$ref": "#/$defs/address" },
+        "rpc_identity": { "$ref": "#/$defs/safeId" },
+        "finality": { "$ref": "#/$defs/finality" }
+      }
+    }
+  }
+}

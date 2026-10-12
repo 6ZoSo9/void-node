@@ -1,0 +1,48 @@
+name: VOID economic epoch2 account nonce continuity v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-account-nonce-continuity-v1.yml"
+      - "ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh"
+      - "ops/precision/void_precision_epoch2_besu_nonce_continuity_equivalence_v1.sh"
+      - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
+      - "scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs"
+      - "ops/mainnet0/economic-genesis-archive-final-snapshot-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-signed-transaction-verification-precision-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-account-nonce-continuity-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove frozen nonce continuity candidate
+        run: |
+          set -euo pipefail
+          bash -n ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh
+          bash ops/precision/void_precision_epoch2_legacy_nonce_census_v1.sh --self-test
+          bash -n ops/precision/void_precision_epoch2_besu_nonce_continuity_equivalence_v1.sh
+          node --check scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
+          node scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
+          git diff --exit-code

@@ -1,0 +1,38 @@
+[Unit]
+Description=VOID P2P Signed Trust Policy Wall v1
+After=network-online.target void-node.service
+Wants=network-online.target
+Requires=void-node.service
+Conflicts=void-p2p-authenticated-edge-wall-v1.service
+
+[Service]
+Type=simple
+User=void
+Group=void
+WorkingDirectory=/opt/void-node
+EnvironmentFile=/etc/void/p2p-signed-trust-policy-wall-v1.env
+ExecStart=/opt/void-node/ops/mainnet0/run-p2p-signed-trust-policy-wall-v1.sh
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=78
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+ReadOnlyPaths=/etc/void/p2p-trust-policy-wall-v1
+ReadWritePaths=/var/lib/void/p2p-trust-policy-wall-v1 /var/lib/void/p2p-edge-wall-v1
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

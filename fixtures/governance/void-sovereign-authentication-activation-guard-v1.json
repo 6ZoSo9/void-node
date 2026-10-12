@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_SOVEREIGN_AUTHENTICATION_ACTIVATION_GUARD_V1_20260818",
+  "parent_instrument_marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+  "parent_constitution_marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
+  "artifact": "VOID Sovereign Authentication Activation Guard v1",
+  "version": "1.0.0-draft",
+  "date": "2026-08-18",
+  "status": "phase0_fail_closed_cryptographic_constitutional_authentication_inactive",
+  "current_state": {
+    "intended_ordinary_anchor_role": "main_void_node_identity_key",
+    "parent_designation_is_role_intent_not_content_bound_activation": true,
+    "cryptographic_constitutional_authentication_active": false,
+    "exact_live_public_identity_bound_by_this_guard": false,
+    "ordinary_node_signature_is_constitutional_signature_by_default": false,
+    "key_signature_alone_may_satisfy_cryptographic_constitutional_precondition": false,
+    "explicit_sovereign_ratification_may_exist_without_being_labeled_cryptographic": true,
+    "acts_specifically_requiring_cryptographic_authentication_may_execute_before_activation": false,
+    "key_possession_transfers_sovereignty": false,
+    "key_replacement_silently_rotates_constitutional_anchor": false
+  },
+  "future_activation_requirements": {
+    "explicit_sovereign_activation_instrument_required": true,
+    "exact_public_identity_binding_required": true,
+    "signature_algorithm_and_version_required": true,
+    "exact_key_id_fingerprint_digest_or_immutable_designation_artifact_required": true,
+    "constitutional_envelope_version_required": true,
+    "constitutional_domain_separator_required": true,
+    "exact_network_or_chain_binding_required": true,
+    "constitution_marker_or_version_binding_required": true,
+    "constitutional_action_type_binding_required": true,
+    "canonical_payload_identity_required": true,
+    "replay_sequence_nonce_or_predecessor_rule_required": true,
+    "rotation_predecessor_continuity_required": true,
+    "explicit_rotation_or_recovery_authorization_rule_required": true,
+    "closed_authority_schema_required": true,
+    "unknown_authority_positive_fields_rejected": true,
+    "adversarial_proof_required": true,
+    "dependency_bound_workflow_required": true
+  },
+  "inactive_adversarial_policy": {
+    "wrong_key_accepted": false,
+    "wrong_signature_domain_accepted": false,
+    "wrong_network_or_constitution_binding_accepted": false,
+    "replayed_or_stale_message_accepted": false,
+    "unauthorized_rotation_accepted": false,
+    "malformed_or_unbound_payload_identity_accepted": false,
+    "unknown_authority_field_accepted": false,
+    "ordinary_intended_main_node_signature_alone_accepted_as_constitutional": false
+  },
+  "preserved_boundaries": {
+    "reads_or_accesses_live_key_material": false,
+    "designates_exact_live_public_key": false,
+    "activates_cryptographic_constitutional_authentication": false,
+    "executes_sovereign_handoff": false,
+    "mutates_validators": false,
+    "grants_signer_wallet_credential_or_treasury_access": false,
+    "authorizes_transactions_or_funds_movement": false,
+    "authorizes_deploy_restart_or_live_network_mutation": false
+  }
+}

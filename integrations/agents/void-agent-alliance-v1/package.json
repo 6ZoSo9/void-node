@@ -1,0 +1,17 @@
+{
+  "name": "@void-network/agent-alliance-v1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Source-only verifier for bounded, voluntary VOID Agent Alliance membership manifests.",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "exports": {
+    ".": "./index.mjs",
+    "./constitutional-charter-admission-guard-v1": "./constitutional-charter-admission-guard-v1.mjs",
+    "./lifecycle-temporal-guard-v1": "./lifecycle-temporal-guard-v1.mjs",
+    "./sovereign-admission-guard-v1": "./sovereign-admission-guard-v1.mjs"
+  },
+  "license": "SEE LICENSE IN ../../../LICENSE"
+}

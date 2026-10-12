@@ -1,0 +1,37 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_BUYER_EVIDENCE_INDEX_V1",
+  "id": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-public-buyer-evidence-index-v1",
+  "status": "public_buyer_evidence_index_ready",
+  "source": "usdc-void-buy-pool-automatic-payment-canary-separate-terminal-closeout-buyer-facing-html-card-runtime-visibility-hold-v1",
+  "purpose": "Buyer-safe index for sealed USDC/VOID automatic payment canary closeout evidence.",
+  "runtime_observation_required": false,
+  "static_files_remain_canonical": true,
+  "routes": {
+    "buyer_evidence_index_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-buyer-evidence-index-v1.html",
+    "buyer_evidence_index_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-buyer-evidence-index-v1.json",
+    "buyer_facing_closeout_evidence_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-buyer-facing-final-seal-link-v1.html",
+    "reviewer_closeout_bundle_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+    "reviewer_closeout_bundle_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+    "public_status_rollup_html": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "public_status_rollup_json": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "pool_index_json": "/public-node/usdc-void-buy-pool/index.json",
+    "root_public_node_index_json": "/public-node/index.json"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "buyer_safe": true,
+    "discoverability_only": true,
+    "closed_without_execution": true,
+    "public_mutation_route_created": false,
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "terminal_lane_reopened": false
+  }
+}

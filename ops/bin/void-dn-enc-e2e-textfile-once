@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+BASE="${1:-http://127.0.0.1:4100}"
+TEXTDIR="${2:-/var/lib/node_exporter/textfile_collector}"
+
+OUTF="$TEXTDIR/void_datanet_enc_e2e.prom"
+TMP="$TEXTDIR/.tmp.void_datanet_enc_e2e.$$.$RANDOM.prom"
+
+NOW="$(date +%s)"
+OK=0
+ERR=""
+
+# minimal, no-giant-output test: publish.enc then fetch.enc
+WHO="enc-e2e-$NOW-$RANDOM"
+PUB="$(curl -fsS --max-time 2 -X POST "$BASE/datanet/v1/publish.enc" \
+  -H 'content-type: application/json' \
+  --data "{\"who\":\"$WHO\",\"plaintext_b64\":\"aGVsbG8K\",\"name\":\"h.txt\",\"mime\":\"text/plain\"}" 2>/dev/null || true)"
+
+ID="$(printf '%s' "$PUB" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]\+\)".*/\1/p' | head -n 1)"
+if [ -z "${ID:-}" ]; then
+  ERR="publish_failed"
+else
+  F="$(curl -fsS --max-time 2 "$BASE/datanet/v1/fetch.enc/$ID" 2>/dev/null || true)"
+  if printf '%s' "$F" | rg -q '"ok":true' && printf '%s' "$F" | rg -q '"verify_ok":true'; then
+    OK=1
+  else
+    ERR="fetch_failed"
+  fi
+fi
+
+{
+  echo "# HELP void_datanet_enc_e2e_ok 1 if publish.enc -> fetch.enc succeeded and verify_ok true"
+  echo "# TYPE void_datanet_enc_e2e_ok gauge"
+  echo "void_datanet_enc_e2e_ok $OK"
+
+  echo "# HELP void_datanet_enc_e2e_last_ok_ts_seconds last successful enc-e2e unix seconds (0 if none)"
+  echo "# TYPE void_datanet_enc_e2e_last_ok_ts_seconds gauge"
+  echo "void_datanet_enc_e2e_last_ok_ts_seconds $([ "$OK" = "1" ] && echo "$NOW" || echo 0)"
+
+  echo "# HELP void_datanet_enc_e2e_last_run_ts_seconds last run unix seconds"
+  echo "# TYPE void_datanet_enc_e2e_last_run_ts_seconds gauge"
+  echo "void_datanet_enc_e2e_last_run_ts_seconds $NOW"
+
+  echo "# HELP void_datanet_enc_e2e_err 1 with label if last run failed"
+  echo "# TYPE void_datanet_enc_e2e_err gauge"
+  if [ "$OK" != "1" ]; then
+    echo "void_datanet_enc_e2e_err{err=\"$ERR\"} 1"
+  fi
+} >"$TMP"
+
+chmod 0644 "$TMP"
+mv -f "$TMP" "$OUTF"

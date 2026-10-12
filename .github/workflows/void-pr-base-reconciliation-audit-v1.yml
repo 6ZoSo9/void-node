@@ -1,0 +1,114 @@
+name: VOID PR Base Reconciliation Audit V1
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - ".github/workflows/void-pr-base-reconciliation-audit-v1.yml"
+      - "docs/operations/void-pr-base-reconciliation-audit-v1.md"
+      - "scripts/prove_void_pr_base_reconciliation_audit_v1.mjs"
+      - "tools/void-pr-base-reconciliation-audit-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-pr-base-reconciliation-audit-v1.yml"
+      - "docs/operations/void-pr-base-reconciliation-audit-v1.md"
+      - "scripts/prove_void_pr_base_reconciliation_audit_v1.mjs"
+      - "tools/void-pr-base-reconciliation-audit-v1.mjs"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Exact open same-repository PR number"
+        required: true
+        type: string
+      expected_head:
+        description: "Optional exact 40-hex head SHA"
+        required: false
+        type: string
+      expected_base:
+        description: "Optional exact 40-hex current base SHA"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check tool syntax
+        run: node --check tools/void-pr-base-reconciliation-audit-v1.mjs
+      - name: Check proof syntax
+        run: node --check scripts/prove_void_pr_base_reconciliation_audit_v1.mjs
+      - name: Prove reconciliation audit
+        run: node scripts/prove_void_pr_base_reconciliation_audit_v1.mjs
+
+  live-pr-self-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit exact PR head against current base
+        run: |
+          node tools/void-pr-base-reconciliation-audit-v1.mjs \
+            --repo "${{ github.repository }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --expected-head "${{ github.event.pull_request.head.sha }}" \
+            --expected-base "${{ github.event.pull_request.base.sha }}" \
+            --output "$RUNNER_TEMP/void-pr-base-reconciliation-self-audit.json"
+
+  dispatched-audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_PR: ${{ inputs.pr_number }}
+      EXPECTED_HEAD: ${{ inputs.expected_head }}
+      EXPECTED_BASE: ${{ inputs.expected_base }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Audit selected PR against current base
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${{ github.repository }}"
+            --pr-number "$TARGET_PR"
+            --output "$RUNNER_TEMP/void-pr-base-reconciliation-dispatch.json"
+          )
+          if [ -n "$EXPECTED_HEAD" ]; then
+            args+=(--expected-head "$EXPECTED_HEAD")
+          fi
+          if [ -n "$EXPECTED_BASE" ]; then
+            args+=(--expected-base "$EXPECTED_BASE")
+          fi
+          node tools/void-pr-base-reconciliation-audit-v1.mjs "${args[@]}"

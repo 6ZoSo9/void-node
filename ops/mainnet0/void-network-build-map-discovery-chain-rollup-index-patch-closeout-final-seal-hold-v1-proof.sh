@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKER="VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1"
+SOURCE_MARKER="VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_INDEX_PATCH_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+INDEX_PATCH_MARKER="VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_INDEX_PATCH_HOLD_V1"
+ROLLUP_MARKER="VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_HOLD_V1"
+FINAL_INDEX_PATCH_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_HOLD_V1"
+FINAL_SEAL_CLOSEOUT_FINAL_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1"
+FINAL_SEAL_INDEX_CLOSEOUT_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+FINAL_SEAL_INDEX_PATCH_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_INDEX_PATCH_HOLD_V1"
+FINAL_SEAL_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_FINAL_SEAL_HOLD_V1"
+CLOSEOUT_MARKER="VOID_NETWORK_BUILD_MAP_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+BUILD_MAP_PROOF_MARKER="VOID_NETWORK_BUILD_MAP_V1_GREEN"
+BUILD_MAP_FINAL_MARKER="VOID_NETWORK_BUILD_MAP_V1_POST_MERGE_EXACT_GREEN"
+
+DOC="docs/public-node/void-network-build-map-discovery-chain-rollup-index-patch-closeout-final-seal-hold-v1.md"
+INDEX_JSON="public/public-node/void-network/index.json"
+ROOT_PUBLIC_INDEX="public/public-node/index.json"
+
+SOURCE_JSON="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-closeout-audit-rollup-hold-v1.json"
+SOURCE_HTML="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-closeout-audit-rollup-hold-v1.html"
+INDEX_PATCH_JSON="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-hold-v1.json"
+INDEX_PATCH_HTML="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-hold-v1.html"
+ROLLUP_JSON="public/public-node/void-network/build-map-discovery-chain-rollup-hold-v1.json"
+ROLLUP_HTML="public/public-node/void-network/build-map-discovery-chain-rollup-hold-v1.html"
+FINAL_INDEX_PATCH_JSON="public/public-node/void-network/build-map-closeout-final-seal-index-patch-closeout-final-seal-index-patch-hold-v1.json"
+FINAL_INDEX_PATCH_HTML="public/public-node/void-network/build-map-closeout-final-seal-index-patch-closeout-final-seal-index-patch-hold-v1.html"
+BUILD_MAP_JSON="public/public-node/void-network/build-map-v1.json"
+BUILD_MAP_HTML="public/public-node/void-network/build-map-v1.html"
+SOURCE_PROOF="ops/mainnet0/void-network-build-map-discovery-chain-rollup-index-patch-closeout-audit-rollup-hold-v1-proof.sh"
+
+PUBLIC_JSON="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-closeout-final-seal-hold-v1.json"
+PUBLIC_HTML="public/public-node/void-network/build-map-discovery-chain-rollup-index-patch-closeout-final-seal-hold-v1.html"
+
+echo "== JSON parse / discovery chain rollup index closeout final seal binding =="
+python3 - "$PUBLIC_JSON" "$SOURCE_JSON" "$INDEX_JSON" "$ROOT_PUBLIC_INDEX" "$INDEX_PATCH_JSON" "$ROLLUP_JSON" "$FINAL_INDEX_PATCH_JSON" "$BUILD_MAP_JSON" "$MARKER" "$SOURCE_MARKER" "$INDEX_PATCH_MARKER" "$ROLLUP_MARKER" "$FINAL_INDEX_PATCH_MARKER" "$FINAL_SEAL_CLOSEOUT_FINAL_MARKER" "$FINAL_SEAL_INDEX_CLOSEOUT_MARKER" "$FINAL_SEAL_INDEX_PATCH_MARKER" "$FINAL_SEAL_MARKER" "$CLOSEOUT_MARKER" "$BUILD_MAP_PROOF_MARKER" "$BUILD_MAP_FINAL_MARKER" <<'PY'
+import json
+import sys
+
+(
+    public_path,
+    source_path,
+    index_path,
+    root_path,
+    index_patch_path,
+    rollup_path,
+    final_index_patch_path,
+    build_map_path,
+    marker,
+    source_marker,
+    index_patch_marker,
+    rollup_marker,
+    final_index_patch_marker,
+    final_seal_closeout_final_marker,
+    final_seal_index_closeout_marker,
+    final_seal_index_patch_marker,
+    final_seal_marker,
+    closeout_marker,
+    proof_marker,
+    build_final_marker,
+) = sys.argv[1:21]
+
+final = json.load(open(public_path, encoding="utf-8"))
+source_closeout = json.load(open(source_path, encoding="utf-8"))
+index_raw = open(index_path, encoding="utf-8").read()
+root_raw = open(root_path, encoding="utf-8").read()
+json.loads(index_raw)
+json.loads(root_raw)
+
+index_patch = json.load(open(index_patch_path, encoding="utf-8"))
+rollup = json.load(open(rollup_path, encoding="utf-8"))
+final_index_patch = json.load(open(final_index_patch_path, encoding="utf-8"))
+json.load(open(build_map_path, encoding="utf-8"))
+
+assert final["marker"] == marker
+assert final["status"] == "hold"
+assert final["public_surface"] is True
+assert final["read_only"] is True
+
+source = final["source"]
+assert source["source_closeout_marker"] == source_marker
+assert source["index_patch_marker"] == index_patch_marker
+assert source["discovery_chain_rollup_marker"] == rollup_marker
+assert source["final_index_patch_marker"] == final_index_patch_marker
+assert source["final_seal_closeout_final_marker"] == final_seal_closeout_final_marker
+assert source["final_seal_index_closeout_marker"] == final_seal_index_closeout_marker
+assert source["final_seal_index_patch_marker"] == final_seal_index_patch_marker
+assert source["final_seal_marker"] == final_seal_marker
+assert source["closeout_marker"] == closeout_marker
+assert source["build_map_proof_marker"] == proof_marker
+assert source["build_map_final_marker"] == build_final_marker
+
+assert source_closeout["marker"] == source_marker
+assert source_closeout["read_only"] is True
+assert source_closeout["source"]["index_patch_marker"] == index_patch_marker
+assert source_closeout["source"]["discovery_chain_rollup_marker"] == rollup_marker
+assert source_closeout["source"]["final_index_patch_marker"] == final_index_patch_marker
+assert source_closeout["source"]["build_map_proof_marker"] == proof_marker
+assert source_closeout["source"]["build_map_final_marker"] == build_final_marker
+
+assert index_patch["marker"] == index_patch_marker
+assert index_patch["source_marker"] == rollup_marker
+assert rollup["marker"] == rollup_marker
+assert rollup["read_only"] is True
+assert final_index_patch["marker"] == final_index_patch_marker
+
+for marker_value in [
+    index_patch_marker,
+    rollup_marker,
+    final_index_patch_marker,
+    final_seal_closeout_final_marker,
+    final_seal_index_closeout_marker,
+    final_seal_index_patch_marker,
+    final_seal_marker,
+    closeout_marker,
+    proof_marker,
+    build_final_marker
+]:
+    assert marker_value in index_raw, marker_value
+
+for name in [
+    "build-map-discovery-chain-rollup-hold-v1.json",
+    "build-map-discovery-chain-rollup-hold-v1.html",
+    "build-map-discovery-chain-rollup-index-patch-hold-v1.json",
+    "build-map-discovery-chain-rollup-index-patch-hold-v1.html",
+    "build-map-v1.json",
+    "build-map-v1.html"
+]:
+    assert name in index_raw, name
+
+assert "void-network" in root_raw
+
+for key, value in final["seal"].items():
+    assert value is True, key
+
+boundary = final["boundary"]
+assert boundary["final_seal_only"] is True
+for key in [
+    "wallet_connection_enabled",
+    "signer_access_enabled",
+    "secret_material_exposed",
+    "ledger_write_enabled",
+    "wc_issuance_enabled",
+    "wc_claim_enabled",
+    "void_transfer_enabled",
+    "usdc_transfer_enabled",
+    "buy_pool_execution_enabled",
+    "validator_registration_enabled",
+    "validator_admission_enabled",
+    "validator_set_write_enabled",
+    "epoch_activation_enabled",
+    "datanet_object_write_enabled",
+    "peer_pin_command_enabled",
+    "mirror_command_enabled",
+    "autonomous_ai_write_enabled"
+]:
+    assert boundary[key] is False, key
+
+print("void_network_build_map_discovery_chain_rollup_index_patch_closeout_final_seal_binding_green=true")
+PY
+
+echo "== marker/source presence =="
+for f in "$DOC" "$PUBLIC_JSON" "$PUBLIC_HTML" "$0"; do
+  test -f "$f"
+  grep -Fq "$MARKER" "$f"
+done
+
+grep -Fq "$SOURCE_MARKER" "$SOURCE_JSON"
+grep -Fq "$SOURCE_MARKER" "$SOURCE_HTML"
+grep -Fq "$INDEX_PATCH_MARKER" "$INDEX_JSON"
+grep -Fq "$INDEX_PATCH_MARKER" "$INDEX_PATCH_JSON"
+grep -Fq "$INDEX_PATCH_MARKER" "$INDEX_PATCH_HTML"
+grep -Fq "$ROLLUP_MARKER" "$INDEX_JSON"
+grep -Fq "$ROLLUP_MARKER" "$ROLLUP_JSON"
+grep -Fq "$ROLLUP_MARKER" "$ROLLUP_HTML"
+grep -Fq "$FINAL_INDEX_PATCH_MARKER" "$INDEX_JSON"
+grep -Fq "$FINAL_INDEX_PATCH_MARKER" "$FINAL_INDEX_PATCH_JSON"
+grep -Fq "$FINAL_INDEX_PATCH_MARKER" "$FINAL_INDEX_PATCH_HTML"
+grep -Fq "$BUILD_MAP_PROOF_MARKER" "$INDEX_JSON"
+grep -Fq "$BUILD_MAP_PROOF_MARKER" "$SOURCE_PROOF"
+grep -Fq "$BUILD_MAP_FINAL_MARKER" "$INDEX_JSON"
+grep -Fq "$BUILD_MAP_FINAL_MARKER" "$SOURCE_JSON"
+
+test -f "$BUILD_MAP_JSON"
+test -f "$BUILD_MAP_HTML"
+test -f "$ROOT_PUBLIC_INDEX"
+echo "marker_source_green=true"
+
+echo "== source proof =="
+bash "$SOURCE_PROOF"
+
+echo "== public static read-only scan =="
+if grep -RInE '<form|method=|fetch\(|XMLHttpRequest|navigator\.|localStorage|sessionStorage|indexedDB|onclick=|onload=|<script' "$PUBLIC_JSON" "$PUBLIC_HTML" "$SOURCE_JSON" "$SOURCE_HTML" "$INDEX_PATCH_JSON" "$INDEX_PATCH_HTML" "$ROLLUP_JSON" "$ROLLUP_HTML" "$FINAL_INDEX_PATCH_JSON" "$FINAL_INDEX_PATCH_HTML" "$BUILD_MAP_JSON" "$BUILD_MAP_HTML" "$INDEX_JSON"; then
+  echo "public_static_readonly_scan_green=false"
+  exit 1
+fi
+echo "public_static_readonly_scan_green=true"
+
+echo "== authority boundary scan =="
+for key in \
+  '"wallet_connection_enabled": false' \
+  '"signer_access_enabled": false' \
+  '"secret_material_exposed": false' \
+  '"ledger_write_enabled": false' \
+  '"wc_issuance_enabled": false' \
+  '"wc_claim_enabled": false' \
+  '"void_transfer_enabled": false' \
+  '"usdc_transfer_enabled": false' \
+  '"buy_pool_execution_enabled": false' \
+  '"validator_registration_enabled": false' \
+  '"validator_admission_enabled": false' \
+  '"validator_set_write_enabled": false' \
+  '"epoch_activation_enabled": false' \
+  '"datanet_object_write_enabled": false' \
+  '"peer_pin_command_enabled": false' \
+  '"mirror_command_enabled": false' \
+  '"autonomous_ai_write_enabled": false'
+do
+  grep -Fq "$key" "$PUBLIC_JSON"
+done
+echo "authority_boundary_green=true"
+
+echo "== forbidden WC cap wording scan =="
+if grep -RInE '100,000,000[[:space:]]+WC|100000000[[:space:]]+WC|WC[[:space:]]+supply[[:space:]]+cap|work[[:space:]]+credit[[:space:]]+supply[[:space:]]+cap|capped[[:space:]]+at[[:space:]]+100' "$DOC" "$INDEX_JSON" "$PUBLIC_JSON" "$PUBLIC_HTML" "$SOURCE_JSON" "$INDEX_PATCH_JSON" "$ROLLUP_JSON" "$FINAL_INDEX_PATCH_JSON" "$BUILD_MAP_JSON"; then
+  echo "forbidden_wc_cap_scan_green=false"
+  exit 1
+fi
+echo "forbidden_wc_cap_scan_green=true"
+
+echo "== result =="
+echo "VOID_NETWORK_BUILD_MAP_DISCOVERY_CHAIN_ROLLUP_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1_GREEN"

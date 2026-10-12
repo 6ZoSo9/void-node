@@ -1,0 +1,35 @@
+{
+  "schema": "void.public_node.mainnet0_public_node_operator_readiness_reviewer_final_seal_index_link.v1",
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_INDEX_LINK_HOLD_V1",
+  "status": "hold",
+  "kind": "public_node_operator_readiness_reviewer_final_seal_index_link",
+  "scope": "mainnet0_public_node_operator_readiness_root_discovery",
+  "route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-index-link-hold-v1.json",
+  "source_reviewer_final_seal": {
+    "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+    "json_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+    "html_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html"
+  },
+  "root_discovery": {
+    "root_index": "/public-node/index.json",
+    "root_key": "mainnet0_public_node_operator_readiness_reviewer_final_seal_index_link",
+    "preferred_reviewer_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.html",
+    "latest_reviewer_final_seal_route": "/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.json",
+    "link_state": "root_index_points_to_operator_readiness_reviewer_final_seal"
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "definition_only": true,
+    "index_link_only": true,
+    "opens_public_validator_submit": false,
+    "opens_candidate_registration_or_intake": false,
+    "opens_stake_lock": false,
+    "opens_wallet_connect": false,
+    "opens_active_validator_admission": false,
+    "opens_epoch_activation": false,
+    "opens_validator_set_write": false,
+    "opens_validator_runtime_truth_write": false,
+    "opens_runtime_mutation_route": false
+  }
+}

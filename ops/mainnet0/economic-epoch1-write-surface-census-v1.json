@@ -1,0 +1,67 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH1_WRITE_SURFACE_CENSUS_PRECISION_V1",
+  "version": 1,
+  "status": "READ_ONLY_WRITE_SURFACE_CENSUS_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "receipt_filename": "void_economic_epoch1_write_surface_census_precision_v1_20260926T133941Z.json",
+  "receipt_sha256": "a38981105d681a6edfcace52e97ab1b560c42040dfa30557006694a49036beba",
+  "receipt_imported_into_repo": false,
+  "chain_id": "2050",
+  "block_number_before": "37392",
+  "block_number_after": "37392",
+  "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+  "head_stable_at_reconciled_snapshot": true,
+  "zero_unlocked_accounts": true,
+  "listener": {
+    "count": 1,
+    "pid": 5220,
+    "exe": "/home/zoso/.local/share/void-private-chain2050-rpc-v1/deployments/selector-37371-main-1b3429b9-v1/bin/anvil",
+    "exe_sha256": "b47362d2159aa0f2f575320e5e529bb5a91093cb62dc6bd30c0022018aa9f738"
+  },
+  "runtime": {
+    "void_private_chain2050_rpc_service_loaded": true,
+    "void_private_chain2050_rpc_service_active": true,
+    "void_private_chain2050_rpc_service_enabled": true,
+    "void_wc_relayer_loaded": true,
+    "void_wc_relayer_active": false,
+    "void_wc_relayer_enabled": false,
+    "void_workcredits_devnet_http_loaded": true,
+    "void_workcredits_devnet_http_active": false,
+    "void_workcredits_devnet_http_enabled": false,
+    "void_node_live_active": true,
+    "buy_void_observe_timer_active": true,
+    "buy_void_notification_timer_active": true,
+    "buy_void_webhook_timer_active": true,
+    "established_8545_connection_count_after_observation": 0
+  },
+  "buy_void": {
+    "full_runtime_status_available": true,
+    "full_runtime_enabled": false,
+    "full_runtime_apply_enabled": false,
+    "signing_dependency_env_configured": true,
+    "full_runtime_apply_blocked": true
+  },
+  "classification": {
+    "known_wc_writer_services_inactive": true,
+    "ready_for_service_quiesce_gate": true,
+    "archive_write_freeze_proven": false,
+    "final_snapshot_promoted": false
+  },
+  "authority": {
+    "service_action": false,
+    "signal_action": false,
+    "process_kill": false,
+    "systemd_mutation": false,
+    "filesystem_mutation_except_receipt": false,
+    "credential_content_access": false,
+    "environment_content_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

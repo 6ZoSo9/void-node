@@ -1,0 +1,49 @@
+name: Authenticated Paid Work Activation Prerequisite Evidence Composition v1
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.yml
+      - docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.md
+      - schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.schema.json
+      - scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_evidence_composition_v1.mjs
+      - tools/void-authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.mjs
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.yml
+      - docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.md
+      - schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.schema.json
+      - scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_evidence_composition_v1.mjs
+      - tools/void-authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-activation-prerequisite-evidence-composition-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: Prove read-only evidence composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Parse schema
+        run: node -e 'JSON.parse(require("node:fs").readFileSync("schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisite-evidence-composition-v1.schema.json", "utf8"))'
+
+      - name: Prove exact composition boundary
+        run: node scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisite_evidence_composition_v1.mjs

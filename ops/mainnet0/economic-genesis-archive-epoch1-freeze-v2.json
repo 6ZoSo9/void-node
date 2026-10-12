@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_ECONOMIC_GENESIS_ARCHIVE_EPOCH1_FREEZE_V2",
+  "version": 2,
+  "status": "EPOCH1_ARCHIVE_WRITE_FREEZE_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "source_commit": "793f9d6f640add57bfb756cfdaeb8cadf0b4be38",
+  "receipt_filename": "void_economic_genesis_archive_epoch1_freeze_precision_v2_20260926T140144Z.json",
+  "receipt_sha256": "7347d0c2ae24c471edd43fde326cc45e39e9a503d7257fc969aea1a5820a34de",
+  "receipt_imported_into_repo": false,
+  "block_number": "37392",
+  "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+  "checkpoint_id_sha256": "c251d3d92a0f3729f008fb7911243da0e4e2939af73f98fab2234a050c95a906",
+  "listener_identity": {
+    "service_main_pid": 3024,
+    "anvil_listener_pid": 5220,
+    "listener_descendant_of_service_mainpid": true,
+    "service_control_group": "/user.slice/user-1000.slice/user@1000.service/app.slice/void-private-chain2050-rpc-v1.service",
+    "listener_in_service_control_group": true,
+    "service_mainpid_in_service_control_group": true
+  },
+  "pre_stop": {
+    "chain_id": "2050",
+    "head": "37392",
+    "head_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "unlocked_account_count": 0,
+    "buy_void_full_runtime_enabled": false,
+    "buy_void_full_runtime_apply_enabled": false
+  },
+  "post_freeze": {
+    "archive_checkpoint_reverified": true,
+    "service_active": "inactive",
+    "service_enabled": "disabled",
+    "port_8545_listener_count": 0,
+    "port_8545_established_connection_count": 0,
+    "freeze_marker_sha256": "b7280a9ea56c4a89bb9f1d6b5701dfa5e03bbb4f5a09d3f4b35ad49155c26e2c",
+    "freeze_dropin_sha256": "f7ed32fbcd47993b1689f65e361fb6c8c33825fcea406d5caedaf6b81b40a8a4"
+  },
+  "classification": {
+    "archive_write_freeze_proven": true,
+    "epoch1_rpc_offline": true,
+    "automatic_epoch1_restart_disabled": true,
+    "persistent_restart_condition_guard_present": true,
+    "final_snapshot_promotion_eligible": true
+  },
+  "authority": {
+    "service_action": true,
+    "systemd_mutation": true,
+    "persistent_restart_guard_write": true,
+    "credential_content_access": false,
+    "environment_content_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

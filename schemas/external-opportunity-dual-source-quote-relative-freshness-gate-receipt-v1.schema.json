@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:void:schema:external-opportunity-dual-source-quote-relative-freshness-gate-receipt:1",
+  "title": "VOID dual-source quote relative freshness gate receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "phase",
+    "reduction_id",
+    "source_input_sha256",
+    "reducer_receipt_sha256",
+    "derivation_verification_sha256",
+    "evaluated_at",
+    "maximum_quote_age_seconds",
+    "source_quote_ages",
+    "maximum_observed_quote_age_seconds",
+    "receipt_integrity_verified",
+    "receipt_derivation_verified",
+    "conservative_derivation_recomputed",
+    "relative_freshness_verified",
+    "evaluation_clock_authenticated",
+    "wall_clock_freshness_verified",
+    "source_identity_authenticated",
+    "network_access_performed",
+    "credential_access_performed",
+    "raw_response_retention",
+    "transaction_payload_retention",
+    "network_mutation_performed",
+    "wallet_or_key_access_performed",
+    "transaction_construction_performed",
+    "transaction_signing_performed",
+    "transaction_submission_performed",
+    "fund_movement_performed",
+    "live_execution_authorized",
+    "execution_authorized",
+    "freshness_sha256"
+  ],
+  "properties": {
+    "schema": { "const": "void-dual-source-quote-relative-freshness-gate-receipt-v1" },
+    "marker": { "const": "VOID_EXTERNAL_OPPORTUNITY_DUAL_SOURCE_QUOTE_RELATIVE_FRESHNESS_GATE_V1" },
+    "phase": { "const": "paper_relative_freshness_verification" },
+    "reduction_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "source_input_sha256": { "$ref": "#/$defs/sha256" },
+    "reducer_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "derivation_verification_sha256": { "$ref": "#/$defs/sha256" },
+    "evaluated_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+    "maximum_quote_age_seconds": { "type": "integer", "minimum": 0, "maximum": 3600 },
+    "source_quote_ages": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/sourceQuoteAge" }
+    },
+    "maximum_observed_quote_age_seconds": { "type": "integer", "minimum": 0, "maximum": 86400 },
+    "receipt_integrity_verified": { "const": true },
+    "receipt_derivation_verified": { "const": true },
+    "conservative_derivation_recomputed": { "const": true },
+    "relative_freshness_verified": { "const": true },
+    "evaluation_clock_authenticated": { "const": false },
+    "wall_clock_freshness_verified": { "const": false },
+    "source_identity_authenticated": { "const": false },
+    "network_access_performed": { "const": false },
+    "credential_access_performed": { "const": false },
+    "raw_response_retention": { "const": false },
+    "transaction_payload_retention": { "const": false },
+    "network_mutation_performed": { "const": false },
+    "wallet_or_key_access_performed": { "const": false },
+    "transaction_construction_performed": { "const": false },
+    "transaction_signing_performed": { "const": false },
+    "transaction_submission_performed": { "const": false },
+    "fund_movement_performed": { "const": false },
+    "live_execution_authorized": { "const": false },
+    "execution_authorized": { "const": false },
+    "freshness_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceQuoteAge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "quote_id", "age_seconds"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "quote_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "age_seconds": { "type": "integer", "minimum": 0, "maximum": 86400 }
+      }
+    }
+  }
+}

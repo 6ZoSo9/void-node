@@ -1,0 +1,99 @@
+name: Buy VOID saga broadcast reconciliation runtime v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-saga-broadcast-reconciliation-runtime-v1.yml"
+      - ".github/workflows/buy-void-crash-consistent-saga-runtime-v1.yml"
+      - "docs/operators/buy-void-saga-broadcast-reconciliation-runtime-v1.md"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-saga-broadcast-reconciliation-runtime-v1.yml"
+      - ".github/workflows/buy-void-crash-consistent-saga-runtime-v1.yml"
+      - "docs/operators/buy-void-saga-broadcast-reconciliation-runtime-v1.md"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_runtime_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_coordinator_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_reconciliation_server_policy_v1.ts"
+      - "src/economic/buy_void_saga_broadcast_evidence_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcast_custody_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custody_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts"
+      - "scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-saga-broadcast-reconciliation-runtime-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove reconciliation-only runtime boundary
+        run: npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_runtime_v1.ts
+      - name: Preserve broadcaster IPC and saga reconciliation boundaries
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_prepared_transaction_broadcaster_ipc_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_saga_broadcast_reconciliation_v1.ts
+      - name: Preserve parent saga and runtime integration guards
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_crash_consistent_saga_runtime_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check

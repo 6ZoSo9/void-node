@@ -1,0 +1,66 @@
+{
+  "marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1",
+  "purpose": "public_safe_node_connect_receipt_template",
+  "status": "receipt_template_ready",
+  "pairs_with": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+  "routes": {
+    "receipt_page": "/public-node/connect/receipt-template-v1",
+    "receipt_json": "/public-node/connect/public-node-connect-receipt-template-v1.json",
+    "receipt_html": "/public-node/connect/public-node-connect-receipt-template-v1.html",
+    "connect_pack": "/public-node/connect",
+    "connect_pack_json": "/public-node/connect/public-node-connect-pack-v1.json"
+  },
+  "template_fields": {
+    "timestamp_utc": "",
+    "operator_label": "",
+    "node_id": "",
+    "local_health_ready": "",
+    "local_health_head": "",
+    "local_health_peers": "",
+    "peer_address_dialed": "",
+    "bootstrap_route_used": "",
+    "bootstrap_host_used": "",
+    "peers_output_summary": "",
+    "connect_result": "",
+    "notes": ""
+  },
+  "safe_evidence": [
+    "/health output",
+    "/peers output",
+    "bootstrap route used",
+    "peer address dialed",
+    "timestamp",
+    "node id",
+    "whether the peer appeared in peers"
+  ],
+  "do_not_include": [
+    "private keys",
+    "seed phrases",
+    "wallet secrets",
+    ".env files",
+    "full private logs",
+    "machine secrets",
+    "private IPs that should remain private",
+    "home address or personal identity data",
+    "wallet seed data",
+    "screenshots with secrets visible"
+  ],
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "operator_guidance_only": true,
+    "receipt_template_only": true,
+    "automatic_peer_dial_enabled_by_this_template": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "work_credit_claim_created": false,
+    "public_internet_mesh_claim": false
+  },
+  "expected_green_marker": "VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1_GREEN"
+}

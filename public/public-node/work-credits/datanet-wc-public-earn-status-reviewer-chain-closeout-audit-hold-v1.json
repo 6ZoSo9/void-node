@@ -1,0 +1,139 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_status_reviewer_chain_closeout_audit_hold.v1",
+  "id": "datanet-wc-public-earn-status-reviewer-chain-closeout-audit-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Public Earn Status Reviewer Chain Closeout Audit Hold v1",
+  "summary": "Compact public-safe closeout audit for the DataNet Work Credits public earn-status reviewer chain spanning PRs #59 through #67. It binds rollups, final seals, HTML cards, and runtime visibility metadata while keeping earning held and Work Credits unlimited and uncapped.",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CHAIN_CLOSEOUT_AUDIT_HOLD_V1",
+  "lane": "work_credits",
+  "scope": "datanet_wc_public_earn_status_reviewer_chain_closeout_audit",
+  "audit_status": "chain_closeout_audit_only_hold",
+  "summary_only": true,
+  "chain_closeout_audit_only": true,
+  "chain_range": {
+    "first_pr": 59,
+    "last_pr": 67,
+    "merged_prs": [
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67
+    ],
+    "merged_pr_count": 9
+  },
+  "wc_supply_unlimited_uncapped": true,
+  "wc_supply_lifetime_cap_declared": false,
+  "chain_entries": [
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1",
+      "pr": 59,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CLOSEOUT_ROLLUP_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-closeout-html-card-hold-v1",
+      "pr": 60,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-closeout-html-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CLOSEOUT_HTML_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-closeout-html-card-runtime-visibility-hold-v1",
+      "pr": 61,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-closeout-html-card-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CLOSEOUT_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-seal-hold-v1",
+      "pr": 62,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-seal-html-card-hold-v1",
+      "pr": 63,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-html-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_SEAL_HTML_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-seal-html-card-runtime-visibility-hold-v1",
+      "pr": 64,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-seal-html-card-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_SEAL_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-hold-v1",
+      "pr": 65,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-html-card-hold-v1",
+      "pr": 66,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-html-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_CLOSEOUT_AUDIT_ROLLUP_HTML_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-html-card-runtime-visibility-hold-v1",
+      "pr": 67,
+      "path": "/public-node/work-credits/datanet-wc-public-earn-status-reviewer-final-closeout-audit-rollup-html-card-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_FINAL_CLOSEOUT_AUDIT_ROLLUP_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    }
+  ],
+  "what_is_held": {
+    "packet_intake": "held",
+    "public_submission_endpoint": "held",
+    "active_review_decision": "held",
+    "live_earning": "held",
+    "wc_approval": "held",
+    "wc_issuance": "held",
+    "wc_ledger_write": "held",
+    "void_allocation": "held",
+    "void_transfer": "held",
+    "wallet_access": "held",
+    "signer_access": "held",
+    "runtime_route": "held",
+    "mutation_handler": "held"
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "creates_authority": false,
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "contains_transaction_hash": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false,
+    "wallet_or_signer_required": false
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_PRIVATE_ALLOCATION_LEDGER_WRITE_POST_WRITE_CLOSEOUT_V1",
+  "closeout_type": "private_allocation_ledger_write_post_write_closeout",
+  "state": "private_allocation_ledger_write_closed_pending_separate_fulfillment_lane",
+  "ledger_path": "ops/private/usdc-void-buy-pool-allocation-reservations.jsonl",
+  "ledger_line_count": 1,
+  "ledger_entry_line": 1,
+  "allocation_record_id": "void_canary_allocation_record_1e7d90a6483d30dfaa80054e4328adee",
+  "packet_id": "void_canary_private_allocation_ledger_write_packet_60c38df29126c68395fcec64708cf82f",
+  "canonical_payment_identity": "8453:0x1111111111111111111111111111111111111111111111111111111111111111:0",
+  "reserved_void_amount": "200",
+  "inventory_remaining_before": "200",
+  "inventory_remaining_after": "0",
+  "previous_allocation_record_hash": "GENESIS_VOID_PRIVATE_ALLOCATION_LEDGER_V1",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "duplicate_append_refuses": true,
+  "authority": {
+    "private_allocation_ledger_write_completed": true,
+    "private_allocation_ledger_write_now": false,
+    "private_allocation_ledger_mutation_now": false,
+    "additional_ledger_append_now": false,
+    "fulfillment_execution": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "public_mutation": false,
+    "public_buyer_execution": false,
+    "money_movement_now": false
+  },
+  "next_required_lane": "separate_fulfillment_lane"
+}

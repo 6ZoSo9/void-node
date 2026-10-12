@@ -1,0 +1,52 @@
+name: VOID App site theme v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "public/void-app-wave1-v1/assets/css/tokens.css"
+      - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "public/void-app-wave1-v1/assets/css/main.css"
+      - "docs/public/void-app-site-theme-v1.md"
+      - "scripts/prove_void_app_site_theme_v1.mjs"
+      - ".github/workflows/void-app-site-theme-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "public/void-app-wave1-v1/assets/css/tokens.css"
+      - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "public/void-app-wave1-v1/assets/css/main.css"
+      - "docs/public/void-app-site-theme-v1.md"
+      - "scripts/prove_void_app_site_theme_v1.mjs"
+      - ".github/workflows/void-app-site-theme-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-app-site-theme-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: node --check scripts/prove_void_app_site_theme_v1.mjs
+      - name: Production-theme binding proof
+        run: node scripts/prove_void_app_site_theme_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

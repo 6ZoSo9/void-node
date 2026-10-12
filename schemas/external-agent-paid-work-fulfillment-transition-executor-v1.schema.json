@@ -1,0 +1,426 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_persistence": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "live_work_execution": {
+          "const": false
+        },
+        "orchestrator_advance": {
+          "const": false
+        },
+        "payment_transfer": {
+          "const": false
+        },
+        "plan_read": {
+          "const": true
+        },
+        "private_event_write": {
+          "const": true
+        },
+        "private_intent_write": {
+          "const": true
+        },
+        "private_precondition_receipt_write": {
+          "const": true
+        },
+        "service_restart": {
+          "const": false
+        },
+        "ticket_issuance": {
+          "const": false
+        },
+        "ticket_transfer": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "wc_ledger_write": {
+          "const": false
+        },
+        "wc_to_void_settlement": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        }
+      },
+      "required": [
+        "plan_read",
+        "private_intent_write",
+        "private_event_write",
+        "private_precondition_receipt_write",
+        "orchestrator_advance",
+        "acceptance_persistence",
+        "ticket_issuance",
+        "ticket_transfer",
+        "work_dispatch",
+        "live_work_execution",
+        "wc_ledger_write",
+        "payment_transfer",
+        "wc_to_void_settlement",
+        "wallet_or_signer_access",
+        "service_restart",
+        "deployment"
+      ],
+      "type": "object"
+    },
+    "nodeId": {
+      "pattern": "^[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-fulfillment-transition-executor-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Input snapshots and sanitized outputs for the non-mutating accepted_submission_bound to ticket_issue_planned transition.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coordinator_snapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "caps": {
+              "additionalProperties": false,
+              "properties": {
+                "account_total": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "active_issued": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "consumed": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "global": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "per_account": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "active_issued",
+                "consumed",
+                "global",
+                "per_account",
+                "account_total"
+              ],
+              "type": "object"
+            },
+            "captured_at_utc": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "coordinator_base": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "coordinator_enabled": {
+              "const": true
+            },
+            "executor_enabled": {
+              "const": false
+            },
+            "fixed_award_wc": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "marker": {
+              "const": "VOID_EXTERNAL_AGENT_PAID_WORK_COORDINATOR_STATUS_SNAPSHOT_V1"
+            },
+            "node_id": {
+              "$ref": "#/$defs/nodeId"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "captured_at_utc",
+            "node_id",
+            "coordinator_base",
+            "coordinator_enabled",
+            "executor_enabled",
+            "fixed_award_wc",
+            "caps"
+          ],
+          "type": "object"
+        },
+        "nonce": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "prepared_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "runtime_snapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "captured_at_utc": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "marker": {
+              "const": "VOID_EXTERNAL_AGENT_PAID_WORK_RUNTIME_SNAPSHOT_V1"
+            },
+            "runtime": {
+              "additionalProperties": false,
+              "properties": {
+                "acceptance_source_sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "adapter_core_sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "participant_cli_sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "pilot_source_sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              },
+              "required": [
+                "participant_cli_sha256",
+                "pilot_source_sha256",
+                "acceptance_source_sha256",
+                "adapter_core_sha256"
+              ],
+              "type": "object"
+            },
+            "selection_policy": {
+              "const": "content_addressed_exact_sha_only"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "captured_at_utc",
+            "selection_policy",
+            "runtime"
+          ],
+          "type": "object"
+        },
+        "ticket_policy_snapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "account_active_ticket_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "captured_at_utc": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "fixed_award_wc": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "global_active_ticket_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "global_consumed_ticket_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "global_ticket_cap": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "marker": {
+              "const": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_ISSUE_POLICY_SNAPSHOT_V1"
+            },
+            "max_uses": {
+              "const": 1
+            },
+            "per_account_ticket_cap": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "requested_ticket_ttl_ms": {
+              "minimum": 60000,
+              "type": "integer"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "captured_at_utc",
+            "requested_ticket_ttl_ms",
+            "max_uses",
+            "fixed_award_wc",
+            "account_active_ticket_count",
+            "global_active_ticket_count",
+            "global_consumed_ticket_count",
+            "global_ticket_cap",
+            "per_account_ticket_cap"
+          ],
+          "type": "object"
+        },
+        "wc_balance_snapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "account": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "captured_at_utc": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "debited": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "earned": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "marker": {
+              "const": "VOID_EXTERNAL_AGENT_PAID_WORK_WC_BALANCE_SNAPSHOT_V1"
+            },
+            "redeemable": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "redeemed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "captured_at_utc",
+            "account",
+            "earned",
+            "debited",
+            "redeemed",
+            "redeemable"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "coordinator_snapshot",
+        "wc_balance_snapshot",
+        "runtime_snapshot",
+        "ticket_policy_snapshot",
+        "prepared_at_utc",
+        "nonce"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "created_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "event_id": {
+          "pattern": "^voidapwfsev1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "file_names": {
+          "type": "object"
+        },
+        "fulfillment_id": {
+          "pattern": "^voidapwfv1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "intent_id": {
+          "pattern": "^voidapwfint1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_FULFILLMENT_TRANSITION_PACKAGE_V1"
+        },
+        "package_id": {
+          "pattern": "^voidapwfpkg1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "receipt_id": {
+          "pattern": "^voidapwfpre1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_plan_id": {
+          "pattern": "^voidapwfplan1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_plan_revision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "transition": {
+          "additionalProperties": false,
+          "properties": {
+            "from_state": {
+              "const": "accepted_submission_bound"
+            },
+            "to_state": {
+              "const": "ticket_issue_planned"
+            }
+          },
+          "required": [
+            "from_state",
+            "to_state"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "created_at_utc",
+        "package_id",
+        "intent_id",
+        "event_id",
+        "receipt_id",
+        "fulfillment_id",
+        "source_plan_id",
+        "source_plan_revision",
+        "transition",
+        "file_names",
+        "authority"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "VOID External Agent Paid-Work Fulfillment Transition Executor V1"
+}

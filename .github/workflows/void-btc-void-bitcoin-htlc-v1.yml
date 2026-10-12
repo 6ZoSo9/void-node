@@ -1,0 +1,64 @@
+name: VOID BTC VOID Bitcoin HTLC v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-btc-void-bitcoin-htlc-v1.yml"
+      - "docs/operators/btc-void-bitcoin-htlc-v1.md"
+      - "scripts/prove_void_btc_void_bitcoin_htlc_v1.mjs"
+      - "tools/void-btc-void-bitcoin-htlc-v1.mjs"
+      - "docs/public/btc-void-native-atomic-market-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-btc-void-bitcoin-htlc-v1.yml"
+      - "docs/operators/btc-void-bitcoin-htlc-v1.md"
+      - "scripts/prove_void_btc_void_bitcoin_htlc_v1.mjs"
+      - "tools/void-btc-void-bitcoin-htlc-v1.mjs"
+      - "docs/public/btc-void-native-atomic-market-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-btc-void-bitcoin-htlc-v1.mjs
+          node --check scripts/prove_void_btc_void_bitcoin_htlc_v1.mjs
+      - name: Prove Bitcoin HTLC contract
+        run: node scripts/prove_void_btc_void_bitcoin_htlc_v1.mjs
+      - name: Existing BTC VOID atomic-state regression
+        run: node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
+      - name: Authority wall
+        run: |
+          set -euo pipefail
+          tool="tools/void-btc-void-bitcoin-htlc-v1.mjs"
+          grep -F 'bitcoin_rpc_call: false' "$tool" >/dev/null
+          grep -F 'bitcoin_mainnet_contact: false' "$tool" >/dev/null
+          grep -F 'transaction_construction: false' "$tool" >/dev/null
+          grep -F 'transaction_signing: false' "$tool" >/dev/null
+          grep -F 'transaction_broadcast: false' "$tool" >/dev/null
+          for forbidden in 'bitcoin-cli' 'sendrawtransaction' 'signrawtransaction' 'new Wallet(' 'eth_send' 'systemctl '; do
+            if grep -F "$forbidden" "$tool" >/dev/null; then
+              echo "forbidden execution surface: $forbidden" >&2
+              exit 1
+            fi
+          done
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

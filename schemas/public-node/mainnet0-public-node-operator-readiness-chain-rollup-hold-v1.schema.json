@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.schema.json",
+  "title": "VOID Mainnet-0 Public Node Operator Readiness Chain Rollup Hold v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "lane",
+    "status",
+    "public_surface",
+    "source_chain",
+    "authority",
+    "summary"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN"
+    },
+    "lane": {
+      "const": "mainnet0-public-node-operator-readiness-chain-rollup-hold-v1"
+    },
+    "status": {
+      "const": "chain_rollup_hold"
+    },
+    "public_surface": {
+      "const": "read_only_static_chain_rollup"
+    },
+    "source_chain": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "lane", "marker", "status", "json"],
+        "properties": {
+          "order": { "type": "integer" },
+          "lane": { "type": "string" },
+          "marker": { "type": "string" },
+          "status": { "type": "string" },
+          "json": { "type": "string" },
+          "html": { "type": "string" }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registration_enabled",
+        "checklist_submission_enabled",
+        "validator_admission_enabled",
+        "validator_activation_enabled",
+        "staking_enabled",
+        "wallet_connect_enabled",
+        "public_mutation_enabled",
+        "ledger_write_enabled",
+        "peer_state_write_enabled",
+        "validator_set_write_enabled"
+      ],
+      "properties": {
+        "registration_enabled": { "const": false },
+        "checklist_submission_enabled": { "const": false },
+        "validator_admission_enabled": { "const": false },
+        "validator_activation_enabled": { "const": false },
+        "staking_enabled": { "const": false },
+        "wallet_connect_enabled": { "const": false },
+        "public_mutation_enabled": { "const": false },
+        "ledger_write_enabled": { "const": false },
+        "peer_state_write_enabled": { "const": false },
+        "validator_set_write_enabled": { "const": false }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

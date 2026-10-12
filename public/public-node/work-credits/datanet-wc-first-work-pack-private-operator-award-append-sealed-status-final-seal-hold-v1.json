@@ -1,0 +1,50 @@
+{
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_FINAL_SEAL_HOLD_V1",
+  "kind": "datanet-wc-public-earn-loop-first-work-pack-private-operator-award-append-sealed-status-final-seal-hold-v1",
+  "status": "hold",
+  "visibility": "public_safe_readonly",
+  "seal_type": "award_append_private_operator_sealed_status_final_seal",
+  "source": {
+    "source_main_head_at_creation": "9c4c191c",
+    "source_main_subject_at_creation": "feat: add DataNet WC public award append sealed status closeout audit rollup",
+    "private_marker_values": "redacted_not_published"
+  },
+  "public_chain": {
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1",
+    "amount_recommendation_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_ledger_write_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_ledger_write_approval_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_APPROVAL_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "public_award_status_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AWARD_PUBLIC_STATUS_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "sealed_status_rollup_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_ROLLUP_HOLD_V1",
+    "sealed_status_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_SEALED_STATUS_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1"
+  },
+  "final_seal": {
+    "sealed_status_closeout_bound": true,
+    "sealed_status_rollup_bound": true,
+    "operator_side_award_append_chain": "sealed_for_review",
+    "operator_side_index": "sealed",
+    "public_disclosure_level": "public_safe_no_private_markers",
+    "seal_state": "sealed_status_final_seal_hold_for_public_review",
+    "execution_state": "not_executed_by_this_public_final_seal",
+    "ledger_append_state": "not_appended_by_this_public_final_seal",
+    "public_mutation_state": "not_enabled",
+    "wc_policy": "unlimited_uncapped_useful_verifiable_work_accounting",
+    "operator_review_required": true
+  },
+  "boundary": {
+    "public_readonly_status_only": true,
+    "no_private_marker_values": true,
+    "no_private_record_payload": true,
+    "no_submit_route": true,
+    "no_public_mutation": true,
+    "no_private_ledger_mutation": true,
+    "no_effective_execution_performed": true,
+    "no_ledger_append": true,
+    "no_wc_issuance": true,
+    "no_wc_settlement": true,
+    "no_void_transfer": true,
+    "no_wallet_or_signer_access": true,
+    "no_broadcast": true,
+    "no_automatic_reward": true
+  }
+}

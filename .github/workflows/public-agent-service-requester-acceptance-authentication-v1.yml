@@ -1,0 +1,61 @@
+name: Public Agent Service Requester Acceptance Authentication V1
+
+on:
+  pull_request:
+    paths:
+      - "schemas/public-agent-service-requester-acceptance-authentication-v1.schema.json"
+      - "examples/public-agent-service-requester-acceptance-authentication-v1.example.json"
+      - "docs/public-agent/public-agent-service-requester-acceptance-authentication-v1.md"
+      - "scripts/public_agent_service_requester_acceptance_authentication_v1.ts"
+      - "scripts/prove_public_agent_service_requester_acceptance_authentication_v1.ts"
+      - ".github/workflows/public-agent-service-requester-acceptance-authentication-v1.yml"
+      - "schemas/public-agent-service-authenticated-quote-acceptance-handoff-v1.schema.json"
+      - "scripts/public_agent_service_authenticated_quote_acceptance_handoff_v1.ts"
+      - "docs/public-agent/public-agent-service-authenticated-quote-acceptance-handoff-v1.md"
+      - "schemas/public-agent-service-provider-quote-response-authentication-v1.schema.json"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+      - "scripts/public_agent_service_provider_quote_response_v1.ts"
+      - "docs/public/agent-paid-work-acceptance-envelope-v1.md"
+      - "docs/operators/agent-paid-work-credential-registry-v1.md"
+      - "ops/public/agent-services-v1/catalog.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "schemas/public-agent-service-requester-acceptance-authentication-v1.schema.json"
+      - "examples/public-agent-service-requester-acceptance-authentication-v1.example.json"
+      - "docs/public-agent/public-agent-service-requester-acceptance-authentication-v1.md"
+      - "scripts/public_agent_service_requester_acceptance_authentication_v1.ts"
+      - "scripts/prove_public_agent_service_requester_acceptance_authentication_v1.ts"
+      - ".github/workflows/public-agent-service-requester-acceptance-authentication-v1.yml"
+      - "schemas/public-agent-service-authenticated-quote-acceptance-handoff-v1.schema.json"
+      - "scripts/public_agent_service_authenticated_quote_acceptance_handoff_v1.ts"
+      - "docs/public-agent/public-agent-service-authenticated-quote-acceptance-handoff-v1.md"
+      - "schemas/public-agent-service-provider-quote-response-authentication-v1.schema.json"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+      - "scripts/public_agent_service_provider_quote_response_v1.ts"
+      - "docs/public/agent-paid-work-acceptance-envelope-v1.md"
+      - "docs/operators/agent-paid-work-credential-registry-v1.md"
+      - "ops/public/agent-services-v1/catalog.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - run: npx tsx scripts/prove_public_agent_service_requester_acceptance_authentication_v1.ts

@@ -1,0 +1,10 @@
+{
+  "dry_run_policy_kind": "automatic_payment_canary_inventory_reserve_execution_dry_run_policy",
+  "allow_actual_inventory_mutation": false,
+  "allow_private_ledger_write": false,
+  "allow_fulfillment_execution": false,
+  "allow_wallet_signing": false,
+  "allow_void_transfer": false,
+  "expected_inventory_remaining_before": "200",
+  "operator_actual_execute_required_after_dry_run": true
+}

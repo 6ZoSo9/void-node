@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+doc="docs/public/public-node-datanet-core-public-verification-external-reviewer-intake-decision-packet-closeout-v1.md"
+
+echo "marker=VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_INTAKE_DECISION_PACKET_CLOSEOUT_PROOF_V1"
+echo "head=$(git rev-parse --short HEAD)"
+
+test -f "$doc"
+
+grep -q 'VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_INTAKE_DECISION_PACKET_CLOSEOUT_DOC_V1' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_created_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_terminal_safe=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_static_only=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_base_head=ce6e725b' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_record_boundary_cross_box_green=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_packet_set_documented=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_no_decision_record_now=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_auto_acceptance=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_auto_ingest=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_adds_authority=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_peer_pin_exact_command_reveal_held=true' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_proof_chain=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_command_reveal=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_route_calls=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_object_fetch=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_duplicate_guard=false' "$doc"
+grep -q 'datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_runs_full_live_rollup=false' "$doc"
+grep -q 'public_mutation=false' "$doc"
+grep -q 'ledger_write=false' "$doc"
+grep -q 'wc_credit_award=false' "$doc"
+
+echo "datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_terminal_safe=true"
+echo "datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_static_only=true"
+echo "datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_adds_authority=false"
+echo "public_mutation=false"
+echo "ledger_write=false"
+echo "wc_credit_award=false"
+echo "datanet_core_public_verification_external_reviewer_intake_decision_packet_closeout_proof_scope=tiny_static_doc_only_no_proof_chain_no_command_reveal_no_route_calls_no_object_fetch_no_duplicate_guard_no_full_rollup"
+echo "VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_INTAKE_DECISION_PACKET_CLOSEOUT_PROOF_V1_GREEN"

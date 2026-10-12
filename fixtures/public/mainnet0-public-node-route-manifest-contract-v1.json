@@ -1,0 +1,63 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_ROUTE_MANIFEST_CONTRACT_V1",
+  "version": 1,
+  "scope": "mainnet0_public_node_route_manifest",
+  "purpose": "prove the public-node route manifest is remotely reachable, machine-readable, public-read-only, and does not advertise sensitive namespaces",
+  "required_remote_public_paths": [
+    {
+      "path": "/public-node/route-manifest.json",
+      "allowed_status": [200],
+      "reason": "canonical machine-readable public-node route manifest"
+    }
+  ],
+  "required_manifest": {
+    "marker": "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
+    "min_route_count": 8,
+    "must_include_paths": [
+      "/public-node",
+      "/public-node/route-index.json",
+      "/public-node/route-manifest.json",
+      "/public-node/self-check-snapshot.json",
+      "/public-node/share-link.json",
+      "/public-node/tester-bundle.json",
+      "/public-node/outside-tester-smoke.json",
+      "/proofs"
+    ],
+    "forbidden_path_prefixes": [
+      "/__void/diag/",
+      "/__void/dev/",
+      "/__void/operator/",
+      "/__void/admin/",
+      "/__debug/",
+      "/dev/"
+    ],
+    "forbidden_exact_paths": [
+      "/__void/participant/wallet/export"
+    ]
+  },
+  "required_policy": {
+    "public_routes_only": true,
+    "private_api": false,
+    "mutation": false,
+    "read_only": true,
+    "money_movement": false,
+    "wallet_send": false,
+    "wc_to_void_swap": false,
+    "buy_void_fulfillment": false,
+    "validator_mutation": false
+  },
+  "authority": {
+    "public_mutation_authority": false,
+    "remote_diag_authority": false,
+    "remote_dev_authority": false,
+    "remote_operator_authority": false,
+    "remote_admin_authority": false,
+    "remote_wallet_export_authority": false
+  },
+  "nested_proofs_required": [
+    "public-node-route-index-contract-v1",
+    "public-route-contract-v1",
+    "public-live-boundary-v1",
+    "canonical-tx-hotpath-v1"
+  ]
+}

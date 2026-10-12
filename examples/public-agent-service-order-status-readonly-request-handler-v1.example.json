@@ -1,0 +1,121 @@
+{
+  "authority": {
+    "authenticated_submission_post": false,
+    "deployment": false,
+    "http_route_registration": false,
+    "network_listener": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "handled_at_utc": "2030-01-01T00:00:05Z",
+  "handler_id": "voidaosh1_81436af265540606c82862edbd3e90effae092c3721128c78ac2e59dc478b775",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_REQUEST_HANDLER_V1",
+  "request": {
+    "method": "GET",
+    "path": "/public-agent/services/v1/orders/voidawsr1_example_order_status_0001/status.json",
+    "submission_id": "voidawsr1_example_order_status_0001"
+  },
+  "resolution": {
+    "found": true,
+    "reason": null,
+    "source_filename": "voidawsr1_example_order_status_0001.json",
+    "source_sha256": "62ae5c3036d8b654827c57c63458b5abc5c293461305cba11c5d50651da56f87",
+    "source_size_bytes": 965,
+    "submission_id": "voidawsr1_example_order_status_0001"
+  },
+  "response": {
+    "authority": {
+      "authenticated_submission_post": false,
+      "http_route_registration": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "persistence_read": false,
+      "persistence_write": false,
+      "provider_authentication": false,
+      "provider_selection": false,
+      "quote_acceptance": false,
+      "quote_publication": false,
+      "runtime_mutation": false,
+      "server_mount": false,
+      "work_credit_write": false,
+      "work_dispatch": false,
+      "work_execution_authorization": false
+    },
+    "error": null,
+    "found": true,
+    "http": {
+      "allow": "GET",
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "status_code": 200
+    },
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ROUTE_RESPONSE_V1",
+    "observed_at_utc": "2030-01-01T00:00:04Z",
+    "order_status": {
+      "authority": {
+        "authenticated_submission_post": false,
+        "payment_authorization": false,
+        "payment_execution": false,
+        "provider_authentication": false,
+        "provider_selection": false,
+        "quote_acceptance": false,
+        "quote_publication": false,
+        "runtime_mutation": false,
+        "work_credit_write": false,
+        "work_dispatch": false,
+        "work_execution_authorization": false
+      },
+      "evidence": {
+        "acceptance_id": null,
+        "completion_receipt_id": null,
+        "dispatch_id": null,
+        "execution_authorization_id": null,
+        "payment_authorization_id": null,
+        "payment_receipt_id": null,
+        "provider_response_id": "voidawqr1_example_order_status_0001",
+        "quote_handoff_id": "voidawqh1_example_order_status_0001",
+        "quote_id": "voidawq1_example_order_status_0001",
+        "submission_receipt_id": "voidawsi1_example_order_status_0001"
+      },
+      "evidence_count": 4,
+      "lifecycle": {
+        "acceptance_status": "none",
+        "completion_status": "none",
+        "execution_status": "none",
+        "payment_status": "none",
+        "quote_status": "provider_authentication_required",
+        "submission_status": "accepted_for_review"
+      },
+      "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_V1",
+      "next_action": "capture_real_provider_selection_and_authentication_prerequisite",
+      "observed_at_utc": "2030-01-01T00:00:04Z",
+      "phase": "provider_authentication_required",
+      "source_sha256": "7aa8826bf2613446f68fdbcdefbc76bf637e09848fce093e0302fe0f4e477424",
+      "status_id": "voidaos1_fb0a0f72c060c10b04d426e752bbaeb0361b2919098c4f90845d04b813b54749",
+      "submission_id": "voidawsr1_example_order_status_0001",
+      "successful": false,
+      "terminal": false,
+      "version": 1,
+      "work_order_id": "voidawo1_example_order_status_0001"
+    },
+    "response_id": "voidaosr1_d8ddf289510fe228c65d304ee006a54bf36e86d230d13f9b825cd976d7a40244",
+    "route": {
+      "method": "GET",
+      "path": "/public-agent/services/v1/orders/voidawsr1_example_order_status_0001/status.json",
+      "submission_id": "voidawsr1_example_order_status_0001",
+      "template": "/public-agent/services/v1/orders/:submission_id/status.json"
+    },
+    "route_source_sha256": "f48236c3f465031bf2d9c005cfb1fc3d72cb3b3692e52fb8cd4b601e718b2fe4",
+    "version": 1
+  },
+  "version": 1
+}

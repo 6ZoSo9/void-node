@@ -1,0 +1,53 @@
+name: DataNet Promotion Independent Attestation Set v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/datanet-promotion-independent-attestation-set-v1.yml"
+      - "docs/architecture/datanet-promotion-independent-attestation-set-v1.md"
+      - "docs/architecture/datanet-promotion-evidence-collector-v1.md"
+      - "schemas/datanet-promotion-independent-attestation-set-v1.schema.json"
+      - "scripts/datanet_promotion_independent_attestation_set_v1.ts"
+      - "scripts/prove_datanet_promotion_independent_attestation_set_v1.ts"
+      - "scripts/public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/datanet-promotion-independent-attestation-set-v1.yml"
+      - "docs/architecture/datanet-promotion-independent-attestation-set-v1.md"
+      - "docs/architecture/datanet-promotion-evidence-collector-v1.md"
+      - "schemas/datanet-promotion-independent-attestation-set-v1.schema.json"
+      - "scripts/datanet_promotion_independent_attestation_set_v1.ts"
+      - "scripts/prove_datanet_promotion_independent_attestation_set_v1.ts"
+      - "scripts/public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-promotion-independent-attestation-set-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - name: Prove registry-resolved independent promotion attestations
+        run: |
+          set -euo pipefail
+          npx --no-install tsx scripts/prove_datanet_promotion_independent_attestation_set_v1.ts
+          git diff --exit-code

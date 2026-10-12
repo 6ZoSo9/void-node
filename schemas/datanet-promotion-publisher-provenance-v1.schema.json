@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-publisher-provenance-v1.schema.json",
+  "title": "VOID DataNet Promotion Publisher Provenance v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "publisher_subject_id",
+    "publisher_key_id",
+    "publisher_public_key_pem",
+    "object_id",
+    "content_sha256",
+    "byte_length",
+    "imported_at_utc",
+    "local_receipt_sha256",
+    "signature_scheme",
+    "signature_domain",
+    "canonicalization",
+    "signed_at_utc",
+    "nonce",
+    "authority",
+    "signature_base64",
+    "publisher_provenance_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_PUBLISHER_PROVENANCE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "publisher_subject_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "publisher_key_id": {
+      "type": "string",
+      "pattern": "^ed25519:[0-9a-f]{64}$"
+    },
+    "publisher_public_key_pem": {
+      "type": "string",
+      "minLength": 80,
+      "maxLength": 4096
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "byte_length": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 268435456
+    },
+    "imported_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$"
+    },
+    "local_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "signature_scheme": {
+      "const": "ed25519"
+    },
+    "signature_domain": {
+      "const": "void.datanet.promotion.publisher-provenance.v1"
+    },
+    "canonicalization": {
+      "const": "void.canonical-json.sorted-keys.v1"
+    },
+    "signed_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_only",
+        "chain2050_write_authorized",
+        "datanet_mutation_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "evidence_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "datanet_mutation_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    },
+    "signature_base64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "publisher_provenance_id": {
+      "type": "string",
+      "pattern": "^voiddppp1_[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "transactions": [
+    {
+      "contractName": "DevnetVoidToken",
+      "contractAddress": "0x46d4674578a2daBbD0CEAB0500c6c7867999db34"
+    },
+    {
+      "contractName": "WorkCreditsToken",
+      "contractAddress": "0x9155497EAE31D432C0b13dBCc0615a37f55a2c87"
+    },
+    {
+      "contractName": "WorkCreditsPoolV1",
+      "contractAddress": "0xfB12F7170FF298CDed84C793dAb9aBBEcc01E798"
+    }
+  ]
+}

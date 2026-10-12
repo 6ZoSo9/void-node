@@ -1,0 +1,40 @@
+name: VOID Bootstrap Release Root Candidate V1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-bootstrap-record-release-root-candidate-v1.mjs"
+      - "scripts/prove_void_bootstrap_record_release_root_candidate_v1.mjs"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "docs/operations/void-bootstrap-record-release-root-candidate-v1.md"
+      - ".github/workflows/void-bootstrap-record-release-root-candidate-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-bootstrap-record-release-root-candidate-v1.mjs"
+      - "scripts/prove_void_bootstrap_record_release_root_candidate_v1.mjs"
+      - "scripts/lib/void_bootstrap_record_release_root_v1.mjs"
+      - "scripts/lib/void_p2p_udp_swarm_verified_discovery_composition_v1.mjs"
+      - "docs/operations/void-bootstrap-record-release-root-candidate-v1.md"
+      - ".github/workflows/void-bootstrap-record-release-root-candidate-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove public-key-only release-root candidate builder
+        run: node scripts/prove_void_bootstrap_record_release_root_candidate_v1.mjs

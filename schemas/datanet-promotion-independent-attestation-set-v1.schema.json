@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-promotion-independent-attestation-set-v1.schema.json",
+  "title": "VOID DataNet Promotion Independent Attestation Set v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "object",
+    "trust_snapshot_id",
+    "attestations",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_DATANET_PROMOTION_INDEPENDENT_ATTESTATION_SET_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "content_sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        }
+      }
+    },
+    "trust_snapshot_id": {
+      "type": "string",
+      "pattern": "^voidapts1_[0-9a-f]{64}$"
+    },
+    "attestations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/attestation"
+      }
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "$defs": {
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "kind",
+        "provider_id",
+        "provider_key_binding_id",
+        "signing_key_id",
+        "object_id",
+        "content_sha256",
+        "byte_length",
+        "attested_at_utc",
+        "verification_run_id",
+        "evidence_sha256",
+        "exact_bytes_verified",
+        "conflict_detected",
+        "replay_verified",
+        "signature_scheme",
+        "signature_domain",
+        "canonicalization",
+        "nonce",
+        "signature_base64",
+        "attestation_id"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_DATANET_PROMOTION_INDEPENDENT_ATTESTATION_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "kind": {
+          "enum": [
+            "corroboration",
+            "reproducibility"
+          ]
+        },
+        "provider_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "provider_key_binding_id": {
+          "type": "string",
+          "pattern": "^voidapkb1_[0-9a-f]{64}$"
+        },
+        "signing_key_id": {
+          "type": "string",
+          "pattern": "^ed25519:[0-9a-f]{64}$"
+        },
+        "object_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "attested_at_utc": {
+          "type": "string",
+          "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}Z$"
+        },
+        "verification_run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "evidence_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "exact_bytes_verified": {
+          "const": true
+        },
+        "conflict_detected": {
+          "const": false
+        },
+        "replay_verified": {
+          "type": "boolean"
+        },
+        "signature_scheme": {
+          "const": "ed25519"
+        },
+        "signature_domain": {
+          "const": "void.datanet.promotion.independent-attestation.v1"
+        },
+        "canonicalization": {
+          "const": "void.canonical-json.sorted-keys.v1"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "signature_base64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        },
+        "attestation_id": {
+          "type": "string",
+          "pattern": "^voiddpia1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_only",
+        "chain2050_write_authorized",
+        "validator_authority_granted",
+        "governance_mutation_authorized",
+        "signer_or_wallet_access",
+        "work_credit_award_authorized",
+        "runtime_service_action",
+        "funds_action"
+      ],
+      "properties": {
+        "evidence_only": {
+          "const": true
+        },
+        "chain2050_write_authorized": {
+          "const": false
+        },
+        "validator_authority_granted": {
+          "const": false
+        },
+        "governance_mutation_authorized": {
+          "const": false
+        },
+        "signer_or_wallet_access": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "runtime_service_action": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        }
+      }
+    }
+  }
+}

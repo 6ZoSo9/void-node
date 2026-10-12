@@ -1,0 +1,56 @@
+name: void-node-public-origin-binding-production-request-v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-node-public-origin-binding-production-request-v1.mjs"
+      - "scripts/prove_void_node_public_origin_binding_production_request_v1.mjs"
+      - "tools/void-node-public-origin-binding-signing-request-v1.mjs"
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
+      - "tools/lib/void-node-onion-binding-v1.mjs"
+      - "tools/lib/void-public-node-identity-trust-v1.mjs"
+      - "public/public-node/evidence/void-node-onion-binding-v1-nimo-verified.json"
+      - "config/void-public-node-identity-trust-v1.json"
+      - "docs/public-node/void-node-public-origin-binding-production-request-v1.md"
+      - ".github/workflows/void-node-public-origin-binding-production-request-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-node-public-origin-binding-production-request-v1.mjs"
+      - "scripts/prove_void_node_public_origin_binding_production_request_v1.mjs"
+      - "tools/void-node-public-origin-binding-signing-request-v1.mjs"
+      - "tools/lib/void-node-public-origin-binding-v1.mjs"
+      - "tools/lib/void-node-onion-binding-v1.mjs"
+      - "tools/lib/void-public-node-identity-trust-v1.mjs"
+      - "public/public-node/evidence/void-node-onion-binding-v1-nimo-verified.json"
+      - "config/void-public-node-identity-trust-v1.json"
+      - "docs/public-node/void-node-public-origin-binding-production-request-v1.md"
+      - ".github/workflows/void-node-public-origin-binding-production-request-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-node-public-origin-binding-production-request-v1.mjs
+          node --check scripts/prove_void_node_public_origin_binding_production_request_v1.mjs
+      - name: Existing request regression
+        run: node scripts/prove_void_node_public_origin_binding_signing_request_v1.mjs
+      - name: Production request proof
+        run: node scripts/prove_void_node_public_origin_binding_production_request_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

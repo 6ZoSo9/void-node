@@ -1,0 +1,117 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-services-catalog-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog_fingerprint_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "catalog_id": {
+      "const": "void.public-agent-services.v1"
+    },
+    "catalog_status": {
+      "const": "descriptive_only"
+    },
+    "honesty": {
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICES_CATALOG_V1"
+    },
+    "schema": {
+      "const": "void.public-agent-services-catalog.v1"
+    },
+    "services": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "availability": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "execution": {
+            "type": "object"
+          },
+          "interface": {
+            "type": "object"
+          },
+          "maturity": {
+            "type": "string"
+          },
+          "operator_notes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "pricing": {
+            "type": "object"
+          },
+          "service_id": {
+            "pattern": "^void\\.[a-z0-9.-]+\\.v1$",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "verification": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "service_id",
+          "title",
+          "summary",
+          "category",
+          "maturity",
+          "availability",
+          "interface",
+          "pricing",
+          "execution",
+          "verification",
+          "evidence",
+          "operator_notes"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "source_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "source_commit_time": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "catalog_id",
+    "source_commit",
+    "source_commit_time",
+    "catalog_status",
+    "honesty",
+    "services",
+    "catalog_fingerprint_sha256"
+  ],
+  "title": "VOID Public Agent Services Catalog V1",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICES_CATALOG_SCHEMA_V1"
+}

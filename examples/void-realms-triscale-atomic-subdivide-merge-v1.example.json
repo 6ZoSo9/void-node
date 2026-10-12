@@ -1,0 +1,64 @@
+{
+  "marker": "VOID_REALMS_TRISCALE_ATOMIC_CONVERSION_CONFIG_V1",
+  "version": 1,
+  "world_name": "VOID Realms",
+  "microcells_per_standard_edge": 4,
+  "allowed_subdivisions": [
+    {
+      "source_scale": "standard",
+      "target_scale": "medium",
+      "replacement_count": 8
+    },
+    {
+      "source_scale": "standard",
+      "target_scale": "small",
+      "replacement_count": 64
+    },
+    {
+      "source_scale": "medium",
+      "target_scale": "small",
+      "replacement_count": 8
+    }
+  ],
+  "allowed_merges": [
+    {
+      "source_scale": "small",
+      "target_scale": "medium",
+      "source_count": 8
+    },
+    {
+      "source_scale": "small",
+      "target_scale": "standard",
+      "source_count": 64
+    },
+    {
+      "source_scale": "medium",
+      "target_scale": "standard",
+      "source_count": 8
+    }
+  ],
+  "atomic_policy": {
+    "single_revision_transition": true,
+    "occupancy_root_must_remain_equal": true,
+    "material_units_delta": 0,
+    "mixed_source_scale_merge_allowed": false,
+    "partial_coverage_merge_allowed": false,
+    "transient_overlap_allowed": false,
+    "cross_region_conversion_allowed": false,
+    "client_supplied_material_delta_trusted": false,
+    "preview_only_luanti_adapter": true
+  },
+  "authority": {
+    "world_mutation": false,
+    "inventory_mutation": false,
+    "gameplay_state_commit": false,
+    "network_listener_start": false,
+    "external_connection": false,
+    "server_start": false,
+    "deployment": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "payment_execution": false,
+    "money_movement": false
+  }
+}

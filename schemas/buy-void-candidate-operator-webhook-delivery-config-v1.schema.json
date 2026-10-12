@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-candidate-operator-webhook-delivery-config-v1",
+  "title": "Buy VOID candidate operator webhook delivery config V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "enabled",
+    "endpoint_url",
+    "allowed_host",
+    "bearer_token_file",
+    "request_timeout_ms",
+    "maximum_payload_bytes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_candidate_operator_webhook_delivery_config_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CANDIDATE_OPERATOR_WEBHOOK_DELIVERY_CONFIG_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "endpoint_url": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 4096
+    },
+    "allowed_host": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253
+    },
+    "bearer_token_file": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4096
+    },
+    "request_timeout_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 60000
+    },
+    "maximum_payload_bytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65536
+    }
+  }
+}

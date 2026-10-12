@@ -1,0 +1,80 @@
+{
+  "kind": "public_node_operator_trial_review_decision_example_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_REVIEW_DECISION_EXAMPLE_V1_GREEN",
+  "status": "trial_review_decision_example_ready",
+  "title": "VOID Public Node Operator Trial Review Decision Example v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Public-safe example operator decision for the Public Node Operator Trial Receipt Example v1.",
+  "html": "/public-node/public-node-operator-trial-review-decision-example-v1.html",
+  "json": "/public-node/public-node-operator-trial-review-decision-example-v1.json",
+  "pairs_with": {
+    "trial_packet": "/public-node/public-node-operator-trial-packet-v1.json",
+    "trial_receipt_example": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+    "decision_template": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "review_checklist": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+    "review_lane_rollup": "/public-node/public-node-operator-review-lane-rollup-v1.json",
+    "operator_dashboard": "/public-node/public-node-operator-dashboard-v1.json"
+  },
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "decision_example": {
+    "decision_kind": "public_node_operator_trial_review_decision",
+    "decision_status": "example_not_applied",
+    "reviewed_receipt_route": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+    "reviewed_trial_packet_route": "/public-node/public-node-operator-trial-packet-v1.json",
+    "review_timestamp_utc": "2026-07-04T00:00:00Z",
+    "operator_alias": "example-operator-reviewer",
+    "decision": "informational",
+    "reason": "The reviewed receipt is an example receipt that demonstrates public-safe structure only.",
+    "accepted_as_evidence": false,
+    "needs_changes": false,
+    "rejected": false,
+    "informational_only": true,
+    "work_credit_awarded": false,
+    "work_credit_amount": 0,
+    "wc_ledger_write_authorized": false,
+    "buy_void_fulfillment_authorized": false,
+    "validator_admission_authorized": false,
+    "network_truth_claim": false,
+    "notes": [
+      "This decision example does not approve WC issuance.",
+      "This decision example does not authorize any ledger write.",
+      "This decision example does not admit a validator.",
+      "This decision example does not treat tester receipts as network truth.",
+      "A real submitted receipt still requires operator review."
+    ]
+  },
+  "allowed_real_decisions": [
+    "accepted",
+    "needs_changes",
+    "rejected",
+    "informational"
+  ],
+  "do_not_infer": [
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}

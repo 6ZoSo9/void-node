@@ -1,0 +1,47 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_PUBLIC_SAFE_STATUS_SUMMARY_CLOSEOUT_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_activation_refusal_public_safe_status_summary_closeout_hold_v1",
+  "visibility": "public_safe_summary",
+  "status": "activation_refusal_public_safe_status_summary_closeout_hold",
+  "purpose": "public-safe closeout for the repaired automatic payment activation refusal status summary; no runtime route or authority is created",
+  "closeout_scope": {
+    "public_safe_status_summary_closed": true,
+    "status_only_evidence": true,
+    "runtime_route_created": false,
+    "public_mutation_created": false,
+    "buyer_action_executed": false,
+    "activation_satisfied": false
+  },
+  "public_safe_status": {
+    "automatic_payment_activation_refused": true,
+    "all_authority_false": true,
+    "no_runtime_route": true,
+    "no_public_mutation": true
+  },
+  "non_disclosure": {
+    "private_operator_markers": false,
+    "private_paths": false,
+    "buyer_specific_records": false,
+    "transaction_hashes": false,
+    "ledger_paths": false,
+    "signer_material": false,
+    "wallet_material": false,
+    "allocation_records": false,
+    "activation_commands": false,
+    "execution_commands": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  }
+}

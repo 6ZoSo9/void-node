@@ -1,0 +1,55 @@
+{
+  "authority": {
+    "buy_void_fulfillment_granted": false,
+    "payment_authorization_granted": false,
+    "payment_execution_granted": false,
+    "provider_selected": true,
+    "provider_selection_executed": true,
+    "quote_created": false,
+    "quote_creation_granted": false,
+    "requester_acceptance_granted": false,
+    "signing_granted": false,
+    "transaction_broadcast_granted": false,
+    "void_settlement_granted": false,
+    "wallet_or_signer_access_granted": false,
+    "wc_award_granted": false,
+    "wc_ledger_write_granted": false,
+    "work_dispatch_granted": false,
+    "work_execution_authorization_granted": false
+  },
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_PROVIDER_SELECTION_V1",
+  "next_action": "provider_quote_may_be_requested_but_not_created",
+  "provider_registry": {
+    "candidate_set_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "eligible_provider_count": 2,
+    "provider_count": 2,
+    "provider_registry_snapshot_id": "voidapwprs1_4444444444444444444444444444444444444444444444444444444444444444",
+    "ranking": "priority_ascending_then_provider_id_ascending"
+  },
+  "provider_selection_id": "voidapwps1_8888888888888888888888888888888888888888888888888888888888888888",
+  "review_decision": {
+    "capability_id": "datanet.fetch_verify",
+    "max_total": "3",
+    "max_total_microusd": 3000000,
+    "queue_item_id": "voidapwsrq1_1111111111111111111111111111111111111111111111111111111111111111",
+    "quote_asset": "USD",
+    "receipt_id": "voidawsi1_2222222222222222222222222222222222222222222222222222222222222222",
+    "review_decision_id": "voidapwod1_0000000000000000000000000000000000000000000000000000000000000000",
+    "submission_id": "agent-paid-work-submission-example-v1",
+    "work_order_id": "voidawo1_3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "selected_at_utc": "2026-07-30T20:45:00Z",
+  "selected_provider": {
+    "available_capacity": 1,
+    "capability_id": "datanet.fetch_verify",
+    "max_output_bytes": 1048576,
+    "max_request_total_microusd": 10000000,
+    "max_runtime_seconds": 300,
+    "priority": 10,
+    "provider_authentication_packet_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+    "provider_id": "voidapwp1_6666666666666666666666666666666666666666666666666666666666666666",
+    "quote_asset": "USD"
+  },
+  "status": "provider_selected_pending_quote",
+  "version": 1
+}

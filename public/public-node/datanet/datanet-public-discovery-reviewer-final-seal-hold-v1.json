@@ -1,0 +1,53 @@
+{
+  "id": "datanet-public-discovery-reviewer-final-seal-hold-v1",
+  "title": "DataNet Public Discovery Reviewer Final Seal Hold v1",
+  "status": "hold",
+  "path": "/public-node/datanet/datanet-public-discovery-reviewer-final-seal-hold-v1.json",
+  "json": "datanet-public-discovery-reviewer-final-seal-hold-v1.json",
+  "scope": "datanet_public_discovery_reviewer_final_seal",
+  "marker": "VOID_DATANET_PUBLIC_DISCOVERY_REVIEWER_FINAL_SEAL_HOLD_V1",
+  "summary": "Reviewer-facing final seal for the public DataNet discovery closeout rollup. This is a public-safe, read-only discovery/status seal only.",
+  "reviewer_final_seal_hold_only": true,
+  "public_safe": true,
+  "read_only": true,
+  "discovery_only": true,
+  "runtime_fetch_required": false,
+  "runtime_fetch_optional": true,
+  "sealed_inputs": [
+    {
+      "id": "datanet-public-discovery-closeout-rollup-html-card-runtime-visibility-hold-v1",
+      "marker": "VOID_DATANET_PUBLIC_DISCOVERY_CLOSEOUT_ROLLUP_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1",
+      "status": "green",
+      "path": "/public-node/datanet/datanet-public-discovery-closeout-rollup-html-card-runtime-visibility-hold-v1.json"
+    }
+  ],
+  "boundary": {
+    "public_discovery_status_only": true,
+    "final_seal_visibility_only": true,
+    "no_public_intake": true,
+    "no_upload": true,
+    "no_object_write": true,
+    "no_mirror_command": true,
+    "no_peer_pin_command": true,
+    "no_wc_claim": true,
+    "no_wc_issuance": true,
+    "no_wallet_or_signer": true,
+    "no_runtime_mutation_route": true,
+    "no_mutation_handler": true
+  },
+  "public_intake_enabled": false,
+  "upload_enabled": false,
+  "object_write_enabled": false,
+  "mirror_command_enabled": false,
+  "peer_pin_command_enabled": false,
+  "wc_claim_enabled": false,
+  "wc_issuance_enabled": false,
+  "wallet_or_signer_required": false,
+  "runtime_mutation_route_enabled": false,
+  "mutation_handler_enabled": false,
+  "transaction_created": false,
+  "transaction_signed": false,
+  "transaction_broadcast": false,
+  "void_transfer_enabled": false,
+  "usdc_autofulfillment_enabled": false
+}

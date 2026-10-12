@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+MARKER="VOID_DATANET_CORE_PEER_PIN_FOCUSED_PROOF_INDEX_PROOF_V1"
+
+doc="docs/public/public-node-datanet-core-peer-pin-focused-proof-index-v1.md"
+
+proof_hold="ops/mainnet0/datanet-core-peer-pin-exact-command-reveal-hold-packet-v1-proof.sh"
+proof_decision="ops/mainnet0/datanet-core-peer-pin-exact-command-reveal-final-operator-decision-packet-v1-proof.sh"
+proof_rollup="ops/mainnet0/datanet-core-peer-pin-hold-status-rollup-v1-proof.sh"
+proof_live_guard="ops/mainnet0/datanet-core-peer-pin-hold-status-rollup-live-guard-v1-proof.sh"
+proof_output_boundary="ops/mainnet0/public-node-live-status-rollup-output-boundary-v1-proof.sh"
+
+echo "=== VOID DataNet Core Peer Pin Focused Proof Index v1 Focused Proof ==="
+echo "marker=$MARKER"
+echo "head=$(git rev-parse --short HEAD)"
+
+test -f "$doc"
+for f in "$proof_hold" "$proof_decision" "$proof_rollup" "$proof_live_guard" "$proof_output_boundary"; do
+  test -f "$f"
+  bash -n "$f"
+done
+
+grep -q 'VOID_DATANET_CORE_PEER_PIN_FOCUSED_PROOF_INDEX_DOC_V1' "$doc"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_EXACT_COMMAND_REVEAL_HOLD_PACKET_PROOF_V1_GREEN' "$doc"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_EXACT_COMMAND_REVEAL_FINAL_OPERATOR_DECISION_PACKET_PROOF_V1_GREEN' "$doc"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_HOLD_STATUS_ROLLUP_PROOF_V1_GREEN' "$doc"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_HOLD_STATUS_ROLLUP_LIVE_GUARD_PROOF_V1_GREEN' "$doc"
+grep -q 'VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_OUTPUT_BOUNDARY_PROOF_V1_GREEN' "$doc"
+
+grep -q 'VOID_DATANET_CORE_PEER_PIN_EXACT_COMMAND_REVEAL_HOLD_PACKET_PROOF_V1_GREEN' "$proof_hold"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_EXACT_COMMAND_REVEAL_FINAL_OPERATOR_DECISION_PACKET_PROOF_V1_GREEN' "$proof_decision"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_HOLD_STATUS_ROLLUP_PROOF_V1_GREEN' "$proof_rollup"
+grep -q 'VOID_DATANET_CORE_PEER_PIN_HOLD_STATUS_ROLLUP_LIVE_GUARD_PROOF_V1_GREEN' "$proof_live_guard"
+grep -q 'VOID_PUBLIC_NODE_LIVE_STATUS_ROLLUP_OUTPUT_BOUNDARY_PROOF_V1_GREEN' "$proof_output_boundary"
+
+grep -q 'datanet_core_peer_pin_focused_proof_index_created_now=true' "$doc"
+grep -q 'focused_static_guard_proof_path_indexed_now=true' "$doc"
+grep -q 'full_live_status_rollup_execution_required_for_this_lane_now=false' "$doc"
+grep -q 'focused_static_guard_proof_required_for_this_lane_now=true' "$doc"
+grep -q 'focused_static_guard_proof_accepted_for_this_lane_now=true' "$doc"
+grep -q 'peer_pin_current_decision=continue_hold' "$doc"
+grep -q 'exact_command_revealed_now=false' "$doc"
+grep -q 'exact_command_printed_now=false' "$doc"
+grep -q 'command_string_disclosed=false' "$doc"
+grep -q 'final_execute_allowed_now=false' "$doc"
+grep -q 'terminal_execute_allowed_now=false' "$doc"
+grep -q 'command_executed_now=false' "$doc"
+grep -q 'mirror_executed_now=false' "$doc"
+grep -q 'pin_executed_now=false' "$doc"
+grep -q 'public_mutation=false' "$doc"
+grep -q 'ledger_write=false' "$doc"
+grep -q 'wc_credit_award=false' "$doc"
+
+echo "datanet_core_peer_pin_focused_proof_index_created_now=true"
+echo "focused_static_guard_proof_path_indexed_now=true"
+echo "focused_static_guard_proof_chain_scripts_present=true"
+echo "focused_static_guard_proof_chain_syntax_green=true"
+echo "full_live_status_rollup_execution_required_for_this_lane_now=false"
+echo "focused_static_guard_proof_required_for_this_lane_now=true"
+echo "focused_static_guard_proof_accepted_for_this_lane_now=true"
+echo "peer_pin_current_decision=continue_hold"
+echo "exact_command_revealed_now=false"
+echo "exact_command_printed_now=false"
+echo "command_string_disclosed=false"
+echo "final_execute_allowed_now=false"
+echo "terminal_execute_allowed_now=false"
+echo "command_executed_now=false"
+echo "mirror_executed_now=false"
+echo "pin_executed_now=false"
+echo "public_mutation=false"
+echo "ledger_write=false"
+echo "wc_credit_award=false"
+echo "focused_proof_index_proof_scope=static_index_no_full_rollup_execution_no_chain_execution"
+echo "VOID_DATANET_CORE_PEER_PIN_FOCUSED_PROOF_INDEX_PROOF_V1_GREEN"

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void.public_node.work_credits.datanet-wc-public-earn-loop-first-work-pack-reviewer-handoff-packet-hold-v1.schema.json",
+  "title": "DataNet WC Public Earn Loop First Work Pack Reviewer Handoff Packet Hold v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "marker",
+    "status",
+    "kind",
+    "scope",
+    "route",
+    "html_route",
+    "source_first_work_pack",
+    "source_closeout_audit",
+    "reviewer_handoff_packet",
+    "work_credit_policy",
+    "submission_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void.public_node.work_credits.datanet_wc_public_earn_loop_first_work_pack_reviewer_handoff_packet.v1"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_REVIEWER_HANDOFF_PACKET_HOLD_V1"
+    },
+    "status": {
+      "const": "hold"
+    },
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack_reviewer_handoff_packet"
+    },
+    "scope": {
+      "const": "public_work_credit_earn_loop_reviewer_handoff"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "source_first_work_pack": {
+      "type": "object"
+    },
+    "source_closeout_audit": {
+      "type": "object"
+    },
+    "reviewer_handoff_packet": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

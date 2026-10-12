@@ -1,0 +1,80 @@
+{
+  "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1",
+  "purpose": "public_safe_precision_to_nimo_p2p_rejoin_runtime_visibility",
+  "status": "precision_to_nimo_p2p_rejoin_observed",
+  "updated_utc": "2026-07-04T11:58:27Z",
+  "summary": {
+    "precision_main_node_ready": true,
+    "nimo_p2p_reachable": true,
+    "precision_dialed_nimo_p2p": true,
+    "hello_exchange_observed": true,
+    "thirty_second_hold_observed": true,
+    "nimo_http_route_observed": false,
+    "nimo_ssh_observed": false,
+    "static_public_status_should_not_claim_http_or_ssh_runtime": true
+  },
+  "nodes": {
+    "precision": {
+      "role": "source_of_truth_live_node",
+      "node_id": "9d89483769e469e0473b489dc50dba96",
+      "http": "127.0.0.1:4100",
+      "p2p": "192.168.1.88:4700",
+      "ready": true,
+      "head": 1856587,
+      "txroot_live": 1
+    },
+    "nimo": {
+      "role": "local_observer_follower_node",
+      "node_id": "042c8b22f14cf343139e9bc806937bf3",
+      "p2p": "192.168.1.99:4701",
+      "http_reachable_from_precision": false,
+      "ssh_reachable_from_precision": false
+    }
+  },
+  "observed_peer_surface": {
+    "precision_health_peers": [
+      "042c8b22f14cf343139e9bc806937bf3"
+    ],
+    "precision_peers_connected": [
+      {
+        "id": "042c8b22f14cf343139e9bc806937bf3",
+        "addr": "192.168.1.99:4701",
+        "listens": [
+          "192.168.1.99:4701"
+        ],
+        "outbound": true
+      }
+    ],
+    "known_addrs": [
+      "192.168.1.88:4700",
+      "192.168.1.99:4701"
+    ]
+  },
+  "operator_evidence": {
+    "local_private_evidence_file": "precision-nimo-p2p-rejoin-green-30s-v1-20260704-065757.txt",
+    "marker": "VOID_PRECISION_NIMO_P2P_REJOIN_GREEN_30S_V1",
+    "assert_marker": "VOID_PRECISION_NIMO_P2P_REJOIN_GREEN_30S_V1_ASSERT_OK",
+    "hold_seconds": 30,
+    "dial_log_summary": [
+      "[dial] connected 192.168.1.99:4701",
+      "[peer] HELLO -> 042c8b22f14cf343139e9bc806937bf3 @ 192.168.1.99:4701"
+    ]
+  },
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "runtime_visibility_only": true,
+    "manual_operator_dial_observed": true,
+    "automatic_peer_dial_enabled_by_this_card": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  },
+  "expected_green_marker": "VOID_LOCAL_MULTIBOX_RUNTIME_PEER_REJOIN_CARD_V1_GREEN"
+}

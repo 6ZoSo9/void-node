@@ -1,0 +1,37 @@
+{
+  "authority": {
+    "authenticated_submission_post": false,
+    "deployment": false,
+    "live_http_route_registration": false,
+    "network_listener": false,
+    "payment_execution": false,
+    "provider_authentication": false,
+    "provider_selection": false,
+    "quote_acceptance": false,
+    "runtime_mutation": false,
+    "server_mount": false,
+    "service_restart": false,
+    "source_read": false,
+    "source_write": false,
+    "token_byte_read": false,
+    "work_credit_write": false,
+    "work_dispatch": false
+  },
+  "configuration": {
+    "disabled_by_default": true,
+    "enable_env": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_ENABLED",
+    "max_bytes": 1048576,
+    "max_bytes_env": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_MAX_BYTES",
+    "source_root_configured": false,
+    "source_root_env": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_SOURCE_ROOT"
+  },
+  "enabled": false,
+  "integration_id": "voidaoshi1_a7d9018654aff68749473e12e5fcde316a0bee8dfdc88a3b300c30aed6bf3217",
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1",
+  "mounted": false,
+  "route": {
+    "method": "GET",
+    "path": "/public-agent/services/v1/orders/:submission_id/status.json"
+  },
+  "version": 1
+}

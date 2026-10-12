@@ -1,0 +1,53 @@
+<html lang="en">
+<head><meta charset="utf-8"><title>VOID Public Node Operator Trial Submission Review Queue v1</title></head>
+<body>
+<h1>VOID Public Node Operator Trial Submission Review Queue v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1</code></p>
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1_GREEN</code></p>
+<p>This is a public-safe definition-only review queue for submitted public node operator trial receipts.</p>
+<h2>Queue policy</h2>
+<ul>
+<li>Definition-only: true</li>
+<li>Manual operator review required: true</li>
+<li>Public queue mutation enabled: false</li>
+<li>Public upload route enabled: false</li>
+<li>Public form enabled: false</li>
+<li>Queue item creation enabled: false</li>
+<li>Queue status does not authorize WC, ledger writes, wallet sends, money movement, or validator admission.</li>
+</ul>
+<h2>Queue fields</h2>
+<ol>
+<li>queue_item_id</li>
+<li>submission_timestamp_utc</li>
+<li>tester_alias_or_handle</li>
+<li>submitted_receipt_route_or_attachment_reference</li>
+<li>submission_intake_version</li>
+<li>operator_review_status</li>
+<li>assigned_operator_alias</li>
+<li>review_checklist_route</li>
+<li>decision_template_route</li>
+<li>operator_decision_record_route</li>
+<li>public_safe_notes</li>
+</ol>
+<h2>Allowed statuses</h2>
+<ul>
+<li>not_submitted</li>
+<li>received_pending_operator_review</li>
+<li>needs_changes</li>
+<li>accepted_as_public_safe_evidence</li>
+<li>rejected</li>
+<li>informational_only</li>
+</ul>
+<h2>Linked routes</h2>
+<ul>
+<li>submission_intake: <a href="/public-node/public-node-operator-trial-submission-intake-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1</code></a></li>
+<li>closeout_rollup: <a href="/public-node/public-node-operator-trial-closeout-rollup-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_CLOSEOUT_ROLLUP_V1</code></a></li>
+<li>root_link: <a href="/public-node/public-node-operator-trial-root-link-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1</code></a></li>
+<li>public_entrypoint: <a href="/public-node/public-node-operator-trial-public-entrypoint-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1</code></a></li>
+<li>review_checklist: <a href="/public-node/public-node-operator-receipt-review-checklist-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1</code></a></li>
+<li>decision_template: <a href="/public-node/public-node-operator-receipt-review-decision-template-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1</code></a></li>
+<li>operator_dashboard: <a href="/public-node/public-node-operator-dashboard-v1.html"><code>VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1</code></a></li>
+</ul>
+<p><a href="/public-node/public-node-operator-trial-submission-review-queue-v1.json">Machine-readable JSON</a></p>
+</body>
+</html>

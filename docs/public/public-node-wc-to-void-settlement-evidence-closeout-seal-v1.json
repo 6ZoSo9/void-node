@@ -1,0 +1,63 @@
+{
+  "marker": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_CLOSEOUT_SEAL_V1",
+  "scope": "first_wc_to_void_settlement_evidence_closeout",
+  "status": "sealed",
+  "chain_id": "2050",
+  "tx_hash": "0xaccef593ae1cab3f99ff786a26913b0d873ee789dfb96056007dd9dab9f3e717",
+  "value_void": "1.000000",
+  "value_wei": "1000000000000000000",
+  "settlement_record_key": "710e514643aa0e77c52ea07b24986f0cfcf23ab5426be352b7e52265fb46cec1",
+  "sealed_heads": {
+    "post_execution_settlement_record_v1": "14507d0f",
+    "public_redacted_settlement_receipt_v1": "6f637649",
+    "redacted_receipt_runtime_scope_fix_v1": "3cf694f7",
+    "settlement_evidence_pack_static_v1": "52f342a1",
+    "settlement_evidence_pack_runtime_v1": "f268105d",
+    "evidence_pack_discovery_link_v1": "843f0680"
+  },
+  "sealed_public_routes": {
+    "redacted_receipt_json": "/public-node/wc-to-void/redacted-settlement-receipt-v1.json",
+    "redacted_receipt_html": "/public-node/wc-to-void/redacted-settlement-receipt-v1",
+    "evidence_pack_json": "/public-node/wc-to-void/settlement-evidence-pack-v1.json",
+    "evidence_pack_html": "/public-node/wc-to-void/settlement-evidence-pack-v1",
+    "route_index": "/public-node/route-index.json",
+    "public_node_dashboard": "/public-node"
+  },
+  "sealed_tags": {
+    "redacted_receipt_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-v1-cross-box-green-20260621-074226",
+    "runtime_scope_fix_cross_box": "ckpt-wc-to-void-redacted-settlement-receipt-runtime-scope-fix-v1-cross-box-green-20260621-123144",
+    "evidence_pack_static_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-static-v1-cross-box-green-20260621-124512",
+    "evidence_pack_runtime_cross_box": "ckpt-wc-to-void-settlement-evidence-pack-runtime-v1-cross-box-green-20260621-125050",
+    "discovery_link_cross_box": "ckpt-wc-to-void-evidence-pack-discovery-link-v1-cross-box-green-20260621-125753"
+  },
+  "sealed_markers": {
+    "post_execution_settlement": "VOID_WC_TO_VOID_POST_EXECUTION_SETTLEMENT_RECORD_V1_PRECISION_SYNCED_FINAL",
+    "public_redacted_receipt": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_V1_PRECISION_SYNCED_FINAL",
+    "runtime_scope_fix": "VOID_WC_TO_VOID_REDACTED_SETTLEMENT_RECEIPT_RUNTIME_SCOPE_FIX_V1_PRECISION_SYNCED_FINAL",
+    "evidence_pack_static": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_STATIC_V1_PRECISION_SYNCED_FINAL",
+    "evidence_pack_runtime": "VOID_WC_TO_VOID_SETTLEMENT_EVIDENCE_PACK_RUNTIME_V1_PRECISION_SYNCED_FINAL",
+    "discovery_link": "VOID_WC_TO_VOID_EVIDENCE_PACK_DISCOVERY_LINK_V1_PRECISION_SYNCED_FINAL"
+  },
+  "privacy_boundaries": {
+    "plaintext_addresses_redacted": true,
+    "plaintext_from_address_written_to_public_closeout": false,
+    "plaintext_recipient_address_written_to_public_closeout": false,
+    "private_key_seen_by_chat_or_repo": false,
+    "seed_phrase_seen_by_chat_or_repo": false,
+    "private_settlement_ledger_not_served_publicly": true
+  },
+  "closed_boundaries": {
+    "read_only_public_closeout_seal": true,
+    "does_not_execute_command": true,
+    "does_not_broadcast_tx": true,
+    "does_not_send_void": true,
+    "does_not_call_rpc": true,
+    "does_not_create_public_mutation": true,
+    "does_not_replace_private_ledger": true
+  },
+  "reviewer_summary": {
+    "what_is_sealed": "The first WC to native VOID settlement has a private post-execution record, redacted public receipt, live runtime receipt route, public evidence pack, dashboard discovery card, and route-index discovery entries.",
+    "what_a_reviewer_can_verify": "Transaction hash, chain id, value, settlement record key, public redaction boundaries, public read-only routes, proof markers, cross-box tags, and no-public-mutation boundary.",
+    "what_is_not_exposed": "Plaintext party addresses, private keys, seed phrases, private settlement ledger contents, wallet-send controls, RPC controls, or public mutation authority."
+  }
+}

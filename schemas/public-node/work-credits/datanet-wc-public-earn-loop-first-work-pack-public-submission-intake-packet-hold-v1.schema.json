@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-public-submission-intake-packet-hold-v1.schema.json",
+  "title": "DataNet WC Public Submission Intake Packet Hold v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "status",
+    "marker",
+    "route",
+    "html_route",
+    "source_chain",
+    "public_submission_intake",
+    "submission_packet_template",
+    "work_credit_policy",
+    "submission_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "kind": {
+      "const": "datanet_wc_public_earn_loop_first_work_pack_public_submission_intake_packet"
+    },
+    "version": {
+      "const": "v1"
+    },
+    "status": {
+      "const": "hold_static_submission_packet_template_only"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_PACKET_HOLD_V1"
+    },
+    "route": {
+      "type": "string"
+    },
+    "html_route": {
+      "type": "string"
+    },
+    "source_chain": {
+      "type": "object"
+    },
+    "public_submission_intake": {
+      "type": "object",
+      "required": [
+        "intake_status",
+        "worker_can_prepare_packet",
+        "operator_review_required",
+        "public_submission_open",
+        "public_form_route_created",
+        "server_side_submission_endpoint_created"
+      ]
+    },
+    "submission_packet_template": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "submission_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

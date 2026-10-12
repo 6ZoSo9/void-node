@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+set +o histexpand
+
+ALIEN="${ALIEN:-zoso@100.122.79.39}"
+RUNS="${RUNS:-5}"
+ACCOUNT_BASE="${ACCOUNT_BASE:-remote-user-mixed-$(date +%Y%m%d-%H%M%S)}"
+WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
+REMOTE_NODE_BASE="http://${ALIEN##*@}:4100"
+REMOTE_HELPER_BASE="http://${ALIEN##*@}:4312/workcredits/devnet"
+REMOTE_RELAYER_BASE="http://${ALIEN##*@}:4313/api/wc-relayer/v1"
+LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
+
+OUT_DIR="${OUT_DIR:-/tmp/two-box-peer-workload-proof-$(date +%Y%m%d-%H%M%S)}"
+mkdir -p "$OUT_DIR"
+
+jget() {
+  curl -fsS --max-time "${2:-8}" "$1"
+}
+
+extract_summary_json() {
+  local in_file="$1"
+  local out_file="$2"
+  python3 - "$in_file" "$out_file" <<'PY'
+import json, pathlib, sys
+src = pathlib.Path(sys.argv[1]).read_text()
+dst = pathlib.Path(sys.argv[2])
+start = src.rfind('{\n  "ok": true,')
+if start == -1:
+    raise SystemExit("[fail] summary json block not found in output")
+tail = src[start:]
+depth = 0
+end = None
+for i, ch in enumerate(tail):
+    if ch == '{':
+        depth += 1
+    elif ch == '}':
+        depth -= 1
+        if depth == 0:
+            end = i + 1
+            break
+if end is None:
+    raise SystemExit("[fail] could not close summary json block")
+obj = json.loads(tail[:end])
+dst.write_text(json.dumps(obj, indent=2) + "\n")
+print(json.dumps(obj, indent=2))
+PY
+}
+
+ready_json() {
+  local base="$1"
+  python3 - "$base" <<'PY'
+import json, sys, urllib.request
+
+base = sys.argv[1].rstrip("/")
+
+def get(path, timeout):
+    req = urllib.request.Request(base + path, headers={"accept":"application/json,text/plain"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode()
+
+health = {"ok": False}
+head = -1
+ready = None
+
+try:
+    health = json.loads(get("/health", 12))
+except Exception:
+    pass
+
+try:
+    head = int(get("/head.txt", 20).strip())
+except Exception:
+    pass
+
+try:
+    ready = json.loads(get("/__void/ready.json", 5))
+except Exception:
+    ready = None
+
+if isinstance(ready, dict) and ready.get("ready") is not None:
+    print(json.dumps(ready))
+else:
+    print(json.dumps({
+        "ready": bool(health.get("ok")),
+        "head": head,
+        "lastmile_seen": head,
+        "gap": 0,
+        "txroot_live": 1 if health.get("ok") else 0,
+        "reasons": ([] if health.get("ok") else ["health_not_ok"]),
+        "__fallback": "health_head_txt_v1"
+    }))
+PY
+}
+
+echo "=== [1] baseline truth ==="
+echo "--- local ready ---"
+LOCAL_READY="$(ready_json "$LOCAL_NODE_BASE")"
+printf '%s\n' "$LOCAL_READY"
+echo "--- remote ready ---"
+REMOTE_READY="$(ready_json "$REMOTE_NODE_BASE")"
+printf '%s\n' "$REMOTE_READY"
+echo "--- local head ---"
+LOCAL_HEAD="$(jget "$LOCAL_NODE_BASE/head.txt" 20 || true)"
+printf '%s\n' "$LOCAL_HEAD"
+echo "--- remote head ---"
+REMOTE_HEAD="$(jget "$REMOTE_NODE_BASE/head.txt" 20 || true)"
+printf '%s\n' "$REMOTE_HEAD"
+echo "--- remote helper pool ---"
+REMOTE_POOL="$(jget "$REMOTE_HELPER_BASE/pool.json" 8)"
+printf '%s\n' "$REMOTE_POOL"
+echo "--- remote relayer health ---"
+REMOTE_RELAYER_BEFORE="$(jget "$REMOTE_RELAYER_BASE/health" 8)"
+printf '%s\n' "$REMOTE_RELAYER_BEFORE"
+echo
+
+python3 - "$LOCAL_READY" "$REMOTE_READY" "$LOCAL_HEAD" "$REMOTE_HEAD" "$REMOTE_RELAYER_BEFORE" <<'PY'
+import json, sys
+local_ready = json.loads(sys.argv[1])
+remote_ready = json.loads(sys.argv[2])
+
+def parse_head(s):
+    try:
+        return int(str(s).strip())
+    except Exception:
+        return None
+
+local_head = parse_head(sys.argv[3])
+remote_head = parse_head(sys.argv[4])
+relayer = json.loads(sys.argv[5])
+
+assert remote_ready["ready"] is True, "remote not ready at baseline"
+assert relayer["ok"] is True, "remote relayer not ok at baseline"
+assert relayer["can_quote"] is True, "remote relayer quote false at baseline"
+assert relayer["can_execute"] is True, "remote relayer execute false at baseline"
+
+if local_ready.get("ready") is True and local_head is not None and remote_head is not None:
+    assert local_head == remote_head, f"baseline head mismatch: {local_head} vs {remote_head}"
+
+print("[ok] baseline remote truth aligned (local soft-check)")
+print(json.dumps({
+    "ok": True,
+    "local_ready": local_ready.get("ready"),
+    "local_head": local_head,
+    "remote_ready": remote_ready.get("ready"),
+    "remote_head": remote_head,
+    "remote_relayer_ok": relayer.get("ok"),
+}, indent=2))
+PY
+
+echo
+echo "=== [2] run repeated remote mixed product workload ==="
+for i in $(seq 1 "$RUNS"); do
+  TS_NOW="$(date +%Y%m%d-%H%M%S)"
+  ACCOUNT="${ACCOUNT_BASE}-${i}"
+  PLAINTEXT="mixed remote workload run ${i} ${TS_NOW}"
+  RUN_LOG="$OUT_DIR/run.${i}.log"
+  RUN_SUMMARY="$OUT_DIR/run.${i}.summary.json"
+
+  echo "--- run $i/$RUNS account=$ACCOUNT ---"
+  ssh -o BatchMode=yes -o ConnectTimeout=8 "$ALIEN" \
+    "cd '$HOME/dev/void-node' && ACCOUNT='$ACCOUNT' WALLET='$WALLET' PLAINTEXT='$PLAINTEXT' bash ops/wc-demo-e2e.sh" \
+    > "$RUN_LOG"
+
+  tail -n 40 "$RUN_LOG" || true
+  echo "--- extracted summary $i/$RUNS ---"
+  extract_summary_json "$RUN_LOG" "$RUN_SUMMARY"
+
+  python3 - "$RUN_SUMMARY" <<'PY'
+import json, sys
+obj = json.load(open(sys.argv[1]))
+assert obj.get("ok") is True, "summary ok != true"
+assert obj.get("approve_tx_hash"), "missing approve_tx_hash"
+assert obj.get("swap_tx_hash"), "missing swap_tx_hash"
+
+before_redeemable = float(obj.get("participant_redeemable_before", -1))
+after_credit_redeemable = float(obj.get("participant_redeemable_after_credit", -1))
+after_execute_redeemable = float(obj.get("participant_redeemable_after_execute", -1))
+trade_wc = float(obj.get("trade_wc", -1))
+
+before_balance = float(obj.get("participant_balance_before", -1))
+after_credit_balance = float(obj.get("participant_balance_after_credit", -1))
+after_execute_balance = float(obj.get("participant_balance_after_execute", -1))
+
+assert abs(before_redeemable - 0.0) <= 1e-9, f"fresh-account redeemable_before != 0: {before_redeemable}"
+assert abs(after_credit_redeemable - 10.0) <= 1e-9, f"redeemable_after_credit != 10: {after_credit_redeemable}"
+assert abs(trade_wc - 1.0) <= 1e-9, f"trade_wc != 1: {trade_wc}"
+assert abs(after_execute_redeemable - 9.0) <= 1e-9, f"redeemable_after_execute != 9: {after_execute_redeemable}"
+
+assert abs(before_balance - 0.0) <= 1e-9, f"fresh-account balance_before != 0: {before_balance}"
+assert abs(after_credit_balance - 10.0) <= 1e-9, f"balance_after_credit != 10: {after_credit_balance}"
+assert abs(after_execute_balance - 10.0) <= 1e-9, f"balance_after_execute != 10: {after_execute_balance}"
+
+print("[ok] run summary validated")
+print(json.dumps({
+    "ok": True,
+    "approve_tx_hash": obj.get("approve_tx_hash"),
+    "swap_tx_hash": obj.get("swap_tx_hash"),
+    "participant_redeemable_before": before_redeemable,
+    "participant_redeemable_after_credit": after_credit_redeemable,
+    "participant_redeemable_after_execute": after_execute_redeemable,
+    "participant_balance_before": before_balance,
+    "participant_balance_after_credit": after_credit_balance,
+    "participant_balance_after_execute": after_execute_balance,
+    "trade_wc": trade_wc,
+    "before_void": obj.get("before_void"),
+    "after_void": obj.get("after_void"),
+    "artifacts_dir": obj.get("artifacts_dir"),
+}, indent=2))
+PY
+
+  echo "--- precision verifies remote participant/network surfaces $i/$RUNS ---"
+  REMOTE_PARTICIPANT_HTML="$OUT_DIR/run.${i}.participant.html"
+  REMOTE_NETWORK_JSON="$OUT_DIR/run.${i}.network.json"
+  REMOTE_POOL_JSON="$OUT_DIR/run.${i}.pool.json"
+  REMOTE_RELAYER_JSON="$OUT_DIR/run.${i}.relayer.json"
+  REMOTE_BALANCE_JSON="$OUT_DIR/run.${i}.balance.json"
+  REMOTE_REDEEMABLE_JSON="$OUT_DIR/run.${i}.redeemable.json"
+  REMOTE_RECEIPTS_JSON="$OUT_DIR/run.${i}.receipts.json"
+
+  ENCODED_ACCOUNT="$(python3 - "$ACCOUNT" <<'PY'
+import urllib.parse, sys
+print(urllib.parse.quote(sys.argv[1]))
+PY
+)"
+  jget "$REMOTE_NODE_BASE/participant?account=$ENCODED_ACCOUNT" 10 > "$REMOTE_PARTICIPANT_HTML"
+  jget "$REMOTE_NODE_BASE/network/value-summary.json?limit=20" 10 > "$REMOTE_NETWORK_JSON"
+  jget "$REMOTE_HELPER_BASE/pool.json" 10 > "$REMOTE_POOL_JSON"
+  jget "$REMOTE_RELAYER_BASE/health" 10 > "$REMOTE_RELAYER_JSON"
+  jget "$REMOTE_NODE_BASE/wc/balance?account=$ACCOUNT" 10 > "$REMOTE_BALANCE_JSON"
+  jget "$REMOTE_NODE_BASE/wc/redeemable?account=$ACCOUNT" 10 > "$REMOTE_REDEEMABLE_JSON"
+  jget "$REMOTE_NODE_BASE/receipts?account=$ACCOUNT" 10 > "$REMOTE_RECEIPTS_JSON"
+
+  python3 - "$ACCOUNT" "$REMOTE_PARTICIPANT_HTML" "$REMOTE_NETWORK_JSON" "$REMOTE_POOL_JSON" "$REMOTE_RELAYER_JSON" "$REMOTE_BALANCE_JSON" "$REMOTE_REDEEMABLE_JSON" "$REMOTE_RECEIPTS_JSON" <<'PY'
+import json, pathlib, sys
+
+account = sys.argv[1]
+participant_html = pathlib.Path(sys.argv[2]).read_text()
+network = json.load(open(sys.argv[3]))
+pool = json.load(open(sys.argv[4]))
+relayer = json.load(open(sys.argv[5]))
+balance = json.load(open(sys.argv[6]))
+redeemable = json.load(open(sys.argv[7]))
+receipts_view = json.load(open(sys.argv[8]))
+
+assert "<title>VOID Participant</title>" in participant_html, "participant page title missing"
+assert ('window.__void_participant_account_qs=' + json.dumps(account)) in participant_html, "participant bootstrap account missing"
+
+assert network.get("ok") is True, "network value summary not ok"
+assert int(network.get("recent_runner_activity_count") or 0) > 0, "recent_runner_activity_count <= 0"
+
+recent = network.get("recent_runner_activity") or []
+assert any(str(x.get("task_class") or "") == "publish" for x in recent), "publish missing from remote recent_runner_activity"
+
+counts = network.get("counts") or {}
+assert int(counts.get("publish") or 0) > 0, "remote publish count <= 0"
+assert int(counts.get("verify") or 0) > 0, "remote verify count <= 0"
+assert int(counts.get("redundancy") or 0) > 0, "remote redundancy count <= 0"
+
+assert int(pool.get("up") or 0) == 1, f"remote helper up != 1: {pool.get('up')}"
+assert int(pool.get("health") or 0) == 1, f"remote helper health != 1: {pool.get('health')}"
+
+assert relayer.get("ok") is True, "remote relayer not ok"
+assert relayer.get("can_quote") is True, "remote relayer can_quote false"
+assert relayer.get("can_execute") is True, "remote relayer can_execute false"
+
+assert balance.get("ok") is True, "remote wc/balance not ok"
+assert float(balance.get("balance") or -1) == 10.0, f"remote balance != 10: {balance}"
+assert int(balance.get("count") or 0) >= 1, f"remote balance count invalid: {balance}"
+
+assert redeemable.get("ok") is True, "remote wc/redeemable not ok"
+assert float(redeemable.get("earned") or -1) == 10.0, f"remote earned != 10: {redeemable}"
+assert float(redeemable.get("redeemed") or -1) == 1.0, f"remote redeemed != 1: {redeemable}"
+assert float(redeemable.get("redeemable") or -1) == 9.0, f"remote redeemable != 9: {redeemable}"
+
+assert receipts_view.get("ok") is True, "remote receipts view not ok"
+receipts = receipts_view.get("receipts") or []
+assert len(receipts) >= 1, "remote receipts empty"
+assert any(str(r.get("kind") or "") == "datanet_publish" for r in receipts), "remote publish receipt missing"
+
+print("[ok] precision verified remote participant/network/account/page-account surfaces")
+print(json.dumps({
+    "ok": True,
+    "participant_bootstrap_account": account,
+    "recent_runner_activity_count": network.get("recent_runner_activity_count"),
+    "publish_present": any(str(x.get("task_class") or "") == "publish" for x in recent),
+    "counts": counts,
+    "pool_up": pool.get("up"),
+    "pool_health": pool.get("health"),
+    "relayer_ok": relayer.get("ok"),
+    "relayer_can_quote": relayer.get("can_quote"),
+    "relayer_can_execute": relayer.get("can_execute"),
+    "remote_balance": balance.get("balance"),
+    "remote_earned": redeemable.get("earned"),
+    "remote_redeemed": redeemable.get("redeemed"),
+    "remote_redeemable": redeemable.get("redeemable"),
+    "remote_receipt_count": len(receipts),
+}, indent=2))
+PY
+  echo
+done
+
+echo "=== [3] post-work truth ==="
+echo "--- local ready ---"
+LOCAL_READY_AFTER="$(ready_json "$LOCAL_NODE_BASE")"
+printf '%s\n' "$LOCAL_READY_AFTER"
+echo "--- remote ready ---"
+REMOTE_READY_AFTER="$(ready_json "$REMOTE_NODE_BASE")"
+printf '%s\n' "$REMOTE_READY_AFTER"
+echo "--- local head ---"
+LOCAL_HEAD_AFTER="$(jget "$LOCAL_NODE_BASE/head.txt" 20 || true)"
+printf '%s\n' "$LOCAL_HEAD_AFTER"
+echo "--- remote head ---"
+REMOTE_HEAD_AFTER="$(jget "$REMOTE_NODE_BASE/head.txt" 20 || true)"
+printf '%s\n' "$REMOTE_HEAD_AFTER"
+echo "--- remote datanet status ---"
+REMOTE_DATANET_AFTER="$(jget "$REMOTE_NODE_BASE/datanet/v1/status" 8)"
+printf '%s\n' "$REMOTE_DATANET_AFTER"
+echo "--- remote relayer health ---"
+REMOTE_RELAYER_AFTER="$(jget "$REMOTE_RELAYER_BASE/health" 8)"
+printf '%s\n' "$REMOTE_RELAYER_AFTER"
+echo
+
+python3 - "$LOCAL_READY_AFTER" "$REMOTE_READY_AFTER" "$LOCAL_HEAD_AFTER" "$REMOTE_HEAD_AFTER" "$REMOTE_RELAYER_AFTER" "$RUNS" "$OUT_DIR" <<'PY'
+import json, pathlib, sys
+local_ready = json.loads(sys.argv[1])
+remote_ready = json.loads(sys.argv[2])
+
+def parse_head(s):
+    try:
+        return int(str(s).strip())
+    except Exception:
+        return None
+
+local_head = parse_head(sys.argv[3])
+remote_head = parse_head(sys.argv[4])
+relayer = json.loads(sys.argv[5])
+runs = int(sys.argv[6])
+out_dir = pathlib.Path(sys.argv[7])
+
+assert remote_ready["ready"] is True, "remote not ready after workload"
+assert remote_ready.get("gap") == 0, f"remote gap not zero after workload: {remote_ready.get('gap')}"
+assert remote_ready.get("txroot_live") == 1, f"remote txroot_live not 1 after workload: {remote_ready.get('txroot_live')}"
+assert relayer["ok"] is True, "remote relayer not ok after workload"
+assert relayer["can_quote"] is True, "remote relayer quote false after workload"
+assert relayer["can_execute"] is True, "remote relayer execute false after workload"
+
+if local_ready.get("ready") is True and local_head is not None and remote_head is not None:
+    assert abs(local_head - remote_head) == 0, f"post-work head mismatch: {local_head} vs {remote_head}"
+
+summaries = []
+for i in range(1, runs + 1):
+    p = out_dir / f"run.{i}.summary.json"
+    if not p.exists():
+        raise SystemExit(f"[fail] missing run summary: {p}")
+    summaries.append(json.load(open(p)))
+
+print("[ok] post-work remote truth aligned (local soft-check)")
+print(json.dumps({
+    "ok": True,
+    "runs": runs,
+    "local_head_after": local_head,
+    "remote_head_after": remote_head,
+    "local_ready_after": local_ready.get("ready"),
+    "remote_ready_after": remote_ready["ready"],
+    "remote_gap_after": remote_ready.get("gap"),
+    "remote_txroot_live_after": remote_ready.get("txroot_live"),
+    "remote_relayer_ok": relayer.get("ok"),
+    "remote_relayer_can_quote": relayer.get("can_quote"),
+    "remote_relayer_can_execute": relayer.get("can_execute"),
+    "artifacts_dir": str(out_dir),
+}, indent=2))
+PY
+
+echo
+echo "=== [4] success ==="
+echo "[ok] two-box mixed remote workload proof green"

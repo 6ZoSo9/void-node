@@ -1,0 +1,46 @@
+name: Buy VOID fulfillment deployer resolution evidence v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-deployer-resolution-evidence-v1.yml"
+      - "ops/mainnet0/buy-void-presale-fulfillment-deployer-resolution-v1.json"
+      - "scripts/prove_buy_void_presale_fulfillment_deployer_resolution_evidence_v1.mjs"
+      - "docs/operators/buy-void-presale-fulfillment-deployer-resolution-evidence-v1.md"
+      - "src/economic/buy_void_payment_keyed_runtime_activation_configuration_contract_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-fulfillment-deployer-resolution-evidence-v1.yml"
+      - "ops/mainnet0/buy-void-presale-fulfillment-deployer-resolution-v1.json"
+      - "scripts/prove_buy_void_presale_fulfillment_deployer_resolution_evidence_v1.mjs"
+      - "docs/operators/buy-void-presale-fulfillment-deployer-resolution-evidence-v1.md"
+      - "src/economic/buy_void_payment_keyed_runtime_activation_configuration_contract_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Prove selected deployer resolution evidence
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          node --check scripts/prove_buy_void_presale_fulfillment_deployer_resolution_evidence_v1.mjs
+          node scripts/prove_buy_void_presale_fulfillment_deployer_resolution_evidence_v1.mjs
+          git diff --check

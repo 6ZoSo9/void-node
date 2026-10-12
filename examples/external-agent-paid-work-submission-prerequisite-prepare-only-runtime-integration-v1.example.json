@@ -1,0 +1,105 @@
+{
+  "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_EXAMPLE_V1",
+  "version": 1,
+  "config": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_INTEGRATION_CONFIG_V1",
+    "version": 1,
+    "enabled": false,
+    "max_datanet_object_bytes": 4096,
+    "max_prepared_request_bytes": 65536
+  },
+  "command_template": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_PREPARE_ONLY_RUNTIME_INTEGRATION_COMMAND_V1",
+    "version": 1,
+    "apply": false,
+    "confirmation": "",
+    "operation_id": "external-agent-prepare-only-example-v1",
+    "paid_work_base_url": "https://agent-gateway.example.invalid",
+    "output_directory": "/home/operator/.local/state/void-agent-paid-work/prepare-only/example-v1",
+    "datanet": {
+      "mode": "create",
+      "public_base_url": "https://public-node.example.invalid",
+      "staging_root": "/home/operator/.local/state/void-agent-paid-work/datanet-staging",
+      "receipt": null
+    },
+    "submission": {
+      "submission_id": "external-agent-prepare-only-submission-example-v1",
+      "work_order_draft": {
+        "marker": "VOID_AGENT_PAID_WORK_ORDER_ENVELOPE_V1",
+        "version": 1,
+        "created_at_utc": "2026-07-25T22:30:00Z",
+        "expires_at_utc": "2026-07-26T22:30:00Z",
+        "requester": {
+          "agent_id": "agent.example.researcher",
+          "callback_uri": "https://agent.example.invalid/void/work-orders/receipt"
+        },
+        "service": {
+          "capability_id": "datanet.fetch_verify",
+          "objective": "Fetch and verify the newly staged public Datanet object.",
+          "input_refs": [],
+          "expected_outputs": [
+            "verification_result.json",
+            "verification_receipt.json"
+          ]
+        },
+        "commercial": {
+          "quote_asset": "USD",
+          "max_total": "5.00",
+          "payment_required_before_execution": true
+        },
+        "execution_limits": {
+          "max_runtime_seconds": 300,
+          "max_output_bytes": 1048576,
+          "external_side_effects_allowed": false,
+          "wallet_access_allowed": false,
+          "money_movement_allowed": false
+        },
+        "nonce": "prepare-only-example-20260725-0001"
+      },
+      "admission_policy": {
+        "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_POLICY_V1",
+        "version": 1,
+        "policy_id": "void.policy.prepare-only-runtime.example.v1",
+        "allowed_capability_ids": [
+          "datanet.fetch_verify"
+        ],
+        "max_total_by_asset": {
+          "USD": "10.00"
+        },
+        "max_runtime_seconds": 600,
+        "max_output_bytes": 2097152,
+        "max_input_refs": 8,
+        "max_expected_outputs": 8,
+        "max_ttl_seconds": 172800,
+        "require_https_callback": true,
+        "callback_policy": {
+          "forbid_credentials": true,
+          "forbid_fragment": true,
+          "forbid_loopback": true,
+          "forbid_private_ip_literals": true
+        },
+        "authority": {
+          "provider_selection_authorized": false,
+          "quote_creation_authorized": false,
+          "payment_authorized": false,
+          "work_execution_authorized": false,
+          "work_dispatch_authorized": false,
+          "wc_award_authorized": false,
+          "wc_ledger_write_authorized": false,
+          "wallet_or_signer_access_authorized": false,
+          "buy_void_fulfillment_authorized": false
+        }
+      },
+      "evaluated_at_utc": "2026-07-25T23:00:00Z"
+    }
+  },
+  "activation": {
+    "default_enabled": false,
+    "apply_confirmation": "prepareExternalAgentPaidWorkSubmissionPrerequisiteRuntimeV1",
+    "runtime_mount": false,
+    "network_listener_creation": false,
+    "token_read": false,
+    "authorization_header_materialized": false,
+    "authenticated_submission_post": false
+  }
+}

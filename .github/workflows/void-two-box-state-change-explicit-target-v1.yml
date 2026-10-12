@@ -1,0 +1,77 @@
+name: VOID two-box state-changing explicit target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-two-box-state-change-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-state-change-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_state_change_explicit_target_v1.mjs"
+      - "ops/two-box-void-send-execution-proof.sh"
+      - "ops/two-box-wc-send-execution-proof.sh"
+      - "ops/two-box-wc-trade-execution-proof.sh"
+      - "ops/two-box-mainnet0-state-change-proof.sh"
+      - "ops/two-box-mainnet0-state-change-proof.v2.sh"
+      - "ops/two-box-post-ui-trade-gate.sh"
+      - "ops/mainnet0-launch-readiness.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-two-box-state-change-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-state-change-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_state_change_explicit_target_v1.mjs"
+      - "ops/two-box-void-send-execution-proof.sh"
+      - "ops/two-box-wc-send-execution-proof.sh"
+      - "ops/two-box-wc-trade-execution-proof.sh"
+      - "ops/two-box-mainnet0-state-change-proof.sh"
+      - "ops/two-box-mainnet0-state-change-proof.v2.sh"
+      - "ops/two-box-post-ui-trade-gate.sh"
+      - "ops/mainnet0-launch-readiness.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Shell syntax
+        run: |
+          bash -n ops/two-box-void-send-execution-proof.sh
+          bash -n ops/two-box-wc-send-execution-proof.sh
+          bash -n ops/two-box-wc-trade-execution-proof.sh
+          bash -n ops/two-box-mainnet0-state-change-proof.sh
+          bash -n ops/two-box-mainnet0-state-change-proof.v2.sh
+          bash -n ops/two-box-post-ui-trade-gate.sh
+          bash -n ops/mainnet0-launch-readiness.sh
+      - name: Prove fail-closed explicit targets
+        run: node scripts/prove_void_two_box_state_change_explicit_target_v1.mjs
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

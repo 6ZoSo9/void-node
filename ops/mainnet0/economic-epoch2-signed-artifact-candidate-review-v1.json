@@ -1,0 +1,188 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_SIGNED_ARTIFACT_CANDIDATE_REVIEW_V1",
+  "version": 1,
+  "census": {
+    "receipt_stamp": "20260928T162432Z",
+    "receipt_count": 797,
+    "discovered_file_count": 53670,
+    "candidate_occurrence_count": 171,
+    "unique_candidate_path_count": 171,
+    "unique_candidate_basename_count": 96,
+    "symlink_candidate_name_hint_count": 0,
+    "focused_candidate_count": 16
+  },
+  "closed": [
+    {
+      "path": "/home/zoso/Downloads/void-role-authority-deployment-signed-v1.txt",
+      "basename": "void-role-authority-deployment-signed-v1.txt",
+      "reason": "exact_sha256_matches_known_repository_lineage",
+      "observed_size_bytes": 18953,
+      "observed_sha256": "96b5d004284e511c12b40f2de627c9a214656e025883b8cd7adec1b82348334d",
+      "known_lineage_id": "role_authority_deployment",
+      "signer_address": "0x4d0a1149d13b03448c56ee6582d161159c5e537f",
+      "transaction_nonce": "0",
+      "frozen_final_nonce": "1",
+      "stale_under_exact_nonce_continuity": true,
+      "raw_transaction_bytes_published": false
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v2-9l3nc0a2/worktree/fixtures/private/usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-transaction-broadcast-gate-hold-v1.json",
+      "basename": "usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-transaction-broadcast-gate-hold-v1.json",
+      "reason": "repo_fixture_states_broadcast_payload_created_false_and_tx_hash_created_false",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v3-igcoblth/worktree/fixtures/private/usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-transaction-broadcast-gate-hold-v1.json",
+      "basename": "usdc-void-buy-pool-automatic-payment-activation-candidate-preflight-transaction-broadcast-gate-hold-v1.json",
+      "reason": "repo_fixture_states_broadcast_payload_created_false_and_tx_hash_created_false",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v2-9l3nc0a2/worktree/public/public-node/void-signed-onion-external-verification-v1.json",
+      "basename": "void-signed-onion-external-verification-v1.json",
+      "reason": "repo_public_record_is_tor_signature_verification_not_evm_transaction",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v3-igcoblth/worktree/public/public-node/void-signed-onion-external-verification-v1.json",
+      "basename": "void-signed-onion-external-verification-v1.json",
+      "reason": "repo_public_record_is_tor_signature_verification_not_evm_transaction",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v2-9l3nc0a2/worktree/schemas/void-signed-onion-external-verification-v1.schema.json",
+      "basename": "void-signed-onion-external-verification-v1.schema.json",
+      "reason": "repo_json_schema_not_transaction_artifact",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-exec-digest-cache-v3-igcoblth/worktree/schemas/void-signed-onion-external-verification-v1.schema.json",
+      "basename": "void-signed-onion-external-verification-v1.schema.json",
+      "reason": "repo_json_schema_not_transaction_artifact",
+      "local_candidate_content_read": false,
+      "classification": "NON_RAW_REPOSITORY_WORKTREE_COPY"
+    },
+    {
+      "path": "/home/zoso/Downloads/void_economic_evm_raw_reconciliation_b_precision_v1_20260926T132425Z.json",
+      "basename": "void_economic_evm_raw_reconciliation_b_precision_v1_20260926T132425Z.json",
+      "reason": "exact_sha256_matches_repository_reconciliation_receipt",
+      "observed_size_bytes": 6283,
+      "observed_sha256": "e2e02bfd4e9ab830af040d6aa3600a8d988371db9a61ed664eb00e427add1083",
+      "classification": "NON_RAW_ECONOMIC_EVM_RECONCILIATION_RECEIPT"
+    },
+    {
+      "path": "/home/zoso/Downloads/void_role_authority_signed_transaction_precision_verify_v1.zip",
+      "basename": "void_role_authority_signed_transaction_precision_verify_v1.zip",
+      "reason": "zip_central_directory_contains_only_verifier_source_and_sha256_sidecar",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_VERIFIER_BUNDLE"
+    },
+    {
+      "path": "/home/zoso/Downloads/void_role_authority_sovereign_genesis_unsigned_owner_tx_precision_v1.zip",
+      "basename": "void_role_authority_sovereign_genesis_unsigned_owner_tx_precision_v1.zip",
+      "reason": "zip_central_directory_contains_only_unsigned_owner_transaction_tool_source",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_TOOL_SOURCE_BUNDLE"
+    },
+    {
+      "path": "/home/zoso/Downloads/void_role_authority_unsigned_transaction_export_precision_v1.zip",
+      "basename": "void_role_authority_unsigned_transaction_export_precision_v1.zip",
+      "reason": "zip_central_directory_contains_only_unsigned_export_tool_source_and_sha256_sidecar",
+      "local_candidate_values_printed": false,
+      "archive_entry_content_extracted": false,
+      "classification": "NON_RAW_TOOL_SOURCE_BUNDLE"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-pr1505-run35039525780-chunk186-raw-log-forensics-v1.json",
+      "basename": "void-pr1505-run35039525780-chunk186-raw-log-forensics-v1.json",
+      "reason": "json_structure_contains_log_forensics_metadata_and_no_raw_transaction_name_hint_path",
+      "local_candidate_values_printed": false,
+      "classification": "NON_RAW_LOG_FORENSICS_METADATA"
+    },
+    {
+      "path": "/home/zoso/Downloads/void-role-authority-deployment-signed-receipt-v1.json",
+      "basename": "void-role-authority-deployment-signed-receipt-v1.json",
+      "reason": "json_structure_references_raw_signed_transaction_file_and_digest_without_embedding_raw_transaction_bytes",
+      "local_candidate_values_printed": false,
+      "classification": "NON_RAW_SIGNING_RECEIPT"
+    },
+    {
+      "path": "/home/zoso/Downloads/void_fulfillment_direct_offline_signed_deployment_v1.json",
+      "basename": "void_fulfillment_direct_offline_signed_deployment_v1.json",
+      "reason": "container_raw_transaction_classified_against_canonical_lineage_and_frozen_nonce",
+      "container_sha256": "dec8476d685f41c890b9b7525e37ad27a496febf76c32436d15f70b31e86e90c",
+      "raw_transaction_field": "signed_transaction",
+      "raw_transaction_field_sha256": "37274f51e6cda088f973880d47d1e061392c86d1335cd540102557d34b3d511a",
+      "raw_transaction_length": 11746,
+      "known_lineage_id": "buy_void_fulfillment_deployment",
+      "signer_address": "0x2b4d94ce678ec0bc17924b83236b714339c70b9d",
+      "transaction_nonce": "0",
+      "frozen_final_nonce": "1",
+      "replay_staleness_proven": true,
+      "raw_transaction_printed": false,
+      "raw_transaction_persisted": false
+    },
+    {
+      "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "reason": "container_raw_transaction_classified_against_canonical_lineage_and_frozen_nonce",
+      "container_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
+      "raw_transaction_field": "signed_serialized_hex",
+      "raw_transaction_field_sha256": "3548190ce3702550b1946c5eac3ce015f90baebe9157b4d6fd809c6123648373",
+      "raw_transaction_length": 1134,
+      "known_lineage_id": "sovereign_genesis_registry_append",
+      "signer_address": "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b",
+      "transaction_nonce": "0",
+      "frozen_final_nonce": "1",
+      "replay_staleness_proven": true,
+      "raw_transaction_printed": false,
+      "raw_transaction_persisted": false
+    },
+    {
+      "path": "/home/zoso/Downloads/void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
+      "basename": "void-role-authority-sovereign-genesis-owner-signed-transfer-v1.zip",
+      "reason": "single_zip_entry_byte_identical_to_classified_sovereign_genesis_json",
+      "entry_count": 1,
+      "entry_basename": "void-role-authority-sovereign-genesis-owner-signed-v1.json",
+      "zip_entry_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
+      "standalone_sha256": "15107682a4a448e1015371fabd19a1bcc607cf0d4a22dfcdfe21153af7712ab0",
+      "known_lineage_id": "sovereign_genesis_registry_append",
+      "replay_staleness_proven": true,
+      "duplicate_additional_transaction": false
+    }
+  ],
+  "published_hash_identity_pending": [],
+  "unresolved_containers": [],
+  "interpretation": {
+    "closed_occurrence_count": 16,
+    "published_hash_identity_pending_count": 0,
+    "unresolved_container_count": 0,
+    "pending_legacy_signed_transaction_census_complete": false,
+    "privileged_signer_nonce_or_key_replay_fence_proven": false,
+    "cross_epoch_replay_protection_proven": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "focused_candidate_review_complete": true,
+    "source_document_candidate_occurrence_count": 155,
+    "source_document_content_sweep_complete": false
+  },
+  "authority": {
+    "source_only": true,
+    "candidate_content_read_authorized": false,
+    "rpc_call": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

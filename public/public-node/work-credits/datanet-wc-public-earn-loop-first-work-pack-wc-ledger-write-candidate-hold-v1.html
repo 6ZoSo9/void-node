@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DataNet WC Ledger Write Candidate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <main>
+    <h1>DataNet WC Ledger Write Candidate</h1>
+    <p><strong>Marker:</strong> <code>VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_LEDGER_WRITE_CANDIDATE_HOLD_V1</code></p>
+    <p>Status: static WC ledger-write candidate shape only.</p>
+
+    <h2>What this enables</h2>
+    <p>Defines the packet shape for a future operator-approved WC ledger entry candidate.</p>
+
+    <h2>Ledger-write candidate template</h2>
+    <pre>{
+  &quot;operator_ledger_candidate_id&quot;: &quot;operator-assigned candidate id&quot;,
+  &quot;source_amount_recommendation_reference&quot;: &quot;approved future amount recommendation reference or copied hash&quot;,
+  &quot;source_amount_required_status&quot;: &quot;future_approved_amount_required&quot;,
+  &quot;worker_public_handle&quot;: &quot;copied from accepted review packet&quot;,
+  &quot;work_pack_id&quot;: &quot;datanet-wc-public-earn-loop-first-work-pack-hold-v1&quot;,
+  &quot;candidate_ledger_entry&quot;: {
+    &quot;ledger_entry_type&quot;: &quot;work_credit_award&quot;,
+    &quot;accounting_unit&quot;: &quot;WC&quot;,
+    &quot;amount&quot;: 100,
+    &quot;amount_is_example_placeholder&quot;: true,
+    &quot;amount_is_not_approved_here&quot;: true,
+    &quot;amount_is_not_supply_limit&quot;: true,
+    &quot;reason&quot;: &quot;future operator-approved first work-pack award only&quot;,
+    &quot;source_evidence_reference&quot;: &quot;future accepted evidence packet reference&quot;,
+    &quot;source_decision_reference&quot;: &quot;future accepted operator decision reference&quot;,
+    &quot;source_amount_approval_reference&quot;: &quot;future amount approval reference&quot;
+  },
+  &quot;candidate_rules&quot;: [
+    &quot;candidate may only follow a future approved WC amount&quot;,
+    &quot;candidate must preserve public-safe worker/evidence references&quot;,
+    &quot;candidate must not append the Work Credits ledger here&quot;,
+    &quot;candidate must not issue Work Credits here&quot;,
+    &quot;candidate must not create a reward or VOID transfer here&quot;
+  ],
+  &quot;ledger_write_candidate_shape_created_here&quot;: true,
+  &quot;ledger_write_candidate_instantiated_here&quot;: false,
+  &quot;ledger_line_created_here&quot;: false,
+  &quot;ledger_append_performed_here&quot;: false,
+  &quot;wc_issuance_created_here&quot;: false,
+  &quot;void_transfer_created_here&quot;: false
+}</pre>
+
+    <h2>Hard boundary</h2>
+    <ul>
+      <li>No ledger line created.</li>
+      <li>No ledger append performed.</li>
+      <li>No WC issuance.</li>
+      <li>No WC ledger write.</li>
+      <li>No VOID transfer.</li>
+      <li>No wallet connect.</li>
+      <li>No runtime mutation route.</li>
+    </ul>
+  </main>
+</body>
+</html>

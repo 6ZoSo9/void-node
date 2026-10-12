@@ -1,0 +1,15 @@
+{
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_RUNTIME_CONFIG_V1",
+  "version": 1,
+  "enabled": true,
+  "persistence_config": {
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_ACTIVATION_PERSISTENCE_CONFIG_V1",
+    "version": 1,
+    "enabled": true,
+    "allowed_root": "/home/zoso/.local/share/void-authenticated-paid-work-runtime-disabled-v1/activation",
+    "max_pointer_bytes": 65536,
+    "max_generation_file_bytes": 4194304,
+    "max_generation_count": 10000,
+    "recover_exact_orphaned_generation": true
+  }
+}

@@ -1,0 +1,39 @@
+name: chain2050-role-authority-live-rpc-observer-v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
+      - "src/security/chain2050_role_authority_contract_projection_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+      - "scripts/prove_chain2050_role_authority_live_rpc_observer_v1.ts"
+      - "docs/security/chain2050-role-authority-live-rpc-observer-v1.md"
+      - ".github/workflows/chain2050-role-authority-live-rpc-observer-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --check tools/chain2050-role-authority-live-rpc-observer-v1.mjs
+      - run: npx --no-install tsx scripts/prove_chain2050_role_authority_live_rpc_observer_v1.ts
+      - if: matrix.node == 24
+        run: |
+          npx --no-install tsx scripts/prove_chain2050_role_authority_contract_projection_v1.ts
+          npx --no-install tsx scripts/prove_chain2050_role_authority_registry_binding_v1.ts
+          npm run typecheck

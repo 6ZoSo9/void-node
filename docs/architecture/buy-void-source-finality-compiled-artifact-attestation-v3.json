@@ -1,0 +1,90 @@
+{
+  "schema": "void_buy_void_source_finality_compiled_artifact_attestation_v3",
+  "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
+  "version": 3,
+  "repository": "6ZoSo9/void-node",
+  "source_stack_head": "07b88ef77d98b3806f97fe8df4b3c1699267ab66",
+  "predecessor": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V2",
+    "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json",
+    "manifest_git_blob_sha1": "58883f0b48ec36fb8d5fc71df71000793928e9ed",
+    "compiled_artifact_generation_sha256": "420fdb1d2af44940db47bbba9873461337a6010002dc90b711e2753d808c2f9b"
+  },
+  "compiler": {
+    "typescript_version": "5.9.3",
+    "package_lock_git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b"
+  },
+  "build": {
+    "command": "npm run build",
+    "package_json_git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+    "tsconfig_build_git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb",
+    "source_finality_sources_changed": true,
+    "change_reason": "verified_payment_log_index_uint32_domain_and_reviewed_source_rollover_v5",
+    "changed_source_paths": [
+      "src/economic/buy_void_source_finality_generation_provenance_v5.ts",
+      "src/economic/buy_void_verified_payment_v2.ts"
+    ]
+  },
+  "reviewed_source_generation": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5",
+    "reviewed_source_files_sha256": "554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e",
+    "verified_source_file_count": 5
+  },
+  "entry_artifact": "dist/economic/buy_void_source_finality_generation_provenance_v5.js",
+  "artifact_count": 6,
+  "artifacts": [
+    {
+      "path": "dist/economic/buy_void_source_finality_generation_provenance_v5.js",
+      "bytes": 13490,
+      "sha256": "5cf22dd29841f443f015a8bd9f4ff852231bcd51419e6f6661702083659a5ca2"
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
+      "bytes": 18892,
+      "sha256": "0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42"
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authority_v2.js",
+      "bytes": 19002,
+      "sha256": "239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b"
+    },
+    {
+      "path": "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+      "bytes": 19804,
+      "sha256": "3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2"
+    },
+    {
+      "path": "dist/economic/buy_void_payment_rpc_observer_v1.js",
+      "bytes": 12270,
+      "sha256": "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89"
+    },
+    {
+      "path": "dist/economic/buy_void_verified_payment_v2.js",
+      "bytes": 8756,
+      "sha256": "7251c44f7ec892abbd8a14219996bc779d94b361f987672ab3b2067ece5aa4d8"
+    }
+  ],
+  "predecessor_unchanged_artifact_paths": [
+    "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
+    "dist/economic/buy_void_source_finality_authority_v2.js",
+    "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+    "dist/economic/buy_void_payment_rpc_observer_v1.js"
+  ],
+  "changed_artifact_paths": [
+    "dist/economic/buy_void_source_finality_generation_provenance_v5.js",
+    "dist/economic/buy_void_verified_payment_v2.js"
+  ],
+  "predecessor_common_artifact_bytes_match": true,
+  "verified_payment_v2_source_git_blob_sha1": "c0e4660bb238e1b718b8a471890901bd5a59badf",
+  "verified_payment_v2_artifact_sha256": "7251c44f7ec892abbd8a14219996bc779d94b361f987672ab3b2067ece5aa4d8",
+  "compiled_artifact_generation_sha256": "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add",
+  "derivation_node_majors": [
+    22,
+    24,
+    26
+  ],
+  "compiled_artifact_generation_verified": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false
+}

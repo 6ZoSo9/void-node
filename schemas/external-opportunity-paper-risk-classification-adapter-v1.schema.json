@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "evmAddress": {
+      "pattern": "^0x[0-9a-fA-F]{40}$",
+      "type": "string"
+    },
+    "safeIdentifier": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-opportunity-paper-risk-classification-adapter-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "api_origin": {
+      "maxLength": 256,
+      "pattern": "^https://",
+      "type": "string"
+    },
+    "daily_loss_before_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "daily_notional_before_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "destination_chain_id": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "duplicate_fields": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 0,
+      "type": "array"
+    },
+    "gas_cost_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "gross_revenue_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "input_token_address": {
+      "$ref": "#/$defs/evmAddress"
+    },
+    "marker": {
+      "const": "VOID_EXTERNAL_OPPORTUNITY_PAPER_RISK_CLASSIFICATION_ADAPTER_V1"
+    },
+    "notional_usd": {
+      "exclusiveMinimum": 0,
+      "type": "number"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "opportunity_id": {
+      "$ref": "#/$defs/safeIdentifier"
+    },
+    "output_token_address": {
+      "$ref": "#/$defs/evmAddress"
+    },
+    "phase": {
+      "const": "paper_only"
+    },
+    "protocol_fee_usd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "provider_id": {
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "type": "string"
+    },
+    "quote_age_ms": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "quote_id": {
+      "$ref": "#/$defs/safeIdentifier"
+    },
+    "record_append_status": {
+      "const": "appended"
+    },
+    "recovered_pending": {
+      "const": false
+    },
+    "schema": {
+      "const": "void-external-opportunity-sanitized-paper-observation-v1"
+    },
+    "slippage_bps": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "source_chain_id": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "source_flags": {
+      "additionalProperties": false,
+      "properties": {
+        "authenticated_get_performed": {
+          "type": "boolean"
+        },
+        "credential_access_performed": {
+          "type": "boolean"
+        },
+        "credential_retention": {
+          "const": false
+        },
+        "execution_authorized": {
+          "const": false
+        },
+        "live_execution_authorized": {
+          "const": false
+        },
+        "network_mutation_performed": {
+          "const": false
+        },
+        "raw_response_retention": {
+          "const": false
+        },
+        "transaction_construction_performed": {
+          "const": false
+        },
+        "transaction_payload_retention": {
+          "const": false
+        },
+        "transaction_submission_performed": {
+          "const": false
+        },
+        "wallet_or_key_access_performed": {
+          "const": false
+        }
+      },
+      "required": [
+        "credential_access_performed",
+        "authenticated_get_performed",
+        "credential_retention",
+        "raw_response_retention",
+        "transaction_payload_retention",
+        "network_mutation_performed",
+        "wallet_or_key_access_performed",
+        "transaction_construction_performed",
+        "transaction_submission_performed",
+        "live_execution_authorized",
+        "execution_authorized"
+      ],
+      "type": "object"
+    },
+    "source_record_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "status": {
+      "const": "recorded"
+    }
+  },
+  "required": [
+    "schema",
+    "marker",
+    "provider_id",
+    "phase",
+    "status",
+    "api_origin",
+    "source_chain_id",
+    "destination_chain_id",
+    "input_token_address",
+    "output_token_address",
+    "quote_id",
+    "opportunity_id",
+    "source_record_sha256",
+    "observed_at",
+    "quote_age_ms",
+    "notional_usd",
+    "gross_revenue_usd",
+    "protocol_fee_usd",
+    "gas_cost_usd",
+    "slippage_bps",
+    "daily_notional_before_usd",
+    "daily_loss_before_usd",
+    "record_append_status",
+    "duplicate_fields",
+    "recovered_pending",
+    "source_flags"
+  ],
+  "title": "VOID External Opportunity Sanitized Paper Observation V1",
+  "type": "object"
+}

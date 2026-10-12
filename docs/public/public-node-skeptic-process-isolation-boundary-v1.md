@@ -1,0 +1,112 @@
+# Public Node Process Isolation and Availability Boundary v1
+
+Marker: `VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_DOC_V1`
+
+This document is a process-isolation and availability-boundary disclosure. It does not claim production-grade isolation, DoS resistance, verified rate limiting, or zero availability impact from public routes.
+
+Parent disclosure:
+
+```text
+/public-node/skeptic-audit-readiness.json
+
+Child route:
+
+/public-node/skeptic/process-isolation-boundary-v1.json
+
+Route marker:
+
+VOID_PUBLIC_NODE_SKEPTIC_PROCESS_ISOLATION_BOUNDARY_V1
+1. Availability truth boundary
+
+The v1 truth boundary is:
+
+public_private_process_isolation_complete=false
+public_routes_read_only=true
+read_only_means_dos_proof=false
+read_only_means_process_isolated=false
+public_route_crash_can_affect_local_node_availability=true
+socket_exhaustion_can_affect_local_node_availability=true
+heavy_public_request_load_can_affect_local_node_availability=true
+public_route_authorized_mutation_path_exists=false
+public_route_can_mutate_core_ledger=false
+public_route_can_mutate_wallet_or_keys=false
+public_route_can_mutate_validator_set=false
+public_route_can_award_work_credits=false
+
+Read-only reduces integrity risk. It does not automatically solve availability risk.
+
+2. Current runtime boundary
+
+The v1 runtime boundary is:
+
+public_node_surface_and_local_node_share_runtime_process=true
+public_surface_has_separate_failure_domain=false
+public_surface_has_verified_reverse_proxy_ddos_shield=false
+public_surface_has_verified_rate_limit=false
+public_surface_has_verified_request_queue_isolation=false
+public_surface_has_verified_cpu_memory_cgroup_isolation=false
+public_surface_has_verified_worker_process_pool=false
+systemd_user_service_runtime_quarantine_present=true
+route_level_mutation_disabled=true
+live_runtime_private_command_exposure=false
+
+This means the public route surface is safer for integrity than a mutation API, but it is not yet a mature isolated public-service tier.
+
+3. Attack classes recognized in v1
+
+This disclosure recognizes:
+
+public_route_crash
+socket_exhaustion
+slow_client_connection_pressure
+large_request_pressure
+high_frequency_request_pressure
+expensive_route_composition
+log_or_disk_pressure
+shared_process_failure_cascade
+operator_availability_confusion
+
+This list is not a claim that the current system fully mitigates each attack.
+
+4. Not claimed in v1
+
+This route does not claim:
+
+production_grade_process_isolation
+verified_dos_protection
+verified_rate_limiting
+verified_reverse_proxy_shielding
+verified_worker_pool_isolation
+verified_cpu_memory_cgroup_limits
+zero_availability_impact_from_public_routes
+third_party_audited_runtime_boundary
+5. Current guardrails
+
+Current guardrails:
+
+public_read_only_routes
+route_marker_proofs
+live_status_rollup_guards
+runtime_quarantine_drop_in
+no_public_core_ledger_mutation
+no_public_wallet_or_key_mutation
+no_public_validator_mutation
+no_public_work_credit_award
+no_public_private_command_exposure
+
+These are guardrails, not a complete availability isolation design.
+
+6. Future hardening path
+
+Future hardening should include:
+
+split_public_surface_into_separate_process
+reverse_proxy_with_request_limits
+per_route_timeout_and_size_caps
+worker_or_queue_isolation_for_expensive_routes
+systemd_cgroup_limits_for_public_surface
+separate_public_node_health_from_core_node_health
+external_availability_smoke_from_non_lan_network
+documented_incident_runbook_for_public_surface_overload
+
+Passing the proof for this route means the public disclosure matches the declared v1 boundary. It does not mean public routes are DoS-proof, rate-limited, process-isolated, or unable to affect local node availability.

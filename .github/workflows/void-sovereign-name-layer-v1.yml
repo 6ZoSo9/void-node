@@ -1,0 +1,84 @@
+name: VOID Sovereign Name Layer V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-sovereign-name-layer-v1.yml"
+      - "docs/public-node/void-sovereign-name-layer-v1.md"
+      - "schemas/void-sovereign-name-record-v1.schema.json"
+      - "scripts/prove_void_sovereign_name_layer_v1.mjs"
+      - "tools/lib/void-sovereign-name-layer-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-sovereign-name-layer-v1.yml"
+      - "docs/public-node/void-sovereign-name-layer-v1.md"
+      - "schemas/void-sovereign-name-record-v1.schema.json"
+      - "scripts/prove_void_sovereign_name_layer_v1.mjs"
+      - "tools/lib/void-sovereign-name-layer-v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-sovereign-name-layer-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source and schema
+        run: |
+          node --check tools/lib/void-sovereign-name-layer-v1.mjs
+          node --check scripts/prove_void_sovereign_name_layer_v1.mjs
+          python3 -m json.tool \
+            schemas/void-sovereign-name-record-v1.schema.json \
+            >/dev/null
+
+      - name: Prove sovereign naming contract
+        run: |
+          node scripts/prove_void_sovereign_name_layer_v1.mjs \
+            | tee /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "VOID_SOVEREIGN_NAME_LAYER_V1_PROOF_GREEN" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "namespace_authority=official_network_root_default" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "schema_identifier=domain_independent_urn" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "transport_rotation_preserves_identity=true" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "sequence_rollback_rejected=true" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "record_hash_chain_verified=true" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "tampered_transport_rejected=true" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "source_origin_trusted=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "dns_control_required=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "transport_provider_authority=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "live_name_record_created=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "private_key_access=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "deployment=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "runtime_mutation=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "payment_authority=false" \
+            /tmp/void-sovereign-name-layer-v1.log
+          grep -Fx "fund_movement=false" \
+            /tmp/void-sovereign-name-layer-v1.log

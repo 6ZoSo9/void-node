@@ -1,0 +1,54 @@
+name: WC Participant CLI Preflight v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/wc-participant-cli-preflight-v1.yml"
+      - "docs/public/README.md"
+      - "docs/public/wc-participant-cli-preflight-v1.md"
+      - "scripts/wc_participant_cli_preflight_v1.py"
+      - "scripts/prove_wc_participant_cli_preflight_v1.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/wc-participant-cli-preflight-v1.yml"
+      - "docs/public/README.md"
+      - "docs/public/wc-participant-cli-preflight-v1.md"
+      - "scripts/wc_participant_cli_preflight_v1.py"
+      - "scripts/prove_wc_participant_cli_preflight_v1.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wc-participant-cli-preflight-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Prove read-only participant preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind Python runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Python syntax
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 -m py_compile scripts/wc_participant_cli_preflight_v1.py
+          python3 -m py_compile scripts/prove_wc_participant_cli_preflight_v1.py
+
+      - name: Prove read-only preflight
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 scripts/prove_wc_participant_cli_preflight_v1.py

@@ -1,0 +1,111 @@
+{
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_LISTENER_CGROUP_BINDING_V1",
+  "protocol": "void-authenticated-paid-work-runtime-listener-cgroup-binding/1",
+  "version": 1,
+  "status": "sanitized_listener_binding_not_runtime_authority",
+  "source": {
+    "repository": "6ZoSo9/void-node",
+    "reviewed_source_main": "68e3ef3a7c15cf5b3623555979766fadf8b670fe",
+    "runtime_revalidation_contract_merge_commit": "d12b4620cb5a6e199a6a59f21dfae6dd434c550a"
+  },
+  "target": {
+    "host": "zoso-Precision-Tower-7810",
+    "manager_scope": "systemd_user",
+    "service": "void-agent-paid-work-submission-receiver-v1.service",
+    "listener_protocol": "tcp",
+    "listener_address_family": "ipv4",
+    "listener_host": "127.0.0.1",
+    "listener_port": 4187
+  },
+  "observation": {
+    "observed_at_utc": "2026-08-05T02:10:00.000Z",
+    "evaluated_at_utc": "2026-08-05T02:10:04.000Z",
+    "max_age_seconds": 30,
+    "relative_age_seconds": 4,
+    "wall_clock_authenticated": false
+  },
+  "service": {
+    "service_active": true,
+    "main_pid": 4812,
+    "main_pid_start_time_ticks": 99100221,
+    "manager_control_group_path_sha256": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a",
+    "cgroup_snapshot_complete": true,
+    "main_pid_in_control_group": true,
+    "cgroup_member_count": 2,
+    "cgroup_member_processes": [
+      {
+        "pid": 4812,
+        "start_time_ticks": 99100221,
+        "proc_cgroup_path_sha256": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+      },
+      {
+        "pid": 4820,
+        "start_time_ticks": 99100243,
+        "proc_cgroup_path_sha256": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+      }
+    ]
+  },
+  "network_namespace": {
+    "service_network_namespace_inode": 4026531840,
+    "listener_network_namespace_inode": 4026531840,
+    "network_namespace_binding_verified": true
+  },
+  "listeners": [
+    {
+      "protocol": "tcp",
+      "address_family": "ipv4",
+      "local_address": "127.0.0.1",
+      "local_port": 4187,
+      "state": "LISTEN",
+      "socket_inode": 81726354,
+      "owner_pid": 4820,
+      "owner_start_time_ticks": 99100243,
+      "owner_proc_cgroup_path_sha256": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a",
+      "network_namespace_inode": 4026531840
+    }
+  ],
+  "ownership": {
+    "target_port_socket_scan_complete": true,
+    "socket_owner_scan_complete": true,
+    "target_port_listener_count": 1,
+    "all_target_port_listeners_accounted_for": true,
+    "listener_owner_within_service_cgroup": true,
+    "listener_owner_process_identity_verified": true,
+    "listener_socket_inode_owned_by_reported_pid": true,
+    "listener_exclusive_to_expected_service_cgroup": true,
+    "foreign_target_port_listener_detected": false,
+    "wildcard_target_port_listener_detected": false,
+    "non_loopback_target_port_listener_detected": false
+  },
+  "safety": {
+    "service_mutation_performed": false,
+    "credential_access_performed": false,
+    "raw_token_read": false,
+    "private_path_disclosed": false,
+    "network_request_performed": false,
+    "producer_authentication_established": false,
+    "live_authentication_performed": false,
+    "paid_work_submission_performed": false,
+    "quote_acceptance_performed": false,
+    "payment_execution_performed": false,
+    "work_dispatch_performed": false,
+    "work_credit_write_performed": false,
+    "wallet_or_signer_access_performed": false,
+    "signing_performed": false,
+    "transaction_construction_performed": false,
+    "transaction_broadcast_performed": false,
+    "fund_movement_performed": false
+  },
+  "decision": {
+    "status": "HOLD_PENDING_COMPOSED_RUNTIME_REVALIDATION",
+    "sanitized_listener_snapshot_contract_validated": true,
+    "listener_cgroup_binding_verified": true,
+    "producer_authentication_established": false,
+    "current_runtime_state_established": false,
+    "complete_runtime_revalidation_established": false,
+    "replacement_credential_validity_established": false,
+    "trusted_context_binding_established": false,
+    "execution_authorized": false
+  },
+  "receipt_id": "voidapwrlcb1_73abea34798fa5ba7664e106badad43b948dc8e3004f19bc1fea4d8114eeaa5b"
+}

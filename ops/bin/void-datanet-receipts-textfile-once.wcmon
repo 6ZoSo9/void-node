@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEXTDIR="${TEXTDIR:-/var/lib/node_exporter/textfile_collector}"
+PROMFILE="${OUTFILE:-$TEXTDIR/void_datanet_receipts.prom}"
+
+# Base exporter (trusted parser logic)
+BASE_EXPORTER="${BASE_EXPORTER:-/home/zoso/dev/void-node/ops/bin/void-datanet-receipts-textfile-once}"
+
+# Wrapper-owned monotonic state
+MONSTATE="$TEXTDIR/.void_datanet_receipts_wc_mon_state.json"
+
+TMP="$TEXTDIR/.tmp.void_datanet_receipts.wcmon.$$.$RANDOM.part"
+cleanup(){ rm -f "$TMP" 2>/dev/null || true; }
+trap cleanup EXIT
+
+# 1) Run base exporter (should leave PROMFILE in a good state)
+bash "$BASE_EXPORTER"
+
+# 2) Extract current values from PROMFILE (file-grep, no stdout flood)
+cur_wc_counter="$(rg -n '^void_datanet_receipts_wc_counter ' "$PROMFILE" | tail -n1 | awk '{print $2}' || true)"
+cur_ts_ms="$(rg -n '^void_datanet_receipts_wc_last_ts_ms ' "$PROMFILE" | tail -n1 | awk '{print $2}' || true)"
+
+# If base exporter doesn't emit these yet, do nothing (keep safe behavior).
+if [[ -z "${cur_wc_counter:-}" || -z "${cur_ts_ms:-}" ]]; then
+  exit 0
+fi
+
+# 3) Load previous wrapper state (best-effort JSON parse without jq)
+prev_wc_counter="0"
+prev_ts_ms="0"
+if [[ -s "$MONSTATE" ]]; then
+  prev_wc_counter="$(rg -o '\"wc_counter\"\s*:\s*[0-9]+' "$MONSTATE" | rg -o '[0-9]+' | tail -n1 || echo 0)"
+  prev_ts_ms="$(rg -o '\"last_ts_ms\"\s*:\s*[0-9]+' "$MONSTATE" | rg -o '[0-9]+' | tail -n1 || echo 0)"
+fi
+
+# 4) Compute delta (never negative)
+delta="0"
+if [[ "$cur_wc_counter" =~ ^[0-9]+$ && "$prev_wc_counter" =~ ^[0-9]+$ ]]; then
+  if (( cur_wc_counter >= prev_wc_counter )); then
+    delta="$((cur_wc_counter - prev_wc_counter))"
+  else
+    delta="0"
+  fi
+fi
+
+# 5) Rewrite PROMFILE atomically: original content + appended monotonic metrics
+{
+  cat "$PROMFILE"
+  echo
+  echo "# HELP void_datanet_receipts_wc_awarded_total_counter Lifetime monotonic WC awards (counter; mirrors wc_counter)"
+  echo "# TYPE void_datanet_receipts_wc_awarded_total_counter counter"
+  echo "void_datanet_receipts_wc_awarded_total_counter $cur_wc_counter"
+  echo "# HELP void_datanet_receipts_wc_awarded_delta_wc Delta WC since previous run (wrapper state)"
+  echo "# TYPE void_datanet_receipts_wc_awarded_delta_wc gauge"
+  echo "void_datanet_receipts_wc_awarded_delta_wc $delta"
+} > "$TMP"
+
+mv -f "$TMP" "$PROMFILE"
+
+# 6) Update wrapper-owned state AFTER successful write
+printf '{"last_ts_ms": %s, "wc_counter": %s}\n' "$cur_ts_ms" "$cur_wc_counter" > "$MONSTATE"
+
+exit 0

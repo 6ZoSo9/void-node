@@ -1,0 +1,76 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
+  "status": "amount_rate_policy_gate_green_authority_false",
+  "public_policy_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "amount_rate_policy_gate_green": true,
+  "usdc_decimals_green": true,
+  "fixed_rate_policy_green": true,
+  "quote_math_green": true,
+  "pool_capacity_math_green": true,
+  "automatic_fulfillment_enabled_now": false,
+  "overall_automatic_activation_state": "still_blocked_other_gates_pending",
+  "accepted_payment_asset": {
+    "symbol": "USDC",
+    "decimals": 6,
+    "micro_unit_name": "micro_usdc"
+  },
+  "rate_policy": {
+    "pricing_mode": "fixed_price",
+    "usdc_per_void": "0.50",
+    "micro_usdc_per_void": 500000,
+    "void_per_usdc": "2.000000",
+    "rate_source": "public_buy_pool_fixed_price_policy"
+  },
+  "pool_capacity_policy": {
+    "public_pool_void_allocation": 10000000,
+    "target_usdc_if_full_pool_drains": 5000000,
+    "target_micro_usdc_if_full_pool_drains": 5000000000000,
+    "pool_capacity_math_green": true
+  },
+  "quote_examples": [
+    {
+      "input_usdc": "1.00",
+      "input_micro_usdc": 1000000,
+      "quoted_void": "2.000000"
+    },
+    {
+      "input_usdc": "100.00",
+      "input_micro_usdc": 100000000,
+      "quoted_void": "200.000000"
+    },
+    {
+      "input_usdc": "5000000.00",
+      "input_micro_usdc": 5000000000000,
+      "quoted_void": "10000000.000000"
+    }
+  ],
+  "linked_allowlist_gate_marker": "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1",
+  "linked_allowlist_gate_json_route": "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1.json",
+  "linked_allowlist_gate_html_route": "/public-node/usdc-void-buy-pool/chain-token-receiver-allowlist-gate-v1",
+  "linked_activation_matrix_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_GATE_MATRIX_RUNTIME_V1",
+  "linked_activation_matrix_json_route": "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1.json",
+  "linked_activation_matrix_html_route": "/public-node/usdc-void-buy-pool/automatic-fulfillment-activation-gate-matrix-runtime-v1",
+  "reviewer_warnings": {
+    "not_live_fetch": true,
+    "not_payment_approval": true,
+    "not_finality_verification": true,
+    "not_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "automatic_fulfillment_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "void_transfer_now": false
+  }
+}

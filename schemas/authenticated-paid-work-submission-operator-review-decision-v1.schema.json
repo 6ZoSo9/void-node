@@ -1,0 +1,93 @@
+{
+  "$id": "https://voidchain.io/schemas/authenticated-paid-work-submission-operator-review-decision-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_OPERATOR_REVIEW_DECISION_V1"
+    },
+    "next_action": {
+      "enum": [
+        "provider_selection_may_be_attempted_but_not_performed",
+        "no_further_action_without_new_operator_review_contract"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "approved_for_provider_selection",
+        "rejected_by_operator"
+      ]
+    },
+    "provider_selection_eligible": {
+      "type": "boolean"
+    },
+    "queue_item": {
+      "type": "object"
+    },
+    "reason_codes": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{2,63}$",
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "review_decision_id": {
+      "pattern": "^voidapwod1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "reviewed_at_utc": {
+      "type": "string"
+    },
+    "reviewer": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_source": {
+          "const": "explicit_local_operator_confirmation"
+        },
+        "operator_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operator_id",
+        "authority_source"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "approved_pending_provider_selection",
+        "rejected_terminal"
+      ]
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "review_decision_id",
+    "reviewed_at_utc",
+    "reviewer",
+    "queue_item",
+    "outcome",
+    "reason_codes",
+    "provider_selection_eligible",
+    "status",
+    "next_action",
+    "authority"
+  ],
+  "title": "VOID Authenticated Paid Work Submission Operator Review Decision V1",
+  "type": "object",
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_OPERATOR_REVIEW_DECISION_V1"
+}

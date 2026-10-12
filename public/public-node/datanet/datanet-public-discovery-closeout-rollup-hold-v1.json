@@ -1,0 +1,71 @@
+{
+  "schema": "void.public_node.datanet.public_discovery_closeout_rollup.v1",
+  "id": "datanet-public-discovery-closeout-rollup-hold-v1",
+  "title": "DataNet Public Discovery Closeout Rollup Hold v1",
+  "status": "hold",
+  "marker": "VOID_DATANET_PUBLIC_DISCOVERY_CLOSEOUT_ROLLUP_HOLD_V1",
+  "scope": "datanet_public_discovery_closeout_rollup",
+  "summary": "Reviewer-facing closeout rollup for rooted, browser-visible, read-only DataNet public discovery.",
+  "root_public_node_route": "/public-node/datanet/index.json",
+  "datanet_public_node_index": "/public-node/datanet/index.json",
+  "sealed_entries": [
+    {
+      "id": "datanet-public-discovery-onboarding-card-hold-v1",
+      "path": "/public-node/datanet/datanet-public-discovery-onboarding-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-public-discovery-onboarding-runtime-visibility-hold-v1",
+      "path": "/public-node/datanet/datanet-public-discovery-onboarding-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_PUBLIC_DISCOVERY_ONBOARDING_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    },
+    {
+      "id": "root-public-node-datanet-discovery-index-link-hold-v1",
+      "path": "/public-node/index.json",
+      "proof_marker": "VOID_ROOT_PUBLIC_NODE_DATANET_DISCOVERY_INDEX_LINK_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-public-discovery-final-seal-hold-v1",
+      "path": "/public-node/datanet/datanet-public-discovery-final-seal-hold-v1.json",
+      "proof_marker": "VOID_DATANET_PUBLIC_DISCOVERY_FINAL_SEAL_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-public-discovery-final-seal-html-card-hold-v1",
+      "path": "/public-node/datanet/datanet-public-discovery-final-seal-html-card-hold-v1.html",
+      "proof_marker": "VOID_DATANET_PUBLIC_DISCOVERY_FINAL_SEAL_HTML_CARD_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-public-discovery-final-seal-html-card-runtime-visibility-hold-v1",
+      "path": "/public-node/datanet/datanet-public-discovery-final-seal-html-card-runtime-visibility-hold-v1.json",
+      "proof_marker": "VOID_DATANET_PUBLIC_DISCOVERY_FINAL_SEAL_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1_GREEN"
+    }
+  ],
+  "closeout_state": {
+    "root_public_node_route_present": true,
+    "datanet_public_node_index_present": true,
+    "browser_visible_onboarding_card_present": true,
+    "browser_visible_final_seal_card_present": true,
+    "runtime_visibility_metadata_present": true,
+    "final_seal_present": true,
+    "runtime_fetch_required": false,
+    "runtime_fetch_optional": true,
+    "public_intake_enabled": false,
+    "upload_enabled": false,
+    "object_write_enabled": false,
+    "mirror_command_enabled": false,
+    "peer_pin_command_enabled": false,
+    "wc_claim_enabled": false,
+    "wc_issuance_enabled": false,
+    "wallet_or_signer_required": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false
+  },
+  "public_safety": {
+    "contains_private_operator_material": false,
+    "contains_wallet_material": false,
+    "contains_secret_material": false,
+    "public_mutation_enabled": false,
+    "runtime_route_enabled": false,
+    "wallet_or_signer_required": false
+  }
+}

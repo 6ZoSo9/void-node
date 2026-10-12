@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var fs = require("node:fs");
+var crypto = require("node:crypto");
+var file = process.argv[2] || '.nodekey';
+var priv = crypto.createPrivateKey(fs.readFileSync(file, 'utf8'));
+var pub = crypto.createPublicKey(priv);
+var der = pub.export({ type: 'spki', format: 'der' });
+var id = crypto.createHash('sha256').update(der).digest('hex').slice(0, 16);
+console.log(id);

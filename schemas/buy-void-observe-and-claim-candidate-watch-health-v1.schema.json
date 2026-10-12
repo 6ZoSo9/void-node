@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-observe-and-claim-candidate-watch-health-v1",
+  "title": "Buy VOID observe-and-claim candidate-watch health V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "marker", "version", "candidate_stage", "observed_at",
+    "health_receipt_sha256", "healthy", "health_status", "health_reasons",
+    "watch_status", "watch_reason", "readiness_status",
+    "eligible_candidate_count", "recommended_request_id",
+    "watch_result_sha256", "watch_state_sha256", "alert_file_count",
+    "notification_receipt_count", "new_notification_count",
+    "last_alert_fingerprint_sha256", "systemd", "authority"
+  ],
+  "properties": {
+    "schema": {"const": "void_buy_void_observe_and_claim_candidate_watch_health_v1"},
+    "marker": {"const": "VOID_BUY_VOID_OBSERVE_AND_CLAIM_CANDIDATE_WATCH_HEALTH_V1"},
+    "version": {"const": 1},
+    "candidate_stage": {"const": "observe_and_claim"},
+    "observed_at": {"type": "string", "minLength": 1},
+    "health_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "healthy": {"type": "boolean"},
+    "health_status": {"enum": ["healthy", "degraded", "held"]},
+    "health_reasons": {"type": "array", "items": {"type": "string"}},
+    "watch_status": {"enum": ["none", "alert", "duplicate", "held"]},
+    "watch_reason": {"type": "string"},
+    "readiness_status": {"enum": ["none", "exact_one", "multiple"]},
+    "eligible_candidate_count": {"type": "integer", "minimum": 0},
+    "recommended_request_id": {"type": ["string", "null"]},
+    "watch_result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "watch_state_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "alert_file_count": {"type": "integer", "minimum": 0},
+    "notification_receipt_count": {"type": "integer", "minimum": 0},
+    "new_notification_count": {"type": "integer", "minimum": 0},
+    "last_alert_fingerprint_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "systemd": {"type": "object"},
+    "authority": {"type": "object"}
+  }
+}

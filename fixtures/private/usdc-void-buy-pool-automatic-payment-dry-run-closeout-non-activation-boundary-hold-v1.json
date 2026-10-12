@@ -1,0 +1,49 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DRY_RUN_CLOSEOUT_NON_ACTIVATION_BOUNDARY_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_dry_run_closeout_non_activation_boundary_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "dry_run_closeout_not_activation",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_DRY_RUN_CLOSEOUT_HOLD_V1",
+    "head": "4f1bbad0",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-operator-dry-run-closeout-hold-v1-local-green-20260624-210614",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-operator-dry-run-closeout-hold-v1-cross-box-green-20260624-210705"
+  },
+  "purpose": "private operator-only boundary proving the sealed automatic payment dry-run closeout is evidence-only and cannot be interpreted as live activation",
+  "non_activation_claims": {
+    "dry_run_closeout_is_activation_artifact": false,
+    "dry_run_closeout_enables_live_payment_handling": false,
+    "dry_run_closeout_enables_fulfillment": false,
+    "dry_run_closeout_enables_ledger_write": false,
+    "dry_run_closeout_enables_inventory_reserve": false,
+    "dry_run_closeout_enables_signer_access": false,
+    "dry_run_closeout_enables_void_transfer": false
+  },
+  "future_activation_requirements": {
+    "separate_explicit_operator_activation_artifact_required": true,
+    "separate_activation_proof_stack_required": true,
+    "two_box_verification_required": true,
+    "final_precision_sync_required": true,
+    "current_artifact_satisfies_activation": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  },
+  "public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "private_operator_material_exposed": false,
+    "activation_command_exposed": false
+  }
+}

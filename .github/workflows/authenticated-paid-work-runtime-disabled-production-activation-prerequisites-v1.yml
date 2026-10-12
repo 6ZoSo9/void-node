@@ -1,0 +1,38 @@
+name: authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.schema.json"
+      - "scripts/authenticated_paid_work_runtime_disabled_production_activation_prerequisites_v1.ts"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisites_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.yml"
+      - "docs/operations/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.md"
+      - "examples/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.example.json"
+      - "schemas/authenticated-paid-work-runtime-disabled-production-activation-prerequisites-v1.schema.json"
+      - "scripts/authenticated_paid_work_runtime_disabled_production_activation_prerequisites_v1.ts"
+      - "scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisites_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsc --noEmit
+      - name: Prove fail-closed activation prerequisite contract
+        run: npx tsx scripts/prove_authenticated_paid_work_runtime_disabled_production_activation_prerequisites_v1.ts

@@ -1,0 +1,26 @@
+{
+  "marker": "VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_STATUS_V1",
+  "schema_version": 1,
+  "status": "implemented_proof_gated",
+  "release_tag_published": false,
+  "current_candidate": null,
+  "current_stable": null,
+  "canonical_stable_channel": "/public-node/void-network/channels/stable-v1.json",
+  "workflow": {
+    "publication": ".github/workflows/public-release-publication-promotion-v1.yml",
+    "canary": ".github/workflows/public-release-canary-v1.yml"
+  },
+  "proof_target": "make public-release-publication-promotion-v1-proof",
+  "policy": {
+    "immutable_release_required": true,
+    "tag_replacement_allowed": false,
+    "asset_replacement_allowed": false,
+    "stable_promotion_requires_canary": true,
+    "channel_state_requires_pull_request": true,
+    "release_tag_publication_automatic": false,
+    "live_deployment": false,
+    "service_restart": false,
+    "money_movement": false,
+    "guarded_lanes_activated": false
+  }
+}

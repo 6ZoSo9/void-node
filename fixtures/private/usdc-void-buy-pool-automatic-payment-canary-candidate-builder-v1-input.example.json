@@ -1,0 +1,13 @@
+{
+  "chain_id": 8453,
+  "transaction_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "transfer_log_index": 0,
+  "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "from": "0x2222222222222222222222222222222222222222",
+  "to": "0x3333333333333333333333333333333333333333",
+  "amount_raw": "100000000",
+  "confirmations": 30,
+  "buyer_key": "buyer_canary_opaque_key_001",
+  "void_receive_address": "VOID_CANARY_RECEIVE_ADDRESS_PLACEHOLDER",
+  "rate_usdc_per_void": "0.50"
+}

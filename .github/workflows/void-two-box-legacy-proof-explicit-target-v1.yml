@@ -1,0 +1,119 @@
+name: VOID two-box legacy proof explicit target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-two-box-legacy-proof-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-legacy-proof-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs"
+      - "ops/lib/void-two-box-legacy-proof-admission-v1.sh"
+      - "ops/two-box-remote-product-proof.sh"
+      - "ops/two-box-remote-participant-js-parse-proof.sh"
+      - "ops/two-box-remote-participant-copy-actions-proof.sh"
+      - "ops/two-box-datanet-tab-proof.sh"
+      - "ops/two-box-datanet-proof.sh"
+      - "ops/two-box-datanet-canonical-proof.sh"
+      - "ops/two-box-bidirectional-open-proof.sh"
+      - "ops/two-box-datanet-workloop-proof.sh"
+      - "ops/two-box-receipt-result-fetch-proof.sh"
+      - "ops/two-box-reverse-bidirectional-open-proof.sh"
+      - "ops/two-box-datanet-peer-path-proof.sh"
+      - "ops/two-box-full-useful-work-loop-proof.sh"
+      - "ops/two-box-ui-share-open-both-ways-proof.sh"
+      - "ops/two-box-remote-verify-redundancy-proof.sh"
+      - "ops/two-box-ui-share-open-both-ways-no-seed-proof.sh"
+      - "ops/two-box-peer-proof-suite.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-two-box-legacy-proof-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-legacy-proof-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs"
+      - "ops/lib/void-two-box-legacy-proof-admission-v1.sh"
+      - "ops/two-box-remote-product-proof.sh"
+      - "ops/two-box-remote-participant-js-parse-proof.sh"
+      - "ops/two-box-remote-participant-copy-actions-proof.sh"
+      - "ops/two-box-datanet-tab-proof.sh"
+      - "ops/two-box-datanet-proof.sh"
+      - "ops/two-box-datanet-canonical-proof.sh"
+      - "ops/two-box-bidirectional-open-proof.sh"
+      - "ops/two-box-datanet-workloop-proof.sh"
+      - "ops/two-box-receipt-result-fetch-proof.sh"
+      - "ops/two-box-reverse-bidirectional-open-proof.sh"
+      - "ops/two-box-datanet-peer-path-proof.sh"
+      - "ops/two-box-full-useful-work-loop-proof.sh"
+      - "ops/two-box-ui-share-open-both-ways-proof.sh"
+      - "ops/two-box-remote-verify-redundancy-proof.sh"
+      - "ops/two-box-ui-share-open-both-ways-no-seed-proof.sh"
+      - "ops/two-box-peer-proof-suite.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Shell syntax
+        run: |
+          bash -n ops/lib/void-two-box-legacy-proof-admission-v1.sh
+          bash -n ops/two-box-remote-product-proof.sh
+          bash -n ops/two-box-remote-participant-js-parse-proof.sh
+          bash -n ops/two-box-remote-participant-copy-actions-proof.sh
+          bash -n ops/two-box-datanet-tab-proof.sh
+          bash -n ops/two-box-datanet-proof.sh
+          bash -n ops/two-box-datanet-canonical-proof.sh
+          bash -n ops/two-box-bidirectional-open-proof.sh
+          bash -n ops/two-box-datanet-workloop-proof.sh
+          bash -n ops/two-box-receipt-result-fetch-proof.sh
+          bash -n ops/two-box-reverse-bidirectional-open-proof.sh
+          bash -n ops/two-box-datanet-peer-path-proof.sh
+          bash -n ops/two-box-full-useful-work-loop-proof.sh
+          bash -n ops/two-box-ui-share-open-both-ways-proof.sh
+          bash -n ops/two-box-remote-verify-redundancy-proof.sh
+          bash -n ops/two-box-ui-share-open-both-ways-no-seed-proof.sh
+          bash -n ops/two-box-peer-proof-suite.sh
+      - name: Proof syntax
+        run: node --check scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs
+      - name: Prove fail-closed explicit targets
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs \
+            | tee "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'ssh_destination_syntax_rejected=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'remote_origin_syntax_rejected=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'effectful_confirmation_required=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'source_parity_mismatch_held=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'remote_origin_peer_binding_verified=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'live_network_execution_performed=false' "$RUNNER_TEMP/legacy-two-box-admission.log"
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

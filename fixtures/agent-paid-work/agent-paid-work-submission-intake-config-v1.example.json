@@ -1,0 +1,44 @@
+{
+  "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_CONFIG_V1",
+  "version": 1,
+  "enabled": false,
+  "listen_host": "127.0.0.1",
+  "listen_port": 4187,
+  "request_path": "/__void/agents/paid-work/submissions/v1",
+  "health_path": "/__void/agent-paid-work-submission-receiver-v1/health",
+  "max_body_bytes": 65536,
+  "admission_policy": {
+    "marker": "VOID_AGENT_PAID_WORK_SUBMISSION_ADMISSION_POLICY_V1",
+    "version": 1,
+    "policy_id": "void.policy.agent-paid-work-submission-admission.v1",
+    "allowed_capability_ids": [
+      "datanet.fetch_verify"
+    ],
+    "max_total_by_asset": {
+      "USD": "10.00"
+    },
+    "max_runtime_seconds": 600,
+    "max_output_bytes": 2097152,
+    "max_input_refs": 8,
+    "max_expected_outputs": 8,
+    "max_ttl_seconds": 172800,
+    "require_https_callback": true,
+    "callback_policy": {
+      "forbid_credentials": true,
+      "forbid_fragment": true,
+      "forbid_loopback": true,
+      "forbid_private_ip_literals": true
+    },
+    "authority": {
+      "provider_selection_authorized": false,
+      "quote_creation_authorized": false,
+      "payment_authorized": false,
+      "work_execution_authorized": false,
+      "work_dispatch_authorized": false,
+      "wc_award_authorized": false,
+      "wc_ledger_write_authorized": false,
+      "wallet_or_signer_access_authorized": false,
+      "buy_void_fulfillment_authorized": false
+    }
+  }
+}

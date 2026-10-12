@@ -1,0 +1,354 @@
+# Buy VOID allocation custody service bootstrap plan v1
+
+Marker: `VOID_BUY_ALLOCATION_CUSTODY_SERVICE_BOOTSTRAP_PLAN_V1`
+
+Status: **source-only candidate / production HOLD**. This package is a reviewed
+installation *planning contract*, not a service installer. It creates no
+systemd unit, socket, Polkit policy, directory, lock, receipt, wallet operation,
+transaction or public economic authority. Its read-only CLI operations are
+`--plan` (the historical October 7 V1 plan), `--plan-v2` (the inspected-service
+diagnostic V2), and `--plan-v3` (the payment-provenance diagnostic V3).
+`--apply`, `--install` and other mutation-like modes fail closed with exit 2.
+
+## Versioned planning identity — October 10, 2026
+
+The original V1 plan is independently retrievable using no argument or `--plan`.
+It retains schema `void.buy.allocation.custody.bootstrap.plan.v1`, the V1 marker,
+`version=1`, all original source/contract imports, **5,898 output bytes**, and
+original plan digest
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+Its exact formatted wire SHA-256 is
+`db4c0c0a00d0cf830f4d1a8e46cbe8b6a64b85af641f763f5024869a361d35cf`.
+The source proof asserts both identities and byte-for-byte CLI preservation.
+
+The inspected-service candidate is obtained **only** using `--plan-v2`.
+It has its own `.v2` schema, V2 marker, `version=2`, and a separately computed
+plan digest; its `historical_v1_plan_sha256` field binds the unchanged V1
+predecessor. It preserves the newer inspection-service, contract and reader
+source pins and complete static import checks.
+
+The payment-provenance successor is obtained **only** using `--plan-v3`. It has
+its own `.v3` schema, V3 marker, `version=3`, and
+`historical_v2_plan_sha256` binding the unchanged V2 predecessor. V3 pins the
+current service/contract tuple and the added descriptor-bound payment-history
+reader. It explicitly keeps the live request-root path, cross-UID read
+permissions, payment-capacity lock, and reserve mutation unqualified.
+
+All three plans remain `HOLD_SOURCE_ONLY`: none generates `ExecStart`, installs
+a service, accepts payment, authorizes custody writes or constitutes host
+attestation.
+
+## Problem it resolves at the planning layer
+
+Operator-observed, read-only Precision evidence on October 7, 2026 found:
+
+- the public node is **user-systemd** `void-node-live.service` as user `zoso`
+  (UID 1000), not a dedicated system custody service;
+- the public process has zero *current* Linux capabilities, but its service
+  exposes a broad `CapabilityBoundingSet` and both configured and live
+  `NoNewPrivileges` are false;
+- UID 1000 failed discretionary `test -w` checks against both allocation roots
+  and their authoritative files. That does not prove systemd/Polkit or
+  mount-namespace isolation;
+- two distinct ext4 mount/device identities exist: allocation ledger under
+  `/dev/sda2`, and the high-water directory on `/dev/nvme0n1p1`;
+- both private roots and both files are owned by `void-buy-custody` (UID 994,
+  GID 981); the custody identity **can write both stores**;
+- the scoped system-service/socket-unit inventory reported no candidates;
+  the sampled UID-994 process count was zero; and
+- the reviewed early Polkit deny-rule path was absent or unreadable; no
+  authenticated service-control denial probe occurred.
+
+These are a historical, operator-provided terminal snapshot, *not* independent
+attestation or live evidence. The checked-in sample records the exact observed
+source heads `e1521fc72730ecb036b71e476a7530656ebfecae` (local) and
+`a5409d8b4c418efc7c6d32ff105202af0933f1b5` (remote tracking). It does
+not claim either remains current. Callers can supply arbitrary booleans to the
+pure classifier for testing; the result is always `HOLD_SOURCE_ONLY`, even if
+all supplied booleans are `true`.
+
+### Digest boundary: integrity label, not attestation
+
+The emitted `plan_sha256` is only a SHA-256 over the classifier's canonical
+plan body. It is **not authenticated or signed** and does not prove that the
+reported source heads were checked out, that any designated host was observed,
+that a particular operator produced the plan, or that the observation is fresh.
+The machine-readable output therefore fixes
+`plan_digest_scope=canonical_plan_body_only` and keeps
+`plan_digest_authenticated`, `plan_digest_signed`,
+`plan_digest_is_attestation`, source-provenance verification, designated-host
+binding, operator-identity binding, and freshness binding all `false`.
+A matching digest can detect accidental byte drift in one exported plan; it
+cannot be promoted into provenance, identity, freshness, or launch authority.
+
+### Explicit denied authorities
+
+The authority object enumerates the escalation/economic capabilities that this
+plan does **not** grant. In addition to no host/service/runtime/funds mutation,
+it explicitly keeps private-key and credential access, transaction signing and
+broadcast, Chain-2050 and Work Credit writes, inventory funding, presale
+activation, treasury/liquidity movement, systemd daemon-reload/enablement, and
+data-root mutation `false`. Broad fields such as
+`wallet_or_signer_access=false` or `host_write_performed=false` are not used
+as substitutes for those explicit denials.
+
+## Existing reviewed contracts: do not recreate them
+
+The canonical source contracts already exist:
+
+- `tools/void-buy-allocation-custody-service-v1.mjs`: the bounded AF_UNIX
+  `reserve`/`recover`/`inspect` service;
+- `docs/architecture/buy-void-allocation-custody-service-contract-v1.json`:
+  exact request/response and authority contract;
+- `tools/void-buy-allocation-custody-host-evidence-v1.mjs`: read-only
+  designated-host source and execution-identity collector;
+- `src/economic/buy_void_allocation_custody_qualification_v1.ts`: pure
+  source/evidence qualification; and
+- `src/economic/buy_void_allocation_reservation_publication_writer_v1.ts`:
+  canonical descriptor-bound dual-root publication writer.
+
+This plan neither modifies nor duplicates their semantics. No actor may bypass
+or fake their later runtime evidence by marking a planning boolean `true`.
+
+## Critical executable-closure prerequisite
+
+The historical V2 diagnostic generation `descriptor-inspection-20261010`
+references service source at
+`c7e5993bb5fd4d8fb402762a56925a9ce9e25518`. The current V3 diagnostic
+generation is `payment-provenance-bind-20261010`, rooted in reviewed branch
+state `5ed7dae3b4f799cde7d106d59f99a88eda753065`.
+
+V3 retains the **two historical compiled** ESM modules from `dist/economic`
+and adds the canonical verified-payment/allocation replay classifier:
+
+~~~text
+buy_void_allocation_reservation_ledger_v1.js
+buy_void_allocation_reservation_high_water_v1.js
+buy_void_verified_allocation_replay_binding_v1.js
+~~~
+
+It also imports the existing allocation-root reader
+`../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs`
+and the descriptor-bound payment-history reader
+`../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs`.
+Its remaining **static** ESM imports are exactly the reviewed built-ins
+`node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
+The source-only proof uses Node's ESM parser to compare **every static module
+specifier** against that explicit complete allowlist. It rejects new relative
+helpers, third-party packages, built-ins or other specifiers instead of silently
+discarding imports outside `../dist/`. For Node 24.4+ and 26 where `moduleRequests` exists, every request must
+carry `phase=evaluation` and **empty import attributes**. Node 22 minors
+may expose only `dependencySpecifiers` or partial `moduleRequests` missing
+phase; **Node 24.0–24.3 may lack `moduleRequests` entirely**.
+Both Node 22 and early Node 24 use an inert `vm.Module.link` callback to
+inspect `extra.attributes` without evaluating the service or dependencies.
+Node 26 without modern metadata still HOLDs, and present-but-incomplete
+modern metadata never silently downgrades to the legacy path. The proof
+simulates early Node 24 API absence on a later Node 24 runner; this is not
+a claim that an actual 24.0 binary was run. The **negative** test bypasses
+only the proof's lexical attribute precheck to reach the inert `vm.Module.link`
+callback, and specifically requires its `custody_bootstrap_plan_import_metadata_hold`
+error on nonempty `extra.attributes`. The ordinary production/default proof
+continues to enforce the lexical guard. The per-run receipt reports this
+simulated ABI test as `true` **only on Node 24**; Node22/26 explicitly report
+`false` instead of claiming unexecuted evidence. It also rejects `with { ... }`
+attributes and `import source`/`import defer` phases through comments
+across all ECMAScript line terminators (LF, CR, U+2028 and U+2029).
+The legacy linker census must agree with the parser's static dependency
+list; unsupported majors, unreviewed metadata or mismatch HOLD. Synthetic adversaries cover each
+case. An independent full service-byte digest also detects changes that a
+parser might not enumerate. The preserved **pre-inspection** candidate
+pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
+and contract
+`service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.
+
+The V2 candidate records service SHA-256
+`fbb625afda82eb3ed3870ac8f181c2ef6b1c3d30b5b93b9c5961dbe4278bfd88`
+and contract SHA-256
+`676cea042a50afa52bbdcf3f397209f2ff6d9b7c2dc175a2c4d8b5821fac67d5`.
+The allocation-root reader is independently pinned to Git blob
+`1bf88a403b1012ac00edaf634c5ed237a898043c` and SHA-256
+`a2a550f766659235a3e21a6d16003b22f482872e73f31ae23f8dbaf01dbe3979`.
+Its complete static import list is exactly `node:crypto`, `node:fs`,
+`node:path`, and `node:util`; no further local or package import is admitted.
+The proof parses this reader without evaluation and tests missing/substituted
+service edges, changed reader bytes, and expanded reader dependencies.
+
+The V3 candidate separately pins current service SHA-256
+`4aca3df7af7d34759151cc902b26776a8198ecca245be8abca4eb638aeda9c18`
+and contract SHA-256
+`664c98528a05200c110ed27d4940b36d169a70e5e1da331bbcba77d52056465f`.
+The payment-history reader is pinned to Git blob
+`7c0a960b2dbf728b1daf0abbf5c44f55e2cd4325` and SHA-256
+`a4d5882e61e702b45f7a07b2e73bd9276979301649c7fe387a7c0c5f3198eb9c`,
+with exact static imports `node:fs`, `node:path`, and `node:util`.
+The proof parses it without evaluation and rejects changed bytes or dependency
+expansion.
+
+Each successor preserves its complete predecessor candidate. V2 retains V1;
+V3 retains V2 and also carries `historical_v2_plan_sha256`. The original V1
+plan digest remains
+`sha256:b279da39b1856ded9c7b90289192bb5ab19ebf7aae157ddd1d644b1f34c7e348`.
+The October 7 observation and its interpretation are unchanged. Each successor
+gets a distinct digest; no prior receipt or witness identity is reassigned.
+These are revisions of unaccepted diagnostic candidates, not installers.
+
+The reader's deployment requirements are now explicit planning data: nonroot
+Linux execution, accessible procfs `/proc/self/fd`, canonical simple-component
+paths, separate nonnested roots, owner-private root/file permission bits
+`0700`/`0600`, and single-link files. Permission bits here mean the reader's
+existing `mode & 0777` checks, not an additional assertion about special bits.
+`host_qualified=false` and `cross_root_atomic_snapshot_proven=false` remain
+mandatory. Nothing observes or changes an installed host to satisfy them.
+
+The IPC `reserve` method now independently binds durable payment provenance,
+but remains mutation-HOLD at
+`allocation_custody_service_payment_capacity_lock_not_bound`. `recover`
+remains provenance-HOLD, and the service does not load the allocation
+publication writer or canonical allocation planner. The compiled modules
+may have their own transitive runtime imports: neither this top-level
+census nor a checksum of the untrusted candidate plan proves a protected
+executable closure, signed provenance or qualified host custody. Copying source
+from a mutable `/home/zoso/dev/void-node` checkout does **not** bind the
+executable closure.
+
+**Do not construct a runnable `ExecStart` or install/start the custody unit
+until an independently reviewed plan qualifies the complete executing Node
+binary/package/module closure, its exact content hashes, its protected
+root-owned installation path and ancestors, and its at-use immutability.**
+The planner therefore emits `requested_exec_start=null` and
+`installable_unit_generated=false`. It does not select a mutable-worktree or
+unreviewed `/opt/...` path as executable authority.
+
+## Candidate service policy (not an installable systemd unit)
+
+The source-only plan records expected system-manager policy properties for
+later review: `User=void-buy-custody`, `Group=void-buy-custody`, `UMask=0077`,
+`NoNewPrivileges=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`,
+`ProtectSystem=strict`, `ProtectHome=yes`, kernel/module/control-group
+protection, personality/setuid/realtime restrictions, *empty*
+`CapabilityBoundingSet` and `AmbientCapabilities`,
+`RestrictAddressFamilies=AF_UNIX`, and exact `ReadWritePaths` for the two
+allocation roots. These are **targets**; actual effective service properties
+and kernel state must be independently measured after a separately authorized
+installation.
+
+The planned service belongs to the **system** manager. The public VOID node
+currently belongs to the **user** manager. Those must not be conflated.
+
+### IPC boundary
+
+The existing custody source calls `server.listen(socket_path)` and applies
+`chmod(0660)` and `chown` itself. It does **not** consume a socket passed by
+systemd socket activation. Creating a parallel `*.socket` unit at the same
+pathname risks a competing bind and is **not** a valid shortcut. The plan
+therefore says `socket_unit_needed=false` and
+`socket_activation_implemented=false`.
+
+A later independent host bootstrap must arrange a preexisting, direct, private
+socket parent owned by the custody identity, mode `0750` and with a separately
+reviewed IPC group distinct from both services' primary groups. The custody
+service is expected to create its own AF_UNIX socket at mode `0660`. The
+public runtime must have only reviewed group-based socket access, without
+write/rename/recreate rights over the socket directory or either data root.
+Those runtime filesystem and group facts are **not** established by this plan.
+
+### Writable socket parent inside `ProtectSystem=strict`
+
+The candidate policy requires `ProtectSystem=strict` but enumerates only the
+ledger and high-water roots in `ReadWritePaths`. Those **exact two paths** are
+also required by the existing merged custody classifier. The source service
+creates and unlinks the AF_UNIX socket itself; it does not inherit a prebound
+socket from systemd. A pre-existing directory with correct UID/GID/mode is
+**insufficient** if the service sees the parent as read-only inside its mount
+namespace. Neither socket bind nor cleanup is proven merely by DAC checks.
+
+Before proposing an executable unit, a separate source/host gate must select
+and verify a **qualifier-compatible writable namespace exception** for that
+socket parent (for example, a reviewed systemd-managed `RuntimeDirectory`
+arrangement or another explicitly qualified mechanism). It must also prove
+that the final parent retains the required *distinct* IPC group rather than
+silently reverting to the custody service's primary group at startup or restart,
+that the public runtime can connect without replacing socket entries, and
+that bind/unlink/restart works under the effective hardening policy. Do not
+add a third `ReadWritePaths` entry without amending and reviewing the existing
+exact-paths qualification contract. Do not use a competing systemd socket unit.
+
+The new source-only observation field
+`socket_parent_namespace_write_exception_proven=false` is untrusted and
+cannot authorize live service startup. The plan deliberately leaves the
+exception mechanism unselected and reports
+`HOLD_SOCKET_PARENT_WRITABLE_NAMESPACE_EXCEPTION`; a fabricated true value
+still returns `HOLD_SOURCE_ONLY`.
+
+## Service-control boundary
+
+A secure public-runtime policy needs effective `NoNewPrivileges=yes`, empty
+capability bounding/ambient sets, zero observed kernel capabilities, and
+sufficiently protected unit execution identity. Retaining UID 1000 as the
+public process while directly giving it write access to custody roots would
+violate the existing separation.
+
+The merged host collector additionally requires the root-owned, immutable,
+lexically first reviewed deny rule at:
+
+~~~text
+/etc/polkit-1/rules.d/00-void-buy-allocation-custody-runtime-deny-v1.rules
+~~~
+
+A later, separately authorized installation must verify exact rule bytes,
+`systemd` version/authorization-policy compatibility, kernel capabilities and
+*live noninteractive* `pkcheck` denial for every reviewed systemd management
+action. Only explicit `pkcheck` exit **1** qualifies; an interactive challenge,
+missing agent or error is not denial proof. The planner does not install that
+rule or run `pkcheck`.
+
+## Correct future ordering
+
+1. Review, build and bind exact service + contract + full compiled/runtime
+   dependency closure. Install it only under a protected non-user-writable
+   executable root by a separately reviewed ceremony.
+2. Review and qualify the public runtime's user-manager hardening. No
+   unreviewed drop-in or live service restart is part of this package.
+3. Review and bootstrap the distinct system-manager custody identity, service,
+   IPC group, socket parent, exact fixed server config and reviewed
+   `ProtectSystem=strict` socket-parent writable-namespace exception. Preserve
+   canonical ledger/high-water files unchanged; no automatic genesis rewrite.
+4. Install and independently verify the exact global runtime Polkit denial;
+   prove live runtime privilege/capability and service-control boundaries.
+5. Observe the complete service `ExecStart`, unit hardening, socket/parent,
+   user/group, mount/device/ancestor identities and source artifacts twice
+   using the existing host collector; require an independently controlled
+   freshness and receipt chain.
+6. Establish **independent rollback resistance**: UID 994 may legitimately
+   publish to both data roots, but must not be able to rewind *all* historical
+   authority, including the monotonic high-water/receipt witness. Two devices
+   under the same writable UID do not prove this property.
+7. Rehearse restart, crash recovery, lost custody medium, mount substitution,
+   stale receipt, same-generation alternative high-water and rollback-negative
+   schedules before any separate runtime integration or economic launch gate.
+
+The above list is sequencing, not a bundled authorization to perform it.
+
+## Source-only verification
+
+~~~bash
+node --check tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs
+node scripts/prove_void_buy_allocation_custody_service_bootstrap_plan_v1.mjs
+node tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs --plan
+~~~
+
+The proof rejects accessor/proxy/extra-key/caller-authority injections, verifies
+missing-host-gate diagnosis, confirms an all-true forged observation still
+cannot authorize production, requires an unresolved exact `ExecStart`, rejects
+`--apply`/`--install` modes, and checks the no-mutation authority contract.
+It also checks every static service import and the exact source reader bytes
+and imports. Removal or substitution causes proof failure, not silent reuse.
+The original parser, metadata, loader, CLI, observation and no-authority tests
+remain, with 14 additional dependency-review controls. This covers the newly
+imported reader, not the complete compiled transitive closure, protected
+executable installation, or host/payment authority. Review that full closure
+before any later host bootstrap; a source-only test cannot grant permission.
+All planned outcomes retain `production_gate_ready=false`.
+
+**PROTECT THE CORE.**

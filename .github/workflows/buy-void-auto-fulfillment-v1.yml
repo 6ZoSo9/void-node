@@ -1,0 +1,118 @@
+name: Buy VOID Automatic Fulfillment v1
+
+on:
+  push:
+    paths:
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_ambiguity_guard_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_journal_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_journal_crash_recovery_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_confirmation_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_confirmation_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_confirmed_state_journal_v1.ts"
+      - "scripts/prove_buy_void_confirmed_state_journal_crash_recovery_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_journal_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_revert_release_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_revert_release_guard_v1.ts"
+      - "scripts/prove_buy_void_broadcast_outcome_journal_v1.ts"
+      - "scripts/prove_buy_void_broadcast_outcome_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_pipeline_coordinator_v1.ts"
+      - "scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts"
+      - ".github/workflows/buy-void-auto-fulfillment-v1.yml"
+  pull_request:
+    paths:
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_confirmed_state_journal_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_v1.ts"
+      - "scripts/prove_buy_void_auto_fulfillment_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_verified_payment_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_ambiguity_guard_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_journal_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_journal_crash_recovery_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_confirmation_v1.ts"
+      - "scripts/prove_buy_void_fulfillment_confirmation_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_confirmed_state_journal_v1.ts"
+      - "scripts/prove_buy_void_confirmed_state_journal_crash_recovery_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_journal_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_revert_release_v1.ts"
+      - "scripts/prove_buy_void_execution_attempt_revert_release_guard_v1.ts"
+      - "scripts/prove_buy_void_broadcast_outcome_journal_v1.ts"
+      - "scripts/prove_buy_void_broadcast_outcome_replay_guard_v1.ts"
+      - "scripts/prove_buy_void_pipeline_coordinator_v1.ts"
+      - "scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts"
+      - ".github/workflows/buy-void-auto-fulfillment-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-fulfillment-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Focused Buy VOID TypeScript
+        run: >-
+          npx tsc --noEmit --target ES2022 --module NodeNext
+          --moduleResolution NodeNext --lib ES2022 --types node
+          --esModuleInterop --allowSyntheticDefaultImports
+          --downlevelIteration --skipLibCheck
+          scripts/prove_buy_void_auto_fulfillment_v1.ts
+          scripts/prove_buy_void_auto_fulfillment_replay_guard_v1.ts
+          scripts/prove_buy_void_verified_payment_v2.ts
+          scripts/prove_buy_void_verified_payment_v2_ambiguity_guard_v1.ts
+          scripts/prove_buy_void_fulfillment_journal_v1.ts
+          scripts/prove_buy_void_fulfillment_journal_crash_recovery_v1.ts
+          scripts/prove_buy_void_fulfillment_confirmation_v1.ts
+          scripts/prove_buy_void_fulfillment_confirmation_replay_guard_v1.ts
+          scripts/prove_buy_void_confirmed_state_journal_v1.ts
+          scripts/prove_buy_void_confirmed_state_journal_crash_recovery_v1.ts
+          scripts/prove_buy_void_execution_attempt_journal_v1.ts
+          scripts/prove_buy_void_execution_attempt_replay_guard_v1.ts
+          scripts/prove_buy_void_execution_attempt_revert_release_v1.ts
+          scripts/prove_buy_void_execution_attempt_revert_release_guard_v1.ts
+          scripts/prove_buy_void_broadcast_outcome_journal_v1.ts
+          scripts/prove_buy_void_broadcast_outcome_replay_guard_v1.ts
+          scripts/prove_buy_void_pipeline_coordinator_v1.ts
+          scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_auto_fulfillment_v1.ts
+      - run: npx tsx scripts/prove_buy_void_auto_fulfillment_replay_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_verified_payment_v2.ts
+      - run: npx tsx scripts/prove_buy_void_verified_payment_v2_ambiguity_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_fulfillment_journal_v1.ts
+      - run: npx tsx scripts/prove_buy_void_fulfillment_journal_crash_recovery_v1.ts
+      - run: npx tsx scripts/prove_buy_void_fulfillment_confirmation_v1.ts
+      - run: npx tsx scripts/prove_buy_void_fulfillment_confirmation_replay_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_confirmed_state_journal_v1.ts
+      - run: npx tsx scripts/prove_buy_void_confirmed_state_journal_crash_recovery_v1.ts
+      - run: npx tsx scripts/prove_buy_void_execution_attempt_journal_v1.ts
+      - run: npx tsx scripts/prove_buy_void_execution_attempt_replay_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_execution_attempt_revert_release_v1.ts
+      - run: npx tsx scripts/prove_buy_void_execution_attempt_revert_release_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_broadcast_outcome_journal_v1.ts
+      - run: npx tsx scripts/prove_buy_void_broadcast_outcome_replay_guard_v1.ts
+      - run: npx tsx scripts/prove_buy_void_pipeline_coordinator_v1.ts
+      - run: npx tsx scripts/prove_buy_void_pipeline_coordinator_guard_v1.ts
+      - run: npm run build

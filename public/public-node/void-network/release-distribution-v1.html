@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VOID Network — Verified Release Distribution v1</title>
+  <style>
+    body{font:16px/1.55 system-ui,sans-serif;max-width:900px;margin:3rem auto;padding:0 1rem;background:#090b10;color:#e8edf7}
+    a{color:#9fc7ff}code{background:#151a24;padding:.15rem .35rem;border-radius:.25rem}
+    .card{border:1px solid #2d3748;border-radius:.75rem;padding:1rem 1.2rem;margin:1rem 0}
+  </style>
+</head>
+<body>
+  <h1>Verified Release Distribution v1</h1>
+  <p>The Linux x64 node release is deterministic, checksum-bound, SBOM-backed,
+  installed under an unprivileged user, and stopped by default.</p>
+  <div class="card">
+    <strong>Proof target:</strong> <code>make public-release-distribution-v1-proof</code><br>
+    <strong>Installer:</strong> <code>install-void-node-v1.sh</code><br>
+    <strong>Rollback:</strong> <code>void-node rollback</code>
+  </div>
+  <p>This lane does not generate keys or activate guarded economic, validator,
+  treasury, Buy VOID, or authority operations.</p>
+</body>
+</html>

@@ -1,0 +1,61 @@
+name: VOID coupled native gas payer observation v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/coupled_native_gas_payer_observation_v1.ts"
+      - "scripts/prove_coupled_native_gas_payer_observation_v1.ts"
+      - "docs/architecture/coupled-native-gas-payer-observation-v1.md"
+      - ".github/workflows/coupled-native-gas-payer-observation-v1.yml"
+      - "src/economic/coupled_native_gas_liability_v1.ts"
+      - "src/economic/buy_void_native_execution_nonce_fee_planner_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Focused TypeScript
+        run: |
+          ./node_modules/.bin/tsc             --noEmit             --target ES2022             --module NodeNext             --moduleResolution NodeNext             --lib ES2022             --types node             --esModuleInterop             --allowSyntheticDefaultImports             --downlevelIteration             --skipLibCheck             src/economic/coupled_native_gas_payer_observation_v1.ts             scripts/prove_coupled_native_gas_payer_observation_v1.ts
+
+      - name: Prove payer observation
+        run: npx tsx scripts/prove_coupled_native_gas_payer_observation_v1.ts
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check

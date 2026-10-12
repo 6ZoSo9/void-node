@@ -1,0 +1,99 @@
+# DataNet Core Public Verification External Reviewer Actual Operator Share Approval Record Template v1
+
+Marker: `VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_ACTUAL_OPERATOR_SHARE_APPROVAL_RECORD_TEMPLATE_DOC_V1`
+
+This template defines the shape of a future actual operator share approval record. It does not create an actual operator approval record now, record operator approval now, create an actual share intent record now, share the packet now, contact a reviewer now, perform external review now, accept reviewer results now, add authority, write a ledger entry, or award Work Credits.
+
+Current base:
+
+- Head: `3c9b9756`
+- Cross-box tag: `ckpt-datanet-core-public-verification-external-reviewer-operator-share-approval-record-readiness-closeout-v1-cross-box-green-20260618-221555`
+- Operator share approval record readiness closeout proof marker: `VOID_DATANET_CORE_PUBLIC_VERIFICATION_EXTERNAL_REVIEWER_OPERATOR_SHARE_APPROVAL_RECORD_READINESS_CLOSEOUT_PROOF_V1_GREEN`
+
+Template purpose:
+
+- Define the future actual operator approval record fields.
+- Keep actual approval record creation separate from this template.
+- Keep actual operator approval separate from this template.
+- Keep actual share intent record creation separate from this template.
+- Keep packet sharing separate from this template.
+- Keep reviewer contact separate from this template.
+- Keep reviewer acknowledgement separate from this template.
+- Keep reviewer result receipt separate from this template.
+- Keep reviewer result acceptance separate from this template.
+- Keep protocol authority, ledger writes, and Work Credit awards separate from this template.
+
+Future actual approval record fields:
+
+- `actual_operator_share_approval_record_version`
+- `record_created_at_utc`
+- `operator_name_or_handle`
+- `operator_approval_attested`
+- `operator_approval_scope`
+- `operator_approval_reason`
+- `approved_readiness_closeout_head`
+- `approved_readiness_closeout_cross_box_tag`
+- `approved_packet_scope`
+- `approved_external_reviewer_scope`
+- `approved_share_intent_template`
+- `approved_contact_template`
+- `approval_record_hash`
+- `operator_signature_or_attestation`
+- `packet_shared_now`
+- `actual_share_intent_record_created_now`
+- `external_reviewer_contacted_now`
+- `external_reviewer_acknowledged_now`
+- `external_reviewer_result_received_now`
+- `external_reviewer_result_accepted_now`
+- `operator_decision_record_created_now`
+- `operator_notes`
+
+Current template state:
+
+- `actual_operator_share_approval_record_template_exists_now=true`
+- `actual_operator_share_approval_record_created_now=false`
+- `actual_operator_share_approval_recorded_now=false`
+- `actual_share_intent_record_created_now=false`
+- `packet_shared_now=false`
+- `actual_external_review_performed_now=false`
+- `external_reviewer_contacted_now=false`
+- `external_reviewer_acknowledged_now=false`
+- `external_reviewer_result_received_now=false`
+- `external_reviewer_result_accepted_now=false`
+- `operator_decision_record_created_now=false`
+- `reviewer_result_authoritative_now=false`
+- `ledger_write_now=false`
+- `wc_credit_award_now=false`
+
+Required status lines:
+
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_created_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_terminal_safe=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_static_only=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_base_head=3c9b9756`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_record_readiness_closeout_cross_box_green=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_fields_documented=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_approval_record_shape_documented=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_template_only=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_actual_operator_share_approval_record_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_actual_operator_share_approval_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_share_intent_record_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_packet_shared_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_external_review_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_contact_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_acknowledgement_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_result_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_no_decision_record_now=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_auto_acceptance=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_auto_ingest=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_adds_authority=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_peer_pin_exact_command_reveal_held=true`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_proof_chain=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_command_reveal=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_route_calls=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_object_fetch=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_duplicate_guard=false`
+- `datanet_core_public_verification_external_reviewer_actual_operator_share_approval_record_template_runs_full_live_rollup=false`
+- `public_mutation=false`
+- `ledger_write=false`
+- `wc_credit_award=false`

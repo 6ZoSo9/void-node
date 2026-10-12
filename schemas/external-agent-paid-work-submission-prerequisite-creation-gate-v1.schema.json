@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-submission-prerequisite-creation-gate-v1.schema.json",
+  "title": "VOID External Agent Paid Work Submission Prerequisite Creation Gate V1 Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "adapter_id",
+    "status",
+    "enabled",
+    "apply",
+    "operation",
+    "operation_id",
+    "confirmation_verified",
+    "datanet",
+    "callback",
+    "admission",
+    "prepared_submission",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_EXTERNAL_AGENT_PAID_WORK_SUBMISSION_PREREQUISITE_CREATION_GATE_RESULT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "adapter_id": {
+      "const": "void.external-agent-paid-work-submission-prerequisite-creation-gate.v1"
+    },
+    "status": {
+      "enum": [
+        "disabled",
+        "planned",
+        "prerequisites_created",
+        "submission_prepared"
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "apply": {
+      "type": "boolean"
+    },
+    "operation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "create_prerequisites",
+        "prepare_submission",
+        null
+      ]
+    },
+    "operation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confirmation_verified": {
+      "type": "boolean"
+    },
+    "datanet": {
+      "type": "object"
+    },
+    "callback": {
+      "type": "object"
+    },
+    "admission": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "prepared_submission": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_datanet_staging_write",
+        "express_route_mount",
+        "network_listener_creation",
+        "token_or_credential_read",
+        "authorization_header_creation",
+        "authenticated_submission_post",
+        "external_http_submission",
+        "provider_selection",
+        "quote_creation",
+        "payment_authorization",
+        "payment_execution",
+        "work_execution_authorization",
+        "work_dispatch",
+        "work_credit_write",
+        "wallet_or_signer_access",
+        "transaction_broadcast",
+        "service_restart",
+        "deployment",
+        "money_movement"
+      ],
+      "properties": {
+        "local_datanet_staging_write": {
+          "type": "boolean"
+        },
+        "express_route_mount": {
+          "type": "boolean"
+        },
+        "network_listener_creation": {
+          "const": false
+        },
+        "token_or_credential_read": {
+          "const": false
+        },
+        "authorization_header_creation": {
+          "const": false
+        },
+        "authenticated_submission_post": {
+          "const": false
+        },
+        "external_http_submission": {
+          "const": false
+        },
+        "provider_selection": {
+          "const": false
+        },
+        "quote_creation": {
+          "const": false
+        },
+        "payment_authorization": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "work_execution_authorization": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "money_movement": {
+          "const": false
+        }
+      }
+    }
+  }
+}

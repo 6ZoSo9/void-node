@@ -1,0 +1,30 @@
+validator_id: validator-01
+operator_label: TBD
+operator_contact_path: TBD
+reward_address: "0xTBD"
+consensus_key: "0xTBD"
+
+expected_branch: main
+expected_version: TBD
+expected_config_identity: TBD
+current_reported_version: TBD
+current_reported_config_identity: TBD
+
+status: candidate
+status_reason: not yet admitted
+status_last_changed_at: TBD
+
+last_known_head: TBD
+last_known_health: TBD
+last_known_drift: TBD
+checkpoint_awareness_status: TBD
+incident_response_readiness: TBD
+
+warning_count: 0
+pause_count: 0
+last_warning_at: null
+last_pause_at: null
+last_incident_involved: null
+
+notes: []
+operator_comments: []

@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    "strict": false,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "useUnknownInCatchVariables": false,
+    "strictNullChecks": false,
+
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true,
+
+    "allowJs": true,
+    "checkJs": false
+  },
+  "exclude": [
+    "src/index.ts",
+    "dist",
+    "build",
+    "node_modules"
+  ]
+}

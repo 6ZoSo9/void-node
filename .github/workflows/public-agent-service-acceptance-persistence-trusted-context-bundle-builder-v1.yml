@@ -1,0 +1,51 @@
+name: Public agent acceptance persistence trusted context bundle builder V1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/public_agent_service_acceptance_persistence_trusted_context_bundle_builder_v1.ts"
+      - "scripts/prove_public_agent_service_acceptance_persistence_trusted_context_bundle_builder_v1.ts"
+      - "schemas/public-agent-service-acceptance-persistence-trusted-context-bundle-builder-v1.schema.json"
+      - "examples/public-agent-service-acceptance-persistence-trusted-context-bundle-builder-v1.example.json"
+      - "docs/public-agent/public-agent-service-acceptance-persistence-trusted-context-bundle-builder-v1.md"
+      - ".github/workflows/public-agent-service-acceptance-persistence-trusted-context-bundle-builder-v1.yml"
+      - "src/http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+      - "scripts/agent_paid_work_quote_envelope_v1.ts"
+      - "scripts/public_agent_service_order_adapter_v1.ts"
+      - "ops/public/agent-services-v1/catalog.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node_modules/.bin/tsc -p tsconfig.nonindex.json --noEmit
+      - run: node_modules/.bin/tsc -p tsconfig.build.json --noEmit
+      - run: >-
+          node_modules/.bin/tsc
+          --noEmit
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --strict
+          --esModuleInterop
+          --skipLibCheck
+          --types node
+          scripts/public_agent_service_acceptance_persistence_trusted_context_bundle_builder_v1.ts
+          scripts/prove_public_agent_service_acceptance_persistence_trusted_context_bundle_builder_v1.ts
+      - run: node_modules/.bin/tsx scripts/prove_public_agent_service_acceptance_persistence_trusted_context_bundle_builder_v1.ts
+      - run: node_modules/.bin/tsx scripts/prove_public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.ts
+      - run: node_modules/.bin/tsx scripts/prove_public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.ts
+      - run: bash tools/check_index_size.sh
+      - run: git diff --check

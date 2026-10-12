@@ -1,0 +1,132 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_operator_intake_review_decision_example_fixture",
+  "version": "v1",
+  "status": "hold_static_operator_review_decision_example_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_EXAMPLE_HOLD_V1",
+  "created_at": "2026-06-30T14:55:50Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-example-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-example-hold-v1.html",
+  "purpose": "Provide public-safe example operator decision packets for accept, reject, and needs_more_info outcomes without creating any live decision, approving WC, or writing a ledger.",
+  "source_chain": {
+    "operator_intake_review_decision_candidate_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CANDIDATE_HOLD_V1",
+    "operator_intake_review_packet_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_PACKET_EXAMPLE_HOLD_V1",
+    "public_submission_intake_packet_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_PUBLIC_SUBMISSION_INTAKE_PACKET_HOLD_V1"
+  },
+  "operator_decision_example": {
+    "example_decision_packets_created": true,
+    "decision_options_demonstrated": [
+      "accept",
+      "reject",
+      "needs_more_info"
+    ],
+    "operator_review_required": true,
+    "decision_fixture_created_here": false,
+    "accepted_here": false,
+    "rejected_here": false,
+    "needs_more_info_here": false,
+    "wc_amount_approved_here": false,
+    "ledger_write_candidate_created_here": false,
+    "runtime_decision_endpoint_created": false
+  },
+  "operator_review_decision_examples": {
+    "accept_example": {
+      "operator_decision_id": "example-decision-accept-001",
+      "source_operator_review_packet_reference": "example-operator-review-packet-reference",
+      "worker_public_handle": "example-worker-001",
+      "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+      "selected_option": "accept",
+      "decision_reason": "Example only: all public-safety, lane-match, reproducibility, and duplicate/replay checks are shown as passing.",
+      "decision_inputs": {
+        "packet_is_public_safe": true,
+        "no_secret_material": true,
+        "work_pack_matches_lane": true,
+        "evidence_is_reproducible_or_reviewer_openable": true,
+        "duplicate_or_replay_screen": "no_duplicate_found"
+      },
+      "example_only": true,
+      "decision_fixture_created_here": false,
+      "wc_amount_approved_here": false,
+      "ledger_write_candidate_created_here": false
+    },
+    "reject_example": {
+      "operator_decision_id": "example-decision-reject-001",
+      "source_operator_review_packet_reference": "example-operator-review-packet-reference",
+      "worker_public_handle": "example-worker-002",
+      "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+      "selected_option": "reject",
+      "decision_reason": "Example only: packet fails reproducibility or lane-match requirements.",
+      "decision_inputs": {
+        "packet_is_public_safe": true,
+        "no_secret_material": true,
+        "work_pack_matches_lane": false,
+        "evidence_is_reproducible_or_reviewer_openable": false,
+        "duplicate_or_replay_screen": "not_applicable_after_failed_lane_match"
+      },
+      "example_only": true,
+      "decision_fixture_created_here": false,
+      "wc_amount_approved_here": false,
+      "ledger_write_candidate_created_here": false
+    },
+    "needs_more_info_example": {
+      "operator_decision_id": "example-decision-needs-more-info-001",
+      "source_operator_review_packet_reference": "example-operator-review-packet-reference",
+      "worker_public_handle": "example-worker-003",
+      "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+      "selected_option": "needs_more_info",
+      "decision_reason": "Example only: packet appears public-safe and lane-matched, but evidence is incomplete.",
+      "decision_inputs": {
+        "packet_is_public_safe": true,
+        "no_secret_material": true,
+        "work_pack_matches_lane": true,
+        "evidence_is_reproducible_or_reviewer_openable": "incomplete",
+        "duplicate_or_replay_screen": "pending_until_complete_evidence"
+      },
+      "example_only": true,
+      "decision_fixture_created_here": false,
+      "wc_amount_approved_here": false,
+      "ledger_write_candidate_created_here": false
+    }
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false,
+    "operator_review_required": true
+  },
+  "decision_boundary": {
+    "decision_example_only": true,
+    "decision_fixture_created": false,
+    "acceptance_created": false,
+    "rejection_created": false,
+    "needs_more_info_created": false,
+    "wc_amount_approved": false,
+    "ledger_write_candidate_created": false,
+    "ledger_append_enabled": false
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  },
+  "next_recommended_brick": {
+    "id": "datanet-wc-public-earn-loop-first-work-pack-operator-intake-review-decision-closeout-audit-rollup-hold-v1",
+    "purpose": "Close out the operator decision candidate/example pair before moving to WC amount recommendation candidate."
+  }
+}

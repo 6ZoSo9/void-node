@@ -1,0 +1,541 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-authenticated-submission-execution-candidate-v1.schema.json",
+  "title": "VOID External Agent Paid-Work Authenticated Submission Execution Candidate V1",
+  "description": "Disabled-by-default, unexecuted one-shot submission candidate contract. It validates activation artifacts, request identity, credential-reference metadata, replay/lease policy, and bounded HTTP policy while remaining unable to read credentials, reserve replay state, or send a request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "command_template",
+    "activation"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_EXECUTION_CANDIDATE_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "command_template": {
+      "$ref": "#/$defs/command"
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_enabled",
+        "apply_confirmation",
+        "writes_private_execution_plan_and_hold_decision_only",
+        "credential_provider_invoked",
+        "credential_or_token_read",
+        "authorization_header_materialized",
+        "replay_key_reserved_or_consumed",
+        "one_shot_lease_written",
+        "network_listener_creation",
+        "runtime_mount",
+        "authenticated_submission_post"
+      ],
+      "properties": {
+        "default_enabled": {
+          "const": false
+        },
+        "apply_confirmation": {
+          "const": "reviewExternalAgentPaidWorkAuthenticatedSubmissionExecutionCandidateV1"
+        },
+        "writes_private_execution_plan_and_hold_decision_only": {
+          "const": true
+        },
+        "credential_provider_invoked": {
+          "const": false
+        },
+        "credential_or_token_read": {
+          "const": false
+        },
+        "authorization_header_materialized": {
+          "const": false
+        },
+        "replay_key_reserved_or_consumed": {
+          "const": false
+        },
+        "one_shot_lease_written": {
+          "const": false
+        },
+        "network_listener_creation": {
+          "const": false
+        },
+        "runtime_mount": {
+          "const": false
+        },
+        "authenticated_submission_post": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+    },
+    "isoUtc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^/"
+    },
+    "origin": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^/?#]+$"
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "allowed_base_origins",
+        "allowed_endpoint_paths",
+        "max_activation_plan_bytes",
+        "max_operator_decision_bytes",
+        "max_request_bytes",
+        "max_candidate_ttl_seconds",
+        "min_remaining_activation_ttl_seconds",
+        "max_clock_skew_seconds",
+        "max_known_execution_candidate_ids",
+        "max_known_replay_keys",
+        "max_http_timeout_ms",
+        "max_response_bytes"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_EXECUTION_CANDIDATE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowed_base_origins": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://[^/?#]+$"
+          }
+        },
+        "allowed_endpoint_paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^/[^?#]*$"
+          }
+        },
+        "max_activation_plan_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 4194304
+        },
+        "max_operator_decision_bytes": {
+          "type": "integer",
+          "minimum": 512,
+          "maximum": 1048576
+        },
+        "max_request_bytes": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 1048576
+        },
+        "max_candidate_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "min_remaining_activation_ttl_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "max_clock_skew_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "max_known_execution_candidate_ids": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "max_known_replay_keys": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "max_http_timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120000
+        },
+        "max_response_bytes": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 16777216
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "operation_id",
+        "evaluated_at_utc",
+        "candidate_expires_at_utc",
+        "activation_plan_path",
+        "activation_operator_decision_path",
+        "request_path",
+        "output_directory",
+        "expected",
+        "credential_provider",
+        "replay",
+        "one_shot",
+        "http_policy",
+        "operator_intent"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_EXECUTION_CANDIDATE_COMMAND_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "apply": {
+          "type": "boolean",
+          "default": false
+        },
+        "confirmation": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "operation_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "evaluated_at_utc": {
+          "$ref": "#/$defs/isoUtc"
+        },
+        "candidate_expires_at_utc": {
+          "$ref": "#/$defs/isoUtc"
+        },
+        "activation_plan_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "activation_operator_decision_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "request_path": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "output_directory": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "activation_operation_id",
+            "base_origin",
+            "endpoint_path",
+            "submission_id",
+            "work_order_id",
+            "payload_sha256",
+            "replay_key",
+            "credential_reference_id"
+          ],
+          "properties": {
+            "activation_operation_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "base_origin": {
+              "$ref": "#/$defs/origin"
+            },
+            "endpoint_path": {
+              "const": "/__void/agents/paid-work/submissions/v1"
+            },
+            "submission_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "work_order_id": {
+              "type": "string",
+              "pattern": "^voidawo1_[0-9a-f]{64}$"
+            },
+            "payload_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "replay_key": {
+              "$ref": "#/$defs/sha256"
+            },
+            "credential_reference_id": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        "credential_provider": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "reference_id",
+            "source_locator_sha256",
+            "expected_scope",
+            "open_during_candidate"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "credential_registry",
+                "single_token_fallback"
+              ]
+            },
+            "reference_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "source_locator_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "expected_scope": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{2,127}$"
+            },
+            "open_during_candidate": {
+              "const": false
+            }
+          }
+        },
+        "replay": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expected_replay_key",
+            "known_replay_keys",
+            "reservation_strategy",
+            "reserve_during_candidate"
+          ],
+          "properties": {
+            "expected_replay_key": {
+              "$ref": "#/$defs/sha256"
+            },
+            "known_replay_keys": {
+              "type": "array",
+              "maxItems": 100000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "reservation_strategy": {
+              "const": "exclusive_create"
+            },
+            "reserve_during_candidate": {
+              "const": false
+            }
+          }
+        },
+        "one_shot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate_nonce",
+            "expected_execution_candidate_id",
+            "known_execution_candidate_ids",
+            "lease_strategy",
+            "maximum_attempt_count",
+            "automatic_retry"
+          ],
+          "properties": {
+            "candidate_nonce": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+            },
+            "expected_execution_candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "known_execution_candidate_ids": {
+              "type": "array",
+              "maxItems": 100000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "lease_strategy": {
+              "const": "exclusive_create"
+            },
+            "maximum_attempt_count": {
+              "const": 1
+            },
+            "automatic_retry": {
+              "const": false
+            }
+          }
+        },
+        "http_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "content_type",
+            "timeout_ms",
+            "max_response_bytes",
+            "redirect_mode",
+            "credentials_mode",
+            "cache_mode",
+            "accepted_new_status",
+            "accepted_duplicate_status",
+            "conflicting_duplicate_status",
+            "ambiguous_outcome_policy"
+          ],
+          "properties": {
+            "method": {
+              "const": "POST"
+            },
+            "content_type": {
+              "const": "application/json"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120000
+            },
+            "max_response_bytes": {
+              "type": "integer",
+              "minimum": 256,
+              "maximum": 16777216
+            },
+            "redirect_mode": {
+              "const": "manual"
+            },
+            "credentials_mode": {
+              "const": "omit"
+            },
+            "cache_mode": {
+              "const": "no-store"
+            },
+            "accepted_new_status": {
+              "const": 202
+            },
+            "accepted_duplicate_status": {
+              "const": 200
+            },
+            "conflicting_duplicate_status": {
+              "const": 409
+            },
+            "ambiguous_outcome_policy": {
+              "const": "hold_manual_reconciliation_no_retry"
+            }
+          }
+        },
+        "operator_intent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expect_new",
+            "live_submission_authorized",
+            "separate_operator_live_canary_required"
+          ],
+          "properties": {
+            "expect_new": {
+              "type": "boolean"
+            },
+            "live_submission_authorized": {
+              "const": false
+            },
+            "separate_operator_live_canary_required": {
+              "const": true
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": true
+              }
+            },
+            "required": [
+              "apply"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": "reviewExternalAgentPaidWorkAuthenticatedSubmissionExecutionCandidateV1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "apply": {
+                "const": false
+              }
+            },
+            "required": [
+              "apply"
+            ]
+          },
+          "then": {
+            "properties": {
+              "confirmation": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

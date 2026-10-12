@@ -1,0 +1,75 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_CANDIDATE_INTAKE_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_canary_candidate_intake_v1",
+  "visibility": "public_safe_runtime_status",
+  "status": "automatic_payment_canary_candidate_intake_ready",
+  "routes": {
+    "html": "/public-node/usdc-void-buy-pool/automatic-payment-canary/candidate-intake-v1",
+    "json": "/public-node/usdc-void-buy-pool/automatic-payment-canary/candidate-intake-v1.json"
+  },
+  "source_runtime_config": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_RUNTIME_CONFIG_V1",
+    "head_known": "a0385bfb",
+    "route": "/public-node/usdc-void-buy-pool/automatic-payment-canary/runtime-config-v1.json"
+  },
+  "candidate_intake": {
+    "candidate_intake_enabled": true,
+    "candidate_source": "verified_native_usdc_receipt_transfer_log_only",
+    "canary_candidate_limit": 1,
+    "canary_max_usdc": "100.00",
+    "native_usdc_only": true,
+    "accepted_chain_ids": [
+      1,
+      8453
+    ],
+    "canonical_payment_identity": "chain_id:transaction_hash:transfer_log_index",
+    "required_input_fields": [
+      "chain_id",
+      "transaction_hash",
+      "transfer_log_index",
+      "usdc_contract",
+      "from",
+      "to",
+      "amount_raw",
+      "confirmations",
+      "buyer_key",
+      "void_receive_address"
+    ],
+    "candidate_output_kind": "automatic_payment_canary_candidate",
+    "candidate_object_creation_enabled": true,
+    "candidate_persistence_enabled": false,
+    "process_one_candidate_then_stop": true,
+    "operator_review_required_after_candidate": true
+  },
+  "required_green_gates": {
+    "dual_chain_usdc_allowlist": true,
+    "finality_confirmations": true,
+    "transfer_log_parser": true,
+    "duplicate_payment_guard": true,
+    "buyer_identity_binding": true,
+    "amount_rate_policy": true,
+    "payment_eligibility_decision": true,
+    "allocation_claim_creation_shape": true,
+    "private_allocation_ledger_hold": true,
+    "inventory_reserve_hold": true,
+    "fulfillment_execution_hold": true
+  },
+  "authority": {
+    "automatic_payment_candidate_intake_enabled": true,
+    "automatic_payment_observation_enabled": true,
+    "automatic_payment_eligibility_enabled": true,
+    "automatic_candidate_object_creation_enabled": true,
+    "automatic_inventory_reserve_candidate_enabled": true,
+    "automatic_private_allocation_ledger_candidate_enabled": true,
+    "automatic_fulfillment_candidate_enabled": true,
+    "automatic_private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "fulfillment_executed_now": false,
+    "automatic_void_transfer_enabled": false,
+    "automatic_wallet_signing_enabled": false,
+    "public_mutation_authorized": false,
+    "public_buyer_execution_authorized": false,
+    "private_key_material_exposed": false,
+    "wallet_or_treasury_secret_exposed": false
+  }
+}

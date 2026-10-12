@@ -1,0 +1,83 @@
+name: DataNet hierarchy publication v1
+
+on:
+  pull_request:
+    paths:
+      - "src/storage/datanet_immutable_hierarchy_v1.ts"
+      - "src/storage/datanet_hierarchy_publication_v1.ts"
+      - "scripts/prove_datanet_immutable_hierarchy_v1.ts"
+      - "scripts/prove_datanet_hierarchy_publication_v1.ts"
+      - "docs/datanet-hierarchy-publication-v1.md"
+      - ".github/workflows/datanet-hierarchy-publication-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/storage/datanet_immutable_hierarchy_v1.ts"
+      - "src/storage/datanet_hierarchy_publication_v1.ts"
+      - "scripts/prove_datanet_immutable_hierarchy_v1.ts"
+      - "scripts/prove_datanet_hierarchy_publication_v1.ts"
+      - "docs/datanet-hierarchy-publication-v1.md"
+      - ".github/workflows/datanet-hierarchy-publication-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: datanet-hierarchy-publication-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: hierarchy-publication-node-${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install reviewed dependencies
+        run: |
+          test "$(node -p 'process.versions.node.split(".")[0]')" = "${{ matrix.node }}"
+          npm ci
+
+      - name: Prove immutable hierarchy encoder
+        run: npx --no-install tsx scripts/prove_datanet_immutable_hierarchy_v1.ts
+
+      - name: Prove create-only publication and retained bytes
+        run: npx --no-install tsx scripts/prove_datanet_hierarchy_publication_v1.ts
+
+      - name: Verify dedicated gate closure
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const workflow = fs.readFileSync('.github/workflows/datanet-hierarchy-publication-v1.yml', 'utf8');
+          for (const required of [
+            'src/storage/datanet_immutable_hierarchy_v1.ts',
+            'src/storage/datanet_hierarchy_publication_v1.ts',
+            'scripts/prove_datanet_immutable_hierarchy_v1.ts',
+            'scripts/prove_datanet_hierarchy_publication_v1.ts',
+            'docs/datanet-hierarchy-publication-v1.md',
+            'npx --no-install tsx scripts/prove_datanet_immutable_hierarchy_v1.ts',
+            'npx --no-install tsx scripts/prove_datanet_hierarchy_publication_v1.ts',
+          ]) {
+            if (!workflow.includes(required)) throw new Error(`missing_gate_binding:${required}`);
+          }
+          console.log('VOID_DATANET_HIERARCHY_PUBLICATION_V1_WORKFLOW_CLOSURE_GREEN');
+          NODE

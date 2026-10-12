@@ -1,0 +1,48 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_PUBLIC_DISCLOSURE_BOUNDARY_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_activation_refusal_public_disclosure_boundary_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "activation_refusal_public_disclosure_boundary_hold",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_TERMINAL_ROLLUP_HOLD_V1",
+    "head": "8eb3f3df",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-terminal-rollup-hold-v1-local-green-20260624-213434",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-terminal-rollup-hold-v1-cross-box-green-20260624-213733"
+  },
+  "purpose": "private operator-only boundary defining what may be disclosed in a future public-safe activation refusal status surface without leaking private operator material",
+  "future_public_disclosure_allowed": {
+    "automatic_payment_activation_refused": true,
+    "all_authority_false": true,
+    "status_only_summary": true,
+    "private_rollup_details": false,
+    "private_marker_literals": false,
+    "private_paths": false,
+    "buyer_specific_records": false,
+    "tx_hashes": false,
+    "ledger_paths": false,
+    "signer_or_wallet_material": false,
+    "activation_commands": false,
+    "allocation_records": false,
+    "execution_commands": false
+  },
+  "current_public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "public_status_card_created": false,
+    "private_operator_material_exposed": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  }
+}

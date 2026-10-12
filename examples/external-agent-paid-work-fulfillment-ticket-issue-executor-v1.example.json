@@ -1,0 +1,49 @@
+{
+  "issue_request": {
+    "created_at_utc": "2026-07-28T22:33:00Z",
+    "expected_request_body_sha256": "144206a3e40bd23e2dc44c7e0ecf7fd89d81c05e47fe3347331f23832bd84962",
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_FULFILLMENT_TICKET_ISSUE_REQUEST_V1",
+    "nonce": "ticket-issue-example-v1",
+    "request_body": {
+      "account": "void-agent-example-v1",
+      "dataset_id": "ds_example_ticket_issue_v1",
+      "executor_node_id": "befd84d4fe47341af81b1a8aef8bcb97",
+      "expected_input_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+      "max_uses": 1,
+      "task_class": "datanet_fetch_verify",
+      "ttl_ms": 3600000
+    },
+    "version": 1
+  },
+  "transport_profile": {
+    "confirmation_query_name": "confirm",
+    "issue_confirmation": "wcPublicEarningPilotIssue",
+    "issue_url": "http://127.0.0.1:4100/wc/public-earning-pilot-v1/issue",
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_ISSUE_TRANSPORT_PROFILE_V1",
+    "request_bindings": {
+      "account": "/account",
+      "dataset_id": "/dataset_id",
+      "executor_node_id": "/executor_node_id",
+      "expected_input_hash": "/expected_input_hash",
+      "max_uses": "/max_uses",
+      "task_class": "/task_class",
+      "ttl_ms": "/ttl_ms"
+    },
+    "response_bindings": {
+      "account": "/ticket/account",
+      "capability_token": "/ticket/capability_token",
+      "dataset_id": "/ticket/dataset_id",
+      "executor_node_id": "/ticket/executor_node_id",
+      "expected_input_hash": "/ticket/expected_input_hash",
+      "expires_at_ms": "/ticket/expires_at_ms",
+      "fixed_award_wc": "/ticket/fixed_award_wc",
+      "issued_at_ms": "/ticket/issued_at_ms",
+      "max_uses": "/ticket/max_uses",
+      "task_class": "/ticket/task_class",
+      "ticket_id": "/ticket/ticket_id",
+      "ttl_ms": "/ticket/ttl_ms"
+    },
+    "success_http_status": 201,
+    "version": 1
+  }
+}

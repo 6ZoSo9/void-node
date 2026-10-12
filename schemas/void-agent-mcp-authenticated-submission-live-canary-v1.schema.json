@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-agent-mcp-authenticated-submission-live-canary-v1.schema.json",
+  "title": "VOID Agent MCP authenticated submission live canary V1 input",
+  "type": "object",
+  "required": [
+    "marker",
+    "version",
+    "canary_id",
+    "service_id",
+    "created_at_utc",
+    "expires_at_utc",
+    "requester_agent_id",
+    "callback_uri",
+    "objective",
+    "input_refs",
+    "expected_outputs",
+    "quote_asset",
+    "max_total",
+    "max_runtime_seconds",
+    "max_output_bytes",
+    "order_nonce",
+    "submission_nonce",
+    "expect_new"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_MCP_AUTHENTICATED_SUBMISSION_LIVE_CANARY_INPUT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "canary_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,179}$"
+    },
+    "service_id": {
+      "const": "void.datanet.fetch-verify.v1"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "requester_agent_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+    },
+    "callback_uri": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "input_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048
+      }
+    },
+    "expected_outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+      }
+    },
+    "quote_asset": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9._:-]{0,31}$"
+    },
+    "max_total": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9]\\d{0,31})(?:\\.\\d{1,18})?$"
+    },
+    "max_runtime_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "max_output_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "order_nonce": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+    },
+    "submission_nonce": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+    },
+    "expect_new": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

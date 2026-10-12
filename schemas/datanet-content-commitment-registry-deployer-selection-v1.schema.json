@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/datanet-content-commitment-registry-deployer-selection-v1.schema.json",
+  "title": "VOID DataNet content commitment registry deployer selection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker","version","status","chain_id","role","credential_id",
+    "deployer_address","deployer_address_fingerprint_sha256","key_type",
+    "selection_basis","separation","deployment_boundary","authority","next_gate"
+  ],
+  "properties": {
+    "marker": {"const":"VOID_DATANET_CONTENT_COMMITMENT_REGISTRY_DEPLOYER_SELECTION_V1"},
+    "version": {"const":1},
+    "status": {"const":"DEPLOYER_SELECTED_SOURCE_ONLY"},
+    "chain_id": {"const":2050},
+    "role": {"const":"datanet_content_commitment_registry_deployer"},
+    "credential_id": {"const":"datanet-content-commitment-registry-deployer-wallet-v1"},
+    "deployer_address": {"const":"0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb"},
+    "deployer_address_fingerprint_sha256": {"const":"bbf87ccd6c56e68fc486c310a12074d51a23af79df8e9c4727fe156099b864d1"},
+    "key_type": {"const":"secp256k1_eoa"},
+    "selection_basis": {
+      "type":"object",
+      "additionalProperties":false,
+      "required":[
+        "fresh_dedicated_key","generated_on_host","generated_offline",
+        "encrypted_backup_device_label","encrypted_backup_verified",
+        "public_ceremony_receipt_sha256","public_ceremony_id","private_material_in_repo"
+      ],
+      "properties":{
+        "fresh_dedicated_key":{"const":true},
+        "generated_on_host":{"const":"Nimo"},
+        "generated_offline":{"const":true},
+        "encrypted_backup_device_label":{"const":"VOID_AUTHORITY"},
+        "encrypted_backup_verified":{"const":true},
+        "public_ceremony_receipt_sha256":{"const":"81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3"},
+        "public_ceremony_id":{"const":"20260928T121413Z"},
+        "private_material_in_repo":{"const":false}
+      }
+    },
+    "separation":{
+      "type":"object",
+      "additionalProperties":false,
+      "required":[
+        "publisher_address","publisher_deployer_distinct","legacy_treasury_reuse",
+        "role_authority_deployer_reuse","presale_deployer_reuse"
+      ],
+      "properties":{
+        "publisher_address":{"const":"0x926aa1d35824e6957fae1a05510e6cc6a0d57be6"},
+        "publisher_deployer_distinct":{"const":true},
+        "legacy_treasury_reuse":{"const":false},
+        "role_authority_deployer_reuse":{"const":false},
+        "presale_deployer_reuse":{"const":false}
+      }
+    },
+    "deployment_boundary":{
+      "type":"object",
+      "additionalProperties":false,
+      "required":[
+        "predecessor_mode","predecessor_address","deployer_nonce_observed","deployer_nonce",
+        "registry_contract_address","registry_address_vacancy_observed",
+        "deployer_native_balance_observed","deployment_data_bound",
+        "unsigned_deployment_plan_materialized","funding_authorized",
+        "deployment_authorized","transaction_construction_authorized",
+        "transaction_signing_authorized","transaction_broadcast_authorized",
+        "chain2050_write_authorized"
+      ],
+      "properties":{
+        "predecessor_mode":{"const":"GENESIS_ZERO_PREDECESSOR_ONLY_V1"},
+        "predecessor_address":{"const":"0x0000000000000000000000000000000000000000"},
+        "deployer_nonce_observed":{"const":false},
+        "deployer_nonce":{"type":"null"},
+        "registry_contract_address":{"type":"null"},
+        "registry_address_vacancy_observed":{"const":false},
+        "deployer_native_balance_observed":{"const":false},
+        "deployment_data_bound":{"const":false},
+        "unsigned_deployment_plan_materialized":{"const":false},
+        "funding_authorized":{"const":false},
+        "deployment_authorized":{"const":false},
+        "transaction_construction_authorized":{"const":false},
+        "transaction_signing_authorized":{"const":false},
+        "transaction_broadcast_authorized":{"const":false},
+        "chain2050_write_authorized":{"const":false}
+      }
+    },
+    "authority":{
+      "type":"object",
+      "additionalProperties":false,
+      "required":[
+        "source_only","rpc_call","credential_content_access","wallet_access","private_key_access",
+        "deployer_funding","transaction_construction","transaction_signing",
+        "transaction_submission","transaction_broadcast","contract_deployment",
+        "authoritative_chain2050_write","validator_mutation","governance_mutation",
+        "work_credit_mutation","token_movement","funds_movement",
+        "migration_authorized","public_activation_authorized"
+      ],
+      "properties":{
+        "source_only":{"const":true},
+        "rpc_call":{"const":false},
+        "credential_content_access":{"const":false},
+        "wallet_access":{"const":false},
+        "private_key_access":{"const":false},
+        "deployer_funding":{"const":false},
+        "transaction_construction":{"const":false},
+        "transaction_signing":{"const":false},
+        "transaction_submission":{"const":false},
+        "transaction_broadcast":{"const":false},
+        "contract_deployment":{"const":false},
+        "authoritative_chain2050_write":{"const":false},
+        "validator_mutation":{"const":false},
+        "governance_mutation":{"const":false},
+        "work_credit_mutation":{"const":false},
+        "token_movement":{"const":false},
+        "funds_movement":{"const":false},
+        "migration_authorized":{"const":false},
+        "public_activation_authorized":{"const":false}
+      }
+    },
+    "next_gate":{"const":"fresh_read_only_chain2050_deployer_nonce_balance_and_create_address_vacancy_resolution"}
+  }
+}

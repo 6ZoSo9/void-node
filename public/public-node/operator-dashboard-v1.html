@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Public Node Operator Dashboard v1</title>
+</head>
+<body>
+<h1>Public Node Operator Dashboard v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1</code></p>
+<p><strong>Status:</strong> <code>operator_dashboard_ready</code></p>
+<p>One public-safe human-facing dashboard for outside-node-operator onboarding, review-lane navigation, sealed proof-chain visibility, and bootstrap/runtime status.</p>
+<p>This dashboard creates no receipt, no review decision, no Work Credit claim, no validator admission, no wallet action, and no money movement.</p>
+
+<h2>Recommended operator path</h2>
+<ol>
+<li><strong>1. read_status</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>2. follow_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>3. use_connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>4. read_handoff_packet</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>5. compare_receipt_example</strong>: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>6. manual_review_checklist</strong>: <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>7. decision_template_and_example</strong>: <code>/public-node/operator-receipt-review-decision-template-v1</code> — related <code>/public-node/operator-receipt-review-decision-example-v1</code></li>
+<li><strong>8. confirm_review_lane_rollup</strong>: <code>/public-node/operator-review-lane-rollup-v1</code></li>
+</ol>
+
+<h2>Dashboard sections</h2>
+<ul>
+<li><strong>Operator status</strong>: See the current public-safe operator lane status. Status: <code>green</code>. Route: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>Operator quickstart</strong>: Start from the public-safe outside-node-operator quickstart. Status: <code>green</code>. Route: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>Connect pack</strong>: Use the public-safe connect lane and receipt template. Status: <code>green</code>. Route: <code>/public-node/connect</code></li>
+<li><strong>Operator handoff packet</strong>: Read the public-safe handoff packet for outside node operators. Status: <code>green</code>. Route: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>Receipt example</strong>: Compare against a public-safe receipt example. Status: <code>green</code>. Route: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>Review checklist and decision surfaces</strong>: Use the manual review checklist, static decision template, and example decision. Status: <code>green</code>. Route: <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>Sealed review lane</strong>: Confirm the review lane rollup, final seal, and closeout proof chain. Status: <code>green</code>. Route: <code>/public-node/operator-review-lane-rollup-v1</code></li>
+<li><strong>Bootstrap and runtime checks</strong>: Confirm public bootstrap and local runtime smoke surfaces. Status: <code>green</code>. Route: <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Routes</h2>
+<ul>
+<li><strong>dashboard_page</strong>: <code>/public-node/operator-dashboard-v1</code></li>
+<li><strong>dashboard_json</strong>: <code>/public-node/public-node-operator-dashboard-v1.json</code></li>
+<li><strong>dashboard_html</strong>: <code>/public-node/public-node-operator-dashboard-v1.html</code></li>
+<li><strong>operator_status_rollup</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>operator_review_lane_rollup</strong>: <code>/public-node/operator-review-lane-rollup-v1</code></li>
+<li><strong>connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>connect_pack_json</strong>: <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>receipt_template</strong>: <code>/public-node/connect/receipt-template-v1</code></li>
+<li><strong>receipt_template_json</strong>: <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>handoff_packet</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>receipt_example</strong>: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>review_checklist</strong>: <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>decision_template</strong>: <code>/public-node/operator-receipt-review-decision-template-v1</code></li>
+<li><strong>decision_example</strong>: <code>/public-node/operator-receipt-review-decision-example-v1</code></li>
+<li><strong>bootstrap_public</strong>: <code>/__void/public-bootstrap.json</code></li>
+<li><strong>bootstrap_peers</strong>: <code>/bootstrap/peers.json</code></li>
+<li><strong>runtime_index</strong>: <code>/public-node/runtime/index.json</code></li>
+<li><strong>runtime_smoke_pack</strong>: <code>/public-node/runtime/smoke-pack-v1.sh</code></li>
+</ul>
+
+<h2>Boundary</h2>
+<ul>
+<li>Read-only public routes only.</li>
+<li>Operator dashboard only.</li>
+<li>Human-facing navigation only.</li>
+<li>Operator guidance only.</li>
+<li>Dashboard creates no receipt.</li>
+<li>Dashboard creates no review decision.</li>
+<li>Dashboard creates no Work Credit claim.</li>
+<li>Dashboard creates no validator admission.</li>
+<li>Dashboard creates no money movement.</li>
+<li>Not automatic peer dialing.</li>
+<li>Not mutation route enablement.</li>
+<li>Not wallet send enablement.</li>
+<li>Not money movement.</li>
+<li>Not buy VOID fulfillment.</li>
+<li>Not WC to VOID settlement.</li>
+<li>Not validator mutation or validator admission.</li>
+<li>Not public Work Credit self-serve earning.</li>
+<li>Not Work Credit claim creation.</li>
+<li>Not a public internet mesh claim.</li>
+<li>Do not share private keys, seed phrases, wallet secrets, signer secrets, private IPs, or private operator data.</li>
+</ul>
+
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1_GREEN</code></p>
+</body>
+</html>

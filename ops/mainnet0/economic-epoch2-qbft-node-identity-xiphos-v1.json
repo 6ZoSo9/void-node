@@ -1,0 +1,34 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_NODE_IDENTITY_PUBLIC_ATTESTATION_V1",
+  "version": 1,
+  "status": "PUBLIC_IDENTITY_DERIVATION_GREEN_UNBOUND",
+  "source_commit": "2800de45f46146818a4b9595300bf1f2add60613",
+  "machine_role": "xiphos",
+  "hostname": "Xiphos",
+  "void_node_id": "057593d7f3039b710bd904a081f83d17",
+  "node_base": "http://127.0.0.1:4102",
+  "besu": {
+    "client": "Besu",
+    "client_version": "26.8.1",
+    "image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "public_key": "0x04f4e3b8a08d7f22c88652e000ad5e94fcbe8e883d0dc677fe2e2e676d02fafa79f5e8d6678f52b7641bb57882571931377b5e6694bcc3035cce0ba19d438d6935",
+    "validator_address": "0x461bf06270d9d28962f7570182c061b828799b66",
+    "address_derivation_method": "ethers.SigningKey.publicKey + ethers.computeAddress",
+    "public_key_address_derivation_verified": true
+  },
+  "local_private_attestation": {
+    "filename": "void_epoch2_qbft_identity_xiphos_v1_20260928T132254Z.json",
+    "file_sha256": "511a6770292c3432ea17595e0db70630275b8aeb1f0c599a45f2705583a4ade2",
+    "private_key_content_exported": false,
+    "private_key_content_recorded_in_repo": false
+  },
+  "authority": {
+    "besu_node_started": false,
+    "production_validator_set_bound": false,
+    "validator_mutation": false,
+    "authoritative_chain2050_write": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation": false
+  }
+}

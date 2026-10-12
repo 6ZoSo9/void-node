@@ -1,0 +1,81 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_CONTRACT_V1",
+  "version": 1,
+  "scope": "mainnet0_public_node_self_check_snapshot",
+  "purpose": "prove the public-node self-check snapshot is remotely reachable, machine-readable, read-only, and aligned with the public discovery contracts",
+  "required_remote_public_paths": [
+    {
+      "path": "/public-node/self-check-snapshot.json",
+      "allowed_status": [200],
+      "reason": "externally testable public-node health snapshot"
+    }
+  ],
+  "required_snapshot": {
+    "marker": "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
+    "status": "public_node_externally_testable_read_only_surface_ready",
+    "min_expected_route_count": 8,
+    "must_include_expected_routes": [
+      "/public-node",
+      "/public-node/route-index.json",
+      "/public-node/route-manifest.json",
+      "/public-node/self-check-snapshot.json",
+      "/public-node/share-link.json",
+      "/public-node/tester-bundle.json",
+      "/public-node/outside-tester-smoke.json",
+      "/proofs"
+    ],
+    "required_links": [
+      "agent_discovery",
+      "external_tester_copy_pack",
+      "tester_result_intake",
+      "standalone_outside_tester_smoke_script",
+      "tester_share_page",
+      "tester_lane_summary",
+      "local_data_drop_index",
+      "real_data_import_lane_status"
+    ],
+    "forbidden_expected_route_prefixes": [
+      "/__void/diag/",
+      "/__void/dev/",
+      "/__void/operator/",
+      "/__void/admin/",
+      "/__debug/",
+      "/dev/"
+    ],
+    "forbidden_exact_routes": [
+      "/__void/participant/wallet/export"
+    ]
+  },
+  "required_manifest_entry": {
+    "path": "/public-node/self-check-snapshot.json",
+    "marker": "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
+    "safety_class": "public_read_only"
+  },
+  "policy_if_present": {
+    "public_routes_only": true,
+    "private_api": false,
+    "public_post_endpoint": false,
+    "mutation": false,
+    "read_only": true,
+    "money_movement": false,
+    "wallet_send": false,
+    "wc_to_void_swap": false,
+    "buy_void_fulfillment": false,
+    "validator_mutation": false
+  },
+  "authority": {
+    "public_mutation_authority": false,
+    "remote_diag_authority": false,
+    "remote_dev_authority": false,
+    "remote_operator_authority": false,
+    "remote_admin_authority": false,
+    "remote_wallet_export_authority": false
+  },
+  "nested_proofs_required": [
+    "public-node-route-manifest-contract-v1",
+    "public-node-route-index-contract-v1",
+    "public-route-contract-v1",
+    "public-live-boundary-v1",
+    "canonical-tx-hotpath-v1"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/operator/work-credits/datanet-wc-first-work-pack-private-operator-award-append-approval-example-hold-v1.schema.json",
+  "title": "DataNet WC First Work Pack Private Operator Award Append Approval Example Hold v1",
+  "type": "object",
+  "required": [
+    "kind",
+    "version",
+    "status",
+    "marker",
+    "visibility",
+    "public_route_created",
+    "source_chain",
+    "private_operator_approval_example",
+    "approval_example_packet",
+    "work_credit_policy",
+    "private_boundary",
+    "approval_boundary",
+    "safety_boundary"
+  ],
+  "properties": {
+    "kind": {
+      "const": "datanet_wc_first_work_pack_private_operator_award_append_approval_example"
+    },
+    "version": {
+      "const": "v1"
+    },
+    "status": {
+      "const": "hold_private_operator_award_append_approval_example_only"
+    },
+    "marker": {
+      "const": "VOID_DATANET_WC_FIRST_WORK_PACK_PRIVATE_OPERATOR_AWARD_APPEND_APPROVAL_EXAMPLE_HOLD_V1"
+    },
+    "visibility": {
+      "const": "private_operator_only"
+    },
+    "public_route_created": {
+      "const": false
+    },
+    "source_chain": {
+      "type": "object"
+    },
+    "private_operator_approval_example": {
+      "type": "object"
+    },
+    "approval_example_packet": {
+      "type": "object"
+    },
+    "work_credit_policy": {
+      "type": "object"
+    },
+    "private_boundary": {
+      "type": "object"
+    },
+    "approval_boundary": {
+      "type": "object"
+    },
+    "safety_boundary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

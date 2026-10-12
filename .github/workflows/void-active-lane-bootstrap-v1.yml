@@ -1,0 +1,37 @@
+name: VOID Active Lane Bootstrap V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-active-lane-bootstrap-v1.yml"
+      - "docs/operations/void-active-lane-bootstrap-v1.md"
+      - "examples/void-active-lane-bootstrap-v1.example.json"
+      - "scripts/prove_void_active_lane_bootstrap_v1.mjs"
+      - "tools/void-active-lane-bootstrap-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-active-lane-bootstrap-v1.yml"
+      - "docs/operations/void-active-lane-bootstrap-v1.md"
+      - "examples/void-active-lane-bootstrap-v1.example.json"
+      - "scripts/prove_void_active_lane_bootstrap_v1.mjs"
+      - "tools/void-active-lane-bootstrap-v1.mjs"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Prove guarded active-lane bootstrap
+        run: node scripts/prove_void_active_lane_bootstrap_v1.mjs

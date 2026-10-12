@@ -1,0 +1,41 @@
+name: Buy VOID candidate readiness root-scope guard v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-observe-and-claim-candidate-readiness-root-scope-guard-v1.yml"
+      - "docs/operators/buy-void-observe-and-claim-candidate-readiness-root-scope-guard-v1.md"
+      - "scripts/prove_buy_void_observe_and_claim_candidate_readiness_root_scope_guard_v1.mjs"
+      - "tools/buy-void-observe-and-claim-candidate-readiness-root-scope-guard-v1.mjs"
+      - "scripts/buy_void_observe_and_claim_candidate_readiness_v1.ts"
+      - "src/economic/buy_void_observe_and_claim_candidate_readiness_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-candidate-readiness-root-scope-guard-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: |
+          node --check tools/buy-void-observe-and-claim-candidate-readiness-root-scope-guard-v1.mjs
+          node --check scripts/prove_buy_void_observe_and_claim_candidate_readiness_root_scope_guard_v1.mjs
+      - name: Prove root-scope guard
+        run: node scripts/prove_buy_void_observe_and_claim_candidate_readiness_root_scope_guard_v1.mjs
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check

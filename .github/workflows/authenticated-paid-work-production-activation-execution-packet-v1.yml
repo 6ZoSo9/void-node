@@ -1,0 +1,45 @@
+name: Authenticated paid-work activation execution packet v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/authenticated-paid-work-production-activation-execution-packet-v1.yml"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json"
+      - "config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json"
+      - "docs/operations/authenticated-paid-work-production-activation-execution-packet-v1.md"
+      - "docs/operations/authenticated-paid-work-production-activation-source-commit-graph-v1.md"
+      - "scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs"
+      - "scripts/prove_authenticated_paid_work_production_activation_source_commit_graph_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-paid-work-production-activation-execution-packet-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parse source contracts
+        run: |
+          python3 -m json.tool config/activation-candidates/authenticated-paid-work-production-activation-execution-packet-v1.json >/dev/null
+          python3 -m json.tool config/activation-candidates/authenticated-paid-work-production-activation-credential-reference-metadata-v1.json >/dev/null
+      - name: Check proof syntax
+        run: |
+          node --check scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs
+          node --check scripts/prove_authenticated_paid_work_production_activation_source_commit_graph_v1.mjs
+      - name: Prove source commit graph
+        run: node scripts/prove_authenticated_paid_work_production_activation_source_commit_graph_v1.mjs
+      - name: Prove execution packet
+        run: node scripts/prove_authenticated_paid_work_production_activation_execution_packet_v1.mjs

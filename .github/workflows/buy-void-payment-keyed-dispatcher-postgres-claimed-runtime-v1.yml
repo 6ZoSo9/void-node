@@ -1,0 +1,83 @@
+name: Buy VOID dispatcher PostgreSQL claimed runtime v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_enqueue_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_claim_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-v1.md"
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-claimed-runtime-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_enqueue_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_claim_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-dispatcher-postgres-claimed-runtime-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove claimed PostgreSQL dispatcher composition
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          npm run build
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts \
+            | tee "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_V1_PROOF_GREEN' \
+            "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'cases=7' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'runtime_route_mount=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'caller_lease_authority=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'caller_worker_id_authority=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'server_enqueue_required=true' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'server_claim_required=true' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'claim_factory_closed_before_child=true' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'fresh_child_factory_revalidation_required=true' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'lease_capability_returned=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'automatic_retry=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'network_connection_performed=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'transaction_broadcast=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          grep -Fx 'funds_action=false' "$RUNNER_TEMP/postgres-claimed-runtime.log"
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_enqueue_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_claim_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts
+          git diff --check

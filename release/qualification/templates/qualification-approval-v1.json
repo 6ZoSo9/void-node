@@ -1,0 +1,18 @@
+{
+  "marker": "VOID_RELEASE_QUALIFICATION_APPROVAL_V1",
+  "schema_version": 1,
+  "repository": "OWNER/REPO",
+  "release_tag": "release-v0.0.0",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "qualification_receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "reviewer_id": "reviewer-id",
+  "approved_at_utc": "1970-01-01T00:00:00.000Z",
+  "approved": false,
+  "policy": {
+    "stable_promotion_authorized": true,
+    "single_person_run_and_approve_allowed": false,
+    "release_tag_published_by_approval": false,
+    "live_deployment": false,
+    "guarded_lanes_activated": false
+  }
+}

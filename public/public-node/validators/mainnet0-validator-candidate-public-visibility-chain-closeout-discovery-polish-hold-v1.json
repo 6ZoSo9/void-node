@@ -1,0 +1,63 @@
+{
+  "kind": "mainnet0_validator_candidate_public_visibility_chain_closeout_discovery_polish",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_CHAIN_CLOSEOUT_DISCOVERY_POLISH_HOLD_V1",
+  "version": 1,
+  "status": "hold",
+  "public_safe": true,
+  "read_only": true,
+  "discovery_polish_only": true,
+  "static_index_only": true,
+  "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-chain-closeout-discovery-polish-hold-v1.json",
+  "section_index_route": "/public-node/validators/index.json",
+  "preferred_reviewer_entrypoint": {
+    "label": "Mainnet-0 validator reviewer final seal HTML card",
+    "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-hold-v1.html",
+    "json_route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-hold-v1.json",
+    "runtime_visibility_route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-runtime-visibility-hold-v1.json",
+    "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_REVIEWER_FINAL_SEAL_HTML_CARD_HOLD_V1"
+  },
+  "source_records": [
+    {
+      "kind": "reviewer_final_seal",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_REVIEWER_FINAL_SEAL_HOLD_V1"
+    },
+    {
+      "kind": "reviewer_final_seal_html_card",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-hold-v1.html",
+      "json_route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_REVIEWER_FINAL_SEAL_HTML_CARD_HOLD_V1"
+    },
+    {
+      "kind": "reviewer_final_seal_html_runtime_visibility",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-reviewer-final-seal-html-card-runtime-visibility-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_REVIEWER_FINAL_SEAL_HTML_CARD_RUNTIME_VISIBILITY_HOLD_V1"
+    },
+    {
+      "kind": "closeout_rollup",
+      "route": "/public-node/validators/mainnet0-validator-candidate-public-visibility-closeout-rollup-hold-v1.json",
+      "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_PUBLIC_VISIBILITY_CLOSEOUT_ROLLUP_HOLD_V1"
+    }
+  ],
+  "reviewer_guidance": [
+    "Use the reviewer final seal HTML card as the safest human-readable entrypoint.",
+    "Use the reviewer final seal JSON for machine-readable chain binding.",
+    "Use the runtime visibility record to confirm the HTML card is static and public-safe.",
+    "This discovery polish does not enable any validator action."
+  ],
+  "public_surface": {
+    "public_submit_enabled": false,
+    "stake_lock_enabled": false,
+    "wallet_connect_enabled": false,
+    "candidate_registration_enabled": false,
+    "candidate_intake_enabled": false,
+    "active_admission_enabled": false,
+    "activation_enabled": false,
+    "epoch_mutation_enabled": false,
+    "validator_set_write_enabled": false,
+    "validator_runtime_truth_write_enabled": false,
+    "runtime_mutation_route_enabled": false,
+    "mutation_handler_enabled": false,
+    "signer_or_wallet_required": false
+  }
+}

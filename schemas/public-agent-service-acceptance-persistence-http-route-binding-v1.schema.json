@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-acceptance-persistence-http-route-binding-v1.schema.json",
+  "title": "VOID Public Agent Service Acceptance Persistence HTTP Route Binding V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "config",
+    "status_request",
+    "command_request",
+    "disabled_response",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_BINDING_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "status_request": {
+      "$ref": "#/$defs/request"
+    },
+    "command_request": {
+      "$ref": "#/$defs/request"
+    },
+    "disabled_response": {
+      "$ref": "#/$defs/response"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    }
+  },
+  "$defs": {
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "max_body_bytes"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_body_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "method",
+        "path",
+        "remote_address",
+        "headers",
+        "body"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_REQUEST_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16,
+          "pattern": "^[A-Z]+$"
+        },
+        "path": {
+          "enum": [
+            "/__void/operator/public-agent-service-acceptance-persistence-runtime-v1/status",
+            "/__void/operator/public-agent-service-acceptance-persistence-runtime-v1/command"
+          ]
+        },
+        "remote_address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 16777216
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status_code",
+        "headers",
+        "body",
+        "route_enabled",
+        "loopback_verified",
+        "runtime_config_loaded",
+        "runtime_invoked",
+        "runtime_status"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_RESPONSE_V1"
+        },
+        "version": {
+          "const": 1
+        },
+        "status_code": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "type": "string"
+        },
+        "route_enabled": {
+          "type": "boolean"
+        },
+        "loopback_verified": {
+          "type": "boolean"
+        },
+        "runtime_config_loaded": {
+          "type": "boolean"
+        },
+        "runtime_invoked": {
+          "type": "boolean"
+        },
+        "runtime_status": {
+          "type": ["string", "null"],
+          "enum": [
+            null,
+            "disabled",
+            "planned",
+            "persisted",
+            "duplicate",
+            "recovered"
+          ]
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_http_route_mounted",
+        "network_listener_created",
+        "external_http_submission",
+        "production_acceptance_persistence_performed",
+        "production_replay_write_performed",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "production_signing",
+        "transaction_broadcast",
+        "work_credit_write",
+        "runtime_mutation",
+        "service_change",
+        "money_movement"
+      ],
+      "properties": {
+        "production_http_route_mounted": { "const": false },
+        "network_listener_created": { "const": false },
+        "external_http_submission": { "const": false },
+        "production_acceptance_persistence_performed": { "const": false },
+        "production_replay_write_performed": { "const": false },
+        "payment_authorization": { "const": false },
+        "payment_execution": { "const": false },
+        "execution_authorization": { "const": false },
+        "work_dispatch": { "const": false },
+        "production_signing": { "const": false },
+        "transaction_broadcast": { "const": false },
+        "work_credit_write": { "const": false },
+        "runtime_mutation": { "const": false },
+        "service_change": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+name: VOID public bootstrap record v2 locator resolver v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-record-v2-locator-resolver-v1.yml"
+      - "docs/public/public-bootstrap-record-v2-locator-resolver-v1.md"
+      - "scripts/lib/void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_record_v2_locator_resolver_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/prove_void_public_bootstrap_record_v2_locator_resolver_v1.mjs
+      - run: node scripts/prove_void_public_bootstrap_record_v2_mirror_contract_v1.mjs
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check

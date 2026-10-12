@@ -1,0 +1,41 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1",
+  "status": "reviewer_final_seal_hold",
+  "public_surface": "read_only_static_reviewer_final_seal",
+  "review_scope": [
+    "operator_readiness_matrix",
+    "operator_readiness_matrix_root_index_link",
+    "operator_preflight_checklist",
+    "operator_preflight_checklist_root_index_link",
+    "operator_readiness_chain_rollup",
+    "operator_readiness_chain_rollup_root_index_link"
+  ],
+  "source_markers": [
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_MATRIX_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_INDEX_LINK_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_PREFLIGHT_CHECKLIST_INDEX_LINK_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+    "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_INDEX_LINK_HOLD_V1_GREEN"
+  ],
+  "source_links": {
+    "chain_rollup_json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.json",
+    "chain_rollup_html": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.html",
+    "chain_rollup_index_json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-index-link-hold-v1.json",
+    "root_index_json": "/public-node/index.json"
+  },
+  "authority": {
+    "registration_enabled": false,
+    "checklist_submission_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "peer_state_write_enabled": false,
+    "validator_set_write_enabled": false
+  },
+  "summary": "The Mainnet-0 public node operator readiness stack is sealed for reviewer visibility as read-only public guidance. No registration, submission, staking, wallet connection, validator admission, validator activation, ledger write, peer-state write, validator-set write, or public mutation authority is enabled."
+}

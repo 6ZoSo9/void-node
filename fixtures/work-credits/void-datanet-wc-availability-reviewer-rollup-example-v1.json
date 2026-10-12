@@ -1,0 +1,35 @@
+{
+  "packet_kind": "datanet_wc_availability_reviewer_rollup_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_ROLLUP_V1",
+  "participant_id": "example-participant-local-only",
+  "object_id_or_content_root": "sha256:example-content-root-not-live",
+  "reviewer_decision": "approved_for_wc_review",
+  "duplicate_guard_result": "not_duplicate",
+  "recommendation_status": "award_recommendation_hold_present",
+  "rollup_status": "ready_for_future_wc_ledger_review",
+  "reviewer_id": "example-reviewer-local-only",
+  "timestamp": "2026-06-26T00:00:00.000Z",
+  "covered_markers": {
+    "quest_lane_marker": "VOID_DATANET_WC_AVAILABILITY_QUEST_LANE_V1",
+    "evidence_packet_marker": "VOID_DATANET_WC_AVAILABILITY_EVIDENCE_PACKET_SCHEMA_V1",
+    "reviewer_decision_marker": "VOID_DATANET_WC_AVAILABILITY_REVIEWER_DECISION_PACKET_V1",
+    "award_recommendation_marker": "VOID_DATANET_WC_AVAILABILITY_AWARD_RECOMMENDATION_HOLD_V1",
+    "duplicate_guard_marker": "VOID_DATANET_WC_AVAILABILITY_DUPLICATE_GUARD_V1"
+  },
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "automatic_reward": false,
+    "bypasses_later_ledger_write_proof": false
+  },
+  "authority_boundary": {
+    "activates_public_mutation": false,
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}

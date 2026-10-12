@@ -1,0 +1,52 @@
+name: VOID Public Seed Total Request Deadline V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-total-request-deadline-v1.yml"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/prove_void_public_seed_total_request_deadline_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-total-request-deadline-v1.yml"
+      - "scripts/lib/void_public_seed_probe_v1.mjs"
+      - "scripts/lib/void_public_seed_common_v1.mjs"
+      - "scripts/lib/void_public_seed_receipt_v1.mjs"
+      - "scripts/prove_void_public_seed_total_request_deadline_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check source and proof syntax
+        run: |
+          node --check scripts/lib/void_public_seed_probe_v1.mjs
+          node --check scripts/prove_void_public_seed_total_request_deadline_v1.mjs
+      - name: Prove total request deadline
+        run: node scripts/prove_void_public_seed_total_request_deadline_v1.mjs
+      - name: Preserve canonical public-seed qualification proof
+        run: node scripts/prove_void_public_seed_qualification_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

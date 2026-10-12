@@ -1,0 +1,161 @@
+# validateBlockForAppend saveBlock context discovery v2
+
+- generated_at: 1970-01-01T00:00:00.000Z
+- closure_status: CONTEXT_DISCOVERY_READY
+- blocker_failures: none
+- warning_failures: none
+- node_core_sha256: d49db904a2c92f0fbe6f9cb6be65029fd1dbef44c9d2ecb759098da2b4e9fbb8
+- block_source_sha256: ba2c4bfd1f0fc16e2ca3fc11a788a78cd8f70882e5fe9c926e978c0f7c3fdc9f
+- literal_saveBlock_count: 3
+- unguarded_literal_saveBlock_count: 1
+
+## Findings
+
+- [PASS] node-core-present (blocker): src/node_core.ts
+- [PASS] block-source-present (blocker): src/chain/block.ts
+- [PASS] validateBlockForAppend-exported (blocker): validateBlockForAppend export visible in src/chain/block.ts
+- [PASS] node-core-references-validateBlockForAppend (blocker): src/node_core.ts references validateBlockForAppend somewhere
+- [PASS] literal-saveBlock-call-sites-discovered (blocker): literal saveBlock matches=3
+- [PASS] context-candidates-discovered (warn): all persistence-ish matches=3
+- [FAIL] unguarded-literal-saveBlock-count (info): unguarded literal saveBlock matches=1
+
+## Contexts
+
+### Context 1: saveBlock at src/node_core.ts:693:16
+
+- hasValidateBlockForAppendNearby: false
+- hasExplicitInvalidImportedBlockNearby: false
+
+```ts
+  675:       blobRoot: roots.blobRoot,
+  676:       proposer: this.id,
+  677:     } as any);
+  678: 
+  679:     const sig = signBytes(this.priv, headerBytes);
+  680:     const b: Block = {
+  681:       number,
+  682:       parentHash,
+  683:       timestamp: now,
+  684:       txRoot: roots.txRoot,
+  685:       blobRoot: roots.blobRoot,
+  686:       txs,
+  687:       blobs,
+  688:       proposer: this.id,
+  689:       proposerPubkey: this.pubPEM,
+  690:       sig,
+  691:     };
+  692: 
+  693:     this.store.saveBlock(b);
+  694: 
+  695:     if (b.txs?.length) {
+  696:       try {
+  697:         const refs = b.txs.map((tx, i) => ({ h: tx.hash.toLowerCase(), n: b.number, o: i }));
+  698:         this.txIndex.putMany(refs);
+  699:       } catch {}
+  700:       try {
+  701:         const shard = this.txIndex.shardForBlock(b.number);
+  702:         await buildKidxForJsonl(shard.path);
+  703:       } catch {}
+  704:       try {
+  705:         const anyReceipts: any = this.receipts as any;
+  706:         const recs = b.txs.map((tx, i) => ({
+  707:           h: tx.hash.toLowerCase(),
+  708:           n: b.number,
+  709:           o: i,
+  710:           ts: b.timestamp ?? now,
+  711:         }));
+```
+
+### Context 2: saveBlock at src/node_core.ts:890:20
+
+- hasValidateBlockForAppendNearby: true
+- hasExplicitInvalidImportedBlockNearby: true
+
+```ts
+  872:           return {
+  873:             ok: false,
+  874:             imported,
+  875:             alreadyHad,
+  876:             filled,
+  877:             reason: "invalid imported block",
+  878:             invalidBlock: n,
+  879:             invalidReason: (valid as any).reason || "unknown",
+  880:             myHead,
+  881:             theirHead,
+  882:             from,
+  883:             to,
+  884:             got: Array.isArray(arr) ? arr.length : 0,
+  885:             retried,
+  886:             importedNums,
+  887:           };
+  888:         }
+  889: 
+  890:         this.store.saveBlock(b);
+  891:         imported++;
+  892:         importedNums.push(n);
+  893: 
+  894:         if (incomingHasTxs) {
+  895:           try {
+  896:             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
+  897:             this.txIndex.putMany(refs);
+  898:           } catch {}
+  899:           try {
+  900:             const anyReceipts: any = this.receipts as any;
+  901:             const recs = b.txs.map((tx: any, i: number) => ({
+  902:               h: String(tx.hash).toLowerCase(),
+  903:               n,
+  904:               o: i,
+  905:               ts: b.timestamp ?? Date.now(),
+  906:             }));
+  907:             if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
+  908:             else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
+```
+
+### Context 3: saveBlock at src/node_core.ts:939:20
+
+- hasValidateBlockForAppendNearby: true
+- hasExplicitInvalidImportedBlockNearby: true
+
+```ts
+  921:             ok: false,
+  922:             imported,
+  923:             alreadyHad,
+  924:             filled,
+  925:             reason: "invalid imported fill block",
+  926:             invalidBlock: n,
+  927:             invalidReason: (valid as any).reason || "unknown",
+  928:             myHead,
+  929:             theirHead,
+  930:             from,
+  931:             to,
+  932:             got: Array.isArray(arr) ? arr.length : 0,
+  933:             retried,
+  934:             importedNums,
+  935:           };
+  936:         }
+  937: 
+  938:         const merged = { ...existing, ...b, txs: b.txs };
+  939:         this.store.saveBlock(merged);
+  940:         filled++;
+  941:         importedNums.push(n);
+  942: 
+  943:         try {
+  944:           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
+  945:           this.txIndex.putMany(refs);
+  946:         } catch {}
+  947:         try {
+  948:           const anyReceipts: any = this.receipts as any;
+  949:           const recs = b.txs.map((tx: any, i: number) => ({
+  950:             h: String(tx.hash).toLowerCase(),
+  951:             n,
+  952:             o: i,
+  953:             ts: b.timestamp ?? Date.now(),
+  954:           }));
+  955:           if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
+  956:           else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
+  957:         } catch {}
+```
+
+## Boundary
+
+Static/source context discovery only. This workflow deliberately does not patch code or claim fork-choice, consensus-finality, wallet-authority, ledger-write, validator-admission, signer-rotation, or autonomous-mutation closure.

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/authenticated-paid-work-submission-review-queue-handoff-v1.schema.json",
+  "title": "VOID Authenticated Paid Work Submission Review Queue Item V1",
+  "type": "object",
+  "additionalProperties": false,
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_REVIEW_QUEUE_ITEM_V1",
+  "required": [
+    "marker",
+    "version",
+    "queue_item_id",
+    "status",
+    "queued_at_utc",
+    "receipt",
+    "authentication",
+    "admission",
+    "review_boundary",
+    "next_action"
+  ],
+  "properties": {
+    "marker": {"const": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_REVIEW_QUEUE_ITEM_V1"},
+    "version": {"const": 1},
+    "queue_item_id": {"type": "string", "pattern": "^voidapwsrq1_[0-9a-f]{64}$"},
+    "status": {"const": "received_pending_operator_review"},
+    "queued_at_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "submission_id", "work_order_id", "request_payload_sha256", "canonical_request_sha256", "admission_id", "received_at_utc"],
+      "properties": {
+        "receipt_id": {"type": "string", "pattern": "^voidawsi1_[0-9a-f]{64}$"},
+        "submission_id": {"type": "string", "minLength": 3},
+        "work_order_id": {"type": "string", "pattern": "^voidawo1_[0-9a-f]{64}$"},
+        "request_payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "canonical_request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "admission_id": {"type": "string", "pattern": "^voidawsa1_[0-9a-f]{64}$"},
+        "received_at_utc": {"type": "string"}
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "registry_id", "credential_id", "agent_id", "scope", "authorization_verified"],
+      "properties": {
+        "mode": {"const": "credential_registry"},
+        "registry_id": {"type": "string", "pattern": "^voidapwcr1_[0-9a-f]{64}$"},
+        "credential_id": {"type": "string", "pattern": "^voidapwc1_[0-9a-f]{64}$"},
+        "agent_id": {"type": "string", "minLength": 3},
+        "scope": {"const": "agent_paid_work_submit"},
+        "authorization_verified": {"const": true}
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "decision", "reason_codes", "capability_id", "quote_asset", "max_total", "max_runtime_seconds", "max_output_bytes", "input_ref_count", "expected_output_count", "callback_scheme", "callback_host", "ttl_seconds"],
+      "properties": {
+        "policy_id": {"type": "string"},
+        "decision": {"const": "accepted_for_review"},
+        "reason_codes": {"type": "array", "maxItems": 0},
+        "capability_id": {"type": "string"},
+        "quote_asset": {"type": "string"},
+        "max_total": {"type": "string"},
+        "max_runtime_seconds": {"type": "integer", "minimum": 1},
+        "max_output_bytes": {"type": "integer", "minimum": 1},
+        "input_ref_count": {"type": "integer", "minimum": 0},
+        "expected_output_count": {"type": "integer", "minimum": 1},
+        "callback_scheme": {"type": "string"},
+        "callback_host": {"type": "string"},
+        "ttl_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "review_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operator_review_required",
+        "provider_selection_granted",
+        "quote_creation_granted",
+        "payment_authorization_granted",
+        "payment_execution_granted",
+        "work_execution_authorization_granted",
+        "work_dispatch_granted",
+        "wc_award_granted",
+        "wc_ledger_write_granted",
+        "void_settlement_granted",
+        "wallet_or_signer_access_granted",
+        "signing_granted",
+        "transaction_broadcast_granted",
+        "buy_void_fulfillment_granted"
+      ],
+      "properties": {
+        "operator_review_required": {"const": true},
+        "provider_selection_granted": {"const": false},
+        "quote_creation_granted": {"const": false},
+        "payment_authorization_granted": {"const": false},
+        "payment_execution_granted": {"const": false},
+        "work_execution_authorization_granted": {"const": false},
+        "work_dispatch_granted": {"const": false},
+        "wc_award_granted": {"const": false},
+        "wc_ledger_write_granted": {"const": false},
+        "void_settlement_granted": {"const": false},
+        "wallet_or_signer_access_granted": {"const": false},
+        "signing_granted": {"const": false},
+        "transaction_broadcast_granted": {"const": false},
+        "buy_void_fulfillment_granted": {"const": false}
+      }
+    },
+    "next_action": {"const": "operator_review_before_provider_selection_or_quote_creation"}
+  }
+}

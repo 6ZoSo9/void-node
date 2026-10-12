@@ -1,0 +1,156 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-order-status-readonly-accepted-for-review-producer-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ACCEPTED_FOR_REVIEW_PRODUCER_V1"
+    },
+    "producer_binding_id": {
+      "pattern": "^voidaosafrp1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "submission_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "submission_request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "work_order_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "submission_request_sha256",
+        "work_order_sha256",
+        "submission_receipt_sha256"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "additionalProperties": false,
+          "properties": {
+            "acceptance_id": {
+              "type": "null"
+            },
+            "completion_receipt_id": {
+              "type": "null"
+            },
+            "dispatch_id": {
+              "type": "null"
+            },
+            "execution_authorization_id": {
+              "type": "null"
+            },
+            "payment_authorization_id": {
+              "type": "null"
+            },
+            "payment_receipt_id": {
+              "type": "null"
+            },
+            "provider_response_id": {
+              "type": "null"
+            },
+            "quote_handoff_id": {
+              "type": "null"
+            },
+            "quote_id": {
+              "type": "null"
+            },
+            "submission_receipt_id": {
+              "pattern": "^voidawsi1_[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "submission_receipt_id",
+            "quote_handoff_id",
+            "quote_id",
+            "provider_response_id",
+            "acceptance_id",
+            "payment_authorization_id",
+            "payment_receipt_id",
+            "execution_authorization_id",
+            "dispatch_id",
+            "completion_receipt_id"
+          ],
+          "type": "object"
+        },
+        "lifecycle": {
+          "const": {
+            "acceptance_status": "none",
+            "completion_status": "none",
+            "execution_status": "none",
+            "payment_status": "none",
+            "quote_status": "none",
+            "submission_status": "accepted_for_review"
+          }
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_SOURCE_V1"
+        },
+        "observed_at_utc": {
+          "type": "string"
+        },
+        "submission_id": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        },
+        "work_order_id": {
+          "pattern": "^voidawo1_[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "observed_at_utc",
+        "submission_id",
+        "work_order_id",
+        "lifecycle",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "producer_binding_id",
+    "source",
+    "provenance",
+    "authority"
+  ],
+  "title": "VOID Public Agent Service Order Status Read-Only Accepted-for-Review Producer V1",
+  "type": "object",
+  "x-void-contract": {
+    "activation_authority": false,
+    "configuration_authority": false,
+    "marker_const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ACCEPTED_FOR_REVIEW_PRODUCER_V1",
+    "next_action_const": "await_provider_quote_handoff",
+    "phase_const": "accepted_for_review",
+    "source_file_write_authority": false,
+    "source_marker_const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_SOURCE_V1",
+    "version_const": 1
+  }
+}

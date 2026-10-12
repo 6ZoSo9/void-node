@@ -1,0 +1,47 @@
+{
+  "schema": "void_economic_epoch2_durable_replay_store_consume_equivalence_v1",
+  "marker": "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_CONSUME_EQUIVALENCE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "source_path": "tools/void-economic-epoch2-durable-replay-store-v1.mjs",
+  "predecessor": {
+    "source_commit_sha": "24806b94cbaf3ea19d206ce542f4804cce5112db",
+    "git_blob_sha1": "2e4481fbf45200121356f39c278eac5b05a33596"
+  },
+  "successor": {
+    "git_blob_sha1": "2b267e11d087bec0e0a56825dce9f998d5bc3ad5",
+    "added_api": "inspectConsumed"
+  },
+  "gateway": {
+    "source_path": "tools/void-economic-epoch2-public-submission-gateway-v1.mjs",
+    "runtime_replay_api": "consumeIfFresh",
+    "inspect_consumed_called": false
+  },
+  "equivalence": {
+    "consume_if_fresh_exact_source_match": true,
+    "receipt_validation_semantics_equivalent": true,
+    "validate_existing_receipt_delegate_only": true,
+    "atomic_consume_path_changed": false,
+    "runtime_evidence_carry_forward_scope": "atomic_consume_path_only"
+  },
+  "historical_runtime_evidence": {
+    "evidence_file": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",
+    "evidence_file_sha256": "9dcf63514e6bdb2daf2a099ef3676b04ed2cffc71699932190f590864f4e5d99",
+    "evidence_id": "voide2gre1_0b6e8edc4220370e3e811f075063a6a7636fefb713f1be27e17aef319ae6719a",
+    "import_evaluated_at_utc": "2026-09-29T17:32:16Z"
+  },
+  "authority": {
+    "source_equivalence_only": true,
+    "runtime_canary_reexecuted": false,
+    "negative_inspection_authority": false,
+    "atomic_consume_authority_changed": false,
+    "runtime_route_active": false,
+    "public_submission_open": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement": false
+  }
+}

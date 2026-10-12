@@ -1,0 +1,41 @@
+name: external-opportunity-observer-v1
+
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/external-opportunity-observer-v1.md"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+      - "scripts/prove_external_opportunity_observer_v1.ts"
+      - ".github/workflows/external-opportunity-observer-v1.yml"
+  push:
+    branches:
+      - "feat/external-opportunity-observer-v1"
+    paths:
+      - "docs/architecture/external-opportunity-observer-v1.md"
+      - "src/external_opportunity/across_quote_observer_v1.ts"
+      - "scripts/prove_external_opportunity_observer_v1.ts"
+      - ".github/workflows/external-opportunity-observer-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prove paper-only Across observer
+        run: npx tsx scripts/prove_external_opportunity_observer_v1.ts
+
+      - name: Build
+        run: npm run build

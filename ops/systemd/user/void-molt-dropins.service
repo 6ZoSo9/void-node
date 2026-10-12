@@ -1,0 +1,9 @@
+[Unit]
+Description=VOID Node: molt (clean/normalize drop-ins)
+Wants=void-node.service
+After=void-node.service
+ConditionPathExists=%h/.local/bin/void-molt-dropins.sh
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/void-molt-dropins.sh

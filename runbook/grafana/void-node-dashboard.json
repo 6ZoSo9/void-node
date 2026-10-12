@@ -1,0 +1,70 @@
+{
+  "title": "void-node",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Head",
+      "targets": [
+        {
+          "expr": "void_head_number"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Mempool",
+      "targets": [
+        {
+          "expr": "void_mempool_size"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Peers",
+      "targets": [
+        {
+          "expr": "void_peers_connected"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Follower OK/Err",
+      "targets": [
+        {
+          "expr": "rate(void_follower_ok[5m])"
+        },
+        {
+          "expr": "rate(void_follower_err[5m])"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      }
+    }
+  ],
+  "schemaVersion": 16,
+  "version": 1
+}

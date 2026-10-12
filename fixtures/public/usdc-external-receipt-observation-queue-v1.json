@@ -1,0 +1,81 @@
+{
+  "marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
+  "status": "receipt_observation_queue_defined_authority_false",
+  "queue_definition_only": true,
+  "public_mutation_enabled": false,
+  "live_fetch_now": false,
+  "finality_verified_now": false,
+  "external_state_root_trust_enabled": false,
+  "real_payment_verified_now": false,
+  "automatic_fulfillment_enabled": false,
+  "private_allocation_ledger_write_enabled": false,
+  "inventory_reserved_now": false,
+  "void_transfer_now": false,
+  "jobs": [
+    {
+      "job_id": "fixture_success_001",
+      "input_state": "queued_observation",
+      "http_status": 200,
+      "rpc_result_receipt_present": true,
+      "receipt_status": "0x1",
+      "expected_queue_state": "observed_receipt_success",
+      "retry_allowed": false,
+      "operator_review_required": true
+    },
+    {
+      "job_id": "fixture_not_found_001",
+      "input_state": "queued_observation",
+      "http_status": 200,
+      "rpc_result_receipt_present": false,
+      "receipt_status": null,
+      "expected_queue_state": "observed_receipt_not_found",
+      "retry_allowed": true,
+      "operator_review_required": false
+    },
+    {
+      "job_id": "fixture_403_001",
+      "input_state": "queued_observation",
+      "http_status": 403,
+      "rpc_result_receipt_present": false,
+      "receipt_status": null,
+      "expected_queue_state": "endpoint_blocked_403_no_retry",
+      "retry_allowed": false,
+      "operator_review_required": true
+    },
+    {
+      "job_id": "fixture_429_001",
+      "input_state": "queued_observation",
+      "http_status": 429,
+      "rpc_result_receipt_present": false,
+      "receipt_status": null,
+      "expected_queue_state": "rate_limited_429_backoff",
+      "retry_allowed": true,
+      "operator_review_required": false
+    },
+    {
+      "job_id": "fixture_timeout_001",
+      "input_state": "queued_observation",
+      "transport_error": "timeout",
+      "expected_queue_state": "timeout_retry_backoff",
+      "retry_allowed": true,
+      "operator_review_required": false
+    },
+    {
+      "job_id": "fixture_rpc_error_001",
+      "input_state": "queued_observation",
+      "http_status": 200,
+      "rpc_error_present": true,
+      "expected_queue_state": "rpc_error_hold",
+      "retry_allowed": false,
+      "operator_review_required": true
+    },
+    {
+      "job_id": "fixture_ambiguous_001",
+      "input_state": "queued_observation",
+      "http_status": 502,
+      "expected_queue_state": "operator_review_required",
+      "retry_allowed": false,
+      "operator_review_required": true
+    }
+  ]
+}

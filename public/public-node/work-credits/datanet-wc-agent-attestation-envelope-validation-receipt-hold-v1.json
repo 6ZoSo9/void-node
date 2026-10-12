@@ -1,0 +1,45 @@
+{
+  "schema": "void.datanet.wc.agent_attestation_envelope_validation_receipt.v1",
+  "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_VALIDATION_RECEIPT_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Attestation Envelope Validation Receipt",
+  "public_surface": true,
+  "read_only": true,
+  "source": {
+    "main_head": "29a313e4",
+    "subject": "feat: add DataNet WC agent attestation envelope schema index closeout final seal",
+    "final_seal_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+    "schema_candidate_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+    "schema_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.schema.json",
+    "example_json": "datanet-wc-agent-attestation-envelope-schema-candidate-example-hold-v1.json",
+    "schema_status_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.json",
+    "final_seal_json": "datanet-wc-agent-attestation-envelope-schema-candidate-index-patch-closeout-final-seal-hold-v1.json",
+    "final_seal_html": "datanet-wc-agent-attestation-envelope-schema-candidate-index-patch-closeout-final-seal-hold-v1.html"
+  },
+  "validation": {
+    "schema_candidate_exists": true,
+    "example_envelope_exists": true,
+    "schema_id_valid": true,
+    "example_schema_value_valid": true,
+    "required_top_level_fields_present": true,
+    "actor_type_allowed": true,
+    "review_status_allowed": true,
+    "award_state_allowed": true,
+    "work_credits_policy_unlimited_uncapped": true,
+    "authority_boundary_preserved": true,
+    "public_static_read_only": true
+  },
+  "boundary": {
+    "validation_receipt_only": true,
+    "identity_registry_write_enabled": false,
+    "attestation_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}

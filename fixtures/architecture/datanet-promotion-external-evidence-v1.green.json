@@ -1,0 +1,31 @@
+{
+  "schema": "void_datanet_promotion_external_evidence_v1",
+  "marker": "VOID_DATANET_PROMOTION_EXTERNAL_EVIDENCE_V1",
+  "version": 1,
+  "corroboration_evidence": {
+    "object_id": "void-real-user-note-v1.txt",
+    "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
+    "source_locator": "evidence://void/datanet/corroboration/void-real-user-note-v1",
+    "independent_source_count": 2,
+    "conflict_detected": false,
+    "evidence_sha256": "b25d20450720c12c938ca232ce0743e413191185ca26c3c2e2dea1015fb4990e"
+  },
+  "reproducibility_evidence": {
+    "object_id": "void-real-user-note-v1.txt",
+    "sha256": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
+    "source_locator": "evidence://void/datanet/reproducibility/void-real-user-note-v1",
+    "independent_verifier_count": 1,
+    "replay_verified": true,
+    "evidence_sha256": "de39e645188e5af150ed7cd18faa507a8d6c6c050486aeea1dbbb311b7e25511"
+  },
+  "authority": {
+    "evidence_only": true,
+    "chain2050_write_authorized": false,
+    "validator_authority_granted": false,
+    "governance_mutation_authorized": false,
+    "signer_or_wallet_access": false,
+    "work_credit_award_authorized": false,
+    "runtime_service_action": false,
+    "funds_action": false
+  }
+}

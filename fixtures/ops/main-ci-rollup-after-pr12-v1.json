@@ -1,0 +1,38 @@
+{
+  "marker": "VOID_MAIN_CI_ROLLUP_AFTER_PR12_V1",
+  "scope": "main_ci_rollup_after_pr12",
+  "purpose": "prove main CI/PR recovery state after PRs 9 through 12",
+  "expected_main_head": "35c6885bb56f490e8ca56b903a57fb9644b93e6f",
+  "expected_recent_prs": [
+    9,
+    10,
+    11,
+    12
+  ],
+  "required_tags": [
+    "ckpt-main-public-node-self-check-snapshot-contract-v1-post-merge-green-20260626",
+    "ckpt-main-guard-baseline-after-public-node-self-check-pr9-post-merge-green-20260626",
+    "ckpt-main-ci-baseline-cleanup-after-guard-baseline-pr10-post-merge-green-20260626",
+    "ckpt-main-ops-guards-executable-bit-after-ci-baseline-pr11-post-merge-green-20260626"
+  ],
+  "required_local_checks": [
+    "open_pr_count_zero",
+    "recent_prs_merged",
+    "required_tags_exist",
+    "index_guard_green",
+    "large_history_baseline_guard_green",
+    "large_worktree_guard_green",
+    "tsc_noemit_baseline_guard_green",
+    "beta_proof_guard_green",
+    "license_guard_green",
+    "prom_verify_green",
+    "ops_executable_guard_green",
+    "ops_crlf_guard_green"
+  ],
+  "boundary": {
+    "runtime_change": false,
+    "public_node_route_change": false,
+    "wallet_or_money_movement": false,
+    "ci_rollup_only": true
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_INDEX_LINK_HOLD_V1_GREEN",
+  "lane": "mainnet0-public-node-operator-readiness-chain-rollup-index-link-hold-v1",
+  "status": "index_link_hold",
+  "public_surface": "read_only_static_index_link",
+  "source": {
+    "marker": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_CHAIN_ROLLUP_HOLD_V1_GREEN",
+    "lane": "mainnet0-public-node-operator-readiness-chain-rollup-hold-v1",
+    "json": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.json",
+    "html": "/public-node/mainnet0-public-node-operator-readiness-chain-rollup-hold-v1.html"
+  },
+  "authority": {
+    "registration_enabled": false,
+    "checklist_submission_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_activation_enabled": false,
+    "staking_enabled": false,
+    "wallet_connect_enabled": false,
+    "public_mutation_enabled": false,
+    "ledger_write_enabled": false,
+    "peer_state_write_enabled": false,
+    "validator_set_write_enabled": false
+  },
+  "summary": "The root public-node index now exposes a read-only link to the Mainnet-0 public node operator readiness chain rollup without enabling registration, submission, staking, wallet connection, validator activation, or mutation authority."
+}

@@ -1,0 +1,64 @@
+{
+  "checkpoint": {
+    "claims_remote_main_deployed": false,
+    "tag": "ckpt-validator-positive-readiness-wallet-recovery-v11-final-closeout-exact-green-20260720T070906Z",
+    "target_commit": "8b961e919148e4035d03e32e20b12685df119beb",
+    "targets_exact_deployed_runtime": true
+  },
+  "claims": {
+    "active_validator_set_mutation_performed": false,
+    "checkpoint_claims_remote_main_deployed": false,
+    "double_submit_reservation_created": false,
+    "positive_readiness_core_proof_green": true,
+    "positive_readiness_wrapper_exact_green": false,
+    "production_wallet_json_file_count": 44,
+    "production_wallet_store_restored_exact": true,
+    "proof_status_mode_read_only": true,
+    "proof_wallet_absent_after_recovery": true,
+    "public_validator_registration_enabled_by_this_evidence": false,
+    "readiness_gates_green_during_proof": true,
+    "remote_boxes_green_at_final_closeout": true,
+    "runtime_checkpoint_tag_verified": true,
+    "submit_intent_journal_changed_by_recovery": false,
+    "submit_intent_journal_entries_final": 4,
+    "submit_live_kill_switch_remained_off": true,
+    "submit_live_transaction_sent": false,
+    "temporary_recovery_artifacts_absent": true,
+    "transaction_signing_or_broadcast_performed": false,
+    "validator_live_execution_final": false,
+    "validator_registration_or_admission_performed": false,
+    "validator_signer_selected_final": false,
+    "validator_status_proof_mode_final": false,
+    "wrapper_cleanup_failure_recovered": true
+  },
+  "evidence": [
+    {
+      "kind": "positive_readiness_core",
+      "receipt_contract_green": true,
+      "sha256": "ff4bd98d306af268d1d42817489d2f071a9ddc428c73afe50ebada4f47b181c2"
+    },
+    {
+      "kind": "runtime_checkpoint_tag",
+      "receipt_contract_green": true,
+      "sha256": "6242e5ecf3cfc829962e20778383622455ebee6a83dd65fce8fbf59af821cad3"
+    },
+    {
+      "kind": "wallet_recovery_final_closeout",
+      "receipt_contract_green": true,
+      "sha256": "af4a2e3e99a401a5616feab5e2d09169319e9ec3592024d72caeb712a7d51c21"
+    },
+    {
+      "kind": "wallet_recovery_v11",
+      "receipt_contract_green": true,
+      "sha256": "7ade6714c8559642ea4fad8e24c5253871dfd11daa868645751b827f9d58cebe"
+    }
+  ],
+  "interpretation": {
+    "does_not_prove": "public validator registration is enabled",
+    "proves": "positive readiness could be observed without enabling live execution"
+  },
+  "marker": "VOID_VALIDATOR_REGISTRATION_POSITIVE_READINESS_PUBLIC_EVIDENCE_V1",
+  "schema_version": 1,
+  "status": "exact_green_with_recovered_wrapper_cleanup_failure",
+  "subject": "validator_registration_positive_readiness_without_live_execution"
+}

@@ -1,0 +1,21 @@
+{
+  "marker": "VOID_RELEASE_QUALIFICATION_PLAN_V1",
+  "schema_version": 1,
+  "repository": "OWNER/REPO",
+  "version": "0.0.0",
+  "release_tag": "release-v0.0.0",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "packet_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "publication_receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "canary_receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "generated_at_utc": "1970-01-01T00:00:00.000Z",
+  "targets": [],
+  "policy": {
+    "all_targets_required": true,
+    "failed_result_blocks_approval": true,
+    "reviewer_must_be_distinct_from_runners": true,
+    "stable_promotion_requires_approval": true,
+    "live_deployment_allowed": false,
+    "guarded_lanes_activated": false
+  }
+}

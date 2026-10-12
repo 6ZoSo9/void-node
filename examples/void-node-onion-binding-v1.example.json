@@ -1,0 +1,54 @@
+{
+  "marker": "VOID_NODE_ONION_BINDING_V1",
+  "version": 1,
+  "status": "active",
+  "issued_at": "2026-07-30T00:00:00.000Z",
+  "expires_at": "2027-01-26T00:00:00.000Z",
+  "node": {
+    "node_id": "void-node:precision-mainnet-0",
+    "key_type": "ed25519",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n-----END PUBLIC KEY-----\n",
+    "public_key_fingerprint_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "node_id_attestation": "signed-by-existing-void-node-key-v1"
+  },
+  "transport": {
+    "protocol": "tor-v3",
+    "onion_hostname": "r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "uri": "http://r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "virtual_port": 80,
+    "address_role": "transport-endpoint"
+  },
+  "surface": {
+    "id": "void-public-node-static-read-only-v1",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "binding_paths": [
+      "/.well-known/void-node-onion-binding-v1.json",
+      "/public-node/transports/tor-v1-binding.json"
+    ],
+    "descriptor_paths": [
+      "/.well-known/void-tor-onion-transport-v1.json",
+      "/public-node/transports/tor-v1.json"
+    ]
+  },
+  "authority": {
+    "read_only": true,
+    "transaction_submission": false,
+    "p2p_listener": false,
+    "mcp_listener": false,
+    "wallet_or_signer_access": false,
+    "work_credit_write": false,
+    "void_settlement": false,
+    "node_runtime_mutation": false,
+    "operator_control": false
+  },
+  "signature": {
+    "domain": "VOID_NODE_ONION_BINDING_V1",
+    "algorithm": "ed25519",
+    "encoding": "base64",
+    "canonicalization": "void-canonical-json-v1",
+    "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  }
+}

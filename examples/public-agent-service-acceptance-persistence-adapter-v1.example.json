@@ -1,0 +1,40 @@
+{
+  "config": {
+    "allowed_root": "/operator/supplied/void-agent-paid-work-acceptance-store-v1",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ADAPTER_V1",
+    "max_generation_count": 10000,
+    "max_generation_file_bytes": 4194304,
+    "max_pointer_bytes": 65536,
+    "recover_exact_orphaned_generation": true,
+    "version": 1
+  },
+  "example_only": true,
+  "expected": {
+    "acceptance_persisted": false,
+    "acceptance_replay_write": false,
+    "execution_authorization": false,
+    "money_movement": false,
+    "payment_authorization": false,
+    "payment_execution": false,
+    "persistence_attempted": false,
+    "provider_authentication_replay_write": false,
+    "requester_authentication_replay_write": false,
+    "runtime_mutation": false,
+    "work_dispatch": false
+  },
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ADAPTER_V1",
+  "request": {
+    "confirmation": "not_provided",
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_REQUEST_V1",
+    "recorded_at_utc": "2030-01-01T00:10:00Z",
+    "version": 1
+  },
+  "source_contract": {
+    "checkpoint_tag": "ckpt-public-agent-service-acceptance-materialization-replay-consumer-v1-pr800-post-merge-exact-green-525e1c8f6200",
+    "fixture_plan_id": "voidawacp1_62b9b14f0878a08dab78ff92eeaea7faa6c89208bb6195914f5fc0cc705b06a2",
+    "fixture_preview_acceptance_id": "voidawa1_c4006bf27c11858ca3bd702379923abd4c0878ad7058332605480128bd1f94d3",
+    "merge_commit": "525e1c8f6200f1a590de42270d5a08ad21c6281b",
+    "source_evidence_pack_sha256": "4c9c495e74d12aa8b07383ee5af55694773f03d654385f9f6296aef5c5d853ec"
+  },
+  "version": 1
+}

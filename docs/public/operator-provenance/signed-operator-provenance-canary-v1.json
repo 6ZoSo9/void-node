@@ -1,0 +1,56 @@
+{
+  "authority": {
+    "cryptographic_key_control_proven": true,
+    "ledger_authority": false,
+    "mutation_authority": false,
+    "operator_identity_provenance_proven": true,
+    "settlement_authority": false,
+    "trust_admission_performed": false,
+    "validator_admission_performed": false,
+    "wallet_authority": false
+  },
+  "canary": {
+    "cleanup": {
+      "public_manifest_absent": true,
+      "temporary_private_key_removed": true,
+      "temporary_trust_record_removed": true
+    },
+    "ended_at": "2026-07-17T18:38:45Z",
+    "expected_sequence": [
+      "verified",
+      "invalid",
+      "revoked",
+      "expired"
+    ],
+    "marker": "VOID_SIGNED_OPERATOR_PROVENANCE_CANARY_V1",
+    "observed_sequence": [
+      "verified",
+      "invalid",
+      "revoked",
+      "expired"
+    ],
+    "read_only_boundary": {
+      "GET_HEAD_only": true,
+      "public_POST_status": 405
+    },
+    "run_id": "20260717t183835z-808953",
+    "started_at": "2026-07-17T18:38:35Z",
+    "states": {
+      "expired": "signature outside trust validity window rejected",
+      "invalid": "post-signature manifest tampering rejected",
+      "revoked": "revoked trusted key rejected",
+      "verified": "trusted Ed25519 SSHSIG verified"
+    }
+  },
+  "deployed_baseline": "v1.6.4",
+  "marker": "VOID_SIGNED_OPERATOR_PROVENANCE_CANARY_PUBLIC_RECEIPT_V1",
+  "schema_version": 1,
+  "sealed_at": "2026-07-17T18:53:20.966601Z",
+  "source_receipt": {
+    "filename": "signed-operator-provenance-canary-v1-20260717t183835z-808953.json",
+    "raw_receipt_committed": false,
+    "reason": "The repository stores a bounded public summary and cryptographic hash; local paths and full runtime snapshots remain outside the public repository.",
+    "sha256": "d5546b2139f2d913ff986f8771761ce249ffcc11c94b405c5977ba0476ad0b06"
+  },
+  "status": "passed"
+}

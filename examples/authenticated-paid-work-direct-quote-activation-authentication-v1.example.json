@@ -1,0 +1,183 @@
+{
+  "evidence_mode": "example_fixture",
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_QUOTE_ACTIVATION_AUTHENTICATION_V1",
+  "prepared_packet": {
+    "acceptance_gate": {
+      "acceptance_candidate_materialized": true,
+      "effective_quote_acceptance": false
+    },
+    "authority": {
+      "money_movement": false,
+      "payment_authorization": false,
+      "payment_execution": false,
+      "payment_receipt_creation": false,
+      "production_signing": false,
+      "quote_acceptance": false,
+      "runtime_mutation": false,
+      "transaction_broadcast": false,
+      "transaction_construction": false,
+      "void_settlement": false,
+      "wallet_access": false,
+      "work_credit_write": false,
+      "work_dispatch": false,
+      "work_execution_authorization": false
+    },
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_QUOTE_ACCEPTANCE_PAYMENT_AUTHORITY_PACKET_V1",
+    "packet_id": "voidawqapa1_6666666666666666666666666666666666666666666666666666666666666666",
+    "payment_authority_gate": {
+      "effective_payment_authorization": false,
+      "payment_execution_authorized": false,
+      "payment_intent_candidate_materialized": true
+    },
+    "prepared_artifacts": {
+      "acceptance_envelope": {
+        "acceptance_id": "voidawa1_4444444444444444444444444444444444444444444444444444444444444444",
+        "commercial": {
+          "payment_rail_id": "void.external.prepaid.v1",
+          "quote_asset": "USD",
+          "total": "0.01"
+        },
+        "created_at_utc": "2030-01-01T00:05:00Z",
+        "expires_at_utc": "2030-01-02T00:00:00Z",
+        "marker": "VOID_AGENT_PAID_WORK_ACCEPTANCE_ENVELOPE_V1",
+        "nonce": "direct-example-acceptance-nonce-0001",
+        "provider": {
+          "capability_id": "datanet.fetch_verify",
+          "provider_id": "voidapwp1_3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "quote_id": "voidawq1_2222222222222222222222222222222222222222222222222222222222222222",
+        "requester": {
+          "agent_id": "agent.direct.example.requester"
+        },
+        "terms": {
+          "acceptance_is_not_execution_instruction": true,
+          "acceptance_is_not_funds_reservation": true,
+          "acceptance_is_not_payment_instruction": true,
+          "acceptance_replay_protection_required": true,
+          "execution_authorization_granted": false,
+          "payment_authorization_granted": false,
+          "provider_authentication_required": true,
+          "quote_terms_accepted": true,
+          "requester_authentication_required": true,
+          "separate_execution_authorization_required": true,
+          "separate_payment_authorization_required": true,
+          "single_active_acceptance_per_quote_required": true
+        },
+        "version": 1,
+        "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "payment_intent_envelope": {
+        "acceptance_id": "voidawa1_4444444444444444444444444444444444444444444444444444444444444444",
+        "authorization": {
+          "payment_authorization_requested": true,
+          "payment_execution_granted": false,
+          "work_execution_authorization_granted": false
+        },
+        "commercial": {
+          "max_fee_total": "0",
+          "payment_rail_id": "void.external.prepaid.v1",
+          "quote_asset": "USD",
+          "total": "0.01"
+        },
+        "created_at_utc": "2030-01-01T00:06:00Z",
+        "expires_at_utc": "2030-01-02T00:00:00Z",
+        "marker": "VOID_AGENT_PAID_WORK_PAYMENT_INTENT_ENVELOPE_V1",
+        "nonce": "direct-example-payment-intent-nonce-0001",
+        "payment_intent_id": "voidawpi1_5555555555555555555555555555555555555555555555555555555555555555",
+        "provider": {
+          "provider_id": "voidapwp1_3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "quote_id": "voidawq1_2222222222222222222222222222222222222222222222222222222222222222",
+        "requester": {
+          "agent_id": "agent.direct.example.requester"
+        },
+        "version": 1,
+        "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    "source": {
+      "capability_id": "datanet.fetch_verify",
+      "max_fee_total": "0",
+      "payment_rail_id": "void.external.prepaid.v1",
+      "provider_id": "voidapwp1_3333333333333333333333333333333333333333333333333333333333333333",
+      "quote_asset": "USD",
+      "quote_id": "voidawq1_2222222222222222222222222222222222222222222222222222222222222222",
+      "requester_agent_id": "agent.direct.example.requester",
+      "service_total": "0.01",
+      "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "status": "prepared_requires_authenticated_atomic_activation",
+    "version": 1
+  },
+  "provider_authentication_envelope": {
+    "acceptance_id": "voidawa1_4444444444444444444444444444444444444444444444444444444444444444",
+    "authentication_id": "voidadpa1_9e543059a54a1f4b93e39a524d0bb11cc64116fa7f53ec2bf27b4ab9eb7e31c4",
+    "authentication_nonce": "direct-provider-auth-example-0001",
+    "canonicalization": "void-canonical-json-v1",
+    "created_at_utc": "2030-01-01T00:10:00Z",
+    "expires_at_utc": "2030-01-01T12:00:00Z",
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_AUTHENTICATION_EVIDENCE_V1",
+    "payment_intent_id": "voidawpi1_5555555555555555555555555555555555555555555555555555555555555555",
+    "prepared_packet_fingerprint_sha256": "689dcdbf08435cf04d65302378e4b43303b1d58a2115b356527e589113ea8cac",
+    "prepared_packet_id": "voidawqapa1_6666666666666666666666666666666666666666666666666666666666666666",
+    "provider_id": "voidapwp1_3333333333333333333333333333333333333333333333333333333333333333",
+    "provider_key_binding_id": "voidadpkb1_67abf537636fec9f64d535db68b49cb1e7d1d35fa8c3ea034cbada576056c0c2",
+    "quote_id": "voidawq1_2222222222222222222222222222222222222222222222222222222222222222",
+    "signature_base64": "zduziCAsDW23IvVrBPniFqewQMZsw7b9dyHX9lvXAcrkvrAkmeYpv4fR8Ck+RIQvRlv8oBcOU23Zim1jKXTLBA==",
+    "signature_domain": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_AUTHENTICATION_V1",
+    "signature_scheme": "ed25519-spki-sha256-v1",
+    "version": 1,
+    "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "provider_key_binding": {
+    "authority_scope": "authenticated_paid_work_direct_quote_activate",
+    "binding_id": "voidadpkb1_67abf537636fec9f64d535db68b49cb1e7d1d35fa8c3ea034cbada576056c0c2",
+    "binding_nonce": "direct-provider-binding-example-0001",
+    "binding_status": "example_fixture",
+    "expires_at_utc": "2030-02-01T00:00:00Z",
+    "key_id": "ed25519:cd15fd7936868a257ac8b118373ffc6baa15d053ea5cccc9b628d52b569e22ef",
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_PROVIDER_KEY_BINDING_V1",
+    "provider_id": "voidapwp1_3333333333333333333333333333333333333333333333333333333333333333",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAsPHiRXpg9dxx7rjguuJBrfwDW3sQWcVxMbP2SXbP1D0=\n-----END PUBLIC KEY-----\n",
+    "revoked_at_utc": null,
+    "valid_from_utc": "2029-12-31T00:00:00Z",
+    "version": 1
+  },
+  "requester_authentication_envelope": {
+    "acceptance_id": "voidawa1_4444444444444444444444444444444444444444444444444444444444444444",
+    "acceptance_nonce": "direct-example-acceptance-nonce-0001",
+    "authentication_id": "voidadra1_77abff6fea05381ff42374d5e0983e94d65500f74808a1dfbc93898f50e20861",
+    "authentication_nonce": "direct-requester-auth-example-0001",
+    "canonicalization": "void-canonical-json-v1",
+    "created_at_utc": "2030-01-01T00:11:00Z",
+    "expires_at_utc": "2030-01-01T11:00:00Z",
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_AUTHENTICATION_EVIDENCE_V1",
+    "payment_intent_id": "voidawpi1_5555555555555555555555555555555555555555555555555555555555555555",
+    "prepared_packet_fingerprint_sha256": "689dcdbf08435cf04d65302378e4b43303b1d58a2115b356527e589113ea8cac",
+    "prepared_packet_id": "voidawqapa1_6666666666666666666666666666666666666666666666666666666666666666",
+    "provider_authentication_id": "voidadpa1_9e543059a54a1f4b93e39a524d0bb11cc64116fa7f53ec2bf27b4ab9eb7e31c4",
+    "quote_id": "voidawq1_2222222222222222222222222222222222222222222222222222222222222222",
+    "requester_agent_id": "agent.direct.example.requester",
+    "requester_key_binding_id": "voidadrkb1_9415f7f6cb8b700a85a3fc3aa2263c8030571accdcbeadbb5671bd744e5f7250",
+    "signature_base64": "fu5bJMFPWYWCWjOGKYt4tIOJlgz2XikZAgRyvFGW3Mf0YNBdXlzJVuaoEe67DXqBNw2Zm9tmVO0c3pgd8b05Ag==",
+    "signature_domain": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_AUTHENTICATION_V1",
+    "signature_scheme": "ed25519-spki-sha256-v1",
+    "version": 1,
+    "work_order_id": "voidawo1_1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "requester_key_binding": {
+    "authority_scope": "agent_paid_work_accept",
+    "binding_id": "voidadrkb1_9415f7f6cb8b700a85a3fc3aa2263c8030571accdcbeadbb5671bd744e5f7250",
+    "binding_nonce": "direct-requester-binding-example-0001",
+    "binding_status": "example_fixture",
+    "expires_at_utc": "2030-02-01T00:00:00Z",
+    "key_id": "ed25519:86061764ba402c33a63dd5c1a83c774f7d00544795c70f805dd060b4e5ad2a09",
+    "marker": "VOID_AUTHENTICATED_PAID_WORK_DIRECT_REQUESTER_KEY_BINDING_V1",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6N9Sw5WSdFmYc/FERF+opnL4twhH6UqgIEuEMAgi3K4=\n-----END PUBLIC KEY-----\n",
+    "requester_agent_id": "agent.direct.example.requester",
+    "revoked_at_utc": null,
+    "valid_from_utc": "2029-12-31T00:00:00Z",
+    "version": 1
+  },
+  "version": 1
+}

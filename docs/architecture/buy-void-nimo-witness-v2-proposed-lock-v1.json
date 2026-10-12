@@ -1,0 +1,85 @@
+{
+  "schema": "void_buy_void_nimo_witness_v2_proposed_lock_v1",
+  "marker": "VOID_BUY_VOID_NIMO_WITNESS_V2_PROPOSED_LOCK_V1",
+  "version": 1,
+  "status": "HOLD_UNACCEPTED_SOURCE_CANDIDATE",
+  "repository": "6ZoSo9/void-node",
+  "exact_source_generation_commit": "884edc6e82bd505a83e51a44b38f7e318431f314",
+  "candidate_proof_parent_head": "d68058d8513b79b98788b7fd3334b377df0fc25b",
+  "candidate_deriver_git_blob_sha1": "3c25a46818eace3f989b75466013cc7c4cec1362",
+  "candidate_manifest_id": "voidwfb2_b1cf93ea36879332d2745294b8aab1b261d5e7c13522af681db8d390254df73d",
+  "candidate_record_sha256": "sha256:84be9d7a3e8ac9b5426dacd324f0d6e1b45eac5ae0fe797b2a072de57180ccf3",
+  "candidate_record_bytes": 13672,
+  "typescript_version": "5.9.3",
+  "historical_v1_original_contract_ref": "f627cad6bc07a6ad3ebe7cbd946723316fcd0567",
+  "historical_v1_original_contract_git_blob_sha1": "d2e84643c9f4d76c642c7e07d4ea2bf1634035e4",
+  "historical_v1_contract_source_commit": "e390424c1d31cd87dcf3551cc0d2d610a24e12f8",
+  "historical_v1_manifest_id": "voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7",
+  "historical_v1_manifest_sha256": "sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2",
+  "integrated_draft_v1_contract_git_blob_sha1": "d0f80d3b50e3dcc46c1f58dc4bd0a73b7875db56",
+  "historical_v1_installed_auto_fulfillment_sha256": "ae15c56f1aa7009955058ca1d454da5e0d55a3e6c2011c54e7316374e33a5cf6",
+  "candidate_v2_auto_fulfillment_sha256": "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c",
+  "runtime_file_count": 8,
+  "runtime_files": [
+    {
+      "path": "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+      "installed_path": "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+      "bytes": 48914,
+      "sha256": "88f425986eff8597cdf6725e4608b3790aed2359fef6ae9fadb76292d9e5a26d"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_custody_external_witness_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_custody_external_witness_v1.js",
+      "bytes": 35821,
+      "sha256": "35d80f00a9ec0ce57bb457596d27e8c86a70d76efe310372e1fff796a92d43ca"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_custody_witness_transport_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_custody_witness_transport_v1.js",
+      "bytes": 35066,
+      "sha256": "8e03107d1545977a19b847bbec926543b9812b6d9c16a4d7e13e62cf5c790979"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+      "bytes": 12251,
+      "sha256": "1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9"
+    },
+    {
+      "path": "dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+      "bytes": 37442,
+      "sha256": "af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f"
+    },
+    {
+      "path": "dist/economic/buy_void_auto_fulfillment_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_auto_fulfillment_v1.js",
+      "bytes": 26226,
+      "sha256": "119a08db651cb85091f66ed2c9e475c56a81f21c9084c47c7f8ee083f831a47c"
+    },
+    {
+      "path": "dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js",
+      "bytes": 21165,
+      "sha256": "0b4dd188dbbf7658542b1d20c521227fa1fc01d7d79e89a713863b771380da13"
+    },
+    {
+      "path": "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "installed_path": "/usr/local/libexec/dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "bytes": 18018,
+      "sha256": "7c7a6b92c1a88b14d325d331700a2bd19a0068630ae0094c65b2dcc6a25a9994"
+    }
+  ],
+  "authority": {
+    "historical_v1_installation_confirmed_by_authenticated_attestation": false,
+    "operator_readonly_census_treated_as_attestation": false,
+    "candidate_v2_compiled_source_reproducible_in_ci_only": true,
+    "v2_runtime_bundle_identity_accepted": false,
+    "v2_host_installed": false,
+    "v2_host_principal_verified": false,
+    "v2_authenticated_transport_qualified": false,
+    "verified_payment_to_allocation_mounted": false,
+    "presale_activation": false,
+    "funds_moved": false
+  }
+}

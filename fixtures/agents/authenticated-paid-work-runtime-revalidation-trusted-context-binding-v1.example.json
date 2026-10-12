@@ -1,0 +1,43 @@
+{
+  "marker": "VOID_AUTHENTICATED_PAID_WORK_RUNTIME_REVALIDATION_TRUSTED_CONTEXT_BINDING_V1",
+  "protocol": "void-authenticated-paid-work-runtime-revalidation-trusted-context-binding/1",
+  "binding_id": "voidapwrtcb1_4f20cf0df34f1d9d2ceb1df3dff6202931e873660fa6fb74f3d1f7e42309eb13",
+  "receipt_id": "voidapwrr1_e4cb6ffd4864007d9e391184196ea86dbe9e58fd46c9c4b5f6b07005cab0ede6",
+  "observation": {
+    "evaluated_at_utc": "2026-08-04T16:50:09.250Z"
+  },
+  "trusted_context": {
+    "trusted_context_metadata_commit": "ac074d53ab937d302c69b6bff54f02d064e37d57",
+    "trusted_context_metadata_marker": "VOID_AUTHENTICATED_PAID_WORK_PRODUCTION_ACTIVATION_TRUSTED_CONTEXT_REFERENCE_METADATA_V1",
+    "trusted_context_metadata_status": "source_reference_only_activation_forbidden",
+    "trusted_context_reference_id": "void-authenticated-paid-work-production-activation-trusted-context-reference-metadata-v1",
+    "bundle_contract_marker": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_BUNDLE_V1",
+    "bundle_contract_version": 1,
+    "bundle_sha256": "6bf506fa7637fca967a21dd70ba8be7e940194397fc6bf51077309bd7f755a96",
+    "bundle_path_fingerprint_sha256": "606f2f3aaec35e0534d12ff5a28ee94301b8c24f370e949ec26e75e91963456a",
+    "maximum_bundle_bytes": 25165824,
+    "reference_metadata_verified": true,
+    "bundle_contract_verified": true,
+    "bundle_sha256_verified": true,
+    "bundle_path_fingerprint_verified": true,
+    "provider_binding_verified": true,
+    "private_bundle_read_performed": true,
+    "private_path_disclosed": false,
+    "bundle_contents_disclosed": false,
+    "secret_material_disclosed": false
+  },
+  "authority": {
+    "activation_authorized": false,
+    "deployment": false,
+    "service_restart": false,
+    "live_authentication": false,
+    "payment_execution": false,
+    "work_dispatch": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_broadcast": false,
+    "signing": false,
+    "fund_movement": false
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "kind": "public_node_operator_trial_tester_launch_ready_index_pin_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_READY_INDEX_PIN_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_READY_INDEX_PIN_V1_GREEN",
+  "status": "outside_tester_launch_ready_index_pinned",
+  "title": "VOID Public Node Operator Trial Tester Launch Ready Index Pin v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-launch-ready-index-pin-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-launch-ready-index-pin-v1.json",
+  "purpose": "Public-safe index pin for the completed outside tester launch path.",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "index_pin_only": true,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true,
+    "no_private_keys_required": true,
+    "no_secrets_required": true,
+    "no_pii_required": true
+  },
+  "ready_status": {
+    "outside_tester_launch_ready_index_pinned": true,
+    "outside_tester_launch_ready": true,
+    "terminal_closeout_complete": true,
+    "terminal_final_sealed": true,
+    "handoff_packet_ready": true,
+    "launch_checklist_ready": true,
+    "receipt_template_ready": true,
+    "receipt_example_ready": true,
+    "submission_review_path_ready": true,
+    "operator_review_required_for_real_receipts": true,
+    "live_authority_enabled": false,
+    "tester_receipts_are_network_truth": false
+  },
+  "pinned_routes": {
+    "start_here": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.html",
+    "terminal_closeout_json": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.json",
+    "terminal_final_seal_json": "/public-node/public-node-operator-trial-tester-launch-terminal-final-seal-v1.json",
+    "status_card_json": "/public-node/public-node-operator-trial-tester-launch-status-card-v1.json",
+    "handoff_packet_json": "/public-node/public-node-operator-trial-tester-launch-handoff-packet-v1.json",
+    "launch_checklist_json": "/public-node/public-node-operator-trial-tester-launch-checklist-v1.json",
+    "receipt_template_json": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+    "receipt_example_json": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+    "submission_intake_json": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+    "submission_review_queue_json": "/public-node/public-node-operator-trial-submission-review-queue-v1.json"
+  },
+  "linked_components": [
+    {
+      "key": "tester_launch_terminal_closeout_rollup",
+      "route": "/public-node/public-node-operator-trial-tester-launch-terminal-closeout-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_TERMINAL_CLOSEOUT_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_TERMINAL_CLOSEOUT_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "tester_launch_terminal_final_seal",
+      "route": "/public-node/public-node-operator-trial-tester-launch-terminal-final-seal-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_TERMINAL_FINAL_SEAL_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_TERMINAL_FINAL_SEAL_V1_GREEN"
+    },
+    {
+      "key": "tester_launch_status_card",
+      "route": "/public-node/public-node-operator-trial-tester-launch-status-card-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_STATUS_CARD_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_STATUS_CARD_V1_GREEN"
+    },
+    {
+      "key": "tester_launch_handoff_packet",
+      "route": "/public-node/public-node-operator-trial-tester-launch-handoff-packet-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_HANDOFF_PACKET_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_HANDOFF_PACKET_V1_GREEN"
+    },
+    {
+      "key": "tester_launch_checklist",
+      "route": "/public-node/public-node-operator-trial-tester-launch-checklist-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_CHECKLIST_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_LAUNCH_CHECKLIST_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_template",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_example",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "submission_intake",
+      "route": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1_GREEN"
+    },
+    {
+      "key": "submission_review_queue",
+      "route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1_GREEN"
+    }
+  ],
+  "public_start_order": [
+    "Open the tester launch terminal closeout rollup.",
+    "Use the handoff packet.",
+    "Follow the launch checklist.",
+    "Copy the receipt template.",
+    "Use the receipt example only as formatting reference.",
+    "Submit only for operator review."
+  ],
+  "do_not_infer": [
+    "submission endpoint",
+    "live operator authority",
+    "real external tester submission",
+    "network truth",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}

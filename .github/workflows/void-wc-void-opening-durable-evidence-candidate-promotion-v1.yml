@@ -1,0 +1,83 @@
+name: VOID WC/VOID opening durable evidence candidate promotion v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-opening-durable-evidence-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-opening-durable-evidence-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_opening_durable_evidence_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-opening-durable-evidence-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-opening-durable-evidence-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_opening_durable_evidence_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-wc-opening-durable-evidence-promotion-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Use supported Node.js major
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs
+          node --check scripts/prove_void_wc_void_opening_durable_evidence_candidate_promotion_v1.mjs
+      - name: Durable opening source regressions
+        run: |
+          node scripts/prove_void_wc_void_opening_replay_persistence_v1.mjs
+          node scripts/prove_void_wc_void_opening_claim_binding_publication_v1.mjs
+      - name: Durable opening candidate promotion proof
+        run: node scripts/prove_void_wc_void_opening_durable_evidence_candidate_promotion_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

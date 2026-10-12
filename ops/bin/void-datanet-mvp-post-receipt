@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE="${BASE:-http://127.0.0.1:4100}"
+DATA_DIR="${DATA_DIR:-$HOME/dev/void-node/data_a}"
+MAN_DIR="$DATA_DIR/datanet/manifests"
+CHUNK_DIR="$DATA_DIR/datanet/chunks"
+
+# Inputs (best-effort): ID + plain_sha256
+ID="${1:-}"
+PLAIN_SHA="${2:-}"
+
+# If caller didn't pass ID, try parse from a log file path in LOG=...
+if [ -z "$ID" ] && [ -n "${LOG:-}" ] && [ -f "$LOG" ]; then
+  ID="$(rg -o 'id=[0-9a-f]{32}\b' "$LOG" | head -n 1 | cut -d= -f2 || true)"
+fi
+if [ -z "$PLAIN_SHA" ] && [ -n "${LOG:-}" ] && [ -f "$LOG" ]; then
+  PLAIN_SHA="$(rg -o 'plain_sha256=[0-9a-f]{64}\b' "$LOG" | head -n 1 | cut -d= -f2 || true)"
+fi
+
+# Generate an ID if still missing (server only checks hex32)
+if [ -z "$ID" ]; then
+  ID="$(python3 - <<'PY'
+import os
+print(os.urandom(16).hex())
+PY
+)"
+fi
+
+# Newest manifest
+MAN="$(ls -1t "$MAN_DIR"/*.json 2>/dev/null | head -n 1 || true)"
+if [ -z "$MAN" ] || [ ! -f "$MAN" ]; then
+  echo "[err] no manifest found in $MAN_DIR"
+  exit 2
+fi
+
+ROOT="$(basename "$MAN" .json)"
+LEAF="$(rg -o '[0-9a-f]{64}' "$MAN" | head -n 1 || true)"
+if [ -z "$LEAF" ]; then
+  echo "[err] could not extract leaf from manifest: $MAN"
+  exit 3
+fi
+
+CHUNK="$CHUNK_DIR/$LEAF.bin"
+if [ ! -f "$CHUNK" ]; then
+  echo "[err] chunk missing: $CHUNK"
+  exit 4
+fi
+
+BYTES="$(stat -c %s "$CHUNK" 2>/dev/null || echo 0)"
+IDX=0
+
+JSON="$(python3 - <<PY
+import json
+print(json.dumps({
+  "id": "$ID",
+  "ok": True,
+  "root": "$ROOT",
+  "leaf": "$LEAF",
+  "index": $IDX,
+  "bytes": int("$BYTES") if str("$BYTES").isdigit() else 0,
+  "plain_sha256": "$PLAIN_SHA" if "$PLAIN_SHA" else ""
+}))
+PY
+)"
+
+echo "[info] root=$ROOT leaf=$LEAF index=$IDX bytes=$BYTES id=$ID"
+
+# Try likely endpoints (you can prune later once we find the real one)
+CANDIDATES=(
+  "$BASE/datanet/v1/receipts"
+  "$BASE/datanet/v1/receipt"
+  "$BASE/datanet/v1/receipts/append"
+)
+
+for URL in "${CANDIDATES[@]}"; do
+  TMP="$(mktemp)"
+  CODE="$(curl -sS -o "$TMP" -w '%{http_code}' \
+    -H 'content-type: application/json' \
+    -X POST \
+    --data "$JSON" \
+    "$URL" || true)"
+
+  if [ "$CODE" = "200" ]; then
+    echo "[ok] POST $URL -> 200"
+    cat "$TMP"
+    echo
+    exit 0
+  fi
+
+  # show small failure body (so we see the server error)
+  if [ "$CODE" != "000" ]; then
+    echo "[fail] POST $URL -> $CODE (showing body)"
+    head -c 400 "$TMP" || true
+    echo
+  fi
+done
+
+echo "[err] no candidate endpoint accepted receipt"
+exit 5

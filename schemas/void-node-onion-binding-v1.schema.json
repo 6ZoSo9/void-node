@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:void:schemas:node-onion-binding:v1",
+  "title": "VOID Node-to-Onion Binding V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["marker", "version", "status", "issued_at", "expires_at", "node", "transport", "surface", "authority", "signature"],
+  "properties": {
+    "marker": { "const": "VOID_NODE_ONION_BINDING_V1" },
+    "version": { "const": 1 },
+    "status": { "const": "active" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "key_type", "public_key_pem", "public_key_fingerprint_sha256", "node_id_attestation"],
+      "properties": {
+        "node_id": { "type": "string", "pattern": "^[!-~]{1,512}$", "maxLength": 512 },
+        "key_type": { "const": "ed25519" },
+        "public_key_pem": { "type": "string", "minLength": 100, "maxLength": 256 },
+        "public_key_fingerprint_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "node_id_attestation": { "const": "signed-by-existing-void-node-key-v1" }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "onion_hostname", "uri", "virtual_port", "address_role"],
+      "properties": {
+        "protocol": { "const": "tor-v3" },
+        "onion_hostname": { "type": "string", "pattern": "^[a-z2-7]{56}\\.onion$" },
+        "uri": { "type": "string", "pattern": "^http://[a-z2-7]{56}\\.onion(?::[1-9][0-9]{0,4})?$" },
+        "virtual_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "address_role": { "const": "transport-endpoint" }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "methods", "binding_paths", "descriptor_paths"],
+      "properties": {
+        "id": { "const": "void-public-node-static-read-only-v1" },
+        "methods": { "type": "array", "prefixItems": [{ "const": "GET" }, { "const": "HEAD" }], "items": false, "minItems": 2, "maxItems": 2 },
+        "binding_paths": { "type": "array", "prefixItems": [{ "const": "/.well-known/void-node-onion-binding-v1.json" }, { "const": "/public-node/transports/tor-v1-binding.json" }], "items": false, "minItems": 2, "maxItems": 2 },
+        "descriptor_paths": { "type": "array", "prefixItems": [{ "const": "/.well-known/void-tor-onion-transport-v1.json" }, { "const": "/public-node/transports/tor-v1.json" }], "items": false, "minItems": 2, "maxItems": 2 }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read_only", "transaction_submission", "p2p_listener", "mcp_listener", "wallet_or_signer_access", "work_credit_write", "void_settlement", "node_runtime_mutation", "operator_control"],
+      "properties": {
+        "read_only": { "const": true },
+        "transaction_submission": { "const": false },
+        "p2p_listener": { "const": false },
+        "mcp_listener": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "work_credit_write": { "const": false },
+        "void_settlement": { "const": false },
+        "node_runtime_mutation": { "const": false },
+        "operator_control": { "const": false }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "algorithm", "encoding", "canonicalization", "value"],
+      "properties": {
+        "domain": { "const": "VOID_NODE_ONION_BINDING_V1" },
+        "algorithm": { "const": "ed25519" },
+        "encoding": { "const": "base64" },
+        "canonicalization": { "const": "void-canonical-json-v1" },
+        "value": { "type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$" }
+      }
+    }
+  }
+}

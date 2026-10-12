@@ -1,0 +1,297 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-trusted-requester-acceptance-persistence-http-route-server-registrar-integration-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_COMMAND_V1"
+        },
+        "mount_confirmation": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "mount_confirmation"
+      ],
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_CONFIG_V1"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "example_only": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_EXAMPLE_V1"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "authority": {
+          "additionalProperties": false,
+          "properties": {
+            "credential_change": {
+              "const": false
+            },
+            "credential_issue": {
+              "const": false
+            },
+            "deployment": {
+              "const": false
+            },
+            "express_app_modification": {
+              "const": false
+            },
+            "live_route_registry_integration": {
+              "const": false
+            },
+            "money_movement": {
+              "const": false
+            },
+            "network_listener_creation": {
+              "const": false
+            },
+            "payment_authorization": {
+              "const": false
+            },
+            "payment_execution": {
+              "const": false
+            },
+            "production_acceptance_persistence": {
+              "const": false
+            },
+            "production_http_route_mount": {
+              "const": false
+            },
+            "production_http_submission": {
+              "const": false
+            },
+            "production_replay_write": {
+              "const": false
+            },
+            "production_signing": {
+              "const": false
+            },
+            "runtime_mutation": {
+              "const": false
+            },
+            "server_route_registry_compare_and_swap": {
+              "type": "boolean"
+            },
+            "server_route_registry_snapshot_read": {
+              "type": "boolean"
+            },
+            "service_restart": {
+              "const": false
+            },
+            "source_level_route_registry_adapter": {
+              "type": "boolean"
+            },
+            "src_index_modification": {
+              "const": false
+            },
+            "transaction_broadcast": {
+              "const": false
+            },
+            "wallet_or_signer_access": {
+              "const": false
+            },
+            "work_credit_settlement": {
+              "const": false
+            },
+            "work_credit_write": {
+              "const": false
+            },
+            "work_dispatch": {
+              "const": false
+            },
+            "work_execution_authorization": {
+              "const": false
+            }
+          },
+          "required": [
+            "source_level_route_registry_adapter",
+            "server_route_registry_snapshot_read",
+            "server_route_registry_compare_and_swap",
+            "production_http_route_mount",
+            "network_listener_creation",
+            "live_route_registry_integration",
+            "src_index_modification",
+            "express_app_modification",
+            "production_http_submission",
+            "production_acceptance_persistence",
+            "production_replay_write",
+            "payment_authorization",
+            "payment_execution",
+            "work_execution_authorization",
+            "work_dispatch",
+            "work_credit_write",
+            "work_credit_settlement",
+            "wallet_or_signer_access",
+            "production_signing",
+            "transaction_broadcast",
+            "credential_issue",
+            "credential_change",
+            "runtime_mutation",
+            "service_restart",
+            "deployment",
+            "money_movement"
+          ],
+          "type": "object"
+        },
+        "confirmation_verified": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "exact_route_count_after": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_RESULT_V1"
+        },
+        "mount": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mount_confirmation_verified": {
+          "type": "boolean"
+        },
+        "registry_compare_and_swap_applied": {
+          "type": "boolean"
+        },
+        "registry_compare_and_swap_attempted": {
+          "type": "boolean"
+        },
+        "registry_revision_after": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registry_revision_before": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registry_snapshot_read": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "mount_disabled",
+            "route_disabled",
+            "planned",
+            "mounted",
+            "already_mounted"
+          ]
+        },
+        "trusted_input_provider_deferred": {
+          "type": "boolean"
+        },
+        "unrelated_route_count_after": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unrelated_route_count_before": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "apply",
+        "confirmation_verified",
+        "mount_confirmation_verified",
+        "registry_snapshot_read",
+        "registry_compare_and_swap_attempted",
+        "registry_compare_and_swap_applied",
+        "registry_revision_before",
+        "registry_revision_after",
+        "unrelated_route_count_before",
+        "unrelated_route_count_after",
+        "exact_route_count_after",
+        "trusted_input_provider_deferred",
+        "mount",
+        "authority"
+      ],
+      "type": "object"
+    },
+    "sealed_mount_example_marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_MOUNT_EXAMPLE_V1"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "example_only",
+    "sealed_mount_example_marker",
+    "config",
+    "command",
+    "result"
+  ],
+  "title": "Public Agent Service Trusted Requester Acceptance Persistence HTTP Route Server Registrar Integration V1 Example",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_REGISTRAR_INTEGRATION_SCHEMA_V1"
+}

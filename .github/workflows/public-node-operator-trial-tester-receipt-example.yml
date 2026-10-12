@@ -1,0 +1,27 @@
+name: public-node-operator-trial-tester-receipt-example
+
+on:
+  push:
+    paths:
+      - ".github/workflows/public-node-operator-trial-tester-receipt-example.yml"
+      - "public/public-node/public-node-operator-trial-tester-receipt-example-v1.json"
+      - "public/public-node/public-node-operator-trial-tester-receipt-example-v1.html"
+      - "docs/public-node/public-node-operator-trial-tester-receipt-example-v1.md"
+      - "tools/check_public_node_operator_trial_tester_receipt_example_v1.sh"
+      - "public/public-node/index.json"
+  pull_request:
+    paths:
+      - ".github/workflows/public-node-operator-trial-tester-receipt-example.yml"
+      - "public/public-node/public-node-operator-trial-tester-receipt-example-v1.json"
+      - "public/public-node/public-node-operator-trial-tester-receipt-example-v1.html"
+      - "docs/public-node/public-node-operator-trial-tester-receipt-example-v1.md"
+      - "tools/check_public_node_operator_trial_tester_receipt_example_v1.sh"
+      - "public/public-node/index.json"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tester receipt example
+        run: bash tools/check_public_node_operator_trial_tester_receipt_example_v1.sh

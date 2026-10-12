@@ -1,0 +1,101 @@
+{
+  "kind": "datanet_wc_public_earn_loop_first_work_pack_wc_amount_recommendation_candidate",
+  "version": "v1",
+  "status": "hold_static_wc_amount_recommendation_candidate_only",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_WC_AMOUNT_RECOMMENDATION_CANDIDATE_HOLD_V1",
+  "created_at": "2026-06-30T15:06:47Z",
+  "route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-candidate-hold-v1.json",
+  "html_route": "/public-node/work-credits/datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-candidate-hold-v1.html",
+  "purpose": "Define the operator WC amount recommendation candidate shape for the DataNet first work-pack lane after a future accepted decision.",
+  "source_chain": {
+    "operator_decision_closeout_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "operator_decision_candidate_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_CANDIDATE_HOLD_V1",
+    "operator_decision_example_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_OPERATOR_INTAKE_REVIEW_DECISION_EXAMPLE_HOLD_V1",
+    "first_work_pack_marker": "VOID_DATANET_WC_PUBLIC_EARN_LOOP_FIRST_WORK_PACK_HOLD_V1"
+  },
+  "wc_amount_recommendation_candidate": {
+    "amount_recommendation_candidate_created": true,
+    "requires_accepted_decision": true,
+    "suggested_starter_amount_wc": 100,
+    "suggested_amount_is_not_supply_limit": true,
+    "recommended_amount_approved_here": false,
+    "wc_issuance_created_here": false,
+    "wc_ledger_write_created_here": false,
+    "ledger_write_candidate_created_here": false,
+    "void_transfer_created_here": false,
+    "operator_review_required": true,
+    "runtime_recommendation_endpoint_created": false
+  },
+  "wc_amount_recommendation_template": {
+    "operator_recommendation_id": "operator-assigned recommendation id",
+    "source_decision_reference": "accepted operator decision reference or copied hash",
+    "source_decision_required_option": "accept",
+    "worker_public_handle": "copied from accepted review packet",
+    "work_pack_id": "datanet-wc-public-earn-loop-first-work-pack-hold-v1",
+    "recommended_wc_amount": {
+      "suggested_starter_amount": 100,
+      "amount_is_recommendation_only": true,
+      "amount_is_not_approved_here": true,
+      "amount_is_not_supply_limit": true
+    },
+    "recommendation_inputs": {
+      "accepted_decision_present": "required before future amount recommendation",
+      "work_pack_matches_lane": "required true",
+      "evidence_reproducible_or_reviewer_openable": "required true",
+      "duplicate_or_replay_screen": "required no_duplicate_found",
+      "operator_notes": "required human-readable amount rationale"
+    },
+    "recommendation_rules": [
+      "recommendation may only follow an accepted operator decision",
+      "recommended amount is advisory until separately approved",
+      "no recommendation here issues Work Credits",
+      "no recommendation here writes or appends a Work Credit ledger",
+      "no recommendation here creates a reward or VOID transfer"
+    ],
+    "wc_amount_recommendation_created_here": false,
+    "wc_amount_approved_here": false,
+    "ledger_write_candidate_created_here": false
+  },
+  "work_credit_policy": {
+    "wc_supply_policy": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issues_work_credits": false,
+    "writes_work_credit_ledger": false,
+    "creates_reward": false,
+    "creates_void_transfer": false
+  },
+  "submission_boundary": {
+    "public_submission_open": false,
+    "public_form_route_created": false,
+    "server_side_submission_endpoint_created": false,
+    "wallet_connect_enabled": false,
+    "automatic_scoring_enabled": false,
+    "automatic_award_enabled": false,
+    "ledger_append_enabled": false,
+    "operator_review_required": true
+  },
+  "amount_boundary": {
+    "amount_recommendation_candidate_only": true,
+    "amount_recommendation_fixture_created": false,
+    "wc_amount_approved": false,
+    "wc_issuance_created": false,
+    "wc_ledger_write_created": false,
+    "ledger_write_candidate_created": false,
+    "ledger_append_enabled": false,
+    "void_transfer_created": false
+  },
+  "safety_boundary": {
+    "work_credits_unlimited_uncapped": true,
+    "no_wc_issuance": true,
+    "no_wc_ledger_write": true,
+    "no_reward_creation": true,
+    "no_void_transfer": true,
+    "no_wallet_connect": true,
+    "no_public_submission_route": true,
+    "no_runtime_mutation_route": true,
+    "no_secret_material": true
+  },
+  "next_recommended_brick": {
+    "id": "datanet-wc-public-earn-loop-first-work-pack-wc-amount-recommendation-example-hold-v1",
+    "purpose": "Add a public-safe example WC amount recommendation packet without approving WC or writing a ledger."
+  }
+}

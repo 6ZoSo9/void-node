@@ -1,0 +1,42 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_PUBLIC_REVIEWER_CLOSEOUT_BUNDLE_HTML_V1",
+  "kind": "public_reviewer_closeout_bundle_html",
+  "scope": "usdc_void_buy_pool_automatic_payment_canary_separate_terminal_closeout",
+  "html_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+  "json_bundle_route": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+  "html_file": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.html",
+  "json_bundle_file": "public/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+  "status": "canary_separate_terminal_lane_closed_without_execution",
+  "closed_without_execution": true,
+  "method": "GET",
+  "read_only": true,
+  "public_safe": true,
+  "reviewer_purpose": "browser_readable_public_safe_closeout_bundle_page",
+  "included_public_routes": {
+    "json_reviewer_bundle": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-reviewer-closeout-bundle-v1.json",
+    "json_status_rollup": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.json",
+    "html_status_page": "/public-node/usdc-void-buy-pool/automatic-payment-canary-separate-terminal-closeout-public-status-rollup-v1.html",
+    "root_public_node_index": "/public-node/index.json",
+    "usdc_void_buy_pool_public_index": "/public-node/usdc-void-buy-pool/index.json"
+  },
+  "private_material_exposed": false,
+  "canonical_payment_identity_exposed": false,
+  "allocation_record_hash_exposed": false,
+  "operator_only_paths_exposed": false,
+  "wallet_secret_exposed": false,
+  "wallet_address_exposed": false,
+  "private_key_exposed": false,
+  "seed_phrase_exposed": false,
+  "authority": {
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "signer_access_granted": false,
+    "execution_performed": false,
+    "signing_performed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfilled_state_written": false,
+    "public_mutation_route_created": false,
+    "terminal_lane_reopened": false
+  }
+}

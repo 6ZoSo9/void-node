@@ -1,0 +1,60 @@
+{
+  "authority": {
+    "automatic_background_loop": false,
+    "bounded_work_execution_via_participant_cli": true,
+    "deployment": false,
+    "payment_transfer": false,
+    "service_restart": false,
+    "wallet_or_signer_access": false,
+    "wc_ledger_write_via_verified_receipt_only": true,
+    "wc_to_void_settlement": false
+  },
+  "binding": {
+    "binding_id": "voidapwcb1_6666666666666666666666666666666666666666666666666666666666666666",
+    "binding_registry_id": "voidapwcbr1_4444444444444444444444444444444444444444444444444444444444444444",
+    "binding_registry_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "destination_wc_account": "void-agent-example-v1"
+  },
+  "coordinator": {
+    "base_url": "https://trusted-coordinator.example",
+    "node_id": "0123456789abcdef0123456789abcdef"
+  },
+  "created_at_utc": "2026-07-28T12:30:00.000Z",
+  "execution": {
+    "confirmation": "execute-agent-paid-work-wc-earning-adapter-v1",
+    "exact_first_credit_required": true,
+    "identical_duplicate_second_credit_forbidden": true,
+    "one_time_ticket_required": true,
+    "participant_cli_is_only_capability_token_consumer": true,
+    "private_output_dir": "/private/adapter-operation",
+    "ticket_path": "/private/one-use-ticket.json"
+  },
+  "expires_at_utc": "2026-07-28T12:40:00.000Z",
+  "marker": "VOID_AGENT_PAID_WORK_WC_EARNING_ADAPTER_PLAN_V1",
+  "nonce": "agent-paid-work-adapter-example-v1",
+  "plan_id": "voidapweap1_4bda7c1097d61191c95b4079f8f204b8b664c441d74558e9f46a38a82a9e2c55",
+  "runtime": {
+    "acceptance_source_path": "/repo/src/economic/wc_verified_receipt_acceptance_v1.ts",
+    "acceptance_source_sha256": "b6e6b1cb1677f27622238cdb82a90d4ee133c2d089fd719b55758cdacbe972b3",
+    "execute_route": "/wc/public-earning-pilot-v1/execute-local?dry=0&confirm=wcPublicEarningPilotExecuteLocal",
+    "fixed_award_wc": 3,
+    "participant_cli_path": "/repo/ops/mainnet0/wc-public-earning-participant-v1.sh",
+    "participant_cli_sha256": "382bdf28f7ad39e7cc86b3e3e0852fa00c6c8071e93719128d6a4ee47833cd63",
+    "pilot_source_path": "/repo/src/economic/wc_public_earning_pilot_v1.ts",
+    "pilot_source_sha256": "78f4c73614d6d06699bbcc921f457176c204081c5dc3b125e682559431345887",
+    "task_class": "datanet_fetch_verify"
+  },
+  "selected_contract_capture": {
+    "receipt_path": "/private/selected-adapter-contract-capture-receipt-v1.json",
+    "receipt_sha256": "93bef108c526499e5cd4124e751f921766ba75c623a8f737bd59b5d26203fe1f"
+  },
+  "submission": {
+    "agent_id": "void.agent.example-v1",
+    "capability_id": "datanet.fetch_verify",
+    "credential_id": "voidapwc1_3333333333333333333333333333333333333333333333333333333333333333",
+    "submission_id": "agent-paid-work-adapter-example-v1",
+    "submission_receipt_id": "voidawsi1_1111111111111111111111111111111111111111111111111111111111111111",
+    "work_order_id": "voidawo1_2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "version": 1
+}

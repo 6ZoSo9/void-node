@@ -1,0 +1,59 @@
+{
+  "marker": "VOID_ECONOMIC_GENESIS_ARCHIVE_STAKING_OBLIGATION_CENSUS_V1",
+  "version": 1,
+  "status": "STAKING_OBLIGATION_CENSUS_GREEN",
+  "observation_class": "operator_transcribed_receipt_summary",
+  "source_commit": "37eecb3c5ff8658bb7e489902fc78d619f1aab66",
+  "receipt_filename": "void_economic_genesis_archive_staking_obligation_census_v1_20260926T142234Z.json",
+  "receipt_sha256": "bc31f8f7011684c57dbba1a5ebea06b8ae02714a9a694c22a7182d4670629dd0",
+  "receipt_imported_into_repo": false,
+  "isolated_replay": {
+    "rpc": "http://127.0.0.1:18545/",
+    "block_number": "37392",
+    "block_hash": "0x739679fd9f9b6f96213c440350980a1b590324c9152b7c394c81ce3627c94f52",
+    "authoritative": false,
+    "cleaned_up": true
+  },
+  "staking": {
+    "address": "0x77dfeedd19a4741f299c902ad5bbe0de917a9e59",
+    "runtime_sha256": "0d35f9cf3d578cb8065d2e73f5f3d75f3332ea26002c4ae1ba8114aa96884ecd",
+    "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "min_stake_atoms": "1000000000000000000000",
+    "unbonding_period_seconds": "604800",
+    "validator_count": "126",
+    "active_validator_count": "126",
+    "pending_activation_count": "0",
+    "pending_exit_count": "0",
+    "jailed_count": "0",
+    "nonzero_unbond_count": "0",
+    "stake_sum_atoms": "126000000000000000000000",
+    "unbond_sum_atoms": "0",
+    "attributed_liability_atoms": "126000000000000000000000",
+    "token_balance_atoms": "126000000000000000000000",
+    "liability_sum_matches_token_balance": true,
+    "all_validator_records_enumerated": true,
+    "controller_reverse_mappings_exact": true
+  },
+  "classification": {
+    "upgrade_staking_live_obligation_census_complete": true,
+    "upgrade_staking_all_held_void_attributed": true,
+    "successor_destination_not_selected": true
+  },
+  "post_analysis": {
+    "authoritative_epoch1_service_active": "inactive",
+    "authoritative_epoch1_service_enabled": "disabled",
+    "authoritative_8545_listener_count": 0,
+    "archive_freeze_reverified": true
+  },
+  "authority": {
+    "authoritative_epoch1_service_action": false,
+    "authoritative_chain2050_write": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

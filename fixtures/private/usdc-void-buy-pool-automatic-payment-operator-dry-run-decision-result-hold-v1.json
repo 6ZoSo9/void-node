@@ -1,0 +1,68 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_DRY_RUN_DECISION_RESULT_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_operator_dry_run_decision_result_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "operator_dry_run_decision_result_hold",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_OPERATOR_DRY_RUN_DECISION_PACKET_HOLD_V1",
+    "head": "75e1d11a",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-operator-dry-run-decision-packet-hold-v1-local-green-20260624-205226",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-operator-dry-run-decision-packet-hold-v1-cross-box-green-20260624-205337"
+  },
+  "purpose": "private operator-only dry-run decision result record shape for the USDC/VOID automatic payment path; no execution authority is created",
+  "result_scope": {
+    "dry_run_only": true,
+    "real_payment_verification": false,
+    "payment_approval": false,
+    "allocation_creation": false,
+    "inventory_reserve": false,
+    "ledger_write": false,
+    "fulfillment_execution": false,
+    "void_transfer": false
+  },
+  "allowed_result_states": [
+    "operator_dry_run_not_evaluated",
+    "operator_dry_run_candidate_eligible",
+    "operator_dry_run_candidate_rejected",
+    "operator_dry_run_candidate_held_manual_review",
+    "operator_dry_run_blocked_missing_verified_payment",
+    "operator_dry_run_blocked_duplicate_payment",
+    "operator_dry_run_blocked_inventory",
+    "operator_dry_run_blocked_identity_mismatch",
+    "operator_dry_run_blocked_amount_rate_policy",
+    "operator_dry_run_blocked_finality"
+  ],
+  "result_record_required_fields": [
+    "dry_run_decision_result_id",
+    "source_decision_packet_id",
+    "operator_key_id",
+    "decision_state",
+    "decision_reason_code",
+    "decision_timestamp_utc",
+    "checked_gate_markers",
+    "authority_false_snapshot",
+    "previous_private_result_hash",
+    "result_hash"
+  ],
+  "public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "buyer_specific_values_exposed": false,
+    "ledger_path_exposed": false,
+    "operator_command_exposed": false,
+    "wallet_or_signer_material_exposed": false
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false
+  }
+}

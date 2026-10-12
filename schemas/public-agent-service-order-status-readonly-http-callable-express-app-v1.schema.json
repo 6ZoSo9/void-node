@@ -1,0 +1,214 @@
+{
+  "$id": "https://voidchain.io/schemas/public-agent-service-order-status-readonly-http-callable-express-app-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "activation": {
+          "const": false
+        },
+        "configuration_write": {
+          "const": false
+        },
+        "daemon_reload": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "live_http_route_registration": {
+          "const": false
+        },
+        "network_listener": {
+          "const": false
+        },
+        "runtime_mutation": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "source_write": {
+          "const": false
+        }
+      },
+      "required": [
+        "configuration_write",
+        "daemon_reload",
+        "live_http_route_registration",
+        "network_listener",
+        "source_write",
+        "runtime_mutation",
+        "service_restart",
+        "deployment",
+        "activation"
+      ],
+      "type": "object"
+    },
+    "decision": {
+      "additionalProperties": false,
+      "properties": {
+        "integration_disabled": {
+          "const": true
+        },
+        "ready_for_activation": {
+          "const": false
+        },
+        "ready_to_open_pull_request": {
+          "const": true
+        },
+        "ready_to_retry_activation": {
+          "const": false
+        },
+        "startup_repair_source_ready": {
+          "const": true
+        }
+      },
+      "required": [
+        "startup_repair_source_ready",
+        "ready_to_open_pull_request",
+        "ready_to_retry_activation",
+        "integration_disabled",
+        "ready_for_activation"
+      ],
+      "type": "object"
+    },
+    "diagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "const": "invalid_express_app_provider_result"
+        },
+        "journal_evidence_sufficient": {
+          "const": true
+        },
+        "static_callsite_classification": {
+          "const": "app_provider_identifier_available_before_callsite"
+        }
+      },
+      "required": [
+        "classification",
+        "journal_evidence_sufficient",
+        "static_callsite_classification"
+      ],
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_CALLABLE_EXPRESS_APP_REPAIR_EXAMPLE_V1"
+    },
+    "repair": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_runtime_types": {
+          "const": [
+            "function",
+            "object"
+          ]
+        },
+        "arrays_rejected": {
+          "const": true
+        },
+        "general_record_validator_unchanged": {
+          "const": true
+        },
+        "null_rejected": {
+          "const": true
+        },
+        "required_property": {
+          "const": "get:function"
+        },
+        "startup_callsite_unchanged": {
+          "const": true
+        },
+        "validator": {
+          "const": "expressApp"
+        }
+      },
+      "required": [
+        "validator",
+        "accepted_runtime_types",
+        "required_property",
+        "arrays_rejected",
+        "null_rejected",
+        "general_record_validator_unchanged",
+        "startup_callsite_unchanged"
+      ],
+      "type": "object"
+    },
+    "root_cause": {
+      "additionalProperties": false,
+      "properties": {
+        "express_application_runtime_type": {
+          "const": "function"
+        },
+        "previous_rejection": {
+          "const": "invalid_object: express app"
+        },
+        "previous_validator_allowed_types": {
+          "const": [
+            "object"
+          ]
+        }
+      },
+      "required": [
+        "express_application_runtime_type",
+        "previous_validator_allowed_types",
+        "previous_rejection"
+      ],
+      "type": "object"
+    },
+    "verification": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_express_callable_app_accepted": {
+          "const": true
+        },
+        "callable_fake_app_found_status": {
+          "const": 200
+        },
+        "callable_fake_app_route_registered": {
+          "const": true
+        },
+        "disabled_app_provider_calls": {
+          "const": 0
+        },
+        "invalid_app_values_rejected": {
+          "const": 7
+        },
+        "object_fake_app_regression_green": {
+          "const": true
+        },
+        "source_bytes_unchanged": {
+          "const": true
+        }
+      },
+      "required": [
+        "disabled_app_provider_calls",
+        "actual_express_callable_app_accepted",
+        "callable_fake_app_route_registered",
+        "callable_fake_app_found_status",
+        "object_fake_app_regression_green",
+        "invalid_app_values_rejected",
+        "source_bytes_unchanged"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "diagnostic",
+    "root_cause",
+    "repair",
+    "verification",
+    "authority",
+    "decision"
+  ],
+  "title": "VOID public-agent order-status read-only callable Express app repair V1",
+  "type": "object"
+}

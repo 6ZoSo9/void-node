@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-realms-triscale-atomic-subdivide-merge-v1.schema.json",
+  "title": "VOID Realms Tri-Scale Atomic Subdivide and Merge V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "world_name",
+    "microcells_per_standard_edge",
+    "allowed_subdivisions",
+    "allowed_merges",
+    "atomic_policy",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_REALMS_TRISCALE_ATOMIC_CONVERSION_CONFIG_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "world_name": {
+      "const": "VOID Realms"
+    },
+    "microcells_per_standard_edge": {
+      "const": 4
+    },
+    "allowed_subdivisions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/subdivision"
+      }
+    },
+    "allowed_merges": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/merge"
+      }
+    },
+    "atomic_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "single_revision_transition",
+        "occupancy_root_must_remain_equal",
+        "material_units_delta",
+        "mixed_source_scale_merge_allowed",
+        "partial_coverage_merge_allowed",
+        "transient_overlap_allowed",
+        "cross_region_conversion_allowed",
+        "client_supplied_material_delta_trusted",
+        "preview_only_luanti_adapter"
+      ],
+      "properties": {
+        "single_revision_transition": { "const": true },
+        "occupancy_root_must_remain_equal": { "const": true },
+        "material_units_delta": { "const": 0 },
+        "mixed_source_scale_merge_allowed": { "const": false },
+        "partial_coverage_merge_allowed": { "const": false },
+        "transient_overlap_allowed": { "const": false },
+        "cross_region_conversion_allowed": { "const": false },
+        "client_supplied_material_delta_trusted": { "const": false },
+        "preview_only_luanti_adapter": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "world_mutation",
+        "inventory_mutation",
+        "gameplay_state_commit",
+        "network_listener_start",
+        "external_connection",
+        "server_start",
+        "deployment",
+        "work_credit_write",
+        "wallet_or_signer_access",
+        "payment_execution",
+        "money_movement"
+      ],
+      "properties": {
+        "world_mutation": { "const": false },
+        "inventory_mutation": { "const": false },
+        "gameplay_state_commit": { "const": false },
+        "network_listener_start": { "const": false },
+        "external_connection": { "const": false },
+        "server_start": { "const": false },
+        "deployment": { "const": false },
+        "work_credit_write": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "payment_execution": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "scale": {
+      "enum": ["small", "medium", "standard"]
+    },
+    "subdivision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_scale",
+        "target_scale",
+        "replacement_count"
+      ],
+      "properties": {
+        "source_scale": { "$ref": "#/$defs/scale" },
+        "target_scale": { "$ref": "#/$defs/scale" },
+        "replacement_count": {
+          "enum": [8, 64]
+        }
+      }
+    },
+    "merge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_scale",
+        "target_scale",
+        "source_count"
+      ],
+      "properties": {
+        "source_scale": { "$ref": "#/$defs/scale" },
+        "target_scale": { "$ref": "#/$defs/scale" },
+        "source_count": {
+          "enum": [8, 64]
+        }
+      }
+    }
+  }
+}

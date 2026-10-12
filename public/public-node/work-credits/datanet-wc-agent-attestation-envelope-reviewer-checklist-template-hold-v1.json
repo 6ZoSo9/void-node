@@ -1,0 +1,83 @@
+{
+  "schema": "void.datanet.wc.agent_attestation_envelope_reviewer_checklist_template.v1",
+  "marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_REVIEWER_CHECKLIST_TEMPLATE_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Attestation Envelope Reviewer Checklist Template",
+  "public_surface": true,
+  "read_only": true,
+  "source": {
+    "main_head": "fdb8999b",
+    "subject": "feat: add DataNet WC agent attestation envelope validation receipt index closeout final seal",
+    "validation_final_seal_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_VALIDATION_RECEIPT_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+    "validation_receipt_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_VALIDATION_RECEIPT_HOLD_V1",
+    "schema_candidate_marker": "VOID_DATANET_WC_AGENT_ATTESTATION_ENVELOPE_SCHEMA_CANDIDATE_HOLD_V1",
+    "validation_final_seal_json": "datanet-wc-agent-attestation-envelope-validation-receipt-index-patch-closeout-final-seal-hold-v1.json",
+    "validation_final_seal_html": "datanet-wc-agent-attestation-envelope-validation-receipt-index-patch-closeout-final-seal-hold-v1.html",
+    "validation_receipt_json": "datanet-wc-agent-attestation-envelope-validation-receipt-hold-v1.json",
+    "schema_json": "datanet-wc-agent-attestation-envelope-schema-candidate-hold-v1.schema.json",
+    "example_json": "datanet-wc-agent-attestation-envelope-schema-candidate-example-hold-v1.json"
+  },
+  "checklist": [
+    {
+      "id": "schema_binding",
+      "question": "Does the envelope declare the expected DataNet WC agent attestation envelope schema?",
+      "required": true
+    },
+    {
+      "id": "validation_receipt_binding",
+      "question": "Is the envelope chain bound to the validation receipt and final seal?",
+      "required": true
+    },
+    {
+      "id": "actor_identity_reference",
+      "question": "Does the actor section include an actor id, actor type, and identity envelope reference?",
+      "required": true
+    },
+    {
+      "id": "artifact_reference",
+      "question": "Does the work artifact section identify the artifact reference and artifact kind?",
+      "required": true
+    },
+    {
+      "id": "evidence_packet_reference",
+      "question": "Does the evidence section identify an evidence packet reference?",
+      "required": true
+    },
+    {
+      "id": "proof_command_reference",
+      "question": "Does the evidence section identify a replay/proof command reference?",
+      "required": true
+    },
+    {
+      "id": "review_decision_reference",
+      "question": "Does the review section preserve a decision reference without creating a decision?",
+      "required": true
+    },
+    {
+      "id": "award_state_sanity",
+      "question": "Is the Work Credit award state non-awarding unless a separate future operator lane approves it?",
+      "required": true
+    },
+    {
+      "id": "authority_boundary_preserved",
+      "question": "Are all identity registry, attestation registry, mutation, issuance, ledger, transfer, wallet, and signer paths disabled?",
+      "required": true
+    }
+  ],
+  "boundary": {
+    "reviewer_checklist_template_only": true,
+    "review_decision_created": false,
+    "wc_award_recommended": false,
+    "wc_award_approved": false,
+    "identity_registry_write_enabled": false,
+    "attestation_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}

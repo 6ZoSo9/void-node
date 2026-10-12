@@ -1,0 +1,27 @@
+name: public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup
+
+on:
+  push:
+    paths:
+      - ".github/workflows/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup.yml"
+      - "public/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.json"
+      - "public/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.html"
+      - "docs/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.md"
+      - "tools/check_public_node_operator_trial_tester_kit_public_entrypoint_link_closeout_rollup_v1.sh"
+      - "public/public-node/index.json"
+  pull_request:
+    paths:
+      - ".github/workflows/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup.yml"
+      - "public/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.json"
+      - "public/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.html"
+      - "docs/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-closeout-rollup-v1.md"
+      - "tools/check_public_node_operator_trial_tester_kit_public_entrypoint_link_closeout_rollup_v1.sh"
+      - "public/public-node/index.json"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tester kit public entrypoint link closeout rollup
+        run: bash tools/check_public_node_operator_trial_tester_kit_public_entrypoint_link_closeout_rollup_v1.sh

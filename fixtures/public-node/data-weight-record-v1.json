@@ -1,0 +1,11 @@
+{
+  "marker": "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_FIXTURE_V1",
+  "route_marker": "VOID_PUBLIC_NODE_DATA_WEIGHT_RECORD_V1",
+  "purpose": "fixture_for_public_node_data_weight_record_v1",
+  "record_states": ["verified", "stale", "duplicate", "suspicious", "tombstoned"],
+  "policy": {
+    "public_read_only": true,
+    "persistent_does_not_mean_equal_priority": true,
+    "trusted_as_network_truth": false
+  }
+}

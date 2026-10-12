@@ -1,0 +1,138 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_earn_status_reviewer_closeout_rollup_hold.v1",
+  "id": "datanet-wc-public-earn-status-reviewer-closeout-rollup-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Public Earn Status Reviewer Closeout Rollup Hold v1",
+  "summary": "Public reviewer closeout rollup for the DataNet Work Credits public earn-status lane. It binds the review-lane rollup, earn-readiness summary, and available-work public reviewer final seal while keeping earning held and Work Credits unlimited and uncapped.",
+  "marker": "VOID_DATANET_WC_PUBLIC_EARN_STATUS_REVIEWER_CLOSEOUT_ROLLUP_HOLD_V1",
+  "lane": "work_credits",
+  "scope": "datanet_wc_public_earn_status_reviewer_closeout_rollup",
+  "summary_status": "public_earn_status_reviewer_closeout_rollup_only_hold",
+  "summary_only": true,
+  "reviewer_closeout_rollup_only": true,
+  "wc_supply_unlimited_uncapped": true,
+  "wc_supply_lifetime_cap_declared": false,
+  "what_exists": [
+    {
+      "id": "public_wc_index",
+      "status": "present",
+      "path": "/public-node/work-credits/index.json"
+    },
+    {
+      "id": "availability_status_card",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json"
+    },
+    {
+      "id": "work_packet_template",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json"
+    },
+    {
+      "id": "work_packet_example",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-example-hold-v1.json"
+    },
+    {
+      "id": "review_criteria",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-criteria-hold-v1.json"
+    },
+    {
+      "id": "review_checklist",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-checklist-hold-v1.json"
+    },
+    {
+      "id": "review_result_template",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-result-template-hold-v1.json"
+    },
+    {
+      "id": "review_result_example",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-review-result-example-hold-v1.json"
+    },
+    {
+      "id": "review_lane_rollup",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-public-review-lane-rollup-hold-v1.json"
+    },
+    {
+      "id": "public_earn_readiness_summary",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-public-earn-readiness-summary-hold-v1.json"
+    },
+    {
+      "id": "available_work_public_reviewer_final_seal",
+      "status": "present",
+      "path": "/public-node/work-credits/datanet-wc-available-work-public-reviewer-final-seal-hold-v1.json"
+    }
+  ],
+  "sealed_entries": [
+    {
+      "id": "datanet-wc-public-review-lane-rollup-hold-v1",
+      "path": "/public-node/work-credits/datanet-wc-public-review-lane-rollup-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_REVIEW_LANE_ROLLUP_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-public-earn-readiness-summary-hold-v1",
+      "path": "/public-node/work-credits/datanet-wc-public-earn-readiness-summary-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_PUBLIC_EARN_READINESS_SUMMARY_HOLD_V1_GREEN"
+    },
+    {
+      "id": "datanet-wc-available-work-public-reviewer-final-seal-hold-v1",
+      "path": "/public-node/work-credits/datanet-wc-available-work-public-reviewer-final-seal-hold-v1.json",
+      "proof_marker": "VOID_DATANET_WC_AVAILABLE_WORK_PUBLIC_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN"
+    }
+  ],
+  "what_is_held": {
+    "packet_intake": "held",
+    "public_submission_endpoint": "held",
+    "active_review_decision": "held",
+    "live_earning": "held",
+    "wc_approval": "held",
+    "wc_issuance": "held",
+    "wc_ledger_write": "held",
+    "void_allocation": "held",
+    "void_transfer": "held",
+    "usdc_autofulfillment": "held",
+    "wallet_access": "held",
+    "signer_access": "held",
+    "runtime_route": "held",
+    "mutation_handler": "held"
+  },
+  "readiness_boundary": {
+    "summary_only": true,
+    "public_discovery_only": true,
+    "creates_authority": false,
+    "opens_earn_lane": false,
+    "opens_review_lane": false,
+    "opens_packet_intake": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

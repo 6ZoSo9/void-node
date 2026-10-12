@@ -1,0 +1,61 @@
+name: Buy VOID payment-keyed dispatcher runtime preview v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-runtime-preview-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_runtime_preview_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_runtime_preview_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-runtime-preview-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-dispatcher-runtime-preview-v1.yml"
+      - "src/economic/buy_void_payment_keyed_dispatcher_runtime_preview_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_runtime_preview_v1.ts"
+      - "docs/architecture/buy-void-payment-keyed-dispatcher-runtime-preview-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck, build, and prove lease-bound runtime preview
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_runtime_preview_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_lease_context_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_claim_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_enqueue_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_dispatcher_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_*.ts
+          git diff --check

@@ -1,0 +1,35 @@
+{
+  "schema": "void.datanet.wc.agent_identity_attestation_policy_public_explainer.v1",
+  "marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Identity + Attestation Policy Public Explainer",
+  "public_surface": true,
+  "read_only": true,
+  "purpose": "Explain how DataNet can attribute agent work through receipts, attestations, review evidence, and Work Credit award boundaries.",
+  "policy": {
+    "agent_identity": "stable_attribution_envelope_for_agent_tool_runner_reviewer_or_operator_lane",
+    "attestation": "evidence_envelope_linking_actor_artifact_proof_review_and_boundary",
+    "work_credits": "unlimited_uncapped_accounting_units_for_useful_verifiable_work",
+    "issuance_gate": "review_operator_protocol_rules_required_before_any_award",
+    "reviewer_role": "reviewers_verify_or_recommend_based_on_evidence_without_public_award_authority_in_this_hold"
+  },
+  "artifact_chain": [
+    "actor_identity_envelope",
+    "submitted_work_artifact",
+    "replayable_proof_or_evidence_packet",
+    "reviewer_operator_decision_pointer",
+    "later_award_or_rejection_status"
+  ],
+  "boundary": {
+    "identity_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "agent_self_issuance_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}

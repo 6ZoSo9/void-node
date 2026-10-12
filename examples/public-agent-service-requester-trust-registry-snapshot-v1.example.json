@@ -1,0 +1,58 @@
+{
+  "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_V1",
+  "version": 1,
+  "evidence_mode": "example_fixture",
+  "trust_root": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_ROOT_V1",
+    "version": 1,
+    "trust_status": "example_fixture",
+    "authority_scope": "requester_trust_registry_snapshot_verify",
+    "key_id": "ed25519:a5c79d3dd2ce18d5f903161ebd62b924ccadbe3f5e150c5f0410f633e40514cf",
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEApKaDqVPGGVm58XpV0CBjZWv1UHOMfcIN9C7KiTLN+9E=\n-----END PUBLIC KEY-----\n",
+    "valid_from_utc": "2030-01-01T00:00:00Z",
+    "expires_at_utc": "2031-01-01T00:00:00Z",
+    "revoked_at_utc": null,
+    "root_nonce": "requester-trust-root-example-0001",
+    "root_id": "voidartr1_69f0fdccdbdbe3a4a60784dc84e780a146c35e1525134d21c922a6ef5433a8af"
+  },
+  "snapshot_body": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_BODY_V1",
+    "version": 1,
+    "snapshot_status": "example_fixture",
+    "registry_id": "void.public-agent.requester-trust-registry.example.v1",
+    "sequence": 1,
+    "previous_snapshot_id": null,
+    "generated_at_utc": "2030-01-01T00:00:00Z",
+    "expires_at_utc": "2030-01-02T00:00:00Z",
+    "snapshot_nonce": "requester-trust-snapshot-example-0001",
+    "requester_key_bindings": [
+      {
+        "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_ACCEPTANCE_KEY_BINDING_V1",
+        "version": 1,
+        "binding_status": "example_fixture",
+        "requester_agent_id": "agent.example.researcher",
+        "authority_scope": "agent_paid_work_accept",
+        "key_id": "ed25519:ad524af9e99d6b42f22ad4958e82da31058122d16a165d40e5ce3e2a085094de",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPgFdiE1cB3OVPKNjzZb5Wc3ooACNwlPiTBujtXylcik=\n-----END PUBLIC KEY-----\n",
+        "valid_from_utc": "2030-01-01T00:00:00Z",
+        "expires_at_utc": "2030-03-01T00:00:00Z",
+        "revoked_at_utc": null,
+        "binding_nonce": "requester-key-binding-example-0001",
+        "binding_id": "voidarkb1_c204bcea66163516b13ca6810fb872ec9944640d29cbf3668ba44c71593c9365"
+      }
+    ]
+  },
+  "authentication_envelope": {
+    "marker": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_AUTHENTICATION_V1",
+    "version": 1,
+    "signature_scheme": "ed25519-spki-sha256-v1",
+    "signature_domain": "VOID_PUBLIC_AGENT_SERVICE_REQUESTER_TRUST_REGISTRY_SNAPSHOT_V1",
+    "canonicalization": "void-canonical-json-v1",
+    "snapshot_id": "voidarts1_161e45557389dcbb7eb7472534f7fd313cba8443170cd6cfcc388508723d3e13",
+    "trust_root_id": "voidartr1_69f0fdccdbdbe3a4a60784dc84e780a146c35e1525134d21c922a6ef5433a8af",
+    "key_id": "ed25519:a5c79d3dd2ce18d5f903161ebd62b924ccadbe3f5e150c5f0410f633e40514cf",
+    "signed_at_utc": "2030-01-01T00:00:00Z",
+    "signature_base64": "xUi3hDbvomdeLianeLqh+Bx1EXYERoPq37b1Lx0N5Izip84uvtxC+9i5AzULH0LMxEmJFw6sDJz4T+zGEnidAA==",
+    "authentication_id": "voidartsa1_c45f4fff8cce7d8e8e31c74280e834ac40fe08a40c8e5905aad36d29926c4854"
+  }
+}

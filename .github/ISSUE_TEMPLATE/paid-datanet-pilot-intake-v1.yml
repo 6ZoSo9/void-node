@@ -1,0 +1,136 @@
+name: Paid DataNet pilot request
+description: Request a bounded paid DataNet service using public or customer-authorized data.
+title: "[Paid DataNet Pilot]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # VOID Paid DataNet Pilot
+
+        Request one bounded paid DataNet service without downloading a node.
+
+        **This issue is public.** Submit only public references or data you are authorized to disclose. Do not post passwords, API keys, private keys, seed phrases, payment credentials, personal data, confidential data, or private dataset contents.
+
+        Marker: `VOID_PAID_DATANET_PUBLIC_PILOT_INTAKE_V1`
+
+  - type: dropdown
+    id: service_code
+    attributes:
+      label: Paid DataNet service
+      description: Select the bounded service you want quoted.
+      options:
+        - "datanet.object-integrity-check.v1 — DataNet Object Integrity Check"
+        - "datanet.public-retrieval-evidence.v1 — DataNet Public Retrieval Evidence"
+        - "datanet.dataset-replication-audit.v1 — DataNet Dataset Replication Audit"
+    validations:
+      required: true
+
+  - type: input
+    id: public_project_name
+    attributes:
+      label: Public project or organization name
+      description: Use a public-safe name. Do not include confidential customer or employer information.
+      placeholder: "Example: Open Research Archive"
+    validations:
+      required: true
+
+  - type: input
+    id: requester_reference
+    attributes:
+      label: Public requester reference
+      description: Choose a public-safe identifier for this request.
+      placeholder: "Example: open-research-archive-pilot-001"
+    validations:
+      required: true
+
+  - type: input
+    id: object_count
+    attributes:
+      label: Estimated object count
+      description: Enter a whole number. Final limits depend on the selected service.
+      placeholder: "Example: 12"
+    validations:
+      required: true
+
+  - type: input
+    id: total_bytes
+    attributes:
+      label: Estimated total bytes
+      description: Enter a whole-number estimate of the total data size in bytes.
+      placeholder: "Example: 10485760"
+    validations:
+      required: true
+
+  - type: textarea
+    id: public_object_references
+    attributes:
+      label: Public object references
+      description: List public URLs, content identifiers, or manifest references only. Do not paste private data or credentials.
+      placeholder: |
+        https://example.org/public-object-1
+        sha256:0123456789abcdef...
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired_outcome
+    attributes:
+      label: Desired outcome
+      description: Explain what you need verified or audited and what result would be useful.
+      placeholder: "Example: Verify that the listed public objects match their published SHA-256 digests."
+    validations:
+      required: true
+
+  - type: input
+    id: desired_completion_window
+    attributes:
+      label: Desired completion window
+      description: State a public-safe target such as 24 hours, 3 days, or no deadline.
+      placeholder: "Example: Within 3 days"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: budget_readiness
+    attributes:
+      label: Quote readiness
+      description: This form does not collect payment.
+      options:
+        - "Ready to receive a deterministic quote"
+        - "Exploring pricing before deciding"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_public_context
+    attributes:
+      label: Additional public context
+      description: Optional public context that helps the operator evaluate scope. Do not include secrets or private data.
+      placeholder: "Optional"
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Pilot pricing floor
+
+        - Object Integrity Check: $2.50 base + $0.25 per object + $0.02 per billable MiB
+        - Public Retrieval Evidence: $4.00 base + $0.50 per object + $0.03 per billable MiB
+        - Dataset Replication Audit: $12.00 base + $0.10 per object + $0.01 per billable MiB
+
+        The final deterministic quote may be higher when the declared operator cost basis requires the configured margin floor.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Required acknowledgements
+      options:
+        - label: I understand this issue and everything I post in it may be publicly visible.
+          required: true
+        - label: I confirm I have not included passwords, API keys, private keys, seed phrases, payment credentials, personal data, confidential data, or private dataset contents.
+          required: true
+        - label: I have the right to submit every referenced object, URL, manifest, and dataset reference for this requested service.
+          required: true
+        - label: I understand submission does not create a contract, collect payment, guarantee acceptance, or authorize work.
+          required: true
+        - label: I understand an operator must review the request, issue the deterministic quote, provide approved payment instructions separately, verify payment evidence, and explicitly admit the work before execution.
+          required: true

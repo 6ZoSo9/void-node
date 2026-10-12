@@ -1,0 +1,1128 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
+import net from "node:net";
+import process from "node:process";
+import { lookupDnsRecordsBoundedV1 } from "./lib/void_public_bootstrap_bounded_dns_v1.mjs";
+import {
+  BOOTSTRAP_SCHEMA,
+  CHAIN_ID,
+  NETWORK,
+  assertPlainObject,
+  assertSafeInteger,
+  isPublicIpAddress,
+  isTemporarySeedHostname,
+  normalizeHostname,
+  normalizePublicSeedBase,
+  objectWithId,
+  parseJsonBytes,
+  probePublicSeedSample,
+  resolvePublicDns,
+} from "./lib/void_public_seed_qualification_v1.mjs";
+import {
+  classifyVoidPublicBootstrapManifestMediaTypeV1,
+} from "./lib/void_public_bootstrap_manifest_media_type_v1.mjs";
+
+const MARKER = "VOID_PUBLIC_BOOTSTRAP_RESOLVER_V1";
+const DEFAULT_MANIFEST =
+  "https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/bootstrap/v1.json";
+const DEFAULT_TIMEOUT_MS = 12_000;
+const MAX_MANIFEST_BYTES = 1024 * 1024;
+const MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
+const RUNTIME_RENEWAL_SAMPLE_COUNT_V1 = 3;
+const RUNTIME_RENEWAL_INTERVAL_MS_V1 = 30_000;
+const RUNTIME_RENEWAL_MIN_SPAN_MS_V1 = 60_000;
+const ALLOW_LOOPBACK_FIXTURE =
+  process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE === "1";
+const ALLOW_HOLD =
+  process.argv.includes("--allow-hold") ||
+  process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_HOLD === "1";
+const VERIFY_ONLY = process.argv.includes("--verify-only");
+const EXIT_TRUST_INVALID = 2;
+const EXIT_TRANSPORT_UNAVAILABLE = 3;
+
+const AUTHORITY_KEYS = Object.freeze([
+  "private_routes_exposed",
+  "wallet_authority",
+  "signer_authority",
+  "validator_authority",
+  "treasury_authority",
+  "work_credit_authority",
+  "money_movement_authority",
+]);
+const HOLD_MANIFEST_KEYS = Object.freeze([
+  "schema",
+  "network",
+  "chain_id",
+  "status",
+  "generated_at",
+  "sync_endpoints",
+  "onion_endpoints",
+  "private_tailnet_endpoints_published",
+  "authority",
+  "notes",
+  "manifest_id",
+]);
+const STABLE_MANIFEST_KEYS = Object.freeze([
+  ...HOLD_MANIFEST_KEYS,
+  "expires_at",
+]);
+const ENDPOINT_KEYS = Object.freeze([
+  "transport",
+  "base",
+  "priority",
+  "enabled",
+  "temporary",
+  "qualification_id",
+  "qualified_at",
+  "qualified_head",
+]);
+
+function fail(message, exitCode = 1) {
+  console.error(`${MARKER}_FAIL: ${message}`);
+  process.exit(exitCode);
+}
+
+function classifiedError(message, exitCode) {
+  const error = new Error(message);
+  error.exitCode = exitCode;
+  return error;
+}
+
+function trustInvalid(message) {
+  return classifiedError(message, EXIT_TRUST_INVALID);
+}
+
+function transportUnavailable(message) {
+  return classifiedError(message, EXIT_TRANSPORT_UNAVAILABLE);
+}
+
+function classificationOf(error) {
+  return error?.exitCode === EXIT_TRANSPORT_UNAVAILABLE
+    ? EXIT_TRANSPORT_UNAVAILABLE
+    : EXIT_TRUST_INVALID;
+}
+
+function normalizeConnectedAddress(address) {
+  const value = String(address || "").split("%")[0].toLowerCase();
+  if (value.startsWith("::ffff:") && net.isIP(value.slice(7)) === 4) {
+    return value.slice(7);
+  }
+  return value;
+}
+
+function positiveInteger(raw, fallback, minimum, maximum) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.floor(value)));
+}
+
+function exactKeys(value, expected, label) {
+  const object = assertPlainObject(value, label);
+  const actual = Object.keys(object).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    const unexpected = actual.filter((key) => !wanted.includes(key));
+    const missing = wanted.filter((key) => !actual.includes(key));
+    throw new Error(
+      `${label} keys mismatch; unexpected=${unexpected.join(",") || "none"}; missing=${missing.join(",") || "none"}`,
+    );
+  }
+  return object;
+}
+
+function terminalManifestError(message, { unavailable = false } = {}) {
+  const error = unavailable
+    ? transportUnavailable(message)
+    : trustInvalid(message);
+  error.terminalManifestResponse = !unavailable;
+  return error;
+}
+
+function localHoldFileArgument(argv = process.argv.slice(2)) {
+  const indexes = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--local-hold-file") indexes.push(index);
+  }
+  if (indexes.length > 1) {
+    throw new Error("--local-hold-file may be supplied only once");
+  }
+  if (indexes.length === 0) return "";
+  const index = indexes[0];
+  const value = String(argv[index + 1] || "").trim();
+  if (!value || value.startsWith("--")) {
+    throw new Error("--local-hold-file requires a path");
+  }
+  return value;
+}
+
+const TIMEOUT_MS = positiveInteger(
+  process.env.VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS,
+  DEFAULT_TIMEOUT_MS,
+  1_000,
+  60_000,
+);
+const MAX_LIVE_SEEDS = positiveInteger(
+  process.env.VOID_PUBLIC_BOOTSTRAP_MAX_LIVE_SEEDS,
+  4,
+  1,
+  8,
+);
+
+async function boundedPublicBootstrapLookupV1(hostname, options = {}) {
+  if (options?.all !== true) {
+    throw new Error(
+      "bounded public bootstrap DNS lookup requires all=true",
+    );
+  }
+  return await lookupDnsRecordsBoundedV1(hostname, {
+    timeoutMs: TIMEOUT_MS,
+  });
+}
+
+function normalizeManifestUrl(raw) {
+  let url;
+  try {
+    url = new URL(String(raw));
+  } catch (error) {
+    void error;
+    throw new Error("manifest URL is invalid");
+  }
+  if (String(raw).length > 2048) throw new Error("manifest URL is too long");
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("manifest URL must not contain credentials, query, or fragment");
+  }
+
+  const hostname = normalizeHostname(url.hostname);
+  const loopbackFixture =
+    ALLOW_LOOPBACK_FIXTURE &&
+    url.protocol === "http:" &&
+    ["127.0.0.1", "localhost", "::1"].includes(hostname);
+  if (!loopbackFixture && url.protocol !== "https:") {
+    throw new Error("manifest URL must use HTTPS");
+  }
+  if (!loopbackFixture) {
+    if (net.isIP(hostname)) throw new Error("manifest URL must use a DNS hostname");
+    if (!hostname.includes(".")) {
+      throw new Error("manifest hostname must be fully qualified");
+    }
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      hostname.endsWith(".home") ||
+      hostname.endsWith(".lan") ||
+      isTemporarySeedHostname(hostname)
+    ) {
+      throw new Error("manifest hostname is private, local, or temporary");
+    }
+  }
+  return Object.freeze({ url, hostname, loopbackFixture });
+}
+
+async function requestManifestOne(normalized, address) {
+  const family = net.isIP(address);
+  if (!family) throw new Error(`manifest address is invalid: ${address}`);
+  if (!normalized.loopbackFixture && !isPublicIpAddress(address)) {
+    throw new Error(`manifest address is not public: ${address}`);
+  }
+
+  const transport = normalized.url.protocol === "https:" ? https : http;
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    let totalDeadline = null;
+    const clearTotalDeadline = () => {
+      if (totalDeadline !== null) {
+        clearTimeout(totalDeadline);
+        totalDeadline = null;
+      }
+    };
+    const failOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTotalDeadline();
+      if (error?.exitCode === EXIT_TRUST_INVALID || error?.exitCode === EXIT_TRANSPORT_UNAVAILABLE) {
+        reject(error);
+        return;
+      }
+      reject(transportUnavailable(error?.message || String(error)));
+    };
+    const succeedOnce = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTotalDeadline();
+      resolve(value);
+    };
+
+    const request = transport.request(
+      normalized.url,
+      {
+        method: "GET",
+        agent: false,
+        family,
+        autoSelectFamily: false,
+        ...(normalized.url.protocol === "https:"
+          ? { servername: normalized.hostname }
+          : {}),
+        headers: {
+          accept: "application/json",
+          connection: "close",
+          "user-agent": "void-node/public-bootstrap-resolver-v1",
+        },
+        lookup(_hostname, _options, callback) {
+          callback(null, address, family);
+        },
+      },
+      (response) => {
+        const connected = normalizeConnectedAddress(response.socket?.remoteAddress);
+        const expected = normalizeConnectedAddress(address);
+        if (!connected || connected !== expected) {
+          response.destroy();
+          failOnce(
+            trustInvalid(
+              `manifest request connected to unexpected address ${connected || "unknown"}; expected ${expected}`,
+            ),
+          );
+          return;
+        }
+        if (!normalized.loopbackFixture && !isPublicIpAddress(connected)) {
+          response.destroy();
+          failOnce(trustInvalid(`manifest request connected to non-public address ${connected}`));
+          return;
+        }
+
+        const status = Number(response.statusCode || 0);
+        if (status >= 300 && status < 400) {
+          response.destroy();
+          failOnce(terminalManifestError(`manifest request redirected with HTTP ${status}`));
+          return;
+        }
+        if (status !== 200) {
+          response.destroy();
+          const unavailable =
+            status === 404 || status === 408 || status === 425 || status === 429 || status >= 500;
+          failOnce(
+            terminalManifestError(`manifest request returned HTTP ${status}`, { unavailable }),
+          );
+          return;
+        }
+        const mediaDecision =
+          classifyVoidPublicBootstrapManifestMediaTypeV1({
+            hostname: normalized.hostname,
+            pathname: normalized.url.pathname,
+            content_type: response.headers["content-type"],
+          });
+        if (!mediaDecision.ok) {
+          response.destroy();
+          failOnce(
+            terminalManifestError(
+              "manifest response media type is not allowed",
+            ),
+          );
+          return;
+        }
+
+        const advertised = Number(response.headers["content-length"] || 0);
+        if (Number.isFinite(advertised) && advertised > MAX_MANIFEST_BYTES) {
+          response.destroy();
+          failOnce(terminalManifestError("manifest advertised an oversized response"));
+          return;
+        }
+
+        const chunks = [];
+        let total = 0;
+        response.on("data", (chunk) => {
+          if (settled) return;
+          total += chunk.length;
+          if (total > MAX_MANIFEST_BYTES) {
+            response.destroy();
+            failOnce(terminalManifestError("manifest exceeded the response limit"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on("aborted", () => {
+          failOnce(new Error("manifest response was aborted"));
+        });
+        response.on("error", failOnce);
+        response.on("end", () => {
+          if (settled) return;
+          try {
+            succeedOnce(
+              parseJsonBytes(Buffer.concat(chunks, total), "bootstrap manifest"),
+            );
+          } catch (error) {
+            failOnce(
+              terminalManifestError(
+                error?.message || "bootstrap manifest JSON parse failed",
+              ),
+            );
+          }
+        });
+      },
+    );
+
+    totalDeadline = setTimeout(() => {
+      request.destroy(
+        new Error(
+          `manifest request total deadline exceeded after ${TIMEOUT_MS} ms`,
+        ),
+      );
+    }, TIMEOUT_MS);
+    request.setTimeout(TIMEOUT_MS, () => {
+      request.destroy(new Error(`manifest request timed out after ${TIMEOUT_MS} ms`));
+    });
+    request.on("error", failOnce);
+    request.end();
+  });
+}
+
+async function fetchManifest(rawUrl) {
+  let normalized;
+  try {
+    normalized = normalizeManifestUrl(rawUrl);
+  } catch (error) {
+    throw trustInvalid(error?.message || String(error));
+  }
+
+  let addresses;
+  try {
+    addresses = await resolvePublicDns(normalized.hostname, {
+      lookup: boundedPublicBootstrapLookupV1,
+      allowLoopbackFixture: normalized.loopbackFixture,
+    });
+  } catch (error) {
+    const detail = error?.message || String(error);
+    if (/non-public|private|local|invalid/i.test(detail)) throw trustInvalid(detail);
+    throw transportUnavailable(detail);
+  }
+
+  return await requestManifestAcrossPinnedAddressesV1(normalized, addresses);
+}
+
+async function requestManifestAcrossPinnedAddressesV1(
+  normalized,
+  addresses,
+  requestOne = requestManifestOne,
+) {
+  const errors = [];
+  let sawTrustInvalid = false;
+  for (const address of addresses) {
+    try {
+      return await requestOne(normalized, address);
+    } catch (error) {
+      errors.push(`${address}: ${error?.message || String(error)}`);
+      if (classificationOf(error) === EXIT_TRUST_INVALID) sawTrustInvalid = true;
+      if (error?.terminalManifestResponse === true) throw error;
+    }
+  }
+  const detail = `manifest failed on every pinned address: ${errors.join(" | ")}`;
+  if (sawTrustInvalid) throw trustInvalid(detail);
+  throw transportUnavailable(detail);
+}
+
+function assertAuthorityBoundary(rawAuthority, label) {
+  const authority = exactKeys(rawAuthority, AUTHORITY_KEYS, label);
+  for (const key of AUTHORITY_KEYS) {
+    if (authority[key] !== false) {
+      throw new Error(`${label} ${key} must be false`);
+    }
+  }
+}
+
+function parseTime(value, label) {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a canonical ISO-8601 string`);
+  }
+  const time = Date.parse(value);
+  if (
+    !Number.isFinite(time) ||
+    new Date(time).toISOString() !== value
+  ) {
+    throw new Error(`${label} must use canonical UTC millisecond ISO-8601`);
+  }
+  return time;
+}
+
+function sleepRuntimeRenewalV1(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function runtimeSampleObservedAtMsV1(sample, label) {
+  const value = Date.parse(String(sample?.observed_at || ""));
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} observed_at is invalid`);
+  }
+  return value;
+}
+
+function runtimeSampleHeadsV1(sample, label) {
+  const readyHead = assertSafeInteger(
+    sample?.ready_head,
+    `${label} ready_head`,
+    { min: 1 },
+  );
+  const head = assertSafeInteger(
+    sample?.head,
+    `${label} head`,
+    { min: 1 },
+  );
+  return Object.freeze({
+    readyHead,
+    head,
+    conservativeHead: Math.min(readyHead, head),
+  });
+}
+
+function requireRuntimeHeadsAtOrAbovePublishedV1(
+  heads,
+  endpoint,
+  label,
+) {
+  if (
+    heads.readyHead < endpoint.qualifiedHead ||
+    heads.head < endpoint.qualifiedHead
+  ) {
+    throw new Error(
+      `${label} regressed below published qualified head ${endpoint.qualifiedHead}; ready_head=${heads.readyHead}; head=${heads.head}`,
+    );
+  }
+}
+
+function runtimeDeadlineFromEvidenceV1(evidenceAtMs, expiresAtMs) {
+  const notAfterMs = Math.min(
+    expiresAtMs,
+    evidenceAtMs + MAX_QUALIFICATION_AGE_MS,
+  );
+  if (
+    !Number.isSafeInteger(notAfterMs) ||
+    notAfterMs <= Date.now() ||
+    notAfterMs > evidenceAtMs + MAX_QUALIFICATION_AGE_MS
+  ) {
+    throw new Error("runtime live-admission deadline is not live");
+  }
+  return notAfterMs;
+}
+
+async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
+  const samples = [];
+  let previousReadyHead = -Infinity;
+  let previousHead = -Infinity;
+  let previousObservedAtMs = -Infinity;
+
+  for (
+    let index = 0;
+    index < RUNTIME_RENEWAL_SAMPLE_COUNT_V1;
+    index += 1
+  ) {
+    const sample = await probePublicSeedSample(endpoint.base, {
+      lookup: boundedPublicBootstrapLookupV1,
+      allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+      timeoutMs: TIMEOUT_MS,
+    });
+    const label = `runtime renewal sample ${index + 1}`;
+    const observedAtMs = runtimeSampleObservedAtMsV1(sample, label);
+    if (observedAtMs < previousObservedAtMs) {
+      throw new Error("runtime renewal samples are not time ordered");
+    }
+    previousObservedAtMs = observedAtMs;
+
+    const heads = runtimeSampleHeadsV1(sample, label);
+    requireRuntimeHeadsAtOrAbovePublishedV1(
+      heads,
+      endpoint,
+      label,
+    );
+    if (
+      heads.readyHead < previousReadyHead ||
+      heads.head < previousHead
+    ) {
+      throw new Error(
+        "runtime renewal readiness/head regressed across samples",
+      );
+    }
+    previousReadyHead = heads.readyHead;
+    previousHead = heads.head;
+    samples.push(sample);
+
+    if (index + 1 < RUNTIME_RENEWAL_SAMPLE_COUNT_V1) {
+      await sleepRuntimeRenewalV1(RUNTIME_RENEWAL_INTERVAL_MS_V1);
+    }
+  }
+
+  const firstObservedAtMs = runtimeSampleObservedAtMsV1(
+    samples[0],
+    "runtime renewal first sample",
+  );
+  const lastObservedAtMs = runtimeSampleObservedAtMsV1(
+    samples[samples.length - 1],
+    "runtime renewal final sample",
+  );
+  const sampleSpanMs = lastObservedAtMs - firstObservedAtMs;
+  if (sampleSpanMs < RUNTIME_RENEWAL_MIN_SPAN_MS_V1) {
+    throw new Error(
+      `runtime renewal observation span is less than ${RUNTIME_RENEWAL_MIN_SPAN_MS_V1} ms`,
+    );
+  }
+
+  return Object.freeze({
+    base: endpoint.base,
+    qualificationId: endpoint.qualificationId,
+    qualificationNotAfterMs:
+      runtimeDeadlineFromEvidenceV1(lastObservedAtMs, expiresAtMs),
+    renewalPerformed: true,
+    sampleCount: samples.length,
+    sampleSpanMs,
+    liveHead: runtimeSampleHeadsV1(
+      samples[samples.length - 1],
+      "runtime renewal final sample",
+    ).conservativeHead,
+  });
+}
+
+async function admitLiveEndpointV1(endpoint, expiresAtMs) {
+  if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
+    const sample = await probePublicSeedSample(endpoint.base, {
+      lookup: boundedPublicBootstrapLookupV1,
+      allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+      timeoutMs: TIMEOUT_MS,
+    });
+    const heads = runtimeSampleHeadsV1(
+      sample,
+      "fresh publication live sample",
+    );
+    requireRuntimeHeadsAtOrAbovePublishedV1(
+      heads,
+      endpoint,
+      "fresh publication live sample",
+    );
+
+    if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
+      return Object.freeze({
+        base: endpoint.base,
+        qualificationId: endpoint.qualificationId,
+        qualificationNotAfterMs:
+          endpoint.publishedQualificationNotAfterMs,
+        renewalPerformed: false,
+        sampleCount: 1,
+        sampleSpanMs: 0,
+        liveHead: heads.conservativeHead,
+      });
+    }
+  }
+
+  // If the publication window was already stale, or expires while the
+  // one-sample fresh-path check is running, a complete 3-sample / >=60s
+  // runtime renewal is required. One sample never mints multi-hour authority.
+  return await runtimeRenewEndpointV1(endpoint, expiresAtMs);
+}
+
+async function attemptRuntimeAdmissionsV1(
+  endpoints,
+  expiresAtMs,
+) {
+  return await Promise.all(
+    endpoints.map(async (endpoint) => {
+      try {
+        return Object.freeze({
+          endpoint,
+          admission: await admitLiveEndpointV1(
+            endpoint,
+            expiresAtMs,
+          ),
+          error: null,
+        });
+      } catch (error) {
+        return Object.freeze({
+          endpoint,
+          admission: null,
+          error: error?.message || String(error),
+        });
+      }
+    }),
+  );
+}
+
+function verifyManifestId(manifest) {
+  if (
+    typeof manifest.manifest_id !== "string" ||
+    !/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id)
+  ) {
+    throw new Error("manifest ID is missing or malformed");
+  }
+  const expected = objectWithId("voidpbm1_", manifest, "manifest_id").manifest_id;
+  if (manifest.manifest_id !== expected) {
+    throw new Error("manifest ID does not match its content");
+  }
+}
+
+function manifestUrls() {
+  const configured = String(
+    process.env.VOID_PUBLIC_BOOTSTRAP_MANIFEST_URLS ||
+      process.env.VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL ||
+      DEFAULT_MANIFEST,
+  );
+  const urls = [
+    ...new Set(configured.split(",").map((value) => value.trim()).filter(Boolean)),
+  ];
+  if (urls.length === 0) {
+    throw new Error("no bootstrap manifest URL is configured");
+  }
+  if (urls.length > 4) {
+    throw new Error("at most four bootstrap manifest mirrors are supported");
+  }
+  return urls;
+}
+
+function validateManifest(rawManifest, nowMs = Date.now()) {
+  const manifest = assertPlainObject(
+    structuredClone(rawManifest),
+    "bootstrap manifest",
+  );
+  if (
+    typeof manifest.status !== "string" ||
+    !["hold_no_stable_seed", "stable_https_seed"].includes(manifest.status)
+  ) {
+    throw new Error("manifest status must be an exact supported string");
+  }
+  const status = manifest.status;
+  exactKeys(
+    manifest,
+    status === "stable_https_seed" ? STABLE_MANIFEST_KEYS : HOLD_MANIFEST_KEYS,
+    "bootstrap manifest",
+  );
+  if (manifest.schema !== BOOTSTRAP_SCHEMA) {
+    throw new Error("unexpected manifest schema");
+  }
+  if (manifest.network !== NETWORK || manifest.chain_id !== CHAIN_ID) {
+    throw new Error("manifest network or chain ID mismatch");
+  }
+  verifyManifestId(manifest);
+  if (manifest.private_tailnet_endpoints_published !== false) {
+    throw new Error("manifest violates the private-Tailnet boundary");
+  }
+  assertAuthorityBoundary(manifest.authority, "manifest authority");
+  const generatedAt = parseTime(manifest.generated_at, "manifest generated_at");
+  if (generatedAt > nowMs + 5 * 60 * 1000) {
+    throw new Error("manifest is from the future");
+  }
+  if (!Array.isArray(manifest.sync_endpoints)) {
+    throw new Error("manifest sync_endpoints must be an array");
+  }
+  if (!Array.isArray(manifest.onion_endpoints)) {
+    throw new Error("manifest onion_endpoints must be an array");
+  }
+  if (manifest.onion_endpoints.length !== 0) {
+    throw new Error("manifest onion_endpoints are unsupported in client v1");
+  }
+  if (typeof manifest.notes !== "string" || manifest.notes.length > 4096) {
+    throw new Error("manifest notes must be a bounded string");
+  }
+
+  if (status === "hold_no_stable_seed") {
+    if (manifest.sync_endpoints.length !== 0) {
+      throw new Error("hold manifest must not publish synchronization endpoints");
+    }
+    return Object.freeze({ manifest, hold: true, endpoints: [] });
+  }
+  if (status !== "stable_https_seed") {
+    throw new Error(`unsupported manifest status ${status || "missing"}`);
+  }
+
+  const expiresAt = parseTime(manifest.expires_at, "manifest expires_at");
+  if (expiresAt <= nowMs) throw new Error("manifest is expired");
+  const validity = expiresAt - generatedAt;
+  if (validity < 60 * 60 * 1000 || validity > 7 * 24 * 60 * 60 * 1000) {
+    throw new Error("manifest validity must be from one hour through seven days");
+  }
+  if (manifest.sync_endpoints.length === 0 || manifest.sync_endpoints.length > 8) {
+    throw new Error("stable manifest requires from one through eight endpoints");
+  }
+
+  const seen = new Set();
+  const endpoints = [];
+  for (const [index, rawEndpoint] of manifest.sync_endpoints.entries()) {
+    const endpoint = exactKeys(
+      rawEndpoint,
+      ENDPOINT_KEYS,
+      `manifest endpoint ${index + 1}`,
+    );
+    if (typeof endpoint.enabled !== "boolean") {
+      throw new Error("seed enabled flag must be boolean");
+    }
+    if (endpoint.enabled !== true) continue;
+    if (endpoint.transport !== "https") {
+      throw new Error("enabled seed transport must be HTTPS");
+    }
+    if (endpoint.temporary !== false) {
+      throw new Error("enabled seed must declare temporary=false");
+    }
+    if (typeof endpoint.base !== "string") {
+      throw new Error("seed base must be an exact string");
+    }
+    const normalized = normalizePublicSeedBase(endpoint.base, {
+      allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+    });
+    if (normalized.base !== endpoint.base) {
+      throw new Error("seed base must already be canonical");
+    }
+    if (seen.has(normalized.base)) {
+      throw new Error(`duplicate seed endpoint ${normalized.base}`);
+    }
+    seen.add(normalized.base);
+    if (
+      typeof endpoint.qualification_id !== "string" ||
+      !/^voidpsq1_[0-9a-f]{64}$/.test(endpoint.qualification_id)
+    ) {
+      throw new Error("seed qualification ID is missing or malformed");
+    }
+    const qualifiedAt = parseTime(endpoint.qualified_at, "seed qualified_at");
+    if (qualifiedAt > nowMs + 5 * 60 * 1000) {
+      throw new Error("seed qualification is from the future");
+    }
+    if (qualifiedAt > generatedAt) {
+      throw new Error("seed qualification postdates manifest generation");
+    }
+    if (generatedAt - qualifiedAt > MAX_QUALIFICATION_AGE_MS) {
+      throw new Error(
+        "seed qualification was stale when manifest was generated",
+      );
+    }
+    const publishedQualificationNotAfterMs =
+      qualifiedAt + MAX_QUALIFICATION_AGE_MS;
+    const runtimeAdmissionRenewalRequired =
+      publishedQualificationNotAfterMs <= nowMs;
+    const qualifiedHead = assertSafeInteger(
+      endpoint.qualified_head,
+      "seed qualified_head",
+      { min: 1 },
+    );
+    const priority = assertSafeInteger(endpoint.priority, "seed priority", {
+      min: 0,
+      max: 1_000_000,
+    });
+    endpoints.push({
+      base: normalized.base,
+      priority,
+      qualifiedHead,
+      qualificationId: endpoint.qualification_id,
+      publishedQualificationNotAfterMs,
+      runtimeAdmissionRenewalRequired,
+    });
+  }
+  if (endpoints.length === 0) {
+    throw new Error("stable manifest has no enabled HTTPS seed");
+  }
+  endpoints.sort(
+    (left, right) =>
+      left.priority - right.priority || left.base.localeCompare(right.base),
+  );
+  const publishedQualificationBindings = endpoints.map(
+    (endpoint) =>
+      Object.freeze({
+        base: endpoint.base,
+        qualification_id: endpoint.qualificationId,
+        published_qualification_not_after_ms:
+          endpoint.publishedQualificationNotAfterMs,
+        qualified_head: endpoint.qualifiedHead,
+        priority: endpoint.priority,
+      }),
+  );
+  return Object.freeze({
+    manifest,
+    hold: false,
+    endpoints,
+    expiresAt,
+    publishedQualificationBindings,
+  });
+}
+
+function readLocalHoldManifest(path) {
+  const target = String(path || "").trim();
+  if (!target) throw new Error("local hold manifest path is empty");
+  const linkStatus = fs.lstatSync(target);
+  if (linkStatus.isSymbolicLink()) {
+    throw new Error("local hold manifest must not be a symlink");
+  }
+  if (!linkStatus.isFile()) {
+    throw new Error("local hold manifest must be a regular file");
+  }
+  if (linkStatus.size < 2 || linkStatus.size > MAX_MANIFEST_BYTES) {
+    throw new Error("local hold manifest size is invalid");
+  }
+  const manifest = parseJsonBytes(
+    fs.readFileSync(target),
+    "local hold manifest",
+  );
+  const validated = validateManifest(manifest);
+  if (!validated.hold) {
+    throw new Error("local fallback accepts only hold_no_stable_seed manifests");
+  }
+  return Object.freeze({ target: fs.realpathSync(target), ...validated });
+}
+
+function emitHold({ source, manifest, manifestId }) {
+  console.error(`marker=${MARKER}`);
+  console.error(`manifest_source=${source}`);
+  console.error(`manifest=${manifest}`);
+  console.error(`manifest_id=${manifestId}`);
+  console.error("status=hold_no_stable_seed");
+  console.error("tailnet_required=false");
+  console.error(`${MARKER}_HOLD`);
+}
+
+async function runPinnedAddressFailoverSelfTestV1() {
+  const normalized = Object.freeze({ url: new URL("https://seed.example/"), hostname: "seed.example" });
+  const attempts = [];
+  const recovered = await requestManifestAcrossPinnedAddressesV1(
+    normalized,
+    ["203.0.113.10", "203.0.113.11"],
+    async (_normalized, address) => {
+      attempts.push(address);
+      if (attempts.length === 1) {
+        throw terminalManifestError("manifest request returned HTTP 503", {
+          unavailable: true,
+        });
+      }
+      return Object.freeze({ ok: true, address });
+    },
+  );
+  if (
+    attempts.length !== 2 ||
+    recovered.address !== "203.0.113.11"
+  ) {
+    throw new Error("transient pinned-address failover self-test failed");
+  }
+
+  const terminalAttempts = [];
+  let terminalRejected = false;
+  try {
+    await requestManifestAcrossPinnedAddressesV1(
+      normalized,
+      ["203.0.113.20", "203.0.113.21"],
+      async (_normalized, address) => {
+        terminalAttempts.push(address);
+        if (terminalAttempts.length === 1) {
+          throw terminalManifestError("manifest request redirected with HTTP 302");
+        }
+        return Object.freeze({ ok: true, address });
+      },
+    );
+  } catch (error) {
+    terminalRejected =
+      classificationOf(error) === EXIT_TRUST_INVALID &&
+      terminalAttempts.length === 1;
+  }
+  if (!terminalRejected) {
+    throw new Error("trust-invalid pinned-address terminal self-test failed");
+  }
+
+  console.log("VOID_PUBLIC_BOOTSTRAP_PINNED_ADDRESS_FAILOVER_V1_GREEN");
+  console.log("transient_http_address_failure_fails_over=true");
+  console.log("trust_invalid_response_remains_terminal=true");
+}
+
+async function main() {
+  if (process.argv.includes("--self-test-pinned-address-failover")) {
+    await runPinnedAddressFailoverSelfTestV1();
+    return;
+  }
+
+  const localHoldFile = localHoldFileArgument();
+  if (localHoldFile) {
+    const validated = readLocalHoldManifest(localHoldFile);
+    emitHold({
+      source: "local_hold_file",
+      manifest: validated.target,
+      manifestId: validated.manifest.manifest_id,
+    });
+    if (ALLOW_HOLD) return;
+    throw new Error("local manifest is in hold_no_stable_seed state");
+  }
+
+  const errors = [];
+  for (const manifestUrl of manifestUrls()) {
+    try {
+      const validated = validateManifest(await fetchManifest(manifestUrl));
+      if (validated.hold) {
+        emitHold({
+          source: "remote_https",
+          manifest: manifestUrl,
+          manifestId: validated.manifest.manifest_id,
+        });
+        if (ALLOW_HOLD) return;
+        throw trustInvalid("manifest is in hold_no_stable_seed state");
+      }
+
+      if (VERIFY_ONLY) {
+        console.error(`marker=${MARKER}`);
+        console.error("manifest_source=remote_https");
+        console.error(`manifest=${manifestUrl}`);
+        console.error(`manifest_id=${validated.manifest.manifest_id}`);
+        const renewalRequiredCount = validated.endpoints.filter(
+          (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
+        ).length;
+        const freshPublishedDeadlines = validated.endpoints
+          .filter((endpoint) => !endpoint.runtimeAdmissionRenewalRequired)
+          .map((endpoint) => endpoint.publishedQualificationNotAfterMs);
+        const verifyQualificationNotAfterMs =
+          renewalRequiredCount === 0 && freshPublishedDeadlines.length > 0
+            ? Math.min(...freshPublishedDeadlines)
+            : "";
+        console.error(
+          `published_qualification_bindings=${JSON.stringify(
+            validated.publishedQualificationBindings,
+          )}`,
+        );
+        console.error(
+          `qualification_not_after_ms=${verifyQualificationNotAfterMs}`,
+        );
+        console.error(
+          `runtime_live_admission_renewal_required_count=${renewalRequiredCount}`,
+        );
+        console.error("runtime_live_admission_deadline_activated=false");
+        console.error("status=stable_https_seed");
+        console.error("trust_material_verified=true");
+        console.error("live_seed_probe_performed=false");
+        console.error("tailnet_required=false");
+        console.error(`${MARKER}_VERIFY_GREEN`);
+        process.stdout.write(`${validated.endpoints.map((endpoint) => endpoint.base).join(",")}\n`);
+        return;
+      }
+
+      const currentlyFresh = validated.endpoints.filter(
+        (endpoint) => !endpoint.runtimeAdmissionRenewalRequired,
+      );
+      const firstWaveIncludesAll =
+        currentlyFresh.length < MAX_LIVE_SEEDS;
+      const firstWaveEndpoints = firstWaveIncludesAll
+        ? validated.endpoints
+        : currentlyFresh;
+
+      const attempts = [
+        ...await attemptRuntimeAdmissionsV1(
+          firstWaveEndpoints,
+          validated.expiresAt,
+        ),
+      ];
+
+      const firstWaveSuccessCount = attempts.filter(
+        (attempt) => attempt.admission !== null,
+      ).length;
+      if (
+        !firstWaveIncludesAll &&
+        firstWaveSuccessCount < MAX_LIVE_SEEDS
+      ) {
+        const staleFallbackEndpoints = validated.endpoints.filter(
+          (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
+        );
+        attempts.push(
+          ...await attemptRuntimeAdmissionsV1(
+            staleFallbackEndpoints,
+            validated.expiresAt,
+          ),
+        );
+      }
+
+      const admissionByBase = new Map();
+      for (const attempt of attempts) {
+        if (attempt.admission === null) {
+          errors.push(
+            `${attempt.endpoint.base}: ${attempt.error}`,
+          );
+          continue;
+        }
+        admissionByBase.set(
+          attempt.endpoint.base,
+          attempt.admission,
+        );
+      }
+
+      const liveAdmissions = validated.endpoints
+        .map((endpoint) => admissionByBase.get(endpoint.base))
+        .filter(Boolean)
+        .slice(0, MAX_LIVE_SEEDS);
+
+      for (const admission of liveAdmissions) {
+        console.error(
+          `seed_live=${admission.base} head=${admission.liveHead} qualification_id=${admission.qualificationId} renewal_performed=${admission.renewalPerformed} sample_count=${admission.sampleCount} sample_span_ms=${admission.sampleSpanMs}`,
+        );
+      }
+
+      if (liveAdmissions.length === 0) {
+        throw transportUnavailable(
+          "no qualified manifest endpoint is currently exact-green",
+        );
+      }
+
+      const qualificationNotAfterMs = Math.min(
+        ...liveAdmissions.map(
+          (admission) => admission.qualificationNotAfterMs,
+        ),
+      );
+      if (
+        !Number.isSafeInteger(qualificationNotAfterMs) ||
+        qualificationNotAfterMs <= Date.now()
+      ) {
+        throw transportUnavailable(
+          "admitted public seed set has no live checkpoint-authority deadline",
+        );
+      }
+      const renewedCount = liveAdmissions.filter(
+        (admission) => admission.renewalPerformed,
+      ).length;
+      const runtimeAdmissionBindings = liveAdmissions.map(
+        (admission) => ({
+          base: admission.base,
+          qualification_id: admission.qualificationId,
+          qualification_not_after_ms:
+            admission.qualificationNotAfterMs,
+          renewal_performed: admission.renewalPerformed,
+          sample_count: admission.sampleCount,
+          sample_span_ms: admission.sampleSpanMs,
+          live_head: admission.liveHead,
+        }),
+      );
+
+      console.error(`marker=${MARKER}`);
+      console.error("manifest_source=remote_https");
+      console.error(`manifest=${manifestUrl}`);
+      console.error(`manifest_id=${validated.manifest.manifest_id}`);
+      console.error(
+        `published_qualification_bindings=${JSON.stringify(
+          validated.publishedQualificationBindings,
+        )}`,
+      );
+      console.error(
+        `runtime_admission_bindings=${JSON.stringify(runtimeAdmissionBindings)}`,
+      );
+      console.error(`qualification_not_after_ms=${qualificationNotAfterMs}`);
+      console.error(
+        `runtime_live_admission_renewed_count=${renewedCount}`,
+      );
+      console.error("runtime_live_admission_deadline_activated=true");
+      console.error(`live_seed_count=${liveAdmissions.length}`);
+      console.error("tailnet_required=false");
+      console.error("private_mutation_routes_exposed=false");
+      console.error(`${MARKER}_GREEN`);
+      process.stdout.write(
+        `${liveAdmissions.map((admission) => admission.base).join(",")}\n`,
+      );
+      return;
+    } catch (error) {
+      errors.push(`${manifestUrl}: ${error?.message || String(error)}`);
+      if (classificationOf(error) === EXIT_TRUST_INVALID) {
+        errors.sawTrustInvalid = true;
+      }
+    }
+  }
+
+  const detail = errors.join(" | ");
+  if (errors.sawTrustInvalid) throw trustInvalid(detail);
+  throw transportUnavailable(detail);
+}
+
+main().catch((error) => {
+  fail(error?.stack || String(error), error?.exitCode || EXIT_TRUST_INVALID);
+});

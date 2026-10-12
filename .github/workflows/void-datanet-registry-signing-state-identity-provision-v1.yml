@@ -1,0 +1,42 @@
+name: VOID DataNet registry signing-state identity provision v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-datanet-registry-signing-state-identity-provision-v1.mjs"
+      - "ops/nimo/void-nimo-datanet-registry-signing-state-identity-provision-v1.mjs"
+      - "scripts/prove_void_datanet_registry_signing_state_identity_provision_v1.mjs"
+      - ".github/workflows/void-datanet-registry-signing-state-identity-provision-v1.yml"
+      - "docs/operators/datanet-registry-signing-state-identity-provision-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check tools/void-datanet-registry-signing-state-identity-provision-v1.mjs
+          node --check ops/nimo/void-nimo-datanet-registry-signing-state-identity-provision-v1.mjs
+          node --check scripts/prove_void_datanet_registry_signing_state_identity_provision_v1.mjs
+      - name: Prove generation-bound state identity provisioning
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_datanet_registry_signing_state_identity_provision_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

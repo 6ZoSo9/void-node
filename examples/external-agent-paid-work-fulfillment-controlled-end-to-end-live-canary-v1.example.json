@@ -1,0 +1,101 @@
+{
+  "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_FULFILLMENT_CONTROLLED_END_TO_END_LIVE_CANARY_MANIFEST_V1",
+  "version": 1,
+  "mode": "mock",
+  "canary_id": "void-controlled-e2e-example-v1",
+  "account": "void-external-agent-e2e-fulfillment-canary-v1",
+  "expected_award_wc": 3,
+  "coordinator": {
+    "tailscale_ip": "100.122.245.125",
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "role": "coordinator_only"
+  },
+  "executor": {
+    "tailscale_ip": "100.122.198.38",
+    "node_id": "befd84d4fe47341af81b1a8aef8bcb97",
+    "role": "executor_only"
+  },
+  "pre_state": {
+    "global_active_tickets": 0,
+    "global_consumed_tickets": 7,
+    "global_ticket_cap": 10,
+    "remaining_global_ticket_capacity": 3,
+    "fresh_account_ticket_total": 0,
+    "fresh_account_redeemable": 0
+  },
+  "expected_post_state": {
+    "global_active_tickets": 0,
+    "global_consumed_tickets": 8,
+    "fresh_account_ticket_total": 1,
+    "fresh_account_redeemable": 3
+  },
+  "stack_hashes": {
+    "orchestrator": "1111111111111111111111111111111111111111111111111111111111111111",
+    "transition_executor": "2222222222222222222222222222222222222222222222222222222222222222",
+    "ticket_issue_executor": "3333333333333333333333333333333333333333333333333333333333333333",
+    "ticket_package_transfer_executor": "4444444444444444444444444444444444444444444444444444444444444444",
+    "executor_receive_and_run": "5555555555555555555555555555555555555555555555555555555555555555",
+    "return_acceptance_adapter_finalize": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "phase_profiles": {
+    "issue_ticket": {
+      "confirmation": "confirmControlledLiveCanaryIssueTicket",
+      "transport_mode": "mock",
+      "command": ["node", "mock-stage.mjs", "issue_ticket"],
+      "expected": {
+        "marker": "VOID_MOCK_CONTROLLED_LIVE_CANARY_ISSUE_RESULT_V1",
+        "assertions": [
+          { "pointer": "/ticket_issued", "equals": true },
+          { "pointer": "/ticket_count", "equals": 1 }
+        ]
+      }
+    },
+    "transfer_package": {
+      "confirmation": "confirmControlledLiveCanaryTransferPackage",
+      "transport_mode": "mock",
+      "command": ["node", "mock-stage.mjs", "transfer_package", "{{phases.issue_ticket.raw.ticket_id}}"],
+      "expected": {
+        "marker": "VOID_MOCK_CONTROLLED_LIVE_CANARY_TRANSFER_RESULT_V1",
+        "assertions": [
+          { "pointer": "/ticket_package_transferred", "equals": true }
+        ]
+      }
+    },
+    "execute_on_nimo": {
+      "confirmation": "confirmControlledLiveCanaryExecuteOnNimo",
+      "transport_mode": "mock",
+      "command": ["node", "mock-stage.mjs", "execute_on_nimo", "{{phases.transfer_package.raw.package_id}}"],
+      "expected": {
+        "marker": "VOID_MOCK_CONTROLLED_LIVE_CANARY_EXECUTION_RESULT_V1",
+        "assertions": [
+          { "pointer": "/ticket_consumed", "equals": true },
+          { "pointer": "/wc_delta", "equals": 3 }
+        ]
+      }
+    },
+    "accept_and_finalize": {
+      "confirmation": "confirmControlledLiveCanaryAcceptAndFinalize",
+      "transport_mode": "mock",
+      "command": ["node", "mock-stage.mjs", "accept_and_finalize", "{{phases.execute_on_nimo.raw.participant_receipt_id}}"],
+      "expected": {
+        "marker": "VOID_MOCK_CONTROLLED_LIVE_CANARY_FINALIZE_RESULT_V1",
+        "assertions": [
+          { "pointer": "/participant_receipt_accepted", "equals": true },
+          { "pointer": "/wc_credited", "equals": 3 }
+        ]
+      }
+    },
+    "duplicate_probe_and_seal": {
+      "confirmation": "confirmControlledLiveCanaryDuplicateProbe",
+      "transport_mode": "mock",
+      "command": ["node", "mock-stage.mjs", "duplicate_probe_and_seal"],
+      "expected": {
+        "marker": "VOID_MOCK_CONTROLLED_LIVE_CANARY_DUPLICATE_PROBE_RESULT_V1",
+        "assertions": [
+          { "pointer": "/second_wc_credit", "equals": false },
+          { "pointer": "/global_consumed_tickets", "equals": 8 }
+        ]
+      }
+    }
+  }
+}

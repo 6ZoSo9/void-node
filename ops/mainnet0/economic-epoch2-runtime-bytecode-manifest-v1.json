@@ -1,0 +1,63 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_RUNTIME_BYTECODE_MANIFEST_V1",
+  "version": 1,
+  "status": "COMPILED_RUNTIME_MANIFEST_GREEN",
+  "compiler": {
+    "foundry_image": "ghcr.io/foundry-rs/foundry:v1.7.1",
+    "foundry_image_digest_sha256": "8347b728d5d393dac1c018691b36f506d23b9dcd78341d40ea0fcb11c3a19cdd",
+    "forge_version": "1.7.1",
+    "forge_commit_sha": "4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+    "solc_version": "0.8.24",
+    "evm_version": "paris"
+  },
+  "evidence": {
+    "workflow": "VOID economic epoch2 runtime bytecode manifest v1",
+    "workflow_head_sha": "380b3995c9c1e476da13cc60eab04f791a5dde0c",
+    "workflow_run_id": "36271009158",
+    "artifact_id": "10914904969",
+    "artifact_name": "void-economic-epoch2-runtime-bytecode-manifest-v1-380b3995c9c1e476da13cc60eab04f791a5dde0c",
+    "artifact_zip_digest_sha256": "c7cec58b4c7b69b3d3e9fd48227b0a91606a33730a93cf773940522585fe043e"
+  },
+  "runtimes": {
+    "void_token": {
+      "address": "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+      "contract": "VoidEpoch2TokenV1",
+      "source_path": "contracts/epoch2/VoidEpoch2TokenV1.sol",
+      "source_git_blob_sha1": "7c4297aadbc17b6214b4dde1f1766523cb499923",
+      "runtime_bytes": 4597,
+      "runtime_sha256": "7c2e39f57c3240b740d68ef77ae4e9d0fb6110ccb412cbdb1bec99c485ea4adb"
+    },
+    "treasury_custody": {
+      "address": "0x26c501a1edca3614f214face2d9b7be2aa7c864b",
+      "contract": "VoidEpoch2TreasuryCustodyV1",
+      "source_path": "contracts/epoch2/VoidEpoch2TreasuryCustodyV1.sol",
+      "source_git_blob_sha1": "73d73bd19a2d903f094dab9e202cc1bf7c2239f9",
+      "runtime_bytes": 1814,
+      "runtime_sha256": "e6c7bd5fdda1a30b3b34f69d5f64ae5ad41abf436fa3d1863c57a8b9e04283f9"
+    },
+    "presale_fulfillment": {
+      "address": "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce",
+      "contract": "VoidEpoch2PresaleFulfillmentV1",
+      "source_path": "contracts/epoch2/VoidEpoch2PresaleFulfillmentV1.sol",
+      "source_git_blob_sha1": "d126bded1987dce0b91be8a4e55362d0f46579bb",
+      "runtime_bytes": 2725,
+      "runtime_sha256": "b200e702e07140921813c83a833d4f4abacea61dd5863f08b0d9c1147b8da225"
+    }
+  },
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "state_export": false,
+    "genesis_build": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_broadcast": false,
+    "chain2050_write": false,
+    "token_movement": false,
+    "contract_deployment": false,
+    "public_activation": false,
+    "funds_movement": false
+  }
+}

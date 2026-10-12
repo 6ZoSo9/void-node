@@ -1,0 +1,95 @@
+name: VOID P2P UDP swarm relay-preserving takeover policy v1
+
+on:
+  pull_request:
+    paths:
+      - 'src/p2p/udp_swarm_relay_preserving_takeover_policy_v1.ts'
+      - 'src/p2p/udp_swarm_authenticated_direct_candidate_v1.ts'
+      - 'src/node_core.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts'
+      - 'scripts/prove_void_p2p_ephemeral_direct_mount_v1.ts'
+      - 'scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-relay-preserving-takeover-policy-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-relay-preserving-takeover-policy-v1.yml'
+  push:
+    branches:
+      - 'feat/p2p-udp-swarm-relay-preserving-takeover-policy-v1-20260808'
+    paths:
+      - 'src/p2p/udp_swarm_relay_preserving_takeover_policy_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-relay-preserving-takeover-policy-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-relay-preserving-takeover-policy-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove relay-preserving takeover policy
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_preserving_takeover_policy_v1.ts
+
+      - name: Re-prove authenticated direct candidate gate
+        run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_authenticated_direct_candidate_v1.ts
+
+      - name: Re-prove ephemeral direct transport mount
+        run: npx --no-install tsx scripts/prove_void_p2p_ephemeral_direct_mount_v1.ts
+
+      - name: Preserve raw-empty-catch terminal zero
+        run: npx --no-install tsx scripts/prove_refined_tracked_raw_empty_catches_terminal_final_seal_v1.ts
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee tsc-diagnostics.txt
+
+      - name: Upload TypeScript diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsc-diagnostics-node-${{ matrix.node-version }}
+          path: tsc-diagnostics.txt
+          if-no-files-found: ignore
+
+      - name: Build
+        run: npm run build
+
+      - name: Diff hygiene across committed change range
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi

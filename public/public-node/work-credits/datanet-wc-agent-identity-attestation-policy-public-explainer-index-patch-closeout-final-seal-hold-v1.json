@@ -1,0 +1,41 @@
+{
+  "schema": "void.datanet.wc.agent_identity_attestation_policy_public_explainer_index_patch_closeout_final_seal.v1",
+  "marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_INDEX_PATCH_CLOSEOUT_FINAL_SEAL_HOLD_V1",
+  "status": "hold",
+  "title": "DataNet WC Agent Identity + Attestation Policy Index Closeout Final Seal",
+  "public_surface": true,
+  "read_only": true,
+  "source": {
+    "main_head": "34380a53",
+    "subject": "feat: add DataNet WC agent identity attestation policy index closeout",
+    "closeout_marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_INDEX_PATCH_CLOSEOUT_AUDIT_ROLLUP_HOLD_V1",
+    "index_patch_marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_INDEX_PATCH_HOLD_V1",
+    "explainer_marker": "VOID_DATANET_WC_AGENT_IDENTITY_ATTESTATION_POLICY_PUBLIC_EXPLAINER_HOLD_V1",
+    "closeout_json": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-closeout-audit-rollup-hold-v1.json",
+    "closeout_html": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-closeout-audit-rollup-hold-v1.html",
+    "index_patch_json": "datanet-wc-agent-identity-attestation-policy-public-explainer-index-patch-hold-v1.json",
+    "explainer_json": "datanet-wc-agent-identity-attestation-policy-public-explainer-hold-v1.json",
+    "index_json": "index.json"
+  },
+  "seal": {
+    "explainer_chain_present": true,
+    "index_patch_chain_present": true,
+    "closeout_chain_present": true,
+    "public_index_discovery_confirmed": true,
+    "public_static_read_only_confirmed": true,
+    "work_credits_unlimited_uncapped_confirmed": true,
+    "no_authority_or_mutation_activated": true
+  },
+  "boundary": {
+    "final_seal_only": true,
+    "identity_registry_write_enabled": false,
+    "public_mutation_enabled": false,
+    "automatic_wc_award_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "reviewer_staking_enabled": false,
+    "void_transfer_enabled": false,
+    "wallet_path_enabled": false,
+    "signer_path_enabled": false
+  }
+}

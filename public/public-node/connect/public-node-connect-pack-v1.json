@@ -1,0 +1,71 @@
+{
+  "marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1",
+  "purpose": "public_safe_node_connect_guidance",
+  "status": "connect_pack_ready",
+  "network": "void-mainnet0",
+  "chain_id": 2050,
+  "summary": {
+    "public_bootstrap_metadata_available": true,
+    "operator_can_fetch_bootstrap_peers": true,
+    "operator_can_dial_peer_from_local_node": true,
+    "operator_can_verify_health_and_peers": true,
+    "validator_admission_enabled": false,
+    "wallet_or_money_movement_enabled": false,
+    "work_credit_self_serve_enabled": false,
+    "public_internet_mesh_claim": false
+  },
+  "routes": {
+    "connect_page": "/public-node/connect",
+    "connect_json": "/public-node/connect/public-node-connect-pack-v1.json",
+    "connect_html": "/public-node/connect/public-node-connect-pack-v1.html",
+    "public_bootstrap": "/__void/public-bootstrap.json",
+    "bootstrap_network": "/bootstrap/network.json",
+    "bootstrap_peers": "/bootstrap/peers.json"
+  },
+  "operator_flow": [
+    "Fetch /bootstrap/peers.json from the bootstrap host.",
+    "Choose a peer host and P2P port.",
+    "POST {\"addr\":\"<PEER_HOST>:<PEER_P2P_PORT>\"} to local /p2p/dial.",
+    "Verify local /health.",
+    "Verify local /peers.",
+    "Share public-safe evidence only if connection worked."
+  ],
+  "example_commands": {
+    "fetch_bootstrap_peers": "curl -fsS http://<BOOTSTRAP_HOST>:4100/bootstrap/peers.json | jq .",
+    "dial_peer": "curl -fsS -X POST -H 'content-type: application/json' --data '{\"addr\":\"<PEER_HOST>:<PEER_P2P_PORT>\"}' http://127.0.0.1:4100/p2p/dial | jq .",
+    "verify_health": "curl -fsS http://127.0.0.1:4100/health | jq .",
+    "verify_peers": "curl -fsS http://127.0.0.1:4100/peers | jq ."
+  },
+  "safe_evidence": [
+    "local /health output",
+    "local /peers output",
+    "bootstrap route used",
+    "peer address dialed",
+    "timestamp",
+    "node id"
+  ],
+  "do_not_share": [
+    "private keys",
+    "seed phrases",
+    "wallet secrets",
+    ".env files",
+    "machine secrets",
+    "private logs containing secrets"
+  ],
+  "boundary": {
+    "read_only": true,
+    "public_routes_only": true,
+    "operator_guidance_only": true,
+    "automatic_peer_dial_enabled_by_this_pack": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "validator_mutation_enabled": false,
+    "validator_admission_enabled": false,
+    "public_wc_self_serve_earning_enabled": false,
+    "public_internet_mesh_claim": false
+  },
+  "expected_green_marker": "VOID_PUBLIC_NODE_CONNECT_PACK_V1_GREEN"
+}

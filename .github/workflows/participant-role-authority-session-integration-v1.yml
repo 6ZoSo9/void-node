@@ -1,0 +1,44 @@
+name: participant-role-authority-session-integration-v1
+
+on:
+  pull_request:
+    paths:
+      - "src/security/participant_role_authority_session_adapter_v1.ts"
+      - "src/security/participant_role_authority_guard_v1.ts"
+      - "ops/public/void-public-participant-read-session-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-projection-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
+      - "scripts/prove_participant_role_authority_session_integration_v1.ts"
+      - "scripts/lib/void_participant_role_authority_session_stub_v1.mjs"
+      - "docs/security/participant-role-authority-session-integration-v1.md"
+      - ".github/workflows/participant-role-authority-session-integration-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install tsx scripts/prove_participant_role_authority_session_integration_v1.ts
+      - if: matrix.node == 24
+        run: |
+          npx --no-install tsx scripts/prove_participant_role_authority_guard_v1.ts
+          node scripts/prove_void_public_participant_session_http_v1.mjs
+          node scripts/prove_void_public_participant_account_read_projection_v1.mjs
+          node scripts/prove_void_public_participant_account_read_http_edge_v1.mjs
+          node scripts/prove_void_public_participant_composition_integration_v1.mjs
+          npm run typecheck

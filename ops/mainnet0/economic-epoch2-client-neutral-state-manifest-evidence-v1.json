@@ -1,0 +1,26 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_CLIENT_NEUTRAL_STATE_MANIFEST_EVIDENCE_V1",
+  "version": 1,
+  "status": "CLIENT_NEUTRAL_STATE_MANIFEST_GREEN",
+  "source_commit": "ef3fccbc5d8dc3aa25579b2b15db58dffc328f88",
+  "manifest_filename": "void_economic_epoch2_client_neutral_state_manifest_v1_20260926T211912Z.json",
+  "manifest_file_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+  "manifest_material_sha256": "286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f",
+  "account_count": 4,
+  "successor_holder_count": 3,
+  "token_total_supply_atoms": "333333333000000000000000000",
+  "staking_storage_entry_count": 1264,
+  "staking_storage_manifest_sha256": "9780d806fd0cd1840e08c8e6766267f5811fc24ed9798d55ad17b1c3873eb051",
+  "token_behavioral_semantic_equivalence": true,
+  "staking_exact_state_bound": true,
+  "native_gas_accounting_excluded": true,
+  "client_specific_genesis_built": false,
+  "offline_successor_equivalence_proven": false,
+  "migration_authorized": false,
+  "public_activation_authorized": false,
+  "authority": {
+    "authoritative_chain2050_write": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

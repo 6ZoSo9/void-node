@@ -1,0 +1,42 @@
+name: public-app-runtime-truth-wall-v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_public_app_runtime_truth_wall_v1.mjs"
+      - "ops/security/public-app-runtime-truth-wall-v1-proof.sh"
+      - "docs/operators/public-app-runtime-truth-wall-v1.md"
+      - "docs/public/public-app-runtime-truth-wall-v1.md"
+      - "docs/security/public-app-runtime-truth-wall-v1-threat-model.md"
+      - "Makefile"
+      - ".github/workflows/public-app-runtime-truth-wall-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_public_app_runtime_truth_wall_v1.mjs"
+      - "ops/security/public-app-runtime-truth-wall-v1-proof.sh"
+      - "docs/operators/public-app-runtime-truth-wall-v1.md"
+      - "docs/public/public-app-runtime-truth-wall-v1.md"
+      - "docs/security/public-app-runtime-truth-wall-v1-threat-model.md"
+      - "Makefile"
+      - ".github/workflows/public-app-runtime-truth-wall-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --include=dev --no-audit --no-fund
+      - run: make public-app-runtime-truth-wall-v1-proof
+      - run: npm run build

@@ -1,0 +1,41 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_CLOSEOUT_ROLLUP_HOLD_V1",
+  "source_terminal_execute_run_closeout_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_TERMINAL_EXECUTE_RUN_CLOSEOUT_HOLD_V1",
+  "source_terminal_execute_run_closeout_proof": "ops/private/usdc-void-buy-pool-automatic-payment-canary-separate-terminal-execute-run-closeout-hold-v1-proof.sh",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "canonical_payment_identity": "withheld_private_operator_placeholder",
+  "rollup_state": "canary_separate_terminal_lane_closed_without_execution",
+  "terminal_execute_run_closeout_state": "terminal_execute_run_closed_without_execution",
+  "closed_without_execution": true,
+  "fulfilled_state": false,
+  "source_chain": [
+    "fulfillment_lane_preflight",
+    "fulfillment_packet_hold",
+    "fulfillment_operator_approval_gate",
+    "fulfillment_execution_authorization_hold",
+    "transfer_instruction_hold",
+    "signer_authorization_hold",
+    "operator_execute_hold",
+    "actual_execute_gate_hold",
+    "real_actual_execute_decision_hold",
+    "real_actual_execute_packet_hold",
+    "terminal_execute_run_hold",
+    "terminal_execute_run_closeout_hold"
+  ],
+  "authority": {
+    "terminal_execute_authorized": false,
+    "actual_execute_authorized": false,
+    "real_execute_packet_creation_authorized": false,
+    "signer_access_granted": false,
+    "wallet_secret_exposed": false,
+    "wallet_address_exposed": false,
+    "transaction_signed": false,
+    "void_transfer_performed": false,
+    "transaction_broadcast": false,
+    "fulfillment_record_created": false,
+    "allocation_claim_created": false,
+    "buyer_execution_authorized": false,
+    "public_mutation_route_created": false,
+    "terminal_lane_reopened": false
+  }
+}

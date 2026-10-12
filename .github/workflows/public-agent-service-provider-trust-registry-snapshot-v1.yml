@@ -1,0 +1,50 @@
+name: Public Agent Service Provider Trust Registry Snapshot V1
+
+on:
+  pull_request:
+    paths:
+      - "schemas/public-agent-service-provider-trust-registry-snapshot-v1.schema.json"
+      - "examples/public-agent-service-provider-trust-registry-snapshot-v1.example.json"
+      - "docs/public-agent/public-agent-service-provider-trust-registry-snapshot-v1.md"
+      - "scripts/public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - "scripts/prove_public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - ".github/workflows/public-agent-service-provider-trust-registry-snapshot-v1.yml"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+      - "schemas/public-agent-service-provider-quote-response-authentication-v1.schema.json"
+      - "docs/public-agent/public-agent-service-provider-quote-response-authentication-v1.md"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - "schemas/public-agent-service-provider-trust-registry-snapshot-v1.schema.json"
+      - "examples/public-agent-service-provider-trust-registry-snapshot-v1.example.json"
+      - "docs/public-agent/public-agent-service-provider-trust-registry-snapshot-v1.md"
+      - "scripts/public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - "scripts/prove_public_agent_service_provider_trust_registry_snapshot_v1.ts"
+      - "scripts/public_agent_service_provider_quote_response_authentication_v1.ts"
+      - "schemas/public-agent-service-provider-quote-response-authentication-v1.schema.json"
+      - "docs/public-agent/public-agent-service-provider-quote-response-authentication-v1.md"
+      - "scripts/agent_paid_work_order_envelope_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - run: npx tsx scripts/prove_public_agent_service_provider_trust_registry_snapshot_v1.ts

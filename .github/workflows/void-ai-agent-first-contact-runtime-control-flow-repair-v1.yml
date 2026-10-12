@@ -1,0 +1,74 @@
+name: VOID AI Agent First Contact Runtime Control-Flow Repair V1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'docs/public/ai-agent-first-contact-runtime-v1.md'
+      - 'fixtures/ops/guard-baselines/index-ts-size-v1.json'
+      - 'public/public-node/agents/first-contact-v1.json'
+      - 'public/public-node/agents/join-v1.html'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  pull_request:
+    paths:
+      - '.github/workflows/void-ai-agent-first-contact-runtime-control-flow-repair-v1.yml'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs'
+      - 'scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs'
+      - 'docs/public/ai-agent-first-contact-runtime-v1.md'
+      - 'fixtures/ops/guard-baselines/index-ts-size-v1.json'
+      - 'public/public-node/agents/first-contact-v1.json'
+      - 'public/public-node/agents/join-v1.html'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prove control-flow repair
+        run: node scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs
+
+      - name: Prove original runtime contract
+        run: node scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs
+
+      - name: Enforce shared index guard
+        run: bash tools/check_index_size.sh
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Check whitespace errors
+        run: git diff --check HEAD^ HEAD

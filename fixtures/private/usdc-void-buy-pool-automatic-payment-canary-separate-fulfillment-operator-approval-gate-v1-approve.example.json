@@ -1,0 +1,48 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_FULFILLMENT_OPERATOR_APPROVAL_GATE_V1",
+  "scope": "private_operator_only_separate_fulfillment_operator_approval_gate",
+  "state": "approved_for_separate_fulfillment_execution_authorization_lane",
+  "source_packet_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_FULFILLMENT_PACKET_HOLD_V1",
+  "source_preflight_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_SEPARATE_FULFILLMENT_LANE_PREFLIGHT_V1",
+  "source_closeout_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_CANARY_PRIVATE_ALLOCATION_LEDGER_WRITE_POST_WRITE_CLOSEOUT_V1",
+  "operator_approval_id": "void_canary_separate_fulfillment_operator_approval_4e2ff91a25e4a596",
+  "fulfillment_packet_id": "void_canary_separate_fulfillment_packet_4e2ff91a25e4a596",
+  "allocation_record_id": "void_canary_allocation_record_1e7d90a6483d30dfaa80054e4328adee",
+  "packet_id": "void_canary_private_allocation_ledger_write_packet_60c38df29126c68395fcec64708cf82f",
+  "canonical_payment_identity": "8453:0x1111111111111111111111111111111111111111111111111111111111111111:0",
+  "reserved_void_amount": "200",
+  "fulfillment_void_amount": "200",
+  "inventory_remaining_after": "0",
+  "allocation_record_hash": "4e2ff91a25e4a596a23a6dde645091be1c5209a6d9dcee1cbf35e0cff18d9fa1",
+  "destination_binding": {
+    "status": "withheld_private_operator_only",
+    "wallet_address_present": false,
+    "wallet_secret_present": false,
+    "private_key_present": false,
+    "seed_phrase_present": false
+  },
+  "approval": {
+    "operator_approved": true,
+    "approved_next_lane": "separate_fulfillment_execution_authorization_lane",
+    "approval_scope": "packet_shape_only_not_execution",
+    "requires_separate_execution_authorization": true
+  },
+  "authority": {
+    "operator_approval_recording_only": true,
+    "operator_approval_now": true,
+    "execution_authorization_now": false,
+    "fulfillment_execution": false,
+    "fulfillment_record_creation": false,
+    "allocation_claim_creation": false,
+    "transfer_instruction_creation": false,
+    "signer_authorization_creation": false,
+    "signer_access": false,
+    "wallet_signing": false,
+    "void_transfer": false,
+    "transaction_broadcast": false,
+    "public_mutation": false,
+    "public_buyer_execution": false,
+    "money_movement_now": false
+  },
+  "next_required_lane": "separate_fulfillment_execution_authorization_lane"
+}

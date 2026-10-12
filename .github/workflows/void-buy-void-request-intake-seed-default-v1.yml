@@ -1,0 +1,54 @@
+name: VOID Buy VOID request intake seed default v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-buy-void-request-intake-seed-default-v1.yml"
+      - "ops/public/buy-void-request-intake-v1-proof.sh"
+      - "src/index.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-buy-void-request-intake-seed-default-v1.yml"
+      - "ops/public/buy-void-request-intake-v1-proof.sh"
+      - "src/index.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Shell syntax
+        run: bash -n ops/public/buy-void-request-intake-v1-proof.sh
+      - name: Static request-intake seed/default proof
+        env:
+          STATIC_ONLY: "1"
+        run: bash ops/public/buy-void-request-intake-v1-proof.sh
+      - name: Retired seed override fails closed before network
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in             "HTTPS://ZOSO-ALIENWARE-AURORA-R7.TAILA47FD.TS.NET"             "http://100.122.79.39:4111"
+          do
+            log="$(mktemp)"
+            if STATIC_ONLY=1 PUBLIC_SEED_BASE="$target" bash ops/public/buy-void-request-intake-v1-proof.sh >"$log" 2>&1; then
+              cat "$log"
+              echo "retired target unexpectedly accepted: $target" >&2
+              exit 1
+            fi
+            grep -Fq "HOLD: retired Alienware public seed target is forbidden" "$log"
+            rm -f "$log"
+          done
+          echo "retired_override_casefold_rejected=true"
+          echo "network_request_performed=false"
+          echo "request_write_performed=false"
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

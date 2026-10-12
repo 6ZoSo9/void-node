@@ -1,0 +1,80 @@
+{
+  "marker": "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_APPLY_ADMISSION_V1",
+  "version": 1,
+  "status": "PROMOTION_APPLY_ADMISSION_ACCEPTED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "selected_rpc_url": "http://127.0.0.1:18553/",
+  "candidate_sha256": "305ed03eebe49b992db76c21ffd8930e9b6d07ed4a97984cf0e48f33a9df63dd",
+  "current_source": {
+    "branch": "main",
+    "head": "ac352fe966c8737a8e143475d28f85f80c0a096f",
+    "tree": "f899aba063692a335b00b0fab6c97ca78bb138e4",
+    "canonical_remote_url": "https://github.com/6ZoSo9/void-node.git",
+    "remote_main_sha": "ac352fe966c8737a8e143475d28f85f80c0a096f",
+    "canonical_main_live_match": true
+  },
+  "observation_source": {
+    "observed_main_head": "2791d24e4cb486dceeaa7e558f9c2c866ae03e10",
+    "observed_source_tree": "a4a21f665037ddc7c9f4448b12197e1ac14ebf61",
+    "activation_source_head": "08a0429cafb49c002f4553d562ae260f4670a254"
+  },
+  "source_lineage_ancestor_commits": [
+    "08a0429cafb49c002f4553d562ae260f4670a254",
+    "2791d24e4cb486dceeaa7e558f9c2c866ae03e10",
+    "c6bcaf7959feda484ffa86d6837b70e96e3fc7c7"
+  ],
+  "source_lineage_ancestor_current_main": true,
+  "evidence": {
+    "activation_plan_id": "voide2qactp1_d2c34dccdd0fe4e46fae7da36853f5bbc8f6b0598900a0d4a6510e1fdff9eb3b",
+    "activation_plan_file_sha256": "86128119c45197b04dd127986349c42c971a4287739864f44a50c0e6dc386a7f",
+    "activation_receipt_id": "voide2qactr1_914e3bf88df083fef1a3c52aea6f1eb53ad2458d5559db01a6a83f0088928174",
+    "activation_receipt_file_sha256": "1a9837b42bf20439d939f54ca8bd9c3a81d91d7a8cf83ddd54f58929fc2f5e13",
+    "runtime_observation_id": "voidpe2rpcobs1_1cd46397b675efbc609716114f70cac9e18da42d80ef0f08fc372c78b0dc6cc4",
+    "runtime_observation_file_sha256": "cd1630a9742b49f55e6bfed2b4c0344e4b7a994307f8945f1e5404d2eb681d32"
+  },
+  "selection": {
+    "production_rpc_target_selected": true,
+    "rpc_url": "http://127.0.0.1:18553/",
+    "rpc_url_fingerprint_sha256": "795cf5eb7058632084b66d9cb831e1c7f91db76544a24d145512f71b1932f642",
+    "service_unit": "void-economic-epoch2-qbft-validator-v1.service",
+    "activation_plan_id": "voide2qactp1_d2c34dccdd0fe4e46fae7da36853f5bbc8f6b0598900a0d4a6510e1fdff9eb3b",
+    "activation_receipt_id": "voide2qactr1_914e3bf88df083fef1a3c52aea6f1eb53ad2458d5559db01a6a83f0088928174",
+    "activation_receipt_sha256": "1a9837b42bf20439d939f54ca8bd9c3a81d91d7a8cf83ddd54f58929fc2f5e13",
+    "runtime_observation_id": "voidpe2rpcobs1_1cd46397b675efbc609716114f70cac9e18da42d80ef0f08fc372c78b0dc6cc4",
+    "runtime_observation_sha256": "cd1630a9742b49f55e6bfed2b4c0344e4b7a994307f8945f1e5404d2eb681d32",
+    "runtime_active_verified": true,
+    "exact_genesis_bound": true,
+    "production_validator_set_bound": true,
+    "production_validator_binding_source_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+    "production_validator_binding_evidence_sha256": "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
+    "write_capability_classification": "write_capable_not_authorized",
+    "independent_host_acceptance": true
+  },
+  "canonical_target_write": false,
+  "authority": {
+    "source_evidence_admission_only": true,
+    "canonical_target_write": false,
+    "repository_write": false,
+    "branch_create": false,
+    "git_push": false,
+    "rpc_call": false,
+    "service_action": false,
+    "docker_mutation": false,
+    "credential_access": false,
+    "wallet_or_signer_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "migration_authorized": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "funds_movement": false
+  },
+  "next_gate": "materialize_reviewable_source_promotion_packet_then_separately_merge_selected_target",
+  "promotion_admission_id": "voidpe2rpctapply1_f76ce9f3d147a6097910947e3a8735664ff81bea07d1940ebdb663102589b040"
+}

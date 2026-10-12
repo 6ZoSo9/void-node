@@ -1,0 +1,38 @@
+{
+  "marker": "VOID_SCRIPTS_EMPTY_CATCH_VISIBILITY_PACK_V1_FAILURE_VISIBLE",
+  "targets": {
+    "scripts/audit_numbers.ts": {
+      "exact_empty_catch_count_before": 1,
+      "catch_context_count": 1
+    },
+    "scripts/compact_rewrite.ts": {
+      "exact_empty_catch_count_before": 1,
+      "catch_context_count": 1
+    },
+    "scripts/import_file.ts": {
+      "exact_empty_catch_count_before": 1,
+      "catch_context_count": 1
+    },
+    "scripts/repair_meta.ts": {
+      "exact_empty_catch_count_before": 1,
+      "catch_context_count": 1
+    },
+    "scripts/scan_bin.ts": {
+      "exact_empty_catch_count_before": 1,
+      "catch_context_count": 1
+    },
+    "scripts/dev_proposer_merge.ts": {
+      "exact_empty_catch_count_before": 2,
+      "catch_context_count": 3
+    },
+    "scripts/follower_once.ts": {
+      "exact_empty_catch_count_before": 3,
+      "catch_context_count": 5
+    }
+  },
+  "total_exact_empty_catch_count_before": 10,
+  "expected_repo_empty_catch_count_before": 1263,
+  "expected_repo_empty_catch_count_after": 1253,
+  "observed_guard_inventory_drop": 10,
+  "note": "Observed after running the generated-proof-excluded runtime error visibility guard on the patched branch."
+}

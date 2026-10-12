@@ -1,0 +1,24 @@
+{
+  "marker": "VOID_AGENT_MCP_AUTHENTICATED_SUBMISSION_LIVE_CANARY_INPUT_V1",
+  "version": 1,
+  "canary_id": "void-mcp-authenticated-submission-canary-template-v1",
+  "service_id": "void.datanet.fetch-verify.v1",
+  "created_at_utc": "2030-01-01T00:00:00Z",
+  "expires_at_utc": "2030-01-01T00:30:00Z",
+  "requester_agent_id": "void-mcp-requester-template-v1",
+  "callback_uri": "https://callback.example.invalid/void-mcp/canary-v1",
+  "objective": "Fetch and independently verify one bounded DataNet object without granting payment, execution, Work Credit, wallet, signer, transaction, runtime, or deployment authority.",
+  "input_refs": [
+    "void://datanet/object/replace-with-live-bounded-input"
+  ],
+  "expected_outputs": [
+    "verified_result"
+  ],
+  "quote_asset": "WC",
+  "max_total": "3",
+  "max_runtime_seconds": 60,
+  "max_output_bytes": 65536,
+  "order_nonce": "replace-order-nonce-v1",
+  "submission_nonce": "replace-submission-nonce-v1",
+  "expect_new": true
+}

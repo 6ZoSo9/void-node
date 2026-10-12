@@ -1,0 +1,65 @@
+name: VOID public bootstrap manifest media type v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-manifest-media-type-v1.yml"
+      - "docs/operators/void-public-bootstrap-manifest-media-type-v1.md"
+      - "scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_media_type_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_media_integration_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
+      - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove bounded media policy
+        run: node scripts/prove_void_public_bootstrap_manifest_media_type_v1.mjs
+
+      - name: Prove resolver integration
+        run: node scripts/prove_void_public_bootstrap_manifest_media_integration_v1.mjs
+
+      - name: Prove closed bootstrap responses
+        run: node scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
+
+      - name: Syntax check resolver modules
+        run: |
+          node --check scripts/lib/void_public_bootstrap_manifest_media_type_v1.mjs
+          node --check scripts/resolve_void_public_bootstrap_v1.mjs
+
+      - name: Typecheck repository
+        run: npm run typecheck
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check

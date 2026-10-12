@@ -1,0 +1,106 @@
+name: VOID BTC VOID Phase-1 execution evidence preview v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-btc-void-phase1-execution-evidence-v1.yml"
+      - "docs/operators/btc-void-phase1-execution-evidence-v1.md"
+      - "scripts/prove_void_btc_void_phase1_execution_evidence_v1.mjs"
+      - "tools/void-btc-void-phase1-execution-evidence-v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "tools/void-btc-void-trade-funded-fees-v1.mjs"
+      - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-btc-void-phase1-execution-evidence-v1.yml"
+      - "docs/operators/btc-void-phase1-execution-evidence-v1.md"
+      - "scripts/prove_void_btc_void_phase1_execution_evidence_v1.mjs"
+      - "tools/void-btc-void-phase1-execution-evidence-v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "tools/void-btc-void-trade-funded-fees-v1.mjs"
+      - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-btc-void-phase1-execution-evidence-v1.mjs
+          node --check scripts/prove_void_btc_void_phase1_execution_evidence_v1.mjs
+      - name: Prove Phase-1 evidence structural preview
+        run: node scripts/prove_void_btc_void_phase1_execution_evidence_v1.mjs
+      - name: Existing BTC VOID source regressions
+        run: |
+          node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
+          node scripts/prove_void_btc_void_trade_funded_fees_v1.mjs
+      - name: Authority wall
+        run: |
+          set -euo pipefail
+          tool="tools/void-btc-void-phase1-execution-evidence-v1.mjs"
+          grep -F 'structural_preview_only: true' "$tool" >/dev/null
+          grep -F 'source_evidence_structural_validation_only: true' "$tool" >/dev/null
+          grep -F 'execution_evidence_verified: false' "$tool" >/dev/null
+          grep -F 'authoritative_execution_admission: false' "$tool" >/dev/null
+          grep -F 'bitcoin_regtest_execution_evidence_admitted: false' "$tool" >/dev/null
+          grep -F 'isolated_chain2050_execution_evidence_admitted: false' "$tool" >/dev/null
+          grep -F 'raw_rpc_transcripts_replayed: false' "$tool" >/dev/null
+          grep -F 'chain2050_receipts_replayed: false' "$tool" >/dev/null
+          grep -F 'fee_envelope_execution_accounting_verified: false' "$tool" >/dev/null
+          grep -F 'native_unit_execution_conservation_verified: false' "$tool" >/dev/null
+          grep -F 'preview_id: contentId("voidbtcp1preview1_", material)' "$tool" >/dev/null
+          if grep -F 'evidence_suite_id:' "$tool" >/dev/null; then
+            echo "authoritative evidence suite ID field must not be emitted by structural preview" >&2
+            exit 1
+          fi
+          if grep -F 'marker: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1' "$tool" >/dev/null; then
+            echo "authoritative Phase-1 evidence marker must not be emitted by structural preview" >&2
+            exit 1
+          fi
+          if grep -F 'PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION' "$tool" >/dev/null; then
+            echo "authoritative execution-admission status must not be emitted by structural preview" >&2
+            exit 1
+          fi
+          grep -F 'bitcoin_mainnet_contact: false' "$tool" >/dev/null
+          grep -F 'production_chain2050_contact: false' "$tool" >/dev/null
+          grep -F 'transaction_broadcast: false' "$tool" >/dev/null
+          grep -F 'production_funds_movement: false' "$tool" >/dev/null
+          for forbidden in 'bitcoin-cli' 'eth_sendRawTransaction' 'eth_sendTransaction' 'new Wallet(' 'signTransaction(' 'systemctl '; do
+            if grep -F "$forbidden" "$tool" >/dev/null; then
+              echo "forbidden execution surface: $forbidden" >&2
+              exit 1
+            fi
+          done
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

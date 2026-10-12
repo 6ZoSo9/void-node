@@ -1,0 +1,196 @@
+{
+  "$id": "https://voidchain.io/schemas/authenticated-paid-work-submission-provider-selection-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "properties": {
+        "buy_void_fulfillment_granted": {
+          "const": false
+        },
+        "payment_authorization_granted": {
+          "const": false
+        },
+        "payment_execution_granted": {
+          "const": false
+        },
+        "provider_selected": {
+          "const": true
+        },
+        "provider_selection_executed": {
+          "const": true
+        },
+        "quote_created": {
+          "const": false
+        },
+        "quote_creation_granted": {
+          "const": false
+        },
+        "requester_acceptance_granted": {
+          "const": false
+        },
+        "signing_granted": {
+          "const": false
+        },
+        "transaction_broadcast_granted": {
+          "const": false
+        },
+        "void_settlement_granted": {
+          "const": false
+        },
+        "wallet_or_signer_access_granted": {
+          "const": false
+        },
+        "wc_award_granted": {
+          "const": false
+        },
+        "wc_ledger_write_granted": {
+          "const": false
+        },
+        "work_dispatch_granted": {
+          "const": false
+        },
+        "work_execution_authorization_granted": {
+          "const": false
+        }
+      },
+      "required": [
+        "provider_selected",
+        "provider_selection_executed",
+        "quote_creation_granted",
+        "quote_created",
+        "requester_acceptance_granted",
+        "payment_authorization_granted",
+        "payment_execution_granted",
+        "work_execution_authorization_granted",
+        "work_dispatch_granted",
+        "wc_award_granted",
+        "wc_ledger_write_granted",
+        "void_settlement_granted",
+        "wallet_or_signer_access_granted",
+        "signing_granted",
+        "transaction_broadcast_granted",
+        "buy_void_fulfillment_granted"
+      ],
+      "type": "object"
+    },
+    "marker": {
+      "const": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_PROVIDER_SELECTION_V1"
+    },
+    "next_action": {
+      "const": "provider_quote_may_be_requested_but_not_created"
+    },
+    "provider_registry": {
+      "properties": {
+        "candidate_set_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "eligible_provider_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "provider_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "provider_registry_snapshot_id": {
+          "pattern": "^voidapwprs1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ranking": {
+          "const": "priority_ascending_then_provider_id_ascending"
+        }
+      },
+      "required": [
+        "provider_registry_snapshot_id",
+        "provider_count",
+        "eligible_provider_count",
+        "candidate_set_sha256",
+        "ranking"
+      ],
+      "type": "object"
+    },
+    "provider_selection_id": {
+      "pattern": "^voidapwps1_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "review_decision": {
+      "type": "object"
+    },
+    "selected_at_utc": {
+      "type": "string"
+    },
+    "selected_provider": {
+      "properties": {
+        "available_capacity": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "capability_id": {
+          "type": "string"
+        },
+        "max_output_bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_request_total_microusd": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_runtime_seconds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "priority": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider_authentication_packet_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provider_id": {
+          "pattern": "^voidapwp1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "quote_asset": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "provider_authentication_packet_sha256",
+        "priority",
+        "available_capacity",
+        "capability_id",
+        "quote_asset",
+        "max_request_total_microusd",
+        "max_runtime_seconds",
+        "max_output_bytes"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "const": "provider_selected_pending_quote"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "provider_selection_id",
+    "selected_at_utc",
+    "status",
+    "review_decision",
+    "provider_registry",
+    "selected_provider",
+    "next_action",
+    "authority"
+  ],
+  "title": "VOID Authenticated Paid Work Submission Provider Selection V1",
+  "type": "object",
+  "x_void_marker": "VOID_AUTHENTICATED_PAID_WORK_SUBMISSION_PROVIDER_SELECTION_V1"
+}

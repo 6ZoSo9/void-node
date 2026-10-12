@@ -1,0 +1,10 @@
+groups:
+- name: void-header3-gap
+  interval: 15s
+  rules:
+  - record: void:head:last
+    expr: max(void_head_number)
+  - record: void:header3_last
+    expr: max(void_header3_last_number)
+  - record: void:header3_gap
+    expr: clamp_min(void:head:last - void:header3_last, 0)

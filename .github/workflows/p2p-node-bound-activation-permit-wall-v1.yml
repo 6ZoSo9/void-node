@@ -1,0 +1,102 @@
+name: P2P Node-Bound Activation Permit Wall v1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/p2p-node-bound-activation-permit-wall-v1.yml"
+      - "docs/architecture/p2p-node-bound-activation-permit-wall-v1.md"
+      - "ops/mainnet0/p2p-node-bound-activation-permit-wall-v1.env.example"
+      - "ops/mainnet0/provision-p2p-activation-permit-authority-v1.sh"
+      - "ops/mainnet0/run-p2p-node-bound-activation-permit-wall-v1.sh"
+      - "ops/mainnet0/void-p2p-node-bound-activation-permit-wall-v1.service.example"
+      - "scripts/prove_p2p_node_bound_activation_permit_wall_guard_v1.ts"
+      - "scripts/prove_p2p_node_bound_activation_permit_wall_v1.ts"
+      - "src/p2p/node_bound_activation_permit_wall_v1.ts"
+      - "src/p2p/run_node_bound_activation_permit_wall_v1.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/p2p-node-bound-activation-permit-wall-v1.yml"
+      - "docs/architecture/p2p-node-bound-activation-permit-wall-v1.md"
+      - "ops/mainnet0/p2p-node-bound-activation-permit-wall-v1.env.example"
+      - "ops/mainnet0/provision-p2p-activation-permit-authority-v1.sh"
+      - "ops/mainnet0/run-p2p-node-bound-activation-permit-wall-v1.sh"
+      - "ops/mainnet0/void-p2p-node-bound-activation-permit-wall-v1.service.example"
+      - "scripts/prove_p2p_node_bound_activation_permit_wall_guard_v1.ts"
+      - "scripts/prove_p2p_node_bound_activation_permit_wall_v1.ts"
+      - "src/p2p/node_bound_activation_permit_wall_v1.ts"
+      - "src/p2p/run_node_bound_activation_permit_wall_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  p2p-node-bound-activation-permit-wall-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate shell surfaces
+        run: |
+          bash -n ops/mainnet0/provision-p2p-activation-permit-authority-v1.sh
+          bash -n ops/mainnet0/run-p2p-node-bound-activation-permit-wall-v1.sh
+
+      - name: Strict targeted TypeScript check
+        run: |
+          npx tsc --noEmit --target ES2022 --lib ES2022,DOM \
+            --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck \
+            src/p2p/node_bound_activation_permit_wall_v1.ts \
+            src/p2p/run_node_bound_activation_permit_wall_v1.ts
+
+      - name: Reprove authenticated edge foundation
+        run: |
+          npx tsx scripts/prove_p2p_authenticated_edge_wall_v1.ts
+          npx tsx scripts/prove_p2p_authenticated_edge_wall_guard_v1.ts
+
+      - name: Reprove signed trust-policy foundation
+        run: |
+          npx tsx scripts/prove_p2p_signed_trust_policy_wall_v1.ts
+          npx tsx scripts/prove_p2p_signed_trust_policy_wall_guard_v1.ts
+
+      - name: Prove node-bound activation permit wall
+        run: |
+          npx tsx scripts/prove_p2p_node_bound_activation_permit_wall_v1.ts
+          npx tsx scripts/prove_p2p_node_bound_activation_permit_wall_guard_v1.ts
+
+      - name: Prove non-overwriting offline authority provisioner
+        run: |
+          target="$(mktemp -d)/authority"
+          bash ops/mainnet0/provision-p2p-activation-permit-authority-v1.sh "$target"
+          test -s "$target/activation-permit-authority-ed25519.key.pem"
+          test -s "$target/activation-permit-authority-ed25519.pub.pem"
+          test -s "$target/activation-permit-root-set-v1.json"
+          if bash ops/mainnet0/provision-p2p-activation-permit-authority-v1.sh "$target"; then
+            echo "provisioner overwrote an existing authority" >&2
+            exit 1
+          fi
+
+      - name: Prove disabled launcher
+        run: |
+          set +e
+          output="$(bash ops/mainnet0/run-p2p-node-bound-activation-permit-wall-v1.sh 2>&1)"
+          status=$?
+          set -e
+          test "$status" -eq 78
+          grep -F "VOID_P2P_NODE_BOUND_ACTIVATION_PERMIT_WALL_V1_DISABLED" <<<"$output"
+
+      - name: Guard index.ts size and markers
+        run: |
+          chmod +x tools/check_index_size.sh
+          tools/check_index_size.sh
+
+      - name: Build
+        run: npm run build

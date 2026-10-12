@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-order-status-readonly-route-registrar-v1.schema.json",
+  "title": "VOID Public Agent Service Order Status Read-Only Route Registrar V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "registration_id",
+    "route",
+    "adapter",
+    "authority"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_ROUTE_REGISTRAR_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "registration_id": {
+      "type": "string",
+      "pattern": "^voidaosreg1_[0-9a-f]{64}$"
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path"
+      ],
+      "properties": {
+        "method": {
+          "const": "GET"
+        },
+        "path": {
+          "const": "/public-agent/services/v1/orders/:submission_id/status.json"
+        }
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registrar_method",
+        "responder_method",
+        "source_root_bound",
+        "deterministic_clock_injected",
+        "default_max_bytes"
+      ],
+      "properties": {
+        "registrar_method": {
+          "const": "get"
+        },
+        "responder_method": {
+          "const": "write"
+        },
+        "source_root_bound": {
+          "const": true
+        },
+        "deterministic_clock_injected": {
+          "const": true
+        },
+        "default_max_bytes": {
+          "const": 1048576
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abstract_route_registration",
+        "live_http_route_registration",
+        "server_mount",
+        "network_listener",
+        "source_write",
+        "authenticated_submission_post",
+        "token_byte_read",
+        "provider_selection",
+        "provider_authentication",
+        "quote_acceptance",
+        "payment_execution",
+        "work_dispatch",
+        "work_credit_write",
+        "runtime_mutation",
+        "service_restart",
+        "deployment"
+      ],
+      "properties": {
+        "abstract_route_registration": {
+          "const": true
+        },
+        "live_http_route_registration": {
+          "const": false
+        },
+        "server_mount": {
+          "const": false
+        },
+        "network_listener": {
+          "const": false
+        },
+        "source_write": {
+          "const": false
+        },
+        "authenticated_submission_post": {
+          "const": false
+        },
+        "token_byte_read": {
+          "const": false
+        },
+        "provider_selection": {
+          "const": false
+        },
+        "provider_authentication": {
+          "const": false
+        },
+        "quote_acceptance": {
+          "const": false
+        },
+        "payment_execution": {
+          "const": false
+        },
+        "work_dispatch": {
+          "const": false
+        },
+        "work_credit_write": {
+          "const": false
+        },
+        "runtime_mutation": {
+          "const": false
+        },
+        "service_restart": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        }
+      }
+    }
+  }
+}

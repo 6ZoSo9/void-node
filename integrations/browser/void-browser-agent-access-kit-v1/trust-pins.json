@@ -1,0 +1,20 @@
+{
+  "marker": "VOID_BROWSER_AGENT_TRUST_PINS_V1",
+  "version": 1,
+  "network": {
+    "chain_id": 2050,
+    "identity": "mainnet0"
+  },
+  "source": {
+    "repository": "6ZoSo9/void-node",
+    "base_commit": "3c5ae398366a959c198096f2051ae37cd64e4e7e",
+    "profile_path": "config/void-tor-agent-access-client-v1.json"
+  },
+  "trust": {
+    "onion_hostname": "r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion",
+    "node_id": "9d89483769e469e0473b489dc50dba96",
+    "public_key_fingerprint_sha256": "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+    "binding_sha256": "f625a192b3f97a29513603b2a433e4acc86f15fb81f9fa536cc44541e5873521",
+    "binding_expires_at": "2027-01-26T08:39:09.089Z"
+  }
+}

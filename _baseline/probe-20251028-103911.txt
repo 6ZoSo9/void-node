@@ -1,0 +1,321 @@
+=== VOID NODE PROBE 20251028-103911 ===
+
+## systemd units (templated + main) — cat first 200 lines
+# /home/zoso/.config/systemd/user/void-node.service
+[Unit]
+Description=Void Node (main proposer)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/dev/void-node/void.env
+WorkingDirectory=%h/dev/void-node
+ExecStartPre=/usr/bin/test -r ${NODE_PRIVKEY_PATH}
+ExecStart=/usr/bin/env -S bash -lc 'npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+
+# /home/zoso/.config/systemd/user/void-node.service.d/05-restart-budget.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# /home/zoso/.config/systemd/user/void-node.service.d/10-derace.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=2
+# Refuse to start if our HTTP or P2P port is already bound (prevents double-binding)
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${P2P_PORT} "'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/10-proposer.conf
+[Service]
+ExecStartPost=/usr/bin/bash -lc 'for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/dev/proposer/start?intervalMs=1000" >/dev/null && exit 0; sleep 1; done; exit 0'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT}'
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT}'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/override.conf
+[Service]
+Environment=ALLOW_EMPTY_BLOCKS=0
+ExecStart=
+ExecStart=/usr/bin/env -S bash -lc 'export NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeA.key; exec npx --yes tsx src/index.ts'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service
+[Unit]
+Description=VOID Node instance (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+WorkingDirectory=%h/dev/void-node
+# IMPORTANT: load shared defaults first, then instance overrides
+EnvironmentFile=%h/dev/void-node/void.env
+EnvironmentFile=%h/dev/void-node/%i.env
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx src/index.ts'
+Restart=on-failure
+RestartSec=2
+ExecStartPost=/usr/bin/bash -lc 'for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=http://127.0.0.1:4100&intervalMs=1000" >/dev/null && exit 0; sleep 1; done; exit 0'
+
+[Install]
+WantedBy=default.target
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/05-clear-autofollow.conf
+[Service]
+ExecStartPost=
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/05-restart-budget.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/10-derace.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=2
+# Refuse to start if the instance's HTTP or P2P port is already bound
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${P2P_PORT} "'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/10-env.conf
+[Service]
+EnvironmentFile=/home/zoso/dev/void-node/void_b.env
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/15-autofollow-gate.conf
+[Service]
+ExecStartPost=/bin/sh -lc '[ "${FOLLOW_AUTOSTART:-0}" = "1" ] && for i in $(seq 1 20); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=${BOOTSTRAP_ADDRS:-http://127.0.0.1:4100}&intervalMs=${FOLLOW_INTERVAL_MS:-1000}" >/dev/null && exit 0; \
+  sleep 1; done; exit 0 || true'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/16-p2p-autodial.conf
+[Service]
+ExecStartPost=/bin/sh -lc '[ -n "${BOOTSTRAP_P2P:-}" ] && for i in $(seq 1 20); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/p2p/dial?addr=${BOOTSTRAP_P2P}" >/dev/null && exit 0; \
+  sleep 1; done; exit 0 || true'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT}'
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT}'
+
+# /home/zoso/.config/systemd/user/void-node@bootstrap-1.service.d/override.conf
+[Service]
+Environment=
+ExecStart=
+ExecStart=/usr/bin/env -S bash -lc 'export NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeB.key; export BOOTSTRAP_ADDRS=http://127.0.0.1:4100; exec npx --yes tsx src/index.ts'
+
+## drop-ins (templated)
+total 36
+drwx------ 2 zoso zoso 4096 Oct 28 10:15 .
+drwxr-xr-x 9 zoso zoso 4096 Oct 28 03:50 ..
+-rw-rw-r-- 1 zoso zoso   25 Oct 28 10:15 05-clear-autofollow.conf
+-rw-rw-r-- 1 zoso zoso   50 Oct 28 10:15 05-restart-budget.conf
+-rw-rw-r-- 1 zoso zoso  332 Oct 28 10:15 10-autofollow.conf.disabled
+-rw-rw-r-- 1 zoso zoso  302 Oct 28 10:15 10-derace.conf
+-rw-rw-r-- 1 zoso zoso  312 Oct 28 10:15 15-autofollow-gate.conf
+-rw-rw-r-- 1 zoso zoso  235 Oct 28 10:15 16-p2p-autodial.conf
+-rw-rw-r-- 1 zoso zoso  184 Oct 28 10:15 20-port-guard.conf
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/05-clear-autofollow.conf
+[Service]
+ExecStartPost=
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/05-restart-budget.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/10-derace.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=2
+# Refuse to start if the instance's HTTP or P2P port is already bound
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${P2P_PORT} "'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/15-autofollow-gate.conf
+[Service]
+ExecStartPost=/bin/sh -lc '[ "${FOLLOW_AUTOSTART:-0}" = "1" ] && for i in $(seq 1 20); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/follower/start?peer=${BOOTSTRAP_ADDRS:-http://127.0.0.1:4100}&intervalMs=${FOLLOW_INTERVAL_MS:-1000}" >/dev/null && exit 0; \
+  sleep 1; done; exit 0 || true'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/16-p2p-autodial.conf
+[Service]
+ExecStartPost=/bin/sh -lc '[ -n "${BOOTSTRAP_P2P:-}" ] && for i in $(seq 1 20); do \
+  curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/p2p/dial?addr=${BOOTSTRAP_P2P}" >/dev/null && exit 0; \
+  sleep 1; done; exit 0 || true'
+
+# /home/zoso/.config/systemd/user/void-node@.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT}'
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT}'
+
+
+## drop-ins (main)
+total 28
+drwx------ 2 zoso zoso 4096 Oct 28 10:16 .
+drwxr-xr-x 9 zoso zoso 4096 Oct 28 03:50 ..
+-rw-rw-r-- 1 zoso zoso   50 Oct 28 10:15 05-restart-budget.conf
+-rw-rw-r-- 1 zoso zoso  317 Oct 28 09:20 10-derace.conf
+-rw-rw-r-- 1 zoso zoso  194 Oct 28 10:16 10-proposer.conf
+-rw-rw-r-- 1 zoso zoso  184 Oct 28 03:45 20-port-guard.conf
+-rw-r--r-- 1 zoso zoso  193 Oct 27 18:10 override.conf
+
+# /home/zoso/.config/systemd/user/void-node.service.d/05-restart-budget.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# /home/zoso/.config/systemd/user/void-node.service.d/10-derace.conf
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=2
+# Refuse to start if our HTTP or P2P port is already bound (prevents double-binding)
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${HTTP_PORT} "'
+ExecStartPre=/usr/bin/bash -lc '! ss -ltn | grep -q ":${P2P_PORT} "'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/10-proposer.conf
+[Service]
+ExecStartPost=/usr/bin/bash -lc 'for i in {1..15}; do curl -fsS -X POST "http://127.0.0.1:${HTTP_PORT}/dev/proposer/start?intervalMs=1000" >/dev/null && exit 0; sleep 1; done; exit 0'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/20-port-guard.conf
+[Service]
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${HTTP_PORT} )" | grep -q :${HTTP_PORT}'
+ExecStartPre=/bin/sh -c '! ss -lnt "( sport = :${P2P_PORT} )" | grep -q :${P2P_PORT}'
+
+# /home/zoso/.config/systemd/user/void-node.service.d/override.conf
+[Service]
+Environment=ALLOW_EMPTY_BLOCKS=0
+ExecStart=
+ExecStart=/usr/bin/env -S bash -lc 'export NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeA.key; exec npx --yes tsx src/index.ts'
+
+
+## env (main/follower)
+# ~/dev/void-node/void.env
+DATA_DIR=/home/zoso/dev/void-node/data_a
+HTTP_HOST=127.0.0.1
+HTTP_PORT=4100
+P2P_HOST=127.0.0.1
+P2P_PORT=4700
+NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeA.key
+BOOTSTRAP_ADDRS=
+ALLOW_EMPTY_BLOCKS=1
+
+# ~/dev/void-node/void_b.env
+DATA_DIR=/home/zoso/dev/void-node/data_b
+HTTP_HOST=127.0.0.1
+HTTP_PORT=4101
+P2P_HOST=127.0.0.1
+P2P_PORT=4701
+NODE_PRIVKEY_PATH=/home/zoso/dev/void-node/.secrets/nodeB.key
+BOOTSTRAP_ADDRS=http://127.0.0.1:4100
+FOLLOW_AUTOSTART=1
+ALLOW_EMPTY_BLOCKS=1
+FOLLOW_INTERVAL_MS=150
+BOOTSTRAP_P2P=127.0.0.1:4700
+
+## health
+# A /api/health:
+{
+  "ok": true,
+  "proto": 1,
+  "nodeId": "5e7fafb07cf30e95abb351c234503d82",
+  "http": 4100,
+  "p2p": 4700,
+  "peers": [],
+  "listen": [
+    "127.0.0.1:4700"
+  ]
+}
+# B /api/health:
+{
+  "ok": true,
+  "proto": 1,
+  "nodeId": "60053ba0f423f2013f349607d2bd7f08",
+  "http": 4101,
+  "p2p": 4701,
+  "peers": [
+    "5e7fafb07cf30e95abb351c234503d82"
+  ],
+  "listen": [
+    "127.0.0.1:4701"
+  ]
+}
+
+## peers
+# A hello-now:
+{
+  "ok": true,
+  "id": "5e7fafb07cf30e95abb351c234503d82",
+  "listen": [
+    "127.0.0.1:4700"
+  ],
+  "peers": 0,
+  "connected": [],
+  "knownAddrs": [
+    "127.0.0.1:4700"
+  ]
+}
+# B hello-now:
+{
+  "ok": true,
+  "id": "60053ba0f423f2013f349607d2bd7f08",
+  "listen": [
+    "127.0.0.1:4701"
+  ],
+  "peers": 1,
+  "connected": [
+    {
+      "id": "5e7fafb07cf30e95abb351c234503d82",
+      "addr": "127.0.0.1:4700",
+      "listens": [
+        "127.0.0.1:4700"
+      ],
+      "outbound": true
+    }
+  ],
+  "knownAddrs": [
+    "127.0.0.1:4701",
+    "127.0.0.1:4700"
+  ]
+}
+
+## heads (TEXT metrics)
+A void_head: 2766
+B void_head: 2766
+
+## last block numbers
+A last: 2766
+B last: 2767
+
+## feature endpoints presence (HTTP codes)
+http://127.0.0.1:4100/tx/submit -> 404
+http://127.0.0.1:4100/mempool -> 200
+http://127.0.0.1:4100/follower/status -> 404
+http://127.0.0.1:4101/follower/status -> 404
+http://127.0.0.1:4100/dev/proposer/start -> 404
+http://127.0.0.1:4100/dev/proposer/stop -> 404
+http://127.0.0.1:4100/metrics/mempool -> 404

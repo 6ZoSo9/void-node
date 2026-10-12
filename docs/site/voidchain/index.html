@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VOID Network — voidchain.org</title>
+  <style>
+    :root{color-scheme:dark;--bg:#05060a;--panel:#0e1320;--line:#263245;--text:#e5e7eb;--muted:#93a4b8;--accent:#93c5fd;--green:#86efac;--pink:#f0abfc}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at top,#111827 0,#05060a 52%,#02030a 100%);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .wrap{max-width:1120px;margin:0 auto;padding:36px 18px 54px}
+    .nav{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:34px}
+    .brand{font-weight:900;letter-spacing:.08em}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:var(--muted);font-size:13px}
+    .hero{border:1px solid var(--line);background:linear-gradient(135deg,rgba(147,197,253,.12),rgba(240,171,252,.08));border-radius:26px;padding:34px;box-shadow:0 18px 70px rgba(0,0,0,.38)}
+    h1{font-size:clamp(34px,7vw,76px);line-height:.95;margin:0 0 18px;letter-spacing:-.07em}
+    .lead{font-size:18px;line-height:1.6;color:#cbd5e1;max-width:820px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:22px}
+    .card{border:1px solid var(--line);background:rgba(14,19,32,.78);border-radius:20px;padding:20px}
+    .card h2{font-size:18px;margin:0 0 10px}
+    .card p{color:var(--muted);line-height:1.55;margin:0}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+    a{color:var(--accent)}
+    .btn{display:inline-flex;text-decoration:none;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#0b1220;color:var(--text);font-weight:800}
+    .btn.primary{background:linear-gradient(135deg,#2563eb,#7c3aed);border-color:#60a5fa}
+    .status{margin-top:24px;color:var(--green)}
+    code{background:#060a12;border:1px solid #1f2937;border-radius:8px;padding:2px 6px;color:#bfdbfe}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="nav">
+      <div class="brand">VOID NETWORK</div>
+      <div class="pill">VOID-hosted site bundle v1</div>
+    </div>
+
+    <section class="hero">
+      <h1>Run the network. Own the path.</h1>
+      <p class="lead">
+        VOID is public-live infrastructure for self-hosted nodes, verifiable data, Work Credits, DataNet,
+        participant wallets, and guarded validator admission. This page is served by a VOID node, not Google Cloud.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="/participant">Open Participant App</a>
+        <a class="btn" href="/__void/site-manifest/voidchain.json">View Site Manifest</a>
+        <a class="btn" href="/site/nullfeed">Preview NullFeed</a>
+      </div>
+      <p class="status">Canonical direction: website content should be hosted, mirrored, verified, and eventually recovered through VOID/DataNet.</p>
+
+      <div class="grid" style="margin-top:24px">
+        <article class="card">
+          <h2>Mainnet-0 public-live</h2>
+          <p>VOID is public-live for Mainnet-0. The network is usable, but guarded actions remain proof-gated.</p>
+        </article>
+        <article class="card">
+          <h2>DataNet-backed website</h2>
+          <p>This site is served DataNet-first by a VOID node with repo static fallback for bootstrapping.</p>
+        </article>
+        <article class="card">
+          <h2>Google Cloud not required</h2>
+          <p>The canonical website content path is VOID/DataNet-backed. External domains are aliases, not identity.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Quick start</h2>
+        <p>Clone the repo, install dependencies, start the node, then open the participant app. The goal is one clear path first, then packaged installers later.</p>
+        <p style="margin-top:10px"><code>git clone https://github.com/6ZoSo9/void-node</code></p>
+        <p style="margin-top:10px"><code>cd void-node &amp;&amp; npm install &amp;&amp; npm run build</code></p>
+      </article>
+      <article class="card">
+        <h2>Why run a node?</h2>
+        <p>Running a node helps keep VOID independent. The website itself is now served DataNet-first by VOID nodes with repo fallback.</p>
+      </article>
+      <article class="card">
+        <h2>Verify the site</h2>
+        <p>Use the manifest to verify the DataNet dataset id, content root, aliases, and that Google Cloud is not canonical infrastructure.</p>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Download / Run a Node</h2>
+        <p>Start with the public quick-start docs. Linux is the preferred path; Windows users should use WSL2 until native packaging is ready.</p>
+        <p style="margin-top:10px">
+          <a href="https://github.com/6ZoSo9/void-node">GitHub source</a> ·
+          <a href="https://github.com/6ZoSo9/void-node/blob/main/docs/public/quick-start.md">Quick start docs</a> ·
+          <a href="https://github.com/6ZoSo9/void-node/blob/main/docs/public/run-a-node.md">Run a node docs</a> ·
+          <a href="/participant">Open local participant app</a> ·
+          <a href="/__void/site-manifest/voidchain.json">Verify site manifest</a>
+        </p>
+      </article>
+      <article class="card">
+        <h2>DataNet</h2>
+        <p>Content can be published, fetched, verified, and later used as the backing store for this website bundle.</p>
+      </article>
+      <article class="card">
+        <h2>Public Safety</h2>
+        <p>Public routes are open. Operator, dev, diagnostic, and wallet export routes are remote-blocked by the sensitive route guard.</p>
+      </article>
+      <article class="card">
+        <h2>Next</h2>
+        <p>Move this static bundle into DataNet, prove the content hash, then point <code>voidchain.org</code> at a VOID-operated gateway.</p>
+      </article>
+    </section>
+  </main>
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
+<section id="verified-release-install">
+  <h2>Verified release install</h2>
+  <p>Install a versioned Linux x64 node archive with outer and inner SHA-256
+  verification, an SPDX SBOM, atomic update/rollback, and a stopped-by-default
+  user service.</p>
+  <p>
+    <a href="https://github.com/6ZoSo9/void-node/releases/latest">Release assets</a> ·
+    <a href="https://github.com/6ZoSo9/void-node/blob/main/docs/public/download-install-release-v1.md">Install and verification guide</a> ·
+    <a href="/public-node/void-network/release-distribution-v1.json">Machine-readable release status</a>
+  </p>
+  <p><strong>Safety:</strong> no keys are generated and guarded network actions remain proof-gated.</p>
+</section>
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_END -->
+<!-- VOID_FIRST_OFFICIAL_RELEASE_REHEARSAL_WALL_V1 -->
+<section id="first-official-release-rehearsal">
+  <h2>First Official Release Rehearsal</h2>
+  <p>The complete release chain is rehearsed without publishing a tag, release, deployment, restart, or economic mutation.</p>
+  <p><a href="/public-node/void-network/release-rehearsal-v1.html">Rehearsal status</a></p>
+</section>
+<section id="first-official-release-launch-gate-v1" data-marker="VOID_FIRST_OFFICIAL_RELEASE_LAUNCH_GATE_WALL_V1">
+  <h2>First official release launch gate</h2>
+  <p>The exact source, deterministic assets, rehearsal chain, independent approval, and expiring authorization are verified before an inert publication command is rendered.</p>
+  <p>No tag or official release is published by the gate.</p>
+</section>
+<section id="solo-operator-release-gate-v1" data-marker="VOID_SOLO_OPERATOR_RELEASE_GATE_WALL_V1">
+  <h2>Solo-operator release time-lock</h2>
+  <p>When no second human exists, the launch record explicitly says independent review is absent and requires a twelve-hour GitHub wait plus a 14-24 hour authorization window.</p>
+  <p>No tag or official release is published by this infrastructure wall.</p>
+</section>
+</body>
+</html>
+
+<!-- VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_WALL_V1 -->
+<section id="verified-update-channel">
+  <h2>Verified Stable Updates</h2>
+  <p>Installed nodes can check a stable channel, reject downgrades, verify SHA-256 and GitHub attestations, and roll back automatically after a failed readiness gate.</p>
+  <p><a href="/public-node/void-network/release-update-channel-v1.html">Release update channel status</a> · <a href="https://github.com/6ZoSo9/void-node/blob/main/docs/public/release-update-channel-v1.md">Update guide</a></p>
+</section>
+
+<!-- VOID_PUBLIC_RELEASE_PUBLICATION_PROMOTION_WALL_V1 -->
+<section id="official-release-publication">
+  <h2>Official Releases</h2>
+  <p>VOID release publication is immutable, attested, canary-gated, and promoted through reviewed candidate/stable channel state.</p>
+  <p><a href="/public-node/void-network/release-publication-promotion-v1.html">Publication status</a> · <a href="/public-node/void-network/channels/index.html">Release channels</a></p>
+</section>
+
+<!-- VOID_PUBLIC_RELEASE_QUALIFICATION_CANARY_WALL_V1 -->
+<section id="release-qualification">
+  <h2>Release Qualification</h2>
+  <p>Stable releases require a complete multi-environment qualification matrix and independent reviewer approval.</p>
+  <p><a href="/public-node/void-network/qualification/index.html">Qualification status</a></p>
+</section>

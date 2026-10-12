@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/void-public-node-identity-trust-v1.schema.json",
+  "title": "VOID Public Node Identity Trust V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "marker", "version", "status", "network", "entries", "authority"],
+  "properties": {
+    "$schema": { "const": "../schemas/void-public-node-identity-trust-v1.schema.json" },
+    "marker": { "const": "VOID_PUBLIC_NODE_IDENTITY_TRUST_V1" },
+    "version": { "const": 1 },
+    "status": { "const": "reviewed" },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "identity", "chain_id"],
+      "properties": {
+        "name": { "const": "VOID Mainnet-0" },
+        "identity": { "const": "mainnet0" },
+        "chain_id": { "const": 2050 }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "key_type", "public_key_fingerprint_sha256", "status", "trust_basis"],
+        "properties": {
+          "node_id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+          "key_type": { "const": "ed25519" },
+          "public_key_fingerprint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "status": { "const": "trusted" },
+          "trust_basis": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "corroborating_paths", "onion_binding_evidence_blob_sha"],
+            "properties": {
+              "kind": { "const": "existing_main_void_node_identity_key" },
+              "corroborating_paths": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "onion_binding_evidence_blob_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_only",
+        "mutation_authority_granted",
+        "work_credit_authority_granted",
+        "wallet_or_signer_access",
+        "transaction_authority_granted",
+        "validator_authority_granted",
+        "treasury_or_liquidity_authority_granted",
+        "funds_movement_authority_granted"
+      ],
+      "properties": {
+        "verification_only": { "const": true },
+        "mutation_authority_granted": { "const": false },
+        "work_credit_authority_granted": { "const": false },
+        "wallet_or_signer_access": { "const": false },
+        "transaction_authority_granted": { "const": false },
+        "validator_authority_granted": { "const": false },
+        "treasury_or_liquidity_authority_granted": { "const": false },
+        "funds_movement_authority_granted": { "const": false }
+      }
+    }
+  }
+}

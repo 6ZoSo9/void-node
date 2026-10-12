@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://void.network/schemas/public-release-qualification-v1.schema.json",
+  "title": "VOID Public Release Qualification v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "marker",
+    "schema_version",
+    "repository",
+    "release_tag",
+    "source_commit"
+  ],
+  "properties": {
+    "marker": {
+      "enum": [
+        "VOID_RELEASE_QUALIFICATION_PLAN_V1",
+        "VOID_RELEASE_QUALIFICATION_RESULT_V1",
+        "VOID_RELEASE_QUALIFICATION_RECEIPT_V1",
+        "VOID_RELEASE_QUALIFICATION_APPROVAL_V1"
+      ]
+    },
+    "schema_version": {"const": 1},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "release_tag": {"type": "string", "pattern": "^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$"},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "passed": {"type": "boolean"},
+    "approved": {"type": "boolean"}
+  }
+}

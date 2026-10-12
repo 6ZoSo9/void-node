@@ -1,0 +1,71 @@
+{
+  "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_ACTIVATION_PREREQUISITE_EXAMPLE_V1",
+  "version": 1,
+  "config": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_ACTIVATION_PREREQUISITE_CONFIG_V1",
+    "version": 1,
+    "enabled": false,
+    "allowed_base_origins": [
+      "https://agent-gateway.example.invalid"
+    ],
+    "allowed_endpoint_paths": [
+      "/__void/agents/paid-work/submissions/v1"
+    ],
+    "max_handoff_bytes": 1048576,
+    "max_request_bytes": 65536,
+    "max_handoff_age_seconds": 1800,
+    "max_activation_ttl_seconds": 900,
+    "min_remaining_work_order_ttl_seconds": 300,
+    "max_clock_skew_seconds": 60,
+    "max_known_replay_keys": 1024
+  },
+  "command_template": {
+    "marker": "VOID_EXTERNAL_AGENT_PAID_WORK_AUTHENTICATED_SUBMISSION_ACTIVATION_PREREQUISITE_COMMAND_V1",
+    "version": 1,
+    "apply": false,
+    "confirmation": "",
+    "operation_id": "authenticated-submission-activation-prerequisite-example-v1",
+    "evaluated_at_utc": "2026-07-29T23:20:00Z",
+    "activation_expires_at_utc": "2026-07-29T23:30:00Z",
+    "handoff_path": "/home/operator/.local/state/void-agent-paid-work/prepare-only/example-v1/prepare-only-handoff-v1.json",
+    "request_path": "/home/operator/.local/state/void-agent-paid-work/prepare-only/example-v1/prepared-request-v1.json",
+    "output_directory": "/home/operator/.local/state/void-agent-paid-work/activation-prerequisite/example-v1",
+    "expected": {
+      "base_origin": "https://agent-gateway.example.invalid",
+      "endpoint_path": "/__void/agents/paid-work/submissions/v1",
+      "submission_id": "external-agent-submission-example-v1",
+      "work_order_id": "voidawo1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "credential_reference": {
+      "mode": "credential_registry",
+      "reference_id": "credential-reference-example-v1",
+      "source_locator_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_scope": "agent_paid_work.submit",
+      "registry_id": "credential-registry-example-v1",
+      "credential_id": "credential-example-v1",
+      "agent_id": "agent.example.requester",
+      "not_before_utc": "2026-07-29T22:00:00Z",
+      "expires_at_utc": "2026-07-30T00:00:00Z"
+    },
+    "replay": {
+      "nonce": "activation-example-replay-nonce-0001",
+      "expected_replay_key": null,
+      "known_replay_keys": []
+    },
+    "operator_intent": {
+      "expect_new": true,
+      "live_submission_authorized": false
+    }
+  },
+  "activation": {
+    "default_enabled": false,
+    "apply_confirmation": "reviewExternalAgentPaidWorkAuthenticatedSubmissionActivationPrerequisiteV1",
+    "writes_private_plan_and_hold_decision_only": true,
+    "credential_or_token_read": false,
+    "authorization_header_materialized": false,
+    "network_listener_creation": false,
+    "runtime_mount": false,
+    "authenticated_submission_post": false
+  }
+}

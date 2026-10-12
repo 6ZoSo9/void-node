@@ -1,0 +1,64 @@
+{
+  "marker": "VOID_REALMS_TRISCALE_BUILDING_CONFIG_V1",
+  "version": 1,
+  "world_name": "VOID Realms",
+  "microcells_per_standard_edge": 4,
+  "selector": {
+    "minimum": 0,
+    "maximum": 2,
+    "smallstep": 1,
+    "largestep": 1,
+    "default_index": 2,
+    "orientation": "horizontal"
+  },
+  "profiles": [
+    {
+      "selector_index": 0,
+      "name": "small",
+      "edge_microcells": 1,
+      "edge_ratio_numerator": 1,
+      "edge_ratio_denominator": 4,
+      "volume_microcells": 1,
+      "material_units": 1
+    },
+    {
+      "selector_index": 1,
+      "name": "medium",
+      "edge_microcells": 2,
+      "edge_ratio_numerator": 1,
+      "edge_ratio_denominator": 2,
+      "volume_microcells": 8,
+      "material_units": 8
+    },
+    {
+      "selector_index": 2,
+      "name": "standard",
+      "edge_microcells": 4,
+      "edge_ratio_numerator": 1,
+      "edge_ratio_denominator": 1,
+      "volume_microcells": 64,
+      "material_units": 64
+    }
+  ],
+  "placement_policy": {
+    "axis_aligned_only": true,
+    "whole_piece_break_only": true,
+    "cross_region_piece_allowed": false,
+    "client_material_cost_trusted": false,
+    "server_authoritative_commit_required": true,
+    "preview_only_luanti_adapter": true
+  },
+  "authority": {
+    "world_mutation": false,
+    "inventory_mutation": false,
+    "gameplay_state_commit": false,
+    "network_listener_start": false,
+    "external_connection": false,
+    "server_start": false,
+    "deployment": false,
+    "work_credit_write": false,
+    "wallet_or_signer_access": false,
+    "payment_execution": false,
+    "money_movement": false
+  }
+}

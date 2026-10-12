@@ -1,0 +1,285 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DATA_DIR="${DATA_DIR:-/home/zoso/dev/void-node/data_a}"
+TEXTDIR="${TEXTDIR:-${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}}"
+RECEIPTS_DIR="$DATA_DIR/datanet/receipts"
+
+# autodetect receipts file (do NOT assume receipts.jsonl)
+if [ -n "${RECEIPTS_JSONL:-}" ] && [ -f "$RECEIPTS_JSONL" ]; then
+  RF="$RECEIPTS_JSONL"
+else
+  RF=""
+  for f in \
+    "$RECEIPTS_DIR/datanet.jsonl" \
+    "$RECEIPTS_DIR/receipts.jsonl" \
+    "$RECEIPTS_DIR/datanet_receipts.jsonl" \
+    "$RECEIPTS_DIR/receipt.jsonl" \
+    "$RECEIPTS_DIR/datanet-receipts.jsonl"
+  do
+    if [ -f "$f" ]; then RF="$f"; break; fi
+  done
+fi
+
+OUTFILE="$TEXTDIR/void_datanet_receipts.prom"
+GHOSTS_FILE="$TEXTDIR/void_datanet_receipts_tmp_prom_ghosts.prom"
+STATE="$TEXTDIR/.void_datanet_receipts_wc_state.json"
+
+TAIL_LINES="${TAIL_LINES:-6000}"
+
+TMP="$TEXTDIR/.tmp.void_datanet_receipts.$$.$RANDOM.part"
+TMP2="$TEXTDIR/.tmp.void_datanet_receipts_tmp_prom_ghosts.$$.$RANDOM.part"
+STATE_TMP="$TEXTDIR/.tmp.void_datanet_receipts_wc_state.$$.$RANDOM.json"
+
+cleanup(){ rm -f "$TMP" "$TMP2" "$STATE_TMP" 2>/dev/null || true; }
+trap cleanup EXIT
+
+NOW_S="$(date +%s)"
+NOW_MS="$((NOW_S*1000))"
+
+# forbidden ghost tmp *.prom count
+shopt -s nullglob
+GCOUNT=0
+for f in "$TEXTDIR"/.tmp.void_datanet_receipts.*.prom; do GCOUNT=$((GCOUNT+1)); done
+
+# write ghosts metric atomically
+{
+  echo "# HELP void_datanet_receipts_tmp_prom_ghosts Number of forbidden tmp receipts .prom files in textfile dir"
+  echo "# TYPE void_datanet_receipts_tmp_prom_ghosts gauge"
+  echo "void_datanet_receipts_tmp_prom_ghosts $GCOUNT"
+} > "$TMP2"
+chmod 0644 "$TMP2" || true
+mv -f "$TMP2" "$GHOSTS_FILE"
+
+# load state (best effort) so counters never go absent
+LAST_TS_MS=0
+WC_COUNTER=0
+if [ -f "$STATE" ]; then
+  python3 - <<'PY' "$STATE" || true
+import json,sys
+try:
+  st=json.load(open(sys.argv[1]))
+  print(st.get("last_ts_ms",0))
+  print(st.get("wc_counter",0))
+except Exception:
+  pass
+PY
+fi | {
+  read -r a || true
+  read -r b || true
+  LAST_TS_MS="${a:-0}"
+  WC_COUNTER="${b:-0}"
+  export LAST_TS_MS WC_COUNTER
+  true
+}
+
+# if receipts file missing, emit metrics but keep state values
+if [ -z "${RF:-}" ] || [ ! -f "$RF" ]; then
+  {
+    echo "# HELP void_datanet_receipts_export_last_run_ts_seconds Exporter last run timestamp"
+    echo "# TYPE void_datanet_receipts_export_last_run_ts_seconds gauge"
+    echo "void_datanet_receipts_export_last_run_ts_seconds $NOW_S"
+
+    echo "# HELP void_datanet_receipts_file_present 1 if receipts file exists"
+    echo "# TYPE void_datanet_receipts_file_present gauge"
+    echo "void_datanet_receipts_file_present 0"
+
+    echo "# HELP void_datanet_receipts_lines Number of lines in receipts jsonl (best-effort)"
+    echo "# TYPE void_datanet_receipts_lines gauge"
+    echo "void_datanet_receipts_lines 0"
+
+    echo "# HELP void_datanet_receipts_last_ok_ts_seconds Unix seconds of most recent ok receipt in tail window"
+    echo "# TYPE void_datanet_receipts_last_ok_ts_seconds gauge"
+    echo "void_datanet_receipts_last_ok_ts_seconds 0"
+
+    echo "# HELP void_datanet_receipts_last_ts_seconds Unix seconds of most recent receipt (any ok/fail) in tail window"
+    echo "# TYPE void_datanet_receipts_last_ts_seconds gauge"
+    echo "void_datanet_receipts_last_ts_seconds 0"
+
+    echo "# HELP void_datanet_receipts_age_seconds Seconds since most recent ok receipt (tail window)"
+    echo "# TYPE void_datanet_receipts_age_seconds gauge"
+    echo "void_datanet_receipts_age_seconds 0"
+
+    echo "# HELP void_datanet_receipts_any_age_seconds Seconds since most recent receipt (any ok/fail) (tail window)"
+    echo "# TYPE void_datanet_receipts_any_age_seconds gauge"
+    echo "void_datanet_receipts_any_age_seconds 0"
+
+    echo "# HELP void_datanet_receipts_wc_awarded_total Sum of wc in tail window (non-monotonic; debug)"
+    echo "# TYPE void_datanet_receipts_wc_awarded_total gauge"
+    echo "void_datanet_receipts_wc_awarded_total 0"
+
+    echo "# HELP void_datanet_receipts_wc_counter Monotonic wc counter from state (debug)"
+    echo "# TYPE void_datanet_receipts_wc_counter gauge"
+    echo "void_datanet_receipts_wc_counter ${WC_COUNTER:-0}"
+
+    echo "# HELP void_datanet_receipts_wc_last_ts_ms Last processed ts_ms stored in state (debug)"
+    echo "# TYPE void_datanet_receipts_wc_last_ts_ms gauge"
+    echo "void_datanet_receipts_wc_last_ts_ms ${LAST_TS_MS:-0}"
+  } > "$TMP"
+  chmod 0644 "$TMP" || true
+  mv -f "$TMP" "$OUTFILE"
+  echo '{"missing_receipts_file":1}'
+  exit 0
+fi
+
+LINES="$(wc -l < "$RF" | tr -d ' ' || echo 0)"
+
+python3 - <<'PY' \
+  "$RF" "$STATE" "$STATE_TMP" "$TMP" "$NOW_S" "$NOW_MS" "$LINES" "$TAIL_LINES"
+import json, os, sys
+from collections import deque
+
+receipts, state_path, state_tmp, out_tmp, now_s, now_ms, lines, tail_lines = sys.argv[1:]
+now_s = int(now_s); now_ms = int(now_ms); lines = int(lines); tail_lines = int(tail_lines)
+
+def tail_json_lines(path, n):
+    dq = deque(maxlen=n)
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line=line.strip()
+            if line:
+                dq.append(line)
+    return list(dq)
+
+last_ts_ms = 0
+wc_counter = 0
+try:
+    with open(state_path, "r", encoding="utf-8") as f:
+        st = json.load(f)
+        last_ts_ms = int(st.get("last_ts_ms") or 0)
+        wc_counter = int(st.get("wc_counter") or 0)
+except Exception:
+    pass
+
+tail = tail_json_lines(receipts, tail_lines)
+
+last_any_s = 0
+last_ok_s = 0
+max_any_ms = 0
+
+tail_wc_sum = 0
+delta_wc = 0
+
+def get_ts_ms(obj):
+    if "ts_ms" in obj and obj["ts_ms"] is not None:
+        try: return int(obj["ts_ms"])
+        except: pass
+    if "ts" in obj and obj["ts"] is not None:
+        try: return int(float(obj["ts"])) * 1000
+        except: pass
+    return 0
+
+def get_wc(obj):
+    # common candidates (we will expand if needed)
+    for k in (
+      "wc","wc_awarded","awarded_wc","awarded","work_credits","workCredits",
+      "credits","wc_delta","wc_amount","wcAmount","wcEarned","wc_earned"
+    ):
+        if k in obj and obj[k] is not None:
+            try:
+                v = obj[k]
+                if isinstance(v, bool): continue
+                if isinstance(v, (int,float)): return int(v)
+                if isinstance(v, str) and v.strip(): return int(float(v))
+            except:
+                continue
+    # nested patterns sometimes used
+    for k in ("wc","work_credits","credits"):
+        v = obj.get("meta",{}).get(k) if isinstance(obj.get("meta"),dict) else None
+        if v is not None:
+            try: return int(v)
+            except: pass
+    return 0
+
+for line in tail:
+    try:
+        obj = json.loads(line)
+        if not isinstance(obj, dict):
+            continue
+    except Exception:
+        continue
+
+    ts_ms = get_ts_ms(obj)
+    if ts_ms > max_any_ms:
+        max_any_ms = ts_ms
+    ts_s = ts_ms // 1000 if ts_ms else 0
+    if ts_s > last_any_s:
+        last_any_s = ts_s
+
+    ok = obj.get("ok")
+    ok1 = (ok == 1 or ok is True or ok == "1")
+
+    if ok1 and ts_s > last_ok_s:
+        last_ok_s = ts_s
+
+    wc = get_wc(obj)
+    if wc:
+        tail_wc_sum += wc
+        if ts_ms > last_ts_ms and ok1:
+            delta_wc += wc
+
+age_ok = max(0, now_s - last_ok_s) if last_ok_s else 0
+age_any = max(0, now_s - last_any_s) if last_any_s else 0
+
+new_last_ts_ms = max(last_ts_ms, max_any_ms)
+new_wc_counter = wc_counter + max(0, delta_wc)
+
+try:
+    with open(state_tmp, "w", encoding="utf-8") as f:
+        json.dump({"last_ts_ms": new_last_ts_ms, "wc_counter": new_wc_counter}, f)
+    os.replace(state_tmp, state_path)
+except Exception:
+    pass
+
+with open(out_tmp, "w", encoding="utf-8") as o:
+    o.write("# HELP void_datanet_receipts_export_last_run_ts_seconds Exporter last run timestamp\n")
+    o.write("# TYPE void_datanet_receipts_export_last_run_ts_seconds gauge\n")
+    o.write(f"void_datanet_receipts_export_last_run_ts_seconds {now_s}\n")
+
+    o.write("# HELP void_datanet_receipts_file_present 1 if receipts file exists\n")
+    o.write("# TYPE void_datanet_receipts_file_present gauge\n")
+    o.write("void_datanet_receipts_file_present 1\n")
+
+    o.write("# HELP void_datanet_receipts_lines Number of lines in receipts jsonl (best-effort)\n")
+    o.write("# TYPE void_datanet_receipts_lines gauge\n")
+    o.write(f"void_datanet_receipts_lines {lines}\n")
+
+    o.write("# HELP void_datanet_receipts_last_ok_ts_seconds Unix seconds of most recent ok receipt in tail window\n")
+    o.write("# TYPE void_datanet_receipts_last_ok_ts_seconds gauge\n")
+    o.write(f"void_datanet_receipts_last_ok_ts_seconds {last_ok_s}\n")
+
+    o.write("# HELP void_datanet_receipts_last_ts_seconds Unix seconds of most recent receipt (any ok/fail) in tail window\n")
+    o.write("# TYPE void_datanet_receipts_last_ts_seconds gauge\n")
+    o.write(f"void_datanet_receipts_last_ts_seconds {last_any_s}\n")
+
+    o.write("# HELP void_datanet_receipts_age_seconds Seconds since most recent ok receipt (tail window)\n")
+    o.write("# TYPE void_datanet_receipts_age_seconds gauge\n")
+    o.write(f"void_datanet_receipts_age_seconds {age_ok}\n")
+
+    o.write("# HELP void_datanet_receipts_any_age_seconds Seconds since most recent receipt (any ok/fail) (tail window)\n")
+    o.write("# TYPE void_datanet_receipts_any_age_seconds gauge\n")
+    o.write(f"void_datanet_receipts_any_age_seconds {age_any}\n")
+
+    o.write("# HELP void_datanet_receipts_wc_awarded_total Sum of wc in tail window (non-monotonic; debug)\n")
+    o.write("# TYPE void_datanet_receipts_wc_awarded_total gauge\n")
+    o.write(f"void_datanet_receipts_wc_awarded_total {tail_wc_sum}\n")
+
+    o.write("# HELP void_datanet_receipts_wc_counter Monotonic wc counter from state (debug)\n")
+    o.write("# TYPE void_datanet_receipts_wc_counter gauge\n")
+    o.write(f"void_datanet_receipts_wc_counter {new_wc_counter}\n")
+
+    o.write("# HELP void_datanet_receipts_wc_last_ts_ms Last processed ts_ms stored in state (debug)\n")
+    o.write("# TYPE void_datanet_receipts_wc_last_ts_ms gauge\n")
+    o.write(f"void_datanet_receipts_wc_last_ts_ms {new_last_ts_ms}\n")
+PY
+
+chmod 0644 "$TMP" || true
+mv -f "$TMP" "$OUTFILE"
+
+python3 - <<'PY' "$STATE"
+import json,sys
+try:
+  print(json.dumps(json.load(open(sys.argv[1]))))
+except Exception:
+  print('{"state_read_error":1}')
+PY

@@ -1,0 +1,99 @@
+{
+  "authority": {
+    "buy_void_fulfillment_authority": false,
+    "discovery_only": true,
+    "ledger_authority": false,
+    "mutation_authority": false,
+    "operator_credentials_required": false,
+    "proxy_authority": false,
+    "treasury_authority": false,
+    "validator_authority": false,
+    "wallet_authority": false,
+    "work_credit_award_authority": false
+  },
+  "checkpoint_tag_after_merge": "ckpt-ai-agent-public-ingress-independent-external-v1-<MERGE_SHORT>-20260724",
+  "containment": {
+    "allow_header": "GET, HEAD",
+    "gateway_bind": "127.0.0.1:4112",
+    "main_node_port_exposed": false,
+    "private_tailnet_https_preserved": true,
+    "raw_gateway_port_exposed": false,
+    "unknown_paths_status": 404,
+    "unsupported_methods_status": 405
+  },
+  "gateway_merge_commit": "b44c7796e40090c1f18fc1c81cb36d485118cb42",
+  "gateway_repair_merge_commit": "462e460147da4b60682351160ba5290846cba9a4",
+  "independent_verification": {
+    "artifact_name": "void-ai-agent-public-gateway-external-proof-v1",
+    "denied_method_count": 5,
+    "denied_path_count": 4,
+    "job_id": 89371891151,
+    "provider": "github-actions",
+    "route_count": 4,
+    "runner": "github-hosted-ubuntu-latest",
+    "verdict": "AI_AGENT_PUBLIC_GATEWAY_INDEPENDENT_PUBLIC_NETWORK_EXACT_GREEN",
+    "workflow_run_id": 30057397052
+  },
+  "main_commit": "462e460147da4b60682351160ba5290846cba9a4",
+  "marker": "VOID_AI_AGENT_PUBLIC_INGRESS_MILESTONE_V1",
+  "next_lane": {
+    "name": "AI-agent capability negotiation v1",
+    "not_enabled_by_this_milestone": [
+      "authenticated mutation",
+      "automatic Buy VOID fulfillment",
+      "validator activation",
+      "wallet or treasury control",
+      "automatic Work Credit awards"
+    ],
+    "objectives": [
+      "publish machine-readable supported capabilities",
+      "separate unauthenticated discovery from authenticated requests",
+      "define signed bounded request envelopes",
+      "preserve dry-by-default mutation posture",
+      "prepare bounded paid work and Work Credit earning"
+    ]
+  },
+  "observed_at_utc": "2026-07-24T00:51:58Z",
+  "public_endpoint": {
+    "base_url": "https://zoso-precision-tower-7810.taila47fd.ts.net:8443",
+    "public_internet_verified": true,
+    "routes": [
+      {
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "path": "/public-node/agents/discovery-v1.json",
+        "sha256": "4b390d453a78ce707bba2c9a2d3161aeb9df62d69ec15fb26c1a1c0a92b4f75b"
+      },
+      {
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "path": "/public-node/agents/discovery-v1.schema.json",
+        "sha256": "b13022fc2ea647acd4d837347dc3ecf4d668b1301e0271bf022ab79acf3d69a2"
+      },
+      {
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "path": "/.well-known/void-agent-discovery.json",
+        "sha256": "5fcce19145fb4ad4b11b6b7acd0461a5e73d20cb11a968283086d314d38c12ff"
+      },
+      {
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "path": "/.well-known/void-agent-discovery.schema.json",
+        "sha256": "53a8a103f029b27c4c123db0abd066db6437f63c8415205cd5cab77739e78599"
+      }
+    ],
+    "tls_default_trust": true,
+    "transport": "https"
+  },
+  "repository": "6ZoSo9/void-node",
+  "version": 1
+}

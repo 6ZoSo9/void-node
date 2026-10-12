@@ -1,0 +1,85 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PUBLIC_READ_LOOPBACK_TRANSPORT_V1",
+  "version": 1,
+  "status": "SOURCE_LOOPBACK_READ_TRANSPORT_GREEN_PRODUCTION_ENDPOINT_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "source": {
+    "transport_path": "tools/void-economic-epoch2-public-read-loopback-transport-v1.mjs",
+    "proof_path": "scripts/prove_void_economic_epoch2_public_read_loopback_transport_v1.mjs",
+    "public_read_core_path": "tools/void-economic-epoch2-public-read-gateway-v1.mjs",
+    "git_blob_sha1": {
+      "transport": "e2dc3333eef0e988db287585c993d01c34d61792",
+      "proof": "2b473d27628b9b0ff9d77ac1941ff4ad7cc1cccd",
+      "public_read_core": "4e19688550c13b6668d59e6f483b0f3edef1f00d"
+    }
+  },
+  "transport": {
+    "endpoint_class": "canonical_ipv4_loopback_http",
+    "required_hostname": "127.0.0.1",
+    "required_protocol": "http",
+    "minimum_port": 1024,
+    "maximum_port": 65535,
+    "credentials_forbidden": true,
+    "non_root_path_forbidden": true,
+    "query_forbidden": true,
+    "fragment_forbidden": true,
+    "redirects_forbidden": true,
+    "max_response_bytes": 524288,
+    "max_timeout_ms": 5000,
+    "allowed_rpc_methods": [
+      "eth_chainId",
+      "eth_getBlockByNumber",
+      "eth_getBalance",
+      "eth_getCode",
+      "eth_getTransactionReceipt"
+    ]
+  },
+  "verification": {
+    "ephemeral_loopback_server_proven": true,
+    "public_read_core_balance_integration": true,
+    "public_read_core_code_integration": true,
+    "public_read_core_receipt_integration": true,
+    "wrong_scheme_rejected": true,
+    "hostname_alias_rejected": true,
+    "path_query_credentials_rejected": true,
+    "forbidden_method_rejected_before_rpc": true,
+    "request_shape_fail_closed": true,
+    "redirect_rejected": true,
+    "content_type_rejected": true,
+    "rpc_error_rejected": true,
+    "oversized_response_rejected": true,
+    "timeout_rejected": true
+  },
+  "gates": {
+    "public_economic_read_gateway_source_ready": true,
+    "server_controlled_loopback_read_transport_source_ready": true,
+    "production_successor_rpc_endpoint_selected": false,
+    "live_balance_receipt_code_gateway_ready": false,
+    "public_balance_receipt_code_verification_ready": false,
+    "runtime_route_active": false,
+    "public_gateway_active": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "authority": {
+    "source_only": true,
+    "ephemeral_loopback_test_listener": true,
+    "external_network_access": false,
+    "production_rpc_contact": false,
+    "production_endpoint_selection": false,
+    "filesystem_mutation": false,
+    "credential_content_access": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "wc_mutation": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false
+  }
+}

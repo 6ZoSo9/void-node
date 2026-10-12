@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-poke VOID proposer autostart periodically
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=60s
+Unit=void-proposer-auto.service
+
+[Install]
+WantedBy=default.target

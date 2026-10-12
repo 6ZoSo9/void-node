@@ -1,0 +1,20 @@
+[Unit]
+Description=VOID proposer loop (dev)
+Wants=void-node.service
+After=void-node.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/void-node
+# Re-use your repo env; harmless if some keys are unused here
+EnvironmentFile=%h/dev/void-node/void.env
+# Hard defaults matching your node drop-ins
+Environment=DATA_DIR=%h/dev/void-node/data_a
+Environment=HTTP_PORT=4100
+# Run the dev loop (was previously started via a drop-in)
+ExecStart=/usr/bin/env -S bash -lc 'exec npx --yes tsx scripts/dev_proposer.ts'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

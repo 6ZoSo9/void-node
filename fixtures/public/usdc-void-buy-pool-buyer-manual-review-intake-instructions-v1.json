@@ -1,0 +1,50 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_MANUAL_REVIEW_INTAKE_INSTRUCTIONS_V1",
+  "status": "buyer_manual_review_intake_instructions_green",
+  "scope": "usdc_void_buy_pool_public_buyer_manual_review_intake",
+  "purpose": "Publish public buyer instructions for manual review intake while automatic fulfillment remains disabled.",
+  "intake_packet_fields": {
+    "chain_name_required": true,
+    "transaction_hash_required": true,
+    "usdc_amount_required": true,
+    "sending_wallet_address_required": true,
+    "receiving_void_wallet_address_required": true,
+    "buyer_acknowledges_manual_review_required": true,
+    "optional_private_contact_path_allowed_only_privately": true
+  },
+  "public_do_not_submit": {
+    "seed_phrase": true,
+    "private_key": true,
+    "password": true,
+    "secret_material": true,
+    "private_contact_info_on_public_node": true
+  },
+  "manual_review_requirements": {
+    "payment_verification_required": true,
+    "chain_token_receiver_allowlist_required": true,
+    "amount_rate_policy_required": true,
+    "duplicate_payment_guard_required": true,
+    "buyer_identity_binding_required": true,
+    "finality_confirmations_required": true,
+    "payment_eligibility_decision_required": true,
+    "operator_review_required": true
+  },
+  "current_authority_state": {
+    "automatic_fulfillment_enabled_now": false,
+    "wallet_fulfillment_enabled_now": false,
+    "buyer_execution_enabled_now": false,
+    "public_mutation_enabled_now": false,
+    "public_node_operator_authority_active_now": false,
+    "void_transfer_now": false,
+    "instant_delivery_promised": false,
+    "investment_return_promised": false,
+    "price_appreciation_promised": false
+  },
+  "proof_expectations": {
+    "buyer_manual_review_intake_instructions_green": true,
+    "manual_review_packet_shape_green": true,
+    "public_secret_warning_green": true,
+    "manual_review_requirements_green": true,
+    "authority_false_green": true
+  }
+}

@@ -1,0 +1,59 @@
+name: VOID epoch2 known signed transaction lineages v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-known-signed-transaction-lineages-v1.yml"
+      - "ops/mainnet0/**/*.json"
+      - "tools/void-private-chain2050-economic-recovery-contract-v1.mjs"
+      - "ops/mainnet0/buy-void-fulfillment-10246-live.md"
+      - "ops/mainnet0/buy-void-real-fulfillment-closeout-proof.sh"
+      - "ops/mainnet/mainnet0-premine-allocation.current.json"
+      - "ops/mainnet/mainnet0-ops-treasury-seed-live.20260524-115943.md"
+      - "docs/public/public-node-wc-to-void-redacted-settlement-receipt-v1.json"
+      - "ops/mainnet0/participant-wc-to-void.current.md"
+      - "docs/operations/void-private-chain2050-economic-recovery-contract-v1.md"
+      - "ops/mainnet0/economic-epoch2-known-signed-transaction-lineages-v1.json"
+      - "scripts/prove_void_economic_epoch2_known_signed_transaction_lineages_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-account-nonce-continuity-candidate-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-signed-transaction-verification-precision-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-checkpoint-request-precision-evidence-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-owner-gas-funding-request-evidence-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-owner-gas-funding-receipt-evidence-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-request-evidence-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.json"
+      - "docs/architecture/economic-epoch2-known-signed-transaction-lineages-v1.md"
+      - "docs/ren/journal/2026-09-27-known-signed-transaction-lineages-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-economic-epoch2-known-signed-transaction-lineages-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove known signed-transaction lineage baseline
+        run: node scripts/prove_void_economic_epoch2_known_signed_transaction_lineages_v1.mjs
+
+      - name: Preserve nonce continuity source proof
+        run: node scripts/prove_void_economic_epoch2_account_nonce_continuity_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check

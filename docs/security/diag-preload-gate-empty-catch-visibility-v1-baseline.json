@@ -1,0 +1,8 @@
+{
+  "marker": "VOID_DIAG_PRELOAD_GATE_EMPTY_CATCH_VISIBILITY_V1",
+  "file": "src/diag/preload_gate_bundle_afterapp_v3.cjs",
+  "before_real_empty_catch_count": 76,
+  "after_real_empty_catch_count": 0,
+  "closed_count": 76,
+  "sha256": "227e9d7a2aabc8cacc542333bf6775cfe573bd44cc202542534ebdf12dda60c5"
+}

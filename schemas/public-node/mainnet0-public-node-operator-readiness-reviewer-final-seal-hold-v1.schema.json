@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/public-node/mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1.schema.json",
+  "title": "VOID Mainnet-0 Public Node Operator Readiness Reviewer Final Seal Hold v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "lane",
+    "status",
+    "public_surface",
+    "review_scope",
+    "source_markers",
+    "source_links",
+    "authority",
+    "summary"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_MAINNET0_PUBLIC_NODE_OPERATOR_READINESS_REVIEWER_FINAL_SEAL_HOLD_V1_GREEN"
+    },
+    "lane": {
+      "const": "mainnet0-public-node-operator-readiness-reviewer-final-seal-hold-v1"
+    },
+    "status": {
+      "const": "reviewer_final_seal_hold"
+    },
+    "public_surface": {
+      "const": "read_only_static_reviewer_final_seal"
+    },
+    "review_scope": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "type": "string" }
+    },
+    "source_markers": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "type": "string" }
+    },
+    "source_links": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_rollup_json",
+        "chain_rollup_html",
+        "chain_rollup_index_json",
+        "root_index_json"
+      ],
+      "properties": {
+        "chain_rollup_json": { "type": "string" },
+        "chain_rollup_html": { "type": "string" },
+        "chain_rollup_index_json": { "type": "string" },
+        "root_index_json": { "type": "string" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registration_enabled",
+        "checklist_submission_enabled",
+        "validator_admission_enabled",
+        "validator_activation_enabled",
+        "staking_enabled",
+        "wallet_connect_enabled",
+        "public_mutation_enabled",
+        "ledger_write_enabled",
+        "peer_state_write_enabled",
+        "validator_set_write_enabled"
+      ],
+      "properties": {
+        "registration_enabled": { "const": false },
+        "checklist_submission_enabled": { "const": false },
+        "validator_admission_enabled": { "const": false },
+        "validator_activation_enabled": { "const": false },
+        "staking_enabled": { "const": false },
+        "wallet_connect_enabled": { "const": false },
+        "public_mutation_enabled": { "const": false },
+        "ledger_write_enabled": { "const": false },
+        "peer_state_write_enabled": { "const": false },
+        "validator_set_write_enabled": { "const": false }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

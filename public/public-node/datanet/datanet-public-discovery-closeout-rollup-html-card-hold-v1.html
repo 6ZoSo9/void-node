@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VOID DataNet Public Discovery Closeout Rollup</title>
+  <style>
+    body {
+      margin: 0;
+      background: #05070b;
+      color: #f6f2ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 52px 22px;
+    }
+    .card {
+      border: 1px solid #8f74ff;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(143,116,255,.18), rgba(5,7,11,.98));
+      box-shadow: 0 0 34px rgba(143,116,255,.22);
+      padding: 30px;
+    }
+    .marker {
+      color: #b6ffea;
+      word-break: break-word;
+      font-size: .92rem;
+    }
+    .pill {
+      display: inline-block;
+      border: 1px solid #b6ffea;
+      color: #b6ffea;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin: 8px 0 18px;
+    }
+    a { color: #b6ffea; }
+    li { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <p class="marker">VOID_DATANET_PUBLIC_DISCOVERY_CLOSEOUT_ROLLUP_HTML_CARD_HOLD_V1</p>
+      <h1>VOID DataNet Public Discovery Closeout Rollup</h1>
+      <p class="pill">STATUS: HOLD / REVIEWER-FACING / READ-ONLY</p>
+      <p>
+        This card is the human-facing closeout rollup for rooted DataNet public discovery.
+        It summarizes the public evidence path without enabling any runtime mutation path.
+      </p>
+
+      <h2>Reviewer links</h2>
+      <ul>
+        <li><a href="/public-node/index.json">Root public-node index</a></li>
+        <li><a href="/public-node/datanet/index.json">DataNet public-node index</a></li>
+        <li><a href="/public-node/datanet/datanet-public-discovery-onboarding-card-hold-v1.html">DataNet onboarding card</a></li>
+        <li><a href="/public-node/datanet/datanet-public-discovery-final-seal-html-card-hold-v1.html">DataNet final seal HTML card</a></li>
+        <li><a href="/public-node/datanet/datanet-public-discovery-final-seal-html-card-runtime-visibility-hold-v1.json">Final seal HTML runtime visibility JSON</a></li>
+        <li><a href="/public-node/datanet/datanet-public-discovery-closeout-rollup-hold-v1.json">Closeout rollup JSON</a></li>
+      </ul>
+
+      <h2>Closeout state</h2>
+      <ul>
+        <li>Root public-node route is present.</li>
+        <li>DataNet public-node index is present.</li>
+        <li>Browser-visible onboarding and final seal cards are present.</li>
+        <li>Runtime visibility metadata is present.</li>
+        <li>Runtime fetch is optional; static evidence remains green.</li>
+      </ul>
+
+      <h2>Boundary</h2>
+      <ul>
+        <li>No public intake endpoint is enabled.</li>
+        <li>No upload or object write is enabled.</li>
+        <li>No mirror command is enabled.</li>
+        <li>No peer pin command is enabled.</li>
+        <li>No WC claim, issuance, ledger write, or settlement path is enabled.</li>
+        <li>No wallet or signer access is required.</li>
+        <li>No runtime mutation route or mutation handler is enabled.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

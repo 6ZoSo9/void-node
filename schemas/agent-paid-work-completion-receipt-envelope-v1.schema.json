@@ -1,0 +1,638 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/agent-paid-work-completion-receipt-envelope-v1.schema.json",
+  "title": "VOID Agent Paid Work Completion Receipt Envelope V1",
+  "description": "A deterministic executor receipt for one bounded paid-work execution attempt. It records outcome evidence without independently verifying correctness or authorizing payment, Work Credits, wallet access, runtime administration, or Buy VOID fulfillment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "work_order_id",
+    "quote_id",
+    "acceptance_id",
+    "payment_intent_id",
+    "payment_execution_authorization_id",
+    "payment_receipt_id",
+    "payment_confirmation_id",
+    "work_execution_authorization_id",
+    "receipt_created_at_utc",
+    "execution",
+    "executor",
+    "work_contract",
+    "result_commitments",
+    "resource_usage",
+    "policy_observation",
+    "executor_authentication",
+    "attestation",
+    "nonce",
+    "work_completion_receipt_id"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_AGENT_PAID_WORK_COMPLETION_RECEIPT_ENVELOPE_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "work_order_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawo1_[0-9a-f]{64}$"
+    },
+    "quote_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawq1_[0-9a-f]{64}$"
+    },
+    "acceptance_id": {
+      "type": "string",
+      "minLength": 73,
+      "maxLength": 73,
+      "pattern": "^voidawa1_[0-9a-f]{64}$"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpi1_[0-9a-f]{64}$"
+    },
+    "payment_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawpea1_[0-9a-f]{64}$"
+    },
+    "payment_receipt_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawper1_[0-9a-f]{64}$"
+    },
+    "payment_confirmation_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawpc1_[0-9a-f]{64}$"
+    },
+    "work_execution_authorization_id": {
+      "type": "string",
+      "minLength": 75,
+      "maxLength": 75,
+      "pattern": "^voidawwea1_[0-9a-f]{64}$"
+    },
+    "receipt_created_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id",
+        "attempt_number",
+        "status",
+        "authorization_consumed",
+        "authorization_consumed_at_utc",
+        "started_at_utc",
+        "finished_at_utc",
+        "exit_code",
+        "failure_reason_code",
+        "sandbox_id",
+        "environment_image_sha256"
+      ],
+      "properties": {
+        "execution_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "attempt_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 11
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "succeeded",
+            "failed",
+            "timed_out",
+            "cancelled",
+            "policy_rejected"
+          ]
+        },
+        "authorization_consumed": {
+          "const": true
+        },
+        "authorization_consumed_at_utc": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "started_at_utc": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "finished_at_utc": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 20,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -255,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failure_reason_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sandbox_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "environment_image_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor_id",
+        "provider_id"
+      ],
+      "properties": {
+        "executor_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "work_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_type",
+        "task_spec_sha256",
+        "input_manifest_sha256",
+        "expected_output_schema_sha256",
+        "result_delivery_channel_id"
+      ],
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+        },
+        "task_spec_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_manifest_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "expected_output_schema_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_delivery_channel_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        }
+      }
+    },
+    "result_commitments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_manifest_sha256",
+        "result_payload_sha256",
+        "stdout_sha256",
+        "stderr_sha256",
+        "execution_log_sha256",
+        "evidence_bundle_sha256"
+      ],
+      "properties": {
+        "output_manifest_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "result_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "stdout_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "stderr_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "execution_log_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "evidence_bundle_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "resource_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wall_clock_seconds",
+        "cpu_seconds",
+        "peak_memory_bytes",
+        "output_bytes",
+        "network_requests",
+        "retry_count"
+      ],
+      "properties": {
+        "wall_clock_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "cpu_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "peak_memory_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 68719476736
+        },
+        "output_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1073741824
+        },
+        "network_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "policy_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sandbox_enforced",
+        "input_integrity_verified",
+        "capability_allowlist_observed",
+        "network_allowlist_observed",
+        "resource_limits_observed",
+        "secrets_accessed",
+        "wallet_accessed",
+        "payment_state_mutated",
+        "work_credits_mutated",
+        "buy_void_fulfillment_mutated",
+        "runtime_administered",
+        "host_filesystem_written",
+        "unapproved_external_side_effects_observed"
+      ],
+      "properties": {
+        "sandbox_enforced": {
+          "type": "boolean"
+        },
+        "input_integrity_verified": {
+          "type": "boolean"
+        },
+        "capability_allowlist_observed": {
+          "type": "boolean"
+        },
+        "network_allowlist_observed": {
+          "type": "boolean"
+        },
+        "resource_limits_observed": {
+          "type": "boolean"
+        },
+        "secrets_accessed": {
+          "type": "boolean"
+        },
+        "wallet_accessed": {
+          "type": "boolean"
+        },
+        "payment_state_mutated": {
+          "type": "boolean"
+        },
+        "work_credits_mutated": {
+          "type": "boolean"
+        },
+        "buy_void_fulfillment_mutated": {
+          "type": "boolean"
+        },
+        "runtime_administered": {
+          "type": "boolean"
+        },
+        "host_filesystem_written": {
+          "type": "boolean"
+        },
+        "unapproved_external_side_effects_observed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "executor_authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signer_id",
+        "signing_key_id",
+        "signature_scheme",
+        "signed_payload_sha256",
+        "signature_evidence_sha256"
+      ],
+      "properties": {
+        "signer_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "signing_key_id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+        },
+        "signature_scheme": {
+          "const": "ed25519"
+        },
+        "signed_payload_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signature_evidence_sha256": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_execution_authorization_consumed_once",
+        "receipt_unique_per_execution_attempt",
+        "authorization_replay_forbidden",
+        "result_commitments_recorded",
+        "resource_usage_recorded",
+        "executor_authentication_required",
+        "executor_signature_verification_required",
+        "completion_receipt_immutable",
+        "independent_completion_verification_required",
+        "receipt_is_not_independent_completion_verification",
+        "receipt_is_not_work_credit_award_instruction",
+        "receipt_is_not_payment_instruction",
+        "correctness_verified",
+        "work_credit_award_authorized",
+        "payment_instruction_authorized",
+        "payment_state_mutation_authorized",
+        "wallet_or_signer_access_authorized",
+        "runtime_administration_authorized",
+        "buy_void_fulfillment_authorized"
+      ],
+      "properties": {
+        "exact_execution_authorization_consumed_once": {
+          "const": true
+        },
+        "receipt_unique_per_execution_attempt": {
+          "const": true
+        },
+        "authorization_replay_forbidden": {
+          "const": true
+        },
+        "result_commitments_recorded": {
+          "const": true
+        },
+        "resource_usage_recorded": {
+          "const": true
+        },
+        "executor_authentication_required": {
+          "const": true
+        },
+        "executor_signature_verification_required": {
+          "const": true
+        },
+        "completion_receipt_immutable": {
+          "const": true
+        },
+        "independent_completion_verification_required": {
+          "const": true
+        },
+        "receipt_is_not_independent_completion_verification": {
+          "const": true
+        },
+        "receipt_is_not_work_credit_award_instruction": {
+          "const": true
+        },
+        "receipt_is_not_payment_instruction": {
+          "const": true
+        },
+        "correctness_verified": {
+          "const": false
+        },
+        "work_credit_award_authorized": {
+          "const": false
+        },
+        "payment_instruction_authorized": {
+          "const": false
+        },
+        "payment_state_mutation_authorized": {
+          "const": false
+        },
+        "wallet_or_signer_access_authorized": {
+          "const": false
+        },
+        "runtime_administration_authorized": {
+          "const": false
+        },
+        "buy_void_fulfillment_authorized": {
+          "const": false
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "work_completion_receipt_id": {
+      "type": "string",
+      "minLength": 74,
+      "maxLength": 74,
+      "pattern": "^voidawcr1_[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "status": {
+                "const": "succeeded"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "execution"
+        ]
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "exit_code": {
+                "const": 0
+              },
+              "failure_reason_code": {
+                "const": null
+              }
+            }
+          },
+          "policy_observation": {
+            "properties": {
+              "sandbox_enforced": {
+                "const": true
+              },
+              "input_integrity_verified": {
+                "const": true
+              },
+              "capability_allowlist_observed": {
+                "const": true
+              },
+              "network_allowlist_observed": {
+                "const": true
+              },
+              "resource_limits_observed": {
+                "const": true
+              },
+              "secrets_accessed": {
+                "const": false
+              },
+              "wallet_accessed": {
+                "const": false
+              },
+              "payment_state_mutated": {
+                "const": false
+              },
+              "work_credits_mutated": {
+                "const": false
+              },
+              "buy_void_fulfillment_mutated": {
+                "const": false
+              },
+              "runtime_administered": {
+                "const": false
+              },
+              "host_filesystem_written": {
+                "const": false
+              },
+              "unapproved_external_side_effects_observed": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "failure_reason_code": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

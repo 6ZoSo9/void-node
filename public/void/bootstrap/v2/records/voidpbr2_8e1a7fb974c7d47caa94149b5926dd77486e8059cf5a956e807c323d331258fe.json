@@ -1,0 +1,48 @@
+{
+  "schema": "void_public_bootstrap_record_v2",
+  "network": "VOID Network",
+  "chain_id": 2050,
+  "generated_at": "2026-09-24T17:30:00.000Z",
+  "expires_at": "2026-09-27T14:54:27.157Z",
+  "manifest": {
+    "schema": "void_public_bootstrap_v1",
+    "manifest_id": "voidpbm1_3896e80bc7520fe3fdca28a2f4a72a38014d8ba088e99d2c603407bff9b6aa93",
+    "sha256": "a5e59908768dbd2b462958526a24479b08197c148d3d8235661543b539762bc6",
+    "size_bytes": 1166
+  },
+  "mirrors": [
+    {
+      "transport": "https",
+      "base_url": "https://seed.nullfeed.org/void/bootstrap/v2",
+      "failure_domain": "seed-nullfeed-https"
+    },
+    {
+      "transport": "https",
+      "base_url": "https://nullfeed.org/void/bootstrap/v2",
+      "failure_domain": "nullfeed-public-https"
+    },
+    {
+      "transport": "tor_http",
+      "base_url": "http://r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion/void/bootstrap/v2",
+      "failure_domain": "public-node-tor"
+    }
+  ],
+  "policy": {
+    "minimum_mirror_count": 3,
+    "minimum_successes": 1,
+    "n_minus_one_required": true,
+    "immutable_content_paths": true,
+    "mutable_latest_alias_allowed": false,
+    "transport_diversity_required": true
+  },
+  "authority": {
+    "private_routes_exposed": false,
+    "wallet_authority": false,
+    "signer_authority": false,
+    "validator_authority": false,
+    "treasury_authority": false,
+    "work_credit_authority": false,
+    "money_movement_authority": false
+  },
+  "record_id": "voidpbr2_8e1a7fb974c7d47caa94149b5926dd77486e8059cf5a956e807c323d331258fe"
+}

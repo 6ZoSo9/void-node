@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/buy-void-candidate-operator-delivery-receipt-v1",
+  "title": "Buy VOID candidate operator delivery receipt V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "candidate_stage",
+    "delivery_id_sha256",
+    "notification_id_sha256",
+    "request_id",
+    "endpoint_fingerprint_sha256",
+    "payload_sha256",
+    "outcome",
+    "http_status",
+    "response_body_sha256",
+    "response_body_bytes",
+    "request_bytes_submitted",
+    "failure_class",
+    "attempted_at",
+    "automatic_retry",
+    "operator_action",
+    "authority"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_buy_void_candidate_operator_delivery_receipt_v1"
+    },
+    "marker": {
+      "const": "VOID_BUY_VOID_CANDIDATE_OPERATOR_DELIVERY_RECEIPT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "candidate_stage": {
+      "const": "observe_and_claim"
+    },
+    "delivery_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "notification_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "endpoint_fingerprint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "outcome": {
+      "enum": [
+        "delivered",
+        "http_rejected",
+        "possible_delivery",
+        "transport_failed"
+      ]
+    },
+    "http_status": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "response_body_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "response_body_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "request_bytes_submitted": {
+      "type": "boolean"
+    },
+    "failure_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "attempted_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "automatic_retry": {
+      "const": false
+    },
+    "operator_action": {
+      "const": "review_delivery_receipt_before_any_manual_retry"
+    },
+    "authority": {
+      "type": "object"
+    }
+  }
+}

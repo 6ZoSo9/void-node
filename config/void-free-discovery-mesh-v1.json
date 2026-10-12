@@ -1,0 +1,79 @@
+{
+  "marker": "VOID_FREE_DISCOVERY_MESH_V1",
+  "version": 1,
+  "network": {
+    "name": "VOID Mainnet-0",
+    "identity": "mainnet0",
+    "chain_id": 2050
+  },
+  "source": {
+    "repository": "6ZoSo9/void-node",
+    "base_commit": "118ccd098d99053d921c53c4036eb8008bb2c705"
+  },
+  "activation": {
+    "state": "source_only_not_activated",
+    "clearnet_origin": "operator_required_at_build_time",
+    "public_deployment": false,
+    "search_console_registration": false,
+    "indexnow_submission": false,
+    "cloudflare_crawler_hints": false
+  },
+  "providers": {
+    "google": {
+      "surface": "Search Console and standards-based sitemap discovery",
+      "mode": "manual_registration_after_verified_deployment",
+      "runtime_dependency": false,
+      "paid_api_required": false,
+      "credentials_in_repository": false
+    },
+    "microsoft_bing": {
+      "surface": "Bing Webmaster Tools and IndexNow",
+      "mode": "offline_payload_generation_only",
+      "runtime_dependency": false,
+      "live_submission": false,
+      "credentials_in_repository": false
+    },
+    "cloudflare": {
+      "surface": "optional Free-plan CDN and Crawler Hints",
+      "mode": "dashboard_opt_in_after_verified_deployment",
+      "runtime_dependency": false,
+      "crawler_hints_enabled": false,
+      "credentials_in_repository": false
+    }
+  },
+  "public_paths": [
+    "/",
+    "/discovery/",
+    "/public-node",
+    "/.well-known/void-public-node.json",
+    "/.well-known/void-agent-discovery.json"
+  ],
+  "crawler_exclusions": [
+    "/admin/",
+    "/internal/",
+    "/operator/",
+    "/private/",
+    "/debug/",
+    "/metrics"
+  ],
+  "cost_boundary": {
+    "payment_method_collection": false,
+    "billing_api_access": false,
+    "automatic_paid_upgrade": false,
+    "external_paid_service_execution": false,
+    "startup_credit_consumption": false,
+    "fail_closed_before_paid_usage": true
+  },
+  "authority": {
+    "network_calls": false,
+    "deployment": false,
+    "dns_mutation": false,
+    "provider_account_mutation": false,
+    "payment_execution": false,
+    "fund_movement": false,
+    "wallet_or_signer_access": false,
+    "work_credit_write": false,
+    "node_runtime_mutation": false,
+    "service_restart": false
+  }
+}

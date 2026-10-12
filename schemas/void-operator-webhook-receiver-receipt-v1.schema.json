@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "void://schemas/void-operator-webhook-receiver-receipt-v1",
+  "title": "VOID operator webhook receiver receipt V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "candidate_stage",
+    "notification_id_sha256",
+    "request_id",
+    "payload_sha256",
+    "source_notification_sha256",
+    "received_at",
+    "authorization_verified",
+    "loopback_source",
+    "automatic_retry",
+    "operator_action",
+    "authority",
+    "receipt_id_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_operator_webhook_receiver_receipt_v1"
+    },
+    "marker": {
+      "const": "VOID_OPERATOR_WEBHOOK_RECEIVER_RECEIPT_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "candidate_stage": {
+      "const": "observe_and_claim"
+    },
+    "notification_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_notification_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authorization_verified": {
+      "const": true
+    },
+    "loopback_source": {
+      "type": "boolean"
+    },
+    "automatic_retry": {
+      "const": false
+    },
+    "operator_action": {
+      "const": "review_candidate_notification_without_automatic_arming"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "receipt_id_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

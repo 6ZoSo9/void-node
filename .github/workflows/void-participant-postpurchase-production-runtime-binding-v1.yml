@@ -1,0 +1,51 @@
+name: void-participant-postpurchase-production-runtime-binding-v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs"
+      - "docs/operators/participant-postpurchase-production-runtime-binding-v1.md"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "ops/public/void-economic-epoch2-public-read-runtime-v1.mjs"
+      - ".github/workflows/void-participant-postpurchase-production-runtime-binding-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs"
+      - "docs/operators/participant-postpurchase-production-runtime-binding-v1.md"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "ops/public/void-economic-epoch2-public-read-runtime-v1.mjs"
+      - ".github/workflows/void-participant-postpurchase-production-runtime-binding-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Syntax
+        run: |
+          node --check tools/void-participant-postpurchase-production-runtime-binding-v1.mjs
+          node --check scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs
+      - name: Existing finality-import regression
+        run: node scripts/prove_void_participant_postpurchase_finality_import_v1.mjs
+      - name: Production runtime binding proof
+        run: node scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

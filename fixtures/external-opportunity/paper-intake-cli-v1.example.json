@@ -1,0 +1,13 @@
+{
+  "allow_held_entries": false,
+  "allowed_root": "/tmp/void-paper-intake-v1/journal",
+  "marker": "VOID_EXTERNAL_OPPORTUNITY_PAPER_INTAKE_CLI_V1",
+  "max_entries": 10000,
+  "max_file_bytes": 8388608,
+  "max_line_bytes": 1048576,
+  "observation_path": "/tmp/void-paper-intake-v1/sanitized-paper-observation-v1.json",
+  "recorded_at": "2026-07-24T20:50:00.000Z",
+  "registry_path": "/tmp/void-paper-intake-v1/provider-risk-registry-v1.json",
+  "schema": "void-external-opportunity-paper-intake-cli-request-v1",
+  "version": 1
+}

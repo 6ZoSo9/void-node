@@ -1,0 +1,54 @@
+name: VOID cross-box bootstrap mutation boundary v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-crossbox-bootstrap-mutation-boundary-v1.yml"
+      - "docs/operators/void-crossbox-bootstrap-mutation-boundary-v1.md"
+      - "scripts/prove_void_crossbox_bootstrap_mutation_boundary_v1.mjs"
+      - "ops/mainnet0/mutual-tailnet-peer-env-proof.sh"
+      - "ops/mainnet0/tailnet-http-public-base-proof.sh"
+      - "ops/post-bootstrap-crossbox-proof.sh"
+      - "ops/tailscale-ssh-auth-preflight-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-crossbox-bootstrap-mutation-boundary-v1.yml"
+      - "docs/operators/void-crossbox-bootstrap-mutation-boundary-v1.md"
+      - "scripts/prove_void_crossbox_bootstrap_mutation_boundary_v1.mjs"
+      - "ops/mainnet0/mutual-tailnet-peer-env-proof.sh"
+      - "ops/mainnet0/tailnet-http-public-base-proof.sh"
+      - "ops/post-bootstrap-crossbox-proof.sh"
+      - "ops/tailscale-ssh-auth-preflight-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Shell syntax
+        run: |
+          bash -n ops/mainnet0/mutual-tailnet-peer-env-proof.sh
+          bash -n ops/mainnet0/tailnet-http-public-base-proof.sh
+          bash -n ops/post-bootstrap-crossbox-proof.sh
+          bash -n ops/tailscale-ssh-auth-preflight-proof.sh
+      - name: Source-only mutation-boundary proof
+        run: |
+          node --check scripts/prove_void_crossbox_bootstrap_mutation_boundary_v1.mjs
+          node scripts/prove_void_crossbox_bootstrap_mutation_boundary_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

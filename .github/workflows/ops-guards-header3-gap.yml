@@ -1,0 +1,22 @@
+name: Ops Guards (header3 gap)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ops-guards-header3-gap.yml'
+      - 'ops/README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/ops-guards-header3-gap.yml'
+      - 'ops/README.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: test -f ops/README.md || true

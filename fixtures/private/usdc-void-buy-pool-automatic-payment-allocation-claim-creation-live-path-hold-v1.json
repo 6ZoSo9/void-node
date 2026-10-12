@@ -1,0 +1,124 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ALLOCATION_CLAIM_CREATION_LIVE_PATH_HOLD_V1",
+  "scope": "private_allocation_claim_creation_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "allocation_claim_creation_live_path_enabled": false,
+    "allocation_claim_creation_enabled": false,
+    "allocation_claim_append_write_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "fulfillment_record_write_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "linked_prerequisites": {
+    "inventory_reserve_decrement_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_INVENTORY_RESERVE_DECREMENT_LIVE_PATH_HOLD_V1",
+    "amount_rate_policy_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_AMOUNT_RATE_POLICY_LIVE_PATH_HOLD_V1",
+    "verified_receipt_parser_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_VERIFIED_RECEIPT_PARSER_LIVE_PATH_HOLD_V1",
+    "duplicate_payment_guard_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DUPLICATE_PAYMENT_GUARD_LIVE_PATH_HOLD_V1"
+  },
+  "allocation_claim_policy": {
+    "verified_receipt_parser_pass_required": true,
+    "duplicate_payment_guard_pass_required": true,
+    "amount_rate_policy_pass_required": true,
+    "inventory_reserve_decrement_pass_required": true,
+    "append_only_claim_required": true,
+    "duplicate_claim_key_policy": "reject",
+    "claim_before_reserve_policy": "reject",
+    "claim_amount_must_equal_reserved_amount": true,
+    "claim_grants_fulfillment_authority": false,
+    "claim_grants_wallet_signing_authority": false,
+    "claim_grants_void_transfer_authority": false
+  },
+  "allocation_claim_key_fields": [
+    "buyer_identity_binding_key",
+    "payment_verification_key",
+    "duplicate_guard_key",
+    "quote_or_payment_intent_key",
+    "reserve_key",
+    "inventory_snapshot_key",
+    "derived_void_amount",
+    "allocation_claim_key"
+  ],
+  "claim_state_policy": {
+    "eligible_reserved_payment": "eligible_for_operator_review_or_next_gate_only",
+    "duplicate_allocation_claim_key": "reject",
+    "claim_before_reserve": "reject",
+    "claim_after_failed_payment": "reject",
+    "claim_after_duplicate_payment": "reject",
+    "claim_after_insufficient_inventory": "reject",
+    "claim_amount_mismatch": "reject",
+    "claim_with_wallet_authority": "reject",
+    "claim_with_void_transfer_authority": "reject"
+  },
+  "deterministic_examples": [
+    {
+      "buyer_identity_binding_key": "example_buyer_binding",
+      "payment_verification_key": "example_payment_verification",
+      "reserve_key": "example_reserve_key",
+      "derived_void_amount": "2.000000",
+      "allocation_claim_key": "derived_from_buyer_payment_reserve_amount",
+      "policy_result": "eligible_for_operator_review_or_next_gate_only"
+    },
+    {
+      "reserve_key": "missing",
+      "derived_void_amount": "2.000000",
+      "allocation_claim_key": "blocked",
+      "policy_result": "reject_claim_before_reserve"
+    }
+  ],
+  "rejected_allocation_claim_states": [
+    "missing_buyer_identity_binding",
+    "missing_payment_verification_key",
+    "missing_duplicate_guard_key",
+    "missing_amount_rate_result",
+    "missing_reserve_key",
+    "missing_inventory_reserve_state",
+    "missing_derived_void_amount",
+    "claim_amount_mismatch",
+    "duplicate_allocation_claim_key",
+    "claim_before_reserve",
+    "claim_after_failed_payment",
+    "claim_after_duplicate_payment",
+    "claim_after_insufficient_inventory",
+    "claim_with_wallet_authority",
+    "claim_with_void_transfer_authority"
+  ],
+  "required_before_activation": [
+    "allocation_claim_key_derivation_proof",
+    "append_only_claim_guard_proof",
+    "duplicate_claim_rejection_proof",
+    "claim_after_reserve_ordering_proof",
+    "claim_amount_matches_reserved_amount_proof",
+    "failed_payment_claim_rejection_proof",
+    "duplicate_payment_claim_rejection_proof",
+    "insufficient_inventory_claim_rejection_proof",
+    "claim_no_wallet_or_transfer_authority_proof",
+    "cross_box_allocation_claim_creation_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "allocation_claim_creation": false,
+    "allocation_claim_append_write": false,
+    "fulfillment_record_write": false,
+    "buyer_fulfillment": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

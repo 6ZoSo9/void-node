@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.io/schemas/public-agent-service-acceptance-persistence-http-route-server-bootstrap-composition-v1.schema.json",
+  "title": "VOID Public Agent Service Acceptance Persistence HTTP Route Server Bootstrap Composition V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "version",
+    "source_base_commit",
+    "sealed_registrar_integration_merge",
+    "config",
+    "command",
+    "source_topology",
+    "expected_result",
+    "safety"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_EXAMPLE_V1"
+    },
+    "version": { "const": 1 },
+    "source_base_commit": {
+      "const": "0eeec78e8cff6e6de3725e3c3bd8c8d786583aab"
+    },
+    "sealed_registrar_integration_merge": {
+      "const": "7d5abc9c47e87e1363cc8dc4e0b1cee98d6512d7"
+    },
+    "config": { "$ref": "#/$defs/config" },
+    "command": { "$ref": "#/$defs/command" },
+    "source_topology": { "$ref": "#/$defs/sourceTopology" },
+    "expected_result": { "$ref": "#/$defs/result" },
+    "safety": { "$ref": "#/$defs/safety" }
+  },
+  "$defs": {
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marker", "version", "enabled"],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_CONFIG_V1"
+        },
+        "version": { "const": 1 },
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "integration_confirmation",
+        "mount_confirmation"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_COMMAND_V1"
+        },
+        "version": { "const": 1 },
+        "apply": { "type": "boolean" },
+        "confirmation": { "type": "string", "maxLength": 128 },
+        "integration_confirmation": { "type": "string", "maxLength": 128 },
+        "mount_confirmation": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "sourceTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_app_creation",
+        "expected_app_export",
+        "expected_listener_owner",
+        "modifies_index"
+      ],
+      "properties": {
+        "expected_app_creation": { "const": "const app = express();" },
+        "expected_app_export": {
+          "const": "(globalThis as any).__void_http_app = app;"
+        },
+        "expected_listener_owner": { "const": "src/index.ts" },
+        "modifies_index": { "const": false }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "express_app_provider_access",
+        "express_route_stack_snapshot_read",
+        "express_dispatcher_installation",
+        "server_route_registry_snapshot_read",
+        "server_route_registry_compare_and_swap",
+        "network_listener_creation",
+        "external_http_submission",
+        "production_acceptance_persistence",
+        "production_replay_write",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "production_signing",
+        "transaction_broadcast",
+        "work_credit_write",
+        "money_movement"
+      ],
+      "properties": {
+        "express_app_provider_access": { "type": "boolean" },
+        "express_route_stack_snapshot_read": { "type": "boolean" },
+        "express_dispatcher_installation": { "type": "boolean" },
+        "server_route_registry_snapshot_read": { "type": "boolean" },
+        "server_route_registry_compare_and_swap": { "type": "boolean" },
+        "network_listener_creation": { "const": false },
+        "external_http_submission": { "const": false },
+        "production_acceptance_persistence": { "const": false },
+        "production_replay_write": { "const": false },
+        "payment_authorization": { "const": false },
+        "payment_execution": { "const": false },
+        "execution_authorization": { "const": false },
+        "work_dispatch": { "const": false },
+        "production_signing": { "const": false },
+        "transaction_broadcast": { "const": false },
+        "work_credit_write": { "const": false },
+        "money_movement": { "const": false }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "apply",
+        "confirmation_verified",
+        "integration_confirmation_verified",
+        "mount_confirmation_verified",
+        "app_provider_invoked",
+        "registry_created",
+        "route_stack_snapshot_count",
+        "compare_and_swap_attempt_count",
+        "compare_and_swap_apply_count",
+        "dispatcher_install_count",
+        "exact_managed_route_count",
+        "integration",
+        "authority"
+      ],
+      "properties": {
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_COMPOSITION_RESULT_V1"
+        },
+        "version": { "const": 1 },
+        "status": {
+          "enum": [
+            "disabled",
+            "integration_disabled",
+            "mount_disabled",
+            "route_disabled",
+            "planned",
+            "mounted",
+            "already_mounted"
+          ]
+        },
+        "enabled": { "type": "boolean" },
+        "apply": { "type": "boolean" },
+        "confirmation_verified": { "type": "boolean" },
+        "integration_confirmation_verified": { "type": "boolean" },
+        "mount_confirmation_verified": { "type": "boolean" },
+        "app_provider_invoked": { "type": "boolean" },
+        "registry_created": { "type": "boolean" },
+        "route_stack_snapshot_count": { "type": "integer", "minimum": 0 },
+        "compare_and_swap_attempt_count": { "type": "integer", "minimum": 0 },
+        "compare_and_swap_apply_count": { "type": "integer", "minimum": 0 },
+        "dispatcher_install_count": { "type": "integer", "minimum": 0 },
+        "exact_managed_route_count": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "integration": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "object" }
+          ]
+        },
+        "authority": { "$ref": "#/$defs/authority" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_http_route_mounted",
+        "network_listener_created",
+        "external_http_submission",
+        "production_acceptance_persistence_performed",
+        "production_replay_write_performed",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "production_signing",
+        "transaction_broadcast",
+        "work_credit_write",
+        "runtime_mutation",
+        "service_change",
+        "service_restart",
+        "deployment_performed",
+        "money_movement"
+      ],
+      "properties": {
+        "production_http_route_mounted": { "const": false },
+        "network_listener_created": { "const": false },
+        "external_http_submission": { "const": false },
+        "production_acceptance_persistence_performed": { "const": false },
+        "production_replay_write_performed": { "const": false },
+        "payment_authorization": { "const": false },
+        "payment_execution": { "const": false },
+        "execution_authorization": { "const": false },
+        "work_dispatch": { "const": false },
+        "production_signing": { "const": false },
+        "transaction_broadcast": { "const": false },
+        "work_credit_write": { "const": false },
+        "runtime_mutation": { "const": false },
+        "service_change": { "const": false },
+        "service_restart": { "const": false },
+        "deployment_performed": { "const": false },
+        "money_movement": { "const": false }
+      }
+    }
+  }
+}

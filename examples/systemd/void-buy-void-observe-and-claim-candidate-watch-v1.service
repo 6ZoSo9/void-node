@@ -1,0 +1,17 @@
+[Unit]
+Description=VOID Buy VOID observe-and-claim candidate watch V1
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/void-node
+ExecStart=%h/dev/void-node/node_modules/.bin/tsx %h/dev/void-node/scripts/buy_void_observe_and_claim_candidate_watch_v1.ts --repo-root %h/dev/void-node --state-dir %h/.local/state/void-buy-void-observe-and-claim-candidate-watch-v1 --output %h/void-precision-smoke/buy-void-observe-and-claim-candidate-watch-latest.json
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/void-buy-void-observe-and-claim-candidate-watch-v1 %h/void-precision-smoke
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077

@@ -1,0 +1,114 @@
+name: VOID Buy VOID operator dispatcher own-array-index V1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "scripts/prove_buy_void_dispatch_own_array_index_v1.mjs"
+      - "docs/architecture/buy-void-operator-dispatch-own-array-index-v1.md"
+      - ".github/workflows/buy-void-operator-dispatch-own-array-index-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-dispatch-own-array-index-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact unmerged PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind checked-out source generation
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies without arbitrary lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and compile actual dispatcher
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Prove dispatcher snapshots cannot invoke inherited index setters
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs \
+            | tee "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "VOID_BUY_VOID_DISPATCH_OWN_ARRAY_INDEX_V1_GREEN" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "numeric_inherited_setter_positive_controls=2" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "reviewed_dispatcher_inherited_setter_invocations=0" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "reviewed_dispatcher_hostile_array_push_invocations=0" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "both_operator_branches_exact_json_preserved=true" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "payment_or_allocation_append_performed=false" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "presale_activation=false" \
+            "dispatch-array-${{ matrix.node }}.txt"
+          grep -Fx "funds_movement=false" \
+            "dispatch-array-${{ matrix.node }}.txt"
+      - name: Upload exact-head inert test transcript
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-dispatch-array-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dispatch-array-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Verify scoped diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE:-}" ]; then
+            git diff --check "$BASE" "$HEAD"
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
+  compare:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download three independently built proof transcripts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-dispatch-array-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proofs
+      - name: Require byte-identical Node 22 24 26 proof transcripts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "proofs/dispatch-array-$v.txt"; done
+          cmp proofs/dispatch-array-22.txt proofs/dispatch-array-24.txt
+          cmp proofs/dispatch-array-22.txt proofs/dispatch-array-26.txt
+          echo "VOID_BUY_VOID_DISPATCH_OWN_ARRAY_INDEX_THREE_NODE_GREEN"
+          echo "production_payment_and_allocation_authority=false"
+          echo "presale_activation=false"
+          echo "funds_movement=false"

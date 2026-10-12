@@ -1,0 +1,191 @@
+# Ren Current State V1
+
+Marker: `VOID_REN_CURRENT_STATE_V1`
+
+Snapshot seed: 2026-09-25 America/Chicago / 2026-09-25Z.
+
+This is a **derived handoff cache**. Refresh live GitHub, coordination, and runtime/external evidence before acting.
+
+## Repository anchor
+
+- Repository: `6ZoSo9/void-node`
+- Main observed when this snapshot was refreshed: `cd8beb4ba1badae244b724bd544a7b6214ef3fb0`
+- That commit merged PR #1824, adding the WC/VOID coupled-opening settlement source gate on top of the previously merged production-readiness baseline.
+- Other recent material merges include PR #1835 (Ren continuity refresh), PR #1833 (repository working agreement), PR #1832 (public README/release/whitepaper refresh), PR #1823 (fail-closed WC/VOID production-readiness gate), PR #1821 (presale + WC/VOID coupled-launch policy), and PR #1820 (direct IPv4 + Tor authenticated P2P introductions).
+- A newer `main` immediately makes the SHA above historical, not authoritative.
+
+## Coordination
+
+- Resolve the live coordination hub dynamically from #1507 and any explicit successor chain; do not trust an old issue-body snapshot when live refs disagree.
+- Scheduled Brood roster: 15 workers.
+- Ren is interactive coordinator, not a scheduled worker slot.
+- Ada is the coordination/liveness steward and owns the bounded Ren continuity chronicler duty through #1814.
+- Scheduled source authority remains lane-specific and source-only unless a separate lifecycle or authority gate is explicitly approved.
+
+## Operating priorities
+
+The repository working agreement currently prioritizes:
+
+1. customer revenue, automatic fulfillment readiness, and verifiable receipts;
+2. outside AI-agent discovery/authentication/capability negotiation and bounded paid work;
+3. network reliability, recovery, security, and independent operation;
+4. public usability and honest discoverability;
+5. reusable integrations/evidence quality;
+6. bounded Green/Amber exploration.
+
+Urgency does not convert source authority into wallet, signer, transaction, treasury, liquidity, validator, Work Credit, deployment, market-activation, or funds authority.
+
+## Public-network launch truth
+
+- Issue #1005 remains open as the multipath public-bootstrap launch blocker.
+- PR #1820 is merged. Main now contains direct IPv4 and Tor v3 introduction classes with exact node-identity binding and N-1 acceptance evidence for the public-bootstrap child.
+- That merge is not permission to treat the whole network launch blocker as closed. Fresh live issue/runtime/external evidence still governs any claim of complete public-bootstrap acceptance.
+- Public active-validator admission remains disabled unless current exact evidence proves otherwise.
+
+## Economic launch truth
+
+- PR #1821 is merged: public presale intake and production WC/VOID activation are one coupled launch ceremony; neither may open alone.
+- WC/VOID opening-window policy is now source-defined: the absolute window must
+  be committed before opening, admissions are allowed only before the exclusive
+  close boundary, and no duration value is hardcoded by source.
+- WC/VOID remains market-priced. Current hardening treats the 10M VOID allocation as 5M participant opening tranche + 5M retained reserve against all settled opening WC, with deterministic pro-rata atom allocation. The shared post-discovery source model is now reconciled by V2 to the 5M/5M WC opening and canonical 18-decimal `VoidToken`; durable participant claim/transfer-or-refund binding remains HOLD.
+- PR #1823 is merged: the production WC/VOID candidate is fail-closed and remains `HOLD` on `main`. `SOURCE_READY` is not deployment, funding, or activation authority.
+- PR #1824 is merged: the coupled-opening settlement source mechanism is now canonical source, but this does not deploy, fund, or activate the market.
+- Issue #1822 remains open as the production WC/VOID implementation blocker.
+- PRs #1825 through #1836 remain a stacked draft preparation/review line above the merged baseline. Later draft approvals/preparation must not be rewritten as merged, deployed, funded, or active state.
+- BTC/VOID and ETH/VOID remain post-presale surfaces with separate gates.
+- Open PR #1848 is BTC/VOID fee hardening source: it proposes the fixed 50-bps
+  reserve-retained protocol fee, trade-funded network-fee topology, and
+  fail-closed measured fee envelopes. It is not merged/runtime truth.
+- Open PR #1849 is coupled presale/WC hardening source. It separates
+  `VoidToken` from native gas and adds gas/nonce/finality/lifetime,
+  reverse-settlement, and economic execution-layer identity/public-verification
+  HOLD gates. It is not merged/runtime truth.
+- Current audited source shows economic contracts on a private Anvil/EVM RPC
+  while the public VOID-node runtime has its own P2P/block history. Do not claim
+  those histories are identical or anchored until a reviewed binding proves it.
+- Epoch-2 static migration **summary/reference** is content-addressed and
+  published in the public-node evidence tree. The exact client-neutral successor
+  state manifest is now also merged and publicly retrievable through the live
+  Precision composition/Funnel route with file SHA-256
+  `affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9`
+  and material SHA-256
+  `286034e3adb1654c13899b959075fcfa2504a6942c83ec52febb156bd0ea2a4f`.
+  Therefore
+  `successor_genesis_or_state_manifest_public_evidence_ready=true`.
+  The separate public VOID state-root anchor and live balance/receipt/code
+  verification gateway remain HOLD. Migration and public activation remain
+  unauthorized.
+- The next state-root-anchor source package now reuses the existing append-only
+  `DatanetContentCommitmentRegistryV1`. It defines one exact public payload for
+  object `void:economic:epoch2:successor-state-root:v1`, with object-ID
+  SHA-256 `fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51`
+  and exact payload SHA-256
+  `e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4`.
+  This is preparation/publication only: the Chain-2050 commitment, finalized
+  event membership, and canonical truth admission have not occurred, so
+  `successor_state_root_public_void_anchor_ready=false` remains authoritative.
+- The DataNet commitment publisher is now explicitly selected as the fresh
+  dedicated offline Nimo EOA
+  `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`. Its public ceremony receipt
+  SHA-256 is
+  `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`;
+  encrypted backup verification passed on `VOID_AUTHORITY`. The publisher is
+  not a deployer by implication. Registry deployer selection remains the next
+  source-only gate, with no deployment or Chain-2050 write authority.
+- The DataNet registry deployer is now explicitly selected as a separate fresh
+  offline Nimo EOA:
+  `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`. Its public ceremony receipt
+  SHA-256 is
+  `81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3`;
+  encrypted backup verification passed on `VOID_AUTHORITY`. The deployer is
+  distinct from the publisher and does not reuse the role-authority or presale
+  deployers. Live latest/pending nonce, native balance, predicted CREATE address,
+  and predicted-address vacancy are still unobserved. Funding, deployment,
+  signing, broadcast, and Chain-2050 write authority remain false.
+- Epoch-2 signed-submission source now has a bounded gateway core that verifies
+  the Chain-2050/epoch-2 EIP-712 domain and requires atomic replay-digest
+  consumption before source admission. The public route remains inactive;
+  transaction submission/broadcast, durable replay-store binding, privileged
+  signer replay fencing, pending legacy signed-transaction census, and
+  cross-epoch raw-transaction protection remain HOLD.
+- Public economic activation also needs a participant-usable post-purchase
+  `VoidToken` control/transfer path; private 8545 is not a participant RPC.
+- Presale/WC activation also needs explicit micro-purchase/micro-trade gas-grief
+  protection. No hidden minimum is selected; a disclosed minimum, batching,
+  user-paid gas, or another bounded design may close the gate.
+- Unpaid economic instructions/intents also need TTL + outstanding-count caps
+  and deterministic late-payment reconciliation so soft reservations cannot be
+  hoarded.
+- WC/VOID opening price also needs cohort-integrity gates: fixed window,
+  participant provenance, concentration/Sybil limits, minimum real-WC depth,
+  and exclusion of test/internal WC.
+- Private-EVM history still contains standard Anvil prefunded known-key
+  accounts. Preserve their historical receipts, but public economic submission
+  stays HOLD until balances/keys are neutralized/reconciled and blocked.
+- WC/VOID public quote disclosure is now source-defined and satisfies the
+  complete fee/gas/gross-net disclosure shape: a quote must expose complete fee
+  components, gross/trade/net amounts, slippage/minimum output, expiry, exact
+  market-state binding, and the epoch-2 metered zero-gas-price execution model.
+  Quote IDs are content digests only, not publisher authentication; signature
+  and publisher authenticity remain unverified and require a separate
+  authenticated quote envelope. WC and VoidToken amount fields are bounded
+  before BigInt conversion to their reviewed asset ranges. This is disclosure
+  validation only; pricing math, custody, runtime publication, and quote
+  execution remain unproven.
+- BTC/VOID currently carries a separate 0.50% protocol fee and 1% buyback spread
+  in source; combined executable treatment remains HOLD pending explicit review.
+- Private-EVM durability is not production-current: the source-only selector
+  packet still points at recovery checkpoint 37371 while accepted economic
+  evidence reaches 37391+. Capture/promote a fresh current checkpoint and prove
+  no-stale-fallback restart before public economic mutation.
+- PR #1851 merged as `d6bf311291ec66203d2d74922842ee441e67295e` and records the simplified execution-layer path: preserve the
+  current Anvil history as an immutable Economic Genesis Archive and migrate
+  only final live economic value/obligations to a clean non-Anvil successor.
+  Participant balances remain at the same address; contract-held value is
+  explicitly remapped into reviewed successor custody. AdminGate/ConfigGate and
+  other obsolete zero-value bootstrap plumbing stay archived unless a final
+  live dependency proves otherwise. This is source architecture only; no
+  migration has occurred.
+- Merged #1851 also pins fund safety: same canonical VoidToken identity, exact
+  final holder/supply conservation, ceremony-key continuity, no live-transfer
+  migration, two independent read-only snapshot reconciliations, and zero
+  unmapped/orphaned VOID before any separately authorized cutover.
+- A source-only read-only final value census is merged from #1851
+  (`tools/void-economic-evm-final-value-census-v1.mjs` plus proof). It is not
+  executed yet; it uses loopback read-only RPC to reconstruct holders from
+  Transfer history, sum fixed-block balances to totalSupply, identify
+  contract-held VOID, and observe presale inventory accounting.
+- PR #1850 merged at `0cc16633b103c6cc93eebd3d4456902a9737f843`: participant-wallet
+  mutation is source-fixed default-off and the legacy WC→VOID relayer route is
+  retired. This is merged source truth only; deployment/restart remains separate.
+- Historical fixed-rate WC→VOID scripts and the dev WC relayer remain evidence
+  only; do not revive their 100:1 or relayer-sponsorship semantics as current
+  policy.
+
+## Fleet update — Xiphos
+
+- Xiphos joined the operator tailnet on 2026-09-26 and is reachable from Precision through dedicated noninteractive SSH.
+- Xiphos runs a fresh non-canonical follower from `~/dev/void-node` with its own local node identity, user-systemd service, HTTP `4102`, P2P `4702`, and repository-local pinned Node.js 24 runtime.
+- Initial HTTPS public bootstrap verification/renewal succeeded and historical catch-up is active toward canonical head `1951058`. Initial observation showed zero service restarts and advancing 999-block import batches.
+- Xiphos is not yet a convergence claim: during initial catch-up `txroot_live=0` and no live P2P peers were reported. Treat it as onboarding/catch-up state until fresh runtime evidence closes those conditions.
+- Tor is not installed on Xiphos; Tor introduction retries may fail locally while HTTPS bootstrap remains active. Do not promote Xiphos to a Tor role implicitly.
+
+## Public documentation and release truth
+
+- PR #1832 is merged and refreshes the root README, public status/capability docs, `RELEASES.md`, and the whitepaper to the September 25 Mainnet-0 state.
+- Package version is `0.1.0`, but the official `release-v0.1.0` tag and an official stable VOID node GitHub Release were not published in that merged state.
+- Documentation truth is not runtime, deployment, external-acceptance, or economic-activation proof.
+
+## Continuity rule
+
+Before substantial work, Ren should use this file to recover orientation, then verify every task-relevant statement against live sources.
+
+When material truth changes, Ada should update this file and append a short journal record that states:
+
+- what changed;
+- exact issue/PR/commit references where available;
+- the highest truth state actually proven;
+- what remains unproven or separately authorized.
+
+No journal entry may silently promote source-green to merged, merged to deployed, deployed to externally accepted, or readiness to economic activation.

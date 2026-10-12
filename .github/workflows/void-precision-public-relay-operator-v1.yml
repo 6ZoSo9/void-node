@@ -1,0 +1,30 @@
+name: VOID Precision public relay operator v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void-public-relay-natpmp-v1.mjs"
+      - "ops/public/void-precision-public-relay-activate-v1.sh"
+      - "scripts/prove_void_precision_public_relay_operator_v1.mjs"
+      - "docs/public/void-precision-public-relay-operator-v1.md"
+      - "src/index.ts"
+      - "src/node_core.ts"
+      - ".github/workflows/void-precision-public-relay-operator-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node scripts/prove_void_precision_public_relay_operator_v1.mjs

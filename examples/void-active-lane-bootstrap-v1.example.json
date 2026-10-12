@@ -1,0 +1,10 @@
+{
+  "branch": "feat/example-v1",
+  "command": "plan",
+  "marker": "VOID_ACTIVE_LANE_BOOTSTRAP_V1",
+  "output": "/home/example/Downloads/void-example-bootstrap-plan.json",
+  "repo_root": "/home/example/dev/void-node",
+  "require_github": true,
+  "version": 1,
+  "worktree": "/home/example/dev/void-node-example-v1"
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=VOID ready self-heal (check + nudge if needed)
+After=void-node.service
+Wants=void-node.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/void-heal-ready.sh

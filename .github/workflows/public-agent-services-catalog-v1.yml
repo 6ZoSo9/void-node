@@ -1,0 +1,33 @@
+name: Public Agent Services Catalog V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/agent-services-v1/**"
+      - "docs/public-agent/public-agent-services-catalog-v1.md"
+      - "scripts/prove_public_agent_services_catalog_v1.ts"
+      - ".github/workflows/public-agent-services-catalog-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/agent-services-v1/**"
+      - "docs/public-agent/public-agent-services-catalog-v1.md"
+      - "scripts/prove_public_agent_services_catalog_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsx scripts/prove_public_agent_services_catalog_v1.ts

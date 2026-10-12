@@ -1,0 +1,107 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_FULFILLMENT_ACTIVATION_RECONCILE_V1",
+  "status": "activation_prerequisites_reconciled_authority_false",
+  "public_policy_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "activation_reconcile_green": true,
+  "sealed_prerequisite_map_green": true,
+  "authority_flip_required": true,
+  "automatic_fulfillment_enabled_now": false,
+  "public_mutation_enabled": false,
+  "runtime_queue_enabled": false,
+  "allocation_claim_creation_enabled": false,
+  "private_allocation_ledger_write_enabled": false,
+  "inventory_reserve_enabled": false,
+  "fulfillment_execution_enabled": false,
+  "wallet_signer_access_enabled": false,
+  "void_transfer_now": false,
+  "overall_activation_state": "prerequisites_reconciled_authority_flip_required",
+  "sealed_prerequisites": [
+    {
+      "gate": "chain_token_receiver_allowlist",
+      "marker": "VOID_USDC_VOID_BUY_POOL_CHAIN_TOKEN_RECEIVER_ALLOWLIST_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "amount_rate_policy",
+      "marker": "VOID_USDC_VOID_BUY_POOL_AMOUNT_RATE_POLICY_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "duplicate_payment_guard",
+      "marker": "VOID_USDC_VOID_BUY_POOL_DUPLICATE_PAYMENT_GUARD_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "buyer_identity_binding",
+      "marker": "VOID_USDC_VOID_BUY_POOL_BUYER_IDENTITY_BINDING_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "finality_confirmations",
+      "marker": "VOID_USDC_VOID_BUY_POOL_FINALITY_CONFIRMATIONS_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "payment_eligibility_decision",
+      "marker": "VOID_USDC_VOID_BUY_POOL_PAYMENT_ELIGIBILITY_DECISION_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "allocation_claim_creation_hold",
+      "marker": "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "private_allocation_ledger_write_hold",
+      "marker": "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "inventory_reserve_hold",
+      "marker": "VOID_USDC_VOID_BUY_POOL_INVENTORY_RESERVE_HOLD_GATE_V1",
+      "sealed": true
+    },
+    {
+      "gate": "fulfillment_execution_hold",
+      "marker": "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1",
+      "sealed": true
+    }
+  ],
+  "authority_activation_requirements": [
+    "explicit operator approval record",
+    "separate authority activation commit",
+    "cross-box proof",
+    "runtime queue boundary proof",
+    "wallet signer boundary proof",
+    "public mutation boundary remains controlled",
+    "transfer receipt verification"
+  ],
+  "next_state": "authority_activation_gate_required",
+  "linked_fulfillment_execution_hold_gate_marker": "VOID_USDC_VOID_BUY_POOL_FULFILLMENT_EXECUTION_HOLD_GATE_V1",
+  "linked_fulfillment_execution_hold_gate_json_route": "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1.json",
+  "linked_fulfillment_execution_hold_gate_html_route": "/public-node/usdc-void-buy-pool/fulfillment-execution-hold-gate-v1",
+  "reviewer_warnings": {
+    "not_authority_flip": true,
+    "not_public_mutation": true,
+    "not_runtime_queue_execution": true,
+    "not_wallet_authority": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "allocation_claim_creation_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserve_enabled": false,
+    "fulfillment_execution_enabled": false,
+    "wallet_signer_access_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "void_transfer_now": false
+  }
+}

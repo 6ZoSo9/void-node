@@ -1,0 +1,51 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_GUARD_CLOSEOUT_HOLD_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_activation_refusal_guard_closeout_hold_v1",
+  "visibility": "private_operator_only",
+  "status": "activation_refusal_guard_closeout_hold",
+  "sealed_dependency": {
+    "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_ACTIVATION_REFUSAL_GUARD_HOLD_V1",
+    "head": "459e2688",
+    "local_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-guard-hold-v1-local-green-20260624-211935",
+    "cross_box_tag": "ckpt-usdc-void-buy-pool-automatic-payment-activation-refusal-guard-hold-v1-cross-box-green-20260624-212042"
+  },
+  "purpose": "private operator-only closeout for the automatic payment activation refusal guard chain; no execution authority is created",
+  "closeout_scope": {
+    "refusal_guard_chain_closed": true,
+    "evidence_only": true,
+    "activation_artifact": false,
+    "activation_requested": false,
+    "activation_approved": false,
+    "activation_executed": false,
+    "current_artifact_satisfies_activation": false
+  },
+  "refusal_status": {
+    "implicit_activation_refused": true,
+    "activation_by_dry_run_refused": true,
+    "activation_by_public_status_refused": true,
+    "activation_by_allowlist_refused": true,
+    "separate_future_operator_activation_required": true
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "real_payment_approval": false,
+    "allocation_claim_creation": false,
+    "ledger_write": false,
+    "inventory_reserve": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "void_transfer": false
+  },
+  "public_surface": {
+    "public_route_created": false,
+    "public_route_index_entry_created": false,
+    "private_operator_material_exposed": false,
+    "activation_command_exposed": false,
+    "wallet_or_signer_material_exposed": false,
+    "ledger_path_exposed": false
+  }
+}

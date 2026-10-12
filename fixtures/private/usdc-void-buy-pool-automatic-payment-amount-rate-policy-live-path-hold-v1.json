@@ -1,0 +1,120 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_AMOUNT_RATE_POLICY_LIVE_PATH_HOLD_V1",
+  "scope": "private_amount_rate_policy_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "amount_rate_policy_live_path_enabled": false,
+    "amount_rate_live_execution_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "duplicate_ledger_write_enabled": false,
+    "fulfillment_record_write_enabled": false,
+    "allocation_claim_creation_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "linked_prerequisites": {
+    "verified_receipt_parser_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_VERIFIED_RECEIPT_PARSER_LIVE_PATH_HOLD_V1",
+    "duplicate_payment_guard_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DUPLICATE_PAYMENT_GUARD_LIVE_PATH_HOLD_V1",
+    "fulfillment_wallet_policy_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_WALLET_POLICY_HOLD_V1",
+    "receiver_allowlist_confirmation_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_RECEIVER_ALLOWLIST_CONFIRMATION_HOLD_V1",
+    "dual_chain_usdc_acceptance_allowlist_marker": "VOID_USDC_VOID_BUY_POOL_DUAL_CHAIN_USDC_ACCEPTANCE_ALLOWLIST_V1"
+  },
+  "fixed_rate_policy": {
+    "asset": "USDC",
+    "usdc_decimals": 6,
+    "void_price_usdc": "0.50",
+    "usdc_per_void_numerator": 50,
+    "usdc_per_void_denominator": 100,
+    "void_per_usdc": "2",
+    "quote_policy_required": true,
+    "overpayment_policy_default": "reject_without_explicit_operator_policy"
+  },
+  "amount_key_fields": [
+    "chain_id",
+    "token_contract",
+    "receiver_key",
+    "tx_hash",
+    "log_index",
+    "value_raw",
+    "usdc_decimals",
+    "quote_or_payment_intent_key",
+    "buyer_identity_binding_key",
+    "derived_void_amount"
+  ],
+  "accepted_chain_scope": {
+    "ethereum_mainnet_usdc": {
+      "chain_id": 1,
+      "token_contract_lowercase": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "decimals": 6
+    },
+    "base_mainnet_native_usdc": {
+      "chain_id": 8453,
+      "token_contract_lowercase": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "decimals": 6
+    }
+  },
+  "deterministic_examples": [
+    {
+      "usdc_value_raw": "1000000",
+      "usdc_display": "1.000000",
+      "derived_void_display": "2.000000",
+      "policy_result": "eligible_for_next_gate_only"
+    },
+    {
+      "usdc_value_raw": "50000000",
+      "usdc_display": "50.000000",
+      "derived_void_display": "100.000000",
+      "policy_result": "eligible_for_next_gate_only"
+    }
+  ],
+  "rejected_amount_rate_states": [
+    "zero_amount",
+    "malformed_amount",
+    "wrong_decimals",
+    "missing_quote_key",
+    "missing_rate_policy",
+    "underpayment",
+    "overpayment_without_policy",
+    "quote_amount_mismatch",
+    "chain_token_receiver_not_verified",
+    "duplicate_key_amount_mismatch",
+    "allocation_amount_not_deterministic"
+  ],
+  "required_before_activation": [
+    "value_raw_uint256_amount_policy_proof",
+    "usdc_decimals_six_policy_proof",
+    "fixed_rate_half_usdc_per_void_policy_proof",
+    "quote_binding_policy_proof",
+    "underpayment_rejection_proof",
+    "overpayment_rejection_or_policy_proof",
+    "deterministic_void_amount_derivation_proof",
+    "duplicate_key_amount_binding_proof",
+    "cross_box_amount_rate_policy_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "amount_rate_live_execution": false,
+    "duplicate_ledger_write": false,
+    "fulfillment_record_write": false,
+    "buyer_fulfillment": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

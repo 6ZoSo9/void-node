@@ -1,0 +1,266 @@
+name: External Agent Paid Work Operator-Controlled Authenticated Submission Live-Canary Prerequisite V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.yml"
+      - "docs/public-agent/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.md"
+      - "examples/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.example.json"
+      - "schemas/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.schema.json"
+      - "scripts/external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts"
+      - "scripts/prove_external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts"
+      - "scripts/external_agent_paid_work_authenticated_submission_execution_candidate_v1.ts"
+      - "scripts/external_agent_paid_work_authenticated_submission_activation_prerequisite_v1.ts"
+      - "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs"
+      - "tools/void-ai-agent-paid-work-client-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.yml"
+      - "docs/public-agent/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.md"
+      - "examples/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.example.json"
+      - "schemas/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.schema.json"
+      - "scripts/external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts"
+      - "scripts/prove_external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts"
+      - "scripts/external_agent_paid_work_authenticated_submission_execution_candidate_v1.ts"
+      - "scripts/external_agent_paid_work_authenticated_submission_activation_prerequisite_v1.ts"
+      - "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs"
+      - "tools/void-ai-agent-paid-work-client-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate example and schema JSON
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' \
+            examples/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.example.json
+          node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' \
+            schemas/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1.schema.json
+
+      - name: Static no-live-authority scan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          path = pathlib.Path(
+              "scripts/external_agent_paid_work_operator_controlled_"
+              "authenticated_submission_live_canary_prerequisite_v1.ts"
+          )
+          text = path.read_text(encoding="utf-8")
+
+          forbidden = {
+              "node:http import": r'from\s+["\']node:http["\']',
+              "node:https import": r'from\s+["\']node:https["\']',
+              "node:net import": r'from\s+["\']node:net["\']',
+              "node:tls import": r'from\s+["\']node:tls["\']',
+              "node:dns import": r'from\s+["\']node:dns',
+              "fetch call": r"\bfetch\s*\(",
+              "request call": r"\.request\s*\(",
+              "paid-work submit function": r"\bsubmitVoidAiAgentPaidWorkV1\b",
+              "token reader": r"\breadPaidWorkTokenFileV1\b",
+              "official MCP session": r"\bcreateOfficialMcpSession\b",
+              "live canary executor": r"\bexecuteCanary\b",
+              "bearer material": r"Bearer\s+",
+              "credential-path read": (
+                  r"readFileSync\s*\(\s*(?:credentialPath|"
+                  r"command\.credential_source_path)"
+              ),
+          }
+
+          failures = [
+              label
+              for label, pattern in forbidden.items()
+              if re.search(pattern, text, flags=re.IGNORECASE)
+          ]
+
+          required = [
+              "credential_source_open: false",
+              "credential_or_token_read: false",
+              "authorization_header_materialized: false",
+              "replay_key_reservation_or_consumption: false",
+              "one_shot_lease_write: false",
+              "endpoint_preflight_network_access: false",
+              "external_http_submission: false",
+              "authenticated_submission_post: false",
+              'decision: "hold_live_canary_not_executed"',
+          ]
+          for literal in required:
+              if literal not in text:
+                  failures.append(f"missing safety literal: {literal}")
+
+          if failures:
+              print("HOLD: static no-live-authority scan failed")
+              for failure in failures:
+                  print(f" - {failure}")
+              raise SystemExit(1)
+
+          print("STATIC_OPERATOR_CONTROLLED_LIVE_CANARY_PREREQUISITE_SAFETY_GREEN=true")
+          PY
+
+      - name: Run focused proof
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          PROOF_LOG="$RUNNER_TEMP/void-operator-live-canary-prerequisite-proof.txt"
+          node node_modules/tsx/dist/cli.mjs \
+            scripts/prove_external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts \
+            | tee "$PROOF_LOG"
+          grep -Fq \
+            "VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PREREQUISITE_V1_PROOF_GREEN" \
+            "$PROOF_LOG"
+
+      - name: Focused TypeScript no-new-errors check
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          BASELINE_LOG="$RUNNER_TEMP/void-operator-live-canary-prerequisite-baseline-tsc.txt"
+          CANDIDATE_LOG="$RUNNER_TEMP/void-operator-live-canary-prerequisite-candidate-tsc.txt"
+
+          COMMON_ARGS=(
+            --pretty false
+            --noEmit
+            --strict
+            --target ES2022
+            --module NodeNext
+            --moduleResolution NodeNext
+            --types node
+            --skipLibCheck
+            scripts/external_agent_paid_work_authenticated_submission_execution_candidate_v1.ts
+          )
+
+          set +e
+          node node_modules/typescript/bin/tsc \
+            "${COMMON_ARGS[@]}" \
+            >"$BASELINE_LOG" 2>&1
+          BASELINE_RC=$?
+
+          node node_modules/typescript/bin/tsc \
+            "${COMMON_ARGS[@]}" \
+            scripts/external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts \
+            scripts/prove_external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts \
+            >"$CANDIDATE_LOG" 2>&1
+          CANDIDATE_RC=$?
+          set -e
+
+          cat "$BASELINE_LOG"
+          cat "$CANDIDATE_LOG"
+
+          python3 - \
+            "$BASELINE_LOG" \
+            "$BASELINE_RC" \
+            "$CANDIDATE_LOG" \
+            "$CANDIDATE_RC" <<'PY'
+          import json
+          import re
+          import sys
+
+          baseline_path, baseline_rc, candidate_path, candidate_rc = sys.argv[1:]
+          baseline_rc = int(baseline_rc)
+          candidate_rc = int(candidate_rc)
+
+          start = re.compile(
+              r"^(?P<path>.+?)\((?P<line>\d+),(?P<column>\d+)\): "
+              r"error TS(?P<code>\d+): (?P<message>.*)$"
+          )
+
+          def parse(path):
+              records = []
+              current = None
+              with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                  for raw in handle:
+                      line = raw.rstrip("\r\n")
+                      match = start.match(line)
+                      if match:
+                          if current is not None:
+                              records.append(current)
+                          current = {
+                              "path": match.group("path"),
+                              "line": int(match.group("line")),
+                              "column": int(match.group("column")),
+                              "code": int(match.group("code")),
+                              "message": [match.group("message").strip()],
+                          }
+                      elif current is not None and line.strip():
+                          current["message"].append(line.strip())
+              if current is not None:
+                  records.append(current)
+              for record in records:
+                  record["message"] = " ".join(record["message"])
+              return sorted(
+                  records,
+                  key=lambda item: (
+                      item["path"],
+                      item["line"],
+                      item["column"],
+                      item["code"],
+                      item["message"],
+                  ),
+              )
+
+          baseline = parse(baseline_path)
+          candidate = parse(candidate_path)
+
+          print("baseline_diagnostics=" + json.dumps(baseline, sort_keys=True))
+          print("candidate_diagnostics=" + json.dumps(candidate, sort_keys=True))
+
+          if baseline_rc == 0:
+              if baseline:
+                  raise SystemExit(
+                      "HOLD: baseline compiler returned zero with parsed diagnostics"
+                  )
+              if candidate_rc != 0 or candidate:
+                  raise SystemExit(
+                      "HOLD: candidate introduced TypeScript diagnostics on a clean baseline"
+                  )
+          else:
+              if candidate_rc == 0:
+                  raise SystemExit(
+                      "HOLD: candidate unexpectedly changed baseline compiler outcome"
+                  )
+              if candidate != baseline:
+                  raise SystemExit(
+                      "HOLD: candidate TypeScript diagnostics differ from baseline"
+                  )
+
+          targets = {
+              "scripts/external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts",
+              "scripts/prove_external_agent_paid_work_operator_controlled_authenticated_submission_live_canary_prerequisite_v1.ts",
+          }
+          if any(item["path"] in targets for item in candidate):
+              raise SystemExit(
+                  "HOLD: candidate diagnostics mention a live-canary prerequisite target file"
+              )
+
+          print("VOID_EXTERNAL_AGENT_PAID_WORK_OPERATOR_CONTROLLED_AUTHENTICATED_SUBMISSION_LIVE_CANARY_PREREQUISITE_V1_TYPESCRIPT_NO_NEW_ERRORS_GREEN")
+          PY
+
+      - name: TypeScript build baseline
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check

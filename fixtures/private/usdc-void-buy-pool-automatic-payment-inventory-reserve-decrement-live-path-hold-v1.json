@@ -1,0 +1,125 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_INVENTORY_RESERVE_DECREMENT_LIVE_PATH_HOLD_V1",
+  "scope": "private_inventory_reserve_decrement_live_path_hold",
+  "status": {
+    "packet_state": "hold_only_not_approved",
+    "inventory_reserve_decrement_live_path_enabled": false,
+    "inventory_reserve_write_enabled": false,
+    "inventory_decrement_write_enabled": false,
+    "sold_out_closeout_write_enabled": false,
+    "automatic_payment_execution_enabled": false,
+    "automatic_fulfillment_enabled": false,
+    "fulfillment_record_write_enabled": false,
+    "allocation_claim_creation_enabled": false,
+    "wallet_signing_enabled": false,
+    "void_transfer_enabled": false,
+    "public_mutation_enabled": false
+  },
+  "linked_prerequisites": {
+    "amount_rate_policy_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_AMOUNT_RATE_POLICY_LIVE_PATH_HOLD_V1",
+    "verified_receipt_parser_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_VERIFIED_RECEIPT_PARSER_LIVE_PATH_HOLD_V1",
+    "duplicate_payment_guard_live_path_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_DUPLICATE_PAYMENT_GUARD_LIVE_PATH_HOLD_V1",
+    "fulfillment_wallet_policy_hold_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_FULFILLMENT_WALLET_POLICY_HOLD_V1"
+  },
+  "inventory_policy": {
+    "buy_pool_inventory_cap_void_display": "10000000.000000",
+    "reserve_required_before_fulfillment": true,
+    "decrement_required_after_verified_payment": true,
+    "remaining_inventory_must_not_go_below_zero": true,
+    "sold_out_closeout_required_at_zero": true,
+    "oversell_policy": "reject",
+    "duplicate_reserve_policy": "reject"
+  },
+  "inventory_key_fields": [
+    "chain_id",
+    "token_contract",
+    "tx_hash",
+    "log_index",
+    "buyer_identity_binding_key",
+    "quote_or_payment_intent_key",
+    "derived_void_amount",
+    "reserve_key",
+    "inventory_snapshot_key"
+  ],
+  "reserve_state_policy": {
+    "eligible_unreserved_payment": "eligible_for_next_gate_only",
+    "duplicate_reserve_key": "reject",
+    "duplicate_payment_key": "reject",
+    "insufficient_inventory": "reject",
+    "inventory_underflow": "reject",
+    "sold_out_before_reserve": "reject",
+    "decrement_without_reserve": "reject",
+    "fulfillment_without_decrement": "reject"
+  },
+  "deterministic_examples": [
+    {
+      "current_inventory_void_display": "10000000.000000",
+      "derived_void_amount": "2.000000",
+      "remaining_after_reserve": "9999998.000000",
+      "policy_result": "eligible_for_next_gate_only"
+    },
+    {
+      "current_inventory_void_display": "100.000000",
+      "derived_void_amount": "100.000000",
+      "remaining_after_reserve": "0.000000",
+      "policy_result": "eligible_for_next_gate_only_with_sold_out_closeout_required"
+    },
+    {
+      "current_inventory_void_display": "50.000000",
+      "derived_void_amount": "100.000000",
+      "remaining_after_reserve": "blocked",
+      "policy_result": "reject_insufficient_inventory"
+    }
+  ],
+  "rejected_inventory_states": [
+    "missing_inventory_snapshot",
+    "missing_reserve_key",
+    "duplicate_reserve_key",
+    "duplicate_payment_key",
+    "zero_allocation",
+    "malformed_allocation",
+    "allocation_amount_mismatch",
+    "insufficient_inventory",
+    "inventory_underflow",
+    "sold_out_before_reserve",
+    "decrement_without_reserve",
+    "fulfillment_without_decrement",
+    "sold_out_closeout_without_zero_inventory"
+  ],
+  "required_before_activation": [
+    "inventory_snapshot_read_proof",
+    "reserve_key_derivation_proof",
+    "duplicate_reserve_rejection_proof",
+    "insufficient_inventory_rejection_proof",
+    "inventory_underflow_rejection_proof",
+    "reserve_before_fulfillment_ordering_proof",
+    "decrement_after_verified_payment_ordering_proof",
+    "sold_out_closeout_at_zero_proof",
+    "cross_box_inventory_reserve_decrement_dry_run",
+    "final_precision_sync"
+  ],
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "inventory_reserve_write": false,
+    "inventory_decrement_write": false,
+    "sold_out_closeout_write": false,
+    "fulfillment_record_write": false,
+    "buyer_fulfillment": false,
+    "allocation_claim_creation": false,
+    "void_transfer": false,
+    "wallet_signing": false,
+    "treasury_movement": false,
+    "public_mutation": false
+  },
+  "privacy": {
+    "private_packet": true,
+    "public_route_allowed": false,
+    "contains_wallet_address": false,
+    "contains_receiver_address": false,
+    "contains_wallet_secret": false,
+    "contains_private_key": false,
+    "contains_seed_phrase": false,
+    "contains_buyer_private_data": false
+  }
+}

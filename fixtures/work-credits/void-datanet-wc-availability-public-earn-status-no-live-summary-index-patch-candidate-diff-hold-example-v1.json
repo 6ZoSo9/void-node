@@ -1,0 +1,87 @@
+{
+  "packet_kind": "datanet_wc_availability_public_earn_status_no_live_summary_index_patch_candidate_diff_hold_v1",
+  "marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_NO_LIVE_SUMMARY_INDEX_PATCH_CANDIDATE_DIFF_HOLD_V1",
+  "candidate_diff_id": "datanet_wc_availability_public_earn_status_no_live_summary_index_patch_candidate_diff_hold_v1",
+  "patch_candidate_status": "candidate_diff_recorded_not_applied",
+  "source_marker": "VOID_DATANET_WC_AVAILABILITY_PUBLIC_EARN_STATUS_NO_LIVE_SUMMARY_INDEX_PATCH_READINESS_HOLD_V1",
+  "source_readiness_status": "ready_for_future_separate_public_index_patch",
+  "source_discovery_status": "candidate_for_future_public_index_listing_no_live_claim",
+  "proposed_public_index_target": "public/public-node/work-credits/index.json",
+  "proposed_index_entry": {
+    "title": "DataNet WC availability earn-status card visibility",
+    "route": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+    "status": "static_card_exists_local_runtime_not_observed_no_live_claim",
+    "runtime_live_claim": false,
+    "runtime_route_observed": false,
+    "wc_issuance_status": "not_issued",
+    "wc_ledger_write_status": "not_written",
+    "execute_gate_status": "held_execute_gate_closed"
+  },
+  "public_index_mutation_status": "not_mutated",
+  "public_index_file_write_status": "not_written",
+  "listing_publication_status": "not_published",
+  "listing_live_claim": false,
+  "route_registry_mutation_status": "not_mutated",
+  "runtime_route_status": "not_added",
+  "runtime_live_claim": false,
+  "runtime_route_observed": false,
+  "wc_issuance_status": "not_issued",
+  "wc_ledger_write_status": "not_written",
+  "execute_gate_status": "held_execute_gate_closed",
+  "timestamp": "2026-06-26T00:00:00.000Z",
+  "public_safety_boundary": {
+    "exposes_participant_identifier": false,
+    "exposes_object_id": false,
+    "exposes_content_root": false,
+    "exposes_reviewer_identifier": false,
+    "exposes_operator_identifier": false,
+    "exposes_proposed_ledger_entry_id": false,
+    "exposes_private_object_material": false
+  },
+  "candidate_diff_boundary": {
+    "applies_diff": false,
+    "mutates_public_index": false,
+    "writes_public_index_file": false,
+    "publishes_listing": false,
+    "claims_listing_live": false
+  },
+  "index_patch_boundary": {
+    "mutates_public_index": false,
+    "writes_public_index_file": false,
+    "publishes_listing": false,
+    "claims_listing_live": false,
+    "activates_public_discovery": false
+  },
+  "runtime_boundary": {
+    "claims_route_live": false,
+    "performs_runtime_request": false,
+    "starts_service": false,
+    "restarts_service": false,
+    "adds_runtime_route": false,
+    "changes_runtime_behavior": false
+  },
+  "route_boundary": {
+    "mutates_route_registry": false,
+    "mutates_public_index": false,
+    "activates_public_mutation": false
+  },
+  "wc_boundary": {
+    "issues_work_credits": false,
+    "writes_wc_ledger": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "approves_ledger_write": false,
+    "executes_ledger_write": false,
+    "authorizes_ledger_write_execution": false,
+    "opens_execute_gate": false
+  },
+  "authority_boundary": {
+    "grants_signer_wallet_access": false,
+    "authorizes_execution": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "exposes_private_objects": false
+  }
+}

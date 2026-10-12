@@ -1,0 +1,304 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "deployment": {
+          "const": false
+        },
+        "next_event_write": {
+          "const": true
+        },
+        "participant_receipt_acceptance": {
+          "const": false
+        },
+        "payment_transfer": {
+          "const": false
+        },
+        "private_package_write": {
+          "const": true
+        },
+        "private_transfer_state_write": {
+          "const": true
+        },
+        "remote_work_execution": {
+          "const": false
+        },
+        "sanitized_transfer_receipt_write": {
+          "const": true
+        },
+        "service_restart": {
+          "const": false
+        },
+        "ticket_issue_operation_read": {
+          "const": true
+        },
+        "ticket_transfer": {
+          "const": true
+        },
+        "wallet_or_signer_access": {
+          "const": false
+        },
+        "wc_ledger_write": {
+          "const": false
+        },
+        "wc_to_void_settlement": {
+          "const": false
+        }
+      },
+      "required": [
+        "ticket_issue_operation_read",
+        "private_package_write",
+        "private_transfer_state_write",
+        "ticket_transfer",
+        "sanitized_transfer_receipt_write",
+        "next_event_write",
+        "remote_work_execution",
+        "participant_receipt_acceptance",
+        "wc_ledger_write",
+        "payment_transfer",
+        "wc_to_void_settlement",
+        "wallet_or_signer_access",
+        "service_restart",
+        "deployment"
+      ],
+      "type": "object"
+    },
+    "ipv4": {
+      "pattern": "^(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(?:\\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3}$",
+      "type": "string"
+    },
+    "nodeId": {
+      "pattern": "^[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-fulfillment-ticket-package-transfer-executor-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Private destination, transport, operation-state, and sanitized receipt contracts for one-time ticket package transfer.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "created_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "identity_receipt_marker": {
+          "pattern": "^[A-Z][A-Z0-9_]{12,220}$",
+          "type": "string"
+        },
+        "identity_receipt_path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "identity_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_EXECUTOR_DESTINATION_PROFILE_V1"
+        },
+        "node_id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "tailscale_ip": {
+          "$ref": "#/$defs/ipv4"
+        },
+        "transport_destination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "created_at_utc",
+        "tailscale_ip",
+        "node_id",
+        "transport_destination",
+        "identity_receipt_marker",
+        "identity_receipt_path",
+        "identity_receipt_sha256"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "command_argv": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 2,
+          "type": "array"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_PACKAGE_TRANSFER_PROFILE_V1"
+        },
+        "success_exit_code": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "maximum": 3600000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "transport_id": {
+          "pattern": "^[A-Za-z0-9._:-]{4,160}$",
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "transport_id",
+        "command_argv",
+        "success_exit_code",
+        "timeout_ms"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_PACKAGE_TRANSFER_OPERATION_STATE_V1"
+        },
+        "operation_id": {
+          "pattern": "^voidapwftransferop1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "prepared",
+            "transferring",
+            "transferred_ack_persisted",
+            "complete",
+            "ambiguous_after_transfer_attempt"
+          ]
+        },
+        "ticket_transferred": {
+          "type": "boolean"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "operation_id",
+        "phase",
+        "ticket_transferred",
+        "authority"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "destination": {
+          "type": "object"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_TICKET_PACKAGE_TRANSFER_RECEIPT_V1"
+        },
+        "operation_id": {
+          "pattern": "^voidapwftransferop1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "package": {
+          "properties": {
+            "participant_cli_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "private_package_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "raw_capability_token_present_in_private_package": {
+              "const": true
+            },
+            "raw_capability_token_present_in_receipt": {
+              "const": false
+            }
+          },
+          "required": [
+            "private_package_sha256",
+            "participant_cli_sha256",
+            "raw_capability_token_present_in_receipt"
+          ],
+          "type": "object"
+        },
+        "ticket": {
+          "properties": {
+            "capability_token_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "executor_node_id": {
+              "$ref": "#/$defs/nodeId"
+            },
+            "fixed_award_wc": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_uses": {
+              "const": 1
+            },
+            "ticket_id": {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ticket_id",
+            "capability_token_sha256",
+            "executor_node_id",
+            "max_uses",
+            "fixed_award_wc"
+          ],
+          "type": "object"
+        },
+        "transport": {
+          "type": "object"
+        },
+        "verification": {
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "operation_id",
+        "ticket",
+        "package",
+        "destination",
+        "transport",
+        "verification",
+        "authority"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "VOID External Agent Paid-Work Fulfillment Ticket-Package Transfer Executor V1"
+}

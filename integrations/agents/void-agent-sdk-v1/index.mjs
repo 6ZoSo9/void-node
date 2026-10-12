@@ -1,0 +1,657 @@
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
+import { performance } from "node:perf_hooks";
+
+export const VOID_AGENT_SDK_VERSION = "0.1.0";
+export const VOID_AGENT_SDK_CLIENT_MARKER = "VOID_AGENT_SDK_CLIENT_V1";
+export const VOID_AGENT_SDK_REPORT_MARKER = "VOID_AGENT_SDK_DISCOVERY_REPORT_V1";
+
+const WELL_KNOWN_DISCOVERY_PATH = "/.well-known/void-agent-discovery.json";
+const WELL_KNOWN_MARKER = "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1";
+const DISCOVERY_MARKER = "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1";
+const DISCOVERY_PROTOCOL = "void-agent-discovery/1";
+const CAPABILITY_MARKER = "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1";
+const CAPABILITY_PROTOCOL = "void-agent-capability-negotiation/1";
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
+const CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+const DEFAULT_WANTED = ["public_discovery", "capability_negotiation"];
+const RESPONSE_TEARDOWN_SETTLE_MAX_MS = 250;
+const transportGenerations = new WeakMap();
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const typedArrayByteLength = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteLength").get;
+const typedArrayByteOffset = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteOffset").get;
+const typedArrayBuffer = Object.getOwnPropertyDescriptor(typedArrayPrototype, "buffer").get;
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function requireRecord(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${label}_must_be_object`);
+  }
+  return value;
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === "object") {
+    const output = {};
+    for (const key of Object.keys(value).sort()) output[key] = canonicalValue(value[key]);
+    return output;
+  }
+  return value;
+}
+
+export function canonicalJson(value) {
+  return JSON.stringify(canonicalValue(value));
+}
+
+export function sha256Hex(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function isLoopback(hostname) {
+  return hostname === "127.0.0.1" || hostname === "localhost" ||
+    hostname === "::1" || hostname === "[::1]";
+}
+
+export function normalizeVoidAgentBaseUrl(value) {
+  const url = new URL(value);
+  if (url.username || url.password) fail("base_url_credentials_rejected");
+  const onion = url.hostname.toLowerCase().endsWith(".onion");
+  if (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && (isLoopback(url.hostname) || onion))) {
+    fail("base_url_requires_https_except_loopback_or_onion");
+  }
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
+  return url;
+}
+
+export function sameOriginVoidPath(base, value, label = "path") {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    fail(`${label}_must_be_same_origin_absolute_path`);
+  }
+  const resolved = new URL(value, base);
+  if (resolved.origin !== base.origin) fail(`${label}_cross_origin_rejected`);
+  if (resolved.username || resolved.password || resolved.hash) {
+    fail(`${label}_unsafe_url_rejected`);
+  }
+  return resolved;
+}
+
+function timeoutError(label) {
+  const error = new Error(`${label}_deadline_exceeded`);
+  error.name = "TimeoutError";
+  return error;
+}
+
+// One transport/origin retains its exact generation through acquisition, body
+// reads and cleanup. A caller deadline is not evidence that any of them ended.
+function acquireTransportGeneration(fetchImpl, requestedHref, label, timeoutMs) {
+  let origins = transportGenerations.get(fetchImpl);
+  if (!origins) {
+    origins = new Map();
+    transportGenerations.set(fetchImpl, origins);
+  }
+  const origin = new URL(requestedHref).origin;
+  if (origins.has(origin)) fail(`${label}_transport_generation_unsettled`);
+  const request = {
+    controller: new AbortController(),
+    deadlineAt: performance.now() + timeoutMs,
+    finished: false,
+    fetchPending: true,
+    readPending: false,
+    cleanupPending: false,
+    cleanupStarted: false,
+    bodyTerminal: false,
+    bodyObserved: false,
+    readerReleaseFailed: false,
+    body: undefined,
+    reader: undefined,
+    releaseIfTerminal() {
+      if (request.finished && !request.fetchPending && !request.readPending &&
+          !request.cleanupPending && request.bodyTerminal && !request.readerReleaseFailed &&
+          origins.get(origin) === request) {
+        origins.delete(origin);
+        if (origins.size === 0) transportGenerations.delete(fetchImpl);
+      }
+    },
+  };
+  origins.set(origin, request);
+  return request;
+}
+
+async function awaitWithinDeadline(operation, request, label) {
+  const remaining = request.deadlineAt - performance.now();
+  if (remaining <= 0) {
+    const error = timeoutError(label);
+    if (!request.controller.signal.aborted) request.controller.abort(error);
+    throw error;
+  }
+  let timer;
+  try {
+    const result = await Promise.race([
+      Promise.resolve(operation),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = timeoutError(label);
+          if (!request.controller.signal.aborted) request.controller.abort(error);
+          reject(error);
+        }, remaining);
+      }),
+    ]);
+    // A fulfilled promise may run before an expired timer after an event-loop
+    // stall. Timer ordering is not evidence that this result met the deadline.
+    if (performance.now() >= request.deadlineAt) {
+      const error = timeoutError(label);
+      if (!request.controller.signal.aborted) request.controller.abort(error);
+      throw error;
+    }
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function settleCleanupWithinTeardownWindow(cleanup) {
+  let timer;
+  try {
+    await Promise.race([
+      cleanup,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, RESPONSE_TEARDOWN_SETTLE_MAX_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function observeBody(response, request) {
+  if (!request.bodyObserved) {
+    request.bodyObserved = true;
+    request.body = response.body;
+    if (request.body === null) {
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+    }
+  }
+  return request.body;
+}
+
+async function abortAndCancelResponse(response, request) {
+  if (!request.controller.signal.aborted) request.controller.abort();
+  if (request.cleanupStarted) return;
+  request.cleanupStarted = true;
+  let target;
+  let cancel;
+  try {
+    target = request.reader ?? observeBody(response, request);
+    cancel = target?.cancel;
+  } catch {
+    return; // Unknown body generation stays quarantined; preserve primary error.
+  }
+  if (typeof cancel !== "function") return;
+  request.cleanupPending = true;
+  const cleanup = Promise.resolve().then(() => cancel.call(target)).then(
+    () => {
+      request.cleanupPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+    },
+    () => {
+      request.cleanupPending = false;
+      request.releaseIfTerminal();
+    },
+  );
+  await settleCleanupWithinTeardownWindow(cleanup);
+}
+
+function ownLateFetchResponse(fetchOperation, request) {
+  void fetchOperation.then(
+    (lateResponse) => abortAndCancelResponse(lateResponse, request),
+    () => undefined,
+  ).catch(() => undefined);
+}
+
+function acceptedResponseMetadata(response, requestedHref, label) {
+  let status;
+  let ok;
+  let finalUrlValue;
+  let redirected;
+  let contentType;
+  let declaredLength;
+  try {
+    // Snapshot each potentially hostile accessor once, before body admission.
+    status = response.status;
+    ok = response.ok;
+    finalUrlValue = response.url;
+    redirected = response.redirected;
+    const headers = response.headers;
+    const getHeader = headers.get;
+    contentType = getHeader.call(headers, "content-type");
+    declaredLength = getHeader.call(headers, "content-length");
+  } catch {
+    fail(`${label}_response_metadata_unavailable`);
+  }
+  if (!Number.isSafeInteger(status) || status < 100 || status > 599) {
+    fail(`${label}_response_status_invalid`);
+  }
+  if (typeof ok !== "boolean" || ok !== (status >= 200 && status < 300)) {
+    fail(`${label}_response_ok_status_mismatch`);
+  }
+  if (status >= 300 && status < 400) fail(`${label}_redirect_rejected`);
+  if (!ok) fail(`${label}_http_${status}`);
+  if (typeof finalUrlValue !== "string" || finalUrlValue.length === 0) {
+    fail(`${label}_final_url_missing`);
+  }
+  let finalUrl;
+  try { finalUrl = new URL(finalUrlValue); }
+  catch { fail(`${label}_final_url_invalid`); }
+  if (finalUrl.href !== requestedHref) fail(`${label}_final_url_mismatch`);
+  if (redirected === true) fail(`${label}_redirected_response_rejected`);
+  if (typeof redirected !== "boolean") fail(`${label}_redirected_evidence_invalid`);
+  if (typeof contentType !== "string" || !contentType.toLowerCase().includes("json")) {
+    fail(`${label}_content_type_not_json`);
+  }
+  return { declaredLength };
+}
+
+function ownedReaderRead(reader, request, label) {
+  request.readPending = true;
+  const operation = Promise.resolve().then(() => reader.read()).then(
+    (item) => {
+      request.readPending = false;
+      try {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          fail(`${label}_body_read_result_invalid`);
+        }
+        const done = item.done;
+        if (typeof done !== "boolean") fail(`${label}_body_read_result_invalid`);
+        const value = done ? undefined : item.value;
+        if (done) request.bodyTerminal = true;
+        return { done, value };
+      } finally {
+        request.releaseIfTerminal();
+      }
+    },
+    (error) => {
+      request.readPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+      throw error;
+    },
+  );
+  // Retain a rejection observer even if the deadline is already closed.
+  void operation.catch(() => undefined);
+  return operation;
+}
+
+function copyBoundedChunk(value, remainingBytes, label) {
+  if (!(value instanceof Uint8Array)) fail(`${label}_body_chunk_invalid`);
+  let size;
+  let offset;
+  let buffer;
+  try {
+    // Read actual storage bounds, never caller-shadowed length/buffer fields.
+    size = typedArrayByteLength.call(value);
+    offset = typedArrayByteOffset.call(value);
+    buffer = typedArrayBuffer.call(value);
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+  if (size === 0) fail(`${label}_body_zero_progress`);
+  if (size > remainingBytes) fail(`${label}_body_too_large`);
+  try {
+    // A fresh fixed-length view excludes hostile array-like accessors during copy.
+    return Buffer.from(new Uint8Array(buffer, offset, size));
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+}
+
+async function readBoundedText(response, label, maxBytes, request, metadata) {
+  const declared = metadata.declaredLength;
+  if (declared !== null) {
+    const parsed = Number(declared);
+    if (Number.isFinite(parsed) && parsed > maxBytes) fail(`${label}_body_too_large`);
+  }
+  let reader;
+  try {
+    reader = observeBody(response, request)?.getReader?.();
+  } catch {
+    fail(`${label}_body_reader_unavailable`);
+  }
+  if (!reader) fail(`${label}_body_stream_unavailable`);
+  request.reader = reader;
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    if (performance.now() >= request.deadlineAt) throw timeoutError(`${label}_body`);
+    const item = await awaitWithinDeadline(ownedReaderRead(reader, request, label), request, `${label}_body`);
+    if (!item || typeof item !== "object" || Array.isArray(item) ||
+        typeof item.done !== "boolean") fail(`${label}_body_read_result_invalid`);
+    const { done, value } = item;
+    if (done) break;
+    const chunk = copyBoundedChunk(value, maxBytes - total, label);
+    total += chunk.length;
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, total).toString("utf8");
+}
+
+async function fetchJson(url, label, options) {
+  const { fetchImpl, timeoutMs, maxResponseBytes } = options;
+  const requestedHref = url instanceof URL ? url.href : new URL(url).href;
+  const request = acquireTransportGeneration(fetchImpl, requestedHref, label, timeoutMs);
+  const fetchOperation = Promise.resolve().then(() => fetchImpl(requestedHref, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
+    },
+    signal: request.controller.signal,
+  })).then(
+    (response) => {
+      request.fetchPending = false;
+      request.releaseIfTerminal();
+      return response;
+    },
+    (error) => {
+      request.fetchPending = false;
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+      throw error;
+    },
+  );
+  void fetchOperation.catch(() => undefined);
+  let response;
+  let acquired = false;
+  let result;
+  let primaryError;
+  let primaryFailed = false;
+  let releaseFailed = false;
+  try {
+    try {
+      response = await awaitWithinDeadline(fetchOperation, request, `${label}_fetch`);
+      acquired = true;
+    } catch (error) {
+      if (error?.name === "TimeoutError") ownLateFetchResponse(fetchOperation, request);
+      throw error;
+    }
+    const metadata = acceptedResponseMetadata(response, requestedHref, label);
+    const text = await readBoundedText(response, label, maxResponseBytes, request, metadata);
+    try { result = JSON.parse(text); }
+    catch { fail(`${label}_invalid_json`); }
+  } catch (error) {
+    primaryError = error;
+    primaryFailed = true;
+    if (acquired) await abortAndCancelResponse(response, request);
+  } finally {
+    try { request.reader?.releaseLock(); }
+    catch {
+      releaseFailed = true;
+      request.readerReleaseFailed = true;
+    }
+    request.finished = true;
+    request.releaseIfTerminal();
+  }
+  if (primaryFailed) throw primaryError;
+  if (releaseFailed) fail(`${label}_body_reader_release_failed`);
+  return result;
+}
+
+function validateWellKnown(base, value) {
+  const document = requireRecord(value, "well_known_discovery");
+  if (document.marker !== WELL_KNOWN_MARKER) fail("well_known_discovery_marker_mismatch");
+  if (document.network?.chain_id !== 2050) fail("well_known_discovery_chain_id_mismatch");
+  if (document.authority?.mutation_authority_granted !== false) {
+    fail("well_known_mutation_authority_claim_rejected");
+  }
+  if (document.authority?.credentials_required !== false) {
+    fail("well_known_credentials_requirement_rejected");
+  }
+  if (document.safety?.same_origin_only !== true) fail("well_known_same_origin_wall_missing");
+  if (document.safety?.follow_redirects !== false) fail("well_known_redirect_wall_missing");
+  return sameOriginVoidPath(base, document.canonical_discovery, "canonical_discovery");
+}
+
+function validateCanonicalDiscovery(base, value) {
+  const document = requireRecord(value, "canonical_discovery");
+  if (document.marker !== DISCOVERY_MARKER) fail("canonical_discovery_marker_mismatch");
+  if (document.protocol !== DISCOVERY_PROTOCOL) fail("canonical_discovery_protocol_mismatch");
+  if (document.network?.chain_id !== 2050) fail("canonical_discovery_chain_id_mismatch");
+  if (document.authority?.mutation_authority_granted !== false) {
+    fail("canonical_mutation_authority_claim_rejected");
+  }
+
+  const advertised = document.entrypoints?.capability_negotiation;
+  const capability = Array.isArray(document.capabilities)
+    ? document.capabilities.find((entry) => entry?.id === "capability_negotiation")
+    : undefined;
+  if (!capability) fail("capability_negotiation_entry_missing");
+  if (capability.state !== "live" || capability.authority !== "read_only" ||
+      capability.discovery !== advertised) {
+    fail("capability_negotiation_advertisement_rejected");
+  }
+  return sameOriginVoidPath(base, advertised, "capability_negotiation");
+}
+
+function validateCapabilityCatalog(base, value) {
+  const document = requireRecord(value, "capability_catalog");
+  if (document.marker !== CAPABILITY_MARKER) fail("capability_catalog_marker_mismatch");
+  if (document.protocol !== CAPABILITY_PROTOCOL) fail("capability_catalog_protocol_mismatch");
+  if (document.network?.chain_id !== 2050) fail("capability_catalog_chain_id_mismatch");
+  if (document.negotiation?.mode !== "client_side_intersection" ||
+      document.negotiation?.request_submission_enabled !== false ||
+      document.negotiation?.default_result !== "not_granted") {
+    fail("capability_negotiation_contract_rejected");
+  }
+
+  for (const key of [
+    "mutation_authority_granted",
+    "authentication_active",
+    "signed_request_envelopes_active",
+    "payment_submission_active",
+    "work_credit_awards_active",
+    "buy_void_automatic_fulfillment_active",
+  ]) {
+    if (document.authority?.[key] !== false) fail(`capability_authority_${key}_rejected`);
+  }
+
+  if (document.safety?.same_origin_only !== true ||
+      document.safety?.follow_redirects !== false ||
+      document.safety?.send_credentials !== false ||
+      document.safety?.unknown_capability_result !== "not_granted" ||
+      document.safety?.ambiguous_capability_result !== "not_granted") {
+    fail("capability_safety_contract_rejected");
+  }
+
+  if (!Array.isArray(document.capabilities)) fail("capabilities_must_be_array");
+  const byId = new Map();
+  for (const capabilityValue of document.capabilities) {
+    const capability = requireRecord(capabilityValue, "capability_entry");
+    if (typeof capability.id !== "string" || !CAPABILITY_ID.test(capability.id)) {
+      fail("capability_id_invalid");
+    }
+    if (byId.has(capability.id)) fail(`duplicate_capability_id_${capability.id}`);
+    if (!Array.isArray(capability.http_methods) || capability.http_methods.length === 0) {
+      fail(`capability_methods_invalid_${capability.id}`);
+    }
+    for (const method of capability.http_methods) {
+      if (!SAFE_METHODS.has(method)) fail(`capability_unsafe_method_${capability.id}_${method}`);
+    }
+    if (!Array.isArray(capability.paths) || capability.paths.length === 0) {
+      fail(`capability_paths_invalid_${capability.id}`);
+    }
+    for (const capabilityPath of capability.paths) {
+      sameOriginVoidPath(base, capabilityPath, `capability_${capability.id}_path`);
+    }
+    byId.set(capability.id, capability);
+  }
+  return { document, byId };
+}
+
+function normalizeWanted(value) {
+  const wanted = value === undefined ? [...DEFAULT_WANTED] : value;
+  if (!Array.isArray(wanted) || wanted.length === 0 || wanted.length > 64) {
+    fail("wanted_capabilities_must_contain_1_to_64_items");
+  }
+  const result = wanted.map((entry) => {
+    if (typeof entry !== "string" || !CAPABILITY_ID.test(entry)) {
+      fail("wanted_capability_id_invalid");
+    }
+    return entry;
+  });
+  if (new Set(result).size !== result.length) fail("duplicate_wanted_capability");
+  return result;
+}
+
+function negotiate(wanted, byId) {
+  const granted = [];
+  const notGranted = [];
+  for (const id of wanted) {
+    const capability = byId.get(id);
+    if (!capability) {
+      notGranted.push({ id, reason: "unknown_capability" });
+      continue;
+    }
+    const allowed = capability.state === "live" && capability.enabled === true &&
+      capability.access === "anonymous" && capability.authority === "read_only" &&
+      capability.http_methods.every((method) => SAFE_METHODS.has(method)) &&
+      capability.paths.length > 0;
+    if (!allowed) {
+      notGranted.push({
+        id,
+        reason: "advertised_requirements_not_satisfied",
+        state: capability.state,
+        enabled: capability.enabled,
+        access: capability.access,
+        authority: capability.authority,
+      });
+      continue;
+    }
+    granted.push({
+      id,
+      authority: "read_only",
+      http_methods: [...capability.http_methods],
+      paths: [...capability.paths],
+    });
+  }
+  return { granted, not_granted: notGranted };
+}
+
+export async function discoverVoidAgentV1(options) {
+  const {
+    baseUrl,
+    wanted,
+    timeoutMs = 10_000,
+    maxResponseBytes = 1_048_576,
+    fetchImpl = globalThis.fetch,
+  } = options ?? {};
+
+  if (typeof fetchImpl !== "function") fail("fetch_implementation_required");
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000) {
+    fail("timeout_ms_out_of_bounds");
+  }
+  if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1024 ||
+      maxResponseBytes > 8 * 1024 * 1024) {
+    fail("max_response_bytes_out_of_bounds");
+  }
+
+  const base = normalizeVoidAgentBaseUrl(baseUrl);
+  const wantedCapabilities = normalizeWanted(wanted);
+  const wellKnownUrl = sameOriginVoidPath(
+    base, WELL_KNOWN_DISCOVERY_PATH, "well_known_discovery",
+  );
+  const wellKnown = await fetchJson(wellKnownUrl, "well_known_discovery", {
+    fetchImpl, timeoutMs, maxResponseBytes,
+  });
+  const canonicalUrl = validateWellKnown(base, wellKnown);
+  const canonical = await fetchJson(canonicalUrl, "canonical_discovery", {
+    fetchImpl, timeoutMs, maxResponseBytes,
+  });
+  const capabilityUrl = validateCanonicalDiscovery(base, canonical);
+  const catalog = await fetchJson(capabilityUrl, "capability_catalog", {
+    fetchImpl, timeoutMs, maxResponseBytes,
+  });
+  const { document: catalogDocument, byId } = validateCapabilityCatalog(base, catalog);
+  const result = negotiate(wantedCapabilities, byId);
+
+  const body = {
+    marker: VOID_AGENT_SDK_REPORT_MARKER,
+    version: 1,
+    status: "ready_read_only",
+    sdk: {
+      marker: VOID_AGENT_SDK_CLIENT_MARKER,
+      version: VOID_AGENT_SDK_VERSION,
+      runtime: "node",
+      minimum_node_major: 22,
+      dependencies: 0,
+    },
+    origin: base.origin,
+    network: catalogDocument.network,
+    documents: {
+      well_known: {
+        path: WELL_KNOWN_DISCOVERY_PATH,
+        sha256: sha256Hex(canonicalJson(wellKnown)),
+      },
+      canonical_discovery: {
+        path: canonicalUrl.pathname,
+        sha256: sha256Hex(canonicalJson(canonical)),
+      },
+      capability_catalog: {
+        path: capabilityUrl.pathname,
+        sha256: sha256Hex(canonicalJson(catalog)),
+      },
+    },
+    wanted: wantedCapabilities,
+    negotiation: {
+      mode: "client_side_intersection",
+      default_result: "not_granted",
+      request_submission_enabled: false,
+      ...result,
+    },
+    authority: {
+      credentials_sent: false,
+      authentication_performed: false,
+      mutation_authority_granted: false,
+      request_submission_performed: false,
+      payment_submission_performed: false,
+      work_credit_write_performed: false,
+      wallet_or_signer_accessed: false,
+      transaction_broadcast: false,
+      deployment_performed: false,
+      money_moved: false,
+    },
+  };
+
+  return {
+    ...body,
+    report_id: `voidasdk1_${sha256Hex(canonicalJson(body))}`,
+  };
+}
+
+export function verifyVoidAgentReportV1(value) {
+  const report = requireRecord(value, "report");
+  if (report.marker !== VOID_AGENT_SDK_REPORT_MARKER || report.version !== 1) {
+    fail("report_contract_mismatch");
+  }
+  if (!/^voidasdk1_[0-9a-f]{64}$/.test(report.report_id ?? "")) {
+    fail("report_id_invalid");
+  }
+  const body = { ...report };
+  delete body.report_id;
+  const expected = `voidasdk1_${sha256Hex(canonicalJson(body))}`;
+  if (report.report_id !== expected) fail("report_id_mismatch");
+  if (Object.values(report.authority ?? {}).some((entry) => entry !== false)) {
+    fail("report_authority_boundary_exceeded");
+  }
+  return report;
+}

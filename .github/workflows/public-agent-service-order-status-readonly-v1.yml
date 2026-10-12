@@ -1,0 +1,36 @@
+name: Public Agent Service Order Status Readonly V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-agent-service-order-status-readonly-v1.yml"
+      - "docs/public-agent/public-agent-service-order-status-readonly-v1.md"
+      - "examples/public-agent-service-order-status-readonly-v1.example.json"
+      - "schemas/public-agent-service-order-status-readonly-v1.schema.json"
+      - "scripts/prove_public_agent_service_order_status_readonly_v1.mjs"
+      - "tools/void-public-agent-service-order-status-readonly-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/public-agent-service-order-status-readonly-v1.yml"
+      - "docs/public-agent/public-agent-service-order-status-readonly-v1.md"
+      - "examples/public-agent-service-order-status-readonly-v1.example.json"
+      - "schemas/public-agent-service-order-status-readonly-v1.schema.json"
+      - "scripts/prove_public_agent_service_order_status_readonly_v1.mjs"
+      - "tools/void-public-agent-service-order-status-readonly-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Prove deterministic read-only order status
+        run: node scripts/prove_public_agent_service_order_status_readonly_v1.mjs

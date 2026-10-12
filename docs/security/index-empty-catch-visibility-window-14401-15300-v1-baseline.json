@@ -1,0 +1,17 @@
+{
+  "id": "VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_14401_15300_V1",
+  "file": "src/index.ts",
+  "line_window": {
+    "start": 14401,
+    "end": 15300
+  },
+  "window_empty_catch_count_before": 9,
+  "window_empty_catch_count_after": 0,
+  "src_index_ts_line_based_empty_catch_count_before": 1002,
+  "src_index_ts_line_based_empty_catch_count_after": 993,
+  "src_index_ts_measured_catch_context_count": 2563,
+  "closed": 9,
+  "marker": "VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_14401_15300_V1_VISIBLE",
+  "marker_count": 1,
+  "sha256": "ccf3c49238ed5303683b372aef21bc2b015788f2bcf8e161e459ea3d14a38166"
+}

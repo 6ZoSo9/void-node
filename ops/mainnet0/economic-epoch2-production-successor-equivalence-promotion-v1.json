@@ -1,0 +1,63 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_PRODUCTION_SUCCESSOR_EQUIVALENCE_PROMOTION_V1",
+  "version": 1,
+  "status": "PRODUCTION_VALIDATOR_SET_BOUND_OFFLINE_SUCCESSOR_EQUIVALENCE_PROMOTED_PUBLIC_EVIDENCE_HOLD",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "evidence": {
+    "evidence_file": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+    "evidence_file_sha256": "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
+    "evidence_id": "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
+    "source_commit": "ec3c520ff354a8a75b5a4be232d5a22033e484ec"
+  },
+  "verification": {
+    "evidence_file_sha256_verified": true,
+    "evidence_id_verified": true,
+    "evidence_id_material_verified": true,
+    "production_qbft_extra_data_bound_into_genesis": true,
+    "production_qbft_block0_extra_data_verified": true,
+    "production_qbft_validator_roster_readback_verified": true,
+    "production_validator_set_bound": true,
+    "state_root_matches_nonce_continuity_equivalence": true,
+    "client_specific_state_equivalence_proven": true,
+    "all_nonce_readbacks_exact": true,
+    "all_nonce_only_native_balances_zero": true,
+    "all_retired_nonce_only_code_absent": true,
+    "known_retained_raw_transaction_stale_under_exact_nonce_continuity": true,
+    "offline_successor_equivalence_proven": true,
+    "cross_epoch_replay_protection_proven": true
+  },
+  "gates": {
+    "production_validator_set_bound": true,
+    "offline_successor_equivalence_proven": true,
+    "all_production_validators_epoch_domain_enforced": true,
+    "cross_epoch_replay_protection_proven": true,
+    "successor_state_root_public_void_anchor_ready": false,
+    "public_balance_receipt_code_verification_ready": false,
+    "runtime_route_active": false,
+    "public_submission_open": false,
+    "authoritative_chain2050_write": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "authority": {
+    "source_promotion_only": true,
+    "service_action": false,
+    "production_rpc_contact": false,
+    "rpc_admin_mutation": false,
+    "wallet_access": false,
+    "private_key_access": false,
+    "credential_content_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  }
+}

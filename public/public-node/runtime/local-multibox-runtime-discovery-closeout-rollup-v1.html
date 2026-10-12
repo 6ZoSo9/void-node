@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VOID Local Multi-Box Runtime Discovery Closeout Rollup v1</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#080a12;color:#e5e7eb;margin:0;padding:24px}
+    main{max-width:980px;margin:0 auto}
+    .card{background:#111827;border:1px solid #253044;border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .muted{color:#9ca3af}
+    .good{color:#86efac}
+    .warn{color:#fbbf24}
+    code{background:#020617;border:1px solid #1f2937;border-radius:8px;padding:2px 6px}
+    a{color:#93c5fd}
+    li{margin:6px 0}
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <p class="muted">VOID Local Multi-Box Runtime Discovery Closeout Rollup</p>
+    <h1>Local multi-box runtime discovery path sealed</h1>
+    <p><strong>Marker:</strong> <code>VOID_LOCAL_MULTIBOX_RUNTIME_DISCOVERY_CLOSEOUT_ROLLUP_V1</code></p>
+    <p class="good">Status: sealed closeout rollup ready.</p>
+    <p>This card summarizes the public-safe route chain from well-known discovery to the public-node runtime card, runtime index, smoke pack, and route-chain smoke script.</p>
+  </section>
+
+  <section class="card">
+    <h2>Human path</h2>
+    <ul>
+      <li><a href="/public-node">/public-node</a></li>
+      <li><a href="/public-node#publicNodeLocalMultiboxRuntimeCard">/public-node#publicNodeLocalMultiboxRuntimeCard</a></li>
+      <li><a href="/public-node/runtime">/public-node/runtime</a></li>
+      <li><a href="/public-node/runtime#runtime-smoke-check">/public-node/runtime#runtime-smoke-check</a></li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Machine path</h2>
+    <ul>
+      <li><a href="/.well-known/void-public-node.json">/.well-known/void-public-node.json</a></li>
+      <li><a href="/public-node/index.json">/public-node/index.json</a></li>
+      <li><a href="/public-node/runtime/index.json">/public-node/runtime/index.json</a></li>
+      <li><a href="/public-node/runtime/local-multibox-status-v1.json">/public-node/runtime/local-multibox-status-v1.json</a></li>
+      <li><a href="/public-node/runtime/smoke-pack-v1.json">/public-node/runtime/smoke-pack-v1.json</a></li>
+      <li><a href="/public-node/runtime/smoke-pack-v1.sh">/public-node/runtime/smoke-pack-v1.sh</a></li>
+      <li><a href="/__void/diag/local-multibox-runtime-route-v1.json">/__void/diag/local-multibox-runtime-route-v1.json</a></li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Expected green</h2>
+    <p>The downloaded smoke script should print:</p>
+    <p><code>VOID_LOCAL_MULTIBOX_RUNTIME_SMOKE_PACK_V1_GREEN</code></p>
+  </section>
+
+  <section class="card">
+    <h2>Boundary</h2>
+    <p class="warn">Read-only discovery and smoke visibility only.</p>
+    <ul>
+      <li>No mutation routes.</li>
+      <li>No wallet send.</li>
+      <li>No money movement.</li>
+      <li>No buy-VOID fulfillment.</li>
+      <li>No WC-to-VOID swap execution.</li>
+      <li>No validator mutation or admission.</li>
+      <li>No public WC self-serve earning.</li>
+      <li>No completed public internet mesh claim.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>JSON</h2>
+    <p><a href="./local-multibox-runtime-discovery-closeout-rollup-v1.json">local-multibox-runtime-discovery-closeout-rollup-v1.json</a></p>
+  </section>
+</main>
+</body>
+</html>

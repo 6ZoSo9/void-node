@@ -1,0 +1,85 @@
+{
+  "schema": "void.public_node.work_credits.datanet_wc_public_review_lane_rollup_hold.v1",
+  "id": "datanet-wc-public-review-lane-rollup-hold-v1",
+  "status": "hold",
+  "title": "DataNet WC Public Review Lane Rollup Hold v1",
+  "summary": "Public rollup for the DataNet Work Credits review lane. This rollup summarizes the public-safe stack and does not perform packet intake, review decision, WC approval, WC issuance, ledger mutation, VOID allocation, payment handling, signer access, wallet access, runtime routing, or mutation handling.",
+  "marker": "VOID_DATANET_WC_PUBLIC_REVIEW_LANE_ROLLUP_HOLD_V1",
+  "rollup_status": "public_review_lane_rollup_only_hold",
+  "stack": [
+    {
+      "id": "datanet-wc-availability",
+      "title": "DataNet WC availability status",
+      "path": "/public-node/work-credits/datanet-wc-availability/earn-status-card-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-available-work-packet-template-hold-v1",
+      "title": "Available-work packet template",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-template-hold-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-available-work-packet-example-hold-v1",
+      "title": "Available-work packet example",
+      "path": "/public-node/work-credits/datanet-wc-available-work-packet-example-hold-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-review-criteria-hold-v1",
+      "title": "Review criteria",
+      "path": "/public-node/work-credits/datanet-wc-review-criteria-hold-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-review-checklist-hold-v1",
+      "title": "Review checklist",
+      "path": "/public-node/work-credits/datanet-wc-review-checklist-hold-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-review-result-template-hold-v1",
+      "title": "Review result template",
+      "path": "/public-node/work-credits/datanet-wc-review-result-template-hold-v1.json",
+      "status": "hold"
+    },
+    {
+      "id": "datanet-wc-review-result-example-hold-v1",
+      "title": "Review result example",
+      "path": "/public-node/work-credits/datanet-wc-review-result-example-hold-v1.json",
+      "status": "hold"
+    }
+  ],
+  "rollup_boundary": {
+    "rollup_only": true,
+    "public_discovery_only": true,
+    "creates_authority": false,
+    "activates_review_lane": false,
+    "activates_earn_lane": false
+  },
+  "wc_boundary": {
+    "live_earn_enabled": false,
+    "public_submission_enabled": false,
+    "accepts_work_packets": false,
+    "performs_review_decision": false,
+    "approves_work_credits": false,
+    "issues_work_credits": false,
+    "creates_ledger_line": false,
+    "appends_to_ledger_file": false,
+    "writes_wc_ledger": false,
+    "allocates_void": false,
+    "transfers_void": false,
+    "opens_execute_gate": false,
+    "automatic_reward": false
+  },
+  "authority_boundary": {
+    "authorizes_execution": false,
+    "authorizes_ledger_write_execution": false,
+    "grants_signer_wallet_access": false,
+    "moves_funds": false,
+    "changes_datanet_storage": false,
+    "changes_runtime_behavior": false,
+    "adds_runtime_route": false,
+    "activates_public_mutation": false
+  }
+}

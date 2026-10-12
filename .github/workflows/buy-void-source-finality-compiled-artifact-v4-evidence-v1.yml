@@ -1,0 +1,109 @@
+name: VOID Buy VOID V4 compiled candidate independent evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v4.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v4-candidate-evidence-v1.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  preserve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove immutable compiled V4 history
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs             | tee "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_script_blob_preserved=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_manifest_blob_preserved=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_and_lock_generation_equal=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_candidate_acceptance=false'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_locked_acceptance=true'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'historical_v4_rederived_against_current_source=false'             "historical-v4-${{ matrix.node }}.txt"
+          grep -Fx 'funds_moved=false'             "historical-v4-${{ matrix.node }}.txt"
+
+      - name: Upload historical V4 preservation receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-historical-v4-independent-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: historical-v4-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+
+  cross-node:
+    needs: [preserve]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download V4 preservation receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-historical-v4-independent-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./historical-v4
+
+      - name: Require exact Node 22 24 26 preservation evidence
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "historical-v4/historical-v4-$v.txt"
+          done
+          cmp historical-v4/historical-v4-22.txt historical-v4/historical-v4-24.txt
+          cmp historical-v4/historical-v4-22.txt historical-v4/historical-v4-26.txt
+          echo "VOID_BUY_VOID_HISTORICAL_COMPILED_V4_CROSS_NODE_GREEN"
+          echo "historical_v4_rederived_against_current_source=false"
+          echo "funds_moved=false"

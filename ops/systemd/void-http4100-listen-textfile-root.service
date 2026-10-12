@@ -1,0 +1,11 @@
+[Unit]
+Description=VOID http4100 listen -> node_exporter textfile (root)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=TEXTDIR=/var/lib/node_exporter/textfile_collector
+Type=oneshot
+Environment="HTTP_HOST=127.0.0.1"
+Environment="HTTP_PORT=4100"
+ExecStart=/usr/local/bin/void-http4100-listen-textfile-once

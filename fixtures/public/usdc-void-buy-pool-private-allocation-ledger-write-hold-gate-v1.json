@@ -1,0 +1,95 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_PRIVATE_ALLOCATION_LEDGER_WRITE_HOLD_GATE_V1",
+  "status": "private_allocation_ledger_write_hold_gate_green_authority_false",
+  "public_policy_only": true,
+  "buy_pool_subject": "usdc_void_buy_pool",
+  "private_allocation_ledger_write_hold_gate_green": true,
+  "ledger_write_shape_policy_green": true,
+  "append_only_ledger_policy_green": true,
+  "ledger_write_hold_policy_green": true,
+  "operator_review_policy_green": true,
+  "private_allocation_ledger_write_now": false,
+  "allocation_claim_created_now": false,
+  "inventory_reserved_now": false,
+  "automatic_fulfillment_enabled_now": false,
+  "void_transfer_now": false,
+  "overall_automatic_activation_state": "still_blocked_other_gates_pending",
+  "required_upstream_gate": "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1",
+  "ledger_write_shape": {
+    "ledger_entry_id": "deterministic_public_safe_id_from_claim_id_and_ledger_policy_version",
+    "claim_id": "deterministic_public_safe_allocation_claim_id",
+    "buyer_binding_key": "opaque_public_safe_identifier",
+    "receiving_void_address": "single_public_receiving_void_address",
+    "chain_id": "allowed_chain_id",
+    "tx_hash": "observed_payment_tx_hash",
+    "transfer_log_index": "observed_usdc_transfer_log_index",
+    "token_address": "allowed_usdc_token_address",
+    "receiver_address": "allowed_receiver_address",
+    "usdc_amount_micro": "integer_micro_usdc",
+    "void_amount": "fixed_rate_quote_amount",
+    "rate_policy_version": "amount_rate_policy_v1",
+    "ledger_policy_version": "private_allocation_ledger_write_hold_v1",
+    "previous_ledger_entry_hash": "previous_append_only_hash_or_genesis",
+    "entry_hash": "hash_of_canonical_private_ledger_entry",
+    "write_state": "private_allocation_ledger_write_hold"
+  },
+  "ledger_write_states": [
+    "private_allocation_ledger_write_hold",
+    "blocked_claim_not_created",
+    "blocked_claim_creation_hold",
+    "blocked_duplicate_claim",
+    "blocked_inventory_not_reserved",
+    "blocked_operator_not_approved",
+    "operator_review_required"
+  ],
+  "policy_examples": [
+    {
+      "case": "claim_shape_ready_but_ledger_write_held",
+      "allocation_claim_state": "allocation_claim_creation_hold",
+      "ledger_shape_ready": true,
+      "result_state": "private_allocation_ledger_write_hold",
+      "may_write_private_allocation_ledger": false,
+      "may_reserve_inventory": false,
+      "may_automatic_fulfill": false,
+      "may_transfer_void": false
+    },
+    {
+      "case": "claim_not_created",
+      "allocation_claim_state": "blocked_claim_not_created",
+      "ledger_shape_ready": false,
+      "result_state": "blocked_claim_not_created",
+      "may_write_private_allocation_ledger": false
+    },
+    {
+      "case": "operator_not_approved",
+      "allocation_claim_state": "allocation_claim_creation_hold",
+      "ledger_shape_ready": true,
+      "operator_approval_present": false,
+      "result_state": "blocked_operator_not_approved",
+      "may_write_private_allocation_ledger": false
+    }
+  ],
+  "linked_allocation_claim_creation_hold_gate_marker": "VOID_USDC_VOID_BUY_POOL_ALLOCATION_CLAIM_CREATION_HOLD_GATE_V1",
+  "linked_allocation_claim_creation_hold_gate_json_route": "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1.json",
+  "linked_allocation_claim_creation_hold_gate_html_route": "/public-node/usdc-void-buy-pool/allocation-claim-creation-hold-gate-v1",
+  "reviewer_warnings": {
+    "not_private_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "authority_flags": {
+    "public_mutation_enabled": false,
+    "runtime_queue_enabled": false,
+    "live_fetch_now": false,
+    "finality_verified_now": false,
+    "external_state_root_trust_enabled": false,
+    "real_payment_verified_now": false,
+    "allocation_claim_creation_enabled": false,
+    "private_allocation_ledger_write_enabled": false,
+    "inventory_reserved_now": false,
+    "automatic_fulfillment_enabled": false,
+    "void_transfer_now": false
+  }
+}

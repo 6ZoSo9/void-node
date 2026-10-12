@@ -1,0 +1,33 @@
+name: VOID Tor onion static transport reconciliation V1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "scripts/prove_void_tor_onion_static_transport_reconciliation_v1.mjs"
+      - "scripts/prove_void_tor_order_status_onion_readonly_v1.mjs"
+      - "scripts/prove_tor_order_status_auditor_runtime_profile_v1.mjs"
+      - "docs/public-node/datanet/void-tor-onion-static-transport-reconciliation-v1.md"
+      - ".github/workflows/void-tor-onion-static-transport-reconciliation-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check reconciled router syntax
+        run: node --check tools/void-tor-onion-public-node-v1.mjs
+      - name: Prove reconciled static transport
+        run: node scripts/prove_void_tor_onion_static_transport_reconciliation_v1.mjs
+      - name: Prove order-status compatibility
+        run: node scripts/prove_void_tor_order_status_onion_readonly_v1.mjs
+      - name: Prove order-status auditor profile
+        run: node scripts/prove_tor_order_status_auditor_runtime_profile_v1.mjs

@@ -1,0 +1,52 @@
+name: Tor agent and revenue activation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/tor-agent-and-revenue-activation-v1.yml"
+      - "docs/operations/tor-agent-and-revenue-activation-v1.md"
+      - "examples/tor-agent-and-revenue-activation-v1.example.json"
+      - "schemas/tor-agent-and-revenue-activation-v1.schema.json"
+      - "scripts/prove_tor_agent_and_revenue_activation_v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "tools/void_tor_agent_and_revenue_activation_source_inventory_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tor-agent-and-revenue-activation-v1.yml"
+      - "docs/operations/tor-agent-and-revenue-activation-v1.md"
+      - "examples/tor-agent-and-revenue-activation-v1.example.json"
+      - "schemas/tor-agent-and-revenue-activation-v1.schema.json"
+      - "scripts/prove_tor_agent_and_revenue_activation_v1.mjs"
+      - "tools/void-tor-onion-public-node-v1.mjs"
+      - "tools/void_tor_agent_and_revenue_activation_source_inventory_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check backend syntax
+        run: node --check tools/void-tor-onion-public-node-v1.mjs
+      - name: Check source inventory syntax
+        run: node --check tools/void_tor_agent_and_revenue_activation_source_inventory_v1.mjs
+      - name: Check proof syntax
+        run: node --check scripts/prove_tor_agent_and_revenue_activation_v1.mjs
+      - name: Validate backend configuration
+        run: node tools/void-tor-onion-public-node-v1.mjs --check
+      - name: Validate JSON artifacts
+        run: |
+          python3 -m json.tool examples/tor-agent-and-revenue-activation-v1.example.json >/dev/null
+          python3 -m json.tool schemas/tor-agent-and-revenue-activation-v1.schema.json >/dev/null
+      - name: Prove Stage 1 onion MCP bridge
+        run: node scripts/prove_tor_agent_and_revenue_activation_v1.mjs
+      - name: Inventory exact Stage 1 sources
+        run: node tools/void_tor_agent_and_revenue_activation_source_inventory_v1.mjs --repo-root "$GITHUB_WORKSPACE"

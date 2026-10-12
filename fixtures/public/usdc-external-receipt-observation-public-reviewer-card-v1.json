@@ -1,0 +1,38 @@
+{
+  "marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_PUBLIC_REVIEWER_CARD_V1",
+  "status": "public_reviewer_card_defined_authority_false",
+  "public_explanation_only": true,
+  "parent_result_envelope_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_RESULT_ENVELOPE_V1",
+  "parent_job_envelope_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_JOB_ENVELOPE_SCHEMA_V1",
+  "parent_queue_marker": "VOID_USDC_EXTERNAL_RECEIPT_OBSERVATION_QUEUE_V1",
+  "reviewer_summary": "A USDC external receipt observation result was shaped for public review. This is observation/classification only, not payment approval or fulfillment.",
+  "observed_receipt_claim": {
+    "chain_id": 8453,
+    "tx_hash": "0xaf6ce2cba0492b0a257d7fdf082c865891049a378181281bf084e0b0f7c2f857",
+    "receipt_found": true,
+    "receipt_status": "0x1",
+    "block_number": 47704627,
+    "transfer_log_count": 1,
+    "matching_transfer_log_count": 1,
+    "classification_state": "observed_receipt_success"
+  },
+  "reviewer_warnings": {
+    "not_payment_approval": true,
+    "not_finality_verification": true,
+    "not_allocation_ledger_write": true,
+    "not_inventory_reserve": true,
+    "not_automatic_fulfillment": true,
+    "not_void_transfer": true,
+    "operator_review_required": true
+  },
+  "public_mutation_enabled": false,
+  "runtime_queue_enabled": false,
+  "live_fetch_now": false,
+  "finality_verified_now": false,
+  "external_state_root_trust_enabled": false,
+  "real_payment_verified_now": false,
+  "automatic_fulfillment_enabled": false,
+  "private_allocation_ledger_write_enabled": false,
+  "inventory_reserved_now": false,
+  "void_transfer_now": false
+}

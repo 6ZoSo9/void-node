@@ -1,0 +1,115 @@
+name: VOID Buy VOID preappend own-array-index regression v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs"
+      - "docs/architecture/buy-void-preappend-own-array-index-v1.md"
+      - ".github/workflows/buy-void-preappend-own-array-index-v1.yml"
+      - "scripts/prove_buy_void_preappend_plain_input_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-preappend-own-index-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: preappend array index / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact unmerged child head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require exact checkout identity
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup reviewed Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install pinned dependencies without lifecycle hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and compile exact source
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Preserve existing preappend ordinary/hostile-object proof
+        run: node scripts/prove_buy_void_preappend_plain_input_v1.mjs
+      - name: Exercise actual compiled snapshot with inherited array numeric setters
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs \
+            | tee "own-array-index-node-${{ matrix.node }}.txt"
+          for line in \
+            VOID_BUY_VOID_PREAPPEND_AMBIENT_ARRAY_INDEX_SETTER_V1_GREEN \
+            inherited_numeric_setter_negative_witness_armed=true \
+            snapshot_inherited_numeric_setter_invocations=0 \
+            own_readonly_array_indexes_verified=true \
+            nested_arrays_verified=true \
+            exact_original_json_bytes_preserved=true \
+            global_Array_prototype_restored=true \
+            historical_reviewed_witness_repin=false \
+            payment_verified_append=false \
+            allocation_mutation=false \
+            presale_activation=false \
+            funds_moved=false
+          do grep -Fx "$line" "own-array-index-node-${{ matrix.node }}.txt"; done
+      - name: Require non-mutated tracked worktree and whitespace-hygienic diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --check "${BASE_SHA:-HEAD^}" "$HEAD_SHA"
+      - name: Upload versioned synthetic proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-own-array-index-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: own-array-index-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  cross-node:
+    name: exact three-node receipt equality
+    needs: [synthetic]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Obtain three independent exact-head artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-own-array-index-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./receipts
+      - name: Require byte-identical success and false-authority evidence
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "receipts/own-array-index-node-$node.txt"; done
+          cmp receipts/own-array-index-node-22.txt receipts/own-array-index-node-24.txt
+          cmp receipts/own-array-index-node-22.txt receipts/own-array-index-node-26.txt
+          grep -Fx 'snapshot_inherited_numeric_setter_invocations=0' receipts/own-array-index-node-22.txt
+          grep -Fx 'presale_activation=false' receipts/own-array-index-node-22.txt
+          echo 'VOID_BUY_VOID_PREAPPEND_OWN_ARRAY_INDEX_THREE_NODE_GREEN'
+          echo 'production_payment_and_allocation_authority=false'

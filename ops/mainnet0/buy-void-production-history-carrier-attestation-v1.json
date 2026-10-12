@@ -1,0 +1,113 @@
+{
+  "attestation_id": "voidbvhca1_0b7f99cbbf4dfbd8c3673d8915350b1d972bf1579d3798a52ab052eb3acb3465",
+  "authority": {
+    "carrier_root_publication": false,
+    "chain2050_write": false,
+    "credential_content_read": false,
+    "designated_host_observation_imported": true,
+    "filesystem_history_mutation": false,
+    "funds_movement": false,
+    "inventory_mutation": false,
+    "page_publication": false,
+    "rpc_call": false,
+    "runtime_activation": false,
+    "service_action": false,
+    "source_only_attestation": true,
+    "transaction_broadcast": false,
+    "transaction_signing": false,
+    "treasury_or_liquidity_action": false,
+    "wallet_or_signer_access": false
+  },
+  "carrier": {
+    "attestation_plan_sha256": "ab0cbb3a7317e1ed24eeef7af77db5a4d38ffee417afaaa79ab9f8b5178a219e",
+    "carrier_root": {
+      "active_segmented_durable_root_sha256": "eca28c154b89f2c93e2f56b3cb6d74e1305fb23122e0f2f73daeffee681685ac",
+      "active_segmented_store_generation": 1,
+      "carrier_generation": 1,
+      "carrier_root_sha256": "32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a",
+      "committed_void_units": "2000000",
+      "committing_payment_key_sha256": "186b3f4f6c008f0203ca43c7ea90c0c07562e88e8131b578e72a48c3afcccb67",
+      "committing_record_kind": "reservation",
+      "committing_record_void_units": "2000000",
+      "format": "VOID_BUY_VOID_HISTORY_CARRIER_ROOT_V1",
+      "obligation_count": "0",
+      "payment_history_fingerprint_sha256": "219e1ccba72d344cca94d33f4c229749c609665e403463d5cd1252459ef27a50",
+      "payment_index_root_sha256": "07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e",
+      "pool_id": "buy-void-presale-v1",
+      "previous_carrier_root_sha256": null,
+      "reservation_count": "1",
+      "v": 1
+    },
+    "empty_index_root_sha256": "0a2236050c8e6909f03088eed1147dd11b57202b4dac6c4ef31c9f05a9afd061",
+    "new_pages": [
+      {
+        "bytes": 248,
+        "sha256": "07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e"
+      }
+    ],
+    "page_set_sha256": "b99383b11f66c04e95d67894fad31f30d074c459f7a8857eccb569bf85ab8cb5",
+    "tx_intent": {
+      "committing_payment_key_sha256": "186b3f4f6c008f0203ca43c7ea90c0c07562e88e8131b578e72a48c3afcccb67",
+      "committing_record_kind": "reservation",
+      "committing_record_locator": {
+        "byte_length": 1337,
+        "byte_offset": "0",
+        "record_sha256": "5bef498d6e14b1c716e14e5472e668ae4d4308d2595d5148e22cf11563131338",
+        "segment_id": 4294967295,
+        "segment_sha256": "5bef498d6e14b1c716e14e5472e668ae4d4308d2595d5148e22cf11563131338",
+        "segmented_durable_root_sha256": "eca28c154b89f2c93e2f56b3cb6d74e1305fb23122e0f2f73daeffee681685ac"
+      },
+      "expected_carrier_root_sha256": "32649ce8d7edf089d4078d97fd72832d0b44da4736b5d58cdf3cde969a33ab1a",
+      "expected_committed_void_units": "2000000",
+      "expected_index_root_sha256": "07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e",
+      "expected_obligation_count": "0",
+      "expected_payment_history_fingerprint_sha256": "219e1ccba72d344cca94d33f4c229749c609665e403463d5cd1252459ef27a50",
+      "expected_reservation_count": "1",
+      "expected_segmented_durable_root_sha256": "eca28c154b89f2c93e2f56b3cb6d74e1305fb23122e0f2f73daeffee681685ac",
+      "expected_segmented_store_generation": 1,
+      "format": "VOID_BUY_VOID_HISTORY_CARRIER_TX_INTENT_V1",
+      "new_page_digests": [
+        "07a59cfe2f0374d52e138787c80a1ec2c1d257303adea0ad8e5692800b59748e"
+      ],
+      "pool_id": "buy-void-presale-v1",
+      "predecessor_carrier_root_sha256": null,
+      "tx_intent_sha256": "f9e5a2fb8224fb110cbe384bfccbab59e1e9646f02c2c0b751a3d2a7d1a76e93",
+      "v": 1
+    }
+  },
+  "issue_number": 1682,
+  "marker": "VOID_BUY_VOID_PRODUCTION_HISTORY_CARRIER_ATTESTATION_V1",
+  "migration": {
+    "migration_evidence_id": "ac7989d8200282092fdbcae7fab2fbb439b6aadfc37938eb3afa18b512b080a1",
+    "migration_plan_sha256": "de939c9fcbdb9f5f39440c689912d3f637ec571913b5f4dd49c2f6d125061be6",
+    "migration_pointer_id": "9729716b11e23e87a804ba07fb1b70bdc4f0d917b6b00f99dbb538e31a622167",
+    "record_bytes": 1337,
+    "record_sha256": "5bef498d6e14b1c716e14e5472e668ae4d4308d2595d5148e22cf11563131338",
+    "segmented_durable_root_sha256": "eca28c154b89f2c93e2f56b3cb6d74e1305fb23122e0f2f73daeffee681685ac"
+  },
+  "projection": {
+    "current_projection_fingerprint_sha256": "ec0084333d10eaf98ce5d2a7645da9f5dee6cd1c387a8cdb932d975023b4b7ae",
+    "effective_lifecycle_state": "inventory_consumed",
+    "effective_payment_history_fingerprint_sha256": "219e1ccba72d344cca94d33f4c229749c609665e403463d5cd1252459ef27a50",
+    "predecessor_projection_fingerprint_sha256": "24f0efdf5b97444373ebf4b4b34506cbfaa1a179c4299d41c7eafa06eb111346"
+  },
+  "source": {
+    "blobs": {
+      "scripts/observe_buy_void_legacy_alias_carrier_genesis_precision_v1.ts": "9f25bf59744967710f556a0c55b218eb18c650da",
+      "src/economic/buy_void_history_carrier_v1.ts": "ec8ab7b91293a126cfd0632517af542f21d3bc93",
+      "src/economic/buy_void_legacy_alias_carrier_genesis_v1.ts": "29c9859606019a031840bd53ab8fc1aa8cb57b4e",
+      "src/economic/buy_void_legacy_history_migration_apply_v1.ts": "ca33b5afec81435456dc1cd56f4b55c443237060",
+      "src/economic/buy_void_legacy_history_migration_plan_v1.ts": "94b8377981ef2390efdfd0f9f426ea8766db6efd",
+      "src/economic/buy_void_payment_history_projection_v1.ts": "d9abe2d601c27bdc76b6a945c293a50e9f7c6051",
+      "src/storage/segmented_jsonl_durable_root_v1.ts": "0f7d07544e6e4cbc27ffd549d1489d0990575fd5",
+      "src/storage/segmented_jsonl_materialized_authority_v1.ts": "68b21002aefba652d7150f2c766db06c3fd4433c",
+      "src/storage/segmented_jsonl_v1.ts": "ae9916df7c6e1428812fd65fe13ce44780969617"
+    },
+    "node_version": "v22.23.2",
+    "observed_repo_head": "6117e62e24c7eff35a9c0108a1a458f6225f4954",
+    "observed_repo_tree": "420743d69489278c5cce3f8080cb328438d8ad20",
+    "source_merge_commit": "dddb9cb834a886c1842a46cb425e10069496381e",
+    "source_pr": 1715
+  },
+  "version": 1
+}

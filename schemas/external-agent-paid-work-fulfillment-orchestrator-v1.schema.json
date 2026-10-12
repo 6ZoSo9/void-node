@@ -1,0 +1,401 @@
+{
+  "$id": "https://voidchain.io/schemas/external-agent-paid-work-fulfillment-orchestrator-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "additionalProperties": false,
+          "properties": {
+            "acceptance_persistence": {
+              "const": false
+            },
+            "deployment": {
+              "const": false
+            },
+            "live_work_execution": {
+              "const": false
+            },
+            "payment_transfer": {
+              "const": false
+            },
+            "service_restart": {
+              "const": false
+            },
+            "ticket_issuance": {
+              "const": false
+            },
+            "ticket_transfer": {
+              "const": false
+            },
+            "wallet_or_signer_access": {
+              "const": false
+            },
+            "wc_ledger_write": {
+              "const": false
+            },
+            "wc_to_void_settlement": {
+              "const": false
+            },
+            "work_dispatch": {
+              "const": false
+            }
+          },
+          "required": [
+            "acceptance_persistence",
+            "ticket_issuance",
+            "ticket_transfer",
+            "work_dispatch",
+            "live_work_execution",
+            "wc_ledger_write",
+            "payment_transfer",
+            "wc_to_void_settlement",
+            "wallet_or_signer_access",
+            "service_restart",
+            "deployment"
+          ],
+          "type": "object"
+        },
+        "binding": {
+          "additionalProperties": false,
+          "properties": {
+            "binding_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "binding_registry_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "binding_registry_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "destination_wc_account": {
+              "minLength": 4,
+              "type": "string"
+            }
+          },
+          "required": [
+            "binding_registry_id",
+            "binding_id",
+            "destination_wc_account",
+            "binding_registry_sha256"
+          ],
+          "type": "object"
+        },
+        "created_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "execution_contract": {
+          "additionalProperties": false,
+          "properties": {
+            "coordinator_base": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "coordinator_node_id": {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            },
+            "executor_node_id": {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            },
+            "fixed_award_wc": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "runtime": {
+              "additionalProperties": false,
+              "properties": {
+                "acceptance_source_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "adapter_core_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "participant_cli_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "pilot_source_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "participant_cli_sha256",
+                "pilot_source_sha256",
+                "acceptance_source_sha256",
+                "adapter_core_sha256"
+              ],
+              "type": "object"
+            },
+            "ticket_ttl_ms": {
+              "minimum": 60000,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "coordinator_base",
+            "coordinator_node_id",
+            "executor_node_id",
+            "fixed_award_wc",
+            "ticket_ttl_ms",
+            "runtime"
+          ],
+          "type": "object"
+        },
+        "expires_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_FULFILLMENT_REQUEST_V1"
+        },
+        "nonce": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "source_artifacts": {
+          "additionalProperties": false,
+          "properties": {
+            "accepted_submission_receipt": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "minLength": 4,
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "binding_registry": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "minLength": 4,
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "selected_contract_receipt": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "minLength": 4,
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "work_order": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "minLength": 4,
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "sha256",
+                "kind"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "accepted_submission_receipt",
+            "binding_registry",
+            "selected_contract_receipt",
+            "work_order"
+          ],
+          "type": "object"
+        },
+        "submission": {
+          "additionalProperties": false,
+          "properties": {
+            "agent_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "capability_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "credential_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "submission_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "submission_receipt_id": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "task_class": {
+              "minLength": 4,
+              "type": "string"
+            },
+            "work_order_id": {
+              "minLength": 4,
+              "type": "string"
+            }
+          },
+          "required": [
+            "submission_id",
+            "submission_receipt_id",
+            "work_order_id",
+            "credential_id",
+            "agent_id",
+            "capability_id",
+            "task_class"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "created_at_utc",
+        "expires_at_utc",
+        "nonce",
+        "submission",
+        "binding",
+        "execution_contract",
+        "source_artifacts",
+        "authority"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "pattern": "^voidapwfsev1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "evidence": {
+          "type": "object"
+        },
+        "expected_revision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "from_state": {
+          "enum": [
+            "accepted_submission_bound",
+            "ticket_issue_planned",
+            "ticket_package_planned",
+            "executor_receipt_expected",
+            "adapter_finalization_planned",
+            "completed",
+            "held"
+          ]
+        },
+        "fulfillment_id": {
+          "pattern": "^voidapwfv1_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_EXTERNAL_AGENT_PAID_WORK_FULFILLMENT_EVENT_V1"
+        },
+        "nonce": {
+          "minLength": 4,
+          "type": "string"
+        },
+        "occurred_at_utc": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "to_state": {
+          "enum": [
+            "accepted_submission_bound",
+            "ticket_issue_planned",
+            "ticket_package_planned",
+            "executor_receipt_expected",
+            "adapter_finalization_planned",
+            "completed",
+            "held"
+          ]
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "event_id",
+        "fulfillment_id",
+        "expected_revision",
+        "from_state",
+        "to_state",
+        "occurred_at_utc",
+        "evidence",
+        "nonce"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "VOID External Agent Paid-Work Fulfillment Orchestrator V1"
+}

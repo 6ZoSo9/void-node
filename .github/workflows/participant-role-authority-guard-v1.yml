@@ -1,0 +1,38 @@
+name: participant-role-authority-guard-v1
+
+on:
+  pull_request:
+    paths:
+      - "src/security/participant_role_authority_guard_v1.ts"
+      - "scripts/prove_participant_role_authority_guard_v1.ts"
+      - "docs/security/participant-role-authority-guard-v1.md"
+      - ".github/workflows/participant-role-authority-guard-v1.yml"
+      - "src/security/chain2050_role_authority_record_v1.ts"
+      - "src/security/chain2050_role_authority_read_adapter_v1.ts"
+      - "src/security/chain2050_role_authority_registry_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install tsx scripts/prove_participant_role_authority_guard_v1.ts
+      - if: matrix.node == 24
+        run: |
+          npx --no-install tsx scripts/prove_chain2050_role_authority_registry_binding_v1.ts
+          npm run typecheck

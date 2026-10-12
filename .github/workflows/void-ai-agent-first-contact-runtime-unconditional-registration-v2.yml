@@ -1,0 +1,43 @@
+name: VOID AI Agent First Contact Runtime Unconditional Registration V2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml"
+      - "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs"
+      - "fixtures/ops/guard-baselines/index-ts-size-v1.json"
+      - "src/index.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-ai-agent-first-contact-runtime-unconditional-registration-v2.yml"
+      - "docs/public/ai-agent-first-contact-runtime-unconditional-registration-v2.md"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs"
+      - "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs"
+      - "fixtures/ops/guard-baselines/index-ts-size-v1.json"
+      - "src/index.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prove_void_ai_agent_first_contact_runtime_unconditional_registration_v2.mjs
+      - run: node scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs
+      - run: bash tools/check_index_size.sh
+      - run: npm run build
+      - run: git diff --check

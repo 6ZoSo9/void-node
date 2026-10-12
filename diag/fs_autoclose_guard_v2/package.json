@@ -1,0 +1,6 @@
+{
+  "name": "fs_autoclose_guard_v2",
+  "version": "0.0.0",
+  "type": "commonjs",
+  "main": "index.cjs"
+}

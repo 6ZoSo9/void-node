@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Public Node Operator Receipt Review Checklist v1</title>
+</head>
+<body>
+<h1>Public Node Operator Receipt Review Checklist v1</h1>
+<p><strong>Marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1</code></p>
+<p><strong>Status:</strong> <code>operator_receipt_review_checklist_ready</code></p>
+<p>Public-safe manual checklist for reviewing a returned outside-node-operator receipt.</p>
+<p>This checklist creates no receipt, review decision, wallet action, validator admission, Work Credit claim, or money movement.</p>
+
+<h2>Routes</h2>
+<ul>
+<li><strong>review_checklist_page</strong>: <code>/public-node/operator-receipt-review-checklist-v1</code></li>
+<li><strong>review_checklist_json</strong>: <code>/public-node/public-node-operator-receipt-review-checklist-v1.json</code></li>
+<li><strong>review_checklist_html</strong>: <code>/public-node/public-node-operator-receipt-review-checklist-v1.html</code></li>
+<li><strong>receipt_example</strong>: <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>receipt_example_json</strong>: <code>/public-node/public-node-operator-receipt-example-v1.json</code></li>
+<li><strong>handoff_packet</strong>: <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>handoff_packet_json</strong>: <code>/public-node/public-node-operator-handoff-packet-v1.json</code></li>
+<li><strong>receipt_template</strong>: <code>/public-node/connect/receipt-template-v1</code></li>
+<li><strong>receipt_template_json</strong>: <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>operator_status_rollup</strong>: <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>operator_quickstart</strong>: <code>/public-node/operator-quickstart-v1</code></li>
+<li><strong>connect_pack</strong>: <code>/public-node/connect</code></li>
+<li><strong>connect_pack_json</strong>: <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>bootstrap_public</strong>: <code>/__void/public-bootstrap.json</code></li>
+<li><strong>bootstrap_peers</strong>: <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Green components</h2>
+<ul>
+<li><strong>operator_receipt_example</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_EXAMPLE_V1</code> — <code>/public-node/operator-receipt-example-v1</code></li>
+<li><strong>operator_handoff_packet</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_HANDOFF_PACKET_V1</code> — <code>/public-node/operator-handoff-packet-v1</code></li>
+<li><strong>receipt_template</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1</code> — <code>/public-node/connect/public-node-connect-receipt-template-v1.json</code></li>
+<li><strong>operator_status_rollup</strong>: green — <code>VOID_PUBLIC_NODE_OPERATOR_STATUS_ROLLUP_V1</code> — <code>/public-node/operator-status-rollup-v1</code></li>
+<li><strong>connect_pack</strong>: green — <code>VOID_PUBLIC_NODE_CONNECT_PACK_V1</code> — <code>/public-node/connect/public-node-connect-pack-v1.json</code></li>
+<li><strong>bootstrap_gateway</strong>: green — <code>VOID_PUBLIC_BOOTSTRAP_GATEWAY_V1</code> — <code>/bootstrap/peers.json</code></li>
+</ul>
+
+<h2>Review steps</h2>
+<ol>
+<li><strong>1. confirm_public_safe_shape</strong>: manual_review_required — Confirm the submitted receipt matches the public-safe receipt template/example shape.</li>
+<li><strong>2. confirm_required_observations</strong>: manual_review_required — Confirm operator alias, public node id, observed bootstrap route, observed markers, peer count, timestamp, and public-safe notes are present.</li>
+<li><strong>3. reject_private_material</strong>: manual_review_required — Reject receipts containing private keys, seed phrases, wallet secrets, signer secrets, private operator data, or unauthorized private IP material.</li>
+<li><strong>4. reject_money_or_claim_language</strong>: manual_review_required — Reject receipts that claim money movement, buy VOID fulfillment, WC settlement, Work Credit claim creation, validator admission, or public internet mesh status.</li>
+<li><strong>5. confirm_marker_consistency</strong>: manual_review_required — Confirm observed markers match the handoff packet, status rollup, connect pack, receipt template, and bootstrap gateway markers.</li>
+<li><strong>6. record_review_outcome_elsewhere</strong>: manual_review_required — This checklist does not write a review outcome. Any future decision record must be a separate explicit operator-reviewed lane.</li>
+</ol>
+
+<h2>Required receipt fields</h2>
+<ul>
+<li><code>operator_alias</code></li>
+<li><code>operator_node_id</code></li>
+<li><code>operator_public_base_url_if_any</code></li>
+<li><code>observed_bootstrap_route</code></li>
+<li><code>observed_connect_pack_marker</code></li>
+<li><code>observed_status_rollup_marker</code></li>
+<li><code>observed_handoff_packet_marker</code></li>
+<li><code>observed_receipt_template_marker</code></li>
+<li><code>observed_peer_count</code></li>
+<li><code>observed_timestamp_utc</code></li>
+<li><code>public_safe_notes</code></li>
+</ul>
+
+<h2>Reject if present</h2>
+<ul>
+<li><code>private_key</code></li>
+<li><code>seed_phrase</code></li>
+<li><code>wallet_secret</code></li>
+<li><code>signer_secret</code></li>
+<li><code>unauthorized_private_ip</code></li>
+<li><code>private_operator_data</code></li>
+<li><code>money_transfer_claim</code></li>
+<li><code>buy_void_fulfillment_claim</code></li>
+<li><code>wc_to_void_settlement_claim</code></li>
+<li><code>validator_admission_claim</code></li>
+<li><code>work_credit_claim</code></li>
+<li><code>public_internet_mesh_claim</code></li>
+</ul>
+
+<h2>Boundary</h2>
+<ul>
+<li>Read-only public routes only.</li>
+<li>Operator receipt review checklist only.</li>
+<li>Manual review checklist only.</li>
+<li>Operator guidance only.</li>
+<li>Checklist creates no receipt.</li>
+<li>Checklist creates no review decision.</li>
+<li>Checklist creates no Work Credit claim.</li>
+<li>Not automatic peer dialing.</li>
+<li>Not mutation route enablement.</li>
+<li>Not wallet send enablement.</li>
+<li>Not money movement.</li>
+<li>Not buy VOID fulfillment.</li>
+<li>Not WC to VOID settlement.</li>
+<li>Not validator mutation or validator admission.</li>
+<li>Not public Work Credit self-serve earning.</li>
+<li>Not Work Credit claim creation.</li>
+<li>Not a public internet mesh claim.</li>
+<li>Do not share private keys, seed phrases, wallet secrets, signer secrets, private IPs, or private operator data.</li>
+</ul>
+
+<p><strong>Expected proof marker:</strong> <code>VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1_GREEN</code></p>
+</body>
+</html>

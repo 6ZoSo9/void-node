@@ -1,0 +1,482 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_persistence": {
+          "type": "boolean"
+        },
+        "acceptance_replay_write": {
+          "type": "boolean"
+        },
+        "credential_change": {
+          "type": "boolean"
+        },
+        "credential_issue": {
+          "type": "boolean"
+        },
+        "deployment": {
+          "type": "boolean"
+        },
+        "execution_authorization": {
+          "type": "boolean"
+        },
+        "http_submission": {
+          "type": "boolean"
+        },
+        "money_movement": {
+          "type": "boolean"
+        },
+        "payment_authorization": {
+          "type": "boolean"
+        },
+        "payment_execution": {
+          "type": "boolean"
+        },
+        "production_signing": {
+          "type": "boolean"
+        },
+        "provider_authentication_replay_write": {
+          "type": "boolean"
+        },
+        "provider_key_registry_write": {
+          "type": "boolean"
+        },
+        "provider_selection": {
+          "type": "boolean"
+        },
+        "quote_acceptance_recorded": {
+          "type": "boolean"
+        },
+        "requester_authentication_replay_write": {
+          "type": "boolean"
+        },
+        "requester_key_registry_write": {
+          "type": "boolean"
+        },
+        "runtime_mutation": {
+          "type": "boolean"
+        },
+        "service_restart": {
+          "type": "boolean"
+        },
+        "transaction_broadcast": {
+          "type": "boolean"
+        },
+        "wallet_access": {
+          "type": "boolean"
+        },
+        "work_credit_settlement": {
+          "type": "boolean"
+        },
+        "work_credit_write": {
+          "type": "boolean"
+        },
+        "work_dispatch": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance_persistence",
+        "quote_acceptance_recorded",
+        "requester_authentication_replay_write",
+        "provider_authentication_replay_write",
+        "acceptance_replay_write",
+        "payment_authorization",
+        "payment_execution",
+        "execution_authorization",
+        "work_dispatch",
+        "credential_issue",
+        "credential_change",
+        "provider_selection",
+        "requester_key_registry_write",
+        "provider_key_registry_write",
+        "wallet_access",
+        "production_signing",
+        "transaction_broadcast",
+        "work_credit_write",
+        "work_credit_settlement",
+        "http_submission",
+        "runtime_mutation",
+        "service_restart",
+        "deployment",
+        "money_movement"
+      ],
+      "type": "object"
+    },
+    "command": {
+      "additionalProperties": false,
+      "properties": {
+        "apply": {
+          "type": "boolean"
+        },
+        "confirmation": {
+          "type": "string"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_COMMAND_V1"
+        },
+        "recorded_at_utc": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "apply",
+        "confirmation",
+        "recorded_at_utc"
+      ],
+      "type": "object"
+    },
+    "config": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_CONFIG_V1"
+        },
+        "persistence_config": {
+          "additionalProperties": false,
+          "properties": {
+            "allowed_root": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "marker": {
+              "const": "VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_ADAPTER_V1"
+            },
+            "max_generation_count": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_generation_file_bytes": {
+              "minimum": 4096,
+              "type": "integer"
+            },
+            "max_pointer_bytes": {
+              "minimum": 1024,
+              "type": "integer"
+            },
+            "recover_exact_orphaned_generation": {
+              "type": "boolean"
+            },
+            "version": {
+              "const": 1
+            }
+          },
+          "required": [
+            "marker",
+            "version",
+            "allowed_root",
+            "max_pointer_bytes",
+            "max_generation_file_bytes",
+            "max_generation_count",
+            "recover_exact_orphaned_generation"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "enabled",
+        "persistence_config"
+      ],
+      "type": "object"
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "acceptance_materialized_in_memory": {
+          "type": "boolean"
+        },
+        "acceptance_nonce": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "acceptance_persisted": {
+          "type": "boolean"
+        },
+        "acceptance_replay_write": {
+          "type": "boolean"
+        },
+        "after_revision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "after_state_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "apply": {
+          "type": "boolean"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "before_revision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "before_state_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confirmation_verified": {
+          "type": "boolean"
+        },
+        "direct_verified_packet_provider": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "generation_count_before": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "generation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marker": {
+          "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_RESULT_V1"
+        },
+        "operation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operator_owned_persistence_config": {
+          "const": true
+        },
+        "persistence_attempted": {
+          "type": "boolean"
+        },
+        "persistence_handoff_packet_validated": {
+          "type": "boolean"
+        },
+        "persistence_status": {
+          "enum": [
+            null,
+            "committed",
+            "duplicate",
+            "recovered"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "plan_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_authentication_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_authentication_replay_write": {
+          "type": "boolean"
+        },
+        "provider_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_acceptance_recorded": {
+          "type": "boolean"
+        },
+        "quote_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requester_agent_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requester_authentication_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requester_authentication_replay_write": {
+          "type": "boolean"
+        },
+        "requester_binding_provenance_verified": {
+          "type": "boolean"
+        },
+        "root_realpath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "server_replay_state_injected": {
+          "type": "boolean"
+        },
+        "single_active_acceptance_per_quote_enforced": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "disabled",
+            "example_only",
+            "planned",
+            "persisted",
+            "duplicate",
+            "recovered"
+          ]
+        },
+        "store_inspected": {
+          "type": "boolean"
+        },
+        "transaction_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trusted_input_provider_invoked": {
+          "type": "boolean"
+        },
+        "trusted_replay_plan_verified": {
+          "type": "boolean"
+        },
+        "version": {
+          "const": 1
+        },
+        "work_order_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "marker",
+        "version",
+        "status",
+        "enabled",
+        "apply",
+        "confirmation_verified",
+        "trusted_input_provider_invoked",
+        "trusted_replay_plan_verified",
+        "requester_binding_provenance_verified",
+        "persistence_handoff_packet_validated",
+        "store_inspected",
+        "persistence_attempted",
+        "persistence_status",
+        "root_realpath",
+        "generation_count_before",
+        "requester_authentication_id",
+        "provider_authentication_id",
+        "quote_id",
+        "work_order_id",
+        "requester_agent_id",
+        "provider_id",
+        "acceptance_nonce",
+        "plan_id",
+        "acceptance_id",
+        "transaction_id",
+        "before_state_id",
+        "after_state_id",
+        "before_revision",
+        "after_revision",
+        "generation_id",
+        "operation_id",
+        "acceptance_materialized_in_memory",
+        "acceptance_persisted",
+        "requester_authentication_replay_write",
+        "provider_authentication_replay_write",
+        "acceptance_replay_write",
+        "single_active_acceptance_per_quote_enforced",
+        "quote_acceptance_recorded",
+        "operator_owned_persistence_config",
+        "server_replay_state_injected",
+        "direct_verified_packet_provider",
+        "authority"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://void.network/schemas/public-agent-service-trusted-requester-acceptance-persistence-composition-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/command"
+    },
+    "config": {
+      "$ref": "#/$defs/config"
+    },
+    "example_only": {
+      "const": true
+    },
+    "marker": {
+      "const": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_EXAMPLE_V1"
+    },
+    "result": {
+      "$ref": "#/$defs/result"
+    },
+    "trusted_replay_plan_input": {
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "marker",
+    "version",
+    "example_only",
+    "config",
+    "command",
+    "trusted_replay_plan_input",
+    "result"
+  ],
+  "title": "Public Agent Service Trusted Requester Acceptance Persistence Composition V1 Example",
+  "type": "object",
+  "x_void_marker": "VOID_PUBLIC_AGENT_SERVICE_TRUSTED_REQUESTER_ACCEPTANCE_PERSISTENCE_COMPOSITION_SCHEMA_V1"
+}

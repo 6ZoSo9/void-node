@@ -1,0 +1,44 @@
+name: Buy VOID Native Delivery Runtime Dependencies v1
+
+on:
+  push:
+    paths:
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_runtime_dependencies_guard_v1.ts"
+      - "ops/systemd/void-node-live.service.d/80-buy-void-native-delivery-runtime-v1.conf.example"
+      - "docs/operators/buy-void-native-delivery-runtime-dependencies-v1.md"
+      - ".github/workflows/buy-void-native-delivery-runtime-dependencies-v1.yml"
+  pull_request:
+    paths:
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "src/economic/buy_void_native_delivery_runtime_integration_v1.ts"
+      - "scripts/prove_buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_runtime_dependencies_v1.ts"
+      - "scripts/prove_buy_void_native_delivery_runtime_dependencies_guard_v1.ts"
+      - "ops/systemd/void-node-live.service.d/80-buy-void-native-delivery-runtime-v1.conf.example"
+      - "docs/operators/buy-void-native-delivery-runtime-dependencies-v1.md"
+      - ".github/workflows/buy-void-native-delivery-runtime-dependencies-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_fulfillment_wallet_credential_signer_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_runtime_dependencies_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_buy_void_native_delivery_runtime_dependencies_guard_v1.ts
+      - run: npm run build

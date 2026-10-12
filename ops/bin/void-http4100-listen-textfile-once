@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE="${BASE:-http://127.0.0.1:4100}"
+PORT="${PORT:-4100}"
+TEXTDIR="${TEXTDIR:-/var/lib/node_exporter/textfile_collector}"
+OUTF="$TEXTDIR/void_http_listen.prom"
+TMP="$TEXTDIR/.tmp.void_http_listen.$$.$RANDOM.prom"
+
+# listener present (no pid dependency; wrapper-safe)
+LISTEN_PRESENT=0
+if ss -ltn 2>/dev/null | awk -v port=":""$PORT" '$1=="LISTEN" && index($4,port)>0 {found=1} END{exit(found?0:1)}'; then
+  LISTEN_PRESENT=1
+fi
+
+# health probe
+HEALTH_OK=0
+if curl -fsS --max-time 1 "$BASE/health" >/dev/null 2>&1; then
+  HEALTH_OK=1
+fi
+
+LISTEN_OK=0
+if [ "$LISTEN_PRESENT" = "1" ] && [ "$HEALTH_OK" = "1" ]; then
+  LISTEN_OK=1
+fi
+
+# informational only (root unit can't reliably read user MainPID)
+PID_MATCH=0
+MAINPID=0
+
+{
+  echo "# HELP void_http_listen_ok 1 if :HTTP_PORT is listening and /health responds (wrapper-safe)"
+  echo "# TYPE void_http_listen_ok gauge"
+  echo "void_http_listen_ok{port=\"$PORT\"} $LISTEN_OK"
+  echo "# HELP void_http_listen_pid_match 1 if listener pid equals systemd MainPID (informational)"
+  echo "# TYPE void_http_listen_pid_match gauge"
+  echo "void_http_listen_pid_match{port=\"$PORT\"} $PID_MATCH"
+  echo "# HELP void_http_listen_health_ok 1 if /health responds"
+  echo "# TYPE void_http_listen_health_ok gauge"
+  echo "void_http_listen_health_ok{port=\"$PORT\"} $HEALTH_OK"
+  echo "# HELP void_http_listen_mainpid systemd MainPID (informational)"
+  echo "# TYPE void_http_listen_mainpid gauge"
+  echo "void_http_listen_mainpid $MAINPID"
+} >"$TMP"
+
+sudo install -m 0644 "$TMP" "$OUTF"
+rm -f "$TMP"

@@ -1,0 +1,29 @@
+{
+  "marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_DISCOVERY_V1",
+  "schema": "usdc_void_buy_pool_automatic_payment_live_path_public_status_card_discovery_v1",
+  "status": "public_discovery_read_only",
+  "visibility": "public",
+  "public_safe": true,
+  "linked_status_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_PUBLIC_STATUS_CARD_V1",
+  "linked_private_terminal_marker": "VOID_USDC_VOID_BUY_POOL_AUTOMATIC_PAYMENT_LIVE_PATH_TERMINAL_READINESS_ROLLUP_HOLD_V1",
+  "private_details_exposed": false,
+  "routes": {
+    "status_card_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1.json",
+    "status_card_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-v1",
+    "discovery_json": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1.json",
+    "discovery_html": "/public-node/usdc-void-buy-pool/automatic-payment-live-path-public-status-card-discovery-v1",
+    "route_index_json": "/public-node/route-index.json"
+  },
+  "authority": {
+    "automatic_payment_execution": false,
+    "automatic_fulfillment": false,
+    "wallet_fulfillment": false,
+    "signer_access": false,
+    "treasury_transfer_authority": false,
+    "buyer_execution": false,
+    "public_mutation": false,
+    "ledger_write": false,
+    "void_transfer": false
+  },
+  "reviewer_message": "Use this discovery card to find the automatic payment public status card. The automatic payment path remains not enabled."
+}

@@ -1,0 +1,64 @@
+name: Buy VOID history-carrier successor publication v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-history-carrier-successor-publication-v1.yml"
+      - "src/economic/buy_void_history_carrier_successor_publication_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_successor_publication_v1.ts"
+      - "docs/operators/buy-void-history-carrier-successor-publication-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-history-carrier-successor-publication-v1.yml"
+      - "src/economic/buy_void_history_carrier_successor_publication_v1.ts"
+      - "src/economic/buy_void_history_carrier_v1.ts"
+      - "src/economic/buy_void_history_carrier_root_authority_v1.ts"
+      - "scripts/prove_buy_void_history_carrier_successor_publication_v1.ts"
+      - "docs/operators/buy-void-history-carrier-successor-publication-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts
+      - name: Typecheck and prove successor publication gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json --noEmit
+          node --import tsx             scripts/prove_buy_void_history_carrier_successor_publication_v1.ts             | tee "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx             'VOID_BUY_VOID_HISTORY_CARRIER_SUCCESSOR_PUBLICATION_GATE_V1_PROOF_GREEN'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'reservation_transition_proven=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'paid_unreservable_obligation_transition_proven=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'history_refresh_transition_proven=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'full_successor_transition_revalidated=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'stale_predecessor_rejected=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'counter_tamper_rejected=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'page_set_mismatch_rejected=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'exact_confirmation_required=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'publication_fingerprint_required=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'duplicate_publication_idempotent=true'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'segmented_successor_witness_producer_mounted=false'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'lifecycle_mount=false'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'runtime_activation_ready=false'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'transaction_broadcast=false'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          grep -Fx 'funds_movement=false'             "$RUNNER_TEMP/history-carrier-successor-publication.log"
+          git diff --check

@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic health receipt for VOID Buy VOID candidate-watch notification bridge V1
+
+[Timer]
+OnActiveSec=1min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=void-buy-void-observe-and-claim-candidate-watch-notification-bridge-v1.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,124 @@
+{
+  "kind": "public_node_operator_trial_tester_kit_public_entrypoint_link_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_PUBLIC_ENTRYPOINT_LINK_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_PUBLIC_ENTRYPOINT_LINK_V1_GREEN",
+  "status": "tester_kit_public_entrypoint_link_ready",
+  "title": "VOID Public Node Operator Trial Tester Kit Public Entrypoint Link v1",
+  "public_safe": true,
+  "read_only": true,
+  "html": "/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-v1.html",
+  "json": "/public-node/public-node-operator-trial-tester-kit-public-entrypoint-link-v1.json",
+  "purpose": "Public-safe link patch surfacing the completed tester kit from the public node operator trial entrypoint, dashboard, and root-linked trial surfaces.",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "public_entrypoint_link_only": true,
+    "mutation_route_enabled": false,
+    "submission_endpoint_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "link_status": {
+    "tester_kit_closeout_rollup_ready": true,
+    "tester_kit_final_sealed": true,
+    "tester_kit_rollup_ready": true,
+    "tester_instruction_pack_ready": true,
+    "tester_receipt_template_ready": true,
+    "tester_receipt_example_ready": true,
+    "trial_public_entrypoint_ready": true,
+    "trial_dashboard_link_ready": true,
+    "trial_root_link_ready": true,
+    "tester_kit_public_entrypoint_link_ready": true,
+    "operator_review_required_for_real_receipts": true,
+    "live_authority_enabled": false,
+    "tester_receipts_are_network_truth": false
+  },
+  "linked_components": [
+    {
+      "key": "tester_kit_closeout_rollup",
+      "route": "/public-node/public-node-operator-trial-tester-kit-closeout-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_CLOSEOUT_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_CLOSEOUT_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "tester_kit_final_seal",
+      "route": "/public-node/public-node-operator-trial-tester-kit-final-seal-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_FINAL_SEAL_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_FINAL_SEAL_V1_GREEN"
+    },
+    {
+      "key": "tester_kit_rollup",
+      "route": "/public-node/public-node-operator-trial-tester-kit-rollup-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_ROLLUP_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_KIT_ROLLUP_V1_GREEN"
+    },
+    {
+      "key": "tester_instruction_pack",
+      "route": "/public-node/public-node-operator-trial-tester-instruction-pack-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_INSTRUCTION_PACK_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_template",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_TEMPLATE_V1_GREEN"
+    },
+    {
+      "key": "tester_receipt_example",
+      "route": "/public-node/public-node-operator-trial-tester-receipt-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_TESTER_RECEIPT_EXAMPLE_V1_GREEN"
+    },
+    {
+      "key": "trial_public_entrypoint",
+      "route": "/public-node/public-node-operator-trial-public-entrypoint-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_PUBLIC_ENTRYPOINT_V1_GREEN"
+    },
+    {
+      "key": "trial_dashboard_link",
+      "route": "/public-node/public-node-operator-trial-lane-dashboard-link-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_LANE_DASHBOARD_LINK_V1_GREEN"
+    },
+    {
+      "key": "trial_root_link",
+      "route": "/public-node/public-node-operator-trial-root-link-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1",
+      "green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_ROOT_LINK_V1_GREEN"
+    }
+  ],
+  "tester_start_here_order": [
+    "Public operator trial entrypoint",
+    "Tester kit closeout rollup",
+    "Tester kit final seal",
+    "Tester instruction pack",
+    "Tester receipt template",
+    "Tester receipt example",
+    "Submission intake and review queue"
+  ],
+  "do_not_infer": [
+    "submission endpoint",
+    "live operator authority",
+    "real external tester submission",
+    "network truth",
+    "work credit award",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "ledger write authorization"
+  ]
+}

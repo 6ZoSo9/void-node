@@ -1,0 +1,89 @@
+name: Agent Paid Work Submission Intake Runtime V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agent-paid-work-submission-intake-runtime-v1.yml"
+      - "docs/public/agent-paid-work-submission-intake-runtime-v1.md"
+      - "docs/public/ai-agent-public-ingress-isolated-gateway-v1.md"
+      - "examples/systemd/void-agent-paid-work-submission-receiver-v1.service"
+      - "examples/systemd/void-ai-agent-public-gateway-v1.service.d/70-agent-paid-work-submission-receiver-v1.conf"
+      - "fixtures/agent-paid-work/agent-paid-work-submission-intake-config-v1.example.json"
+      - "fixtures/agent-paid-work/agent-paid-work-submission-request-v1.example.json"
+      - "ops/void-ai-agent-public-gateway-v1.mjs"
+      - "schemas/agent-paid-work-submission-intake-receipt-v1.schema.json"
+      - "schemas/agent-paid-work-submission-request-v1.schema.json"
+      - "scripts/agent_paid_work_submission_receiver_v1.ts"
+      - "scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs"
+      - "scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs"
+      - "scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts"
+      - "scripts/prove_void_operator_webhook_receiver_guard_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-paid-work-submission-intake-runtime-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prove isolated receiver
+        run: >-
+          npx --no-install tsx
+          scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts
+
+      - name: Prove disabled gateway proxy
+        run: >-
+          node
+          scripts/prove_agent_paid_work_submission_gateway_integration_v1.mjs
+
+      - name: Prove intake guard
+        run: >-
+          node
+          scripts/prove_agent_paid_work_submission_intake_guard_v1.mjs
+
+      - name: Regress operator gateway integration
+        run: >-
+          node
+          scripts/prove_void_operator_webhook_receiver_gateway_integration_v1.mjs
+
+      - name: Regress operator gateway guard
+        run: >-
+          node
+          scripts/prove_void_operator_webhook_receiver_guard_v1.mjs
+
+      - name: Focused strict TypeScript check
+        run: >-
+          npx --no-install tsc
+          --noEmit
+          --strict
+          --target ES2022
+          --module NodeNext
+          --moduleResolution NodeNext
+          --types node
+          --skipLibCheck
+          scripts/agent_paid_work_order_envelope_v1.ts
+          scripts/agent_paid_work_submission_admission_v1.ts
+          scripts/agent_paid_work_submission_receiver_v1.ts
+          scripts/prove_agent_paid_work_submission_intake_runtime_v1.ts
+
+      - name: TypeScript baseline
+        run: npm run build
+
+      - name: Diff hygiene
+        run: git diff --check

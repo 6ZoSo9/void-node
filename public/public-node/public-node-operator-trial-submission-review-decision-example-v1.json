@@ -1,0 +1,120 @@
+{
+  "kind": "public_node_operator_trial_submission_review_decision_example_v1",
+  "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1",
+  "expected_green_marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_DECISION_EXAMPLE_V1_GREEN",
+  "status": "trial_submission_review_decision_example_ready",
+  "title": "VOID Public Node Operator Trial Submission Review Decision Example v1",
+  "public_safe": true,
+  "read_only": true,
+  "purpose": "Public-safe example operator decision for a definition-only public node operator trial submission review queue item.",
+  "html": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.html",
+  "json": "/public-node/public-node-operator-trial-submission-review-decision-example-v1.json",
+  "boundary": {
+    "public_routes_only": true,
+    "read_only": true,
+    "example_only": true,
+    "decision_applied": false,
+    "public_queue_mutation_enabled": false,
+    "public_upload_route_enabled": false,
+    "public_form_enabled": false,
+    "mutation_route_enabled": false,
+    "wallet_send_enabled": false,
+    "money_movement_enabled": false,
+    "buy_void_fulfillment_enabled": false,
+    "wc_issuance_enabled": false,
+    "wc_to_void_swap_enabled": false,
+    "wc_ledger_write_enabled": false,
+    "validator_admission_enabled": false,
+    "validator_mutation_enabled": false,
+    "runtime_truth_claim": false,
+    "tester_receipts_are_network_truth": false,
+    "operator_review_required_for_real_receipts": true
+  },
+  "routes": {
+    "submission_review_queue": {
+      "html": "/public-node/public-node-operator-trial-submission-review-queue-v1.html",
+      "json": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_REVIEW_QUEUE_V1"
+    },
+    "submission_intake": {
+      "html": "/public-node/public-node-operator-trial-submission-intake-v1.html",
+      "json": "/public-node/public-node-operator-trial-submission-intake-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_SUBMISSION_INTAKE_V1"
+    },
+    "review_checklist": {
+      "html": "/public-node/public-node-operator-receipt-review-checklist-v1.html",
+      "json": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_CHECKLIST_V1"
+    },
+    "decision_template": {
+      "html": "/public-node/public-node-operator-receipt-review-decision-template-v1.html",
+      "json": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_RECEIPT_REVIEW_DECISION_TEMPLATE_V1"
+    },
+    "trial_receipt_example": {
+      "html": "/public-node/public-node-operator-trial-receipt-example-v1.html",
+      "json": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_TRIAL_RECEIPT_EXAMPLE_V1"
+    },
+    "operator_dashboard": {
+      "html": "/public-node/public-node-operator-dashboard-v1.html",
+      "json": "/public-node/public-node-operator-dashboard-v1.json",
+      "marker": "VOID_PUBLIC_NODE_OPERATOR_DASHBOARD_V1"
+    }
+  },
+  "decision_example": {
+    "decision_kind": "public_node_operator_trial_submission_review_decision",
+    "decision_status": "example_not_applied",
+    "queue_item_id": "example-queue-item-not-real",
+    "queue_status_before": "received_pending_operator_review",
+    "queue_status_after": "informational_only",
+    "reviewed_submission_route": "/public-node/public-node-operator-trial-receipt-example-v1.json",
+    "review_queue_route": "/public-node/public-node-operator-trial-submission-review-queue-v1.json",
+    "review_checklist_route": "/public-node/public-node-operator-receipt-review-checklist-v1.json",
+    "decision_template_route": "/public-node/public-node-operator-receipt-review-decision-template-v1.json",
+    "operator_alias": "example-operator-reviewer",
+    "review_timestamp_utc": "2026-07-05T00:00:00Z",
+    "decision": "informational_only",
+    "reason": "Example queue item demonstrates the public-safe decision path only; no real submission is accepted or applied.",
+    "accepted_as_public_safe_evidence": false,
+    "needs_changes": false,
+    "rejected": false,
+    "informational_only": true,
+    "work_credit_awarded": false,
+    "work_credit_amount": 0,
+    "wc_ledger_write_authorized": false,
+    "wallet_send_authorized": false,
+    "money_movement_authorized": false,
+    "buy_void_fulfillment_authorized": false,
+    "validator_admission_authorized": false,
+    "network_truth_claim": false,
+    "queue_mutation_authorized": false,
+    "notes": [
+      "This decision example does not mutate the public queue.",
+      "This decision example does not approve WC issuance.",
+      "This decision example does not authorize any ledger write.",
+      "This decision example does not admit a validator.",
+      "A real submitted receipt still requires operator review."
+    ]
+  },
+  "allowed_real_decisions": [
+    "accepted_as_public_safe_evidence",
+    "needs_changes",
+    "rejected",
+    "informational_only"
+  ],
+  "do_not_infer": [
+    "live operator authority",
+    "public queue mutation",
+    "public upload endpoint",
+    "work credit award",
+    "ledger write authorization",
+    "wallet send authorization",
+    "money movement authorization",
+    "Buy VOID fulfillment",
+    "validator admission",
+    "validator mutation",
+    "runtime truth",
+    "network truth from tester receipt"
+  ]
+}
