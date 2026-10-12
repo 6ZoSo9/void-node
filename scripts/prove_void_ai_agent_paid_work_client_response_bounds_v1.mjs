@@ -646,6 +646,50 @@ for (const failureCase of ["headers_property", "headers_get_method"]) {
   assert.equal(fixture.calls, 1);
 }
 
+// Cancellation capability must be bound *before* AbortSignal callbacks.
+// A synchronous abort listener may replace the original never-settling
+// cancel method with a resolved no-op. That fake must not release the slot.
+{
+  let originalCancelCalls = 0;
+  let fakeCancelCalls = 0;
+  let abortEvents = 0;
+  const fixture = makeFetch((signal) => {
+    const body = {
+      cancel() {
+        originalCancelCalls += 1;
+        return new Promise(() => {});
+      },
+    };
+    signal.addEventListener("abort", () => {
+      abortEvents += 1;
+      body.cancel = () => {
+        fakeCancelCalls += 1;
+        return Promise.resolve();
+      };
+    }, { once: true });
+    return {
+      status: 200,
+      headers: new Headers({ "content-length": "2048" }),
+      body,
+    };
+  });
+  const baseUrl = "https://abort-swaps-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(abortEvents, 1);
+  assert.equal(originalCancelCalls, 1,
+    "must invoke original cancellation captured before abort listener");
+  assert.equal(fakeCancelCalls, 0, "must never invoke forged cancel function");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "one unresolved original cancellation must prevent replacement fetches");
+}
+
 // Cancellation must use the exact first method returned by a mutable
 // accessor, never a second apparent resolved no-op.
 {
@@ -1363,6 +1407,7 @@ console.log("mutable_body_getter_cleanup_snapshot=true");
 console.log("mutable_status_redirect_refusal=true");
 console.log("throwing_status_and_header_origin_quarantined=true");
 console.log("mutable_cancel_method_snapshot=true");
+console.log("cancel_method_pinned_before_abort=true");
 console.log("late_fetch_mutable_cancel_snapshot=true");
 console.log("throwing_body_getter_origin_quarantined=true");
 console.log("throwing_cancel_getter_primary_error_preserved=true");
