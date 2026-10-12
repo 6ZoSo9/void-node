@@ -568,6 +568,140 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2);
 }
 
+// Untrusted response status must be sampled once: 301 then 500 must not
+// bypass redirect refusal, or release an active body whose cancel has failed.
+{
+  let statusReads = 0, cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    get status() { statusReads += 1; return statusReads === 1 ? 301 : 500; },
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_status_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://mutable-status-redirect.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message, "redirect_forbidden:301");
+  assert.equal(statusReads, 1, "must not read mutable HTTP status twice");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A throwing status accessor must preserve the original error and the same
+// admitted response body instead of releasing a live origin generation.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    get status() { throw new Error("synthetic_status_getter_failure"); },
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_status_body_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://throwing-status-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_status_getter_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// Both the headers property accessor and the captured get() method may fail.
+// These are ordinary response-body cleanup obligations, not fresh admissions.
+for (const failureCase of ["headers_property", "headers_get_method"]) {
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    get headers() {
+      if (failureCase === "headers_property") {
+        throw new Error("synthetic_headers_property_failure");
+      }
+      return { get() { throw new Error("synthetic_headers_get_failure"); } };
+    },
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_headers_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://throwing-" + failureCase + ".example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    failureCase === "headers_property"
+      ? "synthetic_headers_property_failure" : "synthetic_headers_get_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// Cancellation must use the exact first method returned by a mutable
+// accessor, never a second apparent resolved no-op.
+{
+  let cancelGets = 0, realCancelCalls = 0, fakeCancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: { get cancel() {
+      cancelGets += 1;
+      return cancelGets === 1
+        ? () => { realCancelCalls += 1; return new Promise(() => {}); }
+        : () => { fakeCancelCalls += 1; return Promise.resolve(); };
+    } },
+  }));
+  const baseUrl = "https://mutable-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message, "response_too_large:2048");
+  assert.equal(cancelGets, 1, "cancel accessor may be observed only once");
+  assert.equal(realCancelCalls, 1);
+  assert.equal(fakeCancelCalls, 0, "unreviewed second cancel function forbidden");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// The same single-cancel snapshot is required for an already timed-out fetch
+// whose delayed response introduces an untrusted body after owner return.
+{
+  let resolveFetch, cancelGets = 0, realCancelCalls = 0, fakeCancelCalls = 0;
+  const lateResponse = new Promise((resolve) => { resolveFetch = resolve; });
+  let fetchCalls = 0;
+  const fetchImpl = () => { fetchCalls += 1; return lateResponse; };
+  const baseUrl = "https://mutable-late-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  resolveFetch({ body: { get cancel() {
+    cancelGets += 1;
+    return cancelGets === 1
+      ? () => { realCancelCalls += 1; return new Promise(() => {}); }
+      : () => { fakeCancelCalls += 1; return Promise.resolve(); };
+  } } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(cancelGets, 1);
+  assert.equal(realCancelCalls, 1);
+  assert.equal(fakeCancelCalls, 0);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fetchCalls, 1);
+}
+
 // A mutable body accessor must be snapshotted before getReader() can throw.
 // An unsafe second read returning null cannot skip cancellation or clear the
 // origin that already owns the original body.
@@ -1226,6 +1360,10 @@ console.log("partial_late_read_failed_cancel_quarantined=true");
 console.log("oversize_body_rejected_cancel_quarantined=true");
 console.log("get_reader_throw_unconfirmed_cancel_quarantined=true");
 console.log("mutable_body_getter_cleanup_snapshot=true");
+console.log("mutable_status_redirect_refusal=true");
+console.log("throwing_status_and_header_origin_quarantined=true");
+console.log("mutable_cancel_method_snapshot=true");
+console.log("late_fetch_mutable_cancel_snapshot=true");
 console.log("throwing_body_getter_origin_quarantined=true");
 console.log("throwing_cancel_getter_primary_error_preserved=true");
 console.log("native_locked_stream_origin_quarantined=true");
