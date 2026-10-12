@@ -549,6 +549,10 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // A retained original FD must be closed on ALL return and error paths,
     // including public idempotent reuse and rejected operator revisions.
     let journalFd: number | null = heldHistory.fd;
+    // An operator revision's old sidecar is opened BEFORE any journal
+    // append, verified against its original durable row, and kept open
+    // until the eventual revision write or every error cleanup.
+    let revisionSidecarFd: number | null = null;
     try {
     const durableRequestHistory = heldHistory.rows;
     // A tolerant reader might return one row while omitting a different
@@ -594,6 +598,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       }
       active = other;
     }
+    let originalRevisionRow: any = null;
     if (txHashRevision) {
       // The operator route authenticates its mutation intent separately.
       // The launch lock independently requires an exact same-ID,
@@ -612,6 +617,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
           holdHistoryV1("operator_revision_duplicate_tx_hash");
         }
       }
+      originalRevisionRow = original;
     } else {
       if (reqObj?.status !== "awaiting_payment_tx_hash" ||
           (reqObj?.tx_hash !== "" && reqObj?.tx_hash != null)) {
@@ -661,6 +667,33 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       holdHistoryV1("journal_leaf_changed_after_read");
     }
     const sidecarBefore = assertPrivateRequestLeafV1(file);
+    if (txHashRevision) {
+      // Preserve existing buyer evidence: a different sidecar and original
+      // journal row must never be overwritten by the first tx-hash revision.
+      // Verify original bytes BEFORE the journal append and retain this same
+      // writable FD into the eventual revision publication.
+      if (sidecarBefore === null || originalRevisionRow === null) {
+        holdHistoryV1("operator_revision_original_sidecar_missing");
+      }
+      const originalBytes = Buffer.from(
+        REQUEST_HISTORY_JSON_STRINGIFY_V1(originalRevisionRow, null, 2),
+        "utf8",
+      );
+      if (originalBytes.length < 1 ||
+          originalBytes.length > REQUEST_HISTORY_MAX_BYTES_V1) {
+        holdHistoryV1("operator_revision_original_sidecar_size_invalid");
+      }
+      revisionSidecarFd = fs.openSync(file,
+        fs.constants.O_RDWR | fs.constants.O_NOFOLLOW);
+      const pinnedRevision = assertPrivateSidecarIdentityV1(
+        file, revisionSidecarFd, sidecarBefore,
+      );
+      assertPrivateSidecarContentsAtSuccessV1(
+        file, revisionSidecarFd, pinnedRevision, originalBytes,
+      );
+      assertCurrentAuthority();
+      assertPinnedPrivateRequestDirV1(dir, dirFd);
+    }
     if (typeof fs.constants.O_NOFOLLOW !== "number") {
       holdHistoryV1("private_no_follow_unavailable");
     }
@@ -717,10 +750,15 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     }
     let sidecarFd: number;
     try {
-      sidecarFd = fs.openSync(file, fs.constants.O_RDWR |
-        fs.constants.O_NOFOLLOW |
-        (sidecarBefore ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL),
-      0o600);
+      // For operator revisions the exactly authenticated original descriptor
+      // has stayed open from before journal append. Do not reopen a pathname.
+      sidecarFd = revisionSidecarFd !== null
+        ? revisionSidecarFd
+        : fs.openSync(file, fs.constants.O_RDWR |
+            fs.constants.O_NOFOLLOW |
+            (sidecarBefore ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL),
+          0o600);
+      revisionSidecarFd = null; // ownership moves to the publication finally
     } catch (error: any) {
       if (!sidecarBefore && error?.code === "EEXIST") {
         holdHistoryV1("sidecar_appeared_before_create");
@@ -768,6 +806,10 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       catch { holdHistoryV1("published_sidecar_close_uncertain"); }
     }
     } finally {
+      if (revisionSidecarFd !== null) {
+        try { fs.closeSync(revisionSidecarFd); }
+        catch { holdHistoryV1("revision_original_sidecar_close_uncertain"); }
+      }
       if (journalFd !== null) {
         try { fs.closeSync(journalFd); }
         catch { holdHistoryV1("journal_descriptor_close_uncertain"); }
