@@ -20,6 +20,19 @@ persistence.
 
 ## Boundary
 
+### Post-race absolute deadline qualification
+
+  A missed or late watchdog callback does **not** extend either lease:
+  once a client upload finishes, the handler rechecks its monotonic absolute
+  receive expiry **before any upstream POST**; after each upstream header or
+  reader Promise.race resolves, the same immutable 8-second expiry is
+  checked again; after synchronous receipt parsing, it is checked before
+  HTTP 201 publication. Unavailable, nonfinite or backward clock readings
+  HOLD. The test evaluates the actual handler with synthetic clock advancement
+  while timers deliberately remain unfired: a late completed upload performs
+  zero upstream requests, late upstream headers yield uncertain 502, and
+  a timely original 201 remains acceptable.
+
 The gateway does not gain a general mutation proxy.
 
 - Only the exact POST path above is forwarded.
