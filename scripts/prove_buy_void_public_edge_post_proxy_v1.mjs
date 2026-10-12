@@ -379,6 +379,39 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
     assert.equal(h.active.size, 0);
   }
 
+  // A synchronous untrusted HTTP 201 header getter can stall past the
+  // absolute deadline even when every streamed body read was timely.
+  // A generic 502 must not carry the private ETag or 201 Content-Length
+  // staged before the final deadline gate.
+  {
+    const clock = { tick: 0 };
+    const response = makeResponse();
+    const normalHeaders = response.headers;
+    let headerStallObserved = false;
+    response.headers = {
+      get(name) {
+        if (name === "etag") {
+          headerStallObserved = true;
+          clock.tick = 9001; // delayed timer callback has not fired
+          return '"PRIVATE_CUSTODY_RECEIPT_ETAG"';
+        }
+        return normalHeaders.get(name);
+      },
+    };
+    const h = createHarness(clock, async () => response);
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(headerStallObserved, true);
+    assert.equal(res.statusCode, 502);
+    assert.equal(res.headers.etag, undefined,
+      "an uncertain 502 must not expose staged private upstream ETag");
+    assert.equal(res.headers["content-length"], undefined,
+      "an uncertain 502 cannot inherit the old 201 Content-Length");
+    assert.equal(JSON.parse(res.responseBytes.toString("utf8"))
+      .error, "buy_void_request_upstream_unavailable");
+    assert.equal(h.active.size, 0);
+  }
+
   // Ordinary creation before the deadline must continue to qualify.
   {
     const clock = { tick: 0 };
@@ -1531,6 +1564,7 @@ try {
   console.log("header_refusal_upstream_socket_closed_early=true");
   console.log("per_read_deadline_timer_detached=true");
   console.log("monotonic_post_race_late_header_rejected=true");
+  console.log("no_stale_http201_headers_on_postdeadline_502=true");
   console.log("monotonic_post_race_late_upload_never_forwarded=true");
   console.log("tiny_chunk_deadline_timer_lifetime_proven=true");
   console.log("completed_reader_release_failure_returns_502=true");
