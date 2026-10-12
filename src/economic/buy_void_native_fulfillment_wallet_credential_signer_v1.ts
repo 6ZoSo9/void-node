@@ -514,7 +514,7 @@ export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
     input.credentials_directory, credentialPath,
     VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
   );
-  if (!read.ok) return heldE2(read.reason);
+  if ("reason" in read) return heldE2(read.reason);
   let key = "";
   try {
     key = read.bytes.toString("utf8").trim();
