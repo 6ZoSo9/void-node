@@ -463,6 +463,54 @@ export const VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1 =
 // Only a separately provisioned systemd LoadCredential with this NEW name
 // and the immutable E2 fulfiller's actual private key can produce READY.
 // It does not accept a supplied wallet address or key path.
+
+const EPOCH2_FULFILLMENT_ABI_V1 = new Interface([
+  "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
+]);
+
+// Pure pre-sign check; a GREEN result is only an envelope-shape decision,
+// never proof of payment, signer custody, submission or live sale authority.
+export function validateBuyVoidEpoch2FulfillerCredentialEnvelopeV1(
+  value: unknown,
+): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  try {
+    const tx = value as Readonly<BuyVoidDeliveryUnsignedTransactionV1>;
+    if (tx.type !== 2 || tx.chainId !== 2050n ||
+        !Number.isSafeInteger(tx.nonce) || tx.nonce < 0 ||
+        typeof tx.gasLimit !== "bigint" || tx.gasLimit <= 0n ||
+        tx.gasLimit > 320_000n ||
+        typeof tx.maxFeePerGas !== "bigint" || tx.maxFeePerGas < 0n ||
+        tx.maxFeePerGas > 5_000_000_000n ||
+        tx.maxPriorityFeePerGas !== 0n ||
+        tx.value !== 0n ||
+        normalizeAddress(tx.to) !==
+          VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
+        !buyVoidPresaleAccessListExactV1(tx.accessList, tx.to) ||
+        typeof tx.data !== "string") {
+      return false;
+    }
+    const args = EPOCH2_FULFILLMENT_ABI_V1.decodeFunctionData(
+      "fulfill", tx.data,
+    );
+    const paymentId = String(args[0]).toLowerCase();
+    const recipient = normalizeAddress(args[1]);
+    const amount = args[2];
+    return /^0x[0-9a-f]{64}$/.test(paymentId) &&
+      paymentId !== "0x" + "0".repeat(64) &&
+      recipient !== null &&
+      typeof amount === "bigint" &&
+      amount > 0n && amount <= 10_000_000n * 10n ** 18n &&
+      EPOCH2_FULFILLMENT_ABI_V1.encodeFunctionData("fulfill", [
+        paymentId, recipient, amount,
+      ]).toLowerCase() === tx.data.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
   credentials_directory: string;
 }): {
@@ -538,9 +586,6 @@ export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
     return heldE2("epoch2_immutable_fulfiller_public_identity_mismatch", true);
   }
 
-  const fulfillment = new Interface([
-    "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
-  ]);
   const signer = {
     async get_address(): Promise<string> {
       return VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
@@ -548,37 +593,8 @@ export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
     async sign_transaction(
       tx: Readonly<BuyVoidDeliveryUnsignedTransactionV1>,
     ): Promise<string> {
-      if (!tx || tx.type !== 2 || tx.chainId !== 2050n ||
-          !Number.isSafeInteger(tx.nonce) || tx.nonce < 0 ||
-          typeof tx.gasLimit !== "bigint" || tx.gasLimit <= 0n ||
-          tx.gasLimit > 320_000n ||
-          typeof tx.maxFeePerGas !== "bigint" || tx.maxFeePerGas < 0n ||
-          tx.maxFeePerGas > 5_000_000_000n ||
-          tx.maxPriorityFeePerGas !== 0n ||
-          tx.value !== 0n ||
-          normalizeAddress(tx.to) !==
-            VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
-          !buyVoidPresaleAccessListExactV1(tx.accessList, tx.to) ||
-          typeof tx.data !== "string") {
+      if (!validateBuyVoidEpoch2FulfillerCredentialEnvelopeV1(tx)) {
         throw new Error("epoch2_fulfiller_transaction_envelope_invalid");
-      }
-      let args: ReturnType<typeof fulfillment.decodeFunctionData>;
-      try {
-        args = fulfillment.decodeFunctionData("fulfill", tx.data);
-      } catch {
-        throw new Error("epoch2_fulfiller_calldata_invalid");
-      }
-      const paymentId = String(args[0]).toLowerCase();
-      const recipient = normalizeAddress(args[1]);
-      const amount = args[2] as bigint;
-      if (!/^0x[0-9a-f]{64}$/.test(paymentId) ||
-          paymentId === "0x" + "0".repeat(64) ||
-          !recipient || typeof amount !== "bigint" ||
-          amount <= 0n || amount > 10_000_000n * 10n ** 18n ||
-          fulfillment.encodeFunctionData("fulfill", [
-            paymentId, recipient, amount,
-          ]).toLowerCase() !== tx.data.toLowerCase()) {
-        throw new Error("epoch2_fulfiller_calldata_binding_invalid");
       }
       // No broadcasting or durable key/transaction storage occurs here.
       return await wallet.signTransaction({
