@@ -1,3 +1,7 @@
+import {
+  buyVoidPresaleRequiredAccessListV1,
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import * as http from "node:http";
 import { Interface, getAddress } from "ethers";
@@ -839,6 +843,15 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
 
   const estimateResponse = await callRpc("eth_estimateGas", [
     {
+      ...(isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)
+        ? {
+            type: "0x2",
+            chainId: "0x802",
+            accessList: buyVoidPresaleRequiredAccessListV1(
+              policy.fulfillment_contract_address,
+            ),
+          }
+        : {}),
       from: policy.fulfillment_wallet_address,
       to: policy.fulfillment_contract_address,
       value: "0x0",

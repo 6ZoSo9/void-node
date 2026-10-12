@@ -1,3 +1,7 @@
+import {
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleMarkerFingerprintLinesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { performance } from "node:perf_hooks";
 import {
@@ -438,6 +442,7 @@ function validateInput(
       "call_fingerprint_sha256=" + callFingerprint,
       "transaction_plan_fingerprint_sha256=" + planFingerprint,
       "type=2",
+      ...buyVoidPresaleMarkerFingerprintLinesV1(target),
       "nonce=" + String(nonce),
       "gas_limit=" + gasLimit.toString(),
       "max_fee_per_gas_wei=" + maxFee.toString(),
@@ -549,8 +554,7 @@ function validateInput(
     transaction.maxPriorityFeePerGas !== priorityFee ||
     transaction.value !== 0n ||
     text(transaction.data).toLowerCase() !== calldata ||
-    !Array.isArray(accessList) ||
-    accessList.length !== 0
+    !buyVoidPresaleAccessListExactV1(accessList, target)
   ) {
     return null;
   }

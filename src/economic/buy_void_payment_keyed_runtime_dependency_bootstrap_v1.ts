@@ -1,3 +1,4 @@
+import { buyVoidPresaleAccessListExactV1 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import path from "node:path";
 import {
@@ -294,7 +295,8 @@ function validateUnsignedFulfillment(
     transaction.maxPriorityFeePerGas >
       transaction.maxFeePerGas ||
     target !== expectedContract ||
-    transaction.value !== 0n
+    transaction.value !== 0n ||
+    !buyVoidPresaleAccessListExactV1(transaction.accessList, expectedContract)
   ) {
     throw new Error(
       "payment_keyed_runtime_dependency_unsigned_transaction_invalid",
@@ -376,6 +378,7 @@ function validateSignedExact(
     parsed.maxPriorityFeePerGas !==
       unsigned.maxPriorityFeePerGas ||
     parsed.value !== unsigned.value ||
+    !buyVoidPresaleAccessListExactV1(parsed.accessList, expectedContract) ||
     text(parsed.data).toLowerCase() !==
       text(unsigned.data).toLowerCase()
   ) {

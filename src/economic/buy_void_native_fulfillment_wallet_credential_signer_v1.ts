@@ -141,6 +141,9 @@ function renderTransaction(
     to: transaction.to,
     value: transaction.value,
     data: transaction.data,
+    ...(transaction.accessList !== undefined
+      ? { accessList: transaction.accessList }
+      : {}),
   };
 }
 

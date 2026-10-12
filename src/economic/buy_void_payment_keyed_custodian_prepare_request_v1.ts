@@ -1,3 +1,7 @@
+import {
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleMarkerFingerprintLinesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { Interface, getAddress } from "ethers";
 
@@ -553,6 +557,9 @@ export function buildBuyVoidPaymentKeyedCustodianPrepareRequestV1(input: {
     unsignedTx.maxPriorityFeePerGas !== plan.max_priority_fee_per_gas_wei ||
     address(unsignedTx.to) !== call.fulfillment_contract_address ||
     unsignedTx.value !== 0n ||
+    !buyVoidPresaleAccessListExactV1(
+      unsignedTx.accessList, call.fulfillment_contract_address,
+    ) ||
     text(unsignedTx.data).toLowerCase() !== call.calldata ||
     unsigned.mutation_performed !== false ||
     unsigned.credential_access_performed !== false ||
@@ -583,6 +590,7 @@ export function buildBuyVoidPaymentKeyedCustodianPrepareRequestV1(input: {
       "call_fingerprint_sha256=" + call.call_fingerprint_sha256,
       "transaction_plan_fingerprint_sha256=" + transactionPlanFingerprint,
       "type=2",
+      ...buyVoidPresaleMarkerFingerprintLinesV1(call.fulfillment_contract_address),
       "nonce=" + String(plan.nonce),
       "gas_limit=" + plan.gas_limit.toString(),
       "max_fee_per_gas_wei=" + plan.max_fee_per_gas_wei.toString(),
