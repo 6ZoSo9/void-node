@@ -618,6 +618,105 @@ function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
   assert.equal(recovered.calls, 2, "late settlement must reopen the origin");
 }
 
+// Abort-ignoring fetch before response headers must not hang the owner, nor
+// allow a new same-origin generation while that original fetch is unresolved.
+{
+  let fetchCalls = 0;
+  const baseUrl = "https://never-settles-before-headers.example.invalid";
+  const fetchImpl = () => {
+    fetchCalls += 1;
+    return new Promise(() => {});
+  };
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 40, maxResponseBytes: 1024, fetchImpl,
+  });
+  const started = Date.now();
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  assert.ok(Date.now() - started < 650, "pre-header fetch exceeded owned deadline");
+  for (let i = 0; i < 4; i += 1) {
+    const quarantined = await capturePrimaryError(run);
+    assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fetchCalls, 1, "unresolved fetch must prevent replacement origin generations");
+}
+
+// A late response may own a body that ignored abort. Retain the same slot
+// through body cancellation, then reopen only on successful cleanup.
+{
+  let releaseFetch;
+  let releaseCancel;
+  let cancelCalls = 0;
+  let fetchCalls = 0;
+  const outstanding = new Promise((resolve) => { releaseFetch = resolve; });
+  const cancelled = new Promise((resolve) => { releaseCancel = resolve; });
+  const baseUrl = "https://late-fetch-cancellation.example.invalid";
+  const fetchImpl = () => {
+    fetchCalls += 1;
+    return outstanding;
+  };
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  releaseFetch({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return cancelled;
+      },
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(cancelCalls, 1, "late response body cancellation required once");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved",
+    "unfinished late cancellation must preserve original origin slot");
+  assert.equal(fetchCalls, 1);
+  releaseCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// A late fetch rejection has no response body and must retire only its own
+// generation; it cannot leave the origin quarantined indefinitely.
+{
+  let rejectFetch;
+  const outstanding = new Promise((_, reject) => { rejectFetch = reject; });
+  const baseUrl = "https://late-fetch-reject.example.invalid";
+  const fetchImpl = () => outstanding;
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_fetch_timeout");
+  rejectFetch(new Error("late_fetch_rejection"));
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
 {
   let cancelCalls = 0;
   let releaseCalls = 0;
@@ -670,6 +769,9 @@ console.log("stalled_body_total_deadline=true");
 console.log("signal_ignoring_read_deadline=true");
 console.log("unresolved_read_generation_quarantined=true");
 console.log("concurrent_read_generation_singleflight=true");
+console.log("signal_ignoring_fetch_total_deadline=true");
+console.log("late_fetch_cancellation_retains_quarantine=true");
+console.log("late_fetch_rejection_recovery=true");
 console.log("late_read_settlement_recovery=true");
 console.log("admitted_read_failure_teardown_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
