@@ -35,6 +35,15 @@ const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS = 8000;
 // its reply. Bound the full upstream response and never synthesize success.
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
+// Audited current-node money identities, independent of the untrusted
+// upstream receipt. These constants mirror the native-USDC checkout
+// source policy at src/index.ts (including the explicit Ethereum rail).
+const VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 =
+  "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const VOID_BUY_VOID_PUBLIC_EDGE_BASE_USDC_V1 =
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const VOID_BUY_VOID_PUBLIC_EDGE_ETH_USDC_V1 =
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
   let uploadExpired = false;
@@ -307,7 +316,6 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       throw new Error("buy_void_post_upstream_empty_response");
     }
     let responseBody = Buffer.concat(responseChunks, responseBytes);
-    let privatePersistedPathRemoved = false;
     // Content-Type is not proof of JSON validity. Never send a malformed
     // HTTP 201 checkout receipt through the public edge as an accepted order.
     let parsedBody;
@@ -411,6 +419,58 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           persisted.ok !== true) {
         throw new Error("buy_void_post_upstream_created_receipt_invalid");
       }
+      // Payment instructions are displayed as actionable money movement.
+      // A correct outer 201 plus buyer destination/amount is insufficient:
+      // require independently source-bound USDC contract, rail, receiver and
+      // exact agreement between top-level and nested payment instructions.
+      const instruction = checkout.payment_instructions;
+      const chainId = intendedChain === "ethereum" ? 1 : 8453;
+      const tokenContract = intendedChain === "ethereum"
+        ? VOID_BUY_VOID_PUBLIC_EDGE_ETH_USDC_V1
+        : VOID_BUY_VOID_PUBLIC_EDGE_BASE_USDC_V1;
+      const address = (value) =>
+        typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+          ? value.toLowerCase() : "";
+      const instructionExpiry = instruction?.expires_at_ms;
+      const launchExpiry = checkout.launch_authority?.expires_at_ms;
+      if (!instruction || typeof instruction !== "object" ||
+          Array.isArray(instruction) ||
+          checkout.tx_hash !== "" ||
+          checkout.payment_chain !== intendedChain ||
+          checkout.payment_chain_id !== chainId ||
+          checkout.delivery_chain !== "void" ||
+          checkout.delivery_chain_id !== 2050 ||
+          checkout.asset_in !== "USDC" ||
+          checkout.usdc_decimals !== 6 ||
+          address(checkout.usdc_contract) !== tokenContract ||
+          address(checkout.receive_address) !==
+            VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 ||
+          address(checkout.delivery_address) !== intendedDestination ||
+          address(checkout.delivery_wallet) !== intendedDestination ||
+          instruction.request_id !== checkout.request_id ||
+          instruction.send_asset !== "USDC" ||
+          instruction.send_chain !== intendedChain ||
+          instruction.send_chain_id !== chainId ||
+          address(instruction.token_contract) !== tokenContract ||
+          instruction.token_decimals !== 6 ||
+          instruction.amount !== intendedAmount ||
+          address(instruction.send_to) !==
+            VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 ||
+          address(instruction.send_from) !== intendedDestination ||
+          !Number.isSafeInteger(instructionExpiry) ||
+          !Number.isSafeInteger(launchExpiry) ||
+          instructionExpiry <= 0 || instructionExpiry !== launchExpiry ||
+          instruction.do_not_send_before_request !== true ||
+          instruction.do_not_send_from_exchange_or_pooled_custody !== true ||
+          instruction.keep_transaction_hash !== true ||
+          checkout.request_contract?.request_before_payment_required !== true ||
+          checkout.request_contract?.one_active_request_per_void_destination !== true ||
+          checkout.request_contract?.payment_sender_must_equal_void_destination !== true ||
+          checkout.request_contract?.payment_tx_hash_bound_after_request_by_operator !== true ||
+          checkout.safety?.automatic_fulfillment !== false ||
+          checkout.safety?.manual_review_required !== true) {
+        throw new Error("buy_void_post_created_payment_instructions_invalid");
+      }
       if (hasLegacyFile) {
         // Re-encode ONLY after removing the verified legacy private leaf.
         // Safe {ok:true} receipts retain their original noncanonical bytes.
@@ -419,7 +479,6 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           request: { ...checkout, persisted: { ok: true } },
         };
         responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
-        privatePersistedPathRemoved = true;
       }
     }
 
@@ -450,21 +509,19 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       return;
     }
 
-    // Qualify all untrusted upstream response headers *before* touching
-    // public response state. If the absolute deadline expires during a
-    // synchronous header getter, the generic 502 must not inherit an old
-    // 201 Content-Length, ETag or private upstream response identity.
+    // ETag from an upstream is opaque, not a verified checkout artifact.
+    // Never forward it, even when the response JSON was otherwise qualified.
+    // Qualify permitted headers privately before publishing public HTTP 201;
+    // a late deadline HOLD cannot inherit any upstream response identity.
     const acceptedHeaders = [];
     for (
       const headerName
       of [
         "content-type",
         "cache-control",
-        "etag",
         "x-content-type-options",
       ]
     ) {
-      if (headerName === "etag" && privatePersistedPathRemoved) continue;
       const headerValue = upstreamResponse.headers.get(headerName);
       if (headerValue) acceptedHeaders.push([headerName, headerValue]);
     }
