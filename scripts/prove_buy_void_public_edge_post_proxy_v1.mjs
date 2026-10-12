@@ -216,14 +216,25 @@ const gatewayPort = await freePort();
 
 const upstreamCalls = [];
 let headerRejectedSocketClosed = false;
-const exactAccepted201Json = JSON.stringify({
+// Match the *actual* node's 201 creation envelope, not an invented marker.
+// Deliberately reverse field ordering and retain whitespace to catch any
+// edge that parses and reserializes a successful buyer receipt.
+const exactAccepted201Receipt = {
   request: {
+    persisted: { ok: true, file: "/synthetic/buyvoid_edge_201_aaaaaaaa.json" },
     status: "awaiting_payment_tx_hash",
     request_id: "buyvoid_edge_201_aaaaaaaa",
+    ok: true,
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    schema: "void_public_buy_void_checkout_request_v1",
   },
-  marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
+  one_active_request_cap_enforced: true,
+  idempotent: false,
   ok: true,
-}, null, 3) + "\n";
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  schema: "void_public_buy_void_checkout_request_result_v1",
+};
+const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n";
 
 const upstream = http.createServer(
   async (req, res) => {
@@ -291,6 +302,26 @@ const upstream = http.createServer(
           "content-length": String(Buffer.byteLength(exactAccepted201Json)),
         });
         res.end(exactAccepted201Json);
+        return;
+      }
+      if (proofCase === "empty_object_201" ||
+          proofCase === "false_ok_201" ||
+          proofCase === "wrong_marker_201" ||
+          proofCase === "idempotent_201" ||
+          proofCase === "missing_request_201" ||
+          proofCase === "wrong_request_status_201") {
+        const mutated = { ...exactAccepted201Receipt };
+        if (proofCase === "false_ok_201") mutated.ok = false;
+        if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
+        if (proofCase === "idempotent_201") mutated.idempotent = true;
+        if (proofCase === "missing_request_201") delete mutated.request;
+        if (proofCase === "wrong_request_status_201") {
+          mutated.request = { ...mutated.request, status: "fulfilled" };
+        }
+        const body = proofCase === "empty_object_201"
+          ? "{}" : JSON.stringify(mutated);
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end(body);
         return;
       }
       if (proofCase === "malformed_json_201") {
@@ -601,14 +632,8 @@ try {
   const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
   assert.deepEqual(accepted201Bytes, Buffer.from(exactAccepted201Json,"utf8"),
     "HTTP 201 byte-for-byte body must not be parsed and reserialized");
-  assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")), {
-    request: {
-      status: "awaiting_payment_tx_hash",
-      request_id: "buyvoid_edge_201_aaaaaaaa",
-    },
-    marker: "VOID_PUBLIC_BUY_VOID_REQUEST_CREATED_V1",
-    ok: true,
-  });
+  assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
+    exactAccepted201Receipt);
 
   const maximumValid = await postProof("max_size_valid");
   assert.equal(maximumValid.status, 400);
@@ -625,6 +650,12 @@ try {
     "invalid_utf8_201",
     "primitive_201",
     "array_201",
+    "empty_object_201",
+    "false_ok_201",
+    "wrong_marker_201",
+    "idempotent_201",
+    "missing_request_201",
+    "wrong_request_status_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -759,6 +790,7 @@ try {
   console.log("upstream_streamed_oversize_rejected=true");
   console.log("upstream_redirect_and_nonjson_rejected=true");
   console.log("valid_checkout_201_pass_through=true");
+  console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("malformed_json_201_rejected=true");
   console.log("invalid_utf8_201_rejected=true");
   console.log("primitive_and_array_201_refused=true");
