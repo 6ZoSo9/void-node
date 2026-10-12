@@ -86,6 +86,33 @@ This is not a same-UID lifetime tamper-proof lease, not a rollback or
 deletion authority, and not evidence of production installed ingress. No
 existing nonmatching output directory may be silently repaired.
 
+## Independent packet verifier custody and nested-contract proof
+
+The V2 **verify** path now independently opens both `packet.json` and
+each generated leaf via `O_RDONLY|O_NOFOLLOW` descriptors. It requires
+single-link regular 0600 files, current UID ownership, exact visible/held
+dev+inode identity, bounded byte content and unchanged metadata
+(size, uid/gid, mode, nlink, mtime/ctime) before and after the read.
+A hard link outside the private packet directory is an ownership HOLD,
+even when all checksums and packet bytes still match.
+
+The verifier also reconstructs the **entire** expected source-bound
+packet body from the qualified repository, metadata-only credential,
+cloudflared executable and deterministic rendered files. It refuses
+unknown or rehashed nested fields (especially additional
+`activation_authorized` claims) before returning a positive inert
+review result. A self-consistent SHA-256 plan ID is no substitute for
+this exact reviewed schema.
+
+The focused Node22/24/26 proof hard-links both a generated configuration
+and `packet.json` into the disposable surrounding temp directory, and
+requires verified admission to fail until each alias is removed. Three
+additional negative cases add unknown nested fields under `activation`,
+`frontdoor` and the Precision recovery prerequisite, recompute each
+`plan_id`, and require the exact nested-contract HOLD. These synthetic
+tests do not prove installed packet ownership or confer ingress activation
+authority.
+
 ## Remaining independent hard HOLDs
 
 The current gateway PR #2823 must receive its own review and lifecycle
