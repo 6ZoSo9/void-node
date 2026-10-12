@@ -43,8 +43,10 @@ and the exact marker:
 `0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7`.
 
 The qualification checks:
-- Chain ID and canonical epoch-2 genesis hash, no block-height rollback, two
-  live peers;
+- Chain ID and canonical epoch-2 genesis hash, two live peers, and **at
+  least one new block** across a deliberate 12-second post-estimate observation
+  window (more than two reviewed five-second QBFT periods). Connected peers
+  with a stalled head must HOLD; no block-height rollback is ever accepted;
 - exact reviewed presale and VOID bytecode hashes;
 - token supply 333,333,333 VOID, presale's actual token balance plus fulfilled
   counter reconciled to the 10M inventory, with capacity for 2 VOID;

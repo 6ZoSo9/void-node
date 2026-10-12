@@ -77,6 +77,8 @@ assert.equal(green.gas_estimate, (0x249f0).toString());
 assert.equal(green.gas_limit_multiplier_bps, "15000");
 assert.equal(green.computed_gas_limit, "225000");
 assert.equal(green.max_computed_gas_limit, "320000");
+assert.equal(green.blocks_produced_in_window, "2");
+assert.equal(green.observation_window_ms, "12000");
 const reviewedProductionCandidate = JSON.parse(fs.readFileSync(
   "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json",
   "utf8",
@@ -125,6 +127,8 @@ fails("under_quorum", { peers:"0x1" },
   "epoch2_quorum_or_history_not_qualified");
 fails("history_rollback", { block_after:"0x16f4d" },
   "epoch2_quorum_or_history_not_qualified");
+fails("stalled_two_peer_quorum", { block_after:valid.block_before },
+  "epoch2_quorum_or_history_not_qualified");
 fails("wrong_inventory", { token_presale_balance:word(0) },
   "epoch2_inventory_or_supply_invalid");
 fails("mismatched_fulfilled_counter", { total_fulfilled:word(1) },
@@ -155,6 +159,7 @@ console.log("wrong_chain_inventory_contract_gas_and_quorum_hold=true");
 console.log("gas_limit_multiplier_bps=15000");
 console.log("raw_estimate_213333_computed_320000_green=true");
 console.log("raw_estimate_213334_computed_320001_hold=true");
+console.log("connected_stalled_quorum_not_reported_green=true");
 console.log("http_rpc_called=false");
 console.log("signer_or_credential_access=false");
 console.log("transaction_sign_or_broadcast=false");

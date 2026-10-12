@@ -31,6 +31,9 @@ const AMOUNT_ATOMS = 2n * (10n ** 18n);
 const REVIEWED_GAS_LIMIT_MULTIPLIER_BPS = 15_000n;
 const GAS_LIMIT_BPS_DENOMINATOR = 10_000n;
 const MAX_COMPUTED_GAS_LIMIT = 320_000n;
+// QBFT block period is 5s. Deliberately observe across more than two
+// periods so a connected-but-stalled validator cannot report readiness.
+const OBSERVATION_WINDOW_MS = 12_000;
 const RFC_TEST_RECIPIENT = "0x000000000000000000000000000000000000dead";
 const FULFILL = new Interface([
   "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
@@ -120,7 +123,7 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
     const before = exactQuantity(observed.block_before);
     const after = exactQuantity(observed.block_after);
     const peers = exactQuantity(observed.peers);
-    if (after < before || before < 3854n || peers < 2n) {
+    if (after <= before || before < 3854n || peers < 2n) {
       return hold("epoch2_quorum_or_history_not_qualified");
     }
     const balance = storageWord(observed.token_presale_balance);
@@ -149,6 +152,8 @@ export function classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed) {
       chain_id: 2050,
       initial_head: before.toString(),
       final_head: after.toString(),
+      blocks_produced_in_window: (after - before).toString(),
+      observation_window_ms: String(OBSERVATION_WINDOW_MS),
       peer_count: peers.toString(),
       presale_balance_atoms: balance.toString(),
       presale_fulfilled_atoms: fulfilled.toString(),
@@ -254,7 +259,10 @@ export async function observeBuyVoidEpoch2ReadOnlyEstimateV1() {
   observed.estimate_gas = await rpcRead("eth_estimateGas", [
     probe.transaction, "pending",
   ]);
+  // An estimate on a frozen 2-peer head proves nothing about inclusion.
+  await new Promise(resolve => setTimeout(resolve, OBSERVATION_WINDOW_MS));
   observed.block_after = await rpcRead("eth_blockNumber", []);
+  observed.peers = await rpcRead("net_peerCount", []);
   return classifyBuyVoidEpoch2ReadOnlyEstimateV1(observed);
 }
 
