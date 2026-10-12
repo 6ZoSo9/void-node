@@ -886,6 +886,67 @@ try {
   assert.equal(upstreamCalls.length, upstreamBeforeSlowUploads,
     "stalled or trickled public uploads must not create upstream requests");
 
+  // A peer that exceeds the byte cap without ending its chunked upload
+  // must receive a real 413 *and* lose its socket promptly. Returning 413
+  // but clearing the upload clock while leaving the socket open is unsafe.
+  const oversizedStartedAt = Date.now();
+  const oversizedBeforeUpstream = upstreamCalls.length;
+  const oversizedOutcome = await new Promise((resolve, reject) => {
+    let finished = false;
+    let observedStatus = null;
+    let observedConnection = null;
+    let receivedComplete413 = false;
+    const client = http.request(edgeUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "transfer-encoding": "chunked",
+      },
+    });
+    const timer = setTimeout(() => {
+      client.destroy();
+      done(new Error("oversized_upload_connection_not_closed"));
+    }, 6_000);
+    function done(error, result = null) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    client.once("response", (response) => {
+      observedStatus = response.statusCode;
+      observedConnection = response.headers.connection;
+      response.resume();
+      response.once("end", () => {
+        receivedComplete413 = true;
+      });
+    });
+    client.once("error", (error) => {
+      done(new Error("oversized_upload_did_not_preserve_413:" +
+        String(error?.code || error?.message || error)));
+    });
+    client.once("close", () => {
+      if (!receivedComplete413 || observedStatus !== 413) {
+        done(new Error("oversized_upload_missing_complete_413"));
+      } else {
+        done(null, {
+          status: observedStatus,
+          connection: observedConnection,
+          elapsed: Date.now() - oversizedStartedAt,
+        });
+      }
+    });
+    client.write("x".repeat(65_537));
+    // Deliberately do not end the upload. Only the server may retire it.
+  });
+  assert.equal(oversizedOutcome.status, 413);
+  assert.equal(oversizedOutcome.connection, "close");
+  assert.ok(oversizedOutcome.elapsed < 5_500,
+    "oversized socket cannot survive to the 8s upload fallback");
+  assert.equal(upstreamCalls.length, oversizedBeforeUpstream,
+    "oversize rejection cannot dispatch an upstream purchase request");
+
   const postProof = async (proofCase, signal, intentOverrides = null) => {
     const before = upstreamCalls.length;
     const response = await fetch(edgeUrl, {
@@ -1278,6 +1339,7 @@ try {
   console.log("upstream_total_deadline_bounded=true");
   console.log("client_upload_absolute_deadline_bounded=true");
   console.log("slow_trickle_and_single_chunk_zero_upstream_posts=true");
+  console.log("oversized_incomplete_upload_413_socket_closed=true");
   console.log("max_response_size_boundary_accepted=true");
   console.log(
     "proxy_response_marker_green=true",
