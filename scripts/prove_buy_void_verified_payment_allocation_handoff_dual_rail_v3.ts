@@ -18,7 +18,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PINS=Object.freeze({
-  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"101ce2eb806b2adb21035ed8b72874ba2b0026d3",
+  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"edcf220e6ce764c068ac111c5332c64db12efae1",
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":"b451bcd895986dadaf6e53954671062068316ccf",
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":"8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":"9383c94cf848efb9a0112f1b741df4e10f790ac6",
