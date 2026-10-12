@@ -439,6 +439,7 @@ try {
   assert.ok(stalledElapsedMs >= 5000 && stalledElapsedMs < 13000,
     "upstream response must have a finite total deadline");
 
+  const forwardedBeforeUnrelatedPost = upstreamCalls.length;
   const unrelatedPost =
     await fetch(
       `http://127.0.0.1:${gatewayPort}/__void/buy-void/config.json`,
@@ -459,7 +460,8 @@ try {
   );
   assert.equal(
     upstreamCalls.length,
-    1,
+    forwardedBeforeUnrelatedPost,
+    "unrelated POST must not reach upstream after the new edge tests",
   );
 
   const legacyGet =
