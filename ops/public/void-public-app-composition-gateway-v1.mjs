@@ -280,6 +280,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       res.end(JSON.stringify({
         ok: false,
         error: "buy_void_request_upstream_unavailable",
+        submission_outcome: "uncertain",
+        automatic_retry_safe: false,
       }));
       return;
     }
@@ -339,6 +341,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       JSON.stringify({
         ok: false,
         error: "buy_void_request_upstream_unavailable",
+        submission_outcome: "uncertain",
+        automatic_retry_safe: false,
       }),
     );
   }
