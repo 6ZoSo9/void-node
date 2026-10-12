@@ -29,6 +29,7 @@ const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
 const MAX_RESPONSE_BYTES_LIMIT = 4_194_304;
 const MAX_REQUEST_BYTES = 65_536;
 const REJECTION_TEARDOWN_MAX_MS = 250;
+const RESPONSE_READ_QUARANTINES_V1 = new Map();
 
 function usage() {
   return [
@@ -301,7 +302,59 @@ async function settleCancellationBounded(target, controller) {
   }
 }
 
-async function boundedRead(response, maximumBytes, controller) {
+function releaseReaderLockBestEffortV1(reader) {
+  try {
+    reader.releaseLock();
+  } catch {
+    // Reader cleanup must never replace the primary terminal result.
+  }
+}
+
+async function readAgainstOwnedDeadlineV1(
+  reader,
+  controller,
+  readScope,
+  deferRelease,
+) {
+  const readPromise = Promise.resolve().then(() => reader.read());
+  let deadlineWon = false;
+  let rejectDeadline;
+  const deadline = new Promise((_, reject) => {
+    rejectDeadline = reject;
+  });
+  const onAbort = () => {
+    deadlineWon = true;
+    rejectDeadline(new DOMException("response_body_read_timeout", "AbortError"));
+  };
+
+  if (controller.signal.aborted) {
+    onAbort();
+  } else {
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    return await Promise.race([readPromise, deadline]);
+  } catch (error) {
+    if (deadlineWon) {
+      const generation = {};
+      deferRelease();
+      RESPONSE_READ_QUARANTINES_V1.set(readScope, generation);
+      const releaseLateGeneration = () => {
+        releaseReaderLockBestEffortV1(reader);
+        if (RESPONSE_READ_QUARANTINES_V1.get(readScope) === generation) {
+          RESPONSE_READ_QUARANTINES_V1.delete(readScope);
+        }
+      };
+      void readPromise.then(releaseLateGeneration, releaseLateGeneration);
+    }
+    throw error;
+  } finally {
+    controller.signal.removeEventListener("abort", onAbort);
+  }
+}
+
+async function boundedRead(response, maximumBytes, controller, readScope) {
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     const contentLengthText = contentLengthRaw.trim();
@@ -323,10 +376,18 @@ async function boundedRead(response, maximumBytes, controller) {
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
+  let readerReleaseDeferred = false;
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readAgainstOwnedDeadlineV1(
+        reader,
+        controller,
+        readScope,
+        () => {
+          readerReleaseDeferred = true;
+        },
+      );
       if (done) break;
       assertCondition(value instanceof Uint8Array, "response_body_invalid_chunk");
       total += value.byteLength;
@@ -339,10 +400,8 @@ async function boundedRead(response, maximumBytes, controller) {
     await settleCancellationBounded(reader, controller);
     throw error;
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Reader cleanup must never replace the primary terminal result.
+    if (!readerReleaseDeferred) {
+      releaseReaderLockBestEffortV1(reader);
     }
   }
 
@@ -372,6 +431,10 @@ async function fetchBoundedV1({
   maximumBytes,
   fetchImpl,
 }) {
+  const readScope = new URL(url).origin;
+  if (RESPONSE_READ_QUARANTINES_V1.has(readScope)) {
+    fail("response_body_read_generation_unresolved");
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -391,6 +454,7 @@ async function fetchBoundedV1({
       response,
       maximumBytes,
       controller,
+      readScope,
     );
     return { response, raw };
   } finally {

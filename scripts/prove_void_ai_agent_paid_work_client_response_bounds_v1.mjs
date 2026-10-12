@@ -121,6 +121,24 @@ function unreadableBodyResponse(cancelImpl) {
   };
 }
 
+function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
+  return {
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        return {
+          read() {
+            return readPromise;
+          },
+          cancel: cancelImpl,
+          releaseLock: releaseImpl,
+        };
+      },
+    },
+  };
+}
+
 {
   const payload = discoveryJson();
   const fixture = makeFetch(() =>
@@ -373,7 +391,7 @@ function unreadableBodyResponse(cancelImpl) {
     }),
   );
   assert.equal(error.name, "AbortError");
-  assert.match(error.message, /synthetic_admitted_read_timeout/);
+  assert.equal(error.message, "response_body_read_timeout");
   assert.ok(Date.now() - started < 650, "admitted read timeout teardown escaped bounded cleanup window");
   assert.equal(cancelCalls, 1);
   assert.equal(abortEvents, 1);
@@ -400,7 +418,7 @@ function unreadableBodyResponse(cancelImpl) {
     }),
   );
   assert.equal(error.name, "AbortError");
-  assert.match(error.message, /synthetic_admitted_read_failure/);
+  assert.equal(error.message, "response_body_read_timeout");
   assert.equal(cancelCalls, 1);
 }
 
@@ -477,6 +495,110 @@ function unreadableBodyResponse(cancelImpl) {
   assert.equal(abortEvents, 1);
 }
 
+{
+  let settleRead;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => {
+    settleRead = resolve;
+  });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() {
+      cancelCalls += 1;
+    },
+    releaseImpl() {
+      releaseCalls += 1;
+    },
+  }));
+  const baseUrl = "https://late-read.example.invalid";
+  const started = Date.now();
+  const timeout = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.ok(Date.now() - started < 500, "signal-ignoring read escaped owned deadline");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0, "pending read lock must remain owned");
+
+  const quarantined = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1, "quarantine must prevent replacement fetch generation");
+
+  settleRead({ done: true, value: undefined });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "late settlement must release the retained reader lock");
+
+  const recoveredPayload = discoveryJson();
+  const recovered = makeFetch(() => new Response(recoveredPayload, {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  const recoveredResult = await probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: recovered.fetch,
+  });
+  assert.equal(recoveredResult.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+{
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise: new Promise(() => {}),
+    cancelImpl() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_signal_ignoring_cancel_failure"));
+    },
+    releaseImpl() {
+      releaseCalls += 1;
+    },
+  }));
+  const baseUrl = "https://quarantined-read.example.invalid";
+  const timeout = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const quarantined = await capturePrimaryError(
+      () => probeVoidAiAgentPaidWorkV1({
+        baseUrl,
+        timeoutMs: 40,
+        maxResponseBytes: 1024,
+        fetchImpl: fixture.fetch,
+      }),
+    );
+    assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "one unresolved read must not accumulate replacement generations");
+  assert.equal(cancelCalls, 1, "unresolved read cancellation must be attempted exactly once");
+}
+
 console.log("VOID_AI_AGENT_PAID_WORK_CLIENT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("declared_response_bound_prebuffer=true");
 console.log("streamed_response_bound_prebuffer=true");
@@ -484,6 +606,9 @@ console.log("malformed_content_length_fail_closed=true");
 console.log("rejection_abort_owned=true");
 console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
+console.log("signal_ignoring_read_deadline=true");
+console.log("unresolved_read_generation_quarantined=true");
+console.log("late_read_settlement_recovery=true");
 console.log("admitted_read_failure_teardown_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("unreadable_body_teardown_bounded=true");
