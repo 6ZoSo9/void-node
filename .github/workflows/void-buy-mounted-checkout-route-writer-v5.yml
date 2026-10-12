@@ -1,0 +1,73 @@
+name: VOID Buy VOID mounted checkout route writer v5
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-buy-mounted-checkout-route-writer-v5.yml"
+      - "scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-buy-mounted-route-writer-v5-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-mounted-route:
+    name: source-extracted route and writer (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout pinned source and reachable Draft commits
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source and immutable dependency identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git cat-file -e cfc4a3c388f998bed217001d1ff7eeecaadca6ca^{commit}
+          test "$(git hash-object scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs)" = "31c09a302b4816bc8725789684e1b8709ba31fa4"
+          test -z "$(git status --porcelain=v1)"
+      - name: Use supported Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Qualify mounted public POST route and real pinned request writer
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs
+          node scripts/prove_void_buy_mounted_checkout_route_writer_v5.mjs | tee "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'VOID_BUY_VOID_MOUNTED_CHECKOUT_ROUTE_WRITER_V5_GREEN' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'actual_src_index_post_handler_executed=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'actual_pinned_private_request_writer_executed=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'public_201_original_receipt_path_private=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'same_changed_amount_public_409_byte_equivalent=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'strict_durable_history_fails_closed=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'real_install_or_full_index_bootstrap_exercised=false' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'economic_quote_and_launch_authority_synthetic=true' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+          grep -Fx 'presale_wc_void_activation=false' "$RUNNER_TEMP/void-buy-mounted-route-writer-v5.log"
+      - name: Check source tree and diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
