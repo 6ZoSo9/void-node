@@ -1,0 +1,69 @@
+name: Buy VOID Epoch-2 signed fulfillment envelope v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-epoch2-envelope-v1.yml"
+      - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+      - "src/economic/buy_void_epoch2_credential_source_binding_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
+      - "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_signer_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_broadcast_v1.ts"
+      - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts"
+      - "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs"
+      - "docs/operators/buy-void-payment-keyed-epoch2-dormant-candidate-v1.md"
+      - "tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs"
+      - "scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs"
+      - "docs/operators/buy-void-epoch2-fulfillment-readonly-estimate-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove Epoch-2 signed envelope
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_envelope_v1.ts
+          node --import tsx scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts
+          test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2"
+          node --check tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs
+          node --check scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs
+          node scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs
+          node --check tools/void-buy-void-epoch2-readonly-delivery-estimate-v1.mjs
+          node --check scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
+          node --import tsx scripts/prove_void_buy_void_epoch2_readonly_delivery_estimate_v1.mjs
+          node --import tsx scripts/prove_buy_void_payment_keyed_execution_composition_v1.ts
+          node --import tsx scripts/prove_buy_void_payment_keyed_unsigned_transaction_v1.ts
+          git diff --check

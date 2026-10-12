@@ -56,10 +56,43 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Syntax
         run: node --check tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs
-      - name: Verify readiness candidate
-        run: node tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs
-      - name: Prove activation state machine
-        run: npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts
+      - name: Verify exact historic E1 or current E2 source-only successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
+          test "$(git hash-object scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
+          if node tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs > "$RUNNER_TEMP/v1-candidate.log" 2>&1; then
+            echo "HISTORICAL_E1_CANDIDATE_ACCEPTED_UNCHANGED_SOURCE=true"
+          else
+            grep -Fx 'VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CANDIDATE_V1_HOLD' "$RUNNER_TEMP/v1-candidate.log"
+            grep -Fx 'reason=head_inherited_source_blob_mismatch:src/economic/buy_void_payment_keyed_full_runtime_v1.ts' "$RUNNER_TEMP/v1-candidate.log"
+            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2"
+            node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'marker=VOID_BUY_VOID_EPOCH2_CLAIMED_PG_SOURCE_QUALIFICATION_V1' "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/e2-source.log"
+            grep -Fx 'source_qualification_complete=true' "$RUNNER_TEMP/e2-source.log"
+            echo qualified > "$RUNNER_TEMP/epoch2.source.only"
+            echo 'HISTORICAL_E1_REJECTED_AND_E2_SOURCE_ONLY_QUALIFIED=true'
+          fi
+      - name: Prove historical state machine or exact expected refusal
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f "$RUNNER_TEMP/epoch2.source.only"; then
+            set +e
+            npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts > "$RUNNER_TEMP/v1-state-machine.log" 2>&1
+            historic_rc=$?
+            set -e
+            test "$historic_rc" -ne 0
+            grep -F 'head_inherited_source_blob_mismatch:src/economic/buy_void_payment_keyed_full_runtime_v1.ts' "$RUNNER_TEMP/v1-state-machine.log"
+            echo 'HISTORICAL_E1_STATE_MACHINE_REFUSES_E2_SOURCE=true'
+          else
+            npm exec -- tsx scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts
+          fi
       - name: Root typecheck
         run: npm run typecheck
       - name: Focused proof typecheck

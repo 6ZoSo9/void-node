@@ -1,3 +1,9 @@
+import {
+  buyVoidPresaleFeeEnvelopeValidV1,
+  buyVoidPresaleMarkerFingerprintLinesV1,
+  buyVoidPresaleRequiredAccessListV1,
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { Interface, getAddress } from "ethers";
 
@@ -372,7 +378,7 @@ function normalizedPlan(
   const chainId = parseNonNegative(input?.chain_id);
   const nonceValue = parseNonNegative(input?.nonce);
   const gasLimit = parsePositive(input?.gas_limit);
-  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
   const priorityFee = parseNonNegative(input?.max_priority_fee_per_gas_wei);
   if (
     chainId !== 2050n ||
@@ -382,6 +388,9 @@ function normalizedPlan(
     gasLimit > policy.max_gas_limit ||
     maxFee === null ||
     maxFee > policy.max_fee_per_gas_wei ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      maxFee, priorityFee, policy.fulfillment_contract_address,
+    ) ||
     priorityFee === null ||
     priorityFee > policy.max_priority_fee_per_gas_wei ||
     priorityFee > maxFee
@@ -456,6 +465,11 @@ export function buildBuyVoidPaymentKeyedUnsignedTransactionV1(
     to: call.fulfillment_contract_address,
     value: 0n,
     data: call.calldata,
+    ...(isBuyVoidEpoch2PresaleTargetV1(call.fulfillment_contract_address)
+      ? { accessList: buyVoidPresaleRequiredAccessListV1(
+          call.fulfillment_contract_address,
+        ) }
+      : {}),
   };
 
   const planFingerprint = sha256(
@@ -485,6 +499,7 @@ export function buildBuyVoidPaymentKeyedUnsignedTransactionV1(
       "call_fingerprint_sha256=" + call.call_fingerprint_sha256,
       "transaction_plan_fingerprint_sha256=" + planFingerprint,
       "type=2",
+      ...buyVoidPresaleMarkerFingerprintLinesV1(call.fulfillment_contract_address),
       "nonce=" + String(plan.nonce),
       "gas_limit=" + plan.gas_limit.toString(),
       "max_fee_per_gas_wei=" + plan.max_fee_per_gas_wei.toString(),

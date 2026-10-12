@@ -112,6 +112,9 @@ export type BuyVoidDeliveryUnsignedTransactionV1 = {
   to: string;
   value: 0n;
   data: string;
+  // Only the reviewed Epoch-2 presale contract requires this marker.
+  // Historical Epoch-1 transactions must remain byte-identical.
+  accessList?: Array<{ address: string; storageKeys: string[] }>;
 };
 
 export type BuyVoidDeliverySubmissionBindingV1 = {
