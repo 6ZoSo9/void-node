@@ -141,23 +141,40 @@ const format = (value, maximumFractionDigits = 6) => {
     : '—';
 };
 const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) => {
-  if (!Number.isSafeInteger(bodyDeadlineMs) || bodyDeadlineMs < 1 ||
-      bodyDeadlineMs > MAX_BUY_RESPONSE_BODY_MS) {
-    throw new Error('invalid Buy VOID body deadline');
-  }
-  const type = String(response.headers.get('content-type') || '').toLowerCase();
-  if (!type.includes('application/json')) throw new Error('non-JSON Buy VOID response');
-  const declared = Number(response.headers.get('content-length') || '0');
-  if (Number.isFinite(declared) && declared > MAX_BUY_JSON_BYTES) {
-    throw new Error('Buy VOID response exceeds byte limit');
-  }
-  // Establish the time budget BEFORE acquiring a stream reader. A missing
-  // or invalid monotonic clock must not leave the response body locked with
-  // no cancellation path (for example, after a tab loses clock access).
-  // Browser timers may fire late; they are only wake-up mechanisms.
-  const bodyStartedMonoMs = receiptMonotonicNow();
-  if (bodyStartedMonoMs === null) {
-    throw new Error('Buy VOID response body monotonic clock unavailable');
+  // Header/deadline refusals happen before a reader is acquired. Explicitly
+  // retire the still-unlocked body so a stalled peer cannot retain the fetch.
+  // Never await cancellation or replace the original fail-closed error.
+  const cancelUnopenedBody = () => {
+    try {
+      const result = response.body?.cancel?.();
+      if (result) void Promise.resolve(result).catch(() => undefined);
+    } catch {
+      // Best-effort transport cleanup grants no Buy request authority.
+    }
+  };
+  let bodyStartedMonoMs;
+  try {
+    if (!Number.isSafeInteger(bodyDeadlineMs) || bodyDeadlineMs < 1 ||
+        bodyDeadlineMs > MAX_BUY_RESPONSE_BODY_MS) {
+      throw new Error('invalid Buy VOID body deadline');
+    }
+    const type = String(response.headers.get('content-type') || '').toLowerCase();
+    if (!type.includes('application/json')) throw new Error('non-JSON Buy VOID response');
+    const declared = Number(response.headers.get('content-length') || '0');
+    if (Number.isFinite(declared) && declared > MAX_BUY_JSON_BYTES) {
+      throw new Error('Buy VOID response exceeds byte limit');
+    }
+    // Establish the time budget BEFORE acquiring a stream reader. A missing
+    // or invalid monotonic clock must not leave the response body locked with
+    // no cancellation path (for example, after a tab loses clock access).
+    // Browser timers may fire late; they are only wake-up mechanisms.
+    bodyStartedMonoMs = receiptMonotonicNow();
+    if (bodyStartedMonoMs === null) {
+      throw new Error('Buy VOID response body monotonic clock unavailable');
+    }
+  } catch (error) {
+    cancelUnopenedBody();
+    throw error;
   }
   const reader = response.body?.getReader?.();
   if (!reader) throw new Error('Buy VOID response stream unavailable');
