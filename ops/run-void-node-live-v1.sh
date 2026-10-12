@@ -55,6 +55,11 @@ if [ "${VOID_CANONICAL_PRODUCER_ROLE:-0}" = "1" ]; then
   test "${VOID_CANONICAL_SELF_HTTP_GUARD:-0}" = "1"
   test "${VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS:-0}" = "1"
   test -z "${NODE_OPTIONS:-}"
+  # Unlike a second git hash, an unprivileged service UID cannot mutate
+  # root-owned source, loader, git, or ancestor inodes after this succeeds.
+  # This intentionally HOLDs a writable developer checkout until the
+  # separately authorized immutable installation/cutover is qualified.
+  "$NODE_BINARY" "$ROOT/runtime/canonical-producer-source-custody-v1.cjs" "$ROOT"
   # Select an exact reviewed source generation; never bypass the guard.
   # Both the checked-out source and tracked commit must agree, and the
   # selected guard independently rehashes the source at Node startup.
