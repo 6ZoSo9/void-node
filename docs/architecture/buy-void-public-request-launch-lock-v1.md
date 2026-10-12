@@ -246,7 +246,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `8b7153a236d0bf845695f8a6ddd799c1e26168e7`. Actual source-only
-regression Git blob: `594b364100df74829c56062ffbd99d0821aa0f4e`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `1a01d9bbe718e5af65432413f9d2eaf6de8e9f05`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
