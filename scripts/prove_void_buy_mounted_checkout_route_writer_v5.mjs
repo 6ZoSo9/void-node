@@ -34,6 +34,7 @@ let writerCalls = 0;
 let postedRequests = 0;
 let launchValid = true;
 let requestIntakeEnabled = true;
+let ethereumIntakeEnabled = false;
 
 function gitBlob(src) {
   const bytes = Buffer.from(src, "utf8");
@@ -190,7 +191,8 @@ try {
     "__bld", "__blo", "__voidPersistBuyVoidRequestV1", "__syntheticQuote",
     transpiledRoute.outputText,
   );
-  mount(app, () => ({ ...config, requests_enabled: requestIntakeEnabled }),
+  mount(app, () => ({ ...config, requests_enabled: requestIntakeEnabled,
+    ethereum_requests_enabled: ethereumIntakeEnabled }),
     async () => ({ ...sale }),
     () => ({ request_authority: launchValid ? launch : null }),
     () => launchValid,
@@ -236,11 +238,22 @@ try {
 
   const exactRetry = await routeCall(handler, payload());
   const mismatchedRetry = await routeCall(handler, payload("11"));
+  // Temporarily enable synthetic Ethereum request admission so a guessed
+  // *different payment rail*, unlike an inadmissible 400, actually reaches
+  // the real writer and exercises the private original chain mismatch.
+  ethereumIntakeEnabled = true;
+  const mismatchedRail = await routeCall(handler, {
+    ...payload(), source_chain: "ethereum",
+  });
+  ethereumIntakeEnabled = false;
   assert.equal(exactRetry.status, 409);
   assert.equal(mismatchedRetry.status, 409);
+  assert.equal(mismatchedRail.status, 409);
   assert.deepEqual(exactRetry.body, mismatchedRetry.body,
     "an anonymous caller must not infer prior amount from the 409 body");
-  for (const denied of [exactRetry, mismatchedRetry]) {
+  assert.deepEqual(exactRetry.body, mismatchedRail.body,
+    "an anonymous caller must not infer the original payment rail");
+  for (const denied of [exactRetry, mismatchedRetry, mismatchedRail]) {
     const wire = JSON.stringify(denied.body);
     assert.equal(denied.body.ok, false);
     assert.equal(denied.body.error, "one_active_request_per_void_destination");
@@ -276,9 +289,9 @@ try {
   assert.equal(fs.readdirSync(dir).length, 2,
     "malformed history HOLD creates no new sidecar or obligation");
 
-  assert.equal(writerCalls, 4,
-    "first, exact reuse, amount mismatch, and malformed-history rejection reach actual writer");
-  assert.equal(postedRequests, 8,
+  assert.equal(writerCalls, 5,
+    "first, exact reuse, amount/rail mismatch, and malformed-history rejection reach actual writer");
+  assert.equal(postedRequests, 9,
     "all actual mounted POST invocations accounted for");
   console.log(MARKER + "_GREEN");
   console.log("pinned_index_commit=" + INDEX_COMMIT);
@@ -290,6 +303,7 @@ try {
   console.log("browser_gateway_legacy_composition_v4_separate=true");
   console.log("public_201_original_receipt_path_private=true");
   console.log("same_changed_amount_public_409_byte_equivalent=true");
+  console.log("same_changed_rail_public_409_byte_equivalent=true");
   console.log("synthetic_sidecar_and_request_journal_0700_0600=true");
   console.log("strict_durable_history_fails_closed=true");
   console.log("real_install_or_full_index_bootstrap_exercised=false");
