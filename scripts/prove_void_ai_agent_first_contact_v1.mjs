@@ -715,6 +715,69 @@ try {
   assert.equal(typeof address, "object");
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
+  const declaredOversizeCancel = await runClient(
+    [
+      "--base-url",
+      "http://127.0.0.1:1",
+      "--timeout-ms",
+      "100",
+    ],
+    [],
+    {
+      nodeArgs: [
+        "--import",
+        importDataUrl(`
+          let fetchCount = 0;
+          let cancelCount = 0;
+          let getReaderCount = 0;
+          globalThis.fetch = async () => {
+            fetchCount += 1;
+            return {
+              ok: true,
+              status: 200,
+              headers: {
+                get: (name) =>
+                  name === "content-length" ? "65537" : null,
+              },
+              body: {
+                cancel: () => {
+                  cancelCount += 1;
+                  return new Promise(() => undefined);
+                },
+                getReader: () => {
+                  getReaderCount += 1;
+                  throw new Error("declared oversize must not acquire reader");
+                },
+              },
+            };
+          };
+          process.on("exit", () => {
+            if (
+              fetchCount !== 1 ||
+              cancelCount !== 1 ||
+              getReaderCount !== 0
+            ) {
+              process.exitCode = 91;
+            }
+          });
+        `),
+      ],
+      wallTimeoutMs: 3_000,
+    },
+  );
+  assert.equal(declaredOversizeCancel.timedOut, false);
+  assert.equal(
+    declaredOversizeCancel.code,
+    2,
+    declaredOversizeCancel.stderr,
+  );
+  assert.equal(declaredOversizeCancel.elapsedMs < 3_000, true);
+  assert.equal(
+    JSON.parse(declaredOversizeCancel.stdout)
+      .checks.first_contact_manifest_reachable,
+    false,
+  );
+
   const nonSettlingRead = await runClient(
     [
       "--base-url",
@@ -1737,6 +1800,7 @@ console.log("connection_mode=read_only");
 console.log("get_only_client=true");
 console.log("response_body_deadline_owned=true");
 console.log("nonsettling_cancel_cannot_delay_rejection=true");
+console.log("declared_oversize_body_cancelled=true");
 console.log("unresolved_reader_generation_quarantined=true");
 console.log("paid_work_promised=false");
 console.log("work_credit_earning_promised=false");
