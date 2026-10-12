@@ -1,5 +1,33 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 create-only missing-sidecar recovery — source-only candidate
+
+One specific crash gap is now replayable without inventing a second purchase:
+if a complete, strictly verified original JSONL row survived a crash but its
+per-request JSON sidecar is entirely absent, a matching public retry may
+recreate **only that missing sidecar** from the canonical latest durable
+request. The existing cross-process launch lock, retained no-follow journal
+FD, private-directory FD, source authority and original-row provenance remain
+mandatory. The retained journal is fsynced and its original inode/size/mtime
+identity rechecked before any recovery write. The missing sidecar is created
+using O_CREAT|O_EXCL|O_NOFOLLOW, fsynced, directory-fsynced and checked for
+rebound before an internal idempotent result. No extra JSONL row is appended.
+
+An existing sidecar is read-only verified byte-for-byte against that original
+latest JSONL row. An inconsistent, truncated, world-readable, symlinked,
+rebinding or interloped sidecar is a **HOLD**, never auto-overwritten. Historical
+request IDs with unsafe path components also HOLD. The public caller still
+receives only the existing generic conflict, never another buyer's details.
+
+This is **not** general crash atomicity: a torn/incomplete JSONL append,
+an existing torn sidecar, incomplete authenticated operator-event history,
+coordinated rollback or recovery of a terminal/revised request without an
+eligible public retry remains independently unqualified. The exact-head
+compiled-helper proof uses disposable directories for absent-sidecar replay,
+existing-byte mismatch, injected create interloper and unsafe request-ID
+rejection. No production/customer service, custody, payment, WC/VOID launch
+or funds authority follows from source-only CI.
+
 ## October 11 pinned journal read-to-append generation — source only
 
 The original strict request-history reader authenticated a journal inode and
@@ -170,8 +198,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `fdf29c987068c79b41f4956378d466c4fb8aacbf`. Actual source-only
-regression Git blob: `f9c6dc331925aa51309dd54a17b8f1d2cb6cbf1a`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `26b6f051d2c0ead11ac49d520894511f280cd3be`. Actual source-only
+regression Git blob: `9b65aff6c85d9db5837e053d785d353a7cb83fb2`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -195,7 +223,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `fdf29c987068c79b41f4956378d466c4fb8aacbf`). The existing
+(Git blob `26b6f051d2c0ead11ac49d520894511f280cd3be`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request

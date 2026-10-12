@@ -304,6 +304,7 @@ function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
     if (!row || typeof row.request_id !== "string" || !row.request_id) {
       holdHistoryV1("revision_id_invalid");
     }
+    safeRequestSidecarIdV1(row.request_id);
     const previous = byId.get(row.request_id);
     if (previous !== undefined && !validTxHashRevisionV1(previous, row)) {
       holdHistoryV1("duplicate_id_transition_unqualified");
@@ -311,6 +312,128 @@ function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
     byId.set(row.request_id, row);
   }
   return Array.from(byId.values());
+}
+
+
+function safeRequestSidecarIdV1(value: unknown): string {
+  // Never let a legacy durable request ID escape the pinned directory via
+  // "..", separators, Unicode lookalikes, or an unbounded path component.
+  if (typeof value !== "string" ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
+    holdHistoryV1("unsafe_request_id");
+  }
+  return value;
+}
+
+// Recover ONLY an absent per-request sidecar for a complete, fsynced,
+// immutable journal row. A pre-existing mismatched sidecar is evidence of
+// divergent customer state and must HOLD for an independent recovery review.
+// This cannot recover a partial/truncated journal append or a torn sidecar.
+function qualifyOrRecoverReuseSidecarV1(
+  dir: string, pinnedDir: string, dirFd: number,
+  history: PinnedRequestHistoryV1, canonicalRow: any,
+  assertCurrentAuthority: () => unknown,
+): void {
+  const id = safeRequestSidecarIdV1(canonicalRow?.request_id);
+  const journalFd = history.fd;
+  const original = history.identity;
+  if (journalFd === null || original === null) {
+    holdHistoryV1("recovery_requires_original_journal");
+  }
+  const journal = path.join(pinnedDir, "requests.jsonl");
+  const sidecar = path.join(pinnedDir, id + ".json");
+  const checkJournal = () => {
+    let opened: fs.BigIntStats;
+    let visible: fs.BigIntStats;
+    try {
+      opened = fs.fstatSync(journalFd, { bigint: true });
+      visible = fs.lstatSync(journal, { bigint: true });
+    } catch { holdHistoryV1("recovery_journal_unavailable"); }
+    if (!sameHistoryFileV1(original, opened) ||
+        !sameHistoryFileV1(opened, visible)) {
+      holdHistoryV1("recovery_journal_rebound");
+    }
+  };
+  assertCurrentAuthority();
+  assertPinnedPrivateRequestDirV1(dir, dirFd);
+  checkJournal();
+  // A prior process may have exited after the JSONL write but before its
+  // fsync. The complete canonical row is not recovery authority until the
+  // retained journal FD itself is durably synced.
+  fs.fsyncSync(journalFd);
+  checkJournal();
+  const bytes = Buffer.from(
+    REQUEST_HISTORY_JSON_STRINGIFY_V1(canonicalRow, null, 2), "utf8",
+  );
+  if (!bytes.length || bytes.length > REQUEST_HISTORY_MAX_BYTES_V1) {
+    holdHistoryV1("recovery_sidecar_size_invalid");
+  }
+  const before = assertPrivateRequestLeafV1(sidecar);
+  let sidecarFd: number | null = null;
+  let checked: fs.BigIntStats | null = null;
+  try {
+    if (before === null) {
+      // Absent means absent: only create-exclusively from the exact durable
+      // journal row. Never truncate/rewrite a preexisting sidecar.
+      try {
+        sidecarFd = fs.openSync(sidecar, fs.constants.O_WRONLY |
+          fs.constants.O_CREAT | fs.constants.O_EXCL |
+          fs.constants.O_NOFOLLOW, 0o600);
+      } catch (error: any) {
+        if (error?.code === "EEXIST") {
+          holdHistoryV1("recovery_sidecar_interloper");
+        }
+        throw error;
+      }
+      checked = assertPrivateSidecarIdentityV1(
+        sidecar, sidecarFd, null,
+      );
+      assertCurrentAuthority();
+      checkJournal();
+      fs.writeFileSync(sidecarFd, bytes);
+      fs.fsyncSync(sidecarFd);
+      const after = assertPrivateOpenLeafV1(sidecarFd);
+      if (after.size !== BigInt(bytes.length)) {
+        holdHistoryV1("recovery_sidecar_short_write");
+      }
+      assertPrivateSidecarStillVisibleV1(sidecar, checked);
+      fs.fsyncSync(dirFd);
+    } else {
+      // A full sidecar must match the canonical LAST journal row byte-for-byte
+      // before a public retry can be reported as idempotent internally.
+      sidecarFd = fs.openSync(sidecar, fs.constants.O_RDONLY |
+        fs.constants.O_NOFOLLOW);
+      checked = assertPrivateSidecarIdentityV1(
+        sidecar, sidecarFd, before,
+      );
+      if (checked.size !== BigInt(bytes.length)) {
+        holdHistoryV1("reused_sidecar_content_mismatch");
+      }
+      const observed = Buffer.alloc(bytes.length);
+      let offset = 0;
+      while (offset < observed.length) {
+        const read = fs.readSync(sidecarFd, observed, offset,
+          observed.length - offset, offset);
+        if (read <= 0) holdHistoryV1("reused_sidecar_short_read");
+        offset += read;
+      }
+      if (!sameHistoryFileV1(checked,
+            fs.fstatSync(sidecarFd, { bigint: true }))) {
+        holdHistoryV1("reused_sidecar_changed_during_read");
+      }
+      for (let i = 0; i < bytes.length; i += 1) {
+        if (observed[i] !== bytes[i]) {
+          holdHistoryV1("reused_sidecar_content_mismatch");
+        }
+      }
+    }
+    assertCurrentAuthority();
+    checkJournal();
+    assertPinnedPrivateRequestDirV1(dir, dirFd);
+    assertPrivateSidecarStillVisibleV1(sidecar, checked!);
+  } finally {
+    if (sidecarFd !== null) fs.closeSync(sidecarFd);
+  }
 }
 
 export type BuyVoidPublicRequestLaunchLockCallbacksV1 = readonly [
@@ -382,6 +505,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     // complete JSONL snapshot may drive destination admission.
     const currentRequestStates =
       foldCanonicalRequestRevisionsV1(durableRequestHistory);
+    safeRequestSidecarIdV1(reqObj?.request_id);
     const projected = applyEvents(currentRequestStates, eventHistory);
     if (!Array.isArray(projected)) {
       throw new Error("buy_void_request_history_projection_unqualified");
@@ -452,6 +576,17 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         if (Number.isFinite(amount) &&
             amount === Number(reqObj.usdc_amount) &&
             chain === reqObj.source_chain) {
+          // A crash may leave an fsynced journal with no sidecar. Restore
+          // only a missing sidecar from the canonical latest JSONL row;
+          // conflicting existing bytes are never overwritten.
+          const canonical = currentRequestStates.find(
+            (row: any) => row.request_id === active.request_id,
+          );
+          if (!canonical) holdHistoryV1("reused_canonical_row_missing");
+          qualifyOrRecoverReuseSidecarV1(
+            dir, pinnedDir, dirFd, heldHistory, canonical,
+            assertCurrentAuthority,
+          );
           assertCurrentAuthority();
           return { dir, reused_request: active, file: null };
         }

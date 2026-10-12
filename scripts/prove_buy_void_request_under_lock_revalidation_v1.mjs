@@ -919,6 +919,87 @@ for (const existing of [false, true]) {
     }finally{f.restore();}
   }
 }
+
+// Crash-gap repair is deliberately narrow: the original canonical journal
+// is authoritative; an entirely absent sidecar may be created EXCLUSIVELY.
+// An existing mismatched sidecar or simultaneous new leaf must never be
+// truncated, overwritten, or silently reconciled.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const owner=request("buyvoid_recovery_aaaaaaaa","3","base","9");
+  const originalOpen=fs.openSync;
+  let injected=false;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const readers=factory(oldPersist,root);
+    const persist=(candidate)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+      candidate,[readers.withLock,readers.readRequests,readers.readEvents,
+        readers.applyEvents,readers.terminalStatus,()=>true]);
+    await persist(owner);
+    const ledger=path.join(root,"requests.jsonl");
+    const sidecar=path.join(root,owner.request_id+".json");
+    const originalBytes=fs.readFileSync(ledger);
+    const originalSidecar=fs.readFileSync(sidecar,"utf8");
+    fs.unlinkSync(sidecar); // simulates crash AFTER durable journal fsync
+    assert.equal(fs.existsSync(sidecar),false);
+    const retry=await persist(request("buyvoid_retry_bbbbbbbb","3","base","9"));
+    assert.equal(retry.reused_request?.request_id,owner.request_id);
+    assert.equal(retry.file,null);
+    assert.deepEqual(fs.readFileSync(ledger),originalBytes,
+      "recovery must never append another economic obligation");
+    assert.equal(fs.readFileSync(sidecar,"utf8"),originalSidecar);
+    assert.equal(fs.statSync(sidecar).mode&0o7777,0o600);
+    // Existing sidecar contents are not a write-repair target.
+    fs.writeFileSync(sidecar,"OPAQUE_CORRUPTED_EXISTING_SIDECAR");
+    await assert.rejects(
+      ()=>persist(request("buyvoid_retry_cccccccc","3","base","9")),
+      /buy_void_request_history_under_lock_reused_sidecar_content_mismatch/u);
+    assert.equal(fs.readFileSync(sidecar,"utf8"),
+      "OPAQUE_CORRUPTED_EXISTING_SIDECAR");
+    assert.deepEqual(fs.readFileSync(ledger),originalBytes);
+    // A same-UID interloper that introduces a leaf between the absent
+    // preflight and open must be held by O_CREAT|O_EXCL|O_NOFOLLOW.
+    fs.unlinkSync(sidecar);
+    fs.openSync=function(file,flags,mode){
+      if(!injected&&String(file).endsWith("/"+owner.request_id+".json")&&
+          (flags&fs.constants.O_EXCL)!==0){
+        const inserted=originalOpen(sidecar,
+          fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_WRONLY,0o600);
+        try{fs.writeSync(inserted,"OPAQUE_INTERLOPER");fs.fsyncSync(inserted);}
+        finally{fs.closeSync(inserted);}
+        injected=true;
+      }
+      return originalOpen(file,flags,mode);
+    };
+    try {
+      await assert.rejects(
+        ()=>persist(request("buyvoid_retry_dddddddd","3","base","9")),
+        /buy_void_request_history_under_lock_recovery_sidecar_interloper/u);
+    } finally {fs.openSync=originalOpen;}
+    assert.equal(injected,true,"recovery create race must be exercised");
+    assert.equal(fs.readFileSync(sidecar,"utf8"),"OPAQUE_INTERLOPER");
+    assert.deepEqual(fs.readFileSync(ledger),originalBytes);
+    fs.unlinkSync(sidecar);
+    const repaired=await persist(request("buyvoid_retry_eeeeeeee","3","base","9"));
+    assert.equal(repaired.reused_request?.request_id,owner.request_id);
+    assert.equal(fs.readFileSync(sidecar,"utf8"),originalSidecar);
+    assert.deepEqual(fs.readFileSync(ledger),originalBytes);
+    // Even a full canonical legacy row must not create a sidecar with a
+    // traversal-shaped ID outside the verified private request directory.
+    const unsafe={...owner,request_id:"../escape-private-history"};
+    fs.writeFileSync(ledger,JSON.stringify(unsafe)+"\n",{mode:0o600});
+    await assert.rejects(
+      ()=>persist(request("buyvoid_retry_ffffffff","3","base","9")),
+      /buy_void_request_history_under_lock_unsafe_request_id/u);
+    assert.equal(fs.existsSync(path.join(root,"..","escape-private-history.json")),false);
+  } finally {
+    fs.openSync=originalOpen;
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -943,6 +1024,9 @@ console.log("sidecar_postwrite_rebind_holds=true");
 console.log("journal_existing_fd_pinned_from_read_through_append=true");
 console.log("journal_leaf_substitution_holds_without_visible_append=true");
 console.log("journal_first_create_exclusive_holds=true");
+console.log("missing_sidecar_recovered_only_from_fsynced_journal=true");
+console.log("mismatched_or_interloped_sidecar_never_rewritten=true");
+console.log("unsafe_legacy_request_id_sidecar_path_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
 console.log("prior_multi_active_conflicting_rail_and_amount_holds=true");
 console.log("malformed_durable_request_history_holds=true");

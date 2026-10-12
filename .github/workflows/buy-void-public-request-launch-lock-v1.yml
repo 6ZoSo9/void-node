@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "8198912a70c8db0c81dad5d341cb4a779906c851"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "fdf29c987068c79b41f4956378d466c4fb8aacbf"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "f9c6dc331925aa51309dd54a17b8f1d2cb6cbf1a"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "26b6f051d2c0ead11ac49d520894511f280cd3be"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "9b65aff6c85d9db5837e053d785d353a7cb83fb2"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -81,6 +81,9 @@ jobs:
             'journal_existing_fd_pinned_from_read_through_append=true' \
             'journal_leaf_substitution_holds_without_visible_append=true' \
             'journal_first_create_exclusive_holds=true' \
+            'missing_sidecar_recovered_only_from_fsynced_journal=true' \
+            'mismatched_or_interloped_sidecar_never_rewritten=true' \
+            'unsafe_legacy_request_id_sidecar_path_holds=true' \
             'prior_multi_active_destination_never_idempotent=true' \
             'prior_multi_active_conflicting_rail_and_amount_holds=true' \
             'malformed_durable_request_history_holds=true' \
