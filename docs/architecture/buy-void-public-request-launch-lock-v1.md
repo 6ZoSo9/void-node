@@ -1,5 +1,27 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 11 operator revision original-sidecar preappend fence — source only
+
+Before an authenticated operator's first tx-hash revision can append any new
+economic journal row, it opens the *existing original buyer sidecar* through
+O_RDWR|O_NOFOLLOW under the launch lock, checks the same original 0600 inode,
+and compares its actual bytes with the canonical **pre-revision** journal row.
+An absent sidecar or any in-place byte mismatch HOLDS before the journal
+append, preserving the original customer-sidecar evidence rather than
+truncating a corrupted old record and calling the new revision valid.
+
+The same pinned descriptor stays open across the revised journal append,
+file/directory fsync and final canonical **new-revision** byte readback.
+Both preappend and final comparisons require descriptor and visible-path
+metadata stability. A separate disposable actual-source regression tests
+missing and byte-corrupted original sidecars; both must refuse a revision,
+leave the original durable journal unchanged and never repair/overwrite an
+untrusted old sidecar. The existing final FD-read adversary explicitly lets
+the preappend original comparison pass before corrupting the later result.
+
+This is a bounded at-use source integrity test, not a same-UID lifetime lease,
+not automatically safe crash replay and not live buyer/payment acceptance.
+
 ## October 11 first-write/revision final sidecar closure — source only
 
 **All** successful publication branches now retain the same sidecar FD from
@@ -245,8 +267,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `8b7153a236d0bf845695f8a6ddd799c1e26168e7`. Actual source-only
-regression Git blob: `1a01d9bbe718e5af65432413f9d2eaf6de8e9f05`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `4746b90178c2a80382ca4c2283ed88915f7ee2be`. Actual source-only
+regression Git blob: `c0a036a0cf23c89f6debaeece99b4e0ac185624a`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -270,7 +292,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `8b7153a236d0bf845695f8a6ddd799c1e26168e7`). The existing
+(Git blob `4746b90178c2a80382ca4c2283ed88915f7ee2be`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
