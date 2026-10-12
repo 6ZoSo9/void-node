@@ -12,6 +12,9 @@ const BUY_RAILS = {
 };
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_BUY_JSON_BYTES = 131072;
+// Independent absolute body-read deadline. Fetch timeout alone is not proof
+// that a hostile/stalled ReadableStream reader honors an abort signal.
+const MAX_BUY_RESPONSE_BODY_MS = 7000;
 let requestSerial = 0;
 let currentSnapshot = null;
 let readinessPending = false;
@@ -137,7 +140,11 @@ const format = (value, maximumFractionDigits = 6) => {
     ? number.toLocaleString('en-US', { maximumFractionDigits })
     : '—';
 };
-const strictJson = async (response) => {
+const strictJson = async (response, bodyDeadlineMs = MAX_BUY_RESPONSE_BODY_MS) => {
+  if (!Number.isSafeInteger(bodyDeadlineMs) || bodyDeadlineMs < 1 ||
+      bodyDeadlineMs > MAX_BUY_RESPONSE_BODY_MS) {
+    throw new Error('invalid Buy VOID body deadline');
+  }
   const type = String(response.headers.get('content-type') || '').toLowerCase();
   if (!type.includes('application/json')) throw new Error('non-JSON Buy VOID response');
   const declared = Number(response.headers.get('content-length') || '0');
@@ -148,9 +155,15 @@ const strictJson = async (response) => {
   if (!reader) throw new Error('Buy VOID response stream unavailable');
   const chunks = [];
   let total = 0;
-  try {
+  let bodyDeadlineTimer = null;
+  let bodyReadRetired = false;
+  // The timeout is for the ENTIRE body, not per chunk. A constantly
+  // trickling reader cannot extend it. Keep the underlying read promise
+  // handled even if reader.cancel() ignores cancellation.
+  const readWholeBody = async () => {
     while (true) {
       const { done, value } = await reader.read();
+      if (bodyReadRetired) return;
       if (done) break;
       if (!(value instanceof Uint8Array) || value.byteLength === 0) {
         throw new Error('invalid Buy VOID response stream');
@@ -161,7 +174,18 @@ const strictJson = async (response) => {
       }
       chunks.push(value);
     }
+  };
+  try {
+    await Promise.race([
+      readWholeBody(),
+      new Promise((_, reject) => {
+        bodyDeadlineTimer = setTimeout(() => {
+          reject(new Error('Buy VOID response body deadline exceeded'));
+        }, bodyDeadlineMs);
+      }),
+    ]);
   } catch (error) {
+    bodyReadRetired = true;
     // A broken stream may return a never-settling cancellation promise.
     // Cancellation is best-effort; never suppress or delay the original
     // response failure (or the buyer's no-retry/uncertain-outcome fence).
@@ -171,6 +195,8 @@ const strictJson = async (response) => {
       void cancelError;
     }
     throw error;
+  } finally {
+    if (bodyDeadlineTimer !== null) clearTimeout(bodyDeadlineTimer);
   }
   const bytes = new Uint8Array(total);
   let offset = 0;

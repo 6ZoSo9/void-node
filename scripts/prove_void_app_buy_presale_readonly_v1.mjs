@@ -385,6 +385,85 @@ for (const fixture of [
   assert.equal(cancelCalls, 1, fixture.label + ": cancellation attempted only once");
 }
 
+
+ // A POST may already have committed before an HTTP response-body read
+ // stalls. The buyer must receive a bounded uncertain outcome even if the
+ // body reader and its cancellation ignore AbortSignal and never settle.
+ {
+   const oldTimeout = sandbox.setTimeout;
+   const oldClearTimeout = sandbox.clearTimeout;
+   sandbox.setTimeout = setTimeout;
+   sandbox.clearTimeout = clearTimeout;
+   try {
+     for (const fixture of [
+       {
+         name: "nonsettling_read_and_cancel",
+         bodyRead: () => new Promise(() => undefined),
+         cancel: () => new Promise(() => undefined),
+         deadline: 25,
+       },
+       {
+         name: "indefinite_trickle_cannot_extend_absolute_deadline",
+         bodyRead: () => new Promise((resolve) =>
+           setTimeout(() => resolve({ done: false, value: new Uint8Array([123]) }), 4)),
+         cancel: () => Promise.resolve(),
+         deadline: 30,
+       },
+     ]) {
+       let readCount = 0;
+       let cancelCount = 0;
+       const response = {
+         headers: { get(name) {
+           return name === "content-type" ? "application/json" : null;
+         } },
+         body: { getReader() {
+           return {
+             read() { readCount += 1; return fixture.bodyRead(); },
+             cancel() { cancelCount += 1; return fixture.cancel(); },
+           };
+         } },
+       };
+       const started = Date.now();
+       await assert.rejects(
+         () => buyTest.strictJson(response, fixture.deadline),
+         /Buy VOID response body deadline exceeded/u,
+         fixture.name + ": absolute body deadline must fail closed",
+       );
+       const elapsed = Date.now() - started;
+       assert.ok(elapsed < 1500, fixture.name + ": must not await read or cancel");
+       assert.equal(cancelCount, 1, fixture.name + ": one best-effort cancellation");
+       const completedReads = readCount;
+       await new Promise((resolve) => setTimeout(resolve, 25));
+       assert.equal(readCount, completedReads,
+         fixture.name + ": retired reader must not request another chunk");
+     }
+     const goodBody = '{"ok":true}';
+     let delivered = false;
+     const good = {
+       headers: { get(name) {
+         return name === "content-type" ? "application/json" : null;
+       } },
+       body: { getReader() {
+         return {
+           async read() {
+             if (delivered) return { done: true, value: undefined };
+             delivered = true;
+             return { done: false, value: new TextEncoder().encode(goodBody) };
+           },
+           cancel() { throw new Error("valid response must not be cancelled"); },
+         };
+       } },
+     };
+     assert.equal((await buyTest.strictJson(good, 50)).ok, true,
+       "valid complete bounded JSON must still parse");
+     await assert.rejects(() => buyTest.strictJson(good, 0),
+       /invalid Buy VOID body deadline/u);
+   } finally {
+     sandbox.setTimeout = oldTimeout;
+     sandbox.clearTimeout = oldClearTimeout;
+   }
+ }
+
 const validConfig = {
   marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
   schema: "void_public_buy_void_config_v1",
@@ -1620,6 +1699,8 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("buy_response_cancel_never_blocks_checkout_hold=true");
+console.log("buy_response_body_absolute_read_deadline=true");
+console.log("buy_response_infinite_trickle_deadline_cannot_reset=true");
 console.log("returned_request_intent_bound=1");
 console.log("receipt_live_activation_lease_max_300000ms_bound=true");
 console.log("impossible_five_minute_plus_one_receipt_refused=true");
