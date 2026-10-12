@@ -34,7 +34,6 @@ const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
-  let upstreamDeadlineTimer = null;
   try {
     const chunks = [];
     let totalBytes = 0;
@@ -93,17 +92,32 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     const upstreamSignal = AbortSignal.timeout(
       VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
     );
-    // The abort signal alone is insufficient: Node 22's stream read can
-    // ignore abort until the client has already timed out. Race a single
-    // absolute deadline against both fetch headers and every body read.
-    const deadlineExpired = new Promise((_, reject) => {
-      upstreamDeadlineTimer = setTimeout(
-        () => reject(new Error("buy_void_post_upstream_total_deadline")),
-        VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
-      );
-    });
-    const awaitUpstream = (operation) =>
-      Promise.race([operation, deadlineExpired]);
+    // Node 22 may leave an aborted reader.read() unsettled. Maintain one
+    // monotonic absolute deadline, but use a *detached* timer for each await:
+    // racing thousands of tiny chunks against one unresolved Promise leaks
+    // thousands of registered reaction closures until that deadline fires.
+    const upstreamDeadlineAt = performance.now() +
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS;
+    const awaitUpstream = async (operation) => {
+      const leftMs = Math.floor(upstreamDeadlineAt - performance.now());
+      if (leftMs <= 0) {
+        throw new Error("buy_void_post_upstream_total_deadline");
+      }
+      let deadlineTimer;
+      try {
+        return await Promise.race([
+          operation,
+          new Promise((_, reject) => {
+            deadlineTimer = setTimeout(
+              () => reject(new Error("buy_void_post_upstream_total_deadline")),
+              leftMs,
+            );
+          }),
+        ]);
+      } finally {
+        if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      }
+    };
     const upstreamResponse = await awaitUpstream(fetch(
       upstreamUrl,
       {
@@ -263,8 +277,6 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         error: "buy_void_request_upstream_unavailable",
       }),
     );
-  } finally {
-    if (upstreamDeadlineTimer !== null) clearTimeout(upstreamDeadlineTimer);
   }
 }
 
