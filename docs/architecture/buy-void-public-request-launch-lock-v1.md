@@ -13,8 +13,11 @@ request ID, path, note, payment details or the original buyer's terms.
 
 Current index source identity: `40239e0f76aa1edce43523d18c1b57691e41e8cf`.
 The source-extracted request proof identity is
-`607b96292dfc0f8992061f1a63183c616d34710c`. The dedicated
-Node 22/24/26 workflow is pinned to those Git objects and still requires
+`50833c30399ab5d71494df79e64d0f35a49bfea4`. In addition to redaction, the proof executes both
+actual mounted response branches and requires exactly equal JSON payloads,
+key order and HTTP 409 for matching versus changed anonymous payment
+terms. The dedicated Node 22/24/26 workflow is pinned to those Git
+objects and still requires
 separate exact live privacy, original sidecar and crash-recovery gates.
 These source-only checks do **not** authorize live payments or launch.
 
@@ -354,7 +357,7 @@ append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
 Current source Git blob: `e738e32601c68b70ebc7cbf922b24f055cc3e91d`. Actual source-only
-regression Git blob: `607b96292dfc0f8992061f1a63183c616d34710c`. Fresh exact-head Node 22/24/26 and full
+regression Git blob: `50833c30399ab5d71494df79e64d0f35a49bfea4`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
