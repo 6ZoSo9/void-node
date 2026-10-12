@@ -331,6 +331,51 @@ vm.runInNewContext(instrumentedClient, sandbox, {
 const buyTest = sandbox.__voidBuyTestV1;
 assert.ok(buyTest);
 
+// An unavailable clock must reject BEFORE getReader() acquires a stream.
+// An earlier implementation acquired and then threw, retaining a locked
+// response body without any cancellation path. Use the actual Buy client.
+{
+  const originalClockValue = syntheticMonoMs;
+  const originalPerformance = sandbox.performance;
+  try {
+    for (const scenario of ["nan", "negative", "missing", "throwing"]) {
+      sandbox.performance = originalPerformance;
+      syntheticMonoMs = scenario === "nan" ? Number.NaN
+        : scenario === "negative" ? -1 : 100000;
+      if (scenario === "missing") sandbox.performance = undefined;
+      if (scenario === "throwing") sandbox.performance = {
+        now() { throw new Error("synthetic_performance_access_denied"); },
+      };
+      let readersAcquired = 0;
+      let reads = 0;
+      const response = {
+        headers: { get(name) {
+          return name === "content-type" ? "application/json" : null;
+        } },
+        body: { getReader() {
+          readersAcquired += 1;
+          return {
+            read() { reads += 1; return Promise.resolve({ done: true }); },
+            cancel() { throw new Error("unowned_stream_must_not_be_canceled"); },
+          };
+        } },
+      };
+      await assert.rejects(
+        () => buyTest.strictJson(response),
+        /Buy VOID response body monotonic clock unavailable/u,
+        scenario + ": no acquired reader when clock is unqualified",
+      );
+      assert.equal(readersAcquired, 0,
+        scenario + ": fail before acquiring any stream reader");
+      assert.equal(reads, 0,
+        scenario + ": no read attempted without a monotonic clock");
+    }
+  } finally {
+    syntheticMonoMs = originalClockValue;
+    sandbox.performance = originalPerformance;
+  }
+}
+
 // A malformed or over-budget source may return a cancel() promise that
 // never settles, rejects, or throws. None may hold the original exception,
 // or leave a potentially committed POST in a spinner instead of a HOLD.
@@ -1798,6 +1843,7 @@ console.log("buy_response_body_absolute_read_deadline=true");
 console.log("buy_response_infinite_trickle_deadline_cannot_reset=true");
 console.log("buy_response_delayed_timer_monotonic_deadline_bound=true");
 console.log("buy_response_monotonic_clock_rollback_or_absence_holds=true");
+console.log("buy_response_clock_unavailable_never_acquires_stream=true");
 console.log("returned_request_intent_bound=1");
 console.log("receipt_live_activation_lease_max_300000ms_bound=true");
 console.log("impossible_five_minute_plus_one_receipt_refused=true");
