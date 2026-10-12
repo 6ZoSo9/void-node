@@ -69,7 +69,12 @@ The gateway does not gain a general mutation proxy.
   **actual submitted JSON intent**, rather than trusting only the upstream
   envelope. Mismatches are generic uncertain 502; this guards against an
   otherwise-valid created receipt describing a different buyer destination,
-  amount or payment rail. The focused proof exercises all three mismatches.
+  amount or payment rail. The comparison follows the canonical node's
+  original field precedence for `requested_amount_usdc/usdc_amount/amount_usdc/amount`,
+  `void_destination_address/delivery_address/delivery_wallet/wallet` and
+  `source_chain/payment_chain/chain`, defaulting the chain to Base.
+  The focused proof exercises all three mismatch negatives **and** valid
+  legacy-alias positives, without inventing a new accepted request syntax.
   This is a bounded consistency check; the independent browser still checks
   canonical receiver, USDC contract, acknowledgements and payment instructions
   before displaying payment directions.
