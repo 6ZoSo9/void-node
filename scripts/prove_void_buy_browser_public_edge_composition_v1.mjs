@@ -388,9 +388,18 @@ try {
     upstream.closeAllConnections?.();
     await new Promise((resolve) => upstream.close(() => resolve()));
   }
+  let worktreeReleaseUncertain = false;
   if (checkoutCreated) {
-    try { execFileSync("git", ["worktree", "remove", "--force", edgeRoot],
-      { cwd: root, stdio: ["ignore", "pipe", "pipe"] }); } catch {}
+    try {
+      execFileSync("git", ["worktree", "remove", "--force", edgeRoot],
+        { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (_error) {
+      // Never silently green a left-behind registered Git worktree.
+      worktreeReleaseUncertain = true;
+    }
   }
   fs.rmSync(tmp, { recursive: true, force: true });
+  if (worktreeReleaseUncertain) {
+    throw new Error("HOLD_detached_gateway_source_worktree_cleanup_uncertain");
+  }
 }
