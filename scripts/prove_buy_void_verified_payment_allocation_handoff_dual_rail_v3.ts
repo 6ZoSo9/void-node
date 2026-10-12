@@ -23,7 +23,7 @@ const PINS=Object.freeze({
   "src/economic/buy_void_allocation_reservation_ledger_v1.ts":"8d84955e1e093a5c5af63241e62b8722fadd2f29",
   "src/economic/buy_void_allocation_reservation_high_water_v1.ts":"9383c94cf848efb9a0112f1b741df4e10f790ac6",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts":"9fb39172afa09e49c11d72ff376e9af2d99a4101",
-  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"b49eea7b83f88141e9e7e01de2e912a67d24b00c",
+  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts":"00c73759f8cfa99b92246f3d29d7c79527f5eb25",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts":"7f33974b448e92be7d62c6f1d21d3fa29d7d5f0b",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts":"6d6a8b0efee8bc2d4e7f402bf7bd4b9e4ed4ac3a",
 });
