@@ -13,7 +13,7 @@ import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/b
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="8198912a70c8db0c81dad5d341cb4a779906c851";
+const NEW_BLOB="91151bb6ba5addf061a1a713aeceab142a814312";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -90,6 +90,38 @@ const reuseWire=JSON.stringify(observedReuse.body);
 for(const value of Object.values(storedSecrets)){
   assert.equal(reuseWire.includes(value),false,"private prior request leaked");
 }
+
+// A public HTTP 201 may include a success receipt but must NEVER include
+// the original server-side absolute sidecar pathname. Execute the exact
+// response branch from the mounted endpoint against an inert response.
+assert.ok(oldPost.includes("requestObj.persisted = { ok:true, file:persisted.file };"),
+  "predecessor private-path leak negative control");
+assert.ok(!currentPost.includes("file:persisted.file"),
+  "public request response cannot copy persisted.file");
+const creationBranch=take(currentPost,"requestObj.persisted =","}catch(e:any){");
+const emitCreated=new Function("requestObj","persisted","res",creationBranch);
+const syntheticPrivateFile=
+  "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/secret-buyer-request.json";
+const createdRequest={
+  schema:"void_public_buy_void_checkout_request_v1",
+  marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  ok:true,request_id:"buyvoid_success_privacy_aaaaaaaa",
+  status:"awaiting_payment_tx_hash",
+};
+const createdRes={
+  status_code:0,body:null,
+  status(code){this.status_code=code;return this;},
+  json(body){this.body=body;return this;},
+};
+emitCreated(createdRequest,{file:syntheticPrivateFile},createdRes);
+assert.equal(createdRes.status_code,201);
+assert.equal(createdRes.body?.ok,true);
+assert.deepEqual(createdRes.body?.request?.persisted,{ok:true});
+const createdWire=JSON.stringify(createdRes.body);
+assert.equal(createdWire.includes(syntheticPrivateFile),false,
+  "private customer sidecar path cannot reach public HTTP 201");
+assert.equal(createdWire.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),false);
+assert.equal(Object.hasOwn(createdRes.body?.request?.persisted??{},"file"),false);
 
 // The old public exception handler also reflected arbitrary internal
 // filesystem/customer error strings. Execute the exact source catch body
@@ -1347,6 +1379,7 @@ console.log("expired_launch_lease_before_reused_response_holds=true");
 console.log("missing_under_lock_revalidator_holds=true");
 console.log("current_same_intent_returns_existing_request=true");
 console.log("public_unauthenticated_reuse_private_conflict=true");
+console.log("public_created_receipt_private_path_redacted=true");
 console.log("public_prelock_fast_return_removed=true");
 console.log("public_unknown_internal_exception_details_redacted=true");
 console.log("public_safe_known_conflicts_preserved=true");
