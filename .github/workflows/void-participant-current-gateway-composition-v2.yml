@@ -3,10 +3,30 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-participant-current-gateway-composition-v2.yml"
+      - "docs/security/void-public-participant-production-composition-current-gateway-v2.md"
       - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
       - "scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs"
-      - "docs/security/void-public-participant-production-composition-current-gateway-v2.md"
+      - "tools/void-public-participant-production-composition-preflight-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "ops/public/void-public-participant-session-state-file-v1.mjs"
+      - "ops/public/void-public-participant-read-session-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-projection-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
+      - "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs"
+      - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "src/security/participant_role_authority_session_adapter_v1.ts"
+      - "src/security/participant_role_authority_guard_v1.ts"
+      - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
+      - "src/security/chain2050_role_authority_contract_projection_v1.ts"
+      - "src/security/chain2050_role_authority_read_adapter_v1.ts"
+      - "src/security/chain2050_role_authority_record_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+      - "src/security/chain2050_role_authority_registry_v1.ts"
   workflow_dispatch:
 permissions:
   contents: read
