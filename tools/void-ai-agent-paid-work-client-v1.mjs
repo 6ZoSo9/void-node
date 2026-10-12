@@ -318,6 +318,17 @@ async function settleCancellationBounded(target, controller, onConfirmed = null)
   }
 }
 
+// An ordinary response rejection can leave its body active. Preserve the
+// origin slot until cancellation succeeds; timeout/rejection is not cleanup.
+async function cancelBodyWithGenerationV1(body, controller, origin, generation) {
+  if (body !== null && body !== undefined) {
+    generation.unresolvedOperation = true;
+  }
+  await settleCancellationBounded(body, controller, () => {
+    retireResponseGenerationV1(origin, generation);
+  });
+}
+
 function releaseReaderLockBestEffortV1(reader) {
   try {
     reader.releaseLock();
@@ -468,18 +479,24 @@ async function boundedRead(response, maximumBytes, controller, readScope, readGe
   if (contentLengthRaw !== null) {
     const contentLengthText = contentLengthRaw.trim();
     if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
-      await settleCancellationBounded(response.body, controller);
+      await cancelBodyWithGenerationV1(
+        response.body, controller, readScope, readGeneration,
+      );
       fail(`response_content_length_invalid:${contentLengthText}`);
     }
     const contentLength = Number(contentLengthText);
     if (!Number.isSafeInteger(contentLength) || contentLength > maximumBytes) {
-      await settleCancellationBounded(response.body, controller);
+      await cancelBodyWithGenerationV1(
+        response.body, controller, readScope, readGeneration,
+      );
       fail(`response_too_large:${contentLengthText}`);
     }
   }
 
   if (!response.body || typeof response.body.getReader !== "function") {
-    await settleCancellationBounded(response.body, controller);
+    await cancelBodyWithGenerationV1(
+        response.body, controller, readScope, readGeneration,
+      );
     fail("response_body_unavailable");
   }
   const reader = response.body.getReader();
@@ -507,11 +524,23 @@ async function boundedRead(response, maximumBytes, controller, readScope, readGe
       chunks.push(Buffer.from(value));
     }
   } catch (error) {
-    await settleCancellationBounded(reader, controller, () => {
-      // The ownership lease survives the 250ms bounded caller wait. A late
-      // successful cancellation can still safely retire a now-settled read.
-      readGeneration.pendingReadCleanup?.confirmCancellation();
-    });
+    if (readerReleaseDeferred) {
+      // Deadline timeout has a pending read; retire it only after terminal
+      // settlement or confirmed cancellation plus actual read settlement.
+      await settleCancellationBounded(reader, controller, () => {
+        readGeneration.pendingReadCleanup?.confirmCancellation();
+      });
+    } else {
+      // A non-deadline reader/chunk failure can also leave an active body.
+      // Keep its lock and origin slot until cancellation really succeeds.
+      readGeneration.unresolvedOperation = true;
+      readerReleaseDeferred = true;
+      await settleCancellationBounded(reader, controller, () => {
+        if (releaseReaderLockBestEffortV1(reader)) {
+          retireResponseGenerationV1(readScope, readGeneration);
+        }
+      });
+    }
     throw error;
   } finally {
     if (!readerReleaseDeferred) {
@@ -569,7 +598,9 @@ async function fetchBoundedV1({
       fetchPromise, controller, readScope, readGeneration,
     );
     if (response.status >= 300 && response.status < 400) {
-      await settleCancellationBounded(response.body, controller);
+      await cancelBodyWithGenerationV1(
+        response.body, controller, readScope, readGeneration,
+      );
       fail(`redirect_forbidden:${response.status}`);
     }
     const raw = await boundedRead(
