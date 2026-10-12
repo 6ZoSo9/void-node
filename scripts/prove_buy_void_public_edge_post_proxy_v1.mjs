@@ -822,6 +822,77 @@ try {
   assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
     full201BaseUsdc.toLowerCase());
 
+  // These are *independent* canonical-money assertions, not comparisons
+  // against the fixture object used to generate the server's HTTP response.
+  // A mutated upstream fixture must not silently redefine our claimed
+  // Base-native-USDC checkout identity.
+  assert.equal(fullReceipt.schema,
+    "void_public_buy_void_checkout_request_result_v1");
+  assert.equal(fullReceipt.marker,
+    "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1");
+  assert.equal(fullReceipt.ok, true);
+  assert.equal(fullReceipt.idempotent, false);
+  assert.equal(fullReceipt.one_active_request_cap_enforced, true);
+  assert.equal(fullReceipt.request.schema,
+    "void_public_buy_void_checkout_request_v1");
+  assert.equal(fullReceipt.request.marker,
+    "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1");
+  assert.equal(fullReceipt.request.ok, true);
+  assert.equal(fullReceipt.request.request_id,
+    "buyvoid_edge_full_base_aaaaaaaa");
+  assert.equal(fullReceipt.request.status, "awaiting_payment_tx_hash");
+  assert.equal(fullReceipt.request.tx_hash, "");
+  assert.equal(fullReceipt.request.source_chain, "base");
+  assert.equal(fullReceipt.request.payment_chain, "base");
+  assert.equal(fullReceipt.request.payment_chain_id, 8453);
+  assert.equal(fullReceipt.request.delivery_chain, "void");
+  assert.equal(fullReceipt.request.delivery_chain_id, 2050);
+  assert.equal(fullReceipt.request.asset_in, "USDC");
+  assert.equal(fullReceipt.request.usdc_decimals, 6);
+  assert.equal(fullReceipt.request.usdc_amount, 10);
+  assert.equal(fullReceipt.request.requested_amount_usdc, 10);
+  assert.equal(fullReceipt.request.usdc_contract.toLowerCase(),
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(fullReceipt.request.receive_address.toLowerCase(),
+    "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5");
+  assert.equal(fullReceipt.request.void_destination_address.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.delivery_address.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.delivery_wallet.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.payment_instructions.request_id,
+    "buyvoid_edge_full_base_aaaaaaaa");
+  assert.equal(fullReceipt.request.payment_instructions.send_asset, "USDC");
+  assert.equal(fullReceipt.request.payment_instructions.send_chain, "base");
+  assert.equal(fullReceipt.request.payment_instructions.send_chain_id, 8453);
+  assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(fullReceipt.request.payment_instructions.token_decimals, 6);
+  assert.equal(fullReceipt.request.payment_instructions.amount, 10);
+  assert.equal(fullReceipt.request.payment_instructions.send_to.toLowerCase(),
+    "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5");
+  assert.equal(fullReceipt.request.payment_instructions.send_from.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.payment_instructions.do_not_send_before_request,
+    true);
+  assert.equal(fullReceipt.request.payment_instructions.keep_transaction_hash,
+    true);
+  assert.equal(fullReceipt.request.payment_instructions.do_not_send_from_exchange_or_pooled_custody,
+    true);
+  assert.equal(fullReceipt.request.request_contract.request_before_payment_required,
+    true);
+  assert.equal(fullReceipt.request.request_contract.one_active_request_per_void_destination,
+    true);
+  assert.equal(fullReceipt.request.request_contract.payment_sender_must_equal_void_destination,
+    true);
+  assert.equal(fullReceipt.request.request_contract.payment_tx_hash_bound_after_request_by_operator,
+    true);
+  assert.equal(fullReceipt.request.safety.automatic_fulfillment, false);
+  assert.equal(fullReceipt.request.safety.manual_review_required, true);
+  assert.equal(fullReceipt.request.payment_instructions.expires_at_ms -
+    fullReceipt.request.created_at_ms, 4 * 60 * 1000);
+
   // Exact 131,072-byte response must be fully accepted (400), not misread
   // as over-limit (502), but its unreviewed original body is never public.
   // Partial upgrade: canonical main's retired writer returns private buyer
@@ -1025,6 +1096,7 @@ try {
   console.log("all_non201_backend_json_sanitized=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
+  console.log("full_native_usdc_independent_chain_amount_identities=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
   console.log("independent_201_missing_false_nonobject_persistence_refused=true");
   console.log("independent_201_request_id_ok_marker_refused=true");
