@@ -199,7 +199,16 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           // The upstream is already untrusted; the public reply fails closed.
         }
       }
-      try { reader.releaseLock(); } catch {}
+      try {
+        reader.releaseLock();
+      } catch {
+        // A completed stream cannot claim successful checkout if its
+        // owned reader cannot be released. On a failed stream, preserve
+        // the original rejection and return only the generic 502.
+        if (readComplete) {
+          throw new Error("buy_void_post_reader_release_uncertain");
+        }
+      }
     }
     if (responseBytes === 0) {
       throw new Error("buy_void_post_upstream_empty_response");
