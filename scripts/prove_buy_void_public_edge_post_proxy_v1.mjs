@@ -251,6 +251,147 @@ const exactAccepted201Receipt = {
 };
 const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n";
 
+// A delayed timer callback is not a valid extra operation lease. Execute the
+// REAL checked-out handler with a controlled monotonic clock and inert timers.
+// "Timer not fired" must not allow a completed-after-deadline upload to POST,
+// or an overdue upstream completion to forward a synthetic valid HTTP 201.
+{
+  const handlerStart = source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(",
+  );
+  const handlerClose = source.indexOf("\n}\n", handlerStart);
+  const definitionsStart = source.indexOf(
+    "const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES =",
+  );
+  assert.ok(definitionsStart >= 0 && handlerClose > handlerStart);
+  const actualHandler = source.slice(definitionsStart, handlerClose + 2);
+  const makeResponse = () => {
+    const bytes = Buffer.from(exactAccepted201Json, "utf8");
+    let step = 0;
+    return {
+      status: 201,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          return {
+            read: async () => step++ === 0
+              ? { done: false, value: bytes } : { done: true },
+            releaseLock() {},
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    };
+  };
+  const submitted = Buffer.from(JSON.stringify({
+    requested_amount_usdc: 10,
+    void_destination_address: "0x1111111111111111111111111111111111111111",
+    source_chain: "base",
+  }));
+  const resultSink = () => ({
+    statusCode: 0, writableEnded: false, headers: {}, responseBytes: null,
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(value) {
+      this.responseBytes = Buffer.from(value);
+      this.writableEnded = true;
+    },
+  });
+  const fakeRequest = (clock, lateUpload = false) => ({
+    headers: { "content-type": "application/json" },
+    destroyed: false,
+    destroy() { this.destroyed = true; },
+    async *[Symbol.asyncIterator]() {
+      yield submitted;
+      if (lateUpload) clock.tick = 9001;
+    },
+  });
+  const createHarness = (clock, fetchImpl, onTimer = null) => {
+    let nextTimer = 0, created = 0, cleared = 0;
+    const active = new Set();
+    const fakeSetTimeout = (callback, delay) => {
+      const id = ++nextTimer;
+      active.add(id);
+      created += 1;
+      if (onTimer) onTimer(delay);
+      // DO NOT dispatch the watchdog: this models event-loop timer delay.
+      return id;
+    };
+    const fakeClearTimeout = (id) => {
+      if (active.delete(id)) cleared += 1;
+    };
+    const handler = new Function(
+      "fetch", "setTimeout", "clearTimeout", "process", "performance",
+      actualHandler + "\nreturn voidBuyVoidPublicEdgePostProxyV1;",
+    )(fetchImpl, fakeSetTimeout, fakeClearTimeout,
+      { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+      { now: () => clock.tick });
+    return {
+      handler, active, evidence: () => ({ created, cleared }),
+    };
+  };
+
+  // Upload completion beats an unfired watchdog microtask after the deadline.
+  // Destroy the caller; NEVER dispatch an upstream payment request.
+  {
+    const clock = { tick: 0 };
+    let fetchCount = 0;
+    const h = createHarness(clock, async () => {
+      fetchCount += 1;
+      return makeResponse();
+    });
+    const req = fakeRequest(clock, true);
+    const res = resultSink();
+    await h.handler(req, res);
+    assert.equal(fetchCount, 0, "overdue upload cannot reach payment upstream");
+    assert.equal(req.destroyed, true,
+      "overdue client upload must retire its original owned transport");
+    assert.notEqual(res.statusCode, 201);
+    assert.equal(h.active.size, 0);
+  }
+
+  // Header completion resolves at T=9s while its T=8s watchdog remains
+  // queued. The OLD race returned HTTP 201 here; monotonic revalidation
+  // after the Promise.race must forbid that false-success.
+  {
+    const clock = { tick: 0 };
+    let releaseHeaders, fetchCount = 0, queued = false;
+    const fetchImpl = () => {
+      fetchCount += 1;
+      return new Promise((resolve) => { releaseHeaders = resolve; });
+    };
+    const h = createHarness(clock, fetchImpl, () => {
+      if (fetchCount > 0 && !queued) {
+        queued = true;
+        queueMicrotask(() => {
+          clock.tick = 9001;
+          releaseHeaders(makeResponse());
+        });
+      }
+    });
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(fetchCount, 1);
+    assert.equal(queued, true, "unfired upstream watchdog race exercised");
+    assert.equal(res.statusCode, 502,
+      "overdue upstream headers must not become a checkout HTTP 201");
+    assert.equal(JSON.parse(res.responseBytes.toString("utf8"))
+      .error, "buy_void_request_upstream_unavailable");
+    assert.equal(h.active.size, 0);
+  }
+
+  // Ordinary creation before the deadline must continue to qualify.
+  {
+    const clock = { tick: 0 };
+    const h = createHarness(clock, async () => makeResponse());
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(res.responseBytes, Buffer.from(exactAccepted201Json));
+    assert.equal(h.active.size, 0);
+  }
+}
+
+
 // A distinct *full native-USDC buyer request* fixture matches the reviewed
 // node's public checkout payload and the browser's separate identity,
 // receipt-age and payment-instruction checks. The minimal 201 above proves
@@ -1389,6 +1530,8 @@ try {
   console.log("raw_noncanonical_201_bytes_preserved=true");
   console.log("header_refusal_upstream_socket_closed_early=true");
   console.log("per_read_deadline_timer_detached=true");
+  console.log("monotonic_post_race_late_header_rejected=true");
+  console.log("monotonic_post_race_late_upload_never_forwarded=true");
   console.log("tiny_chunk_deadline_timer_lifetime_proven=true");
   console.log("completed_reader_release_failure_returns_502=true");
   console.log("truthy_json_primitive_201_refused=true");
