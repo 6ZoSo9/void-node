@@ -1,3 +1,8 @@
+import {
+  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleRequiredAccessListV1,
+} from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -55,6 +60,40 @@ try {
   assert.equal(parsed.chainId, 2050n);
   assert.equal(parsed.from?.toLowerCase(), wallet.address.toLowerCase());
   assert.equal(parsed.value, 1n);
+  // Ephemeral synthetic signer only. E2 presale authorization is NOT inferred.
+  const epoch2Marker = buyVoidPresaleRequiredAccessListV1(
+    VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  );
+  const e2Unsigned = {
+    type: 2 as const,
+    chainId: 2050n,
+    nonce: 1,
+    gasLimit: 120_000n,
+    maxFeePerGas: 2n,
+    maxPriorityFeePerGas: 1n,
+    to: VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+    value: 0n,
+    data: "0x" as const,
+    accessList: epoch2Marker,
+  };
+  const e2Signed = await ready.signer.sign_transaction(e2Unsigned as any);
+  const e2Parsed = Transaction.from(e2Signed);
+  assert.equal(
+    buyVoidPresaleAccessListExactV1(
+      e2Parsed.accessList, VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+    ),
+    true,
+  );
+  await assert.rejects(
+    () => ready.signer.sign_transaction({
+      ...e2Unsigned,
+      accessList: [{
+        ...epoch2Marker[0],
+        storageKeys: ["0x" + "f".repeat(64)],
+      }],
+    } as any),
+    /buy_void_credential_signer_epoch2_marker_invalid/u,
+  );
 
   const mismatch =
     createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
