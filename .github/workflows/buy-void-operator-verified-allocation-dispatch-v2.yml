@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           test "$(git hash-object src/index.ts)" = "1fde828c97175560f98ab070af33eefc595f8002"
           test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
-          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "9074b31a2b36a97e6222e0ae584b16b91db02d6b"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "e50c1d3c5669b05d201d87ea4b269e049e9b648b"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "99c84d156cb71edbce3c4ef0690675f3f2682cbd"

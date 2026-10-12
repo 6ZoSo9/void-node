@@ -87,7 +87,7 @@ jobs:
               # V2's first frozen dependency is the old central writer;
               # exact current writer drift must HOLD, not be repinned.
               grep -Fq 'f591f7407d9afc2cf77e0f90923aa11b4817fd4e' "$log"
-              grep -Fq '9074b31a2b36a97e6222e0ae584b16b91db02d6b' "$log"
+              grep -Fq 'e50c1d3c5669b05d201d87ea4b269e049e9b648b' "$log"
             fi
             echo "historical_refusal_verified=$proof"
           done

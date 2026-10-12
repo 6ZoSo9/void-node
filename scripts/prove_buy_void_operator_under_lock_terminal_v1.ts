@@ -225,8 +225,8 @@ try {
         pathname: fs.PathLike, flags: string | number, mode?: any,
       ) {
         if (!interruptionReached &&
-            String(pathname).endsWith(
-              "operator-event-" + first.request_id + "-901.json") &&
+            String(pathname).includes(
+              ".operator-event-" + first.request_id + "-901.json.tmp-") &&
             typeof flags === "number" &&
             (flags & fs.constants.O_CREAT) !== 0) {
           interruptionReached = true;
@@ -291,6 +291,134 @@ try {
       assert.deepEqual(fs.readFileSync(recoverLedger), ambiguous);
     } finally {
       fs.rmSync(recoverRoot, { recursive: true, force: true });
+    }
+  }
+
+  // A short write into a private temporary file may leave a hidden
+  // fragment, but NEVER a publicly visible partial terminal sidecar.
+  // Retry must adopt the exact journaled fulfillment without another append.
+  {
+    const crashRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-short-temp-"),
+    );
+    fs.chmodSync(crashRoot, 0o700);
+    const stored = path.join(crashRoot, "operator-events.jsonl");
+    const sidecar = path.join(
+      crashRoot, "operator-event-" + first.request_id + "-903.json",
+    );
+    const e = event(first, "fulfilled", 903);
+    const perform = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: e, request: first, request_dir: crashRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const replay = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: reconciliationOnlyEvent(e), request: first,
+      request_dir: crashRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const originalWrite = fs.writeSync;
+    let injected = false;
+    try {
+      (fs as any).writeSync = function(...args: any[]) {
+        const value = args[1];
+        if (!injected && Buffer.isBuffer(value) &&
+            value.includes(Buffer.from('"marked_at_ms": 903'))) {
+          injected = true;
+          Reflect.apply(originalWrite, fs, [
+            args[0], value, 0, 8, args[4],
+          ]);
+          const failure: NodeJS.ErrnoException =
+            new Error("SYNTHETIC_TEMP_SHORT_WRITE_INTERRUPTED");
+          failure.code = "ENOSPC";
+          throw failure;
+        }
+        return Reflect.apply(originalWrite, fs, args);
+      };
+      await assert.rejects(
+        perform, /SYNTHETIC_TEMP_SHORT_WRITE_INTERRUPTED/u,
+      );
+    } finally {
+      (fs as any).writeSync = originalWrite;
+    }
+    try {
+      assert.equal(injected, true);
+      const journaled = fs.readFileSync(stored);
+      assert.equal(journaled.toString("utf8"), JSON.stringify(e) + "\n");
+      assert.equal(fs.existsSync(sidecar), false,
+        "partially written temp became publicly visible");
+      const retried: any = await replay();
+      assert.equal(retried.journal_reused, true);
+      assert.equal(retried.sidecar_recovered, true);
+      assert.deepEqual(fs.readFileSync(stored), journaled);
+      assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, "utf8")), e);
+      assert.equal(fs.statSync(sidecar).nlink, 1);
+    } finally {
+      fs.rmSync(crashRoot, { recursive: true, force: true });
+    }
+  }
+
+  // Crash after atomically linking complete sidecar but before unlinking
+  // its hidden temp. The public bytes are already complete. An exact retry
+  // verifies the joined inode, prunes only its own hidden hardlink and
+  // returns without a second fulfillment event.
+  {
+    const crashRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-terminal-post-link-"),
+    );
+    fs.chmodSync(crashRoot, 0o700);
+    const stored = path.join(crashRoot, "operator-events.jsonl");
+    const sidecar = path.join(
+      crashRoot, "operator-event-" + first.request_id + "-904.json",
+    );
+    const e = event(first, "fulfilled", 904);
+    const perform = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: e, request: first, request_dir: crashRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const replay = () => writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+      event: reconciliationOnlyEvent(e), request: first,
+      request_dir: crashRoot,
+      with_launch_authority_mutation: noLaunch, read_sale_state: noSale,
+    });
+    const originalUnlink = fs.unlinkSync;
+    let injected = false;
+    try {
+      (fs as any).unlinkSync = function(file: fs.PathLike) {
+        if (!injected && String(file).includes(
+          ".operator-event-" + first.request_id + "-904.json.tmp-"
+        )) {
+          injected = true;
+          throw new Error("SYNTHETIC_POST_LINK_UNLINK_INTERRUPTED");
+        }
+        return Reflect.apply(originalUnlink, fs, [file]);
+      };
+      await assert.rejects(
+        perform, /SYNTHETIC_POST_LINK_UNLINK_INTERRUPTED/u,
+      );
+    } finally {
+      (fs as any).unlinkSync = originalUnlink;
+    }
+    try {
+      assert.equal(injected, true);
+      const journaled = fs.readFileSync(stored);
+      assert.equal(journaled.toString("utf8"), JSON.stringify(e) + "\n");
+      assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, "utf8")), e);
+      assert.equal(fs.statSync(sidecar).nlink, 2,
+        "interrupted publish must leave only the exact owned hidden link");
+      const retried: any = await replay();
+      assert.equal(retried.journal_reused, true);
+      assert.equal(retried.sidecar_recovered, false);
+      assert.deepEqual(fs.readFileSync(stored), journaled);
+      assert.equal(fs.statSync(sidecar).nlink, 1);
+      assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, "utf8")), e);
+      assert.equal(
+        fs.readdirSync(crashRoot).filter(x =>
+          x.startsWith(
+            ".operator-event-" + first.request_id + "-904.json.tmp-",
+          )).length, 0,
+      );
+    } finally {
+      fs.rmSync(crashRoot, { recursive: true, force: true });
     }
   }
 
@@ -483,6 +611,8 @@ try {
   console.log("terminal_history_hostile_intrinsics_ignored=true");
   console.log("terminal_descriptor_path_swap_holds_without_visible_append=true");
   console.log("terminal_exact_fulfilled_sidecar_recovery_without_duplicate=true");
+  console.log("terminal_hidden_temp_partial_write_never_public=true");
+  console.log("terminal_post_link_owned_hardlink_recovered_exactly_once=true");
   console.log("under_request_lock_jsonl_revalidated=true");
   console.log("actual_customer_ledger_access=false");
   console.log("payment_acceptance=false");

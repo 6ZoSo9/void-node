@@ -2538,6 +2538,174 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   });
 }
 
+function publishOperatorTerminalSidecarAtomicallyV1(
+  directory: PinnedRequestDirectoryV1,
+  sidecarName: string,
+  expectedBytes: Buffer,
+  allowExisting: boolean,
+): "created" | "existing" {
+  const code = "buy_void_operator_terminal_sidecar";
+  const visiblePath = path.join(directory.path, sidecarName);
+  const pinnedPath = path.join(directory.proc_path, sidecarName);
+  const tempPrefix = "." + sidecarName + ".tmp-";
+  const isAbsent = (name: string): boolean => {
+    try {
+      fs.lstatSync(name, { bigint: true });
+      return false;
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") return true;
+      throw error;
+    }
+  };
+  const verifyExisting = (): boolean => {
+    assertPinnedRequestDirectoryVisibleV1(directory);
+    if (isAbsent(pinnedPath)) return false;
+    if (!allowExisting) {
+      fail("buy_void_operator_terminal_sidecar_already_exists");
+    }
+    const visible = fs.lstatSync(visiblePath, { bigint: true });
+    if (
+      !visible.isFile() || visible.isSymbolicLink() ||
+      visible.size !== BigInt(expectedBytes.length) ||
+      visible.nlink < 1n ||
+      (typeof process.getuid === "function" &&
+        visible.uid !== BigInt(process.getuid())) ||
+      (Number(visible.mode) & 0o022) !== 0
+    ) fail(code + "_conflict");
+    const nonblock = typeof fs.constants.O_NONBLOCK === "number"
+      ? fs.constants.O_NONBLOCK : 0;
+    const fd = fs.openSync(
+      pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW | nonblock,
+    );
+    try {
+      const before = fs.fstatSync(fd, { bigint: true });
+      if (!before.isFile() || !sameFileIdentityV1(visible, before)) {
+        fail(code + "_conflict");
+      }
+      const bytes = Buffer.alloc(expectedBytes.length + 1);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(
+          fd, bytes, offset, bytes.length - offset, offset,
+        );
+        if (count === 0) break;
+        offset += count;
+      }
+      if (offset !== expectedBytes.length ||
+          !bytes.subarray(0, offset).equals(expectedBytes)) {
+        fail(code + "_conflict");
+      }
+      const afterRead = fs.fstatSync(fd, { bigint: true });
+      const stillVisible = fs.lstatSync(visiblePath, { bigint: true });
+      if (!sameFileIdentityV1(before, afterRead) ||
+          !sameFileIdentityV1(afterRead, stillVisible)) {
+        fail(code + "_path_changed");
+      }
+      if (afterRead.nlink > 1n) {
+        const linkedTemps: string[] = [];
+        for (const name of fs.readdirSync(directory.proc_path)) {
+          if (!name.startsWith(tempPrefix)) continue;
+          const temp = path.join(directory.proc_path, name);
+          const meta = fs.lstatSync(temp, { bigint: true });
+          if (meta.isFile() && !meta.isSymbolicLink() &&
+              meta.dev === afterRead.dev && meta.ino === afterRead.ino) {
+            linkedTemps.push(temp);
+          }
+        }
+        if (BigInt(linkedTemps.length) !== afterRead.nlink - 1n) {
+          fail(code + "_hardlink_conflict");
+        }
+        for (const temp of linkedTemps) {
+          assertPinnedRequestDirectoryVisibleV1(directory);
+          const meta = fs.lstatSync(temp, { bigint: true });
+          if (!meta.isFile() || meta.isSymbolicLink() ||
+              meta.dev !== afterRead.dev || meta.ino !== afterRead.ino) {
+            fail(code + "_temp_changed");
+          }
+          fs.unlinkSync(temp);
+        }
+        fs.fsyncSync(directory.fd);
+      }
+      const finalFd = fs.fstatSync(fd, { bigint: true });
+      const finalVisible = fs.lstatSync(visiblePath, { bigint: true });
+      validateLedgerStatV1(finalFd, code);
+      validateLedgerStatV1(finalVisible, code);
+      if (finalFd.size !== BigInt(expectedBytes.length) ||
+          !sameFileIdentityV1(finalFd, finalVisible) ||
+          finalFd.dev !== before.dev || finalFd.ino !== before.ino) {
+        fail(code + "_path_changed");
+      }
+      assertPinnedRequestDirectoryVisibleV1(directory);
+      return true;
+    } finally {
+      fs.closeSync(fd);
+    }
+  };
+
+  if (verifyExisting()) return "existing";
+  const tempName =
+    tempPrefix + String(process.pid) + "-" + randomBytes(8).toString("hex");
+  const tempPath = path.join(directory.proc_path, tempName);
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  const fd = fs.openSync(
+    tempPath,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT |
+      fs.constants.O_EXCL | O_NOFOLLOW,
+    0o600,
+  );
+  let published = false;
+  try {
+    const written = fs.writeSync(
+      fd, expectedBytes, 0, expectedBytes.length, null,
+    );
+    if (written !== expectedBytes.length) {
+      fail(code + "_short_write");
+    }
+    fs.fsyncSync(fd);
+    const temporary = fs.fstatSync(fd, { bigint: true });
+    validateLedgerStatV1(temporary, code);
+    if (temporary.size !== BigInt(expectedBytes.length)) {
+      fail(code + "_temp_bytes_changed");
+    }
+    assertPinnedRequestDirectoryVisibleV1(directory);
+    fs.linkSync(tempPath, pinnedPath);
+    published = true;
+    fs.fsyncSync(directory.fd);
+    fs.unlinkSync(tempPath);
+    fs.fsyncSync(directory.fd);
+  } finally {
+    fs.closeSync(fd);
+    // A hidden, unlinked pre-publication temp is never public status evidence.
+    // Leave an already-linked temp for exact same-inode crash replay instead
+    // of risking deletion of a different name after an uncertain failure.
+    if (!published) {
+      try {
+        const temp = fs.lstatSync(tempPath, { bigint: true });
+        if (!temp.isSymbolicLink() && temp.isFile() && temp.nlink === 1n) {
+          fs.unlinkSync(tempPath);
+          fs.fsyncSync(directory.fd);
+        }
+      } catch {
+        // Preserve original failure. A hidden leaf carries no public authority.
+      }
+    }
+  }
+  // Verify against the same pinned request directory before returning GREEN.
+  // Existing now means published bytes and a single visible hard link.
+  const final = openPinnedLedgerV1(
+    directory, sidecarName, code, { writable: false, create: false },
+  );
+  if (final === null) fail(code + "_missing_after_publish");
+  try {
+    const data = readPinnedLedgerBytesV1(final, code).bytes;
+    if (!data.equals(expectedBytes)) fail(code + "_conflict");
+  } finally {
+    fs.closeSync(final.fd);
+  }
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  return "created";
+}
+
 export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   event: any;
   request: any;
@@ -2735,94 +2903,44 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
               sidecarBytes.length > LEDGER_MAX_BYTES) {
             fail("buy_void_operator_terminal_sidecar_bytes_invalid");
           }
-          // A pre-existing sidecar is never overwritten. If and ONLY if
-          // journal evidence proves this exact historical fulfillment, read
-          // the visible sidecar through a verified FD and require exact bytes.
-          const existingSidecar = openPinnedLedgerV1(
-            directory, sidecarName, sidecarNameCode,
-            { writable: false, create: false },
-          );
-          if (existingSidecar !== null) {
-            try {
-              if (!fulfilledAlreadyCommitted) {
-                fail("buy_void_operator_terminal_sidecar_already_exists");
-              }
-              const existingBytes = readPinnedLedgerBytesV1(
-                existingSidecar, sidecarNameCode,
-              ).bytes;
-              if (existingBytes.length !== sidecarBytes.length) {
-                fail("buy_void_operator_terminal_sidecar_conflict");
-              }
-              for (let byteIndex = 0; byteIndex < sidecarBytes.length;
-                byteIndex += 1) {
-                if (existingBytes[byteIndex] !== sidecarBytes[byteIndex]) {
-                  fail("buy_void_operator_terminal_sidecar_conflict");
-                }
-              }
-            } finally {
-              fs.closeSync(existingSidecar.fd);
-            }
-            const afterSidecar = assertPinnedLedgerVisibleV1(
-              operatorLedger, code,
-            );
-            if (!sameFileIdentityV1(strictRead.stat, afterSidecar)) {
-              fail("buy_void_operator_terminal_history_changed_since_read");
-            }
-            return {
-              ok: true, dir: requestDir,
-              journal_reused: true, sidecar_recovered: false,
-            };
-          }
-
+          // Refuse an existing final sidecar BEFORE the initial journal
+          // append; otherwise a name collision could commit an event that
+          // cannot be projected. Recovery-only mode never appends.
           if (!fulfilledAlreadyCommitted) {
-            if (reconciliationOnly) {
-              fail(
-                "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+            assertPinnedRequestDirectoryVisibleV1(directory);
+            try {
+              fs.lstatSync(
+                path.join(directory.proc_path, sidecarName),
+                { bigint: true },
               );
+              fail("buy_void_operator_terminal_sidecar_already_exists");
+            } catch (error: any) {
+              if (String(error?.code || "") !== "ENOENT") throw error;
             }
-            // The exact canonical bytes are appended once to the held inode
-            // and fsynced before publishing the derived sidecar.
             appendPaymentVerifiedEventDurableV1(
               operatorLedger, strictRead.stat, operatorEventLine,
             );
           }
-
-          // Interruption after journal fsync can leave a missing sidecar.
-          // Only the exact fulfilled retry above may repair that gap, with
-          // no second event append. Ambiguous/incomplete history still HOLDs.
-          assertPinnedRequestDirectoryVisibleV1(directory);
-          const sidecarFd = fs.openSync(
-            path.join(directory.proc_path, sidecarName),
-            fs.constants.O_WRONLY | fs.constants.O_CREAT |
-              fs.constants.O_EXCL | O_NOFOLLOW,
-            0o600,
+          const committedLedger = assertPinnedLedgerVisibleV1(
+            operatorLedger, code,
           );
-          try {
-            const written = fs.writeSync(
-              sidecarFd, sidecarBytes, 0, sidecarBytes.length, null,
-            );
-            if (written !== sidecarBytes.length) {
-              fail("buy_void_operator_terminal_sidecar_short_write");
-            }
-            fs.fsyncSync(sidecarFd);
-            const opened = fs.fstatSync(sidecarFd, { bigint: true });
-            const visible = fs.lstatSync(
-              path.join(requestDir, sidecarName), { bigint: true },
-            );
-            validateLedgerStatV1(opened, sidecarNameCode);
-            validateLedgerStatV1(visible, sidecarNameCode);
-            if (!sameFileIdentityV1(opened, visible)) {
-              fail("buy_void_operator_terminal_sidecar_path_changed");
-            }
-            assertPinnedRequestDirectoryVisibleV1(directory);
-            fs.fsyncSync(directory.fd);
-          } finally {
-            fs.closeSync(sidecarFd);
+          // Publish only fully written and fsynced hidden-temp bytes through
+          // a create-only link in this pinned directory. Recovery verifies
+          // the exact prior fulfilled row and never appends a duplicate.
+          const sidecarState = publishOperatorTerminalSidecarAtomicallyV1(
+            directory, sidecarName, sidecarBytes, fulfilledAlreadyCommitted,
+          );
+          const afterSidecarLedger = assertPinnedLedgerVisibleV1(
+            operatorLedger, code,
+          );
+          if (!sameFileIdentityV1(committedLedger, afterSidecarLedger)) {
+            fail("buy_void_operator_terminal_history_changed_after_sidecar");
           }
           return {
             ok: true, dir: requestDir,
             journal_reused: fulfilledAlreadyCommitted,
-            sidecar_recovered: fulfilledAlreadyCommitted,
+            sidecar_recovered: fulfilledAlreadyCommitted &&
+              sidecarState === "created",
           };
         } finally {
           if (operatorLedger !== null) fs.closeSync(operatorLedger.fd);
