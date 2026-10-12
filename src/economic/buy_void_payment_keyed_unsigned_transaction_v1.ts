@@ -219,7 +219,7 @@ function normalizePolicy(
   const contract = address(input?.fulfillment_contract_address);
   const maxAmount = parsePositive(input?.max_void_amount_units);
   const maxGas = parsePositive(input?.max_gas_limit);
-  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
+  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
   const maxPriority = parseNonNegative(input?.max_priority_fee_per_gas_wei);
   if (
     !wallet ||
@@ -378,7 +378,7 @@ function normalizedPlan(
   const chainId = parseNonNegative(input?.chain_id);
   const nonceValue = parseNonNegative(input?.nonce);
   const gasLimit = parsePositive(input?.gas_limit);
-  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
   const priorityFee = parseNonNegative(input?.max_priority_fee_per_gas_wei);
   if (
     chainId !== 2050n ||
