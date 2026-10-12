@@ -229,6 +229,32 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       throw new Error("buy_void_post_upstream_json_invalid");
     }
 
+    // This exact creation response is authoritative for whether a buyer
+    // should believe a payment request was recorded. "application/json"
+    // plus a nonarray object is NOT enough: an empty object, error envelope,
+    // unrelated marker or idempotent reuse must never be exposed as HTTP 201.
+    if (upstreamResponse.status === 201) {
+      const checkout = parsedBody.request;
+      if (parsedBody.schema !==
+            "void_public_buy_void_checkout_request_result_v1" ||
+          parsedBody.marker !==
+            "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" ||
+          parsedBody.ok !== true ||
+          parsedBody.idempotent !== false ||
+          parsedBody.one_active_request_cap_enforced !== true ||
+          !checkout || typeof checkout !== "object" ||
+          Array.isArray(checkout) ||
+          checkout.schema !== "void_public_buy_void_checkout_request_v1" ||
+          checkout.marker !== "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" ||
+          checkout.ok !== true ||
+          typeof checkout.request_id !== "string" ||
+          !/^[A-Za-z0-9_-]{1,128}$/.test(checkout.request_id) ||
+          checkout.status !== "awaiting_payment_tx_hash" ||
+          checkout.persisted?.ok !== true) {
+        throw new Error("buy_void_post_upstream_created_receipt_invalid");
+      }
+    }
+
     res.statusCode = upstreamResponse.status;
 
     for (
