@@ -175,6 +175,8 @@ const interactive = await new Promise<{
 assert.equal(interactive.signature_sent, true);
 assert.equal(interactive.code, 2);
 assert.match(interactive.stdout, /OFFCHAIN_PROOF_OF_CONTROL_ONLY/u);
+assert.match(interactive.stdout, /EIP191_SIGNING_MESSAGE_BEGIN/u);
+assert.match(interactive.stdout, /EIP191_SIGNING_MESSAGE_END/u);
 assert.match(interactive.stdout, /signature_expected_format=0x_plus_130_hex_chars/u);
 assert.match(interactive.stdout, /sign_exact_multiline_message_not_sha256=true/u);
 assert.match(interactive.stdout, /signer_control_proven=false/u);

@@ -79,6 +79,13 @@ async function main() {
     }, null, 2));
     if (args[0] === "--issue") return;
 
+    // Give the human the byte-exact message with real LF bytes. JSON above
+    // necessarily displays newlines as \\n escapes and must not be copied
+    // literally into a wallet message field.
+    console.log("EIP191_SIGNING_MESSAGE_BEGIN");
+    console.log(challenge.signing_message);
+    console.log("EIP191_SIGNING_MESSAGE_END");
+
     // One-shot public EIP-191 signature verification, with no on-disk
     // challenge/receipt writes and no key/credential access. The human's
     // trusted external signer is the only component allowed to sign.

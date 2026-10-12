@@ -25,8 +25,12 @@ the **public EIP-191 signature** obtained from an independently trusted signer.
 Paste **only the public 65-byte EIP-191 signature** (`0x` plus 130
 hex characters), never a private key, seed phrase or systemd credential. The
 printed `signing_message_sha256` is a diagnostic digest and **is not the
-signature**; do not paste it at the prompt. Sign the byte-exact multiline
-`signing_message` with the wallet that controls the immutable fulfiller.
+signature**; do not paste it at the prompt. In interactive mode, copy the
+byte-exact multiline text **between**
+`EIP191_SIGNING_MESSAGE_BEGIN` and `EIP191_SIGNING_MESSAGE_END`; those
+lines contain real newline bytes. Do not sign the JSON-escaped `\\n`
+representation. Sign that exact multiline message with the wallet that controls
+the immutable fulfiller.
 The CLI validates the real immutable fulfiller address before the challenge
 expires and prints only the decision and message digest. It neither
 writes a challenge/receipt file nor persists the public signature. An incorrect
