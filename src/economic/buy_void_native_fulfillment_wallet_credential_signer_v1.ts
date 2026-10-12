@@ -1,13 +1,19 @@
 import {
+  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
   buyVoidPresaleAccessListExactV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  Interface,
   Wallet,
   getAddress,
 } from "ethers";
+import type {
+  BuyVoidDeliveryUnsignedTransactionV1,
+} from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
 import type {
   BuyVoidNativeDeliverySignerV1,
   BuyVoidNativeDeliveryUnsignedTransactionV1,
@@ -18,6 +24,11 @@ export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1 =
 
 export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1 =
   "buy-void-native-fulfillment-wallet-v1";
+
+// Independent systemd credential name for the successor immutable E2 fulfiller.
+// Never reinterpret the retired E1 wallet credential as a new-chain signer.
+export const VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1 =
+  "buy-void-epoch2-fulfiller-v1";
 
 export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_AUTHORITY_V1 = {
   systemd_credential_only: true,
@@ -184,6 +195,9 @@ function credentialStatSameV1(
 function readPinnedCredentialBytesV1(
   directory: string,
   credentialPath: string,
+  credentialId: typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1 |
+    typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1 =
+      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1,
 ): { ok: true; bytes: Buffer } | { ok: false; reason: string } {
   let directoryFd = -1;
   let credentialFd = -1;
@@ -271,7 +285,7 @@ function readPinnedCredentialBytesV1(
     // This fixed-name open is relative to the already pinned directory,
     // not a second pathname lookup through an ambient mutable ancestor.
     const pinnedLeaf = "/proc/self/fd/" + String(directoryFd) + "/" +
-      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1;
+      credentialId;
     credentialFd = fs.openSync(pinnedLeaf,
       fs.constants.O_RDONLY | noFollowFlag);
     const openedCredential = fs.fstatSync(credentialFd, { bigint: true });
@@ -439,5 +453,151 @@ export function createBuyVoidNativeFulfillmentWalletCredentialSignerV1(
     signer,
     authority:
       VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_AUTHORITY_V1,
+  };
+}
+
+export const VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1 =
+  "VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1" as const;
+
+// This function is not mounted into the running Buy VOID application.
+// Only a separately provisioned systemd LoadCredential with this NEW name
+// and the immutable E2 fulfiller's actual private key can produce READY.
+// It does not accept a supplied wallet address or key path.
+export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
+  credentials_directory: string;
+}): {
+  ok: true;
+  status: "ready";
+  marker: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1;
+  credential_id: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1;
+  public_address: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+  signer: {
+    get_address: () => Promise<string>;
+    sign_transaction: (
+      transaction: Readonly<BuyVoidDeliveryUnsignedTransactionV1>,
+    ) => Promise<string>;
+  };
+  credential_content_read: true;
+  signing_performed_by_factory: false;
+  transaction_broadcast_by_factory: false;
+  runtime_activation_authorized: false;
+} | {
+  ok: false;
+  status: "HOLD";
+  marker: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1;
+  reason: string;
+  credential_content_read: boolean;
+  signing_performed_by_factory: false;
+  transaction_broadcast_by_factory: false;
+  runtime_activation_authorized: false;
+} {
+  const heldE2 = (reason: string, read = false) => ({
+    ok: false as const,
+    status: "HOLD" as const,
+    marker: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1,
+    reason,
+    credential_content_read: read,
+    signing_performed_by_factory: false as const,
+    transaction_broadcast_by_factory: false as const,
+    runtime_activation_authorized: false as const,
+  });
+  if (!input || typeof input.credentials_directory !== "string" ||
+      !path.isAbsolute(input.credentials_directory) ||
+      path.normalize(input.credentials_directory) !==
+        input.credentials_directory) {
+    return heldE2("epoch2_credentials_directory_invalid");
+  }
+  const credentialPath = path.join(
+    input.credentials_directory, VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+  );
+  const read = readPinnedCredentialBytesV1(
+    input.credentials_directory, credentialPath,
+    VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+  );
+  if (!read.ok) return heldE2(read.reason);
+  let key = "";
+  try {
+    key = read.bytes.toString("utf8").trim();
+  } finally {
+    read.bytes.fill(0);
+  }
+  if (!PRIVATE_KEY.test(key)) {
+    key = "";
+    return heldE2("epoch2_credential_private_key_shape_invalid", true);
+  }
+  let wallet: Wallet;
+  try {
+    wallet = new Wallet(key.startsWith("0x") ? key : "0x" + key);
+  } catch {
+    key = "";
+    return heldE2("epoch2_credential_public_derivation_failed", true);
+  }
+  key = "";
+  if (wallet.address.toLowerCase() !==
+      VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
+    return heldE2("epoch2_immutable_fulfiller_public_identity_mismatch", true);
+  }
+
+  const fulfillment = new Interface([
+    "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
+  ]);
+  const signer = {
+    async get_address(): Promise<string> {
+      return VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+    },
+    async sign_transaction(
+      tx: Readonly<BuyVoidDeliveryUnsignedTransactionV1>,
+    ): Promise<string> {
+      if (!tx || tx.type !== 2 || tx.chainId !== 2050n ||
+          !Number.isSafeInteger(tx.nonce) || tx.nonce < 0 ||
+          typeof tx.gasLimit !== "bigint" || tx.gasLimit <= 0n ||
+          tx.gasLimit > 320_000n ||
+          typeof tx.maxFeePerGas !== "bigint" || tx.maxFeePerGas < 0n ||
+          tx.maxFeePerGas > 5_000_000_000n ||
+          tx.maxPriorityFeePerGas !== 0n ||
+          tx.value !== 0n ||
+          normalizeAddress(tx.to) !==
+            VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
+          !buyVoidPresaleAccessListExactV1(tx.accessList, tx.to) ||
+          typeof tx.data !== "string") {
+        throw new Error("epoch2_fulfiller_transaction_envelope_invalid");
+      }
+      let args: ReturnType<typeof fulfillment.decodeFunctionData>;
+      try {
+        args = fulfillment.decodeFunctionData("fulfill", tx.data);
+      } catch {
+        throw new Error("epoch2_fulfiller_calldata_invalid");
+      }
+      const paymentId = String(args[0]).toLowerCase();
+      const recipient = normalizeAddress(args[1]);
+      const amount = args[2] as bigint;
+      if (!/^0x[0-9a-f]{64}$/.test(paymentId) ||
+          paymentId === "0x" + "0".repeat(64) ||
+          !recipient || typeof amount !== "bigint" ||
+          amount <= 0n || amount > 10_000_000n * 10n ** 18n ||
+          fulfillment.encodeFunctionData("fulfill", [
+            paymentId, recipient, amount,
+          ]).toLowerCase() !== tx.data.toLowerCase()) {
+        throw new Error("epoch2_fulfiller_calldata_binding_invalid");
+      }
+      // No broadcasting or durable key/transaction storage occurs here.
+      return await wallet.signTransaction({
+        ...renderTransaction(
+          tx as unknown as Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1>,
+        ),
+      });
+    },
+  };
+  return {
+    ok: true,
+    status: "ready",
+    marker: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1,
+    credential_id: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+    public_address: VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+    signer,
+    credential_content_read: true,
+    signing_performed_by_factory: false,
+    transaction_broadcast_by_factory: false,
+    runtime_activation_authorized: false,
   };
 }
