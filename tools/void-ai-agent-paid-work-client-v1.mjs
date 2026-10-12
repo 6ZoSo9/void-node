@@ -286,10 +286,10 @@ async function settleCancellationBounded(target, controller, onConfirmed = null)
   if (!controller.signal.aborted) {
     controller.abort();
   }
-  if (!target || typeof target.cancel !== "function") return;
-
+  // A custom cancel getter may throw. That is not confirmed cleanup.
   let cancellation;
   try {
+    if (!target || typeof target.cancel !== "function") return;
     cancellation = Promise.resolve(target.cancel());
   } catch {
     return;
@@ -474,40 +474,54 @@ async function readAgainstOwnedDeadlineV1(
   }
 }
 
+// Capture the admitted body only once. A response.body accessor can change,
+// disappear, or throw between reader acquisition and cleanup.
+function admittedResponseBodyV1(response, controller, generation) {
+  try {
+    return response.body;
+  } catch (error) {
+    generation.unresolvedOperation = true;
+    if (!controller.signal.aborted) controller.abort();
+    throw error;
+  }
+}
+
 async function boundedRead(response, maximumBytes, controller, readScope, readGeneration) {
+  const responseBody = admittedResponseBodyV1(response, controller, readGeneration);
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     const contentLengthText = contentLengthRaw.trim();
     if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
       await cancelBodyWithGenerationV1(
-        response.body, controller, readScope, readGeneration,
+        responseBody, controller, readScope, readGeneration,
       );
       fail(`response_content_length_invalid:${contentLengthText}`);
     }
     const contentLength = Number(contentLengthText);
     if (!Number.isSafeInteger(contentLength) || contentLength > maximumBytes) {
       await cancelBodyWithGenerationV1(
-        response.body, controller, readScope, readGeneration,
+        responseBody, controller, readScope, readGeneration,
       );
       fail(`response_too_large:${contentLengthText}`);
     }
   }
 
-  if (!response.body || typeof response.body.getReader !== "function") {
+  if (!responseBody) {
     await cancelBodyWithGenerationV1(
-        response.body, controller, readScope, readGeneration,
-      );
+      responseBody, controller, readScope, readGeneration,
+    );
     fail("response_body_unavailable");
   }
   let reader;
   try {
-    reader = response.body.getReader();
+    const getReader = responseBody.getReader;
+    if (typeof getReader !== "function") fail("response_body_unavailable");
+    reader = Reflect.apply(getReader, responseBody, []);
   } catch (error) {
-    // getReader() can itself reject a locked/already-owned stream. It is
-    // outside the read loop, so retain the exact body generation unless
-    // cancellation is independently confirmed; do not allow a fresh fetch.
+    // Even a getReader accessor or an already-locked body can fail.
+    // Cancel the original admitted body, never a re-read accessor.
     await cancelBodyWithGenerationV1(
-      response.body, controller, readScope, readGeneration,
+      responseBody, controller, readScope, readGeneration,
     );
     throw error;
   }
@@ -609,8 +623,11 @@ async function fetchBoundedV1({
       fetchPromise, controller, readScope, readGeneration,
     );
     if (response.status >= 300 && response.status < 400) {
+      const responseBody = admittedResponseBodyV1(
+        response, controller, readGeneration,
+      );
       await cancelBodyWithGenerationV1(
-        response.body, controller, readScope, readGeneration,
+        responseBody, controller, readScope, readGeneration,
       );
       fail(`redirect_forbidden:${response.status}`);
     }
