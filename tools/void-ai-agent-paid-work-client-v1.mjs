@@ -499,7 +499,18 @@ async function boundedRead(response, maximumBytes, controller, readScope, readGe
       );
     fail("response_body_unavailable");
   }
-  const reader = response.body.getReader();
+  let reader;
+  try {
+    reader = response.body.getReader();
+  } catch (error) {
+    // getReader() can itself reject a locked/already-owned stream. It is
+    // outside the read loop, so retain the exact body generation unless
+    // cancellation is independently confirmed; do not allow a fresh fetch.
+    await cancelBodyWithGenerationV1(
+      response.body, controller, readScope, readGeneration,
+    );
+    throw error;
+  }
   const chunks = [];
   let total = 0;
   let readerReleaseDeferred = false;
