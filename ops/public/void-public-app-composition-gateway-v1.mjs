@@ -42,6 +42,12 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     const chunks = [];
     let totalBytes = 0;
     let receiveTimer;
+    const uploadStartedAt = performance.now();
+    if (!Number.isFinite(uploadStartedAt) || uploadStartedAt < 0) {
+      throw new Error("buy_void_post_client_upload_monotonic_unavailable");
+    }
+    const uploadDeadlineAt = uploadStartedAt +
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS;
     // Promise.race is necessary here. IncomingMessage's requestTimeout and
     // socket timeout are inactivity-based, and a custom async iterator might
     // ignore destruction. One absolute timer bounds this entire receive,
@@ -131,6 +137,16 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     } finally {
       if (receiveTimer !== undefined) clearTimeout(receiveTimer);
     }
+    // An event-loop stall may delay the upload timeout callback while a
+    // later completion wins the race. Never forward after absolute expiry.
+    const uploadCompletedAt = performance.now();
+    if (!Number.isFinite(uploadCompletedAt) ||
+        uploadCompletedAt < uploadStartedAt ||
+        uploadCompletedAt >= uploadDeadlineAt) {
+      uploadExpired = true;
+      try { req.destroy(); } catch { /* never forward late upload */ }
+      return;
+    }
 
     // Retain the exact public request bytes so that a claimed HTTP 201
     // cannot substitute another buyer's destination, amount, or rail.
@@ -157,16 +173,29 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     // monotonic absolute deadline, but use a *detached* timer for each await:
     // racing thousands of tiny chunks against one unresolved Promise leaks
     // thousands of registered reaction closures until that deadline fires.
-    const upstreamDeadlineAt = performance.now() +
+    const upstreamStartedAt = performance.now();
+    if (!Number.isFinite(upstreamStartedAt) || upstreamStartedAt < 0) {
+      throw new Error("buy_void_post_upstream_monotonic_unavailable");
+    }
+    const upstreamDeadlineAt = upstreamStartedAt +
       VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS;
+    const requireUpstreamBeforeDeadline = () => {
+      const observedNow = performance.now();
+      if (!Number.isFinite(observedNow) ||
+          observedNow < upstreamStartedAt ||
+          observedNow >= upstreamDeadlineAt) {
+        throw new Error("buy_void_post_upstream_total_deadline");
+      }
+    };
     const awaitUpstream = async (operation) => {
+      requireUpstreamBeforeDeadline();
       const leftMs = Math.floor(upstreamDeadlineAt - performance.now());
       if (leftMs <= 0) {
         throw new Error("buy_void_post_upstream_total_deadline");
       }
       let deadlineTimer;
       try {
-        return await Promise.race([
+        const outcome = await Promise.race([
           operation,
           new Promise((_, reject) => {
             deadlineTimer = setTimeout(
@@ -175,6 +204,9 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
             );
           }),
         ]);
+        // Timer dispatch can lag while a completion microtask wins the race.
+        requireUpstreamBeforeDeadline();
+        return outcome;
       } finally {
         if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
       }
@@ -452,6 +484,9 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       "content-length",
       String(responseBody.length),
     );
+    // Include synchronous JSON/receipt validation in the 8-second budget.
+    // An overdue HTTP 201 cannot become public payment instructions.
+    requireUpstreamBeforeDeadline();
     res.end(responseBody);
   } catch (_error) {
     if (res.writableEnded || uploadExpired) {
