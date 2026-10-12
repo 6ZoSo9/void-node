@@ -282,7 +282,7 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
   };
 }
 
-async function settleCancellationBounded(target, controller) {
+async function settleCancellationBounded(target, controller, onConfirmed = null) {
   if (!controller.signal.aborted) {
     controller.abort();
   }
@@ -295,10 +295,20 @@ async function settleCancellationBounded(target, controller) {
     return;
   }
 
+  // Observe confirmed cancellation even if it settles after the bounded
+  // caller teardown wait. Rejection/timeout cannot certify stream closure.
+  const witnessedCancellation = cancellation.then(
+    () => {
+      if (typeof onConfirmed === "function") {
+        try { onConfirmed(); } catch { /* remain fail-closed */ }
+      }
+    },
+    () => undefined,
+  );
   let timer;
   try {
     await Promise.race([
-      cancellation.catch(() => undefined),
+      witnessedCancellation,
       new Promise((resolve) => {
         timer = setTimeout(resolve, REJECTION_TEARDOWN_MAX_MS);
       }),
@@ -311,8 +321,10 @@ async function settleCancellationBounded(target, controller) {
 function releaseReaderLockBestEffortV1(reader) {
   try {
     reader.releaseLock();
+    return true;
   } catch {
-    // Reader cleanup must never replace the primary terminal result.
+    // Uncertain reader lock ownership cannot release an unresolved generation.
+    return false;
   }
 }
 
@@ -408,11 +420,38 @@ async function readAgainstOwnedDeadlineV1(
       // generation while an abort-ignoring reader remains unresolved.
       readGeneration.unresolvedOperation = true;
       deferRelease();
-      const releaseLateGeneration = () => {
-        releaseReaderLockBestEffortV1(reader);
-        retireResponseGenerationV1(readScope, readGeneration);
+      // A partial late read is not terminal: the old body can remain live
+      // even after read() settles. Only terminal done=true, or a *confirmed*
+      // cancel together with settled read, permits retiring this origin.
+      const cleanup = {
+        readSettled: false,
+        terminal: false,
+        cancellationConfirmed: false,
+        retired: false,
+        releaseIfSafe() {
+          if (this.retired || !this.readSettled ||
+              (!this.terminal && !this.cancellationConfirmed)) return;
+          if (!releaseReaderLockBestEffortV1(reader)) return;
+          this.retired = true;
+          retireResponseGenerationV1(readScope, readGeneration);
+        },
+        confirmCancellation() {
+          this.cancellationConfirmed = true;
+          this.releaseIfSafe();
+        },
       };
-      void readPromise.then(releaseLateGeneration, releaseLateGeneration);
+      readGeneration.pendingReadCleanup = cleanup;
+      void readPromise.then(
+        (result) => {
+          cleanup.readSettled = true;
+          cleanup.terminal = result?.done === true;
+          cleanup.releaseIfSafe();
+        },
+        () => {
+          cleanup.readSettled = true;
+          cleanup.releaseIfSafe();
+        },
+      );
       // A reader may register an earlier AbortSignal listener than this
       // deadline race. Preserve the owned result even if that reader's
       // rejection wins the Promise.race scheduling order.
@@ -468,7 +507,11 @@ async function boundedRead(response, maximumBytes, controller, readScope, readGe
       chunks.push(Buffer.from(value));
     }
   } catch (error) {
-    await settleCancellationBounded(reader, controller);
+    await settleCancellationBounded(reader, controller, () => {
+      // The ownership lease survives the 250ms bounded caller wait. A late
+      // successful cancellation can still safely retire a now-settled read.
+      readGeneration.pendingReadCleanup?.confirmCancellation();
+    });
     throw error;
   } finally {
     if (!readerReleaseDeferred) {
