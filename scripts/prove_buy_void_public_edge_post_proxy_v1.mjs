@@ -235,6 +235,10 @@ const exactAccepted201Receipt = {
     persisted: { ok: true },
     status: "awaiting_payment_tx_hash",
     request_id: "buyvoid_edge_201_aaaaaaaa",
+    source_chain: "base",
+    void_destination_address: "0x1111111111111111111111111111111111111111",
+    requested_amount_usdc: 10,
+    usdc_amount: 10,
     ok: true,
     marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
     schema: "void_public_buy_void_checkout_request_v1",
@@ -472,7 +476,10 @@ const upstream = http.createServer(
           proofCase === "nonobject_persisted_201" ||
           proofCase === "missing_request_id_201" ||
           proofCase === "false_request_ok_201" ||
-          proofCase === "wrong_inner_marker_201") {
+          proofCase === "wrong_inner_marker_201" ||
+          proofCase === "wrong_intent_destination_201" ||
+          proofCase === "wrong_intent_amount_201" ||
+          proofCase === "wrong_intent_chain_201") {
         const mutated = { ...exactAccepted201Receipt };
         if (proofCase === "false_ok_201") mutated.ok = false;
         if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
@@ -509,6 +516,17 @@ const upstream = http.createServer(
         }
         if (proofCase === "wrong_request_status_201") {
           mutated.request = { ...mutated.request, status: "fulfilled" };
+        }
+        if (proofCase === "wrong_intent_destination_201") {
+          mutated.request = { ...mutated.request,
+            void_destination_address: "0x2222222222222222222222222222222222222222" };
+        }
+        if (proofCase === "wrong_intent_amount_201") {
+          mutated.request = { ...mutated.request,
+            requested_amount_usdc: 11, usdc_amount: 11 };
+        }
+        if (proofCase === "wrong_intent_chain_201") {
+          mutated.request = { ...mutated.request, source_chain: "ethereum" };
         }
         if (proofCase === "private_path_201") {
           mutated.request = { ...mutated.request, persisted: {
@@ -873,7 +891,12 @@ try {
     const response = await fetch(edgeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ __edge_proof_case: proofCase }),
+      body: JSON.stringify({
+        __edge_proof_case: proofCase,
+        void_destination_address: "0x1111111111111111111111111111111111111111",
+        requested_amount_usdc: "10.000000",
+        source_chain: "base",
+      }),
       redirect: "manual",
       ...(signal ? { signal } : {}),
     });
@@ -1061,6 +1084,9 @@ try {
     "missing_request_id_201",
     "false_request_ok_201",
     "wrong_inner_marker_201",
+    "wrong_intent_destination_201",
+    "wrong_intent_amount_201",
+    "wrong_intent_chain_201",
   ]) {
     const refused = await postProof(scenario);
     assert.equal(refused.status, 502, scenario);
@@ -1208,6 +1234,7 @@ try {
   console.log("all_non201_fixtures_seed_private_identity_and_cache_headers=true");
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("http201_destination_amount_chain_match_submitted_intent=true");
   console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
   console.log("full_native_usdc_independent_chain_amount_identities=true");
   console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
