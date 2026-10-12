@@ -90,6 +90,9 @@ for (const required of [
   "config.rate_void_per_usdc !== '2'",
   "readinessPending || submitBusy",
   "readinessPending = true",
+  "loadingViewGeneration === buyViewGeneration",
+  "activeBuyView === buyView",
+  "if (!stillOwnsLoadingView()) return;",
   "currentSnapshot = null",
   "ack_self_custody",
   "ack_request_before_payment",
@@ -294,6 +297,7 @@ const instrumentedClient = client + `
   renderSnapshot,
   renderError,
   updateSubmit,
+  loadBuy,
   submitBuy,
   markFieldTouched,
   beginBuyViewInstance,
@@ -1291,6 +1295,91 @@ for (let i = 0; i < badDeliveryReceipts.length; i += 1) {
   assert.equal(fetchCalls.length, countBefore + 1, label + ": same intent cannot POST twice");
 }
 
+
+ // Actual 3-endpoint readiness GET must never bind an obsolete response to a
+ // replaced Buy DOM or a route that is no longer the Buy page. The existing
+ // serial guard only covers a *new* GET; these adversaries do not start one.
+ for (const [label, settleKind, replaceDom, leaveRoute] of [
+   ["replaced_view_late_success", "success", true, false],
+   ["replaced_view_late_failure", "failure", true, false],
+   ["departed_route_late_success", "success", false, true],
+ ]) {
+   sandbox.location.hash = "#/buy";
+   replaceBuyView();
+   buyTest.beginBuyViewInstance(buyViewNode);
+   chainInput.value = "base";
+   buyTest.setState(validSnapshot, false, false);
+   const waiting = [];
+   sandbox.fetch = (url) => new Promise((resolve, reject) => {
+     waiting.push({ url: String(url), resolve, reject });
+   });
+   const pendingOldReadiness = buyTest.loadBuy();
+   assert.equal(waiting.length, 3,
+     label + ": current real readiness loader must initiate all three GETs");
+   assert.deepEqual(waiting.map(x => x.url), [
+     "/__void/buy-void/config.json",
+     "/__void/buy-void/status.json",
+     "/__void/buy-void/sale-state.json",
+   ], label + ": only exact fixed readiness sources are queried");
+
+   if (replaceDom) {
+     replaceBuyView();
+     assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
+   }
+   if (leaveRoute) sandbox.location.hash = "#/home";
+   buyTest.setState(null, true, false);
+   buyMessageNode.textContent = "NEW_VIEW_NOT_YET_QUALIFIED";
+   buyIntakeNode.textContent = "HOLD";
+   buyResultNode.textContent = "NO_PAYMENT_INSTRUCTIONS";
+   const fixture = [validConfig, validStatus, validSale];
+   for (let i = 0; i < waiting.length; i += 1) {
+     if (settleKind === "failure" && i === 0) {
+       waiting[i].reject(new Error("synthetic_old_readiness_failure"));
+     } else {
+       waiting[i].resolve(new Response(JSON.stringify(fixture[i]), {
+         status: 200,
+         headers: { "content-type": "application/json" },
+       }));
+     }
+   }
+   await pendingOldReadiness;
+   assert.equal(buyMessageNode.textContent, "NEW_VIEW_NOT_YET_QUALIFIED",
+     label + ": stale readiness must never mark new or departed view OPEN");
+   assert.equal(buyIntakeNode.textContent, "HOLD",
+     label + ": no stale BUY intake state promotion");
+   assert.equal(buyResultNode.textContent, "NO_PAYMENT_INSTRUCTIONS",
+     label + ": no stale payment/readiness or error copy");
+   assert.equal(submitButton.disabled, true,
+     label + ": never enable Buy submit from a stale readiness response");
+ }
+ // A genuinely new GET owned by the current Buy DOM still renders correctly.
+ sandbox.location.hash = "#/buy";
+ replaceBuyView();
+ buyTest.beginBuyViewInstance(buyViewNode);
+ chainInput.value = "base";
+ const acceptedReadiness = new Map([
+   ["/__void/buy-void/config.json", validConfig],
+   ["/__void/buy-void/status.json", validStatus],
+   ["/__void/buy-void/sale-state.json", validSale],
+ ]);
+ const positiveReadinessPaths = [];
+ sandbox.fetch = async (url) => {
+   positiveReadinessPaths.push(String(url));
+   assert.ok(acceptedReadiness.has(String(url)),
+     "only fixed Buy VOID readiness sources are allowed");
+   return new Response(JSON.stringify(acceptedReadiness.get(String(url))), {
+     status: 200,
+     headers: { "content-type": "application/json" },
+   });
+ };
+ await buyTest.loadBuy();
+ assert.equal(positiveReadinessPaths.length, 3);
+ assert.equal(buyIntakeNode.textContent, "OPEN",
+   "fresh view-owned validated readiness may render OPEN");
+ assert.match(buyMessageNode.textContent, /Base request intake is OPEN/u);
+ assert.equal(submitButton.disabled, true,
+   "OPEN readiness without new-view required fields never enables purchase");
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -1301,6 +1390,9 @@ console.log("sale_snapshot_strict_numeric_types=1");
 console.log("canonical_price_rate_strings_required=1");
 console.log("usdc_limits_bigint_atom_bound=1");
 console.log("refresh_pending_submit_disabled=1");
+console.log("stale_buy_readiness_get_cannot_rebind_replaced_view=true");
+console.log("stale_buy_readiness_get_cannot_promote_departed_route=true");
+console.log("fresh_owned_buy_readiness_get_can_render=true");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
 console.log("dual_rail_selection_bound=true");
