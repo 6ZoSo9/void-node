@@ -28,16 +28,25 @@ import {
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
+// The upstream's 8s deadline does NOT cover an unended client POST body.
+// Independently bound this public, attacker-controlled upload lifetime.
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS = 8000;
 // An upstream request may be committed before this public edge observes
 // its reply. Bound the full upstream response and never synthesize success.
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
+  let uploadExpired = false;
   try {
     const chunks = [];
     let totalBytes = 0;
-
+    let receiveTimer;
+    // Promise.race is necessary here. IncomingMessage's requestTimeout and
+    // socket timeout are inactivity-based, and a custom async iterator might
+    // ignore destruction. One absolute timer bounds this entire receive,
+    // regardless of how often the requester sends another small chunk.
+    const receiveUpload = (async () => {
     for await (const chunk of req) {
       const normalized = Buffer.from(chunk);
       totalBytes += normalized.length;
@@ -72,6 +81,32 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       }
 
       chunks.push(normalized);
+    }
+    return true;
+    })();
+    try {
+      const completed = await Promise.race([
+        receiveUpload,
+        new Promise((_, reject) => {
+          receiveTimer = setTimeout(() => {
+            uploadExpired = true;
+            reject(new Error("buy_void_post_client_upload_total_deadline"));
+            // Free the incomplete request/socket; do not leave an iterator
+            // pinned, and do not dispatch any upstream purchase request.
+            if (typeof req.destroy === "function") {
+              try {
+                req.destroy();
+              } catch {
+                // Promise.race already rejected. Never turn this into a
+                // successful or retried upstream purchase operation.
+              }
+            }
+          }, VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS);
+        }),
+      ]);
+      if (!completed) return;
+    } finally {
+      if (receiveTimer !== undefined) clearTimeout(receiveTimer);
     }
 
     const upstreamBase = String(
@@ -319,7 +354,9 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
     );
     res.end(responseBody);
   } catch (_error) {
-    if (res.writableEnded) {
+    if (res.writableEnded || uploadExpired) {
+      // The incomplete upload was torn down without any upstream POST.
+      // A destroyed socket cannot be represented as a completed receipt.
       return;
     }
 
