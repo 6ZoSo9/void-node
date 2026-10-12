@@ -1,5 +1,28 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 preappend exclusive reservation — source-only candidate
+
+**P2 interloper after ENOENT:** the first-new-request path now opens the
+private 0600 `<request_id>.json` with `O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW`
+before any `requests.jsonl` append. The descriptor is retained across
+the append and transferred into the existing bounded, fsynced and
+byte-verified publication path. An interloping newly created sidecar at
+the exclusive reservation returns `sidecar_appeared_before_create`
+before any new journal row can be durably appended. A retained reservation
+is checked against the pinned directory identity and must be zero length;
+the original FD is closed even if the intervening journal operation fails.
+
+The adversarial focused proof injects an opaque same-UID sidecar just
+before O_EXCL and requires **no journal file was created**. This is a
+stronger invariant than merely refusing a public success after a journal
+row was already committed. It remains **not cross-file crash atomicity**:
+a process termination after reserving the empty private sidecar but before
+writing the canonical JSON can leave an orphan. That exact ambiguous state
+fails closed, requiring reviewed operator recovery rather than truncation
+or automatic double-purchase. A same-UID actor able to modify a reserved
+inode later in its lifetime still requires an independent source-custody
+exclusion gate; this change is not continuous protection.
+
 ## October 12 orphan sidecar and revision journal cleanup — source only
 
 A new Buy VOID request with an ID **absent from canonical requests.jsonl**
@@ -288,8 +311,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `764c2dd200dd9783bdd3c92beee74c18679606ac`. Actual source-only
-regression Git blob: `0634951f6076233b291fe67929b75d69bab31864`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `e738e32601c68b70ebc7cbf922b24f055cc3e91d`. Actual source-only
+regression Git blob: `732f6ac162bbc18360bedf3566a54cc03a01053a`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -313,7 +336,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `8198912a70c8db0c81dad5d341cb4a779906c851`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `764c2dd200dd9783bdd3c92beee74c18679606ac`). The existing
+(Git blob `e738e32601c68b70ebc7cbf922b24f055cc3e91d`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
