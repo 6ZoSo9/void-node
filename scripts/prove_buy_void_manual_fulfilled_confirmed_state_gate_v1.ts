@@ -526,7 +526,10 @@ globalThis.__voidCallManualMark = async function(input) {
   assert.equal(duplicate.sent.status, 409);
   assert.equal(duplicate.sent.body.error, "manual_fulfilled_already_recorded");
   assert.equal(duplicate.writes.length, 1);
-  assert.deepEqual(duplicate.writes[0], fulfilledEvent);
+  assert.equal(
+    JSON.stringify(duplicate.writes[0]),
+    JSON.stringify(fulfilledEvent),
+  );
   assert.equal(duplicate.root_calls, 0);
   assert.equal(duplicate.list_calls, 0);
   assert.equal(duplicate.operator_event_read_calls, 1);
