@@ -8,6 +8,9 @@ const canonicalPricePath = "src/index.ts";
 const source = readFileSync(viewsPath, "utf8");
 const client = readFileSync(clientPath, "utf8");
 const canonicalSource = readFileSync(canonicalPricePath, "utf8");
+const canonicalLaunchGate = readFileSync("src/economic/buy_void_coupled_launch_gate_v1.mjs", "utf8");
+assert.match(canonicalLaunchGate, /const LIVE_ACTIVATION_MAX_LEASE_MS = 5 \* 60 \* 1000;/u,
+  "client checkout receipt lifetime must match canonical five-minute activation lease");
 
 function canonicalPriceDefaultPattern() {
   return /process\.env\.VOID_BUY_PRICE_USDC_PER_VOID\s*\|\|\s*"([0-9]+(?:\.[0-9]+)?)"/g;
@@ -148,6 +151,7 @@ for (const required of [
   "request.created_at_ms",
   "receiptMonotonicNow",
   "BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000",
+  "BUY_RECEIPT_MAX_LIVE_LEASE_MS = 5 * 60 * 1000",
   "instructionExpiresAtMs",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
@@ -458,7 +462,9 @@ assert.doesNotMatch(
 );
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
-const receiptExpiryAtMs = Date.now() + 10 * 60 * 1000;
+// The real launch lease caps requests at five minutes; never use a synthetic
+// ten-minute positive receipt as if the backend could lawfully issue it.
+const receiptExpiryAtMs = Date.now() + 4 * 60 * 1000;
 let verifiedEthereumNewRequestBody = null;
 sandbox.fetch = async (...args) => {
   fetchCalls.push(args);
@@ -809,6 +815,13 @@ const bogusReceipts = [
   }],
   ["stale_server_created_at", 201, (body) => {
     body.request.created_at_ms -= 60000;
+  }],
+  ["lease_exceeds_canonical_five_minute_max", 201, (body) => {
+    // Keep authority and instruction expiry mutually equal; an otherwise
+    // plausible HTTP-201 body must not exceed the real activation policy.
+    const impossibleExpiry = body.request.created_at_ms + 300001;
+    body.request.launch_authority.expires_at_ms = impossibleExpiry;
+    body.request.payment_instructions.expires_at_ms = impossibleExpiry;
   }],
 ];
 for (let i = 0; i < bogusReceipts.length; i += 1) {
@@ -1251,6 +1264,8 @@ console.log("global_hold_message_bound=true");
 console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
+console.log("receipt_live_activation_lease_max_300000ms_bound=true");
+console.log("impossible_five_minute_plus_one_receipt_refused=true");
 console.log("browser_rejects_reused_or_non201_buy_receipts=true");
 console.log("browser_rejects_nonnew_or_prepaid_buy_receipts=true");
 console.log("buyer_payment_instruction_amount_and_id_exactly_bound=true");
