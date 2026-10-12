@@ -64,3 +64,20 @@ remain separate HOLDs.
 Keep Draft/unmerged. No Ready/merge, host, customer records, keys,
 wallet/signers, payment, transaction, Chain-2050/WC, inventory/treasury,
 presale/market or funds action. **PROTECT THE CORE.**
+
+## October 11, 2026 — current source-only writer/first-original successor
+
+This original-request regression runs against the present compiled
+`Buy VOID` verified-payment/allocation code. The source-only successor
+writer Git blob is
+`101ce2eb806b2adb21035ed8b72874ba2b0026d3` (the
+`operator-events.jsonl` status-only route now rechecks historical
+fulfillment under the same terminal request lock, without enabling a
+payment-only verification path). Current replay Git blob
+`b451bcd895986dadaf6e53954671062068316ccf` retains fatal,
+captured-native byte/framing boundaries and first-original buyer identity.
+Prior writer/replay generations are historical and are not silently
+reinterpreted as this source. Requalify the actual original-request proof
+on Node 22/24/26 with byte-identical receipts. This is not a production
+receipt, accepted custody high-water, wallet authority, service
+deployment, payment acceptance or presale/WC launch.

@@ -65,6 +65,12 @@ async function main(): Promise<void> {
     ),
     "helper missing canonical confirmed-state journal reader import",
   );
+  assert.ok(
+    helperSource.includes(
+      'from "./buy_void_fulfilled_reconciliation_mode_v1.js";',
+    ),
+    "helper missing explicit fulfilled reconciliation mode import",
+  );
 
   const sf = ts.createSourceFile(
     indexFile,
@@ -101,6 +107,12 @@ async function main(): Promise<void> {
   assert.ok(callback, "manual mark route callback missing");
   const routeText = routeCall.getText(sf);
 
+  assert.ok(
+    routeText.includes(
+      "(e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found)",
+    ),
+    "mounted route must preserve the existing ordinary writer bridge",
+  );
   assert.ok(
     routeText.includes(
       "const r = await evaluateBuyVoidManualFulfilledConfirmedStateGateV1(",
@@ -146,6 +158,9 @@ async function main(): Promise<void> {
     "__voidApplyBuyVoidOperatorEventsV1(",
     'error: "operator_event_projection_read_failed"',
     'error: "manual_fulfilled_already_recorded"',
+    "historical_fulfilled_event_for_reconciliation",
+    "VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1",
+    '"manual_fulfilled_reconciliation_conflict"',
     'error: "manual_fulfilled_requires_verified_public_status"',
     '!["payment_verified", "reviewed"].includes(',
     "buyVoidConfirmedCloseoutRuntimeRootDirV1()",
@@ -211,6 +226,11 @@ let __operatorEventError = "";
 let __confirmedStates = [];
 let __confirmedError = "";
 let __writes = [];
+let __reconciliationWrites = [];
+let __underLockTerminalRace = false;
+let __reconciliationRace = "";
+const VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1 =
+  Symbol.for("VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1");
 let __rootCalls = 0;
 let __listCalls = 0;
 let __operatorEventReadCalls = 0;
@@ -253,6 +273,25 @@ function __voidApplyBuyVoidOperatorEventsV1(requests, events) {
   });
 }
 async function __voidWriteBuyVoidOperatorEventV1(event) {
+  const reconciliation = Object.getOwnPropertyDescriptor(
+    event,
+    VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+  );
+  if (reconciliation?.value === true) {
+    if (__reconciliationRace === "missing") {
+      throw new Error(
+        "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+      );
+    }
+    if (__reconciliationRace === "ambiguous") {
+      throw new Error("buy_void_operator_fulfilled_terminal_under_lock");
+    }
+    __reconciliationWrites.push(event);
+    return { ok: true, journal_reused: true };
+  }
+  if (__underLockTerminalRace) {
+    throw new Error("buy_void_operator_fulfilled_terminal_under_lock");
+  }
   __writes.push(event);
   return { ok: true };
 }
@@ -279,6 +318,9 @@ globalThis.__voidCallManualMark = async function(input) {
   __confirmedStates = input.confirmed_states || [];
   __confirmedError = input.confirmed_error || "";
   __writes = [];
+  __reconciliationWrites = [];
+  __underLockTerminalRace = input.under_lock_terminal_race === true;
+  __reconciliationRace = input.reconciliation_race || "";
   __rootCalls = 0;
   __listCalls = 0;
   __operatorEventReadCalls = 0;
@@ -308,6 +350,9 @@ globalThis.__voidCallManualMark = async function(input) {
   return {
     sent,
     writes: __writes.map((value) => JSON.parse(JSON.stringify(value))),
+    reconciliation_writes: __reconciliationWrites.map((value) =>
+      JSON.parse(JSON.stringify(value))
+    ),
     root_calls: __rootCalls,
     list_calls: __listCalls,
     operator_event_read_calls: __operatorEventReadCalls,
@@ -349,6 +394,7 @@ globalThis.__voidCallManualMark = async function(input) {
     Map,
     Error,
     JSON,
+    Symbol,
   };
   context.globalThis = context;
   vm.runInNewContext(compiled.outputText, context, {
@@ -473,6 +519,8 @@ globalThis.__voidCallManualMark = async function(input) {
     error?: string;
     events?: Record<string, any>[];
     operatorError?: string;
+    writerRace?: boolean;
+    reconciliationRace?: "missing" | "ambiguous";
   }): Promise<any> {
     const operatorEvents = input.events !== undefined
       ? input.events
@@ -489,6 +537,8 @@ globalThis.__voidCallManualMark = async function(input) {
       },
       operator_events: operatorEvents,
       operator_event_error: input.operatorError || "",
+      under_lock_terminal_race: input.writerRace === true,
+      reconciliation_race: input.reconciliationRace || "",
       confirmed_states: input.states || [],
       confirmed_error: input.error || "",
     });
@@ -518,8 +568,139 @@ globalThis.__voidCallManualMark = async function(input) {
   assert.equal(duplicate.sent.status, 409);
   assert.equal(duplicate.sent.body.error, "manual_fulfilled_already_recorded");
   assert.equal(duplicate.writes.length, 0);
+  assert.equal(duplicate.reconciliation_writes.length, 1);
+  assert.equal(
+    JSON.stringify(duplicate.reconciliation_writes[0]),
+    JSON.stringify(fulfilledEvent),
+  );
   assert.equal(duplicate.root_calls, 0);
   assert.equal(duplicate.list_calls, 0);
+  assert.equal(duplicate.operator_event_read_calls, 1);
+  assert.equal(duplicate.operator_event_apply_calls, 1);
+
+  // The pre-lock projection is not recovery authority. If the exact row has
+  // disappeared or become ambiguous by the time the central writer owns the
+  // request lock, the restriction marker forces an explicit conflict and the
+  // ordinary append-capable path is never entered.
+  const duplicateUnderLockHold = await call({
+    status: "fulfilled",
+    tx: deliveryTx,
+    states: [confirmedState()],
+    events: [fulfilledEvent],
+    reconciliationRace: "missing",
+  });
+  assert.equal(duplicateUnderLockHold.sent.status, 409);
+  assert.equal(
+    duplicateUnderLockHold.sent.body.error,
+    "manual_fulfilled_reconciliation_conflict",
+  );
+  assert.equal(
+    duplicateUnderLockHold.sent.body.reconciliation_error,
+    "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+  );
+  assert.equal(duplicateUnderLockHold.writes.length, 0);
+  assert.equal(duplicateUnderLockHold.reconciliation_writes.length, 0);
+  assert.equal(duplicateUnderLockHold.root_calls, 0);
+  assert.equal(duplicateUnderLockHold.list_calls, 0);
+
+  const duplicateUnderLockAmbiguous = await call({
+    status: "fulfilled",
+    tx: deliveryTx,
+    states: [confirmedState()],
+    events: [fulfilledEvent],
+    reconciliationRace: "ambiguous",
+  });
+  assert.equal(duplicateUnderLockAmbiguous.sent.status, 409);
+  assert.equal(
+    duplicateUnderLockAmbiguous.sent.body.error,
+    "manual_fulfilled_reconciliation_conflict",
+  );
+  assert.equal(
+    duplicateUnderLockAmbiguous.sent.body.reconciliation_error,
+    "buy_void_operator_fulfilled_terminal_under_lock",
+  );
+  assert.equal(duplicateUnderLockAmbiguous.writes.length, 0);
+  assert.equal(duplicateUnderLockAmbiguous.reconciliation_writes.length, 0);
+
+  // Review/reject must not overwrite an already recorded fulfilled status.
+  const attemptedDowngrades = [];
+  for (const status of ["reviewed", "rejected"]) {
+    const downgrade = await call({ status, events: [fulfilledEvent] });
+    assert.equal(downgrade.sent.status, 409);
+    assert.equal(downgrade.sent.body?.ok, false);
+    assert.equal(
+      downgrade.sent.body?.error,
+      "manual_fulfilled_terminal_status_immutable",
+    );
+    assert.equal(downgrade.sent.body?.prior_status, "fulfilled");
+    assert.equal(downgrade.writes.length, 0);
+    assert.equal(downgrade.root_calls, 0);
+    assert.equal(downgrade.list_calls, 0);
+    assert.equal(downgrade.operator_event_read_calls, 1);
+    assert.equal(downgrade.operator_event_apply_calls, 1);
+    attemptedDowngrades.push(downgrade);
+  }
+
+  // An earlier durable fulfillment cannot be erased by a later legacy
+  // rejected/reviewed event. The newest-event projection alone says rejected.
+  const legacyDowngrade = {
+    ...fulfilledEvent,
+    operator_status: "rejected",
+    prior_status: "fulfilled",
+    marked_at_ms: 300,
+  };
+  const hiddenFulfillmentAttempts = [];
+  for (const status of ["reviewed", "rejected", "fulfilled"]) {
+    const hidden = await call({
+      status,
+      tx: status === "fulfilled" ? deliveryTx : "",
+      events: [legacyDowngrade, fulfilledEvent],
+      states: [confirmedState()],
+    });
+    assert.equal(hidden.sent.status, 409);
+    assert.equal(hidden.sent.body?.ok, false);
+    assert.equal(
+      hidden.sent.body?.error,
+      status === "fulfilled"
+        ? "manual_fulfilled_already_recorded"
+        : "manual_fulfilled_terminal_status_immutable",
+    );
+    assert.equal(hidden.sent.body?.prior_status, "rejected");
+    assert.equal(hidden.sent.body?.historical_fulfillment_detected, true);
+    assert.equal(hidden.writes.length, 0);
+    assert.equal(hidden.root_calls, 0);
+    assert.equal(hidden.list_calls, 0);
+    assert.equal(hidden.operator_event_read_calls, 1);
+    assert.equal(hidden.operator_event_apply_calls, 1);
+    hiddenFulfillmentAttempts.push(hidden);
+  }
+  // A fulfillment for a different request must not block this request.
+  const otherFulfilled = {
+    ...fulfilledEvent,
+    request_id: "buyvoid_other_aaaaaaaa",
+  };
+  const otherRequest = await call({
+    status: "reviewed",
+    events: [otherFulfilled],
+  });
+  assert.equal(otherRequest.sent.status, 200);
+  assert.equal(otherRequest.writes.length, 1);
+
+  // The pre-lock projection is clean, but a competing completion may land
+  // immediately before the central writer acquires the request lock.
+  const concurrentCloseout = await call({
+    status: "reviewed", events: [], writerRace: true,
+  });
+  assert.equal(concurrentCloseout.sent.status, 409);
+  assert.equal(concurrentCloseout.sent.body?.error,
+    "manual_fulfilled_terminal_status_immutable");
+  assert.equal(concurrentCloseout.sent.body?.concurrent_terminal_fulfillment_detected,
+    true);
+  assert.equal(concurrentCloseout.writes.length, 0);
+  assert.equal(concurrentCloseout.root_calls, 0);
+  assert.equal(concurrentCloseout.list_calls, 0);
+  assert.equal(concurrentCloseout.operator_event_read_calls, 1);
+  assert.equal(concurrentCloseout.operator_event_apply_calls, 1);
 
   const projectionReadFailure = await call({
     status: "fulfilled",
@@ -699,6 +880,11 @@ globalThis.__voidCallManualMark = async function(input) {
   for (const result of [
     unverified,
     duplicate,
+    duplicateUnderLockHold,
+    duplicateUnderLockAmbiguous,
+    ...attemptedDowngrades,
+    ...hiddenFulfillmentAttempts,
+    concurrentCloseout,
     projectionReadFailure,
     missing,
     markerMismatch,
@@ -720,7 +906,11 @@ globalThis.__voidCallManualMark = async function(input) {
     "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1_GREEN",
   );
   console.log("manual_fulfilled_unverified_public_status_write=0");
-  console.log("manual_fulfilled_duplicate_event_write=0");
+  console.log("manual_fulfilled_duplicate_reconciliation_only_write=1");
+  console.log("manual_fulfilled_reconciliation_missing_under_lock_write=0");
+  console.log("manual_fulfilled_terminal_downgrade_write=0");
+  console.log("manual_historical_fulfillment_masking_write=0");
+  console.log("manual_under_lock_terminal_race_returns_409=true");
   console.log("manual_fulfilled_operator_projection_failure_write=0");
   console.log("manual_fulfilled_without_confirmed_state_write=0");
   console.log("manual_fulfilled_state_marker_mismatch_write=0");
