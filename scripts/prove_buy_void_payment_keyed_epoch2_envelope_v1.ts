@@ -2,6 +2,7 @@ import {
   VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
   buyVoidPresaleAccessListExactV1,
   buyVoidPresaleFeeEnvelopeValidV1,
+  buyVoidPresaleProductionRpcMatchesV1,
   buyVoidPresaleRequiredAccessListV1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import assert from "node:assert/strict";
@@ -28,8 +29,9 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_EXECUTION_COMPOSITION_V1,
   runBuyVoidPaymentKeyedExecutionCompositionV1,
 } from "../src/economic/buy_void_payment_keyed_execution_composition_v1.js";
-import type {
-  BuyVoidPaymentKeyedTransactionPreparationRpcCallV1,
+import {
+  validateBuyVoidPaymentKeyedTransactionPreparationPolicyV1,
+  type BuyVoidPaymentKeyedTransactionPreparationRpcCallV1,
   BuyVoidPaymentKeyedTransactionPreparationTransportV1,
 } from "../src/economic/buy_void_payment_keyed_transaction_preparation_v1.js";
 
@@ -141,6 +143,34 @@ const policy = {
   request_timeout_ms: 5000,
   max_response_bytes: 65536,
 };
+
+// Same chainId is not enough: a retired 8545 service can answer 0x802.
+assert.equal(
+  buyVoidPresaleProductionRpcMatchesV1(CONTRACT, policy.rpc_url), true,
+);
+assert.equal(
+  buyVoidPresaleProductionRpcMatchesV1(
+    CONTRACT, "http://127.0.0.1:8545/",
+  ), false,
+);
+const retiredRpcPolicy = validateBuyVoidPaymentKeyedTransactionPreparationPolicyV1({
+  ...policy,
+  rpc_url: "http://127.0.0.1:8545/",
+});
+assert.equal(retiredRpcPolicy.ok, false);
+if (retiredRpcPolicy.ok) {
+  throw new Error("retired_e1_rpc_accepted_for_epoch2_delivery");
+}
+assert.equal(
+  retiredRpcPolicy.reason,
+  "payment_keyed_transaction_preparation_epoch2_rpc_not_selected",
+);
+assert.equal(
+  buyVoidPresaleProductionRpcMatchesV1(
+    "0x" + "5".repeat(40), "http://127.0.0.1:8545/",
+  ), true,
+  "historical non-E2 identity must remain unchanged",
+);
 
 function planningTransport(options: {
   wrongChain?: boolean;
@@ -655,6 +685,7 @@ assert.equal(
 );
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_EPOCH2_ENVELOPE_V1_GREEN");
+console.log("epoch2_rpc_selected_18553_not_retired_8545=true");
 console.log("epoch2_zero_native_gas_signature_and_broadcast_synthetic=true");
 console.log("zero_fee_legacy_target_and_priority_mismatch_hold=true");
 console.log("epoch2_payment_fulfill_signed_marker_exact=true");

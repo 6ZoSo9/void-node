@@ -1,5 +1,6 @@
 import {
   buyVoidPresaleFulfillerMatchesV1,
+  buyVoidPresaleProductionRpcMatchesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
@@ -411,6 +412,17 @@ export function buyVoidPaymentKeyedFullRuntimePolicyStateV1(
       reason: "payment_keyed_full_runtime_epoch2_fulfiller_mismatch",
       missing_envs: [],
       invalid_envs: [],
+    };
+  }
+  if (!buyVoidPresaleProductionRpcMatchesV1(
+    address(env[names.fulfillment_contract_address]),
+    text(env[names.rpc_url]),
+  )) {
+    return {
+      configured: false,
+      reason: "payment_keyed_full_runtime_epoch2_rpc_not_selected",
+      missing_envs: [],
+      invalid_envs: [names.rpc_url],
     };
   }
   const evidenceWallet = address(

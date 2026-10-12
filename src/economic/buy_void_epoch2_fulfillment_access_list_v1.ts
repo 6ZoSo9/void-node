@@ -6,6 +6,20 @@ export const VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 =
 export const VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1 =
   "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a";
 
+// The selected production E2 runtime is explicitly 18553. The retired
+// Epoch-1 archive on 8545 also reports chainId 2050 and must never be
+// accepted solely because its chain ID matches.
+export const VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1 =
+  "http://127.0.0.1:18553/";
+
+export function buyVoidPresaleProductionRpcMatchesV1(
+  target: unknown,
+  rpcUrl: unknown,
+): boolean {
+  if (!isBuyVoidEpoch2PresaleTargetV1(target)) return true;
+  return rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1;
+}
+
 // Read-only public identity admission; it does not attest control of the
 // private signing credential or grant deployment/payment authority.
 export function buyVoidPresaleFulfillerMatchesV1(

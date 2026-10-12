@@ -1,6 +1,7 @@
 import {
   buyVoidPresaleRequiredAccessListV1,
   isBuyVoidEpoch2PresaleTargetV1,
+  buyVoidPresaleProductionRpcMatchesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import * as http from "node:http";
@@ -338,6 +339,15 @@ function normalizePolicy(
     return {
       ok: false,
       reason: "payment_keyed_transaction_preparation_address_invalid",
+      fingerprint,
+    };
+  }
+  // The archived and successor economic chains share chainId 2050.
+  // Pin E2 delivery to the selected production RPC before any RPC calls.
+  if (!buyVoidPresaleProductionRpcMatchesV1(contract, normalizedUrl)) {
+    return {
+      ok: false,
+      reason: "payment_keyed_transaction_preparation_epoch2_rpc_not_selected",
       fingerprint,
     };
   }

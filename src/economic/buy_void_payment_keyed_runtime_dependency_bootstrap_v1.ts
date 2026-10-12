@@ -2,6 +2,7 @@ import {
   buyVoidPresaleAccessListExactV1,
   buyVoidPresaleFeeEnvelopeValidV1,
   buyVoidPresaleFulfillerMatchesV1,
+  buyVoidPresaleProductionRpcMatchesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import path from "node:path";
@@ -269,6 +270,9 @@ function normalize(
   // a historically attested wallet must never be accepted by address rebinding.
   if (!buyVoidPresaleFulfillerMatchesV1(contract, wallet)) {
     return held("payment_keyed_runtime_epoch2_fulfiller_mismatch");
+  }
+  if (!buyVoidPresaleProductionRpcMatchesV1(contract, text(input.rpc_url))) {
+    return held("payment_keyed_runtime_epoch2_rpc_not_selected");
   }
 
   return {
