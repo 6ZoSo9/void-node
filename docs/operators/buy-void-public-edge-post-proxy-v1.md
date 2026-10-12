@@ -74,6 +74,17 @@ The gateway does not gain a general mutation proxy.
   settled timers and at most one concurrent timer. The extra fence covers the Node 22 case where an aborted
   stream reader never settles. The upstream is contacted with redirects
   forbidden.
+- The edge independently authenticates the reviewed 10,000,000 VOID
+  presale inventory, exact **0.50 USDC/VOID** source price, **2 VOID/USDC**
+  quote rate and the returned `quoted_void` using six-decimal integer-unit
+  arithmetic, never a rounded floating-point tolerance. Both the top-level
+  original USDC amounts and nested amount must represent the buyer's exact
+  admitted payment value. An inconsistent rate, price, pool, VOID quote,
+  sub-micro amount or missing quote field fails closed as uncertain 502.
+  The nested payment-instructions keyset is also an exact allowlist; private,
+  unknown, or extra metadata cannot cross the public API inside a valid 201.
+  This is the reviewed fixed-price presale generation, not permission to
+  change pricing or activate a market.
 - A 201 must ALSO bind its actionable `payment_instructions` to the
   original buyer's destination and amount, and to source-reviewed canonical
   USDC payment identities **independently of the upstream's claim**: exact
@@ -84,6 +95,10 @@ The gateway does not gain a general mutation proxy.
   payment receiver or token is generic uncertain 502, never a buyer-facing
   instruction to send funds. The source-only proof mutates those fields
   individually in otherwise valid 201 receipts and requires rejection.
+  Seven additional inert HTTP 201 scenarios falsify quoted VOID, price,
+  rate, original USDC, inventory size, fractional precision, and a private
+  nested instruction field. The legacy persisted.file sanitization and
+  synthetic receipt-byte identity proofs remain mandatory.
 - HTTP 201 **created-request** responses must also match the canonical
   node's actual `void_public_buy_void_checkout_request_result_v1` schema,
   `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1` marker, `ok: true`,
