@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "runtime/canonical-producer-source-custody-v1.cjs"
+      - "runtime/canonical-producer-self-http-guard-v3.cjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
       - "ops/run-void-node-live-v1.sh"
       - "scripts/prove_canonical_producer_source_custody_v1.mjs"
       - ".github/workflows/canonical-producer-source-custody-v1.yml"
