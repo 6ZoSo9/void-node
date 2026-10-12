@@ -57,6 +57,7 @@ jobs:
           node --import tsx scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts
           node --import tsx scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts
+          test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "55ff3d203daf4e62b417303041ddc6a8d60ffc34"
           node --check tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs
           node --check scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs
           node scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v1.mjs

@@ -22,7 +22,27 @@ assert.equal(original.status,STATUS);
 assert.equal(original.credential_binding_established,false);
 assert.equal(original.runtime_or_payment_activation_authorized,false);
 assert.equal(original.historical_v1_authority_inherited,false);
-assert.ok(Object.keys(SOURCE_BLOBS).length >= 23);
+assert.ok(Object.keys(SOURCE_BLOBS).length >= 27);
+for (const [path, exactBlob] of [
+  [
+    "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+    "2deaee8ae4e0fbd909b417eef96a76012174c668"
+  ],
+  [
+    "src/economic/buy_void_payment_keyed_chain2050_inspection_v1.ts",
+    "b68a9e39cf5548f065042f590c58b341020cce7e"
+  ],
+  [
+    "src/economic/buy_void_payment_keyed_plan_reservation_v1.ts",
+    "85ab70a1cee8c236dcab7bbb87cbf324bad49a40"
+  ],
+  [
+    "src/economic/buy_void_payment_keyed_preparation_custody_v1.ts",
+    "3b06f5d87f1647003348c7459cb3797a3394d343"
+  ]
+]) {
+  assert.equal(SOURCE_BLOBS[path], exactBlob, path);
+}
 assert.equal(
   SOURCE_BLOBS["src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"],
   "5fd9296d10d810b1976c159578f13cca5d1594fe",

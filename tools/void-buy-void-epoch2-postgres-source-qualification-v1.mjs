@@ -53,6 +53,14 @@ export const SOURCE_BLOBS = Object.freeze({
     "9e753c04f1127b440c28675199ae2c1f97a0f077",
   "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts":
     "d184aef61760e4f0109b016d6f5331e93136048d",
+  "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts":
+    "2deaee8ae4e0fbd909b417eef96a76012174c668",
+  "src/economic/buy_void_payment_keyed_chain2050_inspection_v1.ts":
+    "b68a9e39cf5548f065042f590c58b341020cce7e",
+  "src/economic/buy_void_payment_keyed_plan_reservation_v1.ts":
+    "85ab70a1cee8c236dcab7bbb87cbf324bad49a40",
+  "src/economic/buy_void_payment_keyed_preparation_custody_v1.ts":
+    "3b06f5d87f1647003348c7459cb3797a3394d343",
   "src/economic/buy_void_epoch2_signer_control_v1.ts":
     "0ce33a35da61199b597bad80fa019dca26ffade1",
   // The successor's separate systemd credential and its inert adversarial

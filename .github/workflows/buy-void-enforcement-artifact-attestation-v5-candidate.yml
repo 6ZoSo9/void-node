@@ -62,13 +62,58 @@ jobs:
       - name: Build exact source-only enforcement artifacts
         run: npm run build
       - name: Self-test closed imports and retained fd growth/swap holds
-        run: node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
+        run: |
+          set -euo pipefail
+          test "$(git hash-object scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs)" = "70292a0b283d8f06814f153105e27397f924c19d"
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
       - name: Prove V6 runtime bridge preserves signer and broadcast HOLD
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
       - name: Derive unaccepted V5 enforcement candidate
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json
+          if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/legacy-v5-derivation-error.log"; then
+            echo 'HISTORICAL_V5_SOURCE_GEN_UNCHANGED=true'
+          else
+            # Epoch-2 executable changes are forbidden under the frozen V5
+            # source authority. Assert the precise ancestry-diff failure.
+            grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/legacy-v5-derivation-error.log"
+            grep -F 'deriveBuyVoidEnforcementArtifactAttestationV5Candidate' "$RUNNER_TEMP/legacy-v5-derivation-error.log"
+            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = '55ff3d203daf4e62b417303041ddc6a8d60ffc34'
+            node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/current-epoch2-source-only.log"
+            grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/current-epoch2-source-only.log"
+            grep -Fx 'source_qualification_complete=true' "$RUNNER_TEMP/current-epoch2-source-only.log"
+            grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/current-epoch2-source-only.log"
+            grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/current-epoch2-source-only.log"
+            grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/current-epoch2-source-only.log"
+            node --input-type=module - <<'NODE' "enforcement-v5-candidate-${{ matrix.node }}.json"
+          import fs from "node:fs";
+          // Distinct explicitly UNACCEPTED successor classification, not a
+          // fabricated V5 derivation or dynamic tool closure.
+          const refusal = {
+            schema: "void_buy_void_enforcement_v5_historical_refusal_epoch2_v1",
+            version: 1,
+            historical_source_head: "22a30e3ffad6047a472488104c769140bd050878",
+            historical_v5_source_unchanged: false,
+            historical_v5_candidate_derived: false,
+            historical_v1_authority_inherited: false,
+            current_epoch2_source_tuple_qualified: true,
+            dynamic_tool_execution_identity_verified: false,
+            dynamic_tool_transitive_closure_verified: false,
+            complete_executable_closure_verified: false,
+            candidate_identity_accepted: false,
+            deployed_artifact_generation_verified: false,
+            production_source_finality_authority_ready: false,
+            signer_control_or_systemd_credential_verified: false,
+            production_payment_activation: false,
+            presale_activation: false,
+            funds_movement: false
+          };
+          fs.writeFileSync(process.argv[2], JSON.stringify(refusal, null, 2) + "\n");
+          NODE
+            touch "$RUNNER_TEMP/legacy-v5-rejection-proven"
+            echo 'HISTORICAL_V5_REFUSED_AND_EPOCH2_SOURCE_ONLY_QUALIFIED=true'
+          fi
+          if test ! -f "$RUNNER_TEMP/legacy-v5-rejection-proven"; then
           node --input-type=module -e '
             import assert from "node:assert/strict";
             import fs from "node:fs";
@@ -100,6 +145,7 @@ jobs:
               "presale_activation","funds_movement"]) assert.equal(candidate[key],false,key);
             console.log("ENFORCEMENT_V5_STATIC_GRAPH_AND_DYNAMIC_TOOL_HOLD_EVIDENCE_GREEN");
           ' enforcement-v5-candidate-${{ matrix.node }}.json
+          fi
       - name: Require rejection of missing derivation authorization
         run: |
           set -euo pipefail
@@ -151,6 +197,27 @@ jobs:
             import crypto from "node:crypto";
             const bytes=fs.readFileSync("v5-enforcement-evidence/enforcement-v5-candidate-22.json");
             const j=JSON.parse(bytes);
+            if (j.schema === "void_buy_void_enforcement_v5_historical_refusal_epoch2_v1") {
+              assert.equal(j.version,1);
+              assert.equal(j.historical_source_head,"22a30e3ffad6047a472488104c769140bd050878");
+              for(const key of [
+                "historical_v5_source_unchanged",
+                "historical_v5_candidate_derived",
+                "historical_v1_authority_inherited",
+                "dynamic_tool_execution_identity_verified",
+                "dynamic_tool_transitive_closure_verified",
+                "complete_executable_closure_verified",
+                "candidate_identity_accepted",
+                "deployed_artifact_generation_verified",
+                "production_source_finality_authority_ready",
+                "signer_control_or_systemd_credential_verified",
+                "production_payment_activation",
+                "presale_activation",
+                "funds_movement",
+              ]) assert.equal(j[key],false,key);
+              assert.equal(j.current_epoch2_source_tuple_qualified,true);
+              console.log("VOID_E2_HISTORICAL_V5_REFUSAL_CROSS_NODE_GREEN");
+            } else {
             assert.equal(j.candidate_identity_accepted,false);
             assert.equal(j.complete_executable_closure_verified,false);
             assert.equal(j.dynamic_tool_execution_identity_verified,false);
@@ -160,7 +227,8 @@ jobs:
             assert.equal(j.production_source_finality_authority_ready,false);
             assert.equal(j.deployed_artifact_generation_verified,false);
             console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_CROSS_NODE_GREEN");
+            }
             console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
-            console.log("candidate_enforcement_set_sha256="+j.candidate_enforcement_set_sha256);
+            console.log("candidate_enforcement_set_sha256="+(j.candidate_enforcement_set_sha256||"none_unaccepted_epoch2"));
             console.log("candidate_acceptance=false");
           '
