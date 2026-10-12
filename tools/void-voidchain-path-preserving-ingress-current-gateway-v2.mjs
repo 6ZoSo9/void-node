@@ -582,7 +582,7 @@ function renderConfig({tunnelId,credentialPath}){
 function renderUnit({cloudflaredPath,configPath,tunnelId}){
   return [
     "[Unit]",
-    "Description=VOID voidchain.org path-preserving ingress v1",
+    "Description=VOID voidchain.org path-preserving ingress current gateway v2",
     "After=network-online.target void-public-frontdoor-v1.service",
     "Wants=network-online.target void-public-frontdoor-v1.service",
     "",
@@ -611,7 +611,7 @@ function renderUnit({cloudflaredPath,configPath,tunnelId}){
 
 function renderInstructions({outputDir,head}){
   return [
-    "VOID voidchain.org path-preserving ingress plan v1",
+    "VOID voidchain.org path-preserving ingress current gateway plan v2",
     "",
     "THIS PACKET IS INERT. IT IS NOT INSTALLATION OR ACTIVATION AUTHORITY.",
     "",
@@ -855,7 +855,7 @@ export function verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir
   if(
     packet.marker!==VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2||
     packet.schema!==SCHEMA||
-    packet.version!==1||
+    packet.version!==2||
     packet.hostname!==HOSTNAME||
     packet.public_origin!==PUBLIC_ORIGIN||
     typeof packet.plan_id!=="string"||
