@@ -1248,6 +1248,95 @@ for (const existing of [false, true]) {
   }
 }
 
+// A leftover private sidecar for a request ID omitted from an otherwise
+// valid, nonempty request journal is ambiguous customer evidence. New-request
+// admission must reject it before writing an additional economic obligation.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const original=request("buyvoid_orphan_seed_aaaaaaaa","3","base","2");
+  const candidate=request("buyvoid_orphan_new_bbbbbbbb","3","base","4");
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await persist(original);
+    const ledger=path.join(root,"requests.jsonl");
+    const orphan=path.join(root,candidate.request_id+".json");
+    const durableBefore=fs.readFileSync(ledger);
+    const opaque=Buffer.from("ORPHAN_CUSTOMER_SIDECAR_KEEP_EXACT");
+    fs.writeFileSync(orphan,opaque,{mode:0o600});
+    assert.equal(fs.statSync(orphan).mode&0o7777,0o600);
+    await assert.rejects(()=>persist(candidate),
+      /buy_void_request_history_under_lock_new_request_orphan_sidecar/u);
+    assert.deepEqual(fs.readFileSync(ledger),durableBefore,
+      "orphan sidecar must stop before any append");
+    assert.deepEqual(fs.readFileSync(orphan),opaque,
+      "orphan customer evidence must never be truncated or replaced");
+  } finally {
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// A failing sidecar close is an ownership HOLD, but must never short-circuit
+// the independent journal close. Inject after a corrupted original revision
+// is refused, preserving source bytes and observing both descriptor closes.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const original=request("buyvoid_close_guard_aaaaaaaa","3","base","8");
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  const nativeClose=fs.closeSync;
+  let injected=false, journalCloseCount=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await persist(original);
+    const sidecar=path.join(root,original.request_id+".json");
+    const ledger=path.join(root,"requests.jsonl");
+    const durableBefore=fs.readFileSync(ledger);
+    const originalBytes=fs.readFileSync(sidecar);
+    const altered=Buffer.from(originalBytes);
+    const idAt=altered.indexOf(Buffer.from(original.request_id,"utf8"));
+    assert.ok(idAt>=0);
+    altered[idAt]=altered[idAt]===0x41?0x42:0x41;
+    fs.writeFileSync(sidecar,altered);
+    const revised={
+      ...original,status:"payment_submitted_pending_manual_review",
+      tx_hash:"0x"+"b".repeat(64),
+      payment_submitted_at_ms:1800000000400,
+    };
+    fs.closeSync=function(fd){
+      let target="";
+      try {target=fs.readlinkSync("/proc/self/fd/"+fd);}catch{}
+      if(target===sidecar&&!injected){
+        injected=true;
+        nativeClose(fd);
+        throw new Error("synthetic_revision_descriptor_close_uncertain");
+      }
+      if(target===ledger)journalCloseCount+=1;
+      return nativeClose(fd);
+    };
+    await assert.rejects(()=>persist(revised),
+      /buy_void_request_history_under_lock_revision_original_sidecar_close_uncertain/u);
+    assert.equal(injected,true,"sidecar close fault must be exercised");
+    assert.equal(journalCloseCount,1,
+      "journal close must be attempted even after sidecar close fault");
+    assert.deepEqual(fs.readFileSync(ledger),durableBefore,
+      "rejected original sidecar cannot append a payment revision");
+    assert.deepEqual(fs.readFileSync(sidecar),altered);
+  } finally {
+    fs.closeSync=nativeClose;
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
@@ -1277,6 +1366,8 @@ console.log("same_inode_equal_length_final_sidecar_rewrite_holds=true");
 console.log("final_sidecar_byte_readback_mismatch_holds=true");
 console.log("first_create_and_operator_revision_final_bytes_verified=true");
 console.log("operator_revision_original_sidecar_preappend_qualified=true");
+console.log("orphan_request_sidecar_rejected_before_journal_append=true");
+console.log("journal_descriptor_closed_on_revision_sidecar_close_failure=true");
 console.log("mismatched_or_interloped_sidecar_never_rewritten=true");
 console.log("unsafe_legacy_request_id_sidecar_path_holds=true");
 console.log("prior_multi_active_destination_never_idempotent=true");
