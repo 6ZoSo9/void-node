@@ -485,7 +485,17 @@ async function loadBuy() {
   const buyView = one('[data-buy-view]');
   if (currentRoute() !== 'buy' || !buyView) return;
   beginBuyViewInstance(buyView);
+  const loadingViewGeneration = buyViewGeneration;
   const serial = ++requestSerial;
+  // A late readiness GET is owned by the exact Buy DOM generation that
+  // started it. Serial-only checks do not catch replacement of the view
+  // before its successor requests fresh readiness.
+  const stillOwnsLoadingView = () =>
+    serial === requestSerial &&
+    loadingViewGeneration === buyViewGeneration &&
+    activeBuyView === buyView &&
+    currentRoute() === 'buy' &&
+    one('[data-buy-view]') === buyView;
   readinessPending = true;
   currentSnapshot = null;
   setChip('[data-buy-state-chip]', 'info', 'Checking presale');
@@ -497,12 +507,12 @@ async function loadBuy() {
       fetchJson(BUY_STATUS_ENDPOINT),
       fetchJson(BUY_SALE_ENDPOINT),
     ]);
-    if (serial !== requestSerial) return;
+    if (!stillOwnsLoadingView()) return;
     currentSnapshot = validateSnapshot(config, status, sale);
     readinessPending = false;
     renderSnapshot(currentSnapshot);
   } catch (error) {
-    if (serial !== requestSerial) return;
+    if (!stillOwnsLoadingView()) return;
     readinessPending = false;
     renderError(error);
   }
