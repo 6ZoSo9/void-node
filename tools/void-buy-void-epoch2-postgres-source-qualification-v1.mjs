@@ -26,7 +26,7 @@ const RPC = "http://127.0.0.1:18553/";
 // for current review; it does NOT accept the prior credentials or grant apply.
 export const SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
-    "bda64ec48e557f5100625b015dcea16c9a8865fe",
+    "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "0dfcd6ff9854cc11f0c12db90ef04cdd84b165dd",
   "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts":
