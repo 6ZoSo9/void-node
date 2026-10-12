@@ -589,7 +589,9 @@ async function submitBuy(event) {
       response.status !== 201 ||
       body.ok !== true ||
       body.idempotent !== false ||
-      body.schema !== 'void_public_buy_void_checkout_request_result_v1'
+      body.schema !== 'void_public_buy_void_checkout_request_result_v1' ||
+      body.marker !== BUY_MARKER ||
+      body.one_active_request_cap_enforced !== true
     ) {
       throw new Error(body.error || (Array.isArray(body.errors) ? body.errors.join(', ') : `HTTP ${response.status}`));
     }
@@ -600,6 +602,12 @@ async function submitBuy(event) {
     // A new public checkout result is not authorization to reuse another
     // buyer's request or to treat an already-submitted payment as new intake.
     if (
+      request.schema !== 'void_public_buy_void_checkout_request_v1' ||
+      request.marker !== BUY_MARKER ||
+      request.ok !== true ||
+      request.persisted?.ok !== true ||
+      typeof request.request_id !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(request.request_id) ||
       request.status !== 'awaiting_payment_tx_hash' ||
       request.tx_hash !== '' ||
       request.delivery_chain !== 'void' ||
