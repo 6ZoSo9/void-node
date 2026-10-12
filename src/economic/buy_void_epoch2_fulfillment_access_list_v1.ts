@@ -30,6 +30,49 @@ export function buyVoidPresaleFulfillerMatchesV1(
   return typeof signer === "string" &&
     signer.toLowerCase() === VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
 }
+// Guard the executable payment runtime against accidental reuse of the
+// retired Epoch-1 production checkout. It remains possible to inspect/verify
+// historical E1 proof records, but not apply them on the old live endpoint.
+// This check is an extra fail-closed apply fence, NOT a signer authorization.
+export const VOID_BUY_VOID_RETIRED_EPOCH1_PRESALE_ADDRESS_V1 =
+  "0xa40a43adfd174f88309173cb3daa6e09c10154a7";
+export const VOID_BUY_VOID_RETIRED_EPOCH1_RPC_PORT_V1 = "8545";
+
+export function buyVoidCurrentPresaleApplyTargetV1(
+  target: unknown, rpcUrl: unknown, signer: unknown,
+): boolean {
+  if (typeof target !== "string" || typeof rpcUrl !== "string" ||
+      typeof signer !== "string") return false;
+  const normalizedTarget = target.toLowerCase();
+  const normalizedSigner = signer.toLowerCase();
+  if (normalizedTarget === VOID_BUY_VOID_RETIRED_EPOCH1_PRESALE_ADDRESS_V1) {
+    return false;
+  }
+  let rpc: URL;
+  try {
+    rpc = new URL(rpcUrl);
+  } catch {
+    return false;
+  }
+  if (rpc.protocol !== "http:" || rpc.username || rpc.password ||
+      rpc.search || rpc.hash) return false;
+  // Both historical canonical 127.0.0.1:8545 and its loopback aliases
+  // remain retired execution lanes, not a way to publish new sales.
+  if (rpc.port === VOID_BUY_VOID_RETIRED_EPOCH1_RPC_PORT_V1 &&
+      (rpc.hostname === "127.0.0.1" ||
+       rpc.hostname === "localhost" ||
+       rpc.hostname === "[::1]")) return false;
+  if (normalizedTarget === VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
+      rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1) {
+    return normalizedTarget === VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 &&
+      rpcUrl === VOID_BUY_VOID_EPOCH2_PRODUCTION_RPC_URL_V1 &&
+      normalizedSigner === VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+  }
+  // Non-production fixture targets remain testable. No public production
+  // admission comes from this return value; other authority gates still apply.
+  return true;
+}
+
 export const VOID_BUY_VOID_EPOCH2_MARKER_ADDRESS_V1 =
   "0x0000000000000000000000000000000000002050";
 export const VOID_BUY_VOID_EPOCH2_MARKER_KEY_V1 =

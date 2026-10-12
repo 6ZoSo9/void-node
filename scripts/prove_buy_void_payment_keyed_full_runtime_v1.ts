@@ -2,6 +2,7 @@
 import {
   VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
   VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  buyVoidCurrentPresaleApplyTargetV1,
   buyVoidPresaleFulfillerMatchesV1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import assert from "node:assert/strict";
@@ -574,6 +575,61 @@ async function runScenario(
   return { f, result };
 }
 
+// Historic E1 sale artifacts remain verifiable, but may never reactivate
+// the retired production RPC/contract. A canonical E2 RPC must use only
+// the immutable successor contract and its own authorized signer.
+{
+  const E1 = "0xa40a43adfd174f88309173cb3daa6e09c10154a7";
+  const E2_RPC = "http://127.0.0.1:18553/";
+  const E1_RPC = "http://127.0.0.1:8545/";
+  const cases = [
+    [E1, E1_RPC, WALLET, "retired_combination"],
+    [E1, E2_RPC, WALLET, "old_contract_on_e2_rpc"],
+    [CONTRACT, E1_RPC, WALLET, "retired_rpc_any_contract"],
+    [CONTRACT, "http://localhost:8545/", WALLET, "retired_alias"],
+    [CONTRACT, E2_RPC, WALLET, "unreviewed_target_at_selected_rpc"],
+    [VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,
+      WALLET, "wrong_epoch2_fulfiller"],
+  ] as const;
+  for (const [contract, rpc, signer, name] of cases) {
+    assert.equal(
+      buyVoidCurrentPresaleApplyTargetV1(contract, rpc, signer),
+      false, name,
+    );
+    const f = fixture({ attempt_status: "reserved" });
+    f.options.policy_state = () => ({
+      ...configuredPolicy,
+      fulfillment_contract_address: contract,
+      fulfillment_wallet_address: signer,
+      server_policy: {
+        ...serverPolicy,
+        preparation_policy: {
+          ...serverPolicy.preparation_policy,
+          fulfillment_contract_address: contract,
+          fulfillment_wallet_address: signer,
+          rpc_url: rpc,
+        },
+      },
+    });
+    const decision = await runBuyVoidPaymentKeyedFullRuntimeV1({
+      attempt_id: ATTEMPT_ID,
+      apply: true,
+      confirmation: VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_CONFIRMATION_V1,
+    }, f.options);
+    assert.equal(decision.ok, false, name);
+    assert.equal(decision.reason,
+      "payment_keyed_full_runtime_current_epoch2_target_required", name);
+    assert.equal(decision.mutation_performed, false, name);
+    assert.equal(decision.transaction_broadcast_performed, false, name);
+    assert.equal(f.calls.bootstrap, 0, name);
+    assert.equal(f.calls.preparation.length, 0, name);
+  }
+  assert.equal(buyVoidCurrentPresaleApplyTargetV1(
+    VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1, E2_RPC,
+    VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+  ), true);
+}
+
 {
   const { f, result } = await runScenario(
     { attempt_status: "reserved" },
@@ -1017,6 +1073,7 @@ assert.doesNotMatch(
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log("VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1_PROOF_GREEN");
+console.log("retired_epoch1_production_apply_fails_before_saga_or_signer=true");
 console.log("parent_dispatch_mounted=true");
 console.log("child_runtime_default_off=true");
 console.log("child_apply_default_off=true");

@@ -1,4 +1,5 @@
 import {
+  buyVoidCurrentPresaleApplyTargetV1,
   buyVoidPresaleFulfillerMatchesV1,
   buyVoidPresaleProductionRpcMatchesV1,
 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
@@ -1377,6 +1378,35 @@ export async function runBuyVoidPaymentKeyedFullRuntimeV1(input: {
       mutation_performed: false,
       missing_policy_envs: policy.missing_envs,
       invalid_policy_envs: policy.invalid_envs,
+    };
+  }
+
+  // Even if a retained E1 policy has "configured=true" and apply=1,
+  // do not touch saga records or a signer through the retired production
+  // endpoint, old contract, or an unreviewed E2-RPC destination.
+  // Historical synthetic fixtures use non-production RPC ports.
+  if (
+    input?.apply === true &&
+    !buyVoidCurrentPresaleApplyTargetV1(
+      policy.fulfillment_contract_address,
+      policy.server_policy?.preparation_policy?.rpc_url,
+      policy.fulfillment_wallet_address,
+    )
+  ) {
+    return {
+      marker: VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+      version: 1,
+      ok: false,
+      status: "held",
+      reason: "payment_keyed_full_runtime_current_epoch2_target_required",
+      applied: true,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      inventory_mutation_performed: false,
+      public_fulfilled_closeout_performed: false,
+      automatic_retry_allowed: false,
+      money_movement_performed: false,
     };
   }
 
