@@ -71,6 +71,7 @@ function serviceControlFixture(){
   ];
   return {
     all_systemd_control_actions_explicitly_denied:true,
+    all_training_uid_processes_capability_free:true,
     checked_actions:checks,
     installed_systemd_package_version:"255.4-1ubuntu8.11",
     observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
@@ -97,17 +98,39 @@ function serviceControlFixture(){
       symlink:false,
     },
     reviewed_systemd_major:255,
+    reviewed_systemd_package_version:"255.4-1ubuntu8.11",
     running_installed_systemd_version_match:true,
     running_systemd_manager_major:255,
     running_systemd_manager_version:"255.4-1ubuntu8.11",
     runtime_can_control_service:false,
     service_unit:serviceUnit,
+    systemd_bus_owner_pid:1,
+    systemd_bus_owner_pid_is_pid1:true,
     training_pid:4242,
     training_process_capabilities:{
-      ambient:"0",effective:"0",inheritable:"0",no_new_privileges:true,permitted:"0",
+      ambient:"0",effective:"0",inheritable:"0",
+      no_new_privileges:true,permitted:"0",
     },
     training_process_start_time_ticks:"123456",
     training_uid:1000,
+    training_uid_process_count:2,
+    training_uid_process_set_stable:true,
+    training_uid_processes:[
+      {
+        pid:4242,start_time_ticks:"123456",uid:1000,
+        capabilities:{
+          ambient:"0",effective:"0",inheritable:"0",
+          no_new_privileges:true,permitted:"0",
+        },
+      },
+      {
+        pid:4243,start_time_ticks:"123457",uid:1000,
+        capabilities:{
+          ambient:"0",effective:"0",inheritable:"0",
+          no_new_privileges:true,permitted:"0",
+        },
+      },
+    ],
   };
 }
 function v1Fixture(){
@@ -208,6 +231,27 @@ for(const mutate of [
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
+  const bad=v2Fixture();
+  bad.service_control.systemd_bus_owner_pid=2;
+  bad.service_control.systemd_bus_owner_pid_is_pid1=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.reviewed_systemd_package_version="255.4-1ubuntu8.12";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[1].capabilities.effective="1";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_process_set_stable=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
   const bad=v2Fixture();bad.service.runtime_can_control_service=true;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
 }
@@ -223,6 +267,9 @@ for(const [key,expected] of Object.entries({
   reviewed_systemd_major_pinned:true,
   running_systemd_manager_version_bound:true,
   running_installed_systemd_version_match_required:true,
+  reviewed_systemd_package_version_pinned:true,
+  systemd_bus_owner_pid1_required:true,
+  all_training_uid_processes_capability_free_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -241,6 +288,9 @@ console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
 console.log("running_systemd_manager_version_bound=true");
 console.log("running_installed_systemd_version_match_required=true");
+console.log("reviewed_systemd_package_version=255.4-1ubuntu8.11");
+console.log("systemd_bus_owner_pid_is_pid1=true");
+console.log("all_training_uid_processes_capability_free_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
