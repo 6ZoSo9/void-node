@@ -14,8 +14,12 @@ UID rename/unlink denial through the socket parent's immediate parent.
 V2 additionally requires explicit service-control denial evidence before the
 historical `runtime_can_control_service=false` field can be admitted. The
 evidence is bound to the exact training PID, Linux process start-time ticks and
-UID, requires systemd major 255, zero inherited/permitted/effective/ambient
-capabilities plus `NoNewPrivs: 1`, and requires an exact root-owned, non-group/world-writable, single-link
+UID, requires zero inherited/permitted/effective/ambient capabilities plus
+`NoNewPrivs: 1`, and binds the installed systemd package to the running PID 1
+D-Bus Manager.Version value. Both must match exactly and resolve to reviewed
+major 255; package/runtime version drift HOLDS.
+
+V2 also requires an exact root-owned, non-group/world-writable, single-link
 Polkit deny rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
 The rule must be lexically first and return `NO` for the training user based
