@@ -72,6 +72,13 @@ def assert_direct_ancestors(pathname:Path,*,root_owned:bool)->None:
     absolute=Path(os.path.abspath(os.fspath(pathname)))
     parts=absolute.parts
     current=Path(parts[0])
+    if root_owned:
+        root_metadata=os.lstat(current)
+        if (
+            root_metadata.st_uid!=0 or
+            stat.S_IMODE(root_metadata.st_mode)&0o022
+        ):
+            hold("apollyon_v2_installed_launcher_untrusted_ancestor")
     for part in parts[1:]:
         current=current/part
         metadata=os.lstat(current)
