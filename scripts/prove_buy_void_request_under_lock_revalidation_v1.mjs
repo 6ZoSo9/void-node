@@ -1668,8 +1668,164 @@ for(const wrong of ["accessor","own_tojson","nonfinite"]){
 }
 
 console.log("ambient_array_iterator_payment_terms_preserved=true");
+console.log("directory_orphan_iterator_poison_holds=true");
+console.log("durable_history_iterator_poison_preserves_active_buyer=true");
+console.log("duplicate_payment_hash_iterator_poison_holds=true");
 console.log("operator_immutable_nested_payment_instructions_iterator_guard=true");
 console.log("operator_immutable_nested_payment_instructions_tojson_guard=true");
+// Same-process replacement of Array.prototype[Symbol.iterator] must not omit
+// orphan private sidecars from strict first-generation history admission.
+{
+  const root=temp(), saved=process.env.VOID_BUY_REQUEST_DIR;
+  const sidecarName="buyvoid_orphan_iterator_aaaaaaaa.json";
+  const sidecar=path.join(root,sidecarName);
+  const opaque=Buffer.from("SYNTHETIC_ORPHAN_PRIVATE_CUSTOMER_EVIDENCE");
+  const oldIterator=Object.getOwnPropertyDescriptor(Array.prototype,Symbol.iterator);
+  assert.equal(typeof oldIterator?.value,"function");
+  let poisonedCalls=0;
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    fs.writeFileSync(sidecar,opaque,{mode:0o600});
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,
+      value:function() {
+        if(this.length===1 && this[0]===sidecarName) {
+          poisonedCalls++;
+          return oldIterator.value.call([]);
+        }
+        return oldIterator.value.call(this);
+      },
+    });
+    const fixture=[sidecarName],naive=[];
+    for(const item of fixture)naive.push(item);
+    assert.deepEqual(naive,[],"negative control must hide orphan leaf");
+    const before=poisonedCalls;
+    await assert.rejects(
+      ()=>persist(request("buyvoid_orphan_iterator_new_bbbbbbbb","3","base","7")),
+      /buy_void_request_history_under_lock_missing_or_empty_with_surviving_history/u);
+    assert.equal(poisonedCalls,before,"guard must not use mutable Array iterator");
+    assert.equal(fs.existsSync(path.join(root,"requests.jsonl")),false);
+    assert.deepEqual(fs.readFileSync(sidecar),opaque);
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,oldIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// Every durable buyer row must reach the active-destination census. This
+// targeted hook suppresses the first request ID only under for..of, not a
+// numeric own-index walk; the strict journal itself remains unchanged.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const buyerA=request("buyvoid_fold_iterator_a_aaaaaaa","3","base","5");
+  const buyerB=request("buyvoid_fold_iterator_b_bbbbbbb","3","base","6");
+  const oldIterator=Object.getOwnPropertyDescriptor(Array.prototype,Symbol.iterator);
+  assert.equal(typeof oldIterator?.value,"function");
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  let poisonedCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await persist(buyerA);
+    await persist(buyerB);
+    const ledger=path.join(root,"requests.jsonl");
+    const before=fs.readFileSync(ledger);
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,
+      value:function() {
+        if(this.length===2 && this[0]?.request_id===buyerA.request_id &&
+            this[1]?.request_id===buyerB.request_id) {
+          poisonedCalls++;
+          return oldIterator.value.call([this[1]]);
+        }
+        return oldIterator.value.call(this);
+      },
+    });
+    const naive=[];for(const row of lines(root))naive.push(row.request_id);
+    assert.deepEqual(naive,[buyerB.request_id],
+      "negative control must hide the original active buyer");
+    const firstCalls=poisonedCalls;
+    const replay=await persist(request(
+      "buyvoid_fold_retry_c_ccccccc","3","base","5"));
+    assert.equal(replay.reused_request?.request_id,buyerA.request_id,
+      "numeric durable fold must preserve original active destination");
+    assert.equal(poisonedCalls,firstCalls,
+      "protected durable history may not invoke mutable Array iterator");
+    assert.deepEqual(fs.readFileSync(ledger),before,
+      "no second paid obligation may be appended");
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,oldIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+// The final operator duplicate-payment-hash census cannot consult an
+// ambient Array iterator: another buyer's exact hash must never disappear.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const buyerA=request("buyvoid_hash_iterator_a_aaaaaaa","3","base","5");
+  const buyerB=request("buyvoid_hash_iterator_b_bbbbbbb","3","base","6");
+  const hash="0x"+"a".repeat(64);
+  const oldIterator=Object.getOwnPropertyDescriptor(Array.prototype,Symbol.iterator);
+  assert.equal(typeof oldIterator?.value,"function");
+  const readers=factory(oldPersist,root);
+  const persist=(row)=>persistBuyVoidPublicRequestUnderLaunchLockV1(
+    row,[readers.withLock,readers.readRequests,readers.readEvents,
+      readers.applyEvents,readers.terminalStatus,()=>true]);
+  let poisonedCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    await persist(buyerA);
+    await persist(buyerB);
+    await persist({...buyerA,
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:hash,payment_submitted_at_ms:1800000000400});
+    const ledger=path.join(root,"requests.jsonl");
+    const before=fs.readFileSync(ledger);
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,
+      value:function() {
+        if(this.length===3 &&
+            this[0]?.request_id===buyerA.request_id &&
+            this[1]?.request_id===buyerB.request_id &&
+            this[2]?.request_id===buyerA.request_id &&
+            this[2]?.tx_hash===hash) {
+          poisonedCalls++;
+          return oldIterator.value.call([this[0],this[1]]);
+        }
+        return oldIterator.value.call(this);
+      },
+    });
+    const naive=[];for(const row of lines(root))naive.push(row.tx_hash);
+    assert.equal(naive.includes(hash),false,
+      "negative control must hide other buyer's durable payment hash");
+    const firstCalls=poisonedCalls;
+    await assert.rejects(()=>persist({...buyerB,
+      status:"payment_submitted_pending_manual_review",
+      tx_hash:hash,payment_submitted_at_ms:1800000000401}),
+      /buy_void_request_history_under_lock_operator_revision_duplicate_tx_hash/u);
+    assert.equal(poisonedCalls,firstCalls,
+      "duplicate hash scan must use numeric own-index traversal");
+    assert.deepEqual(fs.readFileSync(ledger),before,
+      "duplicate hash may not append a second buyer's revision");
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,oldIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V1_GREEN");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");

@@ -133,8 +133,15 @@ function assertNoSurvivingRequestHistoryV1(dir: string): void {
   let entries: string[];
   try { entries = fs.readdirSync(dir); }
   catch { holdHistoryV1("directory_listing_unavailable"); }
-  for (const entry of entries) {
-    if (entry === "operator-events.jsonl" ||
+  // An ambient Array.prototype[Symbol.iterator] hook can hide orphan
+  // customer sidecars from an otherwise-correct directory listing.
+  for (let i = 0; i < entries.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(entries, String(i))) {
+      holdHistoryV1("directory_listing_sparse");
+    }
+    const entry = entries[i];
+    if (typeof entry !== "string" ||
+        entry === "operator-events.jsonl" ||
         path.extname(entry) === ".json") {
       holdHistoryV1("missing_or_empty_with_surviving_history");
     }
@@ -418,8 +425,19 @@ function validTxHashRevisionV1(before: any, after: any): boolean {
       immutableRequestBytesForTransitionV1(after);
 }
 function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(rows) ||
+      !Number.isSafeInteger(rows.length) ||
+      rows.length > REQUEST_HISTORY_MAX_BYTES_V1) {
+    holdHistoryV1("revision_rows_unqualified");
+  }
   const byId = new Map<string, any>();
-  for (const row of rows) {
+  // Walk every durable byte-framed history index, without the replaceable
+  // Array iterator. A skipped active row must not become a new obligation.
+  for (let i = 0; i < rows.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(rows, String(i))) {
+      holdHistoryV1("revision_rows_sparse");
+    }
+    const row = rows[i];
     if (!row || typeof row.request_id !== "string" || !row.request_id) {
       holdHistoryV1("revision_id_invalid");
     }
@@ -430,7 +448,11 @@ function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
     }
     byId.set(row.request_id, row);
   }
-  return Array.from(byId.values());
+  const folded = Array.from(byId.values());
+  if (folded.length !== byId.size) {
+    holdHistoryV1("revision_fold_cardinality");
+  }
+  return folded;
 }
 
 
@@ -731,7 +753,13 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
           !validTxHashRevisionV1(original, reqObj)) {
         holdHistoryV1("operator_revision_not_authorized_by_original");
       }
-      for (const row of durableRequestHistory) {
+      // Every durable row, including another buyer's payment hash, must
+      // survive same-process Array iterator poisoning at this final gate.
+      for (let i = 0; i < durableRequestHistory.length; i += 1) {
+        if (!REQUEST_HISTORY_HAS_OWN_V1(durableRequestHistory, String(i))) {
+          holdHistoryV1("operator_revision_history_sparse");
+        }
+        const row = durableRequestHistory[i];
         if (row.request_id !== reqObj.request_id &&
             typeof row.tx_hash === "string" &&
             row.tx_hash.toLowerCase() === reqObj.tx_hash.toLowerCase()) {
