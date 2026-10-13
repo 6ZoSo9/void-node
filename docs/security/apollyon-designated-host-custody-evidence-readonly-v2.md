@@ -15,10 +15,14 @@ socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
 its /proc start-time ticks and UID, then inventories every process whose Linux
-UID slots touch the training UID. The inventory must remain stable across a
-second scan; every admitted process must have all four UID slots equal to the
-training UID, zero CapInh/CapPrm/CapEff/CapAmb, and NoNewPrivs=1. A privileged
-sibling process therefore cannot be hidden behind a harmless selected PID.
+UID slots touch the training UID. The process inventory must remain stable
+across a second scan. For every admitted process it enumerates
+`/proc/<pid>/task/<tid>` twice and requires every thread credential transcript
+to remain stable: all four UID slots equal the training UID, zero
+CapInh/CapPrm/CapEff/CapAmb, and NoNewPrivs=1. Evidence carries bounded thread
+counts and SHA-256 inventory digests per process plus a total thread count. A
+privileged sibling process or sibling thread therefore cannot be hidden behind
+a harmless selected PID.
 
 The collector pins systemd to the exact reviewed package generation
 `255.4-1ubuntu8.11`. It obtains the Unix PID owning
