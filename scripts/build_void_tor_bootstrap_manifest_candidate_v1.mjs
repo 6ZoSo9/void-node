@@ -145,6 +145,7 @@ export function writeExclusiveOwnedV1(file,bytes,fsImpl=fs){
   }catch(error){
     if(fd!==null){try{fsImpl.closeSync(fd);}catch{}}
     if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch{}}
+    if(!owned&&error?.code==="EEXIST") fail("candidate output already exists: "+file);
     throw error;
   }
 }

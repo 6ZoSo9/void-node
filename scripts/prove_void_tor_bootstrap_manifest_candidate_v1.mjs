@@ -35,13 +35,13 @@ const ownershipTemp=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-candidate-own
 try{
  const manifestRace=path.join(ownershipTemp,"manifest-race.json"),payloadRace=path.join(ownershipTemp,"payload-race.bin");
  fs.writeFileSync(payloadRace,Buffer.from("foreign-payload","utf8"),{mode:0o600});
- assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestRace,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadRace,payloadBytes:Buffer.from("owned-payload","utf8")}),/EEXIST/u);
+ assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestRace,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadRace,payloadBytes:Buffer.from("owned-payload","utf8")}),/candidate output already exists/u);
  assert.equal(fs.existsSync(manifestRace),false);
  assert.equal(fs.readFileSync(payloadRace,"utf8"),"foreign-payload");
 
  const manifestForeign=path.join(ownershipTemp,"manifest-foreign.json"),payloadAfter=path.join(ownershipTemp,"payload-after.bin");
  fs.writeFileSync(manifestForeign,Buffer.from("foreign-manifest","utf8"),{mode:0o600});
- assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestForeign,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadAfter,payloadBytes:Buffer.from("owned-payload","utf8")}),/EEXIST/u);
+ assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestForeign,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadAfter,payloadBytes:Buffer.from("owned-payload","utf8")}),/candidate output already exists/u);
  assert.equal(fs.readFileSync(manifestForeign,"utf8"),"foreign-manifest");
  assert.equal(fs.existsSync(payloadAfter),false);
 
