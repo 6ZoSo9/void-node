@@ -9,6 +9,15 @@ on:
       - "src/http/api_attach.js"
       - "scripts/prove_void_attach_block_range_bounds_v1.mjs"
       - "scripts/prove_void_index_block_range_bounds_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-index-block-range-bounds-v1.yml"
+      - "src/index.ts"
+      - "src/http/api_attach.ts"
+      - "src/http/api_attach.js"
+      - "scripts/prove_void_attach_block_range_bounds_v1.mjs"
+      - "scripts/prove_void_index_block_range_bounds_v1.mjs"
   workflow_dispatch:
 
 permissions:
