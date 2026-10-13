@@ -54,6 +54,93 @@ try{
  }finally{fs.fchmodSync=realFchmod;}
  assert.equal(injectedChmod,true);
  assert.equal(fs.existsSync(chmodFail),false);
+
+ // A validated output parent must remain the same directory through creation.
+ // Swap the visible path to a repository-pointing symlink after both parents
+ // have been descriptor-bound but before either create begins. The operation
+ // must HOLD before any leaf is created in either namespace.
+ {
+  const raceRoot=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-parent-race-before-create-v1-"));
+  const parent=path.join(raceRoot,"outside");
+  const moved=path.join(raceRoot,"outside-moved");
+  fs.mkdirSync(parent,{mode:0o700});
+  const manifestName=".void-tor-parent-race-before-create-manifest-v1.json";
+  const payloadName=".void-tor-parent-race-before-create-payload-v1.bin";
+  const manifestFile=path.join(parent,manifestName);
+  const payloadFile=path.join(parent,payloadName);
+  const repoManifest=path.join(ROOT,manifestName);
+  const repoPayload=path.join(ROOT,payloadName);
+  assert.equal(fs.existsSync(repoManifest),false);
+  assert.equal(fs.existsSync(repoPayload),false);
+  try{
+   assert.throws(
+    ()=>writeCandidateOutputsV1({
+     manifestFile,
+     manifestBytes:Buffer.from("owned-manifest","utf8"),
+     payloadFile,
+     payloadBytes:Buffer.from("owned-payload","utf8"),
+     testOnlyAfterBindBeforeCreate(){
+      fs.renameSync(parent,moved);
+      fs.symlinkSync(ROOT,parent,"dir");
+     },
+    }),
+    /parent identity drift/u,
+   );
+   assert.equal(fs.existsSync(repoManifest),false);
+   assert.equal(fs.existsSync(repoPayload),false);
+   assert.equal(fs.existsSync(path.join(moved,manifestName)),false);
+   assert.equal(fs.existsSync(path.join(moved,payloadName)),false);
+  }finally{
+   if(fs.existsSync(parent)&&fs.lstatSync(parent).isSymbolicLink())fs.unlinkSync(parent);
+   if(fs.existsSync(repoManifest))fs.rmSync(repoManifest,{force:true});
+   if(fs.existsSync(repoPayload))fs.rmSync(repoPayload,{force:true});
+   fs.rmSync(raceRoot,{recursive:true,force:true});
+  }
+ }
+
+ // Stronger TOCTOU: swap the visible parent after the final visible-parent
+ // identity check inside the manifest writer, immediately before O_EXCL create.
+ // Creation is descriptor-relative into the pinned original outside directory;
+ // the post-create visible-parent recheck must HOLD and owned cleanup must
+ // remove that partial leaf without ever touching the repository target.
+ {
+  const raceRoot=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-parent-race-precreate-v1-"));
+  const parent=path.join(raceRoot,"outside");
+  const moved=path.join(raceRoot,"outside-moved");
+  fs.mkdirSync(parent,{mode:0o700});
+  const manifestName=".void-tor-parent-race-precreate-manifest-v1.json";
+  const payloadName=".void-tor-parent-race-precreate-payload-v1.bin";
+  const manifestFile=path.join(parent,manifestName);
+  const payloadFile=path.join(parent,payloadName);
+  const repoManifest=path.join(ROOT,manifestName);
+  const repoPayload=path.join(ROOT,payloadName);
+  assert.equal(fs.existsSync(repoManifest),false);
+  assert.equal(fs.existsSync(repoPayload),false);
+  try{
+   assert.throws(
+    ()=>writeCandidateOutputsV1({
+     manifestFile,
+     manifestBytes:Buffer.from("owned-manifest","utf8"),
+     payloadFile,
+     payloadBytes:Buffer.from("owned-payload","utf8"),
+     testOnlyAfterManifestParentCheckBeforeCreate(){
+      fs.renameSync(parent,moved);
+      fs.symlinkSync(ROOT,parent,"dir");
+     },
+    }),
+    /parent identity drift/u,
+   );
+   assert.equal(fs.existsSync(repoManifest),false);
+   assert.equal(fs.existsSync(repoPayload),false);
+   assert.equal(fs.existsSync(path.join(moved,manifestName)),false);
+   assert.equal(fs.existsSync(path.join(moved,payloadName)),false);
+  }finally{
+   if(fs.existsSync(parent)&&fs.lstatSync(parent).isSymbolicLink())fs.unlinkSync(parent);
+   if(fs.existsSync(repoManifest))fs.rmSync(repoManifest,{force:true});
+   if(fs.existsSync(repoPayload))fs.rmSync(repoPayload,{force:true});
+   fs.rmSync(raceRoot,{recursive:true,force:true});
+  }
+ }
 }finally{fs.rmSync(ownershipTemp,{recursive:true,force:true});}
 
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-candidate-v1-"));
@@ -73,4 +160,7 @@ console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
 console.log("foreign_output_eexist_preserved=true");
 console.log("post_create_chmod_failure_cleaned=true");
 console.log("transaction_cleanup_owned_outputs_only=true");
+console.log("output_parent_swap_before_create_holds=true");
+console.log("output_parent_swap_after_precreate_check_no_repo_write=true");
+console.log("output_parent_swap_owned_partial_cleaned=true");
 console.log("symlinked_output_parent_rejected=true");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");
