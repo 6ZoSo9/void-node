@@ -843,12 +843,7 @@ async function main() {
     throw new Error("epoch2_sealed_linux_x64_required");
   }
 
-  const trustedNode = trustedExecutable(
-    process.execPath,
-    path.basename(fs.realpathSync(process.execPath)),
-  );
-  if (process.execPath !== trustedNode ||
-      process.execArgv.length !== 1 ||
+  if (process.execArgv.length !== 1 ||
       process.execArgv[0] !== "--input-type=module" ||
       String(process.env.NODE_OPTIONS || "") !== "" ||
       String(process.env.NODE_PATH || "") !== "" ||
@@ -860,6 +855,13 @@ async function main() {
   assertCryptoSelfTest();
   const root = path.resolve(process.cwd());
   const source = assertReviewedSource(root);
+  const trustedNode = trustedExecutable(
+    process.execPath,
+    path.basename(fs.realpathSync(process.execPath)),
+  );
+  if (process.execPath !== trustedNode) {
+    throw new Error("epoch2_sealed_node_execution_context_invalid");
+  }
   const before = observeLiveSystemd();
   if (before.process_source_commit !== source.head ||
       before.process_source_tree !== source.tree ||
