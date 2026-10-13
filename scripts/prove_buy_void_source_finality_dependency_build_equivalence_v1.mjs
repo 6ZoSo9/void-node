@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BASELINE_COMMIT="68d9122fa557718882e36858906b960efa0acf3a";
 const OLD_PACKAGE_BLOB="f28c3e9446c7623ef203da36a9642d046e5f34ee";
@@ -15,6 +16,8 @@ const V2_PROFILE_BLOB="a09f47596fdf66afef64e82200f23966664a7d2c";
 const V2_PROFILE_ID="voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451";
 const PACKAGES_AGGREGATE="5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const MAX_BYTES=16*1024*1024;
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const WORKFLOW_REL=".github/workflows/buy-void-source-finality-dependency-build-equivalence-v1.yml";
 
 const SOURCE_PATHS=Object.freeze([
   "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
@@ -27,6 +30,18 @@ const SOURCE_PATHS=Object.freeze([
   "scripts/copy_void_runtime_js_v1.mjs",
   "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
 ]);
+const TRIGGER_PATHS=Object.freeze([
+  "package.json",
+  "package-lock.json",
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+  "ops/security/reviewed-node-package-runtime-ethers-v2.json",
+  "scripts/prove_void_reviewed_node_package_runtime_v2.mjs",
+  "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs",
+  "scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs",
+  ...SOURCE_PATHS,
+  WORKFLOW_REL,
+]);
+
 const ARTIFACT_PATHS=Object.freeze([
   "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
   "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -63,6 +78,15 @@ function arg(name){
 const baseline=arg("--baseline");
 const current=arg("--current");
 const baselineCandidatePath=arg("--baseline-v5-candidate");
+
+const workflowText=fs.readFileSync(path.join(ROOT,...WORKFLOW_REL.split("/")),"utf8");
+assert.equal(workflowText.includes("workflow_dispatch:"),false,"unsupported manual dispatch trigger present");
+for(const relative of TRIGGER_PATHS){
+  assert.ok(
+    workflowText.includes(`- "${relative}"`),
+    "workflow trigger missing reviewed dependency: "+relative,
+  );
+}
 
 assert.equal(blob(baseline,"package.json"),OLD_PACKAGE_BLOB);
 assert.equal(blob(baseline,"package-lock.json"),OLD_LOCK_BLOB);

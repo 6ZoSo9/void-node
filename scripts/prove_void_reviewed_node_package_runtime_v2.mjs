@@ -25,6 +25,7 @@ const EXPECTED_PACKAGE_BLOB="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";
 const EXPECTED_LOCK_BLOB="15b5c82ea36f13079a2f9e8863722f654eb3f201";
 const EXPECTED_PROFILE_ID="voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451";
 const EXPECTED_PACKAGES_AGGREGATE="5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
+const WORKFLOW_REL=".github/workflows/void-reviewed-node-package-runtime-v2.yml";
 
 function gitBlob(bytes){
   return crypto.createHash("sha1")
@@ -44,6 +45,24 @@ function makeWritable(root){
   }else{
     fs.chmodSync(root,0o600);
   }
+}
+
+const workflowText=fs.readFileSync(path.join(ROOT,...WORKFLOW_REL.split("/")),"utf8");
+assert.equal(workflowText.includes("workflow_dispatch:"),false,"unsupported manual dispatch trigger present");
+for(const relative of [
+  "scripts/prove_void_reviewed_node_package_runtime_v1.mjs",
+  "scripts/prove_void_reviewed_node_package_runtime_v2.mjs",
+  "tools/void-reviewed-node-package-runtime-v1.mjs",
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+  "ops/security/reviewed-node-package-runtime-ethers-v2.json",
+  "package.json",
+  "package-lock.json",
+  WORKFLOW_REL,
+]){
+  assert.ok(
+    workflowText.includes(`- "${relative}"`),
+    "workflow trigger missing reviewed dependency: "+relative,
+  );
 }
 
 assert.equal(fileBlob("tools/void-reviewed-node-package-runtime-v1.mjs"),EXPECTED_TOOL_BLOB);

@@ -5,12 +5,12 @@ on:
     paths:
       - ".github/workflows/void-reviewed-node-package-runtime-v2.yml"
       - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
-  workflow_dispatch:
 
 permissions:
   contents: read
