@@ -181,7 +181,7 @@ export function parseApollyonProcStatusV1(text){
     gids.some((v)=>!Number.isSafeInteger(v)||v<1||v>MAX_UID_GID)||
     new Set(uids).size!==1||
     new Set(gids).size!==1||
-    groups.some((v)=>!Number.isSafeInteger(v)||v<1||v>MAX_UID_GID)
+    groups.some((v)=>!Number.isSafeInteger(v)||v<0||v>MAX_UID_GID)
   ){
     fail("apollyon_custody_host_evidence_proc_status_invalid");
   }
