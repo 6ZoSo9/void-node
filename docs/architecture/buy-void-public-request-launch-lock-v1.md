@@ -33,10 +33,12 @@ native behavior. Required markers are
 `ambient_string_request_authority_intrinsics=false`, and
 `ambient_collection_intrinsics_request_authority=false`.
 
+The helper source identity below includes the semantic-no-op TypeScript callback annotation required by `noImplicitAny`; runtime request-lock behavior is unchanged.
+
 Current exact evidence identities are helper Git blob
-`0fd7cb486466233eac53899069f22e5ed3563662`, proof Git blob
+`58c921a1e9efdb3d672aee3dc102369561c42a15`, proof Git blob
 `26bb9725b4a4639bff4b3ce4375aeb9e827830be`, and request-lock workflow Git blob
-`f281b48d619b7aae7133b152914cbaa39ad6580d`. The current
+`93b5e752b111035e63782e2fc136df5d13a5258c`. The current
 `src/index.ts` generation remains
 `40239e0f76aa1edce43523d18c1b57691e41e8cf`.
 
@@ -65,7 +67,7 @@ and separately (b) inherited toJSON, demonstrates naive comparison would
 hide the change, and requires that the actual request intake HOLD **before**
 any new journal append or sidecar overwrite.
 
-Reviewed candidate identities: helper `0fd7cb486466233eac53899069f22e5ed3563662`, focused proof
+Reviewed candidate identities: helper `58c921a1e9efdb3d672aee3dc102369561c42a15`, focused proof
 `26bb9725b4a4639bff4b3ce4375aeb9e827830be`. The existing Node22/24/26 workflow pins these exact Git
 blobs and requires independent adversarial markers. This is protection
 against conditional same-process prototype interference, **not** evidence
@@ -102,7 +104,7 @@ the real persistor retains that field and both expected byte strings. Further
 test cases reject own `toJSON`, getter fields, nonfinite numbers and nonplain
 request data before any journal mutation.
 
-**Current source blob:** `0fd7cb486466233eac53899069f22e5ed3563662`; **exact proof blob:**
+**Current source blob:** `58c921a1e9efdb3d672aee3dc102369561c42a15`; **exact proof blob:**
 `26bb9725b4a4639bff4b3ce4375aeb9e827830be`. The focused Node 22/24/26 workflow pins both and requires
 the new adversarial markers. This protects an in-process integrity seam,
 **not** runtime module/source-custody trust, deployed buyer authorization,
@@ -466,7 +468,7 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `0fd7cb486466233eac53899069f22e5ed3563662`. Actual source-only
+Current source Git blob: `58c921a1e9efdb3d672aee3dc102369561c42a15`. Actual source-only
 regression Git blob: `26bb9725b4a4639bff4b3ce4375aeb9e827830be`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
@@ -491,7 +493,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `40239e0f76aa1edce43523d18c1b57691e41e8cf`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `0fd7cb486466233eac53899069f22e5ed3563662`). The existing
+(Git blob `58c921a1e9efdb3d672aee3dc102369561c42a15`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
