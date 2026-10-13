@@ -1164,6 +1164,7 @@ export {
   buildChallenge,
   assertReviewedSource,
   parseSystemdObservation,
+  redactedLoadCredentialBindingFromShow,
   serviceCgroupBound,
   canonicalUserBusPaths,
 };
