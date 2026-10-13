@@ -66,7 +66,7 @@ const combined = stdout + "\n" + stderr;
 
 for (const marker of [
   "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_V1_GREEN",
-  "shared_generation_authority_bakery_lock_required=true",
+  "generation_transition_publication_uses_same_lock=true",
   "request_launch_authority_revalidated_before_persist=true",
   "verified_payment_duplicate_guard_inside_capacity_lock=true",
   "canonical_coupled_readiness_dependency_closure_bound=true",
