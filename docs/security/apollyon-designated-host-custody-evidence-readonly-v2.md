@@ -15,7 +15,13 @@ socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
 its /proc start-time ticks and UID, requires zero CapInh/CapPrm/CapEff/CapAmb
-and NoNewPrivs=1, pins systemd major 255, and requires the exact reviewed early Polkit rule at
+and NoNewPrivs=1. It binds the installed systemd package version from
+`systemctl --version` to the running PID 1 manager's D-Bus
+`org.freedesktop.systemd1.Manager.Version` property, requires exact equality,
+and requires both to resolve to reviewed major 255. An upgraded userspace with
+an older still-running manager therefore HOLDS.
+
+The collector also requires the exact reviewed early Polkit rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
 The rule must be root:root, single-link, non-group/world-writable, have trusted
 root-owned ancestors, be lexically first across the system Polkit rule
