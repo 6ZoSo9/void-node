@@ -253,6 +253,7 @@ assert.throws(
       "MainPID=4242",
       "InvocationID=" + invocation,
       "LoadCredential=[unprintable]",
+      "NeedDaemonReload=no",
       "FragmentPath=" + baseUnit,
       "DropInPaths=" + dropIn,
       "",
@@ -342,6 +343,16 @@ assert.throws(
       /epoch2_sealed_redacted_fragment_credential_directive_present/u,
     );
     fs.writeFileSync(baseUnit, safeBase, { encoding: "utf8", mode: 0o600 });
+
+    const staleDaemonShow =
+      redactedShow.replace("NeedDaemonReload=no", "NeedDaemonReload=yes");
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(
+        staleDaemonShow,
+        proofUid,
+      ),
+      /epoch2_sealed_redacted_daemon_reload_required/u,
+    );
 
     const missingFragmentShow =
       redactedShow.replace("FragmentPath=" + baseUnit, "FragmentPath=");
@@ -647,6 +658,7 @@ console.log("redacted_base_fragment_credential_free=true");
 console.log("redacted_conflicting_dropin_holds=true");
 console.log("redacted_reset_dropin_holds=true");
 console.log("redacted_base_fragment_conflict_holds=true");
+console.log("redacted_daemon_reload_required_holds=true");
 console.log("signed_challenge_binds_full_systemd_observation=true");
 console.log("signed_challenge_binds_loadcredential_hash=true");
 console.log("signed_challenge_binds_credentials_directory_hash=true");

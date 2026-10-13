@@ -389,6 +389,9 @@ function redactedLoadCredentialBindingFromShow(
   if (props.get("LoadCredential") !== LOAD_CREDENTIAL_REDACTED) {
     throw new Error("epoch2_sealed_redacted_loadcredential_marker_invalid");
   }
+  if (props.get("NeedDaemonReload") !== "no") {
+    throw new Error("epoch2_sealed_redacted_daemon_reload_required");
+  }
 
   const fragmentPath = String(props.get("FragmentPath") || "");
   if (!path.isAbsolute(fragmentPath) ||
@@ -647,6 +650,7 @@ function observeLiveSystemd() {
     "-p", "MainPID",
     "-p", "InvocationID",
     "-p", "LoadCredential",
+    "-p", "NeedDaemonReload",
     "-p", "FragmentPath",
     "-p", "DropInPaths",
   ], {

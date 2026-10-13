@@ -56,8 +56,10 @@ After exact operator confirmation, the sealed probe:
    `LoadCredential=buy-void-epoch2-fulfiller-v1:...` binding. When systemd
    exposes the binding normally, the sealed probe uses that exact value. On
    systemd builds that return exactly `LoadCredential=[unprintable]`, it
-   accepts no generic redaction bypass: `FragmentPath` must identify a
-   trusted stable base unit containing no `LoadCredential`,
+   accepts no generic redaction bypass: systemd must report
+   `NeedDaemonReload=no` so the loaded unit is not stale relative to the
+   inspected files; `FragmentPath` must identify a trusted stable base unit
+   containing no `LoadCredential`,
    `LoadCredentialEncrypted`, `SetCredential`,
    `SetCredentialEncrypted`, `ImportCredential` or
    `ImportCredentialEx` directive; `DropInPaths` must contain **exactly one
