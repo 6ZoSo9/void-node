@@ -40,7 +40,7 @@ execution source for live mode.
 Reviewed pre-entry launcher source blob:
 
 ```text
-ece29504ed9041960e692261702388fa2549587e
+976586fa920800042337c6b25545298c1d8cdd88
 ```
 
 Installing either `/opt` tree is a **separate privileged mutation gate** and
@@ -62,8 +62,18 @@ non-persistent boundary.
 ## Exact source binding
 
 After the installed launcher establishes the pre-entry trust root, the live
-runner binds a complete reviewed execution closure **before first policy
-evaluation or collector execution**:
+runner also validates the Python interpreter before collector execution.
+`/usr/bin/python3` may resolve through its normal root-owned system symlink,
+but both the requested path ancestry and canonical target ancestry must be
+root-owned and non-group/world-writable; the canonical target must be a direct
+root-owned executable with one link. The runner opens that target with
+`O_NOFOLLOW`, rechecks descriptor/path identity, and executes it through
+inherited `/proc/self/fd/4`. The collector remains separately inherited on
+descriptor 3. A later Python pathname or symlink replacement therefore cannot
+redirect the privileged collector execution.
+
+After those interpreter checks, the live runner binds a complete reviewed
+execution closure **before first policy evaluation or collector execution**:
 
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
@@ -154,10 +164,13 @@ A command of the form `sudo node tools/apollyon-designated-host-custody-live-qua
 is intentionally not an accepted live invocation.
 
 The installed launcher creates one private pre-entry execution tree, and the runner creates and removes its own reviewed dependency tree.
-That is reported truthfully as
+Normal success and ordinary HOLD paths report
 `private_temporary_filesystem_write=true`,
 `repository_source_write=false`, and
-`persistent_host_mutation=false`. It performs no service mutation,
+`persistent_host_mutation=false`. If cleanup itself fails, the launcher
+instead reports `persistent_host_mutation=unknown`,
+`temporary_filesystem_cleanup_proven=false`, and the exact possible retained
+private-tree path; it never overclaims successful cleanup. It performs no service mutation,
 private-key access, signing, attempt claim, training execution,
 wallet/transaction operation or funds movement.
 
