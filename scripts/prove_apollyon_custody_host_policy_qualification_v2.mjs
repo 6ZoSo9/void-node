@@ -69,9 +69,14 @@ function serviceControlFixture(){
       action_id,details:[],exit_status:1,result:"explicitly_denied",
     })),
   ];
+  const zeroCaps=()=>({
+    ambient:"0",effective:"0",inheritable:"0",
+    no_new_privileges:true,permitted:"0",
+  });
   return {
     all_systemd_control_actions_explicitly_denied:true,
     all_training_uid_processes_capability_free:true,
+    all_training_uid_threads_capability_free:true,
     checked_actions:checks,
     installed_systemd_package_version:"255.4-1ubuntu8.11",
     observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
@@ -107,30 +112,33 @@ function serviceControlFixture(){
     systemd_bus_owner_pid:1,
     systemd_bus_owner_pid_is_pid1:true,
     training_pid:4242,
-    training_process_capabilities:{
-      ambient:"0",effective:"0",inheritable:"0",
-      no_new_privileges:true,permitted:"0",
-    },
+    training_process_capabilities:zeroCaps(),
     training_process_start_time_ticks:"123456",
     training_uid:1000,
     training_uid_process_count:2,
     training_uid_process_set_stable:true,
     training_uid_processes:[
       {
+        all_threads_capability_free:true,
         pid:4242,start_time_ticks:"123456",uid:1000,
-        capabilities:{
-          ambient:"0",effective:"0",inheritable:"0",
-          no_new_privileges:true,permitted:"0",
-        },
+        uid_slots:[1000,1000,1000,1000],
+        capabilities:zeroCaps(),
+        thread_count:2,
+        thread_inventory_sha256:"88".repeat(32),
+        thread_set_stable:true,
       },
       {
+        all_threads_capability_free:true,
         pid:4243,start_time_ticks:"123457",uid:1000,
-        capabilities:{
-          ambient:"0",effective:"0",inheritable:"0",
-          no_new_privileges:true,permitted:"0",
-        },
+        uid_slots:[1000,1000,1000,1000],
+        capabilities:zeroCaps(),
+        thread_count:1,
+        thread_inventory_sha256:"99".repeat(32),
+        thread_set_stable:true,
       },
     ],
+    training_uid_thread_count:3,
+    training_uid_thread_sets_stable:true,
   };
 }
 function v1Fixture(){
@@ -248,6 +256,31 @@ for(const mutate of [
 }
 {
   const bad=v2Fixture();
+  bad.service_control.all_training_uid_threads_capability_free=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].all_threads_capability_free=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].uid_slots[2]=0;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_thread_count=4;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].thread_inventory_sha256="not-a-hash";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
   bad.service_control.training_uid_process_set_stable=false;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
@@ -270,6 +303,8 @@ for(const [key,expected] of Object.entries({
   reviewed_systemd_package_version_pinned:true,
   systemd_bus_owner_pid1_required:true,
   all_training_uid_processes_capability_free_required:true,
+  all_training_uid_threads_capability_free_required:true,
+  training_uid_thread_stability_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -291,6 +326,8 @@ console.log("running_installed_systemd_version_match_required=true");
 console.log("reviewed_systemd_package_version=255.4-1ubuntu8.11");
 console.log("systemd_bus_owner_pid_is_pid1=true");
 console.log("all_training_uid_processes_capability_free_required=true");
+console.log("all_training_uid_threads_capability_free_required=true");
+console.log("training_uid_thread_stability_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
