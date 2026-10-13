@@ -41,8 +41,8 @@ After exact operator confirmation, the sealed probe:
 
 1. requires current branch `main`, a clean non-sparse tracked worktree, normal
    index flags, and exact worktree Git blobs for the reviewed E2 source tuple;
-2. runs the existing builtin-only Epoch-2 source qualifier only after those
-   worktree bytes are pinned;
+2. verifies the same 27-object Epoch-2 source tuple directly as Git/worktree
+   data and executes **no repository source module** during live qualification;
 3. reads the effective **user** `void-node-live.service` state through the
    root-owned `/usr/bin/systemctl` executable using only the canonical
    `unix:path=/run/user/<uid>/bus` endpoint, and requires that bus pathname
@@ -153,9 +153,10 @@ accept a payment, activate the presale/WC market, or move funds.
 
 ## Source-generation binding
 
-The operator CLI fails closed unless the stacked #2833 generation has the exact
-reviewed identities for the Epoch-2 source qualifier, credential signer,
-current full runtime, and this attestation core. The evidence also records
+The sealed probe fails closed unless current `main` has the exact reviewed
+identities for all 27 Epoch-2 source-tuple objects, the historical source
+qualifier, and this attestation core. These files are opened and hashed as data;
+none is imported or executed by the live probe. The evidence also records
 content-addressed source identities plus the existing public credential-source
 binding ID.
 
