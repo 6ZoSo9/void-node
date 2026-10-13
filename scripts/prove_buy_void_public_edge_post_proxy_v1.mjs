@@ -467,7 +467,10 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
     const res = resultSink();
     await h.handler(fakeRequest(clock), res);
     assert.equal(res.statusCode, 201);
-    assert.deepEqual(res.responseBytes, Buffer.from(exactAccepted201Json));
+    assert.deepEqual(
+      res.responseBytes,
+      Buffer.from(JSON.stringify(exactAccepted201Receipt), "utf8"),
+    );
     assert.equal(h.active.size, 0);
   }
 
