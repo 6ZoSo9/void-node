@@ -10,6 +10,11 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TOOL=path.join(
   ROOT,"tools/apollyon-designated-host-custody-live-qualification-v2.mjs",
 );
+const INSTALLED_LAUNCHER=path.join(
+  ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
+);
+const INSTALLED_LAUNCHER_BLOB_SHA1=
+  "d5ee0900d3bd8e4b08199c1cadf149e526035946";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -40,12 +45,35 @@ function gitBlob(bytes){
 for(const [relative,expected] of Object.entries({...REVIEWED,...HISTORICAL})){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
+assert.equal(
+  gitBlob(fs.readFileSync(INSTALLED_LAUNCHER)),
+  INSTALLED_LAUNCHER_BLOB_SHA1,
+  "installed launcher source blob",
+);
+const launcherSource=fs.readFileSync(INSTALLED_LAUNCHER,"utf8");
+for(const required of [
+  'FIXED_LAUNCHER=Path(',
+  '"/opt/void-apollyon-custody-v2-preentry-v1/"',
+  'INSTALLED_SOURCE_ROOT=Path("/opt/void-apollyon-custody-v2-reviewed-v1")',
+  'RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"',
+  '"cc13d813ddeb91b946c9d8397a353715ebc1a055"',
+  '"430d15cc99735554717e7bab5d11d301961edd4d"',
+  '"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74"',
+  '"VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER',
+  'modified_runner_rejected_before_node=true',
+  'post_prepare_source_replacement_inert=true',
+  'live_worktree_invocation_supported=false',
+]){
+  assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
+}
 const source=fs.readFileSync(TOOL,"utf8");
 for(const required of [
   "host_observation_read_only:true",
   "private_temporary_filesystem_write:true",
   "repository_source_write:false",
   "persistent_host_mutation:false",
+  "installed_preentry_launcher_required:true",
+  "direct_worktree_privileged_invocation_supported:false",
   "two_live_observations_required:true",
   "same_boot_required:true",
   "increasing_boottime_generation_required:true",
@@ -61,6 +89,8 @@ for(const required of [
   "POLICY_V1_BLOB_SHA1=\"6f34e79d94c502e31ca4923fd78922d4875550a5\"",
   "POLICY_BLOB_SHA1=\"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74\"",
   "prepareApollyonReviewedExecutionTreeV2",
+  "VOID_APOLLYON_V2_INSTALLED_LAUNCHER_V1",
+  "apollyon_live_qualification_v2_installed_preentry_launcher_required",
   "loadApollyonReviewedPolicyV2",
   "runApollyonReviewedCollectorSelfTestV2",
   '"--training-pid"',
@@ -159,6 +189,9 @@ console.log("historical_v1_live_qualification_unchanged=true");
 console.log("exact_v2_policy_blob=true");
 console.log("exact_v2_collector_blob=true");
 console.log("private_reviewed_execution_tree=true");
+console.log("installed_preentry_launcher_required=true");
+console.log("direct_worktree_privileged_invocation_supported=false");
+console.log("modified_runner_rejected_before_node=true");
 console.log("policy_preimport_replacement_rejected=true");
 console.log("postprepare_policy_replacement_inert=true");
 console.log("postprepare_collector_replacement_inert=true");
