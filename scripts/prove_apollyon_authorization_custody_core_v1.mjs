@@ -143,6 +143,30 @@ function coreFor(root){
   const root=rootFixture();
   const core=coreFor(root);
   try{
+    const p=packet("55");
+    const first=core.consume(p);
+    assert.equal(first.ok,true);
+    if(first.ok===false)throw new Error(first.reason);
+    const digest=p.authorization_id.split(":")[1];
+    const file=path.join(root,"consumed",digest+".json");
+    fs.unlinkSync(file);
+
+    const second=core.consume(p);
+    assert.equal(second.ok,true);
+    if(second.ok===false)throw new Error(second.reason);
+    assert.equal(second.custody_generation_id,first.custody_generation_id);
+    assert.equal(second.single_use_guaranteed_by_core,false);
+    assert.equal(second.custody_uid_leaf_unlink_resistance_claimed,false);
+  }finally{
+    core.close();
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=rootFixture();
+  const core=coreFor(root);
+  try{
     const expired=packet("22",-120_000,-60_000);
     const result=core.consume(expired);
     assert.equal(result.ok,false);
@@ -218,7 +242,9 @@ for(const [key,expected] of Object.entries({
   visible_path_identity_rechecked_each_operation:true,
   exact_v78_signature_reverification:true,
   create_only_authorization_record:true,
-  duplicate_rejected_while_custody_generation_intact:true,
+  duplicate_rejected_while_record_present:true,
+  custody_uid_leaf_unlink_resistance_claimed:false,
+  single_use_guaranteed_by_core:false,
   arbitrary_path_write:false,
   arbitrary_bytes_write:false,
   caller_selected_record_name:false,
@@ -272,7 +298,9 @@ console.log("VOID_APOLLYON_AUTHORIZATION_CUSTODY_CORE_V1_PROOF_GREEN");
 console.log("retained_root_descriptor=true");
 console.log("retained_consumed_descriptor=true");
 console.log("visible_path_identity_rechecked_each_operation=true");
-console.log("duplicate_rejected_within_pinned_custody_generation=true");
+console.log("duplicate_rejected_while_record_present=true");
+console.log("custody_uid_leaf_unlink_resistance_claimed=false");
+console.log("single_use_guaranteed_by_core=false");
 console.log("root_replacement_holds=true");
 console.log("consumed_directory_replacement_holds=true");
 console.log("host_cross_uid_qualification_performed=false");
