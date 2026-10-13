@@ -33,7 +33,6 @@ const prCancellationTargets = [
   ".github/workflows/public-node-operator-trial-receipt-example.yml",
   ".github/workflows/public-node-operator-trial-submission-intake.yml",
   ".github/workflows/public-node-operator-trial-tester-instruction-pack.yml",
-  ".github/workflows/public-repo-hygiene.yml",
   ".github/workflows/public-node-operator-trial-submission-review-decision-example.yml",
   ".github/workflows/public-python-bytecode-hygiene-v1.yml",
   ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml",
@@ -62,10 +61,20 @@ const pendingSupersessionTargets = [
   ".github/workflows/void-nimo-fresh-sync-session-v1.yml",
 ];
 
-const allTargets = [...featurePushTargets, ...prCancellationTargets, ...pendingSupersessionTargets];
+const trustedTargetGuardTargets = [
+  ".github/workflows/public-repo-hygiene.yml",
+];
+
+const allTargets = [
+  ...featurePushTargets,
+  ...prCancellationTargets,
+  ...pendingSupersessionTargets,
+  ...trustedTargetGuardTargets,
+];
 assert.equal(featurePushTargets.length, 22);
-assert.equal(prCancellationTargets.length, 26);
+assert.equal(prCancellationTargets.length, 25);
 assert.equal(pendingSupersessionTargets.length, 3);
+assert.equal(trustedTargetGuardTargets.length, 1);
 assert.equal(allTargets.length, 51);
 assert.equal(new Set(allTargets).size, allTargets.length);
 
@@ -79,6 +88,13 @@ const preserveRunningConcurrency = [
   "concurrency:",
   "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}",
   "  cancel-in-progress: false",
+].join("\n");
+const trustedTargetConcurrency = [
+  "concurrency:",
+  "  # Keep trusted target runs isolated from ordinary PR jobs so a new head",
+  "  # cannot cancel an already-running base-trusted deletion check.",
+  "  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && 'trusted-target' || 'ordinary' }}-${{ github.event.pull_request.number || github.run_id }}",
+  "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
 ].join("\n");
 
 function concurrencyGroup({ workflow, prNumber, runId }) {
@@ -175,6 +191,21 @@ for (const file of pendingSupersessionTargets) {
   assert.match(text, /\n  pull_request:/, file + ": pull_request coverage required");
   assert.match(text, /\n  push:/, file + ": push coverage required");
   assert.match(text, /actions\/upload-artifact@/, file + ": preserve-running class requires evidence artifact publication");
+}
+for (const file of trustedTargetGuardTargets) {
+  const text = fs.readFileSync(file, "utf8");
+  assert.equal(
+    text.includes(trustedTargetConcurrency),
+    true,
+    file + ": trusted target run must be isolated and non-cancellable",
+  );
+  assert.match(text, /\n  pull_request:/, file + ": pull_request coverage required");
+  assert.match(text, /\n  pull_request_target:/, file + ": pull_request_target coverage required");
+  assert.match(text, /\n  push:/, file + ": push coverage required");
+  assert.match(text, /permissions:\n  contents: read/, file + ": trusted target must remain read-only");
+  for (const pattern of forbiddenStateful) {
+    assert.doesNotMatch(text, pattern, file + ": trusted target guard must remain stateless/read-only");
+  }
 }
 
 function assertMainOnlyPush(text, file) {
