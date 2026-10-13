@@ -13,10 +13,10 @@ on:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
-      - "scripts/void_nimo_v4_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
@@ -34,10 +34,10 @@ on:
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
-      - "scripts/void_nimo_v4_private_stage_v1.py"
       - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
@@ -85,15 +85,16 @@ jobs:
           set -euo pipefail
           ledger_blob="$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)"
           replay_blob="$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)"
+          bakery_blob="$(git hash-object src/economic/buy_void_filesystem_bakery_lock_v1.ts)"
           package_blob="$(git hash-object package.json)"
           lock_blob="$(git hash-object package-lock.json)"
 
           if [[ "$ledger_blob" == "66617a89d5ad9f81b5a21d98cca55fcda6902a80"              && "$package_blob" == "f28c3e9446c7623ef203da36a9642d046e5f34ee"              && "$lock_blob" == "b2671f0149f522b2489247016df0a5ec4bb72b8b" ]]; then
             mode="historical_v3"
-          elif [[ "$ledger_blob" == "8d84955e1e093a5c5af63241e62b8722fadd2f29"                && "$replay_blob" == "b451bcd895986dadaf6e53954671062068316ccf"                && "$package_blob" == "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"                && "$lock_blob" == "15b5c82ea36f13079a2f9e8863722f654eb3f201" ]]; then
-            mode="audited_current_v4"
+          elif [[ "$ledger_blob" == "8d84955e1e093a5c5af63241e62b8722fadd2f29"                && "$replay_blob" == "b451bcd895986dadaf6e53954671062068316ccf"                && "$bakery_blob" == "9bd47abb857368d928c0ca289766cdf3571629ba"                && "$package_blob" == "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"                && "$lock_blob" == "15b5c82ea36f13079a2f9e8863722f654eb3f201" ]]; then
+            mode="audited_current_successor_required"
           else
-            echo "UNKNOWN_NIMO_RUNTIME_GENERATION:$ledger_blob:$replay_blob:$package_blob:$lock_blob" >&2
+            echo "UNKNOWN_NIMO_RUNTIME_GENERATION:$ledger_blob:$replay_blob:$bakery_blob:$package_blob:$lock_blob" >&2
             exit 1
           fi
 
@@ -159,7 +160,7 @@ jobs:
           };
           fs.writeFileSync(out,JSON.stringify(receipt)+"\n");
           NODE
-          elif [[ "$MODE" == "audited_current_v4" ]]; then
+          elif [[ "$MODE" == "audited_current_successor_required" ]]; then
             node scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs > "$out"
           else
             echo "UNSUPPORTED_NIMO_RUNTIME_GENERATION:$MODE" >&2
