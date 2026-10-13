@@ -1,5 +1,12 @@
 # VOID public checkpoint seal-first startup current V4
 
+## October 13, 2026 — current V6 successor
+
+The machine-readable public range-error contract advances the exact `src/index.ts` Git blob to `39088dae3f1f9d10eb345f2ef9eed9626b471383` without changing the reviewed checkpoint startup slice.
+
+Current V6 proof `scripts/prove_void_public_checkpoint_seal_first_startup_current_v6.mjs` is Git blob `b8b61547de618130431e6ce68159ce327d2e3f16`. It preserves frozen V4 and V5 proof identities, requires V5 to refuse the new router generation, and reruns the same startup-slice VM adversaries. No deployment, checkpoint mutation, wallet/signer access, or funds authority is added.
+
+
 ## October 13, 2026 — current V5 successor
 
 This file retains the historical V4 record below. The current source-generation
