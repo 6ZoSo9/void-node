@@ -25,7 +25,7 @@ A signed payload binds all of the following:
 - a fresh 32-byte nonce;
 - canonical issue and expiry timestamps with a maximum fifteen-minute window;
 - request SHA-256 and byte count;
-- canonical source `main` commit and tree SHA-256 values;
+- canonical source `main` commit and tree 40-hex Git object IDs;
 - corpus SHA-256, record count, and `max_length`;
 - immutable parent-adapter SHA-256; and
 - an exact authority bitmap.
