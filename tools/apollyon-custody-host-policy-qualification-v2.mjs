@@ -17,11 +17,13 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   socket_parent_retained_ancestor_binding:true,
   socket_parent_training_rename_unlink_denied_required:true,
   explicit_training_pid_service_control_denial_required:true,
+  exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
   reviewed_systemd_major_pinned:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
 const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
+const SAFE_RUNTIME_USER=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
 const SYSTEMD_MANAGE_UNIT_VERBS=Object.freeze([
   "start","verify-active","stop","reload","reload-or-start","restart","try-restart",
   "try-reload","nop","reload-or-restart","reload-or-try-restart","kill","clean",
@@ -64,7 +66,7 @@ function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
     "all_systemd_control_actions_explicitly_denied","checked_actions",
-    "observed_systemd_version_line","pkcheck_subject","reviewed_systemd_major",
+    "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule","reviewed_systemd_major",
     "runtime_can_control_service","service_unit","training_pid",
     "training_process_capabilities","training_process_start_time_ticks",
     "training_uid",
@@ -82,6 +84,41 @@ function normalizeServiceControl(value,identities){
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
     value.all_systemd_control_actions_explicitly_denied!==true||
     value.runtime_can_control_service!==false
+  )fail(code);
+  exactKeys(value.polkit_deny_rule,[
+    "action_id_only","bytes","denied_action_ids","details_can_change_result",
+    "group_other_writable","lexically_first","mode","owner_gid","owner_uid",
+    "path","retained_ancestors_group_other_writable",
+    "retained_ancestors_root_owned","runtime_user","sha256","single_link","symlink",
+  ],code);
+  const expectedActions=[
+    "org.freedesktop.systemd1.manage-units",
+    ...SYSTEMD_GLOBAL_CONTROL_ACTIONS,
+  ];
+  if(
+    value.polkit_deny_rule.action_id_only!==true||
+    value.polkit_deny_rule.details_can_change_result!==false||
+    value.polkit_deny_rule.lexically_first!==true||
+    value.polkit_deny_rule.owner_uid!==0||
+    value.polkit_deny_rule.owner_gid!==0||
+    value.polkit_deny_rule.single_link!==true||
+    value.polkit_deny_rule.symlink!==false||
+    value.polkit_deny_rule.group_other_writable!==false||
+    value.polkit_deny_rule.retained_ancestors_root_owned!==true||
+    value.polkit_deny_rule.retained_ancestors_group_other_writable!==false||
+    typeof value.polkit_deny_rule.runtime_user!=="string"||!SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    value.polkit_deny_rule.path!==
+      "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
+    !Number.isSafeInteger(value.polkit_deny_rule.bytes)||
+    value.polkit_deny_rule.bytes<1||
+    typeof value.polkit_deny_rule.sha256!=="string"||
+    !/^[0-9a-f]{64}$/u.test(value.polkit_deny_rule.sha256)||
+    typeof value.polkit_deny_rule.mode!=="string"||
+    !/^0[0-7]{3}$/u.test(value.polkit_deny_rule.mode)||
+    (Number.parseInt(value.polkit_deny_rule.mode,8)&0o022)!==0||
+    !Array.isArray(value.polkit_deny_rule.denied_action_ids)||
+    canonicalApollyonCustodyHostPolicyJsonV1(value.polkit_deny_rule.denied_action_ids)!==
+      canonicalApollyonCustodyHostPolicyJsonV1(expectedActions)
   )fail(code);
   exactKeys(value.training_process_capabilities,[
     "ambient","effective","inheritable","no_new_privileges","permitted",
