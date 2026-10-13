@@ -34,7 +34,13 @@ SCRIPT
   sudo chmod +x "$DST"
 fi
 
-# Convenience symlink inside repo (harmless if it already exists)
-ln -sf "$DST" "$(git rev-parse --show-toplevel)/ops/prom-textfile-snap-age.sh"
-
+# The repository helper is a tracked regular wrapper. Never rewrite it into an
+# external symlink: canonical-producer immutable source custody rejects source
+# symlinks that escape the protected release tree.
+WRAPPER="$(git rev-parse --show-toplevel)/ops/prom-textfile-snap-age.sh"
+if [[ -L "$WRAPPER" || ! -f "$WRAPPER" || ! -x "$WRAPPER" ]]; then
+  echo "error: tracked repository wrapper must remain a regular executable: $WRAPPER" >&2
+  exit 1
+fi
+echo "repo wrapper: $WRAPPER"
 echo "done."
