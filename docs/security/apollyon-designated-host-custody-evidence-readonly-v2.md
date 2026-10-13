@@ -14,12 +14,18 @@ symlink/write exposure, and derives training UID rename/unlink denial through th
 socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
-its /proc start-time ticks and UID, requires zero CapInh/CapPrm/CapEff/CapAmb
-and NoNewPrivs=1. It binds the installed systemd package version from
-`systemctl --version` to the running PID 1 manager's D-Bus
-`org.freedesktop.systemd1.Manager.Version` property, requires exact equality,
-and requires both to resolve to reviewed major 255. An upgraded userspace with
-an older still-running manager therefore HOLDS.
+its /proc start-time ticks and UID, then inventories every process whose Linux
+UID slots touch the training UID. The inventory must remain stable across a
+second scan; every admitted process must have all four UID slots equal to the
+training UID, zero CapInh/CapPrm/CapEff/CapAmb, and NoNewPrivs=1. A privileged
+sibling process therefore cannot be hidden behind a harmless selected PID.
+
+The collector pins systemd to the exact reviewed package generation
+`255.4-1ubuntu8.11`. It obtains the Unix PID owning
+`org.freedesktop.systemd1` via the system-bus
+`GetConnectionUnixProcessID` method and requires that owner to be PID 1 before
+reading `org.freedesktop.systemd1.Manager.Version`. Installed package,
+running-manager version and reviewed package generation must match exactly.
 
 The collector also requires the exact reviewed early Polkit rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
