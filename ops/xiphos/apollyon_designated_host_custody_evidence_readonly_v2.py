@@ -191,7 +191,32 @@ def classify_pkcheck_status(code:int)->str:
  if code==3:return 'dismissed'
  return 'error'
 def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
- value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)def training_process_subject(pid:int,training)->dict[str,Any]:
+ value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)$',value)
+ if not match:hold('apollyon_custody_collector_systemd_version_failed')
+ major=int(match.group(1)); package_version=match.group(2).strip()
+ if major!=REVIEWED_SYSTEMD_MAJOR or not re.fullmatch(r'[A-Za-z0-9.+:~_-]{1,120}',package_version):
+  hold('apollyon_custody_collector_systemd_major_not_reviewed')
+ return {'installed_systemd_major':major,'installed_systemd_package_version':package_version,'observed_systemd_version_line':value}
+def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
+ value=raw.strip(); match=re.fullmatch(r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
+ if not match:hold('apollyon_custody_collector_running_systemd_version_failed')
+ version=match.group(1); major_match=re.match(r'^([0-9]+)(?:[.-]|$)',version)
+ if not major_match or int(major_match.group(1))!=REVIEWED_SYSTEMD_MAJOR:
+  hold('apollyon_custody_collector_running_systemd_major_not_reviewed')
+ return {'running_systemd_manager_major':int(major_match.group(1)),'running_systemd_manager_version':version}
+def systemd_version_evidence()->dict[str,Any]:
+ lines=run(['/usr/bin/systemctl','--version']).splitlines()
+ if not lines:hold('apollyon_custody_collector_systemd_version_failed')
+ installed=parse_installed_systemd_version_line(lines[0])
+ running=parse_running_systemd_manager_version(run([
+  '/usr/bin/busctl','--system','get-property',
+  'org.freedesktop.systemd1','/org/freedesktop/systemd1',
+  'org.freedesktop.systemd1.Manager','Version',
+ ]))
+ if running['running_systemd_manager_version']!=installed['installed_systemd_package_version']:
+  hold('apollyon_custody_collector_running_installed_systemd_version_mismatch')
+ return {**installed,**running,'running_installed_systemd_version_match':True}
+def training_process_subject(pid:int,training)->dict[str,Any]:
  if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
  try:
   stat_text=Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
