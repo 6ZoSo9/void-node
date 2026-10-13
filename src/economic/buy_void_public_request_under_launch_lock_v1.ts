@@ -424,6 +424,30 @@ function validTxHashRevisionV1(before: any, after: any): boolean {
     immutableRequestBytesForTransitionV1(before) ===
       immutableRequestBytesForTransitionV1(after);
 }
+function findCanonicalRequestByIdV1(
+  rows: any[], requestId: unknown,
+): any | null {
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(rows)) {
+    holdHistoryV1("request_id_lookup_rows_unqualified");
+  }
+  let found: any = null;
+  for (let i = 0; i < rows.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(rows, String(i))) {
+      holdHistoryV1("request_id_lookup_rows_sparse");
+    }
+    const row = rows[i];
+    if (!row || typeof row !== "object" || REQUEST_HISTORY_IS_ARRAY_V1(row)) {
+      holdHistoryV1("request_id_lookup_row_invalid");
+    }
+    if (row.request_id !== requestId) continue;
+    if (found !== null) {
+      holdHistoryV1("request_id_lookup_duplicate");
+    }
+    found = row;
+  }
+  return found;
+}
+
 function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
   if (!REQUEST_HISTORY_IS_ARRAY_V1(rows) ||
       !Number.isSafeInteger(rows.length) ||
@@ -782,8 +806,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       // The operator route authenticates its mutation intent separately.
       // The launch lock independently requires an exact same-ID,
       // same-obligation transition and no history-hidden tx hash collision.
-      const original = currentRequestStates.find(
-        (row: any) => row.request_id === reqObj.request_id,
+      const original = findCanonicalRequestByIdV1(
+        currentRequestStates, reqObj.request_id,
       );
       if (!original || !active || active.request_id !== reqObj.request_id ||
           !validTxHashRevisionV1(original, reqObj)) {
@@ -808,9 +832,9 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
           (reqObj?.tx_hash !== "" && reqObj?.tx_hash != null)) {
         holdHistoryV1("public_creation_status_invalid");
       }
-      if (currentRequestStates.some(
-        (row: any) => row.request_id === reqObj.request_id,
-      )) holdHistoryV1("new_request_id_already_durable");
+      if (findCanonicalRequestByIdV1(
+        currentRequestStates, reqObj.request_id,
+      ) !== null) holdHistoryV1("new_request_id_already_durable");
       if (active) {
         const amount = Number(active.usdc_amount ??
           active.requested_amount_usdc ?? 0);
@@ -821,8 +845,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
           // A crash may leave an fsynced journal with no sidecar. Restore
           // only a missing sidecar from the canonical latest JSONL row;
           // conflicting existing bytes are never overwritten.
-          const canonical = currentRequestStates.find(
-            (row: any) => row.request_id === active.request_id,
+          const canonical = findCanonicalRequestByIdV1(
+            currentRequestStates, active.request_id,
           );
           if (!canonical) holdHistoryV1("reused_canonical_row_missing");
           qualifyOrRecoverReuseSidecarV1(
