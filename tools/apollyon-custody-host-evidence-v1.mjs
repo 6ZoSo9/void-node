@@ -132,33 +132,46 @@ function runText(command,args){
 }
 
 function readTextBounded(file,maxBytes=MAX_TEXT_BYTES){
+  if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>8*1024*1024){
+    fail("apollyon_custody_host_evidence_file_bound_invalid");
+  }
   const fd=fs.openSync(
     file,
     fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
   );
   try{
-    const metadata=fs.fstatSync(fd,{bigint:true});
-    if(!metadata.isFile()||metadata.size<1n||metadata.size>BigInt(maxBytes)){
+    const before=fs.fstatSync(fd,{bigint:true});
+    if(!before.isFile()){
       fail("apollyon_custody_host_evidence_file_invalid");
     }
-    const bytes=Buffer.alloc(Number(metadata.size));
+    const buffer=Buffer.allocUnsafe(maxBytes+1);
     let offset=0;
-    while(offset<bytes.length){
-      const count=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
-      if(count<=0)fail("apollyon_custody_host_evidence_file_short_read");
+    for(;;){
+      const remaining=buffer.length-offset;
+      if(remaining<1){
+        fail("apollyon_custody_host_evidence_file_too_large");
+      }
+      const count=fs.readSync(
+        fd,
+        buffer,
+        offset,
+        Math.min(64*1024,remaining),
+        null,
+      );
+      if(count===0)break;
       offset+=count;
+      if(offset>maxBytes){
+        fail("apollyon_custody_host_evidence_file_too_large");
+      }
+    }
+    if(offset<1){
+      fail("apollyon_custody_host_evidence_file_empty");
     }
     const after=fs.fstatSync(fd,{bigint:true});
-    if(
-      metadata.dev!==after.dev||
-      metadata.ino!==after.ino||
-      metadata.size!==after.size||
-      metadata.mtimeNs!==after.mtimeNs||
-      metadata.ctimeNs!==after.ctimeNs
-    ){
+    if(before.dev!==after.dev||before.ino!==after.ino){
       fail("apollyon_custody_host_evidence_file_changed");
     }
-    return bytes.toString("utf8");
+    return Buffer.from(buffer.subarray(0,offset)).toString("utf8");
   }finally{
     fs.closeSync(fd);
   }
