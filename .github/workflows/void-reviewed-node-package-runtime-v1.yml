@@ -8,6 +8,8 @@ on:
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-candidate-v1.md"
       - "package.json"
       - "package-lock.json"
   push:
@@ -51,4 +53,116 @@ jobs:
       - name: Enforce pinned reviewed ethers runtime profile
         run: node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
       - name: Diff hygiene
-        run: git diff --check HEAD^..HEAD
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_SHA"
+          test -n "$HEAD_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  derive-enforcement-profile-candidate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact stacked candidate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - name: Setup reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Preserve existing ethers-only reviewed profile
+        run: node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+      - name: Derive combined ethers plus express profile candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs --self-test
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs --derive \
+            > "$RUNNER_TEMP/enforcement-package-profile-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/enforcement-package-profile-${{ matrix.node }}.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_reviewed_node_package_runtime_enforcement_candidate_v1");
+          assert.deepEqual(j.required_third_party_packages,["ethers","express"]);
+          assert.deepEqual(j.profile.root_packages,["ethers","express"]);
+          assert.equal(j.profile.packages.find(x=>x.name==="ethers").version,"6.17.0");
+          assert.equal(j.profile.packages.find(x=>x.name==="express").version,"4.22.2");
+          assert.equal(j.profile_candidate_accepted,false);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.funds_movement,false);
+          console.log("VOID_ENFORCEMENT_PACKAGE_PROFILE_CANDIDATE_GREEN");
+          NODE
+      - name: Upload combined candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-enforcement-package-profile-candidate-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/enforcement-package-profile-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Exact candidate diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  enforcement-profile-cross-node:
+    if: github.event_name == 'pull_request'
+    needs: [derive-enforcement-profile-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all combined candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-enforcement-package-profile-candidate-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: ./candidate
+      - name: Require Node 22 24 26 byte equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "candidate/enforcement-package-profile-$v.json"; done
+          cmp candidate/enforcement-package-profile-22.json candidate/enforcement-package-profile-24.json
+          cmp candidate/enforcement-package-profile-22.json candidate/enforcement-package-profile-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const b=fs.readFileSync("candidate/enforcement-package-profile-22.json");
+          const j=JSON.parse(b);
+          assert.equal(j.profile_candidate_accepted,false);
+          assert.equal(j.complete_executable_closure_verified,false);
+          console.log("VOID_ENFORCEMENT_PACKAGE_PROFILE_CROSS_NODE_GREEN");
+          console.log("candidate_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+          console.log("profile_id="+j.profile.profile_id);
+          console.log("packages_aggregate_sha256="+j.profile.packages_aggregate_sha256);
+          console.log("package_count="+j.profile.package_count);
+          console.log("profile_acceptance=false");
+          NODE
