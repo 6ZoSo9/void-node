@@ -13,7 +13,6 @@ on:
       - ".github/workflows/buy-void-composed-stopped-saga-package-v1.yml"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -116,11 +115,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
-            git diff --check "$BASE_SHA" "$HEAD_SHA"
-          else
-            git diff --check HEAD^ HEAD
-          fi
+          test -n "${BASE_SHA:-}"
+          test -n "${HEAD_SHA:-}"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
 
   real-saga-cross-node:
     needs: [source-review]
