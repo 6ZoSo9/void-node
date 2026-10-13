@@ -15,6 +15,7 @@ import {
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CONFIRMATION_V1,
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1,
   buildBuyVoidEpoch2CredentialCapabilityProbeV1,
+  buyVoidEpoch2CredentialProbeSemanticsExactV1,
   buildBuyVoidEpoch2CredentialAttestationEvidenceV1,
   buyVoidEpoch2SystemdCredentialObservationStableV1,
   observeBuyVoidEpoch2SystemdCredentialBindingV1,
@@ -99,6 +100,26 @@ assert.equal(probe.maxFeePerGas, 0n);
 assert.equal(probe.maxPriorityFeePerGas, 0n);
 assert.equal(probe.value, 0n);
 assert.equal(probe.accessList.length, 1);
+assert.equal(buyVoidEpoch2CredentialProbeSemanticsExactV1(probe), true);
+
+const unsafeNonceProbe = { ...probe, nonce: 0 };
+assert.equal(
+  buyVoidEpoch2CredentialProbeSemanticsExactV1(unsafeNonceProbe),
+  false,
+);
+const unsafeFeeProbe = { ...probe, maxFeePerGas: 1n };
+assert.equal(
+  buyVoidEpoch2CredentialProbeSemanticsExactV1(unsafeFeeProbe),
+  false,
+);
+const unsafeAmountProbe = {
+  ...probe,
+  data: probe.data.slice(0, -64) + (2n).toString(16).padStart(64, "0"),
+};
+assert.equal(
+  buyVoidEpoch2CredentialProbeSemanticsExactV1(unsafeAmountProbe),
+  false,
+);
 
 const dummy = new Wallet("0x" + "11".repeat(32));
 const raw = await dummy.signTransaction({ ...probe });
@@ -112,6 +133,16 @@ if (!verified.ok) throw new Error(verified.reason);
 assert.equal(verified.signer, dummy.address.toLowerCase());
 assert.match(verified.transaction_hash, /^0x[0-9a-f]{64}$/u);
 assert.match(verified.raw_signed_transaction_sha256, /^[0-9a-f]{64}$/u);
+
+const unsafeNonceRaw = await dummy.signTransaction({ ...unsafeNonceProbe });
+assert.deepEqual(
+  verifyBuyVoidEpoch2CredentialSignedProbeV1({
+    raw_signed_transaction: unsafeNonceRaw,
+    expected_signer: dummy.address,
+    probe: unsafeNonceProbe,
+  }),
+  { ok: false, reason: "epoch2_probe_expected_envelope_invalid" },
+);
 
 const wrongSigner = verifyBuyVoidEpoch2CredentialSignedProbeV1({
   raw_signed_transaction: raw,
@@ -362,6 +393,8 @@ console.log("assume_unchanged_or_skip_worktree_held=true");
 console.log("worktree_blob_substitution_held=true");
 console.log("git_environment_sanitized=true");
 console.log("authority_modules_imported_after_source_preflight=true");
+console.log("canonical_probe_semantics_bound=true");
+console.log("caller_selected_executable_probe_rejected=true");
 console.log("probe_nonce_number_max_safe_integer=true");
 console.log("probe_zero_fee=true");
 console.log("probe_amount_atoms=1");

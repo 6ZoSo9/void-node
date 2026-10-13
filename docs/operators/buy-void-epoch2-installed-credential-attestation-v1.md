@@ -49,9 +49,13 @@ After exact operator confirmation, the probe:
    - zero max/priority fee;
    - zero native value;
    - one atomic VOID unit to the immutable fulfiller itself;
-8. locally parses the signed transaction and requires the exact signer and
-   envelope;
-9. discards the raw signed transaction and emits only public identities and
+8. locally parses the signed transaction and requires the exact signer plus
+   the canonical non-executable probe envelope: MAX_SAFE_INTEGER nonce, fixed
+   gas, zero fees/value, exact presale target/access list, and exact
+   `fulfill(..., immutable fulfiller, 1)` calldata;
+9. rejects caller-selected executable nonce/fee/calldata variants even if they
+   carry a valid signature from the expected key;
+10. discards the raw signed transaction and emits only public identities and
    hashes.
 
 The extreme nonce means the probe is not an executable current-chain

@@ -269,6 +269,45 @@ export function buyVoidEpoch2CredentialProbeFingerprintV1(
   }));
 }
 
+export function buyVoidEpoch2CredentialProbeSemanticsExactV1(
+  probe: Readonly<BuyVoidEpoch2CredentialProbeV1> | null | undefined,
+): boolean {
+  if (!probe ||
+      probe.type !== 2 ||
+      probe.chainId !== 2050n ||
+      probe.nonce !== VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1 ||
+      probe.gasLimit !== VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1 ||
+      probe.maxFeePerGas !== 0n ||
+      probe.maxPriorityFeePerGas !== 0n ||
+      probe.value !== 0n ||
+      normalizedAddress(probe.to) !== VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
+      !buyVoidPresaleAccessListExactV1(
+        probe.accessList,
+        VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+      )) {
+    return false;
+  }
+  try {
+    const decoded = FULFILL.decodeFunctionData("fulfill", probe.data);
+    const paymentDeliveryId = String(decoded[0] ?? "").toLowerCase();
+    const recipient = normalizedAddress(decoded[1]);
+    const amountAtoms = decoded[2];
+    if (!/^0x[0-9a-f]{64}$/u.test(paymentDeliveryId) ||
+        recipient !== VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1 ||
+        amountAtoms !== 1n) {
+      return false;
+    }
+    const canonicalData = FULFILL.encodeFunctionData("fulfill", [
+      paymentDeliveryId,
+      VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+      1n,
+    ]).toLowerCase();
+    return probe.data.toLowerCase() === canonicalData;
+  } catch {
+    return false;
+  }
+}
+
 export function verifyBuyVoidEpoch2CredentialSignedProbeV1(input: {
   raw_signed_transaction: string;
   expected_signer: string;
@@ -282,6 +321,9 @@ export function verifyBuyVoidEpoch2CredentialSignedProbeV1(input: {
   ok: false;
   reason: string;
 } {
+  if (!buyVoidEpoch2CredentialProbeSemanticsExactV1(input?.probe)) {
+    return { ok: false, reason: "epoch2_probe_expected_envelope_invalid" };
+  }
   const raw = String(input?.raw_signed_transaction || "");
   if (!/^0x[0-9a-fA-F]+$/u.test(raw) || raw.length < 4 || raw.length > 8192) {
     return { ok: false, reason: "epoch2_probe_signed_transaction_shape_invalid" };
