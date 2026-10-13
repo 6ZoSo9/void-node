@@ -22,6 +22,8 @@ const SEALED =
   "scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
 const LEGACY =
   "scripts/void_buy_void_epoch2_credential_attestation_v1.ts";
+const OPERATOR_DOC =
+  "docs/operators/buy-void-epoch2-installed-credential-attestation-v1.md";
 const GIT = "/usr/bin/git";
 
 function cleanEnv(extra = {}) {
@@ -55,6 +57,22 @@ function git(cwd, args, input) {
 
 const sealedSource = git(ROOT, ["show", "HEAD:" + SEALED]);
 assert.ok(sealedSource.length > 10_000);
+const expectedHeadCheckAt = sealedSource.indexOf(
+  'if (source.head !== expectedHead)',
+);
+const liveSystemdAt = sealedSource.indexOf("const before = observeLiveSystemd();");
+assert.ok(
+  expectedHeadCheckAt > 0 && liveSystemdAt > expectedHeadCheckAt,
+  "expected source head must be bound before live systemd observation",
+);
+assert.match(sealedSource, /--expected-head/u);
+const operatorDoc = fs.readFileSync(path.join(ROOT, OPERATOR_DOC), "utf8");
+assert.match(operatorDoc, /rev-parse --verify HEAD/u);
+assert.match(
+  operatorDoc,
+  /show "\$\{head\}:scripts\/void_buy_void_epoch2_credential_attestation_sealed_v1[.]mjs"/u,
+);
+assert.match(operatorDoc, /--expected-head "\$head"/u);
 const importSpecs = [...sealedSource.matchAll(
   /^import .* from "([^"]+)";$/gmu,
 )].map((match) => match[1]);
@@ -259,6 +277,8 @@ try {
   );
   git(temp, ["add", target]);
   git(temp, ["commit", "-m", "proof base"]);
+  const tempHead = git(temp, ["rev-parse", "--verify", "HEAD"]).trim();
+  assert.match(tempHead, /^[0-9a-f]{40}$/u);
   fs.appendFileSync(
     absoluteTarget,
     '\nthrow new Error("VOID_E2_TOP_LEVEL_SENTINEL_EXECUTED");\n',
@@ -273,6 +293,8 @@ try {
       "--probe",
       "--confirm",
       CONFIRM,
+      "--expected-head",
+      tempHead,
     ],
     {
       cwd: temp,
@@ -305,6 +327,8 @@ console.log("builtin_only_probe=true");
 console.log("tsx_loader_in_live_probe=false");
 console.log("node_modules_in_live_probe=false");
 console.log("git_object_stdin_required=true");
+console.log("operator_wrapper_pins_git_object_head=true");
+console.log("expected_head_checked_before_systemd=true");
 console.log("direct_worktree_probe_rejected=true");
 console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
