@@ -7,7 +7,7 @@ This is a versioned successor to the original reviewed
 It is stacked on the public checkout gateway PR #2823 at exact source ancestor
 `2f5a8d98ab3cefafe04286b271552b501dd96704`.
 The currently reviewed composition gateway blob for this candidate is
-`0f7b7ccec7aecbcfe6a48df1cd28063dc6550131`.
+`974a1b0d825ec921a26aaca61c5560d5e29fba5f`.
 
 ## Why a new source generation is required
 

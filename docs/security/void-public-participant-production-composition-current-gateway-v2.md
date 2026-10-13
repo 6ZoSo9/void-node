@@ -20,7 +20,7 @@ reviewed gateway Git blob:
 - historical V1 gateway:
   `850419187facd4a90feeb15aa676b03d785e44b5`;
 - new reviewed public-edge gateway:
-  `0f7b7ccec7aecbcfe6a48df1cd28063dc6550131`.
+  `974a1b0d825ec921a26aaca61c5560d5e29fba5f`.
 
 All other 16 source blobs and their structural, durable session, role
 authority, source provenance, and read-only security contracts are copied
