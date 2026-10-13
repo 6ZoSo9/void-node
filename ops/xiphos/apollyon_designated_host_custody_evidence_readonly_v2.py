@@ -25,6 +25,7 @@ SERVICE_PROPERTIES=(
  'RefuseManualStart','RefuseManualStop','ActiveState','MainPID',
 )
 REVIEWED_SYSTEMD_MAJOR=255
+REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)
 SYSTEMD_MANAGE_UNIT_VERBS=(
  'start','verify-active','stop','reload','reload-or-start','restart','try-restart',
  'try-reload','nop','reload-or-restart','reload-or-try-restart','kill','clean',
@@ -191,23 +192,52 @@ def classify_pkcheck_status(code:int)->str:
  if code==3:return 'dismissed'
  return 'error'
 def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
- value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)$',value)
+ value=line.strip(); match=re.fullmatch(r'^systemd\\s+([0-9]+)\\s+\\(([^()]+)\\)$',value)
  if not match:hold('apollyon_custody_collector_systemd_version_failed')
  major=int(match.group(1)); package_version=match.group(2).strip()
- if major!=REVIEWED_SYSTEMD_MAJOR or not re.fullmatch(r'[A-Za-z0-9.+:~_-]{1,120}',package_version):
-  hold('apollyon_custody_collector_systemd_major_not_reviewed')
- return {'installed_systemd_major':major,'installed_systemd_package_version':package_version,'observed_systemd_version_line':value}
+ if (
+  major!=REVIEWED_SYSTEMD_MAJOR or
+  package_version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS
+ ):
+  hold('apollyon_custody_collector_systemd_package_not_reviewed')
+ return {
+  'installed_systemd_major':major,
+  'installed_systemd_package_version':package_version,
+  'observed_systemd_version_line':value,
+  'reviewed_systemd_package_version':package_version,
+ }
 def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
+ value=raw.strip(); match=re.fullmatch(r's\\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
  if not match:hold('apollyon_custody_collector_running_systemd_version_failed')
- version=match.group(1); major_match=re.match(r'^([0-9]+)(?:[.-]|$)',version)
+ version=match.group(1)
+ if version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
+  hold('apollyon_custody_collector_running_systemd_package_not_reviewed')
+ major_match=re.match(r'^([0-9]+)(?:[.-]|$)',version)
  if not major_match or int(major_match.group(1))!=REVIEWED_SYSTEMD_MAJOR:
   hold('apollyon_custody_collector_running_systemd_major_not_reviewed')
- return {'running_systemd_manager_major':int(major_match.group(1)),'running_systemd_manager_version':version}
+ return {
+  'running_systemd_manager_major':int(major_match.group(1)),
+  'running_systemd_manager_version':version,
+ }
+def parse_systemd_bus_owner_pid(raw:str)->dict[str,Any]:
+ value=raw.strip(); match=re.fullmatch(r'u\\s+([1-9][0-9]*)',value)
+ if not match:hold('apollyon_custody_collector_systemd_bus_owner_pid_invalid')
+ pid=int(match.group(1))
+ if pid!=1:hold('apollyon_custody_collector_systemd_bus_owner_not_pid1')
+ return {
+  'systemd_bus_owner_pid':pid,
+  'systemd_bus_owner_pid_is_pid1':True,
+ }
 def systemd_version_evidence()->dict[str,Any]:
  lines=run(['/usr/bin/systemctl','--version']).splitlines()
  if not lines:hold('apollyon_custody_collector_systemd_version_failed')
  installed=parse_installed_systemd_version_line(lines[0])
+ owner=parse_systemd_bus_owner_pid(run([
+  '/usr/bin/busctl','--system','call',
+  'org.freedesktop.DBus','/org/freedesktop/DBus',
+  'org.freedesktop.DBus','GetConnectionUnixProcessID',
+  's','org.freedesktop.systemd1',
+ ]))
  running=parse_running_systemd_manager_version(run([
   '/usr/bin/busctl','--system','get-property',
   'org.freedesktop.systemd1','/org/freedesktop/systemd1',
@@ -215,7 +245,11 @@ def systemd_version_evidence()->dict[str,Any]:
  ]))
  if running['running_systemd_manager_version']!=installed['installed_systemd_package_version']:
   hold('apollyon_custody_collector_running_installed_systemd_version_mismatch')
- return {**installed,**running,'running_installed_systemd_version_match':True}
+ return {
+  **installed,**owner,**running,
+  'running_installed_systemd_version_match':True,
+ }
+
 def training_process_subject(pid:int,training)->dict[str,Any]:
  if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
  try:
@@ -241,6 +275,51 @@ def training_process_subject(pid:int,training)->dict[str,Any]:
  if nnp is None or nnp.split(':',1)[1].strip()!='1':hold('apollyon_custody_collector_training_process_no_new_privileges_not_enforced')
  start=fields[19]; subject=f'{pid},{start},{training.pw_uid}'
  return {'capabilities':{'ambient':caps['CapAmb'],'effective':caps['CapEff'],'inheritable':caps['CapInh'],'no_new_privileges':True,'permitted':caps['CapPrm']},'pid':pid,'start_time_ticks':start,'subject':subject,'uid':training.pw_uid}
+def process_uid_slots(status_text:str)->list[int]:
+ line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
+ if line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
+ parts=line.split()[1:]
+ if len(parts)!=4 or any(not x.isdecimal() for x in parts):
+  hold('apollyon_custody_collector_training_process_uid_invalid')
+ return [int(x) for x in parts]
+def training_uid_process_ids(training)->list[int]:
+ ids=[]
+ try:entries=list(Path('/proc').iterdir())
+ except OSError as e:raise Hold('apollyon_custody_collector_proc_inventory_failed') from e
+ for proc in entries:
+  if not proc.name.isdecimal():continue
+  try:status_text=(proc/'status').read_text(encoding='utf-8')
+  except FileNotFoundError:continue
+  except (OSError,UnicodeError) as e:
+   raise Hold('apollyon_custody_collector_proc_inventory_failed') from e
+  slots=process_uid_slots(status_text)
+  if training.pw_uid in slots:
+   ids.append(int(proc.name))
+ ids.sort()
+ return ids
+def training_uid_process_inventory(training,expected_pid:int)->dict[str,Any]:
+ first=training_uid_process_ids(training)
+ if expected_pid not in first or not first:
+  hold('apollyon_custody_collector_training_process_inventory_missing_expected')
+ processes=[]
+ for pid in first:
+  subject=training_process_subject(pid,training)
+  processes.append({
+   'pid':subject['pid'],
+   'start_time_ticks':subject['start_time_ticks'],
+   'uid':subject['uid'],
+   'capabilities':subject['capabilities'],
+  })
+ second=training_uid_process_ids(training)
+ if first!=second:
+  hold('apollyon_custody_collector_training_process_inventory_changed')
+ return {
+  'all_training_uid_processes_capability_free':True,
+  'training_uid_process_count':len(processes),
+  'training_uid_process_set_stable':True,
+  'training_uid_processes':processes,
+ }
+
 def pkcheck_denial(action_id:str,subject:str,details:tuple[tuple[str,str],...]=())->dict[str,Any]:
  args=['/usr/bin/pkcheck','--action-id',action_id,'--process',subject]
  for key,value in details:args.extend(['--detail',key,value])
@@ -250,12 +329,45 @@ def pkcheck_denial(action_id:str,subject:str,details:tuple[tuple[str,str],...]=(
  return {'action_id':action_id,'details':[{'key':k,'value':v} for k,v in details],'exit_status':1,'result':'explicitly_denied'}
 def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
  if not UNIT_RE.fullmatch(unit):hold('apollyon_custody_collector_service_unit_invalid')
- versions=systemd_version_evidence(); process=training_process_subject(training_pid,training); deny_rule=polkit_deny_rule_evidence(training)
+ versions=systemd_version_evidence()
+ process_inventory=training_uid_process_inventory(training,training_pid)
+ process=training_process_subject(training_pid,training)
+ deny_rule=polkit_deny_rule_evidence(training)
  checks=[pkcheck_denial('org.freedesktop.systemd1.manage-units',process['subject'])]
  for verb in SYSTEMD_MANAGE_UNIT_VERBS:
-  checks.append(pkcheck_denial('org.freedesktop.systemd1.manage-units',process['subject'],(('unit',unit),('verb',verb))))
- for action in SYSTEMD_GLOBAL_CONTROL_ACTIONS:checks.append(pkcheck_denial(action,process['subject']))
- return {'all_systemd_control_actions_explicitly_denied':True,'checked_actions':checks,'installed_systemd_package_version':versions['installed_systemd_package_version'],'observed_systemd_version_line':versions['observed_systemd_version_line'],'polkit_deny_rule':deny_rule,'running_installed_systemd_version_match':versions['running_installed_systemd_version_match'],'running_systemd_manager_major':versions['running_systemd_manager_major'],'running_systemd_manager_version':versions['running_systemd_manager_version'],'pkcheck_subject':process['subject'],'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,'runtime_can_control_service':False,'service_unit':unit,'training_pid':process['pid'],'training_process_capabilities':process['capabilities'],'training_process_start_time_ticks':process['start_time_ticks'],'training_uid':process['uid']}
+  checks.append(pkcheck_denial(
+   'org.freedesktop.systemd1.manage-units',process['subject'],
+   (('unit',unit),('verb',verb)),
+  ))
+ for action in SYSTEMD_GLOBAL_CONTROL_ACTIONS:
+  checks.append(pkcheck_denial(action,process['subject']))
+ return {
+  'all_systemd_control_actions_explicitly_denied':True,
+  'all_training_uid_processes_capability_free':
+   process_inventory['all_training_uid_processes_capability_free'],
+  'checked_actions':checks,
+  'installed_systemd_package_version':versions['installed_systemd_package_version'],
+  'observed_systemd_version_line':versions['observed_systemd_version_line'],
+  'pkcheck_subject':process['subject'],
+  'polkit_deny_rule':deny_rule,
+  'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,
+  'reviewed_systemd_package_version':versions['reviewed_systemd_package_version'],
+  'running_installed_systemd_version_match':
+   versions['running_installed_systemd_version_match'],
+  'running_systemd_manager_major':versions['running_systemd_manager_major'],
+  'running_systemd_manager_version':versions['running_systemd_manager_version'],
+  'runtime_can_control_service':False,
+  'service_unit':unit,
+  'systemd_bus_owner_pid':versions['systemd_bus_owner_pid'],
+  'systemd_bus_owner_pid_is_pid1':versions['systemd_bus_owner_pid_is_pid1'],
+  'training_pid':process['pid'],
+  'training_process_capabilities':process['capabilities'],
+  'training_process_start_time_ticks':process['start_time_ticks'],
+  'training_uid':process['uid'],
+  'training_uid_process_count':process_inventory['training_uid_process_count'],
+  'training_uid_process_set_stable':process_inventory['training_uid_process_set_stable'],
+  'training_uid_processes':process_inventory['training_uid_processes'],
+ }
 def proc_uids()->dict[int,set[int]]:
  out={}
  for p in Path('/proc').iterdir():
@@ -317,7 +429,7 @@ def collect(a)->dict[str,Any]:
  if now<snap['observed_at_ms'] or now>=snap['expires_at_ms']:hold('apollyon_custody_collector_clock_window_invalid')
  return {'consumed_directory':cev,'evidence_snapshot':snap,'identities':{'custody_gid':cu.pw_gid,'custody_supplementary_gids':cg,'custody_uid':cu.pw_uid,'ipc_gid':ipc.gr_gid,'training_gid':tr.pw_gid,'training_supplementary_gids':tg,'training_uid':tr.pw_uid},'marker':EVIDENCE_MARKER,'service':service,'service_control':control,'socket':sockev,'socket_parent':spev,'source_binding':source,'state_root':sev,'target_host':TARGET_HOST,'verification_now_ms':now,'version':2}
 def self_test():
- assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')['installed_systemd_package_version']=='255.4-1ubuntu8.11'; assert parse_running_systemd_manager_version('s \"255.4-1ubuntu8.11\"')['running_systemd_manager_major']==255; assert b'polkit.message' not in expected_polkit_deny_rule('training'); assert b'action.id' in expected_polkit_deny_rule('training'); assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
+ assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')['installed_systemd_package_version']=='255.4-1ubuntu8.11'; assert parse_running_systemd_manager_version('s \"255.4-1ubuntu8.11\"')['running_systemd_manager_major']==255; assert parse_systemd_bus_owner_pid('u 1')['systemd_bus_owner_pid_is_pid1'] is True; assert REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',); assert b'polkit.message' not in expected_polkit_deny_rule('training'); assert b'action.id' in expected_polkit_deny_rule('training'); assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
  try:boolprop('bad')
  except Hold:pass
  else:raise AssertionError('invalid boolean did not HOLD')
