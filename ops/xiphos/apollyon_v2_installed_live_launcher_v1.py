@@ -85,6 +85,40 @@ def assert_direct_ancestors(pathname:Path,*,root_owned:bool)->None:
             hold("apollyon_v2_installed_launcher_untrusted_ancestor")
 
 
+def open_trusted_executable(
+    pathname:Path,
+    *,
+    require_root_custody:bool,
+)->int:
+    absolute=Path(os.path.abspath(os.fspath(pathname)))
+    if absolute!=pathname:
+        hold("apollyon_v2_installed_launcher_node_invalid")
+    assert_direct_ancestors(absolute,root_owned=require_root_custody)
+    before=os.lstat(absolute)
+    mode=stat.S_IMODE(before.st_mode)
+    if (
+        not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or
+        before.st_nlink!=1 or not (mode&0o111) or mode&0o022
+    ):
+        hold("apollyon_v2_installed_launcher_node_untrusted")
+    if require_root_custody and before.st_uid!=0:
+        hold("apollyon_v2_installed_launcher_node_untrusted")
+    fd=os.open(absolute,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0))
+    try:
+        opened=os.fstat(fd)
+        visible=os.lstat(absolute)
+        if (
+            not stat.S_ISREG(opened.st_mode) or
+            not same_identity(before,opened) or
+            not same_identity(opened,visible)
+        ):
+            hold("apollyon_v2_installed_launcher_node_identity_drift")
+        return fd
+    except Exception:
+        os.close(fd)
+        raise
+
+
 def read_reviewed_file(
     source_root:Path,
     relative:str,
@@ -186,6 +220,7 @@ def materialize_reviewed_closure(
         ):
             hold("apollyon_v2_installed_launcher_source_root_untrusted")
     materials:dict[str,bytes]={}
+    private_root:Path|None=None
     try:
         for relative,expected in REVIEWED_FILES.items():
             materials[relative]=read_reviewed_file(
@@ -200,7 +235,18 @@ def materialize_reviewed_closure(
         for relative,expected in REVIEWED_FILES.items():
             write_private_file(private_root,relative,materials[relative],expected)
         fsync_directory(private_root)
-        return private_root
+        result=private_root
+        private_root=None
+        return result
+    except BaseException:
+        if private_root is not None:
+            try:
+                shutil.rmtree(private_root)
+            except Exception as cleanup_error:
+                raise Hold(
+                    "apollyon_v2_installed_launcher_materialization_cleanup_failed"
+                ) from cleanup_error
+        raise
     finally:
         for key,data in list(materials.items()):
             materials[key]=b"\0"*len(data)
@@ -235,22 +281,25 @@ def execute_live(argv:list[str])->int:
     if os.geteuid()!=0:
         hold("apollyon_v2_installed_launcher_root_required")
     assert_installed_launcher_identity()
-    if not NODE.exists() or NODE.is_symlink():
-        hold("apollyon_v2_installed_launcher_node_invalid")
-    private_root=materialize_reviewed_closure(
-        INSTALLED_SOURCE_ROOT,RUN_PARENT,require_root_custody=True,
-    )
+    node_fd=open_trusted_executable(NODE,require_root_custody=True)
     try:
-        runner=private_root/RUNNER_REL
-        completed=subprocess.run(
-            [os.fspath(NODE),os.fspath(runner),*argv],
-            env=sanitized_environment(),
-            check=False,
-            timeout=60,
+        private_root=materialize_reviewed_closure(
+            INSTALLED_SOURCE_ROOT,RUN_PARENT,require_root_custody=True,
         )
-        return completed.returncode
+        try:
+            runner=private_root/RUNNER_REL
+            completed=subprocess.run(
+                [f"/proc/self/fd/{node_fd}",os.fspath(runner),*argv],
+                pass_fds=(node_fd,),
+                env=sanitized_environment(),
+                check=False,
+                timeout=60,
+            )
+            return completed.returncode
+        finally:
+            shutil.rmtree(private_root)
     finally:
-        shutil.rmtree(private_root)
+        os.close(node_fd)
 
 
 def self_test()->None:
@@ -265,6 +314,55 @@ def self_test()->None:
             target=source/relative
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_bytes((repo_root/relative).read_bytes())
+
+        # Executable custody rejects group/world-writable binaries and
+        # returns one retained descriptor suitable for /proc/self/fd execution.
+        node_fixture=top/"node-fixture"
+        node_fixture.write_bytes(b"fixture-node")
+        os.chmod(node_fixture,0o755)
+        node_fd=open_trusted_executable(
+            node_fixture,require_root_custody=False,
+        )
+        os.close(node_fd)
+        os.chmod(node_fixture,0o777)
+        try:
+            open_trusted_executable(
+                node_fixture,require_root_custody=False,
+            )
+        except Hold as exc:
+            if str(exc)!="apollyon_v2_installed_launcher_node_untrusted":
+                raise
+        else:
+            raise AssertionError("writable Node fixture unexpectedly admitted")
+
+        # A failure after mkdtemp must remove the partial reviewed tree.
+        original_write=globals()["write_private_file"]
+        write_calls=0
+        before_partial=set(top.glob(".void-apollyon-v2-live-*"))
+        def fail_during_materialization(root,relative,data,expected_blob):
+            nonlocal write_calls
+            write_calls+=1
+            if write_calls==2:
+                raise OSError("synthetic materialization failure")
+            return original_write(root,relative,data,expected_blob)
+        globals()["write_private_file"]=fail_during_materialization
+        try:
+            try:
+                materialize_reviewed_closure(
+                    source,top,require_root_custody=False,
+                )
+            except OSError as exc:
+                if "synthetic materialization failure" not in str(exc):
+                    raise
+            else:
+                raise AssertionError("synthetic materialization failure missing")
+        finally:
+            globals()["write_private_file"]=original_write
+        after_partial=set(top.glob(".void-apollyon-v2-live-*"))
+        if after_partial!=before_partial:
+            raise AssertionError(
+                "partial reviewed tree survived materialization failure"
+            )
 
         # Modified source is rejected before Node can evaluate it.
         runner=source/RUNNER_REL
@@ -332,6 +430,9 @@ def self_test()->None:
             shutil.rmtree(prepared)
 
     print(MARKER+"_SELF_TEST=GREEN")
+    print("trusted_node_descriptor_execution=true")
+    print("writable_node_rejected=true")
+    print("materialization_failure_cleanup=true")
     print("modified_runner_rejected_before_node=true")
     print("post_prepare_source_replacement_inert=true")
     print("live_worktree_invocation_supported=false")
