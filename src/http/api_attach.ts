@@ -19,6 +19,23 @@ const DATA_DIR = process.env.DATA_DIR || "data";
 
 export const ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
 
+export const ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = "void_block_range_invalid_v1";
+
+export function attachBlockRangeErrorV1() {
+  return {
+    ok: false as const,
+    error: "bad range" as const,
+    error_code: ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+    max_inclusive_heights: ATTACH_BLOCK_RANGE_MAX_SPAN,
+    recovery: {
+      preferred_query: ["from", "to"] as const,
+      aliases: { from: "start", to: "end" } as const,
+      max_to_offset_from: ATTACH_BLOCK_RANGE_MAX_SPAN - 1,
+    },
+  };
+}
+
+
 export function parseAttachBlockRange(
   fromRaw: unknown,
   toRaw: unknown,
@@ -69,7 +86,7 @@ export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
       store.loadHeadNumber(),
     );
     if (!range) {
-      return res.status(400).json({ ok: false, error: "bad range" });
+      return res.status(400).json(attachBlockRangeErrorV1());
     }
     const out: any[] = [];
     for (let n = range.from; n <= range.to; n++) {
