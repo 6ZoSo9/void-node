@@ -444,6 +444,39 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         throw new Error("buy_void_post_created_public_fields_invalid");
       }
 
+      // Opaque nested additions can be private operational metadata even
+      // when all checked fields and outer request keys are legitimate.
+      // Only names produced by the reviewed native checkout request may
+      // appear in these public receipt subobjects.
+      const requestContractKeys = new Set([
+        "request_before_payment_required",
+        "one_active_request_per_void_destination",
+        "payment_sender_must_equal_void_destination",
+        "payment_tx_hash_bound_after_request_by_operator",
+      ]);
+      const safetyKeys = new Set([
+        "automatic_fulfillment","activation_required",
+        "manual_review_required","wallet_send_by_page",
+        "token_approval_by_page","no_investment_return_promised",
+        "no_automatic_token_delivery_promised",
+        "do_not_send_from_exchange","private_rpc_public",
+      ]);
+      const acknowledgementKeys = new Set([
+        "self_custody","native_usdc","request_before_payment",
+        "sender_equals_void_destination","no_automatic_fulfillment",
+      ]);
+      const closedNestedKeys = (object, allowed) =>
+        object && typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).every(key => allowed.has(key));
+      if (!closedNestedKeys(checkout.request_contract, requestContractKeys) ||
+          !closedNestedKeys(checkout.safety, safetyKeys) ||
+          (Object.hasOwn(checkout, "acknowledgements") &&
+            !closedNestedKeys(checkout.acknowledgements,
+              acknowledgementKeys))) {
+        throw new Error("buy_void_post_created_nested_public_fields_invalid");
+      }
+
       // Payment instructions are displayed as actionable money movement.
       // A correct outer 201 plus buyer destination/amount is insufficient:
       // require independently source-bound USDC contract, rail, receiver and
