@@ -13,10 +13,44 @@ It accepts no evidence JSON. It runs the exact V2 designated-host collector
 twice on Xiphos and immediately classifies both observations with the exact V2
 host-policy classifier.
 
+## Pre-entry trust root
+
+Direct privileged execution from the repository worktree is **unsupported**.
+Live mode in the Node runner requires
+`VOID_APOLLYON_V2_INSTALLED_LAUNCHER_V1`, supplied only by the reviewed
+pre-entry launcher after it has started from this fixed installed path:
+
+```text
+/opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_installed_live_launcher_v1.py
+```
+
+The installed launcher must itself be a direct root-owned, single-link,
+non-group/world-writable file beneath root-owned/non-group/world-writable
+ancestors. It reads the separately installed reviewed source root at:
+
+```text
+/opt/void-apollyon-custody-v2-reviewed-v1
+```
+
+and authenticates every reviewed file before starting Node. It then
+materializes those bytes into a private temporary execution tree and starts the
+runner only from that private tree. A modified worktree runner is never an
+execution source for live mode.
+
+Reviewed pre-entry launcher source blob:
+
+```text
+d5ee0900d3bd8e4b08199c1cadf149e526035946
+```
+
+Installing either `/opt` tree is a **separate privileged mutation gate** and
+is not performed by this PR or its CI.
+
 ## Exact source binding
 
-The live runner binds a complete reviewed execution closure **before first
-policy evaluation or collector execution**:
+After the installed launcher establishes the pre-entry trust root, the live
+runner binds a complete reviewed execution closure **before first policy
+evaluation or collector execution**:
 
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
@@ -92,7 +126,8 @@ bytes before any claim path can proceed.
 ## Invocation
 
 ```bash
-sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs \
+sudo /usr/bin/python3 -I -B \
+  /opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_installed_live_launcher_v1.py \
   --training-user <training-user> \
   --training-pid <live-training-pid> \
   --custody-user <custody-user> \
@@ -102,7 +137,10 @@ sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs \
   --service-unit <custody-service>.service
 ```
 
-The runner creates and removes one private temporary reviewed execution tree.
+A command of the form `sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs ...`
+is intentionally not an accepted live invocation.
+
+The installed launcher creates one private pre-entry execution tree, and the runner creates and removes its own reviewed dependency tree.
 That is reported truthfully as
 `private_temporary_filesystem_write=true`,
 `repository_source_write=false`, and
