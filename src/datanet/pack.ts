@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { constants as bufferConstants } from "node:buffer";
 import { sha256, merkleRoot, hex } from "./merkle.js";
 
 export type PackOpts = {
@@ -30,10 +29,10 @@ export function packFile(inFile: string, opts: PackOpts): ManifestV1 {
   if (
     !Number.isSafeInteger(opts.chunkBytes) ||
     opts.chunkBytes <= 0 ||
-    opts.chunkBytes > bufferConstants.MAX_LENGTH
+    opts.chunkBytes > MAX_PACK_CHUNK_BYTES
   ) {
     throw new RangeError(
-      `invalid chunkBytes: expected a positive safe integer <= ${bufferConstants.MAX_LENGTH}`,
+      `invalid chunkBytes: expected a positive safe integer <= ${MAX_PACK_CHUNK_BYTES}`,
     );
   }
 
