@@ -28,6 +28,9 @@ const indexText = read(indexPath);
 const html = read(path.join(shellDir, "index.html"));
 const appJs = read(path.join(shellDir, "assets", "js", "app.js"));
 const viewsJs = read(path.join(shellDir, "assets", "js", "views.js"));
+const componentsCss = read(
+  path.join(shellDir, "assets", "css", "components.css")
+);
 
 const requiredShellFiles = [
   "index.html",
@@ -73,7 +76,6 @@ const screenshots = [
   "mobile-home-390x844.png",
   "mobile-home-full-390.png",
   "mobile-network-320x568.png",
-  "desktop-advanced-drawer-1440x900.png",
   "mobile-more-390x844.png",
 ];
 
@@ -126,6 +128,41 @@ const payloadTarget = (relative: string): string => {
 };
 
 const payloadHashes = sourceManifest.payload_files;
+const historicalAdvancedScreenshot =
+  sourceManifest.advanced_unavailable_controls_truth_repair
+    ?.historical_screenshot_declassified;
+const historicalAdvancedScreenshotPath =
+  "screenshots/desktop-advanced-drawer-1440x900.png";
+if (
+  !historicalAdvancedScreenshot ||
+  historicalAdvancedScreenshot.path !== historicalAdvancedScreenshotPath ||
+  historicalAdvancedScreenshot.sha256 !==
+    "320256fbd39a10ba03278be817e0cc59a573954efe0c5b2ce7beaccef9256e04" ||
+  historicalAdvancedScreenshot.represents_source_before_repair !== true ||
+  historicalAdvancedScreenshot.current_acceptance_evidence !== false
+) {
+  fail("stale Advanced screenshot declassification is missing");
+}
+if (
+  Object.prototype.hasOwnProperty.call(
+    payloadHashes,
+    historicalAdvancedScreenshotPath
+  )
+) {
+  fail("stale Advanced screenshot must not remain current payload evidence");
+}
+const historicalAdvancedScreenshotFile = payloadTarget(
+  historicalAdvancedScreenshotPath
+);
+if (!fs.existsSync(historicalAdvancedScreenshotFile)) {
+  fail("historical Advanced screenshot record is missing");
+}
+const historicalAdvancedScreenshotHash = createHash("sha256")
+  .update(fs.readFileSync(historicalAdvancedScreenshotFile))
+  .digest("hex");
+if (historicalAdvancedScreenshotHash !== historicalAdvancedScreenshot.sha256) {
+  fail("historical Advanced screenshot record changed");
+}
 
 if (
   !payloadHashes ||
@@ -563,6 +600,55 @@ if (
   )
 ) {
   fail("command and mobile navigation links must share the same-route focus repair");
+}
+
+const advancedSettingsStart = html.indexOf(
+  '<div class="settings-list" role="list">'
+);
+const advancedSettingsEnd = html.indexOf(
+  "\n      </div>\n    </div>\n  </aside>",
+  advancedSettingsStart
+);
+if (advancedSettingsStart < 0 || advancedSettingsEnd < 0) {
+  fail("Advanced availability list is incomplete");
+}
+const advancedSettingsBlock = html.slice(
+  advancedSettingsStart,
+  advancedSettingsEnd
+);
+if (/<button\b/i.test(advancedSettingsBlock)) {
+  fail("unavailable Advanced destinations must not remain enabled controls");
+}
+for (const name of ["Records", "Diagnostics", "Operator tools", "Developer"]) {
+  const marker =
+    `<div class="settings-list__item" role="listitem"><span><strong>${name}</strong>`;
+  if (!advancedSettingsBlock.includes(marker)) {
+    fail(`Advanced availability item missing: ${name}`);
+  }
+}
+if (
+  (advancedSettingsBlock.match(/Unavailable in the public app\./g) ?? [])
+    .length !== 4
+) {
+  fail("every unavailable Advanced destination needs participant-facing copy");
+}
+if (
+  (
+    advancedSettingsBlock.match(
+      /class="status-chip status-chip--warning" aria-hidden="true">Unavailable<\/span>/g
+    ) ?? []
+  ).length !== 4
+) {
+  fail("every unavailable Advanced destination needs one visible status");
+}
+for (const marker of [
+  ".settings-list button, .settings-list__item {",
+  ".settings-list__item > span:first-child",
+  ".settings-list__item .status-chip { flex: none; }",
+]) {
+  if (!componentsCss.includes(marker)) {
+    fail(`Advanced availability styling missing: ${marker}`);
+  }
 }
 
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
