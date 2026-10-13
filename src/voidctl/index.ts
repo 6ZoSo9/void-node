@@ -27,7 +27,15 @@ async function main() {
 
   const out = arg("--out") || path.resolve("datanet_out");
   const chunkBytes = Number(arg("--chunk-bytes") || (1024 * 1024));
-  if (\n    !Number.isSafeInteger(chunkBytes) ||\n    chunkBytes <= 0 ||\n    chunkBytes > MAX_PACK_CHUNK_BYTES\n  ) {\n    die(\n      `[ERR] invalid --chunk-bytes: expected a positive safe integer <= ${MAX_PACK_CHUNK_BYTES}`,\n    );\n  }
+  if (
+    !Number.isSafeInteger(chunkBytes) ||
+    chunkBytes <= 0 ||
+    chunkBytes > MAX_PACK_CHUNK_BYTES
+  ) {
+    die(
+      `[ERR] invalid --chunk-bytes: expected a positive safe integer <= ${MAX_PACK_CHUNK_BYTES}`,
+    );
+  }
 
   const man = packFile(infile, { chunkBytes, outDir: out });
   console.log(`[ok] packed -> ${out}`);
