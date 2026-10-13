@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const BASELINE_COMMIT="59b8fa9d3fa3b238655839f9cfc573ebb91752dd";
+const BASELINE_COMMIT="68d9122fa557718882e36858906b960efa0acf3a";
 const OLD_PACKAGE_BLOB="f28c3e9446c7623ef203da36a9642d046e5f34ee";
 const OLD_LOCK_BLOB="b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const NEW_PACKAGE_BLOB="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";

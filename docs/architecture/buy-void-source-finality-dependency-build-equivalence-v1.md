@@ -5,7 +5,7 @@ issue #2839 without rewriting historical compiled-artifact evidence.
 
 It compares two exact repository generations side by side:
 
-- historical dependency baseline: `59b8fa9d3fa3b238655839f9cfc573ebb91752dd`;
+- historical dependency baseline: `68d9122fa557718882e36858906b960efa0acf3a`;
 - audited package generation: the exact pull-request head containing
   `package.json` Git blob `14fbdf5717b07fd4c734f5da7a8e84ed59bee93f`
   and `package-lock.json` Git blob
