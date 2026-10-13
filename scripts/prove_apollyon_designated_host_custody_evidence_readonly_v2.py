@@ -39,6 +39,11 @@ for value in [
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
+ "training_uid_process_inventory","all_training_uid_processes_capability_free",
+ "training_uid_process_set_stable","training_uid_processes",
+ "REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)",
+ "parse_systemd_bus_owner_pid","GetConnectionUnixProcessID",
+ "systemd_bus_owner_pid_is_pid1","reviewed_systemd_package_version",
  "runtime_can_control_service':control['runtime_can_control_service']","--training-pid",
 ]:
  assert value in source,value
@@ -50,6 +55,8 @@ assert mod.MARKER=='VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_EVIDENCE_READONLY_V2'
 assert source.count("def parse_installed_systemd_version_line") == 1
 assert source.count("def parse_running_systemd_manager_version") == 1
 assert source.count("def training_process_subject") == 1
+assert source.count("def training_uid_process_inventory") == 1
+assert source.count("def parse_systemd_bus_owner_pid") == 1
 assert source.count("def service_control_evidence") == 1
 assert source.count("def collect(a)") == 1
 assert source.count("if __name__=='__main__':raise SystemExit(main())") == 1
@@ -62,10 +69,26 @@ assert mod.classify_pkcheck_status(3)=='dismissed'
 assert mod.classify_pkcheck_status(127)=='error'
 installed=mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')
 running=mod.parse_running_systemd_manager_version('s "255.4-1ubuntu8.11"')
+owner=mod.parse_systemd_bus_owner_pid('u 1')
 assert installed['installed_systemd_major']==255
 assert installed['installed_systemd_package_version']=='255.4-1ubuntu8.11'
 assert running['running_systemd_manager_major']==255
 assert running['running_systemd_manager_version']=='255.4-1ubuntu8.11'
+assert owner['systemd_bus_owner_pid']==1
+assert owner['systemd_bus_owner_pid_is_pid1'] is True
+assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',)
+try:
+ mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.12)')
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('unreviewed systemd package unexpectedly admitted')
+try:
+ mod.parse_systemd_bus_owner_pid('u 2')
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('non-PID1 systemd bus owner unexpectedly admitted')
 rule=mod.expected_polkit_deny_rule('zoso').decode('utf-8')
 for action in (
  'org.freedesktop.systemd1.manage-units',
@@ -96,6 +119,10 @@ print('running_systemd_manager_version_bound=true')
 print('running_installed_systemd_version_match_required=true')
 print('training_process_capabilities_zero_required=true')
 print('training_process_no_new_privileges_required=true')
+print('all_training_uid_processes_capability_free_required=true')
+print('training_uid_process_set_stability_required=true')
+print('systemd_bus_owner_pid_is_pid1_required=true')
+print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
 print('live_host_qualification_performed=false')
 print('host_mutation=false')
 print('service_action=false')
