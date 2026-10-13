@@ -17,6 +17,7 @@ import {
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1,
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1,
   buildBuyVoidEpoch2CredentialCapabilityProbeV1,
+  buyVoidEpoch2CredentialProbeMatchesChallengeV1,
   buyVoidEpoch2CredentialProbeSemanticsExactV1,
   buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1,
   buildBuyVoidEpoch2CredentialAttestationEvidenceV1,
@@ -117,6 +118,19 @@ assert.equal(probe.maxPriorityFeePerGas, 0n);
 assert.equal(probe.value, 0n);
 assert.equal(probe.accessList.length, 1);
 assert.equal(buyVoidEpoch2CredentialProbeSemanticsExactV1(probe), true);
+assert.equal(
+  buyVoidEpoch2CredentialProbeMatchesChallengeV1(probe, HEAD, CHALLENGE),
+  true,
+);
+assert.equal(
+  buyVoidEpoch2CredentialProbeMatchesChallengeV1(
+    probe,
+    HEAD,
+    "c".repeat(64),
+  ),
+  false,
+);
+
 
 const unsafeNonceProbe = { ...probe, nonce: 0 };
 assert.equal(
@@ -328,6 +342,7 @@ assert.throws(
     full_runtime_source_blob: "3".repeat(40),
     attestation_source_blob: "4".repeat(40),
     expected_signer: dummy.address,
+    challenge_hex: CHALLENGE,
     probe,
     raw_signed_transaction: raw,
     systemd_observation: observed,
@@ -433,6 +448,7 @@ console.log("probe_intrinsically_non_executable=true");
 console.log("probe_gas_limit=1");
 console.log("minimum_evm_intrinsic_gas=21000");
 console.log("caller_selected_executable_probe_rejected=true");
+console.log("probe_challenge_derivation_bound=true");
 console.log("probe_nonce_number_max_safe_integer=true");
 console.log("probe_zero_fee=true");
 console.log("probe_amount_atoms=1");
