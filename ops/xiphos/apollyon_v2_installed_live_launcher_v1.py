@@ -21,7 +21,7 @@ RUN_PARENT=Path("/run")
 NODE=Path("/usr/bin/node")
 RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"6a302c134e3b8c592f60852815372c41a88146da",
+    RUNNER_REL:"428f1d69d8231d014229af0daacf0b446230f74c",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
         "06e110108c74c450074ed6500ac7f7458f49b5aa",
     "tools/apollyon-custody-host-policy-qualification-v1.mjs":
@@ -210,6 +210,13 @@ def write_private_file(root:Path,relative:str,data:bytes,expected_blob:str)->Pat
     return target
 
 
+def cleanup_private_tree(pathname:Path,prefix:str)->None:
+    try:
+        shutil.rmtree(pathname)
+    except Exception as cleanup_error:
+        raise Hold(prefix+os.fspath(pathname)) from cleanup_error
+
+
 def materialize_reviewed_closure(
     source_root:Path,
     target_parent:Path,
@@ -247,13 +254,10 @@ def materialize_reviewed_closure(
         return result
     except BaseException:
         if private_root is not None:
-            try:
-                shutil.rmtree(private_root)
-            except Exception as cleanup_error:
-                raise Hold(
-                    "apollyon_v2_installed_launcher_materialization_cleanup_failed:"+
-                    os.fspath(private_root)
-                ) from cleanup_error
+            cleanup_private_tree(
+                private_root,
+                "apollyon_v2_installed_launcher_materialization_cleanup_failed:",
+            )
         raise
     finally:
         for key,data in list(materials.items()):
@@ -305,7 +309,10 @@ def execute_live(argv:list[str])->int:
             )
             return completed.returncode
         finally:
-            shutil.rmtree(private_root)
+            cleanup_private_tree(
+                private_root,
+                "apollyon_v2_installed_launcher_post_execution_cleanup_failed:",
+            )
     finally:
         os.close(node_fd)
 
@@ -371,6 +378,33 @@ def self_test()->None:
             raise AssertionError(
                 "partial reviewed tree survived materialization failure"
             )
+
+        # Cleanup failure is classified with the exact retained path.
+        cleanup_target=top/"cleanup-failure-fixture"
+        cleanup_target.mkdir()
+        original_rmtree=shutil.rmtree
+        def fail_cleanup(pathname,*args,**kwargs):
+            if Path(pathname)==cleanup_target:
+                raise OSError("synthetic cleanup failure")
+            return original_rmtree(pathname,*args,**kwargs)
+        shutil.rmtree=fail_cleanup
+        try:
+            try:
+                cleanup_private_tree(
+                    cleanup_target,
+                    "apollyon_v2_installed_launcher_post_execution_cleanup_failed:",
+                )
+            except Hold as exc:
+                if str(exc)!=(
+                    "apollyon_v2_installed_launcher_post_execution_cleanup_failed:"+
+                    os.fspath(cleanup_target)
+                ):
+                    raise
+            else:
+                raise AssertionError("cleanup failure was not classified")
+        finally:
+            shutil.rmtree=original_rmtree
+            original_rmtree(cleanup_target)
 
         # Modified source is rejected before Node can evaluate it.
         runner=source/RUNNER_REL
@@ -441,6 +475,8 @@ def self_test()->None:
     print("trusted_node_descriptor_execution=true")
     print("writable_node_rejected=true")
     print("materialization_failure_cleanup=true")
+    print("post_execution_cleanup_failure_classified=true")
+    print("cleanup_failure_retained_path_reported=true")
     print("modified_runner_rejected_before_node=true")
     print("post_prepare_source_replacement_inert=true")
     print("live_worktree_invocation_supported=false")
@@ -460,8 +496,15 @@ if __name__=="__main__":
         raise SystemExit(main())
     except Hold as exc:
         reason=str(exc)
-        cleanup_prefix="apollyon_v2_installed_launcher_materialization_cleanup_failed:"
-        cleanup_failed=reason.startswith(cleanup_prefix)
+        cleanup_prefixes=(
+            "apollyon_v2_installed_launcher_materialization_cleanup_failed:",
+            "apollyon_v2_installed_launcher_post_execution_cleanup_failed:",
+        )
+        cleanup_prefix=next(
+            (prefix for prefix in cleanup_prefixes if reason.startswith(prefix)),
+            None,
+        )
+        cleanup_failed=cleanup_prefix is not None
         print("HOLD="+reason,file=sys.stderr)
         print("host_observation_read_only=true",file=sys.stderr)
         print("temporary_filesystem_write=true",file=sys.stderr)
