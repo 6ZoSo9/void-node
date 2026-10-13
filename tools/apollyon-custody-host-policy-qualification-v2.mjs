@@ -19,6 +19,8 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   explicit_training_pid_service_control_denial_required:true,
   exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
   reviewed_systemd_major_pinned:true,
+  running_systemd_manager_version_bound:true,
+  running_installed_systemd_version_match_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
@@ -66,7 +68,9 @@ function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
     "all_systemd_control_actions_explicitly_denied","checked_actions",
-    "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule","reviewed_systemd_major",
+    "installed_systemd_package_version","observed_systemd_version_line","pkcheck_subject",
+    "polkit_deny_rule","reviewed_systemd_major","running_installed_systemd_version_match",
+    "running_systemd_manager_major","running_systemd_manager_version",
     "runtime_can_control_service","service_unit","training_pid",
     "training_process_capabilities","training_process_start_time_ticks",
     "training_uid",
@@ -74,7 +78,16 @@ function normalizeServiceControl(value,identities){
   if(
     value.reviewed_systemd_major!==REVIEWED_SYSTEMD_MAJOR||
     typeof value.observed_systemd_version_line!=="string"||
-    !/^systemd\s+255(?:\s|$)/u.test(value.observed_systemd_version_line)||
+    typeof value.installed_systemd_package_version!=="string"||
+    typeof value.running_systemd_manager_version!=="string"||
+    value.running_systemd_manager_major!==REVIEWED_SYSTEMD_MAJOR||
+    value.running_installed_systemd_version_match!==true||
+    !/^systemd\s+255\s+\([^()]+\)$/u.test(value.observed_systemd_version_line)||
+    value.observed_systemd_version_line!==
+      "systemd 255 ("+value.installed_systemd_package_version+")"||
+    !/^[A-Za-z0-9.+:~_-]{1,120}$/u.test(value.installed_systemd_package_version)||
+    value.running_systemd_manager_version!==value.installed_systemd_package_version||
+    !/^255(?:[.-]|$)/u.test(value.running_systemd_manager_version)||
     !Number.isSafeInteger(value.training_pid)||value.training_pid<=0||
     !Number.isSafeInteger(value.training_uid)||value.training_uid!==identities.training_uid||
     typeof value.training_process_start_time_ticks!=="string"||
