@@ -114,6 +114,21 @@ assert.equal(/--import\s+tsx/u.test(sealedSource), false);
 assert.equal(/eth_sendRawTransaction/u.test(sealedSource), false);
 assert.equal(/fulfill\s*\(/u.test(sealedSource), false);
 assert.match(sealedSource, /transaction_constructed: false/u);
+for (const publicEvidenceField of [
+  "nonce_hex",
+  "public_signature_p1363_hex",
+  "public_key_spki_der_hex",
+  "public_key_uncompressed_sha256",
+  "public_signature_output: true",
+  "public_key_output: true",
+]) {
+  assert.equal(
+    sealedSource.includes(publicEvidenceField),
+    true,
+    "sealed probe missing independently verifiable public evidence field: " +
+      publicEvidenceField,
+  );
+}
 assert.match(sealedSource, /GIT_NO_REPLACE_OBJECTS/u);
 assert.match(sealedSource, /epoch2_sealed_node_execution_context_invalid/u);
 assert.match(sealedSource, /root_owned_node_binary_verified: true/u);
@@ -223,15 +238,42 @@ try {
   );
   try {
     assert.equal(signature.length, 64);
+    assert.match(material.publicSpkiDerHex, /^[0-9a-f]+$/u);
+    const publicSpki = Buffer.from(material.publicSpkiDerHex, "hex");
+    const independentPublic = crypto.createPublicKey({
+      key: publicSpki,
+      format: "der",
+      type: "spki",
+    });
     assert.equal(
       crypto.verify(
         "sha256",
         message,
-        { key: material.publicObject, dsaEncoding: "ieee-p1363" },
+        { key: independentPublic, dsaEncoding: "ieee-p1363" },
         signature,
       ),
       true,
     );
+    const jwk = independentPublic.export({ format: "jwk" });
+    assert.equal(jwk.kty, "EC");
+    assert.equal(jwk.crv, "secp256k1");
+    const x = Buffer.from(String(jwk.x || ""), "base64url");
+    const y = Buffer.from(String(jwk.y || ""), "base64url");
+    assert.equal(x.length, 32);
+    assert.equal(y.length, 32);
+    const uncompressed = Buffer.concat([Buffer.from([4]), x, y]);
+    const address =
+      "0x" + keccak256(uncompressed.subarray(1))
+        .subarray(12).toString("hex").toLowerCase();
+    assert.equal(address, material.address);
+    assert.equal(
+      crypto.createHash("sha256").update(uncompressed).digest("hex"),
+      material.publicFingerprint,
+    );
+    publicSpki.fill(0);
+    x.fill(0);
+    y.fill(0);
+    uncompressed.fill(0);
   } finally {
     signature.fill(0);
   }
@@ -359,6 +401,11 @@ console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
 console.log("ethereum_private_key_one_address_vector_green=true");
 console.log("domain_separated_nontransaction_signature_green=true");
+console.log("public_verification_signature_output=true");
+console.log("public_verification_key_output=true");
+console.log("public_challenge_nonce_output=true");
+console.log("offline_signature_verification_proven=true");
+console.log("public_key_derives_expected_ethereum_address=true");
 console.log("private_key_string_materialization=false");
 console.log("sec1_der_buffer_zeroed=true");
 console.log("trusted_node_binary_required=true");
