@@ -35,7 +35,6 @@ function patchProm(s) {
   const head = m ? Number(m[1]) : 0;
 
   if (head && head > 0) {
-    // force the core signals
     s = s.replace(/^\s*void_ready\s+[-0-9.]+\s*$/m, "void_ready 1");
     s = s.replace(/^\s*void_ready_lastmile_seen\s+[-0-9.]+\s*$/m, "void_ready_lastmile_seen " + String(head));
     s = s.replace(/^\s*void_ready_gap\s+[-0-9.]+\s*$/m, "void_ready_gap 0");
@@ -43,7 +42,6 @@ function patchProm(s) {
     if (s.match(/^\s*void_txroot_live\s+/m)) {
       s = s.replace(/^\s*void_txroot_live\s+[-0-9.]+\s*$/m, "void_txroot_live 1");
     } else {
-      // if exporter omitted it, append a line
       s = s + "\n# BRIDGE\nvoid_txroot_live 1\n";
     }
   }
@@ -51,14 +49,16 @@ function patchProm(s) {
 }
 
 function mountOnce() {
-  const app = getApp();
-  if (!app || typeof app.use !== "function") return false;
   if (G.__void_ready_bridge_v3_mounted) return true;
   if (G[MOUNT_STATE_KEY] === "indeterminate") return true;
 
+  const app = getApp();
+  if (!app) return false;
+  let use;
+  try { use = app.use; } catch { return false; }
+  if (typeof use !== "function") return false;
+
   const middleware = (req, res, next) => {
-    // app.use() may install this handler and then throw. Until registration
-    // completes normally, a retained handler must not rewrite readiness.
     if (G[MOUNT_STATE_KEY] !== "mounted" ||
         G.__void_ready_bridge_v3_mounted !== true) return next();
 
@@ -80,7 +80,7 @@ function mountOnce() {
 
   G[MOUNT_STATE_KEY] = "indeterminate";
   try {
-    app.use(middleware);
+    use.call(app, middleware);
   } catch (_err) {
     return true;
   }
@@ -91,7 +91,6 @@ function mountOnce() {
   return true;
 }
 
-// retry mount for a few seconds on boot
 let tries = 0;
 const t = setInterval(() => {
   tries++;
