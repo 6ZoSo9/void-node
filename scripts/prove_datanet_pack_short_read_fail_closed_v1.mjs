@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { constants as bufferConstants } from "node:buffer";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -23,6 +24,9 @@ assert.match(source, /short read while packing/);
 assert.match(source, /stageDir = fs\.mkdtempSync/);
 assert.match(source, /PACK_CHUNK_FILE_RE/);
 assert.match(source, /The manifest is the final publication marker/);
+const chunkBoundCheck = source.indexOf("Number.isSafeInteger(opts.chunkBytes)");
+const descriptorOpen = source.indexOf("const fd = fs.openSync");
+assert.ok(chunkBoundCheck >= 0 && chunkBoundCheck < descriptorOpen);
 
 const { packFile } = await import("../dist/datanet/pack.js");
 
@@ -42,10 +46,27 @@ const fifo = path.join(root, "input.fifo");
 const normalOut = path.join(root, "normal");
 const fifoOut = path.join(root, "fifo");
 const shortOut = path.join(root, "short");
+const invalidOut = path.join(root, "invalid");
 
 try {
   fs.writeFileSync(input, Buffer.from("abcdefgh", "utf8"));
   fs.writeFileSync(replacementInput, Buffer.from("ABCDEFGH", "utf8"));
+
+  for (const chunkBytes of [
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1,
+    bufferConstants.MAX_LENGTH + 1,
+  ]) {
+    assert.throws(
+      () => packFile(input, { chunkBytes, outDir: invalidOut }),
+      /invalid chunkBytes: expected a positive safe integer/,
+    );
+    assert.equal(fs.existsSync(invalidOut), false);
+  }
 
   const normal = packFile(input, { chunkBytes: 4, outDir: normalOut });
   assert.equal(normal.sizeBytes, 8);
@@ -183,6 +204,9 @@ try {
   console.log("late_short_read_preserved_existing_pack=true");
   console.log("staging_generation_leaked=false");
   console.log("manifest_publication_marker_last=true");
+  console.log("chunk_bytes_positive_safe_integer=true");
+  console.log("chunk_bytes_buffer_bound=true");
+  console.log("invalid_chunk_bytes_no_filesystem_touch=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
