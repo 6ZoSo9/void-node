@@ -15,9 +15,18 @@ socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
 its /proc start-time ticks and UID, requires zero CapInh/CapPrm/CapEff/CapAmb
-and NoNewPrivs=1, pins systemd major 255, then performs non-interactive
-`/usr/bin/pkcheck` probes for the complete reviewed systemd control surface.
-Only exit status 1 is accepted as explicit denial. RefuseManualStart/Stop remain
+and NoNewPrivs=1, pins systemd major 255, and requires the exact reviewed early Polkit rule at
+`/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
+The rule must be root:root, single-link, non-group/world-writable, have trusted
+root-owned ancestors, be lexically first across the system Polkit rule
+directories, and deny the training user by action ID only for
+`manage-units`, `manage-unit-files`, `reload-daemon`, and
+`set-environment`. This makes the denial independent of optional
+`polkit.message` / `polkit.gettext_domain` request details.
+
+The collector then performs non-interactive `/usr/bin/pkcheck` probes for the
+reviewed systemd control surface. Only exit status 1 is accepted as explicit
+denial. RefuseManualStart/Stop remain
 defense-in-depth unit facts; they no longer independently justify
 `runtime_can_control_service=false`.
 
