@@ -135,6 +135,7 @@ function parseCli(argv){
   ];
   if(Object.keys(out).sort().join("\n")!==expected.sort().join("\n")) fail("apollyon_custody_launcher_arguments_invalid");
   if(!HASH64.test(out.expected_operator_public_key_raw_sha256)) fail("apollyon_custody_launcher_fingerprint_invalid");
+  if(!/^(?:0|[1-9][0-9]*)$/u.test(out.socket_group_gid)) fail("apollyon_custody_launcher_socket_group_invalid");
   const gid=Number(out.socket_group_gid);
   if(!Number.isSafeInteger(gid)||gid<0||gid>0x7fff_ffff) fail("apollyon_custody_launcher_socket_group_invalid");
   return Object.freeze({
