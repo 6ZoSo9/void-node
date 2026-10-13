@@ -411,7 +411,7 @@ async function main(): Promise<void> {
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
-  if ("reason" in signer) throw new Error(signer.reason);
+  if (!signer.ok) throw new Error(signer.reason);
   const publicAddress = (await signer.signer.get_address()).toLowerCase();
   if (publicAddress !== VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
     throw new Error("epoch2_attestation_immutable_fulfiller_mismatch");
