@@ -1468,6 +1468,66 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// The six callback slots are economic authority, not ordinary iterable data.
+// A poisoned Array iterator could previously shift readRequests into the
+// withLaunchMutation slot and make an unpersisted operation look successful.
+// Prove the adversary works against naive tuple destructuring, then require
+// the ACTUAL helper to capture the exact own numeric callback descriptors.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const callbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const oldIterator=Object.getOwnPropertyDescriptor(
+    Array.prototype,Symbol.iterator);
+  assert.equal(typeof oldIterator?.value,"function");
+  let callbackTupleIteratorCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,
+      value:function(){
+        if(this===callbacks){
+          callbackTupleIteratorCalls++;
+          return oldIterator.value.call([
+            callbacks[1],callbacks[2],callbacks[3],
+            callbacks[4],callbacks[5],
+          ]);
+        }
+        return oldIterator.value.call(this);
+      },
+    });
+    const [naiveWithLaunchMutation]=callbacks;
+    assert.equal(naiveWithLaunchMutation,callbacks[1],
+      "positive control must shift callback authority through the iterator");
+    assert.equal(callbackTupleIteratorCalls,1);
+    const callsBeforeGuardedHelper=callbackTupleIteratorCalls;
+    const candidate=request(
+      "buyvoid_callback_tuple_iterator_guard_aaaaaaaa","3","base","9");
+    const result=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      candidate,callbacks);
+    assert.equal(callbackTupleIteratorCalls,callsBeforeGuardedHelper,
+      "guarded helper must not iterate its authority callback tuple");
+    assert.equal(result.reused_request,null);
+    assert.ok(result.file);
+    const ledger=path.join(root,"requests.jsonl");
+    assert.equal(lines(root).length,1,
+      "guarded callback capture must still durably append exactly one request");
+    assert.equal(lines(root)[0].request_id,candidate.request_id);
+    assert.equal(JSON.parse(fs.readFileSync(result.file,"utf8")).request_id,
+      candidate.request_id);
+    assert.ok(fs.statSync(ledger).size>0);
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,oldIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("authority_callback_tuple_iterator_poison_isolated=true");
+
 // An ambient Array.prototype iterator can omit an own property name
 // from an Object.keys() array even though keys.length remains unchanged.
 // Demonstrate that a naive for..of copier drops payment_instructions,
