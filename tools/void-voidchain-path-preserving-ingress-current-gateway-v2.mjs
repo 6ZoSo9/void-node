@@ -75,7 +75,7 @@ const SOURCE_BLOBS=Object.freeze({
   // Reviewed source-generation successor #2631: exact private operator ingress deny.
   // Historical predecessor gateway: e97ce051405d5b19a363eaf0834838a0ecef3a10.
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "0f7b7ccec7aecbcfe6a48df1cd28063dc6550131",
+    "974a1b0d825ec921a26aaca61c5560d5e29fba5f",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":

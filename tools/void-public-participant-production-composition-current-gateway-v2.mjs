@@ -73,7 +73,7 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V2 =
       "583d2e61115916589e30239d1bf5451a525f2996",
     // Reviewed gateway successor for private Buy VOID operator ingress (#2631).
     "ops/public/void-public-app-composition-gateway-v1.mjs":
-      "0f7b7ccec7aecbcfe6a48df1cd28063dc6550131",
+      "974a1b0d825ec921a26aaca61c5560d5e29fba5f",
     "ops/public/void-public-participant-live-role-authority-v1.mjs":
       "5d39171d7c4145c6200225d18f37b401a8b7e022",
     "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs":

@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "0f7b7ccec7aecbcfe6a48df1cd28063dc6550131"
+          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "974a1b0d825ec921a26aaca61c5560d5e29fba5f"
           test "$(git hash-object tools/void-public-participant-production-composition-preflight-v1.mjs)" = "507ee9a1c9b553a86944b2e5287f220c6af73044"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
