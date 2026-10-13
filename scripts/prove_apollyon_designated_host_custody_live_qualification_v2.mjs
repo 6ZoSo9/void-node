@@ -14,7 +14,7 @@ const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "ece29504ed9041960e692261702388fa2549587e";
+  "976586fa920800042337c6b25545298c1d8cdd88";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -56,7 +56,7 @@ for(const required of [
   '"/opt/void-apollyon-custody-v2-preentry-v1/"',
   'INSTALLED_SOURCE_ROOT=Path("/opt/void-apollyon-custody-v2-reviewed-v1")',
   'RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"',
-  '"156b850276e74802f0f39595078e8e212b8cb9ac"',
+  '"6a302c134e3b8c592f60852815372c41a88146da"',
   '"06e110108c74c450074ed6500ac7f7458f49b5aa"',
   '"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74"',
   '"VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER',
@@ -66,6 +66,9 @@ for(const required of [
   'trusted_node_descriptor_execution=true',
   'writable_node_rejected=true',
   'materialization_failure_cleanup=true',
+  'temporary_filesystem_cleanup_proven=false',
+  'retained_private_tree_possible=true',
+  'persistent_host_mutation=unknown',
   'def open_trusted_executable(',
   'f"/proc/self/fd/{node_fd}"',
   'pass_fds=(node_fd,)',
@@ -104,6 +107,10 @@ for(const required of [
   '"--training-pid"',
   '"/proc/self/fd/3"',
   '"/usr/bin/python3"',
+  'openTrustedPythonInterpreter',
+  'spawnSync("/proc/self/fd/4"',
+  'stdio:["ignore","pipe","pipe",collectorFd,python.fd]',
+  'apollyon_live_qualification_v2_python_interpreter_untrusted',
   'next_gate:"live_custody_service_source_identity_binding_v2"',
   "attempt_claim:false",
   "training_execution:false",
