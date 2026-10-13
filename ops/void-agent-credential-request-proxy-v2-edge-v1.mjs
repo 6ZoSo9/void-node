@@ -22,9 +22,11 @@ const MARKER="VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_RUNTIME_V1";
 const HOST="127.0.0.1";
 const MAX_PROXY_HEADER_BYTES=512;
 const MAX_HTTP_HEADER_BYTES=32*1024;
+const HTTP_HEADER_TERMINATOR_BYTES=4;
 const MAX_CONNECTION_BYTES=
   MAX_PROXY_HEADER_BYTES+
   MAX_HTTP_HEADER_BYTES+
+  HTTP_HEADER_TERMINATOR_BYTES+
   VOID_AGENT_CREDENTIAL_REQUEST_MAX_BODY_BYTES_V1;
 const HEADER_NAME=/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const proofMode=process.env.VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_PROOF_MODE==="1";
@@ -178,7 +180,7 @@ function tryDecode(buffer){
     rawLength,0,VOID_AGENT_CREDENTIAL_REQUEST_MAX_BODY_BYTES_V1,
     "edge_content_length_invalid",{allowZero:true},
   );
-  const bodyStart=headerEnd+4;
+  const bodyStart=headerEnd+HTTP_HEADER_TERMINATOR_BYTES;
   const expected=bodyStart+bodyBytes;
   if(buffer.length<expected)return null;
   if(buffer.length>expected)fail("edge_http_trailing_bytes_forbidden");

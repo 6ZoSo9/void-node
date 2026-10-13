@@ -13,6 +13,17 @@ const ROOT=process.cwd();
 const ADAPTER=path.join(ROOT,"ops/void-agent-credential-request-proxy-v2-edge-v1.mjs");
 const UNIT=path.join(ROOT,"examples/systemd/void-agent-credential-request-proxy-v2-edge-v1.service");
 const ROUTE="/__void/agents/paid-work/credential-requests/v1";
+const adapterSource=fs.readFileSync(ADAPTER,"utf8");
+assert.match(adapterSource,/const HTTP_HEADER_TERMINATOR_BYTES=4;/u);
+assert.match(
+  adapterSource,
+  /MAX_PROXY_HEADER_BYTES\+\s*MAX_HTTP_HEADER_BYTES\+\s*HTTP_HEADER_TERMINATOR_BYTES\+\s*VOID_AGENT_CREDENTIAL_REQUEST_MAX_BODY_BYTES_V1/su,
+);
+assert.match(
+  adapterSource,
+  /const bodyStart=headerEnd\+HTTP_HEADER_TERMINATOR_BYTES;/u,
+);
+assert.doesNotMatch(adapterSource,/const bodyStart=headerEnd\+4;/u);
 const SIGNATURE=Buffer.from([0x0d,0x0a,0x0d,0x0a,0x00,0x0d,0x0a,0x51,0x55,0x49,0x54,0x0a]);
 
 function proxy4(a,b,c,d,sourcePort=50000){
