@@ -143,8 +143,8 @@ export function writeExclusiveOwnedV1(file,bytes,fsImpl=fs){
     if(!sameOwnedIdentity(visible,owned)) fail("candidate output identity drift");
     return owned;
   }catch(error){
-    if(fd!==null){try{fsImpl.closeSync(fd);}catch{}}
-    if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch{}}
+    if(fd!==null){try{fsImpl.closeSync(fd);}catch(cleanupError){void cleanupError;}}
+    if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch(cleanupError){void cleanupError;}}
     if(!owned&&error?.code==="EEXIST") fail("candidate output already exists: "+file);
     throw error;
   }
@@ -158,7 +158,7 @@ export function writeCandidateOutputsV1({manifestFile,manifestBytes,payloadFile,
     return Object.freeze({manifest:owned[0],payload:owned[1]});
   }catch(error){
     for(let i=owned.length-1;i>=0;i-=1){
-      try{removeOwnedOutputV1(owned[i],fsImpl);}catch{}
+      try{removeOwnedOutputV1(owned[i],fsImpl);}catch(cleanupError){void cleanupError;}
     }
     throw error;
   }
