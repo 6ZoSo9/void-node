@@ -11,6 +11,17 @@ on:
       - "docs/architecture/buy-void-public-request-launch-lock-v1.md"
       - "package.json"
       - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/index.ts"
+      - "src/economic/buy_void_public_request_under_launch_lock_v1.ts"
+      - "scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs"
+      - "scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs"
+      - ".github/workflows/buy-void-public-request-launch-lock-v1.yml"
+      - "docs/architecture/buy-void-public-request-launch-lock-v1.md"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 permissions:
