@@ -171,6 +171,18 @@ try{
   assert.equal(direct.status,400);
   assert.equal(gatewayCalls.length,2);
 
+  const oversizedProxy=Buffer.alloc(16);
+  SIGNATURE.copy(oversizedProxy,0);
+  oversizedProxy[12]=0x21;
+  oversizedProxy[13]=0x11;
+  oversizedProxy.writeUInt16BE(497,14);
+  const oversized=await sendRaw(
+    info.port,
+    requestBytes(oversizedProxy,body),
+  );
+  assert.equal(oversized.status,413);
+  assert.equal(gatewayCalls.length,2);
+
   await stop(runtime);
   runtime=startAdapter({port:0,gatewayPort,stateFile,maxRequests:1});
   info=await ready(runtime);

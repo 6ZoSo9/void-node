@@ -150,11 +150,16 @@ function parseHeaders(bytes){
 function tryDecode(buffer){
   if(buffer.length>MAX_CONNECTION_BYTES)fail("edge_connection_bytes_exceeded");
   if(buffer.length<16)return null;
-  const proxyBytes=16+buffer.readUInt16BE(14);
-  if(proxyBytes>MAX_PROXY_HEADER_BYTES)fail("edge_proxy_header_too_large");
-  if(buffer.length<proxyBytes)return null;
   const parsedSource=parseVoidAgentCredentialRequestProxyV2SourceV1(buffer);
-  if(parsedSource.ok!==true)fail("edge_"+String(parsedSource.reason||"proxy_invalid"));
+  if(parsedSource.ok!==true){
+    const reason=String(parsedSource.reason||"proxy_invalid");
+    if(reason==="proxy_v2_header_truncated")return null;
+    fail("edge_"+reason);
+  }
+  const proxyBytes=parsedSource.consumed_bytes;
+  if(!Number.isSafeInteger(proxyBytes)||proxyBytes<16||proxyBytes>MAX_PROXY_HEADER_BYTES){
+    fail("edge_proxy_header_size_invalid");
+  }
   const headerEnd=buffer.indexOf("\r\n\r\n",proxyBytes,"ascii");
   if(headerEnd<0){
     if(buffer.length-proxyBytes>MAX_HTTP_HEADER_BYTES)fail("edge_http_headers_too_large");
