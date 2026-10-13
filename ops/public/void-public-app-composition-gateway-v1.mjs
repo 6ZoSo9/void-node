@@ -125,8 +125,18 @@ const VOID_BUY_VOID_PUBLIC_EDGE_ACKNOWLEDGEMENT_FIELDS_V1 = Object.freeze({
   no_automatic_fulfillment: true,
 });
 const VOID_BUY_VOID_PUBLIC_EDGE_LAUNCH_AUTHORITY_FIELDS_V1 = Object.freeze({
+  activation_generation: true,
+  activation_receipt_id: true,
+  activation_receipt_sha256: true,
+  coupled_launch_id: true,
   expires_at_ms: true,
+  generation_tip_sha256: true,
+  marker: true,
+  source_composition_id: true,
+  version: true,
 });
+const VOID_BUY_VOID_PUBLIC_EDGE_COUPLED_LAUNCH_ID_V1 =
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const VOID_BUY_VOID_PUBLIC_EDGE_INSTRUCTION_FIELDS_V1 = Object.freeze({
   request_id: true,
   send_asset: true,
@@ -577,6 +587,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           !voidBuyVoidPublicEdgeClosedOwnKeysV1(
             checkout.launch_authority,
             VOID_BUY_VOID_PUBLIC_EDGE_LAUNCH_AUTHORITY_FIELDS_V1,
+            9,
           ) ||
           (VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1(
               checkout,
@@ -602,7 +613,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
           ? value.toLowerCase() : "";
       const instructionExpiry = instruction?.expires_at_ms;
-      const launchExpiry = checkout.launch_authority?.expires_at_ms;
+      const launchAuthority = checkout.launch_authority;
+      const launchExpiry = launchAuthority?.expires_at_ms;
       if (!instruction || typeof instruction !== "object" ||
           VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(instruction) ||
           checkout.tx_hash !== "" ||
@@ -633,6 +645,25 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           instruction.do_not_send_before_request !== true ||
           instruction.do_not_send_from_exchange_or_pooled_custody !== true ||
           instruction.keep_transaction_hash !== true ||
+          launchAuthority.marker !== "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1" ||
+          launchAuthority.version !== 1 ||
+          launchAuthority.coupled_launch_id !==
+            VOID_BUY_VOID_PUBLIC_EDGE_COUPLED_LAUNCH_ID_V1 ||
+          !/^sha256:[0-9a-f]{64}$/u.test(
+            String(launchAuthority.source_composition_id || ""),
+          ) ||
+          !/^0x[0-9a-f]{64}$/u.test(
+            String(launchAuthority.activation_generation || ""),
+          ) ||
+          !/^sha256:[0-9a-f]{64}$/u.test(
+            String(launchAuthority.generation_tip_sha256 || ""),
+          ) ||
+          !/^voidbclive1_[0-9a-f]{64}$/u.test(
+            String(launchAuthority.activation_receipt_id || ""),
+          ) ||
+          !/^[0-9a-f]{64}$/u.test(
+            String(launchAuthority.activation_receipt_sha256 || ""),
+          ) ||
           checkout.request_contract?.request_before_payment_required !== true ||
           checkout.request_contract?.one_active_request_per_void_destination !== true ||
           checkout.request_contract?.payment_sender_must_equal_void_destination !== true ||
@@ -695,7 +726,11 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       // collapse the reviewed persistence receipt to {ok:true}.
       const publicReceipt = {
         ...parsedBody,
-        request: { ...checkout, persisted: { ok: true } },
+        request: {
+          ...checkout,
+          launch_authority: { expires_at_ms: launchExpiry },
+          persisted: { ok: true },
+        },
       };
       responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
     }
