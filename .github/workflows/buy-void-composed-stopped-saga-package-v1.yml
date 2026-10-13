@@ -50,8 +50,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Install locked compiler for real-loader qualification
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Build exact current importer
-        run: npm run build
+      - name: Compile exact current importer without unrelated post-build helpers
+        run: node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
       - name: Prove inherited source-read and Git trust helpers
         run: |
           set -euo pipefail

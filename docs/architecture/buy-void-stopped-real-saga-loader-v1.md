@@ -7,6 +7,13 @@ The exact compiled defaultSagaModule loader is executed against the exact
 reviewed 58,023-byte saga in a disposable permission-fenced filesystem. The
 real saga module is initialized, but no exported saga function is invoked.
 
+The proof does not execute its two reviewed repository helper modules from the
+mutable checkout before authenticating them. It hashes their exact Git bytes as
+data, materializes those reviewed bytes into a private temporary directory, and
+imports only that private copy. The workspace importer is compiled with the
+locked TypeScript compiler directly; unrelated repository post-build helpers are
+not executed by this focused source-review build.
+
 The bound importer SHA-256 is
 b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1.
 The bound saga SHA-256 is

@@ -5,10 +5,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
-import { readDescriptorRelativeLinuxV1 } from "./prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs";
-import { runReviewedGitV1 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const PARENT="eeef850affd912a0d1e019bfac2d681b38ea24ed";
@@ -43,6 +41,35 @@ const EXPORTS=["ACTION_CONFIRMATIONS","ADVANCE_CONFIRMATION","AUTHORITY","EVENT_
 const sha=b=>crypto.createHash("sha256").update(b).digest("hex");
 const blob=b=>crypto.createHash("sha1")
  .update(Buffer.from("blob "+b.length+"\0","utf8")).update(b).digest("hex");
+
+async function loadReviewedHelpers(){
+  const specs=[
+    ["scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs",DESCRIPTOR_BLOB,
+      "readDescriptorRelativeLinuxV1"],
+    ["scripts/prove_buy_void_reviewed_git_invocation_v1.mjs",GIT_HELPER_BLOB,
+      "runReviewedGitV1"],
+  ];
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-reviewed-saga-helpers-"));
+  try{
+    const modules={};
+    for(const [relative,expectedBlob,exportName] of specs){
+      const bytes=fs.readFileSync(path.join(ROOT,relative));
+      assert.equal(blob(bytes),expectedBlob,"reviewed helper blob drift: "+relative);
+      const staged=path.join(tmp,path.basename(relative));
+      fs.writeFileSync(staged,bytes,{mode:0o400,flag:"wx"});
+      const module=await import(pathToFileURL(staged).href);
+      assert.equal(typeof module[exportName],"function","reviewed helper export missing: "+exportName);
+      modules[exportName]=module[exportName];
+    }
+    return Object.freeze(modules);
+  }finally{
+    fs.rmSync(tmp,{recursive:true,force:true});
+  }
+}
+const {
+  readDescriptorRelativeLinuxV1,
+  runReviewedGitV1,
+}=await loadReviewedHelpers();
 
 function exact(relative,expected,max=16*1024*1024){
  const bytes=readDescriptorRelativeLinuxV1(ROOT,relative,max);
