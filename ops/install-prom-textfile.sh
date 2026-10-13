@@ -34,7 +34,7 @@ SCRIPT
   sudo chmod +x "$DST"
 fi
 
-# Convenience symlink inside repo (harmless if it already exists)
-ln -sf "$DST" "$(git rev-parse --show-toplevel)/ops/prom-textfile-snap-age.sh"
-
+# Do not create an absolute symlink back inside the repository. Immutable
+# producer releases require every source-tree symlink target to remain inside
+# the protected release ancestry; the installed publisher remains at $DST.
 echo "done."
