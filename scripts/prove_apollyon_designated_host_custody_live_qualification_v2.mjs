@@ -14,7 +14,7 @@ const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "884b7f6fc1d5cb209157b93d53bffa9fdeee2799";
+  "ece29504ed9041960e692261702388fa2549587e";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -63,6 +63,14 @@ for(const required of [
   'modified_runner_rejected_before_node=true',
   'post_prepare_source_replacement_inert=true',
   'live_worktree_invocation_supported=false',
+  'trusted_node_descriptor_execution=true',
+  'writable_node_rejected=true',
+  'materialization_failure_cleanup=true',
+  'def open_trusted_executable(',
+  'f"/proc/self/fd/{node_fd}"',
+  'pass_fds=(node_fd,)',
+  'apollyon_v2_installed_launcher_node_untrusted',
+  'apollyon_v2_installed_launcher_materialization_cleanup_failed',
 ]){
   assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
 }
