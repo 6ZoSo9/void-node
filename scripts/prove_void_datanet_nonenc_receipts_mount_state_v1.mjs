@@ -115,6 +115,42 @@ assert.doesNotThrow(() => partial.rerun());
 assert.equal(partialUseCalls, 1, "indeterminate registration duplicated middleware");
 assert.equal(partial.timers.length, 0, "indeterminate reload scheduled a retry");
 
+
+const request = { originalUrl: "/datanet/v1/publish", method: "POST" };
+function makeResponse() {
+  return {
+    json(body) { return body; },
+    send(body) { return body; },
+    write(chunk) { return chunk; },
+    end(chunk) { return chunk; },
+    statusCode: 200,
+  };
+}
+const inertResponse = makeResponse();
+const originalMethods = Object.fromEntries(
+  ["json", "send", "write", "end"].map(name => [name, inertResponse[name]]),
+);
+let inertNextCalls = 0;
+assert.doesNotThrow(() => retainedMiddleware(
+  request, inertResponse, () => { inertNextCalls += 1; },
+));
+assert.equal(inertNextCalls, 1, "indeterminate handler must pass through");
+for (const [name, original] of Object.entries(originalMethods)) {
+  assert.equal(inertResponse[name], original,
+    `indeterminate handler must not wrap res.${name}`);
+}
+
+const activeResponse = makeResponse();
+const originalActiveJson = activeResponse.json;
+let activeNextCalls = 0;
+assert.doesNotThrow(() => transientMiddleware(
+  request, activeResponse, () => { activeNextCalls += 1; },
+));
+assert.equal(activeNextCalls, 1, "mounted handler must pass through");
+assert.notEqual(activeResponse.json, originalActiveJson,
+  "successfully mounted middleware must still instrument responses");
+
+
 console.log("void_datanet_nonenc_receipts_mount_state_v1=PASS");
 console.log("transient_use_getter_retry_preserved=true");
 console.log("captured_use_receiver_preserved=true");
