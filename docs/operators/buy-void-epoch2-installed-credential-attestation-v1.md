@@ -101,8 +101,11 @@ Only after this PR is reviewed/merged, the exact source is present on current
 `main`, the distinct E2 credential is separately installed, and the live
 Precision service is running the same source generation, execute the sealed
 Git-object program. This command deliberately clears `NODE_OPTIONS`,
-`NODE_PATH`, ambient `GIT_*` variables, global/system Git config, and Git
-replacement objects before Node starts:
+`NODE_PATH`, native loader variables such as `LD_PRELOAD`, `LD_LIBRARY_PATH`,
+and `LD_AUDIT`, ambient `GIT_*` variables, global/system Git config, and Git
+replacement objects before Node starts. The sealed probe independently rejects
+those loader variables and launches Git children with a minimal explicit
+environment:
 
 ```bash
 env -i \

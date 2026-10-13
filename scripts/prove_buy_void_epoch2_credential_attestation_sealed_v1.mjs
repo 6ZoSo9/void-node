@@ -78,6 +78,11 @@ assert.match(sealedSource, /GIT_NO_REPLACE_OBJECTS/u);
 assert.match(sealedSource, /epoch2_sealed_node_execution_context_invalid/u);
 assert.match(sealedSource, /root_owned_node_binary_verified: true/u);
 assert.match(sealedSource, /node_loader_environment_empty: true/u);
+assert.match(sealedSource, /native_loader_environment_empty: true/u);
+assert.match(sealedSource, /LD_PRELOAD/u);
+assert.match(sealedSource, /LD_LIBRARY_PATH/u);
+assert.match(sealedSource, /LD_AUDIT/u);
+assert.equal(sealedSource.includes("Object.entries(process.env)"), false);
 assert.match(sealedSource, /process[.]argv\[1\] !== "-"/u);
 
 assert.equal(
@@ -309,6 +314,7 @@ console.log("private_key_string_materialization=false");
 console.log("sec1_der_buffer_zeroed=true");
 console.log("trusted_node_binary_required=true");
 console.log("node_loader_environment_empty=true");
+console.log("native_loader_environment_empty=true");
 console.log("ambient_dbus_session_address_ignored=true");
 console.log("canonical_user_bus_path_bound=true");
 console.log("main_pid_systemd_cgroup_bound=true");

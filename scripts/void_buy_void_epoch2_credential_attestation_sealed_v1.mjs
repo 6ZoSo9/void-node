@@ -64,17 +64,15 @@ function gitBlob(bytes) {
 }
 
 function sanitizedGitEnvironment() {
-  const env = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith("GIT_") || value === undefined) continue;
-    env[key] = value;
-  }
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_NO_REPLACE_OBJECTS = "1";
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_CONFIG_GLOBAL = "/dev/null";
-  env.GIT_CONFIG_SYSTEM = "/dev/null";
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+  };
 }
 
 function trustedExecutable(candidate, leaf) {
@@ -845,9 +843,6 @@ async function main() {
     throw new Error("epoch2_sealed_linux_x64_required");
   }
 
-  assertCryptoSelfTest();
-  const root = path.resolve(process.cwd());
-  const source = assertReviewedSource(root);
   const trustedNode = trustedExecutable(
     process.execPath,
     path.basename(fs.realpathSync(process.execPath)),
@@ -856,9 +851,15 @@ async function main() {
       process.execArgv.length !== 1 ||
       process.execArgv[0] !== "--input-type=module" ||
       String(process.env.NODE_OPTIONS || "") !== "" ||
-      String(process.env.NODE_PATH || "") !== "") {
+      String(process.env.NODE_PATH || "") !== "" ||
+      String(process.env.LD_PRELOAD || "") !== "" ||
+      String(process.env.LD_LIBRARY_PATH || "") !== "" ||
+      String(process.env.LD_AUDIT || "") !== "") {
     throw new Error("epoch2_sealed_node_execution_context_invalid");
   }
+  assertCryptoSelfTest();
+  const root = path.resolve(process.cwd());
+  const source = assertReviewedSource(root);
   const before = observeLiveSystemd();
   if (before.process_source_commit !== source.head ||
       before.process_source_tree !== source.tree ||
@@ -941,6 +942,7 @@ async function main() {
       transaction_constructed: false,
       root_owned_node_binary_verified: true,
       node_loader_environment_empty: true,
+      native_loader_environment_empty: true,
       transaction_broadcast_performed: false,
       transaction_submission_performed: false,
       filesystem_write_performed: false,
