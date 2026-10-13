@@ -9,6 +9,7 @@ import {
   MARKER,
   CONFIRM,
   EXPECTED_ADDRESS,
+  EPOCH2_SOURCE_TUPLE_BLOBS,
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
@@ -57,6 +58,17 @@ function git(cwd, args, input) {
 
 const sealedSource = git(ROOT, ["show", "HEAD:" + SEALED]);
 assert.ok(sealedSource.length > 10_000);
+assert.equal(Object.keys(EPOCH2_SOURCE_TUPLE_BLOBS).length, 27);
+assert.doesNotMatch(
+  sealedSource,
+  /execFileSync\(process[.]execPath/u,
+  "sealed probe must not execute mutable repository source modules",
+);
+assert.match(
+  sealedSource,
+  /Object[.]entries\(EPOCH2_SOURCE_TUPLE_BLOBS\)/u,
+  "sealed probe must verify the reviewed Epoch-2 source tuple as data",
+);
 const expectedHeadCheckAt = sealedSource.indexOf(
   'if (source.head !== expectedHead)',
 );
@@ -329,6 +341,8 @@ console.log("node_modules_in_live_probe=false");
 console.log("git_object_stdin_required=true");
 console.log("operator_wrapper_pins_git_object_head=true");
 console.log("expected_head_checked_before_systemd=true");
+console.log("epoch2_source_tuple_data_only=true");
+console.log("repository_source_module_execution=false");
 console.log("direct_worktree_probe_rejected=true");
 console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
