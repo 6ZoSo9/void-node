@@ -46,6 +46,45 @@ for(const relative of [
   assert.equal(workflow.includes('"' + relative + '"'),true,"workflow trigger missing "+relative);
 }
 const now=1_800_000_000_000;
+const serviceUnit="void-apollyon-authorization-custody-v1.service";
+const manageUnitVerbs=[
+  "start","verify-active","stop","reload","reload-or-start","restart","try-restart",
+  "try-reload","nop","reload-or-restart","reload-or-try-restart","kill","clean",
+  "set-property","reset-failed","ref","bind-mount","mount-image",
+];
+const globalControlActions=[
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+  "org.freedesktop.systemd1.set-environment",
+];
+function serviceControlFixture(){
+  const checks=[
+    {action_id:"org.freedesktop.systemd1.manage-units",details:[],exit_status:1,result:"explicitly_denied"},
+    ...manageUnitVerbs.map((verb)=>({
+      action_id:"org.freedesktop.systemd1.manage-units",
+      details:[{key:"unit",value:serviceUnit},{key:"verb",value:verb}],
+      exit_status:1,result:"explicitly_denied",
+    })),
+    ...globalControlActions.map((action_id)=>({
+      action_id,details:[],exit_status:1,result:"explicitly_denied",
+    })),
+  ];
+  return {
+    all_systemd_control_actions_explicitly_denied:true,
+    checked_actions:checks,
+    observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
+    pkcheck_subject:"4242,123456,1000",
+    reviewed_systemd_major:255,
+    runtime_can_control_service:false,
+    service_unit:serviceUnit,
+    training_pid:4242,
+    training_process_capabilities:{
+      ambient:"0",effective:"0",inheritable:"0",no_new_privileges:true,permitted:"0",
+    },
+    training_process_start_time_ticks:"123456",
+    training_uid:1000,
+  };
+}
 function v1Fixture(){
   return {
     marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,version:1,
@@ -69,6 +108,7 @@ function v2Fixture(){
     retained_ancestors_group_other_writable:false,
     training_uid_rename_unlink_denied:true,
   });
+  x.service_control=serviceControlFixture();
   return x;
 }
 const old=qualifyApollyonCustodyHostPolicyV1(v1Fixture());
@@ -80,6 +120,7 @@ assert.equal(current.historical_v1_qualification_id,old.qualification_id);
 assert.match(current.qualification_id,/^apollyon_custody_policy_v2:[0-9a-f]{64}$/u);
 assert.equal(current.socket_parent_retained_ancestor_policy_qualified,true);
 assert.equal(current.socket_parent_training_rename_unlink_policy_qualified,true);
+assert.equal(current.service_control_policy_qualified,true);
 assert.equal(current.live_host_qualification_performed,false);
 assert.equal(current.production_gate_ready,false);
 assert.throws(()=>qualifyApollyonCustodyHostPolicyV1(v2Fixture()),/input_invalid/u);
@@ -102,6 +143,24 @@ for(const mutate of [
   const bad=v2Fixture();bad.service.custody_uid_only_reviewed_service=false;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_invalid/u);
 }
+{
+  const bad=v2Fixture();
+  bad.service_control.checked_actions[1].exit_status=0;
+  bad.service_control.checked_actions[1].result="authorized";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.training_uid=1001;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.reviewed_systemd_major=256;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service.runtime_can_control_service=true;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
+}
 for(const [key,expected] of Object.entries({
   source_only_classifier:true,host_io:false,filesystem_read:false,filesystem_write:false,
   process_execution:false,network_access:false,operator_private_key_access:false,
@@ -109,6 +168,8 @@ for(const [key,expected] of Object.entries({
   transaction_signing:false,transaction_broadcast:false,funds_movement:false,
   historical_v1_classifier_reused:true,socket_parent_retained_ancestor_binding:true,
   socket_parent_training_rename_unlink_denied_required:true,
+  explicit_training_pid_service_control_denial_required:true,
+  reviewed_systemd_major_pinned:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -121,6 +182,8 @@ console.log("historical_v1_classifier_bytes_unchanged=true");
 console.log("historical_v83_collector_bytes_unchanged=true");
 console.log("socket_parent_retained_ancestor_binding=true");
 console.log("socket_parent_training_rename_unlink_denied_required=true");
+console.log("explicit_training_pid_service_control_denial_required=true");
+console.log("reviewed_systemd_major=255");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
