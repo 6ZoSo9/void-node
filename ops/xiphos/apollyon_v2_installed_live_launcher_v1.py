@@ -12,6 +12,7 @@ import tempfile
 from typing import Any
 
 MARKER="VOID_APOLLYON_V2_INSTALLED_LAUNCHER_V1"
+NATIVE_PREENTRY_MARKER="VOID_APOLLYON_V2_NATIVE_PREENTRY_V1"
 FIXED_LAUNCHER=Path(
     "/opt/void-apollyon-custody-v2-preentry-v1/"
     "apollyon_v2_installed_live_launcher_v1.py"
@@ -292,6 +293,8 @@ def sanitized_environment()->dict[str,str]:
 def execute_live(argv:list[str])->int:
     if os.geteuid()!=0:
         hold("apollyon_v2_installed_launcher_root_required")
+    if os.environ.get("VOID_APOLLYON_V2_NATIVE_PREENTRY")!=NATIVE_PREENTRY_MARKER:
+        hold("apollyon_v2_installed_launcher_native_preentry_required")
     assert_installed_launcher_identity()
     node_fd=open_trusted_executable(NODE,require_root_custody=True)
     try:
@@ -472,6 +475,7 @@ def self_test()->None:
             shutil.rmtree(prepared)
 
     print(MARKER+"_SELF_TEST=GREEN")
+    print("native_preentry_required_for_live=true")
     print("trusted_node_descriptor_execution=true")
     print("writable_node_rejected=true")
     print("materialization_failure_cleanup=true")
