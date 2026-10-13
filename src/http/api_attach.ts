@@ -17,6 +17,8 @@ import { SegStore } from "../chain/seg_store.js";
 const PORT = Number(process.env.ATTACH_PORT || 4310);
 const DATA_DIR = process.env.DATA_DIR || "data";
 
+export const ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
+
 export function parseAttachBlockRange(
   fromRaw: unknown,
   toRaw: unknown,
@@ -34,7 +36,10 @@ export function parseAttachBlockRange(
   ) {
     return null;
   }
-  return { from, to: Math.min(to, head) };
+  return {
+    from,
+    to: Math.min(to, head, from + ATTACH_BLOCK_RANGE_MAX_SPAN - 1),
+  };
 }
 
 export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
