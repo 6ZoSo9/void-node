@@ -212,16 +212,8 @@ ensure_local_configuration() {
 
 load_env_file() {
   test -f "$ENV_FILE" || die "missing local configuration: $ENV_FILE"
-  local entry name value
-  while IFS= read -r -d '' entry; do
-    name="${entry%%=*}"
-    value="${entry#*=}"
-    if [[ -v $name ]]; then
-      continue
-    fi
-    printf -v "$name" '%s' "$value"
-    export "$name"
-  done < <(
+  local entry name value parser_fd parser_pid
+  exec {parser_fd}< <(
     cd "$ROOT"
     "$NODE_BIN" - "$ENV_FILE" <<'NODE'
 const fs = require("node:fs");
@@ -236,6 +228,21 @@ for (const [name, value] of Object.entries(parsed)) {
 }
 NODE
   )
+  parser_pid=$!
+
+  while IFS= read -r -d '' entry <&"$parser_fd"; do
+    name="${entry%%=*}"
+    value="${entry#*=}"
+    if [[ -v $name ]]; then
+      continue
+    fi
+    printf -v "$name" '%s' "$value"
+    export "$name"
+  done
+  exec {parser_fd}<&-
+  if ! wait "$parser_pid"; then
+    die "invalid local configuration: $ENV_FILE"
+  fi
 
   if test -z "${NODE_PRIVKEY_PATH:-}" && \
      test -z "${KEY_FILE:-}" && \

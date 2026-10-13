@@ -77,6 +77,49 @@ assert.match(
   "clone-and-run must export .env values without overwriting an already explicit process environment"
 );
 
+const loadEnvStart = launcher.indexOf("load_env_file() {");
+const loadEnvEnd = launcher.indexOf("\n}\n\nlast_output_line()", loadEnvStart);
+assert.ok(loadEnvStart >= 0 && loadEnvEnd > loadEnvStart, "load_env_file function missing");
+const loadEnvFunction = launcher.slice(loadEnvStart, loadEnvEnd + 2);
+assert.match(
+  loadEnvFunction,
+  /parser_pid=\$!.*wait "\$parser_pid"/s,
+  "clone-and-run must observe the dotenv parser process result"
+);
+
+const parserFailure = spawnSync(
+  "bash",
+  [
+    "-c",
+    `${loadEnvFunction}\n` +
+      'die(){ printf "die:%s\\n" "$*" >&2; exit 73; }\n' +
+      "load_env_file\n" +
+      'printf "unexpected-parser-success\\n" >&2\n',
+  ],
+  {
+    cwd: root,
+    env: {
+      ...process.env,
+      ENV_FILE: envExamplePath,
+      NODE_BIN: "false",
+      NODE_KEY_FILE: path.join(root, ".nodekey"),
+      ROOT: root,
+    },
+    encoding: "utf8",
+  }
+);
+assert.equal(parserFailure.status, 73, "dotenv parser failure must stop clone-and-run");
+assert.match(
+  parserFailure.stderr,
+  /invalid local configuration:/,
+  "dotenv parser failure must report a configuration error"
+);
+assert.doesNotMatch(
+  parserFailure.stderr,
+  /unexpected-parser-success/,
+  "dotenv parser failure must not fall through to runtime defaults"
+);
+
 const moduleUrl = pathToFileURL(builtEnvPath).href;
 
 function executeProductionEnv({ value, envFile = "" }) {
@@ -131,5 +174,6 @@ console.log("stale_env_missing_flag_disabled=true");
 console.log("blank_or_malformed_disabled=true");
 console.log("exact_zero_opt_in_only=true");
 console.log("representative_wrapper_gates_bound=true");
+console.log("clone_run_env_parser_failure_stops=true");
 console.log("live_node_started=false");
 console.log("runtime_mutation=false");
