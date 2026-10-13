@@ -168,8 +168,21 @@ function writeStateAtomic(stateFile,events){
     const reread=readVoidAgentCredentialRequestProxyV2RateStateV1(stateFile);
     if(JSON.stringify(reread)!==JSON.stringify(validateEvents(events))) fail("rate_state_postwrite_mismatch");
   }catch(error){
-    if(fd!==undefined){try{fs.closeSync(fd);}catch{}}
-    if(created){try{fs.rmSync(temp,{force:true});}catch{}}
+    const cleanupErrors=[];
+    if(fd!==undefined){
+      try{fs.closeSync(fd);}
+      catch(cleanupError){cleanupErrors.push(cleanupError);}
+    }
+    if(created){
+      try{fs.rmSync(temp,{force:true});}
+      catch(cleanupError){cleanupErrors.push(cleanupError);}
+    }
+    if(cleanupErrors.length){
+      throw new AggregateError(
+        [error,...cleanupErrors],
+        "rate_state_cleanup_failed",
+      );
+    }
     throw error;
   }
 }
