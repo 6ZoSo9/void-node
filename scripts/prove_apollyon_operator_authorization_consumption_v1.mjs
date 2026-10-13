@@ -103,35 +103,62 @@ function input(root,value=packet()){
   return {packet:value,state_dir:root};
 }
 
+function consume(root,value=packet(),clock=nowMs){
+  return consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+    input(root,value),
+    fingerprint,
+    publicKey,
+    clock,
+  );
+}
+
+function recordPath(root,result){
+  const digest=result.authorization_id.split(":")[1];
+  assert.match(digest,/^[0-9a-f]{64}$/u);
+  return path.join(root,"consumed",digest+".json");
+}
+
 {
   const root=stateRoot();
   try{
-    const result=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(root),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const result=consume(root);
     assert.equal(result.ok,true);
     if(result.ok===false)throw new Error(result.reason);
     assert.equal(
       result.status,
-      "operator_authorization_consumed_for_single_candidate_training_attempt",
+      "operator_authorization_consumption_recorded_for_candidate_training_attempt",
     );
     assert.match(
       result.consumption_record_id,
       /^apollyon_authz_consumption_v1:[0-9a-f]{64}$/u,
     );
-    assert.equal(result.authorization_consumed,true);
-    assert.match(result.state_store_generation_id,/^apollyon_authz_store_v1:[0-9a-f]{64}$/u);
+    assert.equal(result.authorization_consumption_recorded,true);
+    assert.equal(result.authorization_single_use_guaranteed,false);
+    assert.match(
+      result.state_store_generation_id,
+      /^apollyon_authz_store_v1:[0-9a-f]{64}$/u,
+    );
     assert.match(result.state_store_generation_sha256,/^[0-9a-f]{64}$/u);
-    assert.equal(result.consumption.single_use,true);
+    assert.equal(result.consumption.single_use_guaranteed_by_this_gate,false);
+    assert.equal(result.consumption.authorization_consumption_recorded,true);
+    assert.equal(
+      result.consumption.duplicate_rejected_while_consumption_slot_intact,
+      true,
+    );
+    assert.equal(
+      result.consumption.same_uid_namespace_tamper_resistance_claimed,
+      false,
+    );
+    assert.equal(result.consumption.global_replay_prevention_claimed,false);
     assert.equal(result.consumption.immutable_consumption_record,true);
     assert.equal(result.consumption.signature_reverified_before_consumption,true);
     assert.equal(result.consumption.expiry_rechecked_at_consumption,true);
     assert.equal(result.consumption.consumption_precedes_attempt_claim,true);
     assert.equal(result.consumption.consumption_precedes_training_execution,true);
+    assert.equal(
+      result.next_gate,
+      "independently_protected_authorization_consumption_authority_v1",
+    );
     assert.equal(result.attempt_claimed,false);
     assert.equal(result.training_execution_performed,false);
     assert.equal(result.candidate_weight_mutation_performed,false);
@@ -141,21 +168,12 @@ function input(root,value=packet()){
     assert.equal(result.funds_movement_performed,false);
 
     const consumedDir=path.join(root,"consumed");
-    const files=fs.readdirSync(consumedDir);
-    assert.equal(files.length,1);
-    assert.match(files[0],/^[0-9a-f]{64}\.json$/u);
-    const file=path.join(consumedDir,files[0]);
+    const file=recordPath(root,result);
     assert.equal(fs.lstatSync(consumedDir).mode&0o777,0o700);
     assert.equal(fs.lstatSync(file).mode&0o777,0o600);
     const before=fs.readFileSync(file);
 
-    const duplicate=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(root),
-        fingerprint,
-        publicKey,
-        nowMs+1000,
-      );
+    const duplicate=consume(root,packet(),nowMs+1000);
     assert.equal(duplicate.ok,false);
     assert.equal(
       duplicate.reason,
@@ -170,13 +188,7 @@ function input(root,value=packet()){
 {
   const root=stateRoot();
   try{
-    const result=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(root),
-        fingerprint,
-        publicKey,
-        Date.parse(expiresAt),
-      );
+    const result=consume(root,packet(),Date.parse(expiresAt));
     assert.equal(result.ok,false);
     assert.equal(result.reason,"authorization_consumption_expired");
     assert.equal(fs.existsSync(path.join(root,"consumed")),false);
@@ -188,13 +200,7 @@ function input(root,value=packet()){
 {
   const root=stateRoot(0o755);
   try{
-    const result=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(root),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const result=consume(root);
     assert.equal(result.ok,false);
     assert.equal(
       result.reason,
@@ -213,13 +219,7 @@ function input(root,value=packet()){
   fs.mkdirSync(real,{mode:0o700});
   fs.symlinkSync(real,link);
   try{
-    const result=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(link),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const result=consume(link);
     assert.equal(result.ok,false);
     assert.match(result.reason,/authorization_consumption_state_root_/u);
   }finally{
@@ -234,13 +234,7 @@ function input(root,value=packet()){
     const signature=Buffer.from(forged.signature.value_base64,"base64");
     signature[0]^=1;
     forged.signature.value_base64=signature.toString("base64");
-    const result=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(root,forged),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const result=consume(root,forged);
     assert.equal(result.ok,false);
     assert.equal(result.reason,"authorization_consumption_verifier_failed");
     assert.equal(fs.existsSync(path.join(root,"consumed")),false);
@@ -254,31 +248,16 @@ function input(root,value=packet()){
   const rootB=stateRoot();
   try{
     const shared=packet();
-    const first=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(rootA,shared),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
-    const second=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(rootB,shared),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const first=consume(rootA,shared);
+    const second=consume(rootB,shared);
     assert.equal(first.ok,true);
     assert.equal(second.ok,true);
-    assert.equal(
-      first.consumption.global_replay_prevention_claimed,
-      false,
-    );
     assert.notEqual(first.state_store_generation_id,second.state_store_generation_id);
     assert.notEqual(
       first.state_store_generation_sha256,
       second.state_store_generation_sha256,
     );
+    assert.equal(first.consumption.global_replay_prevention_claimed,false);
   }finally{
     fs.rmSync(rootA,{recursive:true,force:true});
     fs.rmSync(rootB,{recursive:true,force:true});
@@ -292,13 +271,7 @@ function input(root,value=packet()){
   fs.chmodSync(fixed,0o700);
   try{
     const shared=packet();
-    const first=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(fixed,shared),
-        fingerprint,
-        publicKey,
-        nowMs,
-      );
+    const first=consume(fixed,shared);
     assert.equal(first.ok,true);
     if(first.ok===false)throw new Error(first.reason);
     const firstGeneration=first.state_store_generation_id;
@@ -308,13 +281,7 @@ function input(root,value=packet()){
     fs.mkdirSync(fixed,{mode:0o700});
     fs.chmodSync(fixed,0o700);
 
-    const second=
-      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
-        input(fixed,shared),
-        fingerprint,
-        publicKey,
-        nowMs+1000,
-      );
+    const second=consume(fixed,shared,nowMs+1000);
     assert.equal(second.ok,true);
     if(second.ok===false)throw new Error(second.reason);
     assert.equal(second.state_store_realpath_sha256,firstPathFingerprint);
@@ -333,13 +300,72 @@ function input(root,value=packet()){
   }
 }
 
+// Explicitly prove the declared same-UID limitation: deleting the immutable
+// pathname after the writer has exited can make the same signed packet
+// recordable again. V79 must not claim stronger replay protection than this.
+{
+  const root=stateRoot();
+  try{
+    const shared=packet();
+    const first=consume(root,shared);
+    assert.equal(first.ok,true);
+    if(first.ok===false)throw new Error(first.reason);
+    const file=recordPath(root,first);
+    fs.unlinkSync(file);
+
+    const second=consume(root,shared,nowMs+1000);
+    assert.equal(second.ok,true);
+    if(second.ok===false)throw new Error(second.reason);
+    assert.equal(second.state_store_generation_id,first.state_store_generation_id);
+    assert.equal(
+      second.state_store_generation_sha256,
+      first.state_store_generation_sha256,
+    );
+    assert.equal(second.authorization_single_use_guaranteed,false);
+    assert.equal(
+      second.consumption.same_uid_namespace_tamper_resistance_claimed,
+      false,
+    );
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
+  try{
+    const shared=packet();
+    const first=consume(root,shared);
+    assert.equal(first.ok,true);
+    if(first.ok===false)throw new Error(first.reason);
+
+    fs.rmSync(path.join(root,"consumed"),{recursive:true,force:true});
+    fs.mkdirSync(path.join(root,"consumed"),{mode:0o700});
+    fs.chmodSync(path.join(root,"consumed"),0o700);
+
+    const second=consume(root,shared,nowMs+1000);
+    assert.equal(second.ok,true);
+    if(second.ok===false)throw new Error(second.reason);
+    assert.equal(second.state_store_generation_id,first.state_store_generation_id);
+    assert.equal(second.authorization_single_use_guaranteed,false);
+    assert.equal(
+      second.consumption.same_uid_namespace_tamper_resistance_claimed,
+      false,
+    );
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
 for(const [key,expected] of Object.entries({
-  durable_single_use_consumption:true,
+  durable_consumption_evidence:true,
   exact_signed_authorization_reverification_required:true,
   runtime_expiry_recheck_required:true,
   private_existing_state_root_required:true,
-  exact_state_store_generation_scoped_replay_prevention:true,
+  duplicate_rejected_while_consumption_slot_intact:true,
   same_realpath_replacement_is_new_store_generation:true,
+  same_uid_namespace_tamper_resistance_claimed:false,
+  single_use_guaranteed_by_this_gate:false,
   global_replay_prevention_claimed:false,
   canonical_state_store_runtime_binding_still_required:true,
   immutable_consumption_record:true,
@@ -394,14 +420,11 @@ console.log("authorization_signature_reverified_before_consumption=true");
 console.log("runtime_expiry_rechecked=true");
 console.log("private_state_root_0700_required=true");
 console.log("immutable_consumption_record_0600=true");
-console.log("atomic_hardlink_publication=true");
-console.log("directory_fsync_after_publication=true");
-console.log("duplicate_authorization_rejected=true");
-console.log("consumption_record_bytes_unchanged_on_duplicate=true");
-console.log("replay_prevention_scope=exact_state_store_generation");
-console.log("same_realpath_replacement_is_new_store_generation=true");
+console.log("duplicate_rejected_while_consumption_slot_intact=true");
+console.log("same_uid_namespace_tamper_resistance_claimed=false");
+console.log("single_use_guaranteed_by_this_gate=false");
 console.log("global_replay_prevention_claimed=false");
-console.log("canonical_state_store_runtime_binding_required=true");
+console.log("protected_replay_authority_required_before_attempt_claim=true");
 console.log("attempt_claimed=false");
 console.log("training_execution=false");
 console.log("candidate_weight_mutation=false");
