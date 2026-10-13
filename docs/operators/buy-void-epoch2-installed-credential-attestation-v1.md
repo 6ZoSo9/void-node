@@ -71,9 +71,17 @@ After exact operator confirmation, the sealed probe:
 10. requires the installed key to derive the immutable Epoch-2 fulfiller
    `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`;
 11. signs one fresh domain-separated **non-transaction** ECDSA challenge with
-    Node builtin `crypto.sign`, verifies it locally with `crypto.verify`, and
-    discards both private-key bytes and raw signature bytes;
-12. emits only public source/service identities and hashes. It constructs no
+    Node builtin `crypto.sign` and verifies it locally with `crypto.verify`;
+12. emits the random challenge nonce, the 64-byte IEEE-P1363 signature encoded
+    as hex, and the signer public key encoded as SPKI DER hex. These are public
+    verification materials: an offline reviewer can reconstruct the exact
+    challenge, verify the signature with Node builtin crypto, derive the
+    secp256k1 public point and independently confirm the immutable Ethereum
+    fulfiller address. The private-key and in-memory signature buffers are
+    zeroed after the public evidence record is constructed;
+13. emits only public source/service identities, hashes and public
+    cryptographic verification material. It never emits credential contents,
+    a private key, or the raw systemd credential path. It constructs no
     transaction, performs no RPC request, and cannot submit or broadcast one.
 
 The prior transaction-shaped capability probe remains source/test history. Its
@@ -150,6 +158,43 @@ contents into ChatGPT, a shell argument, a Git file, or probe output.
 A GREEN result is evidence only. It does not enable Buy VOID, mutate the
 service, restart systemd, call Chain 2050, construct/broadcast a transaction,
 accept a payment, activate the presale/WC market, or move funds.
+
+## Independent public verification
+
+The GREEN JSON is intentionally sufficient for offline cryptographic review
+without the credential file. A reviewer can:
+
+1. reconstruct the exact NUL-delimited challenge fields in this order:
+   `domain`, `source_head`, `source_tree`, `source_branch`, `service`,
+   decimal `main_pid`, `invocation_id`, `credential_id`,
+   `loadcredential_binding_sha256`, `credentials_directory_sha256`,
+   `main_pid_cgroup_sha256`, `process_source_commit`,
+   `process_source_tree`, `process_source_branch`, and `nonce_hex`;
+2. require the SHA-256 of those bytes to equal `challenge_sha256`;
+3. import `public_key_spki_der_hex` as a secp256k1 SPKI public key;
+4. verify `public_signature_p1363_hex` over the reconstructed challenge with
+   SHA-256 and IEEE-P1363 encoding;
+5. derive the uncompressed secp256k1 public point from that public key, apply
+   Ethereum Keccak-256 address derivation, and require
+   `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`;
+6. require the signed process source commit/tree/branch to equal the top-level
+   attested source and require the signed service/credential hashes and cgroup
+   identity to remain part of the evidence record.
+
+The public signature, public key and nonce are not credential secrets. The
+credential scalar, credential bytes, raw credential path and signed transaction
+bytes remain absent.
+
+The checked-in offline classifier is
+`tools/void-buy-void-epoch2-installed-credential-public-evidence-v1.mjs`.
+Its proof is
+`scripts/prove_buy_void_epoch2_installed_credential_public_evidence_v1.mjs`.
+The production classifier fixes the expected signer to the immutable Epoch-2
+fulfiller and rejects mutations of any signed systemd/source field, signature,
+evidence ID, or activation-authority flag. A GREEN classifier result verifies
+the public record; it does **not** authorize payment signing, transaction
+broadcast, public presale activation, WC/VOID market activation or funds
+movement.
 
 ## Source-generation binding
 

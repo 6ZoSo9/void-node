@@ -13,6 +13,7 @@ import {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  buildChallenge,
   parseSystemdObservation,
   serviceCgroupBound,
   canonicalUserBusPaths,
@@ -114,6 +115,21 @@ assert.equal(/--import\s+tsx/u.test(sealedSource), false);
 assert.equal(/eth_sendRawTransaction/u.test(sealedSource), false);
 assert.equal(/fulfill\s*\(/u.test(sealedSource), false);
 assert.match(sealedSource, /transaction_constructed: false/u);
+for (const publicEvidenceField of [
+  "nonce_hex",
+  "public_signature_p1363_hex",
+  "public_key_spki_der_hex",
+  "public_key_uncompressed_sha256",
+  "public_signature_output: true",
+  "public_key_output: true",
+]) {
+  assert.equal(
+    sealedSource.includes(publicEvidenceField),
+    true,
+    "sealed probe missing independently verifiable public evidence field: " +
+      publicEvidenceField,
+  );
+}
 assert.match(sealedSource, /GIT_NO_REPLACE_OBJECTS/u);
 assert.match(sealedSource, /epoch2_sealed_node_execution_context_invalid/u);
 assert.match(sealedSource, /root_owned_node_binary_verified: true/u);
@@ -199,6 +215,44 @@ assert.throws(
   /epoch2_sealed_process_invocation_mismatch/u,
 );
 
+const syntheticSource = Object.freeze({
+  head: processCommit,
+  tree: processTree,
+  branch: "main",
+});
+const signedChallenge = buildChallenge(syntheticSource, systemdObserved);
+try {
+  assert.match(signedChallenge.nonce_hex, /^[0-9a-f]{64}$/u);
+  const expectedChallenge = Buffer.from([
+    "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
+    processCommit,
+    processTree,
+    "main",
+    "void-node-live.service",
+    "4242",
+    invocation,
+    "buy-void-epoch2-fulfiller-v1",
+    systemdObserved.loadcredential_binding_sha256,
+    systemdObserved.credentials_directory_sha256,
+    systemdObserved.main_pid_cgroup_sha256,
+    processCommit,
+    processTree,
+    "main",
+    signedChallenge.nonce_hex,
+  ].join("\0"), "utf8");
+  try {
+    assert.deepEqual(signedChallenge.message, expectedChallenge);
+    assert.equal(
+      crypto.createHash("sha256").update(expectedChallenge).digest("hex"),
+      signedChallenge.challenge_sha256,
+    );
+  } finally {
+    expectedChallenge.fill(0);
+  }
+} finally {
+  signedChallenge.message.fill(0);
+}
+
 // Independent crypto vectors: the sealed probe does not rely on ethers or tsx.
 assert.equal(
   keccak256(Buffer.alloc(0)).toString("hex"),
@@ -223,15 +277,42 @@ try {
   );
   try {
     assert.equal(signature.length, 64);
+    assert.match(material.publicSpkiDerHex, /^[0-9a-f]+$/u);
+    const publicSpki = Buffer.from(material.publicSpkiDerHex, "hex");
+    const independentPublic = crypto.createPublicKey({
+      key: publicSpki,
+      format: "der",
+      type: "spki",
+    });
     assert.equal(
       crypto.verify(
         "sha256",
         message,
-        { key: material.publicObject, dsaEncoding: "ieee-p1363" },
+        { key: independentPublic, dsaEncoding: "ieee-p1363" },
         signature,
       ),
       true,
     );
+    const jwk = independentPublic.export({ format: "jwk" });
+    assert.equal(jwk.kty, "EC");
+    assert.equal(jwk.crv, "secp256k1");
+    const x = Buffer.from(String(jwk.x || ""), "base64url");
+    const y = Buffer.from(String(jwk.y || ""), "base64url");
+    assert.equal(x.length, 32);
+    assert.equal(y.length, 32);
+    const uncompressed = Buffer.concat([Buffer.from([4]), x, y]);
+    const address =
+      "0x" + keccak256(uncompressed.subarray(1))
+        .subarray(12).toString("hex").toLowerCase();
+    assert.equal(address, material.address);
+    assert.equal(
+      crypto.createHash("sha256").update(uncompressed).digest("hex"),
+      material.publicFingerprint,
+    );
+    publicSpki.fill(0);
+    x.fill(0);
+    y.fill(0);
+    uncompressed.fill(0);
   } finally {
     signature.fill(0);
   }
@@ -359,6 +440,11 @@ console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
 console.log("ethereum_private_key_one_address_vector_green=true");
 console.log("domain_separated_nontransaction_signature_green=true");
+console.log("public_verification_signature_output=true");
+console.log("public_verification_key_output=true");
+console.log("public_challenge_nonce_output=true");
+console.log("offline_signature_verification_proven=true");
+console.log("public_key_derives_expected_ethereum_address=true");
 console.log("private_key_string_materialization=false");
 console.log("sec1_der_buffer_zeroed=true");
 console.log("trusted_node_binary_required=true");
@@ -368,6 +454,11 @@ console.log("ambient_dbus_session_address_ignored=true");
 console.log("canonical_user_bus_path_bound=true");
 console.log("main_pid_systemd_cgroup_bound=true");
 console.log("process_invocation_id_bound=true");
+console.log("signed_challenge_binds_full_systemd_observation=true");
+console.log("signed_challenge_binds_loadcredential_hash=true");
+console.log("signed_challenge_binds_credentials_directory_hash=true");
+console.log("signed_challenge_binds_service_cgroup_hash=true");
+console.log("signed_challenge_binds_runtime_source=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
