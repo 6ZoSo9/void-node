@@ -2,77 +2,83 @@
 
 Marker: `VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_V1`
 
-Status: **source-only durable consume-first boundary**.
+Status: **source-only durable consumption-evidence boundary**.
 
 ## Purpose
 
-V79 adds the replay state transition deliberately left absent by V78.
+V79 records a verified V78 authorization in a private durable state store and
+rejects duplicate use while that exact consumption slot remains intact.
 
-A valid operator signature is not sufficient to make an authorization
-single-use. V79 re-verifies the complete V78 packet, re-checks current expiry,
-and durably publishes one immutable consumption record before any later
-candidate-training attempt may be claimed.
+A valid operator signature is not itself replay state. V79 therefore
+re-verifies the complete V78 packet, re-checks current expiry, and publishes a
+mode-`0600` consumption record before any later attempt-claim design may be
+considered.
 
 V79 does **not** claim the attempt and does **not** execute training.
 
-## Safe ordering
+## What V79 guarantees
 
-The required ordering is:
+For an intact admitted state namespace, V79:
 
-1. verify the exact V78 Ed25519 authorization packet against the separately
+1. verifies the exact V78 Ed25519 authorization packet against the separately
    pinned expected operator raw-public-key SHA-256;
-2. validate the private consumption state root;
-3. re-check wall-clock validity immediately before publication;
-4. atomically publish one immutable consumption record; and
-5. only a later gate may claim the exact training attempt.
+2. validates a private mode-`0700` state root;
+3. binds a create-once store-generation identity;
+4. re-checks wall-clock validity immediately before publication;
+5. writes and fsyncs a create-only mode-`0600` record;
+6. publishes it through a no-overwrite hard-link slot; and
+7. rejects a second consume while that slot exists.
 
-A crash after step 4 burns the authorization. It does not restore or reuse it.
-That is fail-closed behavior.
+The record and store-generation identity are evidence. They are not an
+independently protected monotonic authority.
 
-## Private state store
+## Same-UID tamper limitation
 
-The caller supplies an existing absolute state root. V79 requires:
+The state root, generation file, `consumed/` directory, and consumption
+records are owned by the invoking UID. On ordinary Unix filesystems, that same
+UID can later unlink a record, rename/recreate `consumed/`, or delete and
+recreate the whole state root.
 
-- direct directory, not a symlink;
-- no symlink ancestors;
-- current UID ownership where supported;
-- exact mode `0700`; and
-- canonical realpath equality.
+Therefore V79 explicitly sets:
 
-V79 creates a private create-once store-generation identity file when the
-state root is first admitted, then creates the `consumed/` child when absent.
-The identity file and consumption records are mode `0600`; `consumed/` is
-mode `0700`. Every receipt binds the store-generation ID as well as the
-state-root realpath.
+```text
+same_uid_namespace_tamper_resistance_claimed=false
+single_use_guaranteed_by_this_gate=false
+global_replay_prevention_claimed=false
+```
 
-## Atomic consumption
+The proof deliberately demonstrates the limitation: after a successful
+consume, unlinking the record or replacing `consumed/` allows the fixture
+packet to be recorded again under the same store-generation identity. This is
+not treated as a passing single-use property; it is an explicit boundary of
+what this owner-UID filesystem layer can prove.
 
-The record is first written into a mode-`0600` exclusive-create temporary
-file, fsynced, then atomically hard-linked to the final authorization slot.
-The consumed directory is fsynced after publication.
+Deleting and recreating the whole root also creates a new store-generation
+identity, so a same pathname is not silently represented as continuity.
 
-If that authorization slot already exists, V79 HOLDs. The existing record is
-never overwritten, truncated, deleted, or released.
+## Why this gate still exists
 
-## Replay scope
+V79 provides deterministic, private, create-only consumption evidence and
+catches accidental/reentrant duplicate use in an intact canonical store. It
+also gives the next layer exact fields to bind:
 
-Replay prevention is intentionally scoped to one exact durable state-store
-**generation**, not pathname text alone. The receipt binds both the realpath and
-a private create-once store-generation ID. If the same pathname is deleted and
-recreated, it receives a different generation ID and cannot masquerade as the
-same replay domain.
+- authorization ID;
+- operator fingerprint;
+- request/corpus/parent-adapter identities;
+- state-root pathname hash;
+- store-generation identity; and
+- consumption-record identity.
 
-V79 does **not** claim global replay protection across independently selected
-or replaced store generations. Production composition must bind exactly one
-canonical Apollyon authorization-consumption store generation and preserve that
-identity across restart/recovery before this gate is used live.
+It does **not** provide the hostile same-UID replay terminal required for a
+training attempt claim.
 
 ## Authority boundary
 
-A GREEN V79 receipt means only:
+A GREEN V79 receipt means:
 
 ```text
-authorization_consumed=true
+authorization_consumption_recorded=true
+authorization_single_use_guaranteed=false
 attempt_claimed=false
 training_execution_performed=false
 candidate_weight_mutation_performed=false
@@ -88,15 +94,17 @@ runtime_service_mutation_performed=false
 network_access_performed=false
 ```
 
-The next gate is:
+The next required gate is **not** attempt claim. It is:
 
 ```text
-candidate_training_attempt_claim_from_consumed_authorization_v1
+independently_protected_authorization_consumption_authority_v1
 ```
 
-That later gate must require the exact immutable V79 record, the exact canonical
-state-store fingerprint, the exact request/corpus/parent-adapter bindings, and
-must provide its own crash/recovery semantics before any trainer can execute.
+That future boundary must place replay state outside the mutable authority of
+the admitted training writer (for example, a dedicated separately privileged
+service or another reviewed monotonic authority), and then bind the exact V79
+evidence to it. Only after that protection is proven should an attempt-claim
+gate be built.
 
 ## Proof
 
@@ -106,11 +114,10 @@ node --check scripts/prove_apollyon_operator_authorization_consumption_v1.mjs
 node scripts/prove_apollyon_operator_authorization_consumption_v1.mjs
 ```
 
-The proof uses only an ephemeral Ed25519 fixture key and temporary
-owner-private directories. It proves successful consumption, immutable replay
-rejection within one store generation, expiry rejection, private-root
-enforcement, symlink rejection, signature corruption rejection, distinct
-generation identity after same-path replacement, and the intentionally local
-replay scope.
+The proof uses only an ephemeral Ed25519 fixture key and temporary directories.
+It proves normal record creation, intact-slot duplicate rejection, expiry and
+path protections, signature rejection, distinct root-generation identity, and
+the declared same-UID unlink/directory-replacement limitation.
 
-No production operator key or Xiphos runtime is accessed by the proof.
+No production operator key, Xiphos runtime, trainer, network, wallet, or funds
+surface is accessed by the proof.
