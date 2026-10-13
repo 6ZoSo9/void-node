@@ -28,12 +28,40 @@ import {
 
 // VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1
 const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES = 65536;
+// The upstream's 8s deadline does NOT cover an unended client POST body.
+// Independently bound this public, attacker-controlled upload lifetime.
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS = 8000;
+// An upstream request may be committed before this public edge observes
+// its reply. Bound the full upstream response and never synthesize success.
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072;
+const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000;
+// Audited current-node money identities, independent of the untrusted
+// upstream receipt. These constants mirror the native-USDC checkout
+// source policy at src/index.ts (including the explicit Ethereum rail).
+const VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 =
+  "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const VOID_BUY_VOID_PUBLIC_EDGE_BASE_USDC_V1 =
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const VOID_BUY_VOID_PUBLIC_EDGE_ETH_USDC_V1 =
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
+  let uploadExpired = false;
   try {
     const chunks = [];
     let totalBytes = 0;
-
+    let receiveTimer;
+    const uploadStartedAt = performance.now();
+    if (!Number.isFinite(uploadStartedAt) || uploadStartedAt < 0) {
+      throw new Error("buy_void_post_client_upload_monotonic_unavailable");
+    }
+    const uploadDeadlineAt = uploadStartedAt +
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS;
+    // Promise.race is necessary here. IncomingMessage's requestTimeout and
+    // socket timeout are inactivity-based, and a custom async iterator might
+    // ignore destruction. One absolute timer bounds this entire receive,
+    // regardless of how often the requester sends another small chunk.
+    const receiveUpload = (async () => {
     for await (const chunk of req) {
       const normalized = Buffer.from(chunk);
       totalBytes += normalized.length;
@@ -42,7 +70,30 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         totalBytes >
         VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES
       ) {
+        // An oversized *unfinished* chunked upload has already consumed
+        // its authority. Sending 413 must also terminate the transport:
+        // otherwise clearing the upload deadline leaves the peer free to
+        // trickle additional bytes indefinitely on its original socket.
+        // Close only AFTER the small 413 body is flushed, to preserve the
+        // client-visible rejection instead of replacing it with ECONNRESET.
+        const oversizedSocket = req.socket;
+        res.shouldKeepAlive = false;
+        res.once("finish", () => {
+          if (!oversizedSocket || oversizedSocket.destroyed) return;
+          try {
+            if (typeof oversizedSocket.destroySoon === "function") {
+              oversizedSocket.destroySoon();
+            } else {
+              oversizedSocket.destroy();
+            }
+          } catch {
+            // Transport teardown uncertainty cannot authorize a new
+            // upstream checkout request or an HTTP 201 success.
+            if (!oversizedSocket.destroyed) oversizedSocket.destroy();
+          }
+        });
         res.statusCode = 413;
+        res.setHeader("connection", "close");
         res.setHeader(
           "content-type",
           "application/json; charset=utf-8",
@@ -69,7 +120,46 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
 
       chunks.push(normalized);
     }
+    return true;
+    })();
+    try {
+      const completed = await Promise.race([
+        receiveUpload,
+        new Promise((_, reject) => {
+          receiveTimer = setTimeout(() => {
+            uploadExpired = true;
+            reject(new Error("buy_void_post_client_upload_total_deadline"));
+            // Free the incomplete request/socket; do not leave an iterator
+            // pinned, and do not dispatch any upstream purchase request.
+            if (typeof req.destroy === "function") {
+              try {
+                req.destroy();
+              } catch {
+                // Promise.race already rejected. Never turn this into a
+                // successful or retried upstream purchase operation.
+              }
+            }
+          }, VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPLOAD_TIMEOUT_MS);
+        }),
+      ]);
+      if (!completed) return;
+    } finally {
+      if (receiveTimer !== undefined) clearTimeout(receiveTimer);
+    }
+    // An event-loop stall may delay the upload timeout callback while a
+    // later completion wins the race. Never forward after absolute expiry.
+    const uploadCompletedAt = performance.now();
+    if (!Number.isFinite(uploadCompletedAt) ||
+        uploadCompletedAt < uploadStartedAt ||
+        uploadCompletedAt >= uploadDeadlineAt) {
+      uploadExpired = true;
+      try { req.destroy(); } catch { /* never forward late upload */ }
+      return;
+    }
 
+    // Retain the exact public request bytes so that a claimed HTTP 201
+    // cannot substitute another buyer's destination, amount, or rail.
+    const forwardedBody = Buffer.concat(chunks);
     const upstreamBase = String(
       process.env.VOID_NODE_UPSTREAM
         || "http://127.0.0.1:4100",
@@ -83,56 +173,488 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         || "application/json",
     );
 
-    const upstreamResponse = await fetch(
+    // This is a total, not an inactivity timeout. It covers the upstream
+    // headers AND its entire response stream, including endless trickles.
+    const upstreamSignal = AbortSignal.timeout(
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS,
+    );
+    // Node 22 may leave an aborted reader.read() unsettled. Maintain one
+    // monotonic absolute deadline, but use a *detached* timer for each await:
+    // racing thousands of tiny chunks against one unresolved Promise leaks
+    // thousands of registered reaction closures until that deadline fires.
+    const upstreamStartedAt = performance.now();
+    if (!Number.isFinite(upstreamStartedAt) || upstreamStartedAt < 0) {
+      throw new Error("buy_void_post_upstream_monotonic_unavailable");
+    }
+    const upstreamDeadlineAt = upstreamStartedAt +
+      VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS;
+    const requireUpstreamBeforeDeadline = () => {
+      const observedNow = performance.now();
+      if (!Number.isFinite(observedNow) ||
+          observedNow < upstreamStartedAt ||
+          observedNow >= upstreamDeadlineAt) {
+        throw new Error("buy_void_post_upstream_total_deadline");
+      }
+    };
+    const awaitUpstream = async (operation) => {
+      requireUpstreamBeforeDeadline();
+      const leftMs = Math.floor(upstreamDeadlineAt - performance.now());
+      if (leftMs <= 0) {
+        throw new Error("buy_void_post_upstream_total_deadline");
+      }
+      let deadlineTimer;
+      try {
+        const outcome = await Promise.race([
+          operation,
+          new Promise((_, reject) => {
+            deadlineTimer = setTimeout(
+              () => reject(new Error("buy_void_post_upstream_total_deadline")),
+              leftMs,
+            );
+          }),
+        ]);
+        // Timer dispatch can lag while a completion microtask wins the race.
+        requireUpstreamBeforeDeadline();
+        return outcome;
+      } finally {
+        if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      }
+    };
+    const upstreamResponse = await awaitUpstream(fetch(
       upstreamUrl,
       {
         method: "POST",
-        redirect: "manual",
+        redirect: "error",
+        signal: upstreamSignal,
         headers: {
           "content-type": contentType,
           "user-agent":
             "void-public-app-composition-gateway-buy-void-post-proxy-v1",
         },
-        body: Buffer.concat(chunks),
+        body: forwardedBody,
       },
-    );
+    ));
 
-    const responseBody = Buffer.from(
-      await upstreamResponse.arrayBuffer(),
-    );
+    // A redirect/HTML page is never evidence of a created Buy VOID request.
+    // Do not buffer a peer-controlled body through Response.arrayBuffer().
+    const cancelRejectedBody = () => {
+      try {
+        const cancelResult = upstreamResponse.body?.cancel?.();
+        if (cancelResult) void Promise.resolve(cancelResult).catch(() => {});
+      } catch {
+        // Cleanup is best-effort; a rejected checkout response is never success.
+      }
+    };
+    const mediaType = String(
+      upstreamResponse.headers.get("content-type") || "",
+    ).split(";")[0].trim().toLowerCase();
+    if (
+      mediaType !== "application/json"
+      || (upstreamResponse.status >= 300 && upstreamResponse.status < 400)
+    ) {
+      cancelRejectedBody();
+      throw new Error("buy_void_post_upstream_response_unqualified");
+    }
+    const declaredLength = upstreamResponse.headers.get("content-length");
+    if (
+      declaredLength !== null
+      && (
+        !/^(?:0|[1-9][0-9]*)$/.test(declaredLength)
+        || BigInt(declaredLength)
+          > BigInt(VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES)
+      )
+    ) {
+      cancelRejectedBody();
+      throw new Error("buy_void_post_upstream_declared_length_invalid");
+    }
+    const reader = upstreamResponse.body?.getReader?.();
+    if (!reader) {
+      throw new Error("buy_void_post_upstream_body_missing");
+    }
+    const responseChunks = [];
+    let responseBytes = 0;
+    let readComplete = false;
+    try {
+      while (true) {
+        const { done, value } = await awaitUpstream(reader.read());
+        if (done) {
+          readComplete = true;
+          break;
+        }
+        if (!(value instanceof Uint8Array) || value.byteLength === 0) {
+          throw new Error("buy_void_post_upstream_stream_invalid");
+        }
+        responseBytes += value.byteLength;
+        if (
+          responseBytes
+          > VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES
+        ) {
+          throw new Error("buy_void_post_upstream_response_too_large");
+        }
+        responseChunks.push(Buffer.from(value));
+      }
+    } finally {
+      if (!readComplete) {
+        try {
+          void Promise.resolve(reader.cancel()).catch(() => {});
+        } catch {
+          // The upstream is already untrusted; the public reply fails closed.
+        }
+      }
+      try {
+        reader.releaseLock();
+      } catch {
+        // A completed stream cannot claim successful checkout if its
+        // owned reader cannot be released. On a failed stream, preserve
+        // the original rejection and return only the generic 502.
+        if (readComplete) {
+          throw new Error("buy_void_post_reader_release_uncertain");
+        }
+      }
+    }
+    if (responseBytes === 0) {
+      throw new Error("buy_void_post_upstream_empty_response");
+    }
+    let responseBody = Buffer.concat(responseChunks, responseBytes);
+    // Content-Type is not proof of JSON validity. Never send a malformed
+    // HTTP 201 checkout receipt through the public edge as an accepted order.
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(responseBody),
+      );
+      if (!parsedBody || typeof parsedBody !== "object" ||
+          Array.isArray(parsedBody)) {
+        throw new Error("buy_void_post_upstream_json_object_required");
+      }
+    } catch {
+      throw new Error("buy_void_post_upstream_json_invalid");
+    }
 
-    res.statusCode = upstreamResponse.status;
+    let admittedCheckoutExpiryMs = null;
+    // This exact creation response is authoritative for whether a buyer
+    // should believe a payment request was recorded. "application/json"
+    // plus a nonarray object is NOT enough: an empty object, error envelope,
+    // unrelated marker or idempotent reuse must never be exposed as HTTP 201.
+    if (upstreamResponse.status === 201) {
+      const checkout = parsedBody.request;
+      // Binding only the upstream envelope to a schema is insufficient: a
+      // misrouted node may return an otherwise-valid *different buyer* 201.
+      // Compare public checkout intent to the actual returned request before
+      // any client can treat its payment instructions as a fresh obligation.
+      let submitted;
+      try {
+        submitted = JSON.parse(
+          new TextDecoder("utf-8", { fatal: true }).decode(forwardedBody),
+        );
+      } catch {
+        throw new Error("buy_void_post_submitted_intent_invalid");
+      }
+      // Keep the exact public node's reviewed body-key precedence, including
+      // valid legacy field aliases. A 201 must match the effective submitted
+      // buyer intent, not arbitrarily require one spelling of its fields.
+      const readSubmittedField = (...names) => {
+        for (const name of names) {
+          const value = submitted?.[name];
+          if (value !== undefined && value !== null) return String(value).trim();
+        }
+        return "";
+      };
+      const intendedDestination = readSubmittedField(
+        "void_destination_address", "delivery_address", "delivery_wallet",
+        "wallet",
+      ).toLowerCase();
+      const returnedDestination = typeof checkout?.void_destination_address
+        === "string" ? checkout.void_destination_address.toLowerCase() : "";
+      const intendedChain = (readSubmittedField(
+        "source_chain", "payment_chain", "chain",
+      ) || "base").toLowerCase();
+      const returnedChain = typeof checkout?.source_chain === "string"
+        ? checkout.source_chain.toLowerCase() : "";
+      const intendedAmount = Number(readSubmittedField(
+        "requested_amount_usdc", "usdc_amount", "amount_usdc", "amount",
+      ));
+      const returnedAmount = Number(checkout?.requested_amount_usdc);
+      const returnedUsdcAmount = Number(checkout?.usdc_amount);
+      if (!/^0x[0-9a-f]{40}$/.test(intendedDestination) ||
+          returnedDestination !== intendedDestination ||
+          (intendedChain !== "base" && intendedChain !== "ethereum") ||
+          returnedChain !== intendedChain ||
+          !Number.isFinite(intendedAmount) || intendedAmount <= 0 ||
+          !Number.isFinite(returnedAmount) ||
+          !Number.isFinite(returnedUsdcAmount) ||
+          returnedAmount !== intendedAmount ||
+          returnedUsdcAmount !== intendedAmount) {
+        throw new Error("buy_void_post_created_receipt_intent_mismatch");
+      }
+      // Canonical main may still emit {ok:true,file:<private disk path>},
+      // whereas the next request-writer generation emits only {ok:true}.
+      // Both are valid server receipts, but no internal file location may
+      // cross the unauthenticated edge. Refuse any other persisted metadata.
+      const persisted = checkout?.persisted;
+      const persistedKeys = persisted && typeof persisted === "object" &&
+        !Array.isArray(persisted) ? Object.keys(persisted) : [];
+      const hasLegacyFile = persistedKeys.includes("file");
+      if (parsedBody.schema !==
+            "void_public_buy_void_checkout_request_result_v1" ||
+          parsedBody.marker !==
+            "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" ||
+          parsedBody.ok !== true ||
+          parsedBody.idempotent !== false ||
+          parsedBody.one_active_request_cap_enforced !== true ||
+          !checkout || typeof checkout !== "object" ||
+          Array.isArray(checkout) ||
+          checkout.schema !== "void_public_buy_void_checkout_request_v1" ||
+          checkout.marker !== "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" ||
+          checkout.ok !== true ||
+          typeof checkout.request_id !== "string" ||
+          !/^[A-Za-z0-9_-]{1,128}$/.test(checkout.request_id) ||
+          checkout.status !== "awaiting_payment_tx_hash" ||
+          !persisted || typeof persisted !== "object" ||
+          Array.isArray(persisted) ||
+          !Object.hasOwn(persisted, "ok") ||
+          persistedKeys.length !== (hasLegacyFile ? 2 : 1) ||
+          persistedKeys.some((key) => key !== "ok" && key !== "file") ||
+          (hasLegacyFile && (typeof persisted.file !== "string" ||
+            persisted.file.length === 0)) ||
+          persisted.ok !== true) {
+        throw new Error("buy_void_post_upstream_created_receipt_invalid");
+      }
+      // The canonical node's request object defines exactly these public
+      // top-level names (src/index.ts checkout request object + persisted).
+      // Unknown fields may contain operator/private payment metadata. Never
+      // spread them into a public HTTP 201 or a legacy redacted copy.
+      const outerFields = new Set([
+        "schema","marker","ok","idempotent",
+        "one_active_request_cap_enforced","request",
+      ]);
+      const requestFields = new Set([
+        "schema","legacy_schema","marker","ok","request_id",
+        "created_at_ms","status","launch_authority","funding_model","account",
+        "source_chain","payment_chain","payment_chain_id","asset_in","usdc_contract",
+        "usdc_decimals","usdc_amount","requested_amount_usdc","rate_void_per_usdc","price_usdc_per_void",
+        "pool_void_total","quoted_void","sale_state_before_request","receive_address","receiver_binding_source",
+        "void_destination_address","delivery_address","delivery_wallet","delivery_chain","delivery_chain_id",
+        "tx_hash","note","acknowledgements","request_contract","payment_instructions",
+        "safety","persisted",
+      ]);
+      if (Object.keys(parsedBody).length !== outerFields.size ||
+          Object.keys(parsedBody).some(key => !outerFields.has(key)) ||
+          Object.keys(checkout).some(key => !requestFields.has(key))) {
+        throw new Error("buy_void_post_created_public_fields_invalid");
+      }
 
+      // Opaque nested additions can be private operational metadata even
+      // when all checked fields and outer request keys are legitimate.
+      // Only names produced by the reviewed native checkout request may
+      // appear in these public receipt subobjects.
+      const requestContractKeys = new Set([
+        "request_before_payment_required",
+        "one_active_request_per_void_destination",
+        "payment_sender_must_equal_void_destination",
+        "payment_tx_hash_bound_after_request_by_operator",
+      ]);
+      const safetyKeys = new Set([
+        "automatic_fulfillment","activation_required",
+        "manual_review_required","wallet_send_by_page",
+        "token_approval_by_page","no_investment_return_promised",
+        "no_automatic_token_delivery_promised",
+        "do_not_send_from_exchange","private_rpc_public",
+      ]);
+      const acknowledgementKeys = new Set([
+        "self_custody","native_usdc","request_before_payment",
+        "sender_equals_void_destination","no_automatic_fulfillment",
+      ]);
+      const closedNestedKeys = (object, allowed) =>
+        object && typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).every(key => allowed.has(key));
+      if (!closedNestedKeys(checkout.request_contract, requestContractKeys) ||
+          !closedNestedKeys(checkout.safety, safetyKeys) ||
+          (Object.hasOwn(checkout, "acknowledgements") &&
+            !closedNestedKeys(checkout.acknowledgements,
+              acknowledgementKeys))) {
+        throw new Error("buy_void_post_created_nested_public_fields_invalid");
+      }
+
+      // Payment instructions are displayed as actionable money movement.
+      // A correct outer 201 plus buyer destination/amount is insufficient:
+      // require independently source-bound USDC contract, rail, receiver and
+      // exact agreement between top-level and nested payment instructions.
+      const instruction = checkout.payment_instructions;
+      const chainId = intendedChain === "ethereum" ? 1 : 8453;
+      const tokenContract = intendedChain === "ethereum"
+        ? VOID_BUY_VOID_PUBLIC_EDGE_ETH_USDC_V1
+        : VOID_BUY_VOID_PUBLIC_EDGE_BASE_USDC_V1;
+      const address = (value) =>
+        typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+          ? value.toLowerCase() : "";
+      const instructionExpiry = instruction?.expires_at_ms;
+      const launchExpiry = checkout.launch_authority?.expires_at_ms;
+      if (!instruction || typeof instruction !== "object" ||
+          Array.isArray(instruction) ||
+          checkout.tx_hash !== "" ||
+          checkout.payment_chain !== intendedChain ||
+          checkout.payment_chain_id !== chainId ||
+          checkout.delivery_chain !== "void" ||
+          checkout.delivery_chain_id !== 2050 ||
+          checkout.asset_in !== "USDC" ||
+          checkout.usdc_decimals !== 6 ||
+          address(checkout.usdc_contract) !== tokenContract ||
+          address(checkout.receive_address) !==
+            VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 ||
+          address(checkout.delivery_address) !== intendedDestination ||
+          address(checkout.delivery_wallet) !== intendedDestination ||
+          instruction.request_id !== checkout.request_id ||
+          instruction.send_asset !== "USDC" ||
+          instruction.send_chain !== intendedChain ||
+          instruction.send_chain_id !== chainId ||
+          address(instruction.token_contract) !== tokenContract ||
+          instruction.token_decimals !== 6 ||
+          instruction.amount !== intendedAmount ||
+          address(instruction.send_to) !==
+            VOID_BUY_VOID_PUBLIC_EDGE_RECEIVER_V1 ||
+          address(instruction.send_from) !== intendedDestination ||
+          !Number.isSafeInteger(instructionExpiry) ||
+          !Number.isSafeInteger(launchExpiry) ||
+          instructionExpiry <= 0 || instructionExpiry !== launchExpiry ||
+          instruction.do_not_send_before_request !== true ||
+          instruction.do_not_send_from_exchange_or_pooled_custody !== true ||
+          instruction.keep_transaction_hash !== true ||
+          checkout.request_contract?.request_before_payment_required !== true ||
+          checkout.request_contract?.one_active_request_per_void_destination !== true ||
+          checkout.request_contract?.payment_sender_must_equal_void_destination !== true ||
+          checkout.request_contract?.payment_tx_hash_bound_after_request_by_operator !== true ||
+          checkout.safety?.automatic_fulfillment !== false ||
+          checkout.safety?.manual_review_required !== true) {
+        throw new Error("buy_void_post_created_payment_instructions_invalid");
+      }
+
+
+      // Real coupled launch authority is valid for at most five minutes
+      // from activation. A newly created request cannot claim an expired,
+      // overlong or future-dated actionable payment-instruction lease.
+      const receiptCreatedAt = checkout.created_at_ms;
+      const receiptNow = Date.now();
+      const maxCheckoutLeaseMs = 5 * 60 * 1000;
+      if (!Number.isSafeInteger(receiptCreatedAt) ||
+          !Number.isSafeInteger(receiptNow) ||
+          receiptCreatedAt <= 0 || receiptNow <= 0 ||
+          receiptCreatedAt > receiptNow + 30_000 ||
+          instructionExpiry <= receiptNow ||
+          instructionExpiry <= receiptCreatedAt ||
+          instructionExpiry - receiptCreatedAt > maxCheckoutLeaseMs) {
+        throw new Error("buy_void_post_created_instruction_lease_invalid");
+      }
+      admittedCheckoutExpiryMs = instructionExpiry;
+
+      // Public API clients need the same exact-amount and VOID quote
+      // authentication as the Buy browser before HTTP 201 is published.
+      const checkedMicro = (v) => {
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return null;
+        const raw=String(v);
+        if (!/^(?:0|[1-9][0-9]*)(?:[.][0-9]{1,6})?$/.test(raw)) return null;
+        const [whole, fraction=""]=raw.split(".");
+        return BigInt(whole)*1000000n + BigInt(fraction.padEnd(6,"0")||"0");
+      };
+      const intendedMicro=checkedMicro(intendedAmount);
+      if (intendedMicro===null || intendedMicro<=0n ||
+          checkedMicro(checkout.usdc_amount)!==intendedMicro ||
+          checkedMicro(checkout.requested_amount_usdc)!==intendedMicro ||
+          checkout.rate_void_per_usdc!=="2" ||
+          checkout.price_usdc_per_void!=="0.50" ||
+          checkout.pool_void_total!==10000000 ||
+          checkedMicro(checkout.quoted_void)!==intendedMicro*2n) {
+        throw new Error("buy_void_post_created_void_quote_invalid");
+      }
+      // Unknown nested payment-instruction fields are not public receipts.
+      const instructionKeys=Object.keys(instruction);
+      const allowedInstructionKeys=new Set([
+        "request_id","send_asset","send_chain","send_chain_id",
+        "token_contract","token_decimals","send_to","send_from",
+        "amount","expires_at_ms","do_not_send_before_request",
+        "do_not_send_from_exchange_or_pooled_custody","keep_transaction_hash",
+      ]);
+      if (instructionKeys.length!==allowedInstructionKeys.size ||
+          instructionKeys.some(k=>!allowedInstructionKeys.has(k))) {
+        throw new Error("buy_void_post_created_instruction_keyset_invalid");
+      }
+      if (hasLegacyFile) {
+        // Re-encode ONLY after removing the verified legacy private leaf.
+        // Safe {ok:true} receipts retain their original noncanonical bytes.
+        const publicReceipt = {
+          ...parsedBody,
+          request: { ...checkout, persisted: { ok: true } },
+        };
+        responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
+      }
+    }
+
+    // Privacy is independent of backend rollout order. The retired public
+    // writer can return HTTP 200 with a previous buyer's full idempotent
+    // request or 409 with the old request ID/status. NEVER forward arbitrary
+    // non-201 checkout bytes or upstream headers to an unauthenticated
+    // caller. Preserve only narrow HTTP refusal statuses and synthesize
+    // a fixed body. A 502 is an UNCERTAIN submission outcome, not proof that
+    // a purchase request was not recorded and not permission to retry.
+    if (upstreamResponse.status !== 201) {
+      const safeStatus = (
+        upstreamResponse.status === 400 ||
+        upstreamResponse.status === 409 ||
+        upstreamResponse.status === 503
+      ) ? upstreamResponse.status : 502;
+      res.statusCode = safeStatus;
+      res.setHeader("content-type", "application/json; charset=utf-8");
+      res.setHeader("cache-control", "no-store");
+      res.setHeader("x-content-type-options", "nosniff");
+      res.setHeader("x-void-public-buy-void-post-proxy", "v1");
+      res.end(JSON.stringify({
+        ok: false,
+        error: "buy_void_request_upstream_unavailable",
+        submission_outcome: "uncertain",
+        automatic_retry_safe: false,
+      }));
+      return;
+    }
+
+    // ETag from an upstream is opaque, not a verified checkout artifact.
+    // Never forward it, even when the response JSON was otherwise qualified.
+    // Qualify permitted headers privately before publishing public HTTP 201;
+    // a late deadline HOLD cannot inherit any upstream response identity.
+    const acceptedHeaders = [];
     for (
       const headerName
       of [
         "content-type",
         "cache-control",
-        "etag",
         "x-content-type-options",
       ]
     ) {
-      const headerValue =
-        upstreamResponse.headers.get(headerName);
-      if (headerValue) {
-        res.setHeader(
-          headerName,
-          headerValue,
-        );
-      }
+      const headerValue = upstreamResponse.headers.get(headerName);
+      if (headerValue) acceptedHeaders.push([headerName, headerValue]);
     }
-
-    res.setHeader(
-      "x-void-public-buy-void-post-proxy",
-      "v1",
-    );
-    res.setHeader(
-      "content-length",
-      String(responseBody.length),
-    );
+    // This is the final, immediate-at-publication monotonic authorization.
+    // No await or untrusted upstream getter follows this check.
+    requireUpstreamBeforeDeadline();
+    const finalCheckoutNow = Date.now();
+    if (admittedCheckoutExpiryMs === null ||
+        !Number.isSafeInteger(finalCheckoutNow) || finalCheckoutNow <= 0 ||
+        admittedCheckoutExpiryMs <= finalCheckoutNow) {
+      throw new Error("buy_void_post_created_instruction_lease_expired");
+    }
+    res.statusCode = upstreamResponse.status;
+    for (const [headerName, headerValue] of acceptedHeaders) {
+      res.setHeader(headerName, headerValue);
+    }
+    res.setHeader("cache-control", "no-store");
+    res.setHeader("x-content-type-options", "nosniff");
+    res.setHeader("x-void-public-buy-void-post-proxy", "v1");
+    res.setHeader("content-length", String(responseBody.length));
     res.end(responseBody);
   } catch (_error) {
-    if (res.writableEnded) {
+    if (res.writableEnded || uploadExpired) {
+      // The incomplete upload was torn down without any upstream POST.
+      // A destroyed socket cannot be represented as a completed receipt.
       return;
     }
 
@@ -154,6 +676,8 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       JSON.stringify({
         ok: false,
         error: "buy_void_request_upstream_unavailable",
+        submission_outcome: "uncertain",
+        automatic_retry_safe: false,
       }),
     );
   }

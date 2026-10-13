@@ -1,0 +1,651 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+import {
+  VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_AUTHORITY_V2,
+  VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2,
+  buildVoidchainIngressGitInvocationV2,
+  prepareVoidchainPathPreservingIngressCurrentGatewayV2,
+  verifyVoidchainPathPreservingIngressCurrentGatewayV2,
+} from "../tools/void-voidchain-path-preserving-ingress-current-gateway-v2.mjs";
+import {
+  prepareVoidchainPathPreservingIngressPlanV1 as prepareFrozenIngressV1,
+} from "../tools/void-voidchain-path-preserving-ingress-plan-v1.mjs";
+
+const ROOT=String(spawnSync(
+  "/usr/bin/git",
+  ["--no-replace-objects","rev-parse","--show-toplevel"],
+  {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+).stdout).trim();
+const HEAD=String(spawnSync(
+  "/usr/bin/git",
+  ["--no-replace-objects","rev-parse","HEAD"],
+  {cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+).stdout).trim();
+
+function sha256(value){
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+// Independent canonical plan-ID recomputation for hostile packet edits.
+// Match the reviewed generator's sorted, integer-only deterministic JSON
+// rather than relying on a digest supplied by the packet under test.
+function proofCanonicalJson(value){
+  if(value===null)return "null";
+  if(typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="boolean")return value?"true":"false";
+  if(typeof value==="number"&&Number.isSafeInteger(value))return String(value);
+  if(Array.isArray(value))return "["+value.map(proofCanonicalJson).join(",")+"]";
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    return "{"+Object.keys(value).sort((a,b)=>a<b?-1:a>b?1:0)
+      .map(key=>JSON.stringify(key)+":"+proofCanonicalJson(value[key]))
+      .join(",")+"}";
+  }
+  throw new Error("synthetic_packet_canonical_value_invalid");
+}
+
+function rejectPrepare(input,pattern){
+  assert.throws(
+    ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2(input),
+    pattern,
+  );
+}
+
+assert.equal(
+  VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2,
+  "VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2",
+);
+assert.match(HEAD,/^[0-9a-f]{40}$/u);
+
+const temp=fs.mkdtempSync(
+  path.join(os.tmpdir(),"void-voidchain-ingress-plan-"),
+);
+try{
+  fs.chmodSync(temp,0o700);
+  const tunnelId="6ff42ae2-765d-4adf-8112-31c55c1551ef";
+  const credentialDir=path.join(temp,"credential # [edge]: value");
+  fs.mkdirSync(credentialDir,{mode:0o700});
+  fs.chmodSync(credentialDir,0o700);
+  const credential=path.join(credentialDir,tunnelId+".json");
+  const executedMarker=path.join(temp,"cloudflared-executed.txt");
+  const cloudflared=path.join(temp,"cloudflared");
+  const output=path.join(temp,"packet");
+
+  fs.writeFileSync(
+    credential,
+    "THIS_IS_OPAQUE_SECRET_FIXTURE_AND_IS_NOT_JSON\n",
+    {mode:0o600},
+  );
+  fs.chmodSync(credential,0o600);
+  fs.writeFileSync(
+    cloudflared,
+    [
+      "#!/bin/sh",
+      "printf executed > "+JSON.stringify(executedMarker),
+      "exit 91",
+      "",
+    ].join("\n"),
+    {mode:0o755},
+  );
+  fs.chmodSync(cloudflared,0o755);
+  const cloudflaredSha=sha256(fs.readFileSync(cloudflared));
+
+  const request={
+    tunnel_id:tunnelId,
+    credentials_file:credential,
+    cloudflared_path:cloudflared,
+    expected_cloudflared_sha256:cloudflaredSha,
+    expected_repository_head:HEAD,
+    output_dir:output,
+  };
+
+
+  // Historical review authority stays immutable. The frozen V1 packet
+  // generator must reject this exact newer gateway source before writing.
+  const frozenTool=fs.readFileSync(
+    path.join(ROOT,"tools/void-voidchain-path-preserving-ingress-plan-v1.mjs"));
+  assert.equal(crypto.createHash("sha1")
+    .update(Buffer.from("blob "+frozenTool.length+"\0"))
+    .update(frozenTool)
+    .digest("hex"),"92d3cfb85596a25e9d1e39dbcf549b3aa7a37ee5");
+  assert.throws(
+    ()=>prepareFrozenIngressV1({
+      ...request, output_dir:path.join(temp,"frozen-v1-negative")}),
+    /VOIDCHAIN_INGRESS_REVIEWED_SOURCE_BLOB_DRIFT:ops\/public\/void-public-app-composition-gateway-v1\.mjs/u,
+    "historical V1 source authority must reject the reviewed V2 gateway",
+  );
+  assert.equal(fs.existsSync(path.join(temp,"frozen-v1-negative")),false);
+
+  const packet=prepareVoidchainPathPreservingIngressCurrentGatewayV2(request);
+  assert.equal(fs.existsSync(executedMarker),false);
+  assert.match(packet.plan_id,/^voidvci2_[0-9a-f]{64}$/u);
+  assert.equal(packet.version,2,"source generation V2 version");
+  assert.equal(packet.hostname,"voidchain.org");
+  assert.equal(packet.public_origin,"https://voidchain.org");
+  assert.equal(packet.frontdoor.origin,"http://127.0.0.1:8083");
+  assert.equal(packet.frontdoor.upstream_origin,"http://127.0.0.1:8082");
+  assert.equal(packet.frontdoor.readiness_bound_to_current_upstream,true);
+  assert.equal(packet.frontdoor.loopback_only,true);
+  assert.equal(packet.path_contract.hostname,"voidchain.org");
+  assert.equal(packet.path_contract.service,"http://127.0.0.1:8083");
+  assert.equal(packet.path_contract.cloudflared_path_rule,null);
+  assert.equal(packet.path_contract.prefix_strip,false);
+  assert.equal(packet.path_contract.path_rewrite,false);
+  assert.equal(packet.path_contract.frontdoor_proxy_uses_original_request_url,true);
+  assert.equal(packet.path_contract.catch_all_service,"http_status:404");
+  assert.equal(packet.path_contract.private_routes_exposed,false);
+  assert.equal(packet.precision_recovery_prerequisite.issue,1618);
+  assert.equal(
+    packet.precision_recovery_prerequisite.independent_live_host_acceptance_required,
+    true,
+  );
+  assert.equal(
+    packet.precision_recovery_prerequisite.independent_live_host_acceptance_claimed,
+    false,
+  );
+  assert.equal(packet.credential.content_read,false);
+  assert.equal(packet.credential.path,credential);
+  assert.equal(packet.cloudflared.path,cloudflared);
+  assert.equal(packet.cloudflared.sha256,cloudflaredSha);
+  assert.equal(packet.cloudflared.executed,false);
+  assert.equal(packet.activation.packet_inert,true);
+  for(const key of [
+    "install_plan_defined",
+    "rollback_plan_defined",
+    "services_started",
+    "unit_installed",
+    "dns_changed",
+    "tls_changed",
+    "tunnel_started",
+    "public_ingress_qualified",
+    "external_path_preservation_accepted",
+  ]){
+    assert.equal(packet.activation[key],false,key);
+  }
+
+  const config=fs.readFileSync(
+    path.join(output,"cloudflared-config.yml"),
+    "utf8",
+  );
+  assert.equal(
+    (config.match(/^  - hostname: voidchain\.org$/gmu)||[]).length,
+    1,
+  );
+  assert.equal(
+    (config.match(/^    service: http:\/\/127\.0\.0\.1:8083$/gmu)||[]).length,
+    1,
+  );
+  assert.equal(
+    (config.match(/^  - service: http_status:404$/gmu)||[]).length,
+    1,
+  );
+  assert.equal(
+    config.includes("credentials-file: "+JSON.stringify(credential)+"\n"),
+    true,
+    "credential path must be emitted as one deterministic quoted YAML scalar",
+  );
+  assert.doesNotMatch(config,/\bpath:/u);
+  assert.doesNotMatch(config,/rewrite|stripPrefix|prefix-strip/iu);
+
+  const unit=fs.readFileSync(
+    path.join(output,"void-voidchain-ingress-current-gateway-v2.service"),
+    "utf8",
+  );
+  assert.match(unit,/After=network-online\.target void-public-frontdoor-v1\.service/u);
+  assert.match(unit,/--no-autoupdate/u);
+  assert.match(unit,/tunnel run/u);
+  assert.doesNotMatch(unit,/--token/u);
+  assert.doesNotMatch(unit,/Environment=.*CREDENTIAL/iu);
+
+  const verified=verifyVoidchainPathPreservingIngressCurrentGatewayV2({
+    packet_dir:output,
+  });
+  assert.equal(verified.ok,true);
+  assert.equal(verified.status,"VOIDCHAIN_INGRESS_PLAN_VERIFIED_INERT");
+  assert.equal(verified.plan_id,packet.plan_id);
+  assert.equal(verified.path_preserving,true);
+  assert.equal(verified.exact_current_source_bound,true);
+  assert.equal(verified.cloudflared_executable_bound,true);
+  assert.equal(verified.credential_metadata_bound_without_content_read,true);
+  assert.equal(
+    verified.precision_recovery_independent_acceptance_required,
+    true,
+  );
+  assert.equal(verified.installation_authorized,false);
+  assert.equal(verified.ingress_activation_authorized,false);
+  assert.equal(verified.independent_public_acceptance,false);
+  assert.equal(fs.existsSync(executedMarker),false);
+
+  // An outside hard-link gives a different path read access to the same
+  // packet bytes while preserving hashes/modes. Both generated and final
+  // packet leaves must reject this alias until the second link is removed.
+  for(const name of ["cloudflared-config.yml","packet.json"]){
+    const leaf=path.join(output,name);
+    const external=path.join(temp,"external-hardlink-"+name.replaceAll("/","-"));
+    fs.linkSync(leaf,external);
+    try {
+      assert.equal(fs.statSync(leaf).nlink,2);
+      assert.throws(
+        ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+        new RegExp("VOIDCHAIN_INGRESS_PACKET_LEAF_CUSTODY_INVALID:"+name.replaceAll(".","\\.")),
+        "same bytes but extra hardlink must not qualify as private packet",
+      );
+    } finally {
+      fs.unlinkSync(external);
+    }
+    assert.equal(fs.statSync(leaf).nlink,1);
+    assert.equal(
+      verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}).ok,
+      true,
+      "after hardlink removal, original packet must requalify",
+    );
+  }
+
+  // A person could add e.g. activation_authorized:true, recompute the
+  // packet plan_id, and preserve every old validated field. Reject the
+  // *whole* unreviewed nested contract, not merely an invalid digest.
+  {
+    const jsonPath=path.join(output,"packet.json");
+    const original=fs.readFileSync(jsonPath);
+    const originalPacket=JSON.parse(original.toString("utf8"));
+    for(const [nestedField,unreviewedField,value] of [
+      ["activation","activation_authorized",true],
+      ["frontdoor","private_route_exposed","/private/operator"],
+      ["precision_recovery_prerequisite","false_installed_acceptance",true],
+    ]){
+      const altered=structuredClone(originalPacket);
+      altered[nestedField][unreviewedField]=value;
+      const body={...altered};
+      delete body.plan_id;
+      altered.plan_id="voidvci2_"+sha256(Buffer.from(proofCanonicalJson(body),"utf8"));
+      assert.notEqual(altered.plan_id,originalPacket.plan_id);
+      try {
+        fs.writeFileSync(jsonPath,JSON.stringify(altered,null,2)+"\n");
+        assert.throws(
+          ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+          /VOIDCHAIN_INGRESS_PACKET_NESTED_CONTRACT_DRIFT/u,
+          "rehashing unknown nested authority cannot qualify source packet",
+        );
+      } finally {
+        fs.writeFileSync(jsonPath,original);
+      }
+      assert.deepEqual(fs.readFileSync(jsonPath),original);
+      assert.equal(
+        verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}).ok,
+        true,
+      );
+    }
+  }
+
+  // An interrupted packet publication is not a reason to delete real
+  // private evidence or choose a different output identity. At every file
+  // and parent fsync boundary, throw AFTER the durable syscall, then require
+  // the SAME path to resume with only exact existing leaves and complete the
+  // inert packet without overwriting any already published bytes.
+  const originalFsync=fs.fsyncSync;
+  const stages=[
+    ["cloudflared-config.yml","cloudflared-config.yml"],
+    ["service","void-voidchain-ingress-current-gateway-v2.service"],
+    ["review","REVIEW.txt"],
+    ["packet","packet.json"],
+    ["directory",null],
+  ];
+  for(const [label,leaf] of stages){
+    const partial=path.join(temp,"resume-"+label);
+    let injected=false;
+    fs.fsyncSync=function(fd){
+      originalFsync(fd);
+      let target="";
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}
+      catch{target=""; /* unknown FD cannot satisfy a test injection */}
+      const match=leaf ? target===path.join(partial,leaf) : target===partial;
+      if(match&&!injected){
+        injected=true;
+        throw new Error("synthetic_publish_fsync_interrupted_"+label);
+      }
+    };
+    try{
+      assert.throws(
+        ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+          ...request,output_dir:partial}),
+        new RegExp("synthetic_publish_fsync_interrupted_"+label),
+      );
+    }finally{fs.fsyncSync=originalFsync;}
+    assert.equal(injected,true,label+" failure must cross publication fsync");
+    assert.equal(fs.existsSync(partial),true);
+    const priorEntries=fs.readdirSync(partial);
+    const priorContents=new Map(priorEntries.map(name=>[
+      name,fs.readFileSync(path.join(partial,name))]));
+    const completed=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:partial});
+    const verifiedResume=verifyVoidchainPathPreservingIngressCurrentGatewayV2({
+      packet_dir:partial,
+    });
+    assert.equal(verifiedResume.plan_id,completed.plan_id);
+    assert.equal(verifiedResume.ok,true);
+    assert.equal(verifiedResume.ingress_activation_authorized,false);
+    assert.equal(verifiedResume.independent_public_acceptance,false);
+    for(const [name,before] of priorContents){
+      assert.deepEqual(fs.readFileSync(path.join(partial,name)),before,
+        "resumption cannot rewrite a previously published leaf: "+name);
+    }
+    assert.deepEqual(fs.readdirSync(partial).sort(),[
+      "REVIEW.txt","cloudflared-config.yml","packet.json",
+      "void-voidchain-ingress-current-gateway-v2.service",
+    ].sort());
+    // A *fully* published packet must also permit exact idempotent
+    // requalification with zero source-file replacement.
+    const repeated=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:partial});
+    assert.equal(repeated.plan_id,completed.plan_id);
+  }
+
+  // Reject a source-conflicting partial file without touching its bytes.
+  for(const kind of ["wrong_bytes","unexpected_leaf","wrong_mode","symlink"]){
+    const partial=path.join(temp,"tampered-resume-"+kind);
+    let injected=false;
+    fs.fsyncSync=function(fd){
+      originalFsync(fd);
+      let target="";
+      try{target=fs.readlinkSync("/proc/self/fd/"+fd);}
+      catch{target=""; /* unknown FD cannot satisfy a test injection */}
+      if(!injected&&target===path.join(partial,"cloudflared-config.yml")){
+        injected=true;throw new Error("synthetic_first_leaf_partial");
+      }
+    };
+    try{
+      assert.throws(
+        ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+          ...request,output_dir:partial}),
+        /synthetic_first_leaf_partial/u);
+    }finally{fs.fsyncSync=originalFsync;}
+    assert.equal(injected,true);
+    const first=path.join(partial,"cloudflared-config.yml");
+    if(kind==="wrong_bytes")fs.writeFileSync(first,"UNREVIEWED_SOURCE_FRAGMENT");
+    if(kind==="unexpected_leaf"){
+      fs.writeFileSync(path.join(partial,"UNREVIEWED_EXTRA.txt"),
+        "private-inert-fixture",{mode:0o600});
+    }
+    if(kind==="wrong_mode")fs.chmodSync(first,0o644);
+    if(kind==="symlink"){
+      fs.unlinkSync(first);
+      fs.symlinkSync(cloudflared,first);
+    }
+    const originalBytes=kind==="symlink" ? null : fs.readFileSync(first);
+    assert.throws(
+      ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+        ...request,output_dir:partial}),
+      /VOIDCHAIN_INGRESS_RESUME_/u,
+      kind+" conflicting private partial must HOLD with no overwrite",
+    );
+    if(originalBytes!==null){
+      assert.deepEqual(fs.readFileSync(first),originalBytes);
+    }else{
+      assert.equal(fs.lstatSync(first).isSymbolicLink(),true);
+    }
+    assert.equal(fs.existsSync(path.join(partial,"packet.json")),false);
+  }
+  // Published packet without its REVIEW prerequisite is corruption, never a
+  // signal that absent prior leaves may be recreated and silently endorsed.
+  const premature=path.join(temp,"resume-packet");
+  fs.unlinkSync(path.join(premature,"REVIEW.txt"));
+  assert.throws(
+    ()=>prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+      ...request,output_dir:premature}),
+    /VOIDCHAIN_INGRESS_RESUME_PREMATURE_PACKET/u);
+  assert.equal(fs.existsSync(path.join(premature,"REVIEW.txt")),false);
+  assert.equal(fs.existsSync(executedMarker),false);
+
+  for(const [key,value] of Object.entries(
+    VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_AUTHORITY_V2,
+  )){
+    const allowed=new Set([
+      "source_only_plan",
+      "canonical_git_source_binding_required",
+      "exact_frontdoor_source_required",
+      "path_preservation_required",
+      "external_cloudflared_sha256_required",
+      "credential_metadata_binding_required",
+      "create_only_private_packet_write",
+      "precision_recovery_independent_acceptance_required",
+    ]);
+    assert.equal(value,allowed.has(key),key);
+  }
+
+  rejectPrepare(
+    {...request,output_dir:path.join(temp,"bad-hash"),expected_cloudflared_sha256:"0".repeat(64)},
+    /VOIDCHAIN_INGRESS_CLOUDFLARED_SHA256_MISMATCH/u,
+  );
+  rejectPrepare(
+    {...request,output_dir:path.join(temp,"bad-head"),expected_repository_head:"0".repeat(40)},
+    /VOIDCHAIN_INGRESS_REPOSITORY_HEAD_MISMATCH/u,
+  );
+  {
+    const key="GIT_CONFIG_PARAMETERS";
+    const had=Object.prototype.hasOwnProperty.call(process.env,key);
+    const prior=process.env[key];
+    process.env[key]="'remote.origin.url=https://github.com/example/fork.git'";
+    try{
+      rejectPrepare(
+        {...request,output_dir:path.join(temp,"git-config-parameters")},
+        /VOIDCHAIN_INGRESS_AMBIENT_GIT_OVERRIDE:GIT_CONFIG_PARAMETERS/u,
+      );
+    }finally{
+      if(had) process.env[key]=prior;
+      else delete process.env[key];
+    }
+  }
+  {
+    const fakeBin=path.join(temp,"fake-bin");
+    const fakeGit=path.join(fakeBin,"git");
+    const fakeSentinel=path.join(temp,"fake-git-executed");
+    fs.mkdirSync(fakeBin,{mode:0o700});
+    fs.writeFileSync(
+      fakeGit,
+      "#!/bin/sh\nprintf executed > "+JSON.stringify(fakeSentinel)+"\nexit 91\n",
+      {mode:0o755},
+    );
+    const hostile={
+      PATH:fakeBin,
+      LD_PRELOAD:"/tmp/void-should-not-load.so",
+      LD_LIBRARY_PATH:"/tmp/void-should-not-search",
+      DYLD_INSERT_LIBRARIES:"/tmp/void-should-not-load.dylib",
+      DYLD_LIBRARY_PATH:"/tmp/void-should-not-search",
+      NODE_OPTIONS:"--require=/tmp/void-should-not-require.js",
+      BASH_ENV:"/tmp/void-should-not-source",
+      ENV:"/tmp/void-should-not-source",
+    };
+    const saved=new Map();
+    for(const [key,value] of Object.entries(hostile)){
+      saved.set(
+        key,
+        Object.prototype.hasOwnProperty.call(process.env,key)
+          ? process.env[key]
+          : undefined,
+      );
+      process.env[key]=value;
+    }
+    try{
+      const invocation=buildVoidchainIngressGitInvocationV2(["rev-parse","HEAD"]);
+      assert.equal(invocation.executable,"/usr/bin/git");
+      assert.equal(invocation.env.PATH,"/usr/bin:/bin");
+      for(const key of Object.keys(hostile)){
+        if(key==="PATH") continue;
+        assert.equal(
+          Object.hasOwn(invocation.env,key),
+          false,
+          "hostile loader/tool variable leaked into Git environment: "+key,
+        );
+      }
+      for(const required of [
+        "core.fsmonitor=false",
+        "core.hooksPath=/dev/null",
+        "core.attributesFile=/dev/null",
+        "core.preloadIndex=false",
+        "core.untrackedCache=false",
+        "submodule.recurse=false",
+        "core.bare=false",
+        "core.worktree="+ROOT,
+      ]){
+        assert.equal(invocation.args.includes(required),true,required);
+      }
+      const isolated=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+        ...request,
+        output_dir:path.join(temp,"hostile-loader-env"),
+      });
+      assert.match(isolated.plan_id,/^voidvci2_[0-9a-f]{64}$/u);
+      assert.equal(fs.existsSync(fakeSentinel),false);
+    }finally{
+      for(const [key,value] of saved){
+        if(value===undefined) delete process.env[key];
+        else process.env[key]=value;
+      }
+    }
+  }
+
+  rejectPrepare(
+    {...request,output_dir:path.join(ROOT,".voidchain-ingress-plan-test")},
+    /VOIDCHAIN_INGRESS_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY/u,
+  );
+  // A fully published *identical* private packet is safe to requalify
+  // without replacing any of its canonical source-bound output leaves.
+  const priorFiles=new Map(fs.readdirSync(output).map(name=>[
+    name,fs.readFileSync(path.join(output,name))]));
+  const repeated=prepareVoidchainPathPreservingIngressCurrentGatewayV2({
+    ...request,output_dir:output,
+  });
+  assert.equal(repeated.plan_id,packet.plan_id);
+  for(const [name,bytes] of priorFiles){
+    assert.deepEqual(fs.readFileSync(path.join(output,name)),bytes,
+      "exact same-path replay may not rewrite previously accepted leaf");
+  }
+
+  {
+    const configPath=path.join(output,"cloudflared-config.yml");
+    const original=fs.readFileSync(configPath);
+    fs.writeFileSync(
+      configPath,
+      Buffer.concat([original,Buffer.from("  path: /api/*\n")]),
+    );
+    assert.throws(
+      ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+      /VOIDCHAIN_INGRESS_PACKET_FILE_CONTENT_MISMATCH:cloudflared-config\.yml/u,
+    );
+    fs.writeFileSync(configPath,original);
+    fs.chmodSync(configPath,0o600);
+  }
+
+  {
+    // Exercise strictly *metadata-only* credential refusal. Never read or
+    // rewrite even synthetic opaque credential bytes during the mode test.
+    const originalMode=fs.statSync(credential).mode&0o777;
+    try {
+      fs.chmodSync(credential,0o644);
+      assert.throws(
+        ()=>verifyVoidchainPathPreservingIngressCurrentGatewayV2({packet_dir:output}),
+        /VOIDCHAIN_INGRESS_CREDENTIAL_MODE_INVALID/u,
+      );
+    } finally {
+      fs.chmodSync(credential,originalMode);
+    }
+  }
+
+  {
+    const frontdoor=path.join(ROOT,"ops/public/void-public-frontdoor-v1.mjs");
+    const original=fs.readFileSync(frontdoor);
+    try{
+      fs.appendFileSync(frontdoor,"\n// proof-dirty-source\n");
+      rejectPrepare(
+        {...request,output_dir:path.join(temp,"dirty-source")},
+        /VOIDCHAIN_INGRESS_REPOSITORY_NOT_CLEAN/u,
+      );
+    }finally{
+      fs.writeFileSync(frontdoor,original);
+    }
+  }
+
+  assert.equal(fs.existsSync(executedMarker),false);
+
+  const workflow=fs.readFileSync(
+    path.join(ROOT,".github/workflows/void-voidchain-path-preserving-ingress-current-gateway-v2.yml"),
+    "utf8",
+  );
+  assert.equal(
+    workflow.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"),
+    true,
+    "focused workflow must prove the exact pull-request head",
+  );
+
+  const source=fs.readFileSync(
+    path.join(ROOT,"tools/void-voidchain-path-preserving-ingress-current-gateway-v2.mjs"),
+    "utf8",
+  );
+  for(const forbidden of [
+    "fetch(",
+    "https.request(",
+    "systemctl",
+    "tailscale ",
+    "cloudflaredPath, [",
+    "eth_sendRawTransaction",
+    "new Wallet(",
+  ]){
+    assert.equal(source.includes(forbidden),false,forbidden);
+  }
+  for(const required of [
+    '"voidchain.org"',
+    '"http://127.0.0.1:8083"',
+    '"http_status:404"',
+    'path: req.url || "/"',
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_CONFIG_PARAMETERS",
+    "--no-replace-objects",
+    "core.fsmonitor=false",
+    "core.hooksPath=/dev/null",
+    "core.preloadIndex=false",
+    "buildVoidchainIngressGitInvocationV2",
+    "yamlDoubleQuoted",
+    "credential_content_read: false",
+    "cloudflared_execution: false",
+    "installation_authorized: false",
+    "ingress_activation_authorized: false",
+  ]){
+    assert.equal(source.includes(required),true,required);
+  }
+
+  console.log("VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_CURRENT_GATEWAY_V2_PROOF_GREEN");
+  console.log("hostname=voidchain.org");
+  console.log("frontdoor_origin=http://127.0.0.1:8083");
+  console.log("path_preserving=true");
+  console.log("exact_pr_head_checkout_required=true");
+  console.log("frozen_ingress_v1_rejects_current_gateway=true");
+  console.log("private_packet_same_path_midwrite_resume=true");
+  console.log("conflicting_partial_never_overwritten=true");
+  console.log("packet_json_last_recovery_guard=true");
+  console.log("packet_leaf_hardlink_alias_rejected=true");
+  console.log("nested_packet_authority_injection_rejected=true");
+  console.log("gateway_current_sha=0f7b7ccec7aecbcfe6a48df1cd28063dc6550131");
+  console.log("ingress_version=2");
+  console.log("git_config_parameters_rejected=true");
+  console.log("ambient_git_loader_tool_env_excluded=true");
+  console.log("repository_local_git_execution_features_disabled=true");
+  console.log("credential_path_yaml_quoted=true");
+  console.log("cloudflared_executed=false");
+  console.log("credential_content_read=false");
+  console.log("credential_mode_test_did_not_read_or_rewrite_bytes=true");
+  console.log("precision_recovery_independent_acceptance_required=true");
+  console.log("install_plan_defined=false");
+  console.log("rollback_plan_defined=false");
+  console.log("dns_mutation=false");
+  console.log("tls_mutation=false");
+  console.log("service_start=false");
+  console.log("installation_authorized=false");
+  console.log("ingress_activation_authorized=false");
+  console.log("independent_public_acceptance=false");
+}finally{
+  fs.rmSync(temp,{recursive:true,force:true});
+}

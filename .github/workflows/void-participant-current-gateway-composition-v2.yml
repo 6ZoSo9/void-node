@@ -1,0 +1,86 @@
+name: VOID participant current gateway composition v2
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-participant-current-gateway-composition-v2.yml"
+      - "docs/security/void-public-participant-production-composition-current-gateway-v2.md"
+      - "tools/void-public-participant-production-composition-current-gateway-v2.mjs"
+      - "scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs"
+      - "tools/void-public-participant-production-composition-preflight-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "ops/public/void-public-participant-session-state-file-v1.mjs"
+      - "ops/public/void-public-participant-read-session-v1.mjs"
+      - "ops/public/void-public-participant-session-http-v1.mjs"
+      - "ops/public/void-public-participant-account-read-projection-v1.mjs"
+      - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
+      - "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs"
+      - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "src/security/participant_role_authority_session_adapter_v1.ts"
+      - "src/security/participant_role_authority_guard_v1.ts"
+      - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
+      - "src/security/chain2050_role_authority_contract_projection_v1.ts"
+      - "src/security/chain2050_role_authority_read_adapter_v1.ts"
+      - "src/security/chain2050_role_authority_record_v1.ts"
+      - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
+      - "src/security/chain2050_role_authority_registry_v1.ts"
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: exact gateway V2 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored Git credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require reviewed public-edge source and frozen V1
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "974a1b0d825ec921a26aaca61c5560d5e29fba5f"
+          test "$(git hash-object tools/void-public-participant-production-composition-preflight-v1.mjs)" = "507ee9a1c9b553a86944b2e5287f220c6af73044"
+      - name: Install supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install reviewed lockfile without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile actual participant security runtime
+        run: npm run build
+      - name: Syntax and standalone versioned composition proof
+        run: |
+          set -euo pipefail
+          node --check tools/void-public-participant-production-composition-current-gateway-v2.mjs
+          node --check scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs
+          # The proof binds a clean Git checkout. Capturing stdout inside
+          # the worktree creates an untracked receipt before preflight runs.
+          # Store execution output outside the repository instead.
+          receipt="$RUNNER_TEMP/participant-current-gateway-v2-${{ matrix.node }}.txt"
+          node scripts/prove_void_public_participant_production_composition_current_gateway_v2.mjs | tee "$receipt"
+          for proof_marker in \
+            'VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_PREFLIGHT_V2_PROOF_GREEN' \
+            'historical_v1_new_generation_negative_preserved=true' \
+            'current_gateway_exact_git_blob_qualified=true' \
+            'source_composition_ready=true' \
+            'runtime_activation_authorized=false'; do
+            grep -Fx "$proof_marker" "$receipt"
+          done
+      - name: Check exact reviewed path whitespace
+        run: |
+          set -euo pipefail
+          git diff --check HEAD^..HEAD

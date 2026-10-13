@@ -38,6 +38,166 @@ assert.match(
   source,
   /x-void-public-buy-void-post-proxy/,
 );
+assert.ok(source.includes(
+  "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_RESPONSE_BYTES = 131072"));
+assert.ok(source.includes(
+  "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_UPSTREAM_TIMEOUT_MS = 8000"));
+const postHandlerSource = source.slice(
+  source.indexOf("async function voidBuyVoidPublicEdgePostProxyV1("),
+  source.indexOf("\n}\n", source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(")),
+);
+assert.doesNotMatch(postHandlerSource,
+  /await upstreamResponse\.arrayBuffer\(\)/u);
+assert.match(postHandlerSource, /AbortSignal\.timeout/u);
+assert.match(postHandlerSource, /reader\.read\(\)/u);
+assert.match(postHandlerSource, /clearTimeout\(deadlineTimer\)/u);
+assert.doesNotMatch(postHandlerSource, /deadlineExpired/u);
+
+// Execute the *actual source handler* in a disposable no-network harness.
+// Count deadline timer allocations/releases across thousands of one-byte
+// completed reads. A single never-settling shared Promise would register
+// unbounded losing reactions; this test requires a per-operation timer that
+// is detached at every fulfilled fetch/read, not just a matching code string.
+{
+  const handlerStart = source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(",
+  );
+  const handlerClose = source.indexOf("\n}\n", handlerStart);
+  const definitionsStart = source.indexOf(
+    "const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES =",
+  );
+  assert.ok(definitionsStart > 0 && handlerStart > definitionsStart);
+  assert.ok(handlerClose > handlerStart);
+  const actualHandlerSource = source.slice(definitionsStart, handlerClose + 2);
+  let createdTimers = 0;
+  let clearedTimers = 0;
+  let peakTimers = 0;
+  const outstandingTimers = new Set();
+  const scopedSetTimeout = (callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    createdTimers += 1;
+    outstandingTimers.add(timer);
+    peakTimers = Math.max(peakTimers, outstandingTimers.size);
+    return timer;
+  };
+  const scopedClearTimeout = (timer) => {
+    if (outstandingTimers.delete(timer)) clearedTimers += 1;
+    clearTimeout(timer);
+  };
+  const literal = Buffer.from("{" + " ".repeat(4096) + "}", "utf8");
+  let readCalls = 0;
+  let fetchCalls = 0;
+  // The timing fixture is a retired HTTP 200 rather than canonical 201.
+  // All 4,098 one-byte reads/timers must execute, but arbitrary backend
+  // response bytes must not cross the unauthenticated public boundary.
+  const scopedFetch = async () => {
+    fetchCalls += 1;
+    return {
+      status: 200,
+      headers: new Headers({
+        "content-type": "application/json; charset=utf-8",
+      }),
+      body: {
+        getReader() {
+          return {
+            async read() {
+              const position = readCalls++;
+              if (position >= literal.length) return { done: true };
+              return { done: false, value: literal.subarray(position, position + 1) };
+            },
+            releaseLock() {},
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    };
+  };
+  // A separate callable copies *only* the current handler and adjacent
+  // production response ceilings. It cannot bind a real socket or key.
+  const evalHandler = new Function(
+    "fetch", "setTimeout", "clearTimeout", "process",
+    actualHandlerSource +
+      "\nreturn voidBuyVoidPublicEdgePostProxyV1;",
+  );
+  const handle = evalHandler(
+    scopedFetch, scopedSetTimeout, scopedClearTimeout,
+    { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+  );
+  const syntheticReq = {
+    headers: { "content-type": "application/json" },
+    async *[Symbol.asyncIterator]() { yield Buffer.from("{}", "utf8"); },
+  };
+  let output = null;
+  const syntheticRes = {
+    statusCode: 0,
+    writableEnded: false,
+    headers: {},
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(bytes) { output = Buffer.from(bytes); this.writableEnded = true; },
+  };
+  await handle(syntheticReq, syntheticRes);
+  assert.equal(fetchCalls, 1);
+  assert.equal(syntheticRes.statusCode, 502,
+    "non-201 response must be redacted after all tiny reads settle");
+  assert.deepEqual(JSON.parse(output.toString("utf8")), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  });
+  assert.equal(syntheticRes.headers["cache-control"], "no-store");
+  assert.equal(readCalls, literal.length + 1, "exercise all 4,098 tiny reads");
+  assert.ok(createdTimers >= readCalls + 1,
+    "every tiny read must have an independently detachable deadline timer");
+  assert.equal(clearedTimers, createdTimers,
+    "all settled operations must detach their deadline timer");
+  assert.equal(outstandingTimers.size, 0);
+  assert.ok(peakTimers <= 1, "no accumulating pending per-read deadlines");
+
+  // A completed upstream response must not claim HTTP 201 if releasing
+  // its owned reader is uncertain. Exercise the same actual handler with
+  // a synthetic reader whose final releaseLock throws.
+  let readCount = 0;
+  const uncertainHandle = evalHandler(
+    async () => ({
+      status: 201,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          return {
+            async read() {
+              readCount += 1;
+              return readCount === 1
+                ? { done: false, value: Buffer.from("{}", "utf8") }
+                : { done: true };
+            },
+            releaseLock() { throw new Error("synthetic_reader_release_failure"); },
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    }),
+    scopedSetTimeout, scopedClearTimeout,
+    { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+  );
+  let uncertainOutput = null;
+  const uncertainRes = {
+    statusCode: 0,
+    writableEnded: false,
+    headers: {},
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(bytes) { uncertainOutput = Buffer.from(bytes); this.writableEnded = true; },
+  };
+  await uncertainHandle(syntheticReq, uncertainRes);
+  assert.equal(uncertainRes.statusCode, 502);
+  assert.deepEqual(JSON.parse(uncertainOutput.toString("utf8")), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  });
+  assert.equal(uncertainRes.headers["cache-control"], "no-store");
+  assert.equal(outstandingTimers.size, 0);
+}
 
 async function freePort() {
   const server = net.createServer();
@@ -66,6 +226,350 @@ const upstreamPort = await freePort();
 const gatewayPort = await freePort();
 
 const upstreamCalls = [];
+let headerRejectedSocketClosed = false;
+// Match the *actual* node's 201 creation envelope, not an invented marker.
+// Deliberately reverse field ordering and retain whitespace to catch any
+// edge that parses and reserializes a successful buyer receipt.
+const accepted201CreatedAtMs = Date.now();
+const accepted201ExpiresAtMs = accepted201CreatedAtMs + 4 * 60 * 1000;
+const accepted201Destination = "0x1111111111111111111111111111111111111111";
+const accepted201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const accepted201Usdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const accepted201RequestId = "buyvoid_edge_201_aaaaaaaa";
+const exactAccepted201Receipt = {
+  request: {
+    persisted: { ok: true },
+    created_at_ms: accepted201CreatedAtMs,
+    launch_authority: { expires_at_ms: accepted201ExpiresAtMs },
+    status: "awaiting_payment_tx_hash",
+    tx_hash: "",
+    request_id: accepted201RequestId,
+    source_chain: "base",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    asset_in: "USDC",
+    usdc_decimals: 6,
+    usdc_contract: accepted201Usdc,
+    receive_address: accepted201Receiver,
+    delivery_chain: "void",
+    delivery_chain_id: 2050,
+    void_destination_address: accepted201Destination,
+    delivery_address: accepted201Destination,
+    delivery_wallet: accepted201Destination,
+    requested_amount_usdc: 10,
+    usdc_amount: 10,
+    quoted_void: 20,
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    pool_void_total: 10000000,
+    request_contract: {
+      request_before_payment_required: true,
+      one_active_request_per_void_destination: true,
+      payment_sender_must_equal_void_destination: true,
+      payment_tx_hash_bound_after_request_by_operator: true,
+    },
+    safety: {
+      automatic_fulfillment: false,
+      manual_review_required: true,
+    },
+    payment_instructions: {
+      request_id: accepted201RequestId,
+      amount: 10,
+      send_asset: "USDC",
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: accepted201Usdc,
+      token_decimals: 6,
+      send_to: accepted201Receiver,
+      send_from: accepted201Destination,
+      expires_at_ms: accepted201ExpiresAtMs,
+      do_not_send_before_request: true,
+      do_not_send_from_exchange_or_pooled_custody: true,
+      keep_transaction_hash: true,
+    },
+    ok: true,
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    schema: "void_public_buy_void_checkout_request_v1",
+  },
+  one_active_request_cap_enforced: true,
+  idempotent: false,
+  ok: true,
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  schema: "void_public_buy_void_checkout_request_result_v1",
+};
+const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n";
+
+// A delayed timer callback is not a valid extra operation lease. Execute the
+// REAL checked-out handler with a controlled monotonic clock and inert timers.
+// "Timer not fired" must not allow a completed-after-deadline upload to POST,
+// or an overdue upstream completion to forward a synthetic valid HTTP 201.
+{
+  const handlerStart = source.indexOf(
+    "async function voidBuyVoidPublicEdgePostProxyV1(",
+  );
+  const handlerClose = source.indexOf("\n}\n", handlerStart);
+  const definitionsStart = source.indexOf(
+    "const VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_MAX_BODY_BYTES =",
+  );
+  assert.ok(definitionsStart >= 0 && handlerClose > handlerStart);
+  const actualHandler = source.slice(definitionsStart, handlerClose + 2);
+  const makeResponse = () => {
+    const bytes = Buffer.from(exactAccepted201Json, "utf8");
+    let step = 0;
+    return {
+      status: 201,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          return {
+            read: async () => step++ === 0
+              ? { done: false, value: bytes } : { done: true },
+            releaseLock() {},
+            cancel() { return Promise.resolve(); },
+          };
+        },
+      },
+    };
+  };
+  const submitted = Buffer.from(JSON.stringify({
+    requested_amount_usdc: 10,
+    void_destination_address: "0x1111111111111111111111111111111111111111",
+    source_chain: "base",
+  }));
+  const resultSink = () => ({
+    statusCode: 0, writableEnded: false, headers: {}, responseBytes: null,
+    setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
+    end(value) {
+      this.responseBytes = Buffer.from(value);
+      this.writableEnded = true;
+    },
+  });
+  const fakeRequest = (clock, lateUpload = false) => ({
+    headers: { "content-type": "application/json" },
+    destroyed: false,
+    destroy() { this.destroyed = true; },
+    async *[Symbol.asyncIterator]() {
+      yield submitted;
+      if (lateUpload) clock.tick = 9001;
+    },
+  });
+  const createHarness = (clock, fetchImpl, onTimer = null) => {
+    let nextTimer = 0, created = 0, cleared = 0;
+    const active = new Set();
+    const fakeSetTimeout = (callback, delay) => {
+      const id = ++nextTimer;
+      active.add(id);
+      created += 1;
+      if (onTimer) onTimer(delay);
+      // DO NOT dispatch the watchdog: this models event-loop timer delay.
+      return id;
+    };
+    const fakeClearTimeout = (id) => {
+      if (active.delete(id)) cleared += 1;
+    };
+    const handler = new Function(
+      "fetch", "setTimeout", "clearTimeout", "process", "performance",
+      actualHandler + "\nreturn voidBuyVoidPublicEdgePostProxyV1;",
+    )(fetchImpl, fakeSetTimeout, fakeClearTimeout,
+      { env: { VOID_NODE_UPSTREAM: "http://127.0.0.1:4100" } },
+      { now: () => clock.tick });
+    return {
+      handler, active, evidence: () => ({ created, cleared }),
+    };
+  };
+
+  // Upload completion beats an unfired watchdog microtask after the deadline.
+  // Destroy the caller; NEVER dispatch an upstream payment request.
+  {
+    const clock = { tick: 0 };
+    let fetchCount = 0;
+    const h = createHarness(clock, async () => {
+      fetchCount += 1;
+      return makeResponse();
+    });
+    const req = fakeRequest(clock, true);
+    const res = resultSink();
+    await h.handler(req, res);
+    assert.equal(fetchCount, 0, "overdue upload cannot reach payment upstream");
+    assert.equal(req.destroyed, true,
+      "overdue client upload must retire its original owned transport");
+    assert.notEqual(res.statusCode, 201);
+    assert.equal(h.active.size, 0);
+  }
+
+  // Header completion resolves at T=9s while its T=8s watchdog remains
+  // queued. The OLD race returned HTTP 201 here; monotonic revalidation
+  // after the Promise.race must forbid that false-success.
+  {
+    const clock = { tick: 0 };
+    let releaseHeaders, fetchCount = 0, queued = false;
+    const fetchImpl = () => {
+      fetchCount += 1;
+      return new Promise((resolve) => { releaseHeaders = resolve; });
+    };
+    const h = createHarness(clock, fetchImpl, () => {
+      if (fetchCount > 0 && !queued) {
+        queued = true;
+        queueMicrotask(() => {
+          clock.tick = 9001;
+          releaseHeaders(makeResponse());
+        });
+      }
+    });
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(fetchCount, 1);
+    assert.equal(queued, true, "unfired upstream watchdog race exercised");
+    assert.equal(res.statusCode, 502,
+      "overdue upstream headers must not become a checkout HTTP 201");
+    assert.equal(JSON.parse(res.responseBytes.toString("utf8"))
+      .error, "buy_void_request_upstream_unavailable");
+    assert.equal(h.active.size, 0);
+  }
+
+  // A synchronous untrusted HTTP 201 header getter can stall past the
+  // absolute deadline even when every streamed body read was timely.
+  // A generic 502 must not carry the private ETag or 201 Content-Length
+  // staged before the final deadline gate.
+  {
+    const clock = { tick: 0 };
+    const response = makeResponse();
+    const normalHeaders = response.headers;
+    let headerStallObserved = false;
+    response.headers = {
+      get(name) {
+        if (name === "x-content-type-options") {
+          headerStallObserved = true;
+          clock.tick = 9001; // delayed timer callback has not fired
+          return "nosniff";
+        }
+        return normalHeaders.get(name);
+      },
+    };
+    const h = createHarness(clock, async () => response);
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(headerStallObserved, true);
+    assert.equal(res.statusCode, 502);
+    assert.equal(res.headers.etag, undefined,
+      "an uncertain 502 must not expose staged private upstream ETag");
+    assert.equal(res.headers["content-length"], undefined,
+      "an uncertain 502 cannot inherit the old 201 Content-Length");
+    assert.equal(JSON.parse(res.responseBytes.toString("utf8"))
+      .error, "buy_void_request_upstream_unavailable");
+    assert.equal(h.active.size, 0);
+  }
+
+  // Ordinary creation before the deadline must continue to qualify.
+  {
+    const clock = { tick: 0 };
+    const h = createHarness(clock, async () => makeResponse());
+    const res = resultSink();
+    await h.handler(fakeRequest(clock), res);
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(res.responseBytes, Buffer.from(exactAccepted201Json));
+    assert.equal(h.active.size, 0);
+  }
+}
+
+
+// A distinct *full native-USDC buyer request* fixture matches the reviewed
+// node's public checkout payload and the browser's separate identity,
+// receipt-age and payment-instruction checks. The minimal 201 above proves
+// only the gateway's narrow envelope. This fixture is still synthetic and
+// is NOT executable cross-PR browser qualification or payment authority.
+const fullCreatedAtMs = Date.now();
+const fullExpiresAtMs = fullCreatedAtMs + 4 * 60 * 1000;
+const full201RequestId = "buyvoid_edge_full_base_aaaaaaaa";
+const full201Destination = "0x1111111111111111111111111111111111111111";
+const full201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
+const full201BaseUsdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const fullAccepted201Receipt = {
+  schema: "void_public_buy_void_checkout_request_result_v1",
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  ok: true,
+  idempotent: false,
+  one_active_request_cap_enforced: true,
+  request: {
+    schema: "void_public_buy_void_checkout_request_v1",
+    marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+    ok: true,
+    persisted: { ok: true },
+    request_id: full201RequestId,
+    created_at_ms: fullCreatedAtMs,
+    launch_authority: { expires_at_ms: fullExpiresAtMs },
+    status: "awaiting_payment_tx_hash",
+    tx_hash: "",
+    source_chain: "base",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    asset_in: "USDC",
+    usdc_decimals: 6,
+    usdc_contract: full201BaseUsdc,
+    usdc_amount: 10,
+    requested_amount_usdc: 10,
+    quoted_void: 20,
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    pool_void_total: 10000000,
+    receive_address: full201Receiver,
+    void_destination_address: full201Destination,
+    delivery_address: full201Destination,
+    delivery_wallet: full201Destination,
+    delivery_chain: "void",
+    delivery_chain_id: 2050,
+    request_contract: {
+      request_before_payment_required: true,
+      one_active_request_per_void_destination: true,
+      payment_sender_must_equal_void_destination: true,
+      payment_tx_hash_bound_after_request_by_operator: true,
+    },
+    safety: {
+      automatic_fulfillment: false,
+      activation_required: true,
+      manual_review_required: true,
+      wallet_send_by_page: false,
+      token_approval_by_page: false,
+      no_investment_return_promised: true,
+      no_automatic_token_delivery_promised: true,
+      do_not_send_from_exchange: true,
+      private_rpc_public: false,
+    },
+    acknowledgements: {
+      self_custody: true,
+      native_usdc: true,
+      request_before_payment: true,
+      sender_equals_void_destination: true,
+      no_automatic_fulfillment: true,
+    },
+    payment_instructions: {
+      request_id: full201RequestId,
+      amount: 10,
+      expires_at_ms: fullExpiresAtMs,
+      send_asset: "USDC",
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: full201BaseUsdc,
+      token_decimals: 6,
+      send_to: full201Receiver,
+      send_from: full201Destination,
+      do_not_send_before_request: true,
+      keep_transaction_hash: true,
+      do_not_send_from_exchange_or_pooled_custody: true,
+    },
+  },
+};
+const fullAccepted201Json = JSON.stringify(fullAccepted201Receipt, null, 3)+"\n";
+const fullLegacy201Json = JSON.stringify({
+  ...fullAccepted201Receipt,
+  request: {
+    ...fullAccepted201Receipt.request,
+    persisted: {
+      ok: true,
+      file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+    },
+  },
+}, null, 3)+"\n";
 
 const upstream = http.createServer(
   async (req, res) => {
@@ -117,6 +621,429 @@ const upstream = http.createServer(
       && req.url
         === "/__void/buy-void/request"
     ) {
+      let proofCase = "";
+      try {
+        proofCase = JSON.parse(body)?.__edge_proof_case || "";
+      } catch {
+        // A malformed *synthetic test* request is not an authorized proof
+        // case. Route it to the inert baseline fixture; never claim receipt
+        // success on the basis of test-only input parsing.
+        proofCase = "";
+      }
+      if (proofCase === "full_client_contract_201" ||
+          proofCase === "full_client_contract_legacy_file_201") {
+        const isLegacy = proofCase === "full_client_contract_legacy_file_201";
+        const payload = isLegacy ? fullLegacy201Json : fullAccepted201Json;
+        res.writeHead(201, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public,max-age=60",
+          "content-length": String(Buffer.byteLength(payload)),
+          etag: isLegacy
+            ? '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"'
+            : '"SENTINEL_VALID_RECEIPT_OPAQUE_ETAG"',
+        });
+        res.end(payload);
+        return;
+      }
+      if (proofCase === "legacy_reuse_private_200") {
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "cache-control": "public,max-age=3600",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+        });
+        res.end(JSON.stringify({
+          schema: "void_public_buy_void_checkout_request_result_v1",
+          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok: true, idempotent: true,
+          request: {
+            request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+            account: "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+            note: "SENTINEL_PRIOR_BUYER_NOTE_9922",
+            tx_hash: "SENTINEL_PRIOR_BUYER_HASH_9922",
+            payment_instructions: {
+              send_to: "SENTINEL_PRIOR_BUYER_RECEIVER_9922",
+            },
+          },
+        }));
+        return;
+      }
+      if (proofCase === "legacy_conflict_private_409") {
+        res.writeHead(409, {
+          "content-type": "application/json",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "cache-control": "public,max-age=3600",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+        });
+        res.end(JSON.stringify({
+          schema: "void_public_buy_void_checkout_request_result_v1",
+          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok: false, error: "one_active_request_per_void_destination",
+          existing_request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+          existing_status: "SENTINEL_PRIOR_BUYER_STATUS_9922",
+        }));
+        return;
+      }
+      if (proofCase === "legacy_private_400" ||
+          proofCase === "legacy_private_503" ||
+          proofCase === "legacy_private_500") {
+        const legacyStatus = proofCase === "legacy_private_400"
+          ? 400 : proofCase === "legacy_private_503" ? 503 : 500;
+        res.writeHead(legacyStatus, {
+          "content-type": "application/json",
+          "cache-control": "public,max-age=3600",
+          "etag": "SENTINEL_PRIOR_BUYER_ETAG_9922",
+          "x-private-request-id": "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+        });
+        res.end(JSON.stringify({
+          ok: false,
+          error: "SENTINEL_PRIOR_BUYER_STATUS_9922",
+          request: {
+            request_id: "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+            account: "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+            note: "SENTINEL_PRIOR_BUYER_NOTE_9922",
+            tx_hash: "SENTINEL_PRIOR_BUYER_HASH_9922",
+          },
+        }));
+        return;
+      }
+      if (proofCase === "valid_201") {
+        res.writeHead(201, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public,max-age=60",
+          "content-length": String(Buffer.byteLength(exactAccepted201Json)),
+          etag: '"SENTINEL_VALID_201_OPAQUE_ETAG"',
+        });
+        res.end(exactAccepted201Json);
+        return;
+      }
+      if (proofCase === "empty_object_201" ||
+          proofCase === "false_ok_201" ||
+          proofCase === "wrong_marker_201" ||
+          proofCase === "idempotent_201" ||
+          proofCase === "missing_request_201" ||
+          proofCase === "wrong_request_status_201" ||
+          proofCase === "private_path_201" ||
+          proofCase === "nonstring_file_201" ||
+          proofCase === "extra_persisted_metadata_201" ||
+          proofCase === "wrong_outer_schema_201" ||
+          proofCase === "missing_outer_schema_201" ||
+          proofCase === "wrong_inner_schema_201" ||
+          proofCase === "missing_inner_schema_201" ||
+          proofCase === "missing_persisted_201" ||
+          proofCase === "false_persisted_ok_201" ||
+          proofCase === "nonobject_persisted_201" ||
+          proofCase === "missing_request_id_201" ||
+          proofCase === "false_request_ok_201" ||
+          proofCase === "wrong_inner_marker_201" ||
+          proofCase === "wrong_intent_destination_201" ||
+          proofCase === "wrong_intent_amount_201" ||
+          proofCase === "wrong_intent_chain_201" ||
+          proofCase === "wrong_payment_receiver_201" ||
+          proofCase === "wrong_payment_sender_201" ||
+          proofCase === "wrong_payment_token_201" ||
+          proofCase === "wrong_payment_chain_id_201" ||
+          proofCase === "wrong_payment_amount_201" ||
+          proofCase === "wrong_payment_expiry_201" ||
+          proofCase === "wrong_payment_request_id_201" ||
+          proofCase === "missing_payment_instructions_201" ||
+          proofCase === "wrong_public_receiver_201" ||
+          proofCase === "unsafe_payment_flag_201" ||
+          proofCase === "unsupported_payment_contract_201" ||
+          proofCase === "wrong_void_quote_201" ||
+          proofCase === "wrong_void_price_201" ||
+          proofCase === "wrong_void_rate_201" ||
+          proofCase === "wrong_void_pool_201" ||
+          proofCase === "wrong_original_usdc_201" ||
+          proofCase === "wrong_quote_precision_201" ||
+          proofCase === "private_instruction_key_201" ||
+          proofCase === "private_safety_key_201" ||
+          proofCase === "private_contract_key_201" ||
+          proofCase === "private_acknowledgements_key_201" ||
+          proofCase === "expired_instruction_201" ||
+          proofCase === "overlong_instruction_201" ||
+          proofCase === "future_created_201" ||
+          proofCase === "extra_outer_private_201" ||
+          proofCase === "extra_checkout_private_201" ||
+          proofCase === "extra_legacy_checkout_private_201") {
+        const mutated = { ...exactAccepted201Receipt };
+        if (proofCase === "false_ok_201") mutated.ok = false;
+        if (proofCase === "wrong_marker_201") mutated.marker = "UNRELATED_MARKER";
+        if (proofCase === "idempotent_201") mutated.idempotent = true;
+        if (proofCase === "wrong_outer_schema_201") mutated.schema = "unrelated";
+        if (proofCase === "missing_outer_schema_201") delete mutated.schema;
+        if (proofCase === "missing_request_201") delete mutated.request;
+        if (proofCase === "wrong_inner_schema_201") {
+          mutated.request = { ...mutated.request, schema: "unrelated" };
+        }
+        if (proofCase === "missing_inner_schema_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.schema;
+        }
+        if (proofCase === "missing_persisted_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.persisted;
+        }
+        if (proofCase === "false_persisted_ok_201") {
+          mutated.request = { ...mutated.request, persisted: { ok: false } };
+        }
+        if (proofCase === "nonobject_persisted_201") {
+          mutated.request = { ...mutated.request, persisted: true };
+        }
+        if (proofCase === "missing_request_id_201") {
+          mutated.request = { ...mutated.request };
+          delete mutated.request.request_id;
+        }
+        if (proofCase === "false_request_ok_201") {
+          mutated.request = { ...mutated.request, ok: false };
+        }
+        if (proofCase === "wrong_inner_marker_201") {
+          mutated.request = { ...mutated.request, marker: "UNRELATED_MARKER" };
+        }
+        if (proofCase === "wrong_request_status_201") {
+          mutated.request = { ...mutated.request, status: "fulfilled" };
+        }
+        if (proofCase === "wrong_intent_destination_201") {
+          mutated.request = { ...mutated.request,
+            void_destination_address: "0x2222222222222222222222222222222222222222" };
+        }
+        if (proofCase === "wrong_intent_amount_201") {
+          mutated.request = { ...mutated.request,
+            requested_amount_usdc: 11, usdc_amount: 11 };
+        }
+        if (proofCase === "wrong_intent_chain_201") {
+          mutated.request = { ...mutated.request, source_chain: "ethereum" };
+        }
+        if ([
+          "wrong_payment_receiver_201",
+          "wrong_payment_sender_201",
+          "wrong_payment_token_201",
+          "wrong_payment_chain_id_201",
+          "wrong_payment_amount_201",
+          "wrong_payment_expiry_201",
+          "wrong_payment_request_id_201",
+          "missing_payment_instructions_201",
+          "wrong_public_receiver_201",
+          "unsafe_payment_flag_201",
+          "unsupported_payment_contract_201",
+        ].includes(proofCase)) {
+          const checkout = { ...mutated.request };
+          const payment = { ...checkout.payment_instructions };
+          if (proofCase === "wrong_payment_receiver_201") {
+            payment.send_to = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "wrong_payment_sender_201") {
+            payment.send_from = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "wrong_payment_token_201") {
+            payment.token_contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+          }
+          if (proofCase === "wrong_payment_chain_id_201") payment.send_chain_id = 1;
+          if (proofCase === "wrong_payment_amount_201") payment.amount = 11;
+          if (proofCase === "wrong_payment_expiry_201") payment.expires_at_ms += 10;
+          if (proofCase === "wrong_payment_request_id_201") payment.request_id += "_other";
+          if (proofCase === "wrong_public_receiver_201") {
+            checkout.receive_address = "0x2222222222222222222222222222222222222222";
+          }
+          if (proofCase === "unsafe_payment_flag_201") {
+            payment.do_not_send_before_request = false;
+          }
+          if (proofCase === "unsupported_payment_contract_201") {
+            checkout.usdc_contract = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+          }
+          if (proofCase === "missing_payment_instructions_201") {
+            delete checkout.payment_instructions;
+          } else {
+            checkout.payment_instructions = payment;
+          }
+          mutated.request = checkout;
+        }
+        // Independent API-level quote and nested-instruction falsifiers.
+        if ([
+          "wrong_void_quote_201", "wrong_void_price_201",
+          "wrong_void_rate_201", "wrong_void_pool_201",
+          "wrong_original_usdc_201", "wrong_quote_precision_201",
+          "private_instruction_key_201",
+        ].includes(proofCase)) {
+          const checkout={...mutated.request};
+          if (proofCase==="wrong_void_quote_201") checkout.quoted_void=21;
+          if (proofCase==="wrong_void_price_201") checkout.price_usdc_per_void="0.25";
+          if (proofCase==="wrong_void_rate_201") checkout.rate_void_per_usdc="3";
+          if (proofCase==="wrong_void_pool_201") checkout.pool_void_total=5000000;
+          if (proofCase==="wrong_original_usdc_201") checkout.usdc_amount=11;
+          if (proofCase==="wrong_quote_precision_201") checkout.quoted_void=20.0000001;
+          if (proofCase==="private_instruction_key_201") {
+            checkout.payment_instructions={
+              ...checkout.payment_instructions,
+              private_request_dir:"SENTINEL_PRIVATE_REQUEST_DIRECTORY",
+            };
+          }
+          mutated.request=checkout;
+        }
+        if ([
+          "private_safety_key_201",
+          "private_contract_key_201",
+          "private_acknowledgements_key_201",
+        ].includes(proofCase)) {
+          const checkout = { ...mutated.request };
+          const privateValue = "SENTINEL_PRIVATE_CHECKOUT_NESTED_METADATA";
+          if (proofCase === "private_safety_key_201") {
+            checkout.safety = {
+              ...checkout.safety, private_signer_hint: privateValue,
+            };
+          } else if (proofCase === "private_contract_key_201") {
+            checkout.request_contract = {
+              ...checkout.request_contract, private_customer_path: privateValue,
+            };
+          } else {
+            checkout.acknowledgements = {
+              self_custody: true,
+              native_usdc: true,
+              request_before_payment: true,
+              sender_equals_void_destination: true,
+              no_automatic_fulfillment: true,
+              private_provisioning_note: privateValue,
+            };
+          }
+          mutated.request = checkout;
+        }
+        if (proofCase === "expired_instruction_201" ||
+            proofCase === "overlong_instruction_201" ||
+            proofCase === "future_created_201") {
+          const now = Date.now();
+          const checkout = { ...mutated.request };
+          const payment = { ...checkout.payment_instructions };
+          const authority = { ...checkout.launch_authority };
+          if (proofCase === "expired_instruction_201") {
+            checkout.created_at_ms = now - 6 * 60_000;
+            payment.expires_at_ms = now - 60_000;
+          } else if (proofCase === "overlong_instruction_201") {
+            checkout.created_at_ms = now;
+            payment.expires_at_ms = now + 20 * 60_000;
+          } else {
+            checkout.created_at_ms = now + 60_000;
+            payment.expires_at_ms = checkout.created_at_ms + 4 * 60_000;
+          }
+          authority.expires_at_ms = payment.expires_at_ms;
+          checkout.launch_authority = authority;
+          checkout.payment_instructions = payment;
+          mutated.request = checkout;
+        }
+        if (proofCase === "extra_outer_private_201") {
+          mutated.internal_custody_path =
+            "SENTINEL_PRIVATE_BUY_ALLOCATION_CUSTODY_PATH";
+        }
+        if (proofCase === "extra_checkout_private_201" ||
+            proofCase === "extra_legacy_checkout_private_201") {
+          mutated.request = {
+            ...mutated.request,
+            internal_ledger_path:
+              "SENTINEL_PRIVATE_BUY_REQUESTS_LEDGER_PATH",
+          };
+          if (proofCase === "extra_legacy_checkout_private_201") {
+            mutated.request.persisted = {
+              ok: true,
+              file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+            };
+          }
+        }
+        if (proofCase === "private_path_201" ||
+            proofCase === "nonstring_file_201" ||
+            proofCase === "extra_persisted_metadata_201") {
+          const legacyPersisted = {
+            ok: true,
+            file: "/var/lib/void/SENTINEL_PRIVATE_BUY_REQUEST_DIR/request.json",
+          };
+          if (proofCase === "nonstring_file_201") legacyPersisted.file = 123;
+          if (proofCase === "extra_persisted_metadata_201") {
+            legacyPersisted.private_note = "SENTINEL_PRIVATE_BUYER_NOTE";
+          }
+          mutated.request = { ...mutated.request, persisted: legacyPersisted };
+        }
+        const body = proofCase === "empty_object_201"
+          ? "{}" : JSON.stringify(mutated);
+        res.writeHead(201, {
+          "content-type": "application/json",
+          ...(proofCase === "private_path_201" ? {
+            etag: '"SENTINEL_PRIVATE_BUY_REQUEST_ETAG"',
+          } : {}),
+        });
+        res.end(body);
+        return;
+      }
+      if (proofCase === "malformed_json_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end('{"ok":');
+        return;
+      }
+      if (proofCase === "primitive_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        // Truthy valid JSON primitive specifically falsifies removal of
+        // the typeof === object gate; null alone is too weak a negative.
+        res.end("true");
+        return;
+      }
+      if (proofCase === "array_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end("[1,2]");
+        return;
+      }
+      if (proofCase === "header_nonjson_pending") {
+        res.once("close", () => { headerRejectedSocketClosed = true; });
+        res.writeHead(200, { "content-type": "text/html" });
+        res.write("<html>still-open");
+        return;
+      }
+      if (proofCase === "invalid_utf8_201") {
+        res.writeHead(201, { "content-type": "application/json" });
+        res.end(Buffer.from([0xc3,0x28]));
+        return;
+      }
+      if (proofCase === "declared_oversize") {
+        res.writeHead(400, {
+          "content-type": "application/json",
+          "content-length": "131073",
+        });
+        res.end();
+        return;
+      }
+      if (proofCase === "chunked_oversize") {
+        res.writeHead(400, {
+          "content-type": "application/json",
+          "transfer-encoding": "chunked",
+        });
+        res.end("x".repeat(131073));
+        return;
+      }
+      if (proofCase === "non_json") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end("<html>Not a checkout receipt</html>");
+        return;
+      }
+      if (proofCase === "redirect") {
+        res.writeHead(302, {
+          "content-type": "application/json",
+          location: "/__void/buy-void/request",
+        });
+        res.end("{}");
+        return;
+      }
+      if (proofCase === "hanging_reply") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"ok":');
+        return;
+      }
+      if (proofCase === "max_size_valid") {
+        const prefix = '{"ok":false,"padding":"';
+        const suffix = '"}';
+        const payload = prefix +
+          "a".repeat(131072 - Buffer.byteLength(prefix) - Buffer.byteLength(suffix)) +
+          suffix;
+        assert.equal(Buffer.byteLength(payload), 131072);
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(payload);
+        return;
+      }
       const payload = JSON.stringify({
         ok: false,
         marker:
@@ -305,10 +1232,11 @@ try {
 
   const postBody =
     await postResponse.json();
-  assert.equal(
-    postBody.marker,
-    "VOID_BUY_VOID_PUBLIC_EDGE_POST_PROXY_V1_PROOF",
-  );
+  assert.deepEqual(postBody, {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  }, "backend's arbitrary validation body may not cross public edge");
   assert.equal(
     upstreamCalls.length,
     1,
@@ -325,6 +1253,456 @@ try {
     },
   );
 
+
+  // Everything below is an inert POST to the isolated fake upstream.
+  // The public edge must not turn oversized/stalled replies into receipts.
+  const edgeUrl = `http://127.0.0.1:${gatewayPort}/__void/buy-void/request`;
+  // An unfinished public POST must expire BEFORE the upstream 8s response
+  // deadline is even allocated. Both cases stream one byte immediately but
+  // never terminate their HTTP chunked body. The trickle keeps the socket
+  // active below any inactivity threshold; neither may cause an upstream POST.
+  const upstreamBeforeSlowUploads = upstreamCalls.length;
+  const slowUploadResults = await Promise.all(
+    ["single_byte_stall", "indefinite_trickle"].map((variant) =>
+      new Promise((resolve, reject) => {
+        const started = Date.now();
+        let finished = false;
+        let interval;
+        const client = http.request(
+          edgeUrl, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "transfer-encoding": "chunked",
+            },
+          },
+        );
+        const watchdog = setTimeout(() => {
+          if (finished) return;
+          finished = true;
+          if (interval) clearInterval(interval);
+          client.destroy();
+          reject(new Error("slow_upload_did_not_terminate:" + variant));
+        }, 14_000);
+        const finish = (kind, status) => {
+          if (finished) return;
+          finished = true;
+          if (interval) clearInterval(interval);
+          clearTimeout(watchdog);
+          resolve({ variant, kind, status, elapsed: Date.now() - started });
+        };
+        client.on("response", (response) => {
+          // A valid HTTP 201 must NEVER be returned for an incomplete upload.
+          response.resume();
+          response.on("end", () => finish("response", response.statusCode));
+          response.on("error", () => finish("closed", 0));
+        });
+        client.on("error", () => finish("closed", 0));
+        client.on("close", () => finish("closed", 0));
+        client.write("{");
+        if (variant === "indefinite_trickle") {
+          interval = setInterval(() => {
+            if (!finished && !client.destroyed) client.write(" ");
+          }, 200);
+        }
+      }),
+    ),
+  );
+  for (const outcome of slowUploadResults) {
+    assert.ok(outcome.elapsed >= 5000 && outcome.elapsed < 13_500,
+      "one absolute upload deadline must end " + outcome.variant);
+    assert.notEqual(outcome.status, 201,
+      "partial upload must never be reported as a created request");
+  }
+  assert.equal(upstreamCalls.length, upstreamBeforeSlowUploads,
+    "stalled or trickled public uploads must not create upstream requests");
+
+  // A peer that exceeds the byte cap without ending its chunked upload
+  // must receive a real 413 *and* lose its socket promptly. Returning 413
+  // but clearing the upload clock while leaving the socket open is unsafe.
+  const oversizedStartedAt = Date.now();
+  const oversizedBeforeUpstream = upstreamCalls.length;
+  const oversizedOutcome = await new Promise((resolve, reject) => {
+    let finished = false;
+    let observedStatus = null;
+    let observedConnection = null;
+    let receivedComplete413 = false;
+    const client = http.request(edgeUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "transfer-encoding": "chunked",
+      },
+    });
+    const timer = setTimeout(() => {
+      client.destroy();
+      done(new Error("oversized_upload_connection_not_closed"));
+    }, 6_000);
+    function done(error, result = null) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    client.once("response", (response) => {
+      observedStatus = response.statusCode;
+      observedConnection = response.headers.connection;
+      response.resume();
+      response.once("end", () => {
+        receivedComplete413 = true;
+      });
+    });
+    client.once("error", (error) => {
+      done(new Error("oversized_upload_did_not_preserve_413:" +
+        String(error?.code || error?.message || error)));
+    });
+    client.once("close", () => {
+      if (!receivedComplete413 || observedStatus !== 413) {
+        done(new Error("oversized_upload_missing_complete_413"));
+      } else {
+        done(null, {
+          status: observedStatus,
+          connection: observedConnection,
+          elapsed: Date.now() - oversizedStartedAt,
+        });
+      }
+    });
+    client.write("x".repeat(65_537));
+    // Deliberately do not end the upload. Only the server may retire it.
+  });
+  assert.equal(oversizedOutcome.status, 413);
+  assert.equal(oversizedOutcome.connection, "close");
+  assert.ok(oversizedOutcome.elapsed < 5_500,
+    "oversized socket cannot survive to the 8s upload fallback");
+  assert.equal(upstreamCalls.length, oversizedBeforeUpstream,
+    "oversize rejection cannot dispatch an upstream purchase request");
+
+  const postProof = async (proofCase, signal, intentOverrides = null) => {
+    const before = upstreamCalls.length;
+    const response = await fetch(edgeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        __edge_proof_case: proofCase,
+        ...(intentOverrides ?? {
+          void_destination_address: "0x1111111111111111111111111111111111111111",
+          requested_amount_usdc: "10.000000",
+          source_chain: "base",
+        }),
+      }),
+      redirect: "manual",
+      ...(signal ? { signal } : {}),
+    });
+    assert.equal(upstreamCalls.length, before + 1, proofCase);
+    assert.equal(response.headers.get(
+      "x-void-public-buy-void-post-proxy"), "v1", proofCase);
+    assert.equal(response.headers.get("cache-control"), "no-store", proofCase);
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff", proofCase);
+    return response;
+  };
+  const valid201 = await postProof("valid_201");
+  assert.equal(valid201.status, 201, "legitimate checkout HTTP 201 retained");
+  assert.equal(valid201.headers.get("etag"), null,
+    "opaque upstream ETag is not public receipt authority");
+  assert.equal(valid201.headers.get("content-type"),
+    "application/json; charset=utf-8");
+  const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
+  assert.deepEqual(accepted201Bytes, Buffer.from(exactAccepted201Json,"utf8"),
+    "HTTP 201 byte-for-byte body must not be parsed and reserialized");
+  assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
+    exactAccepted201Receipt);
+
+  // Canonical main still emits {ok:true,file:<private path>} on HTTP 201.
+  // That 201 is valid, but its private file path and original ETag must
+  // never leave the edge. The safe successor {ok:true} stays byte-preserved.
+  const legacy201 = await postProof("private_path_201");
+  assert.equal(legacy201.status, 201, "legacy successful request stays 201");
+  assert.equal(legacy201.headers.get("etag"), null,
+    "sanitized response must not inherit an upstream private ETag");
+  const legacyPublicText = await legacy201.text();
+  assert.equal(legacyPublicText.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),
+    false, "private sidecar path must never be public");
+  assert.deepEqual(JSON.parse(legacyPublicText), exactAccepted201Receipt);
+
+  // Backend accepts reviewed legacy field aliases; the added receipt/
+  // intent-binding check must not silently break a valid older API client.
+  for (const acceptedLegacyIntent of [
+    {
+      delivery_wallet: "0x1111111111111111111111111111111111111111",
+      usdc_amount: "10.000000",
+      payment_chain: "base",
+    },
+    {
+      wallet: "0x1111111111111111111111111111111111111111",
+      amount: "10.000000",
+      chain: "base",
+    },
+  ]) {
+    const alias201 = await postProof("valid_201", undefined,
+      acceptedLegacyIntent);
+    assert.equal(alias201.status, 201,
+      "legacy accepted amount/wallet/rail spelling must remain valid");
+    assert.deepEqual(Buffer.from(await alias201.arrayBuffer()),
+      Buffer.from(exactAccepted201Json, "utf8"));
+  }
+
+  // This is a second, complete receipt forwarding check. The independent
+  // browser Draft #2818 owns *actual consumer* validation of these fields.
+  const full201 = await postProof("full_client_contract_201");
+  assert.equal(full201.status, 201);
+  assert.equal(full201.headers.get("etag"), null,
+    "even a fully qualified nonlegacy receipt must not forward upstream ETag");
+  const full201Bytes = Buffer.from(await full201.arrayBuffer());
+  assert.deepEqual(full201Bytes, Buffer.from(fullAccepted201Json, "utf8"),
+    "full native-USDC buyer receipt must preserve every original byte");
+  const fullReceipt = JSON.parse(full201Bytes.toString("utf8"));
+  assert.deepEqual(fullReceipt, fullAccepted201Receipt);
+
+  // Also exercise the *complete* node receipt with legacy persisted.file.
+  // All canonical payment instructions remain intact after field redaction.
+  const fullLegacy = await postProof("full_client_contract_legacy_file_201");
+  assert.equal(fullLegacy.status, 201);
+  assert.equal(fullLegacy.headers.get("etag"), null);
+  const fullLegacyPublic = await fullLegacy.text();
+  assert.equal(fullLegacyPublic.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),
+    false);
+  assert.equal(fullLegacyPublic.includes("SENTINEL_PRIVATE_BUY_REQUEST_ETAG"),
+    false);
+  assert.deepEqual(JSON.parse(fullLegacyPublic), fullAccepted201Receipt);
+  assert.equal(fullReceipt.request.created_at_ms + 4*60*1000,
+    fullReceipt.request.payment_instructions.expires_at_ms);
+  assert.equal(fullReceipt.request.launch_authority.expires_at_ms,
+    fullReceipt.request.payment_instructions.expires_at_ms);
+  assert.equal(fullReceipt.request.payment_instructions.send_from.toLowerCase(),
+    fullReceipt.request.void_destination_address.toLowerCase());
+  assert.equal(fullReceipt.request.payment_instructions.send_to.toLowerCase(),
+    full201Receiver);
+  assert.deepEqual(fullReceipt.request.persisted, {ok:true});
+  assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
+    full201BaseUsdc.toLowerCase());
+
+  // These are *independent* canonical-money assertions, not comparisons
+  // against the fixture object used to generate the server's HTTP response.
+  // A mutated upstream fixture must not silently redefine our claimed
+  // Base-native-USDC checkout identity.
+  assert.equal(fullReceipt.schema,
+    "void_public_buy_void_checkout_request_result_v1");
+  assert.equal(fullReceipt.marker,
+    "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1");
+  assert.equal(fullReceipt.ok, true);
+  assert.equal(fullReceipt.idempotent, false);
+  assert.equal(fullReceipt.one_active_request_cap_enforced, true);
+  assert.equal(fullReceipt.request.schema,
+    "void_public_buy_void_checkout_request_v1");
+  assert.equal(fullReceipt.request.marker,
+    "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1");
+  assert.equal(fullReceipt.request.ok, true);
+  assert.equal(fullReceipt.request.request_id,
+    "buyvoid_edge_full_base_aaaaaaaa");
+  assert.equal(fullReceipt.request.status, "awaiting_payment_tx_hash");
+  assert.equal(fullReceipt.request.tx_hash, "");
+  assert.equal(fullReceipt.request.source_chain, "base");
+  assert.equal(fullReceipt.request.payment_chain, "base");
+  assert.equal(fullReceipt.request.payment_chain_id, 8453);
+  assert.equal(fullReceipt.request.delivery_chain, "void");
+  assert.equal(fullReceipt.request.delivery_chain_id, 2050);
+  assert.equal(fullReceipt.request.asset_in, "USDC");
+  assert.equal(fullReceipt.request.usdc_decimals, 6);
+  assert.equal(fullReceipt.request.usdc_amount, 10);
+  assert.equal(fullReceipt.request.requested_amount_usdc, 10);
+  assert.equal(fullReceipt.request.usdc_contract.toLowerCase(),
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(fullReceipt.request.receive_address.toLowerCase(),
+    "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5");
+  assert.equal(fullReceipt.request.void_destination_address.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.delivery_address.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.delivery_wallet.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.payment_instructions.request_id,
+    "buyvoid_edge_full_base_aaaaaaaa");
+  assert.equal(fullReceipt.request.payment_instructions.send_asset, "USDC");
+  assert.equal(fullReceipt.request.payment_instructions.send_chain, "base");
+  assert.equal(fullReceipt.request.payment_instructions.send_chain_id, 8453);
+  assert.equal(fullReceipt.request.payment_instructions.token_contract.toLowerCase(),
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
+  assert.equal(fullReceipt.request.payment_instructions.token_decimals, 6);
+  assert.equal(fullReceipt.request.payment_instructions.amount, 10);
+  assert.equal(fullReceipt.request.payment_instructions.send_to.toLowerCase(),
+    "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5");
+  assert.equal(fullReceipt.request.payment_instructions.send_from.toLowerCase(),
+    "0x1111111111111111111111111111111111111111");
+  assert.equal(fullReceipt.request.payment_instructions.do_not_send_before_request,
+    true);
+  assert.equal(fullReceipt.request.payment_instructions.keep_transaction_hash,
+    true);
+  assert.equal(fullReceipt.request.payment_instructions.do_not_send_from_exchange_or_pooled_custody,
+    true);
+  assert.equal(fullReceipt.request.request_contract.request_before_payment_required,
+    true);
+  assert.equal(fullReceipt.request.request_contract.one_active_request_per_void_destination,
+    true);
+  assert.equal(fullReceipt.request.request_contract.payment_sender_must_equal_void_destination,
+    true);
+  assert.equal(fullReceipt.request.request_contract.payment_tx_hash_bound_after_request_by_operator,
+    true);
+  assert.equal(fullReceipt.request.safety.automatic_fulfillment, false);
+  assert.equal(fullReceipt.request.safety.manual_review_required, true);
+  assert.equal(fullReceipt.request.payment_instructions.expires_at_ms -
+    fullReceipt.request.created_at_ms, 4 * 60 * 1000);
+
+  // Exact 131,072-byte response must be fully accepted (400), not misread
+  // as over-limit (502), but its unreviewed original body is never public.
+  // Partial upgrade: canonical main's retired writer returns private buyer
+  // request bytes on idempotent HTTP 200 and prior buyer ID/status on 409.
+  // The new edge must refuse that disclosure even before #2811 is installed.
+  for (const [scenario, expectedStatus] of [
+    ["legacy_reuse_private_200", 502],
+    ["legacy_private_400", 400],
+    ["legacy_conflict_private_409", 409],
+    ["legacy_private_503", 503],
+    ["legacy_private_500", 502],
+  ]) {
+    const refused = await postProof(scenario);
+    assert.equal(refused.status, expectedStatus, scenario);
+    assert.equal(refused.headers.get("etag"), null, scenario);
+    assert.equal(refused.headers.get("x-private-request-id"), null, scenario);
+    assert.equal(refused.headers.get("cache-control"), "no-store", scenario);
+    assert.equal(refused.headers.get("content-type"),
+      "application/json; charset=utf-8", scenario);
+    const publicText = await refused.text();
+    assert.deepEqual(JSON.parse(publicText), {
+      ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+    }, scenario);
+    for (const privateValue of [
+      "SENTINEL_PRIOR_BUYER_REQUEST_9922",
+      "SENTINEL_PRIOR_BUYER_ACCOUNT_9922",
+      "SENTINEL_PRIOR_BUYER_NOTE_9922",
+      "SENTINEL_PRIOR_BUYER_HASH_9922",
+      "SENTINEL_PRIOR_BUYER_RECEIVER_9922",
+      "SENTINEL_PRIOR_BUYER_STATUS_9922",
+      "SENTINEL_PRIOR_BUYER_ETAG_9922",
+      "existing_request_id", "existing_status",
+      "payment_instructions", "idempotent",
+    ]) {
+      assert.equal(publicText.includes(privateValue), false,
+        scenario + ":" + privateValue);
+    }
+  }
+
+  const maximumValid = await postProof("max_size_valid");
+  assert.equal(maximumValid.status, 400);
+  assert.deepEqual(await maximumValid.json(), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  });
+
+  for (const scenario of [
+    "declared_oversize",
+    "chunked_oversize",
+    "non_json",
+    "redirect",
+    "malformed_json_201",
+    "invalid_utf8_201",
+    "primitive_201",
+    "array_201",
+    "empty_object_201",
+    "false_ok_201",
+    "wrong_marker_201",
+    "idempotent_201",
+    "missing_request_201",
+    "wrong_request_status_201",
+    "nonstring_file_201",
+    "extra_persisted_metadata_201",
+    "wrong_outer_schema_201",
+    "missing_outer_schema_201",
+    "wrong_inner_schema_201",
+    "missing_inner_schema_201",
+    "missing_persisted_201",
+    "false_persisted_ok_201",
+    "nonobject_persisted_201",
+    "missing_request_id_201",
+    "false_request_ok_201",
+    "wrong_inner_marker_201",
+    "wrong_intent_destination_201",
+    "wrong_intent_amount_201",
+    "wrong_intent_chain_201",
+    "wrong_payment_receiver_201",
+    "wrong_payment_sender_201",
+    "wrong_payment_token_201",
+    "wrong_payment_chain_id_201",
+    "wrong_payment_amount_201",
+    "wrong_payment_expiry_201",
+    "wrong_payment_request_id_201",
+    "missing_payment_instructions_201",
+    "wrong_public_receiver_201",
+    "unsafe_payment_flag_201",
+    "unsupported_payment_contract_201",
+    "wrong_void_quote_201",
+    "wrong_void_price_201",
+    "wrong_void_rate_201",
+    "wrong_void_pool_201",
+    "wrong_original_usdc_201",
+    "wrong_quote_precision_201",
+    "private_instruction_key_201",
+    "private_safety_key_201",
+    "private_contract_key_201",
+    "private_acknowledgements_key_201",
+    "expired_instruction_201",
+    "overlong_instruction_201",
+    "future_created_201",
+    "extra_outer_private_201",
+    "extra_checkout_private_201",
+    "extra_legacy_checkout_private_201",
+  ]) {
+    const refused = await postProof(scenario);
+    assert.equal(refused.status, 502, scenario);
+    assert.deepEqual(await refused.json(), {
+      ok: false,
+      error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+    }, scenario);
+  }
+
+  const refusedOpenBody = await postProof("header_nonjson_pending");
+  assert.equal(refusedOpenBody.status, 502);
+  assert.deepEqual(await refusedOpenBody.json(), {
+    ok: false, error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  });
+  const earlyCloseStartedAt = Date.now();
+  for (let attempt=0;attempt<100 && !headerRejectedSocketClosed;attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 40));
+  }
+  assert.equal(headerRejectedSocketClosed, true,
+    "header-rejected upstream body must be cancelled before fallback abort");
+  assert.ok(Date.now() - earlyCloseStartedAt < 6000,
+    "rejected body close cannot rely on the eight-second fallback");
+
+  const stallStartedAt = Date.now();
+  const stalled = await postProof(
+    "hanging_reply",
+    AbortSignal.timeout(14000),
+  );
+  const stalledElapsedMs = Date.now() - stallStartedAt;
+  assert.equal(stalled.status, 502, "stalled upstream body must fail closed");
+  assert.deepEqual(await stalled.json(), {
+    ok: false,
+    error: "buy_void_request_upstream_unavailable",
+    submission_outcome: "uncertain",
+    automatic_retry_safe: false,
+  });
+  assert.ok(stalledElapsedMs >= 5000 && stalledElapsedMs < 13000,
+    "upstream response must have a finite total deadline");
+
+  const forwardedBeforeUnrelatedPost = upstreamCalls.length;
   const unrelatedPost =
     await fetch(
       `http://127.0.0.1:${gatewayPort}/__void/buy-void/config.json`,
@@ -345,7 +1723,8 @@ try {
   );
   assert.equal(
     upstreamCalls.length,
-    1,
+    forwardedBeforeUnrelatedPost,
+    "unrelated POST must not reach upstream after the new edge tests",
   );
 
   const legacyGet =
@@ -415,6 +1794,53 @@ try {
   console.log(
     "upstream_status_preserved=true",
   );
+  console.log("upstream_response_byte_ceiling=131072");
+  console.log("upstream_declared_oversize_rejected=true");
+  console.log("upstream_streamed_oversize_rejected=true");
+  console.log("upstream_redirect_and_nonjson_rejected=true");
+  console.log("valid_checkout_201_pass_through=true");
+  console.log("retired_200_full_prior_buyer_record_redacted=true");
+  console.log("retired_409_prior_buyer_identity_redacted=true");
+  console.log("all_non201_backend_json_sanitized=true");
+  console.log("all_non201_200_400_409_503_500_sentinels_redacted=true");
+  console.log("all_non201_fixtures_seed_private_identity_and_cache_headers=true");
+  console.log("uncertain_submission_outcome_explicit_no_retry=true");
+  console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("nested_safety_contract_acknowledgement_private_keys_refused=true");
+  console.log("legacy_201_private_path_redacted_without_losing_success=true");
+  console.log("full_legacy_201_payment_instructions_preserved=true");
+  console.log("unexpected_persisted_metadata_holds=true");
+  console.log("http201_destination_amount_chain_match_submitted_intent=true");
+  console.log("public_request_legacy_intent_aliases_preserved=true");
+  console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
+  console.log("full_native_usdc_independent_chain_amount_identities=true");
+  console.log("canonical_payment_instructions_recipient_token_rail_and_amount_bound=true");
+  console.log("all_201_upstream_etags_suppressed=true");
+  console.log("public_api_201_void_quote_rate_price_pool_exact=true");
+  console.log("public_api_201_extra_payment_instruction_key_rejected=true");
+  console.log("public_api_201_stale_overlong_future_lease_refused=true");
+  console.log("public_api_201_unknown_outer_and_request_keys_refused=true");
+  console.log("independent_201_outer_and_inner_schema_mismatch_refused=true");
+  console.log("independent_201_missing_false_nonobject_persistence_refused=true");
+  console.log("independent_201_request_id_ok_marker_refused=true");
+  console.log("public_201_private_persistence_path_refused=true");
+  console.log("malformed_json_201_rejected=true");
+  console.log("invalid_utf8_201_rejected=true");
+  console.log("primitive_and_array_201_refused=true");
+  console.log("raw_noncanonical_201_bytes_preserved=true");
+  console.log("header_refusal_upstream_socket_closed_early=true");
+  console.log("per_read_deadline_timer_detached=true");
+  console.log("monotonic_post_race_late_header_rejected=true");
+  console.log("no_stale_http201_headers_on_postdeadline_502=true");
+  console.log("monotonic_post_race_late_upload_never_forwarded=true");
+  console.log("tiny_chunk_deadline_timer_lifetime_proven=true");
+  console.log("completed_reader_release_failure_returns_502=true");
+  console.log("truthy_json_primitive_201_refused=true");
+  console.log("upstream_total_deadline_bounded=true");
+  console.log("client_upload_absolute_deadline_bounded=true");
+  console.log("slow_trickle_and_single_chunk_zero_upstream_posts=true");
+  console.log("oversized_incomplete_upload_413_socket_closed=true");
+  console.log("max_response_size_boundary_accepted=true");
   console.log(
     "proxy_response_marker_green=true",
   );
@@ -465,6 +1891,8 @@ try {
     child.kill("SIGKILL");
   }
 
+  // Terminate the deliberate hanging-reply socket even after a failed test.
+  upstream.closeAllConnections();
   await new Promise(
     (resolve, reject) => {
       upstream.close(
