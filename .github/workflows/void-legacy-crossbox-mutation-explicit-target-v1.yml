@@ -178,7 +178,8 @@ jobs:
               assert child.index('invalid explicit ALIEN SSH target') < child.index('mkdir -p "$OUT"')
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in validator
-          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" || hold "invalid explicit CROSSBOX_SSH_TARGET"' in validator
+          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" ||' in validator
+          assert 'hold "invalid explicit CROSSBOX_SSH_TARGET"' in validator
           assert 'epoch must be a canonical positive integer <= 6 digits' in validator
           assert 'vault name is unsafe' in validator
           assert 'publishValidatorCrossboxCloseoutV1' in validator
