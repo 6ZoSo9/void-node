@@ -628,7 +628,7 @@ try{
   console.log("packet_json_last_recovery_guard=true");
   console.log("packet_leaf_hardlink_alias_rejected=true");
   console.log("nested_packet_authority_injection_rejected=true");
-  console.log("gateway_current_sha=974a1b0d825ec921a26aaca61c5560d5e29fba5f");
+  console.log("gateway_current_sha=b086b612fe5ee1dc1d5bcc4838d926af890d1435");
   console.log("ingress_version=2");
   console.log("git_config_parameters_rejected=true");
   console.log("ambient_git_loader_tool_env_excluded=true");
