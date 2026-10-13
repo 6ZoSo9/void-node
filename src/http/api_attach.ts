@@ -17,6 +17,26 @@ import { SegStore } from "../chain/seg_store.js";
 const PORT = Number(process.env.ATTACH_PORT || 4310);
 const DATA_DIR = process.env.DATA_DIR || "data";
 
+export function parseAttachBlockRange(
+  fromRaw: unknown,
+  toRaw: unknown,
+  head: number,
+): { from: number; to: number } | null {
+  const from = Number(fromRaw ?? 0);
+  const to = Number(toRaw ?? head);
+  if (
+    !Number.isSafeInteger(head) ||
+    head < -1 ||
+    !Number.isSafeInteger(from) ||
+    !Number.isSafeInteger(to) ||
+    from < 0 ||
+    to < from
+  ) {
+    return null;
+  }
+  return { from, to: Math.min(to, head) };
+}
+
 export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
   const port = Number(opts?.port ?? PORT);
   const data = String(opts?.dataDir ?? DATA_DIR);
@@ -34,13 +54,16 @@ export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
   });
 
   app.get("/blocks/range", (req, res) => {
-    const from = Number(req.query.from ?? 0);
-    const to = Number(req.query.to ?? store.loadHeadNumber());
-    if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    const range = parseAttachBlockRange(
+      req.query.from,
+      req.query.to,
+      store.loadHeadNumber(),
+    );
+    if (!range) {
       return res.status(400).json({ ok: false, error: "bad range" });
     }
     const out: any[] = [];
-    for (let n = from; n <= to; n++) {
+    for (let n = range.from; n <= range.to; n++) {
       const b = store.loadBlock(n);
       if (b) out.push(b);
     }
@@ -56,4 +79,3 @@ export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
 
 // Allow: `npx tsx src/http/api_attach.ts`
 if (process.argv[1]?.endsWith("api_attach.ts")) startAttachServer();
-
