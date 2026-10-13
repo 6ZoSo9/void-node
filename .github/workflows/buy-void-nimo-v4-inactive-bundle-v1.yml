@@ -1,0 +1,156 @@
+name: VOID Nimo V4 current-main inactive exact-wire bundle
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v4_private_stage_v1.py"
+      - ".github/workflows/buy-void-nimo-v4-inactive-bundle-v1.yml"
+      - "docs/architecture/buy-void-nimo-v4-inactive-bundle-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source without push credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact reviewed source generation
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+          git merge-base --is-ancestor 63ff562ba8402d523976b3a6ee875c06b94abe18 HEAD
+          test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "8d84955e1e093a5c5af63241e62b8722fadd2f29"
+          test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
+          test "$(git hash-object docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json)" = "73c7f88348a1d6b208336df8779940657607bd7d"
+      - name: Install pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Build exact current source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Derive and inspect unaccepted canonical V4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py
+          mkdir -p evidence
+          private="$(mktemp -d)"
+          chmod 0700 "$private"
+          trap 'rm -rf -- "$private"' EXIT
+          python3 scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py --plan > "evidence/v4-plan-${{ matrix.node }}.json"
+          python3 scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py --package "$private/void-nimo-v4-inactive.tar" > "evidence/v4-package-${{ matrix.node }}.json"
+          python3 scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py --inspect-archive "$private/void-nimo-v4-inactive.tar" > "evidence/v4-inspect-${{ matrix.node }}.json"
+          jq -e '.mode=="plan" and (.candidate_manifest_id|startswith("voidwfb4_")) and .runtime_files_exact==8 and .other_v3_runtime_files_exact==7 and .installed_nimo_v4_accepted==false and .presale_activation==false and .funds_moved==false' "evidence/v4-plan-${{ matrix.node }}.json"
+          jq -e '.mode=="package" and .installed_nimo_v4_accepted==false' "evidence/v4-package-${{ matrix.node }}.json"
+          jq -e '.mode=="inspect" and .installed_nimo_v4_accepted==false' "evidence/v4-inspect-${{ matrix.node }}.json"
+          for key in candidate_manifest_id archive_sha256 archive_bytes ledger_bytes ledger_sha256; do
+            val="$(jq -r ".$key" "evidence/v4-plan-${{ matrix.node }}.json")"
+            test "$val" = "$(jq -r ".$key" "evidence/v4-package-${{ matrix.node }}.json")"
+            test "$val" = "$(jq -r ".$key" "evidence/v4-inspect-${{ matrix.node }}.json")"
+          done
+          cp "$private/void-nimo-v4-inactive.tar" "evidence/void-nimo-v4-inactive-node-${{ matrix.node }}.tar"
+          echo "VOID_NIMO_V4_INACTIVE_REVIEW_CANDIDATE_GREEN"
+          jq -r '.candidate_manifest_id,.ledger_sha256,.ledger_bytes' "evidence/v4-plan-${{ matrix.node }}.json"
+      - name: Qualify unprivileged V4 private stage in disposable directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/void_nimo_v4_private_stage_v1.py
+          test "$(git hash-object scripts/void_nimo_v4_private_stage_v1.py)" = "b2bedf3757e42b787869cb905a7df023ef3ce3c1"
+          stage="$(mktemp -d)"
+          chmod 0700 "$stage"
+          trap 'rm -rf -- "$stage"' EXIT
+          cp "evidence/void-nimo-v4-inactive-node-${{ matrix.node }}.tar" "$stage/void-nimo-v4-inactive.tar"
+          python3 scripts/void_nimo_v4_private_stage_v1.py --plan "$stage/void-nimo-v4-inactive.tar" > "evidence/v4-stage-plan-${{ matrix.node }}.json"
+          python3 scripts/void_nimo_v4_private_stage_v1.py --self-test "$stage/void-nimo-v4-inactive.tar" > "evidence/v4-stage-self-test-${{ matrix.node }}.json"
+          for mode in plan self-test; do
+            file="evidence/v4-stage-$mode-${{ matrix.node }}.json"
+            jq -e --arg mode "$mode" '.marker=="VOID_NIMO_V4_PRIVATE_STAGE_V1" and .mode==$mode and .archive_bytes==266240 and .archive_sha256=="6bb01af17cc87dfb42b63942143458f3e95990d8ae1ef6c1671fc5cd7d4feaf8" and .candidate_manifest_id=="voidwfb4_b5d9516e5fa462ca7ed2333ebe3ef715eaf62ecdd3c0a6b049ecc9eb1e1659c2" and .runtime_files_exact==8 and .installed_nimo_v4_accepted==false and .presale_activation==false and .funds_moved==false' "$file"
+          done
+          echo "VOID_NIMO_V4_PRIVATE_STAGE_DISPOSABLE_GREEN"
+      - name: Tampered canonical archive must HOLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "evidence/void-nimo-v4-inactive-node-${{ matrix.node }}.tar" tampered.tar
+          printf 'UNREVIEWED_TAIL' >> tampered.tar
+          if python3 scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py --inspect-archive "$PWD/tampered.tar" > tamper.txt 2>&1; then
+            echo "UNEXPECTED_TAMPER_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq 'archive_noncanonical_wire_bytes' tamper.txt
+      - name: Upload non-installing V4 candidate artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v4-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          if [ -z "$BASE_SHA" ]; then
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+          else
+            git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          fi
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all three original V4 artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-v4-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+      - name: Require exact Node22/24/26 archives and receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            for kind in plan package inspect; do test -s "evidence/v4-$kind-$node.json"; done
+            for kind in plan self-test; do test -s "evidence/v4-stage-$kind-$node.json"; done
+            test -s "evidence/void-nimo-v4-inactive-node-$node.tar"
+          done
+          for kind in plan package inspect; do
+            cmp "evidence/v4-$kind-22.json" "evidence/v4-$kind-24.json"
+            cmp "evidence/v4-$kind-22.json" "evidence/v4-$kind-26.json"
+          done
+          for mode in plan self-test; do
+            cmp "evidence/v4-stage-$mode-22.json" "evidence/v4-stage-$mode-24.json"
+            cmp "evidence/v4-stage-$mode-22.json" "evidence/v4-stage-$mode-26.json"
+          done
+          cmp evidence/void-nimo-v4-inactive-node-22.tar evidence/void-nimo-v4-inactive-node-24.tar
+          cmp evidence/void-nimo-v4-inactive-node-22.tar evidence/void-nimo-v4-inactive-node-26.tar
+          echo "VOID_NIMO_V4_INACTIVE_EXACT_WIRE_CROSS_NODE_GREEN"
+          echo "installed_nimo_v4_accepted=false"
+          echo "production_gate_ready=false"
+          echo "funds_moved=false"
