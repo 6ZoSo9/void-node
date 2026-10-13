@@ -21,7 +21,7 @@ policy evaluation or collector execution**:
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
 V2 policy    9c14868ab7c3106fd0782f0d184600acbe602e2d
-V2 collector b323f6a7fe200da50c40992500f592633d3e1372
+V2 collector 8c7c1488d75133acb6159ed69e3e1660cd241ffa
 custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
 service      8961572ba5834371b1229f790a1960940fc74935
 client       fb31dbbda76c94f0ad08e38094c151a24a78b486
