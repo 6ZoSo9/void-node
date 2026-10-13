@@ -1,5 +1,13 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 13 bounded-range source generation — current source-only
+
+The public `/blocks/range` hard bound changes `src/index.ts` outside the Buy VOID request-lock route while preserving the reviewed request-lock behavior. Current exact index Git blob: `123ec1792a027f93d4c9030749a0e7e136a75a44`.
+
+The historical request-lock V1 proof remains immutable at Git blob `26bb9725b4a4639bff4b3ce4375aeb9e827830be` and must fail closed on this source generation. Current request-lock V2 proof is Git blob `94d4ef0544264a4ec23b2def7b4d31066f709310`; it freezes V1 before replaying the same request persistence/privacy adversaries against the new exact router bytes.
+
+This is source/test/CI qualification only. It does not deploy the route, enable payment intake, authorize signing or funds movement, or activate the presale/WC market.
+
 ## October 12 callback and comparison authority isolation — source-only
 
 The request helper treats same-process ambient prototype mutation as an
