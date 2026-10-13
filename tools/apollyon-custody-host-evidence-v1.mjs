@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";\nimport { pathToFileURL } from "node:url";
 
 import {
   VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
@@ -711,4 +711,47 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
     training_execution_performed:false,
     authority:VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   });
+}
+
+
+function parseCliArgsV1(argv){
+  const args=[...argv];
+  if(args.shift()!=="--collect"){
+    fail("apollyon_custody_host_evidence_cli_usage");
+  }
+  const values=Object.create(null);
+  const mapping=Object.freeze({
+    "--training-unit":"training_unit",
+    "--custody-unit":"custody_unit",
+    "--state-root":"state_root",
+    "--socket-path":"socket_path",
+  });
+  while(args.length>0){
+    const flag=args.shift();
+    const key=mapping[flag];
+    if(!key||Object.hasOwn(values,key)||args.length<1){
+      fail("apollyon_custody_host_evidence_cli_usage");
+    }
+    const value=args.shift();
+    if(typeof value!=="string"||value.length<1||value.startsWith("--")){
+      fail("apollyon_custody_host_evidence_cli_usage");
+    }
+    values[key]=value;
+  }
+  if(Object.keys(values).length!==4){
+    fail("apollyon_custody_host_evidence_cli_usage");
+  }
+  return Object.freeze(values);
+}
+
+function isDirectExecutionV1(){
+  if(!process.argv[1])return false;
+  return import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href;
+}
+
+if(isDirectExecutionV1()){
+  const result=collectApollyonCustodyHostEvidenceV1(
+    parseCliArgsV1(process.argv.slice(2)),
+  );
+  process.stdout.write(JSON.stringify(result,null,2)+"\n");
 }
