@@ -21,7 +21,7 @@ RUN_PARENT=Path("/run")
 NODE=Path("/usr/bin/node")
 RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
 REVIEWED_FILES={
-    RUNNER_REL:"156b850276e74802f0f39595078e8e212b8cb9ac",
+    RUNNER_REL:"6a302c134e3b8c592f60852815372c41a88146da",
     "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
         "06e110108c74c450074ed6500ac7f7458f49b5aa",
     "tools/apollyon-custody-host-policy-qualification-v1.mjs":
@@ -251,7 +251,8 @@ def materialize_reviewed_closure(
                 shutil.rmtree(private_root)
             except Exception as cleanup_error:
                 raise Hold(
-                    "apollyon_v2_installed_launcher_materialization_cleanup_failed"
+                    "apollyon_v2_installed_launcher_materialization_cleanup_failed:"+
+                    os.fspath(private_root)
                 ) from cleanup_error
         raise
     finally:
@@ -458,10 +459,24 @@ if __name__=="__main__":
     try:
         raise SystemExit(main())
     except Hold as exc:
-        print("HOLD="+str(exc),file=sys.stderr)
+        reason=str(exc)
+        cleanup_prefix="apollyon_v2_installed_launcher_materialization_cleanup_failed:"
+        cleanup_failed=reason.startswith(cleanup_prefix)
+        print("HOLD="+reason,file=sys.stderr)
         print("host_observation_read_only=true",file=sys.stderr)
         print("temporary_filesystem_write=true",file=sys.stderr)
-        print("persistent_host_mutation=false",file=sys.stderr)
+        if cleanup_failed:
+            print("persistent_host_mutation=unknown",file=sys.stderr)
+            print("temporary_filesystem_cleanup_proven=false",file=sys.stderr)
+            print("retained_private_tree_possible=true",file=sys.stderr)
+            print(
+                "retained_private_tree="+reason[len(cleanup_prefix):],
+                file=sys.stderr,
+            )
+        else:
+            print("persistent_host_mutation=false",file=sys.stderr)
+            print("temporary_filesystem_cleanup_proven=true",file=sys.stderr)
+            print("retained_private_tree_possible=false",file=sys.stderr)
         print("service_action=false",file=sys.stderr)
         print("attempt_claim=false",file=sys.stderr)
         print("training_execution=false",file=sys.stderr)
