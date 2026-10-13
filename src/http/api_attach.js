@@ -42,7 +42,9 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
         Number.MAX_SAFE_INTEGER - (exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
         ? recoveryFrom + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1
         : recoveryFrom;
-    var recoveryTo = validHead && head >= recoveryFrom
+    // Preserve the parser's intentional empty-range sentinel when the
+    // current head is below the requested recovery start (including head=-1).
+    var recoveryTo = validHead
         ? Math.min(head, recoveryCeiling)
         : recoveryCeiling;
     return {

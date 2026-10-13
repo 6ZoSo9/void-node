@@ -113,6 +113,16 @@ assert.deepEqual(
   },
 );
 assert.equal(attachBlockRangeErrorV1("2", "1", 1000).reason, "invalid_bounds");
+assert.deepEqual(
+  attachBlockRangeErrorV1(undefined, undefined, -1).recovery,
+  { from: 0, to: -1 },
+  "empty-store recovery must preserve the no-data sentinel",
+);
+assert.deepEqual(
+  attachBlockRangeErrorV1("1001", "invalid", 1000).recovery,
+  { from: 1001, to: 1000 },
+  "beyond-head invalid recovery must remain an empty range",
+);
 
 for (const source of [tsSource, jsSource]) {
   assert.match(source, /VOID_BLOCK_RANGE_INVALID_V1/);
