@@ -55,8 +55,7 @@ async function sendRaw(port,bytes){
   const chunks=[];
   socket.on("data",chunk=>chunks.push(Buffer.from(chunk)));
   await once(socket,"connect");
-  socket.end(bytes);
-  await once(socket,"close");
+  // Send the complete HTTP request without half-closing the TCP write side.\n  // Normal HTTP clients keep the connection open for the asynchronous response;\n  // socket.end(bytes) would trigger allowHalfOpen=false shutdown first.\n  socket.write(bytes);\n  await once(socket,"close");
   const response=Buffer.concat(chunks).toString("utf8");
   const split=response.indexOf("\r\n\r\n");
   assert(split>0,response);
