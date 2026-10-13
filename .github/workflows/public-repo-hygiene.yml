@@ -11,8 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+  # Keep trusted target runs isolated from ordinary PR jobs so a new head
+  # cannot cancel an already-running base-trusted deletion check.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && 'trusted-target' || 'ordinary' }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   public-repo-hygiene:
