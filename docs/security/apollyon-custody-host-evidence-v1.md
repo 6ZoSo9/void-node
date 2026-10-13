@@ -1,1 +1,145 @@
-# Apollyon custody host evidence v1\n\nMarker: `VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_V1`\n\nStatus: **designated-host read-only collector source**.\n\n## Purpose\n\nV83 derives the V82 host-policy evidence from live Xiphos state instead of\naccepting caller assertions.\n\nThe collector is read-only. It does not install or start V81, create users or\ngroups, change permissions/ownership, edit systemd, write custody state, access\nthe operator private key, claim an attempt, or execute training.\n\n## Why the observer is privileged\n\nThe custody root is intentionally private to a future dedicated custody UID.\nA training/runtime identity should not be able to traverse that root or inspect\nall custody-UID processes.\n\nTherefore live V83 collection requires a privileged observer and immediately\nHOLDs unless effective UID is root. That privilege is used for observation only.\n\n## Fixed observations\n\nThe live collector receives only four selectors:\n\n- training systemd unit;\n- custody systemd unit;\n- absolute custody state root;\n- absolute advertised socket path.\n\nIt derives UIDs, GIDs, group memberships, process IDs, permission decisions,\nsystemd hardening, and runtime service-control denial from the host.\n\n## Host binding\n\nLive collection requires `hostname == Xiphos` case-insensitively.\n\nIt binds a fresh evidence snapshot to the local wall clock, local monotonic\nsample, SHA-256 of the kernel boot ID, and exact reviewed V80/V81 source blobs\nimported from V82.\n\nThe collector still reports:\n\n```text\ntrusted_collector_proven=false\nverification_clock_authority_proven=false\nevidence_generation_monotonicity_proven=false\n```\n\n## Filesystem and ACL inspection\n\nV83 uses no-follow metadata reads and requires simple POSIX ACLs for reviewed\ndirectories and the socket. Named/default ACL entries are rejected rather than\nsilently ignored.\n\nIt observes the custody state root, `consumed/`, retained ancestor chain to `/`,\nsocket parent, and advertised AF_UNIX socket.\n\nTraining write/traverse/connect decisions are derived from observed UID/GID,\nsupplementary groups, owner/group/other mode bits, and the simple-ACL rule.\n\n## Process inventory\n\nV83 reads both unit MainPIDs from systemd and binds their actual `/proc`\nUID/GID/group/start-time identities.\n\nIt scans `/proc` for the custody UID. V82 receives\n`custody_uid_only_reviewed_service=true` only when the custody MainPID is the\nsole observed process using that UID.\n\n## Systemd hardening\n\nThe collector reads effective custody-unit properties for UMask,\nNoNewPrivileges, PrivateTmp/PrivateDevices, ProtectSystem/ProtectHome, kernel\nand cgroup protections, LockPersonality, RestrictSUIDSGID/RestrictRealtime,\ncapability sets, address-family restriction, and ReadWritePaths.\n\nThe exact writable-path set must equal the observed state root and socket\nparent. It is then mapped to V82's abstract `[socket_parent,state_root]` labels.\n\n## Runtime control denial\n\nV83 uses read-only polkit authorization queries for the training MainPID.\n\nIt requires denial for reviewed systemd unit-control verbs and generic\nmanager/unit-file/reload actions. The collector never executes those control\nverbs.\n\n## Success meaning\n\nA successful V83 call returns both the derived V82 classifier input and its\nsource-policy decision. It may report `live_observation_backed=true` but still\nreports:\n\n```text\nlive_host_qualification_performed=false\nindependent_custody_proven=false\nproduction_gate_ready=false\nattempt_claimed=false\ntraining_execution_performed=false\n```\n\nThose remaining trust and continuity properties require a later qualification\nreceipt or independently witnessed operator review.\n\n## Live invocation boundary\n\nNo live command is added to CI. Source CI exercises parsers and synthetic\nobservation conversion only.\n\nA future operator run must execute the collector directly on Xiphos with\nread-only privilege and supply the exact reviewed unit/path selectors.\n\n## Proof\n\n```bash\nnode --check tools/apollyon-custody-host-evidence-v1.mjs\nnode --check scripts/prove_apollyon_custody_host_evidence_v1.mjs\nnode scripts/prove_apollyon_custody_host_evidence_v1.mjs\n```\n\nThe source proof validates proc/systemd/ACL parsers, positive V82 composition,\nnegative runtime-control and process-inventory cases, wrong-host rejection, and\nabsence of filesystem/service mutation primitives.\n\n## CLI\n\nThe reviewed live entrypoint is strict and read-only:\n\n```bash\nsudo node tools/apollyon-custody-host-evidence-v1.mjs --collect \n  --training-unit <reviewed-training.service> \n  --custody-unit <reviewed-custody.service> \n  --state-root <absolute-reviewed-custody-root> \n  --socket-path <absolute-reviewed-custody.sock>\n```\n\nExactly those four selectors are accepted. The CLI has no mutation, install,\ncredential, key, wallet, transaction, training, or retry flags.\n\nThe resulting receipt hashes the state-root and socket path in its selector\nbinding instead of echoing those absolute paths.\n
+# Apollyon custody host evidence v1
+
+Marker: `VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_V1`
+
+Status: **designated-host read-only collector source**.
+
+## Purpose
+
+V83 derives the V82 host-policy evidence from live Xiphos state instead of
+accepting caller assertions.
+
+The collector is read-only. It does not install or start V81, create users or
+groups, change permissions/ownership, edit systemd, write custody state, access
+the operator private key, claim an attempt, or execute training.
+
+## Why the observer is privileged
+
+The custody root is intentionally private to a future dedicated custody UID.
+A training/runtime identity should not be able to traverse that root or inspect
+all custody-UID processes.
+
+Therefore live V83 collection requires a privileged observer and immediately
+HOLDs unless effective UID is root. That privilege is used for observation only.
+
+## Fixed observations
+
+The live collector receives only four selectors:
+
+- training systemd unit;
+- custody systemd unit;
+- absolute custody state root;
+- absolute advertised socket path.
+
+It derives UIDs, GIDs, group memberships, process IDs, permission decisions,
+systemd hardening, and runtime service-control denial from the host.
+
+## Host binding
+
+Live collection requires `hostname == Xiphos` case-insensitively.
+
+It binds a fresh evidence snapshot to the local wall clock, local monotonic
+sample, SHA-256 of the kernel boot ID, and exact reviewed V80/V81 source blobs
+imported from V82.
+
+The collector still reports:
+
+```text
+trusted_collector_proven=false
+verification_clock_authority_proven=false
+evidence_generation_monotonicity_proven=false
+```
+
+## Filesystem and ACL inspection
+
+V83 uses no-follow metadata reads and requires simple POSIX ACLs for reviewed
+directories and the socket. Named/default ACL entries are rejected rather than
+silently ignored.
+
+It observes the custody state root, `consumed/`, retained ancestor chain to `/`,
+socket parent, and advertised AF_UNIX socket.
+
+Training write/traverse/connect decisions are derived from observed UID/GID,
+supplementary groups, owner/group/other mode bits, and the simple-ACL rule.
+
+## Process inventory
+
+V83 reads both unit MainPIDs from systemd and binds their actual `/proc`
+UID/GID/group/start-time identities.
+
+It scans `/proc` for the custody UID. V82 receives
+`custody_uid_only_reviewed_service=true` only when the custody MainPID is the
+sole observed process using that UID.
+
+## Systemd hardening
+
+The collector reads effective custody-unit properties for UMask,
+NoNewPrivileges, PrivateTmp/PrivateDevices, ProtectSystem/ProtectHome, kernel
+and cgroup protections, LockPersonality, RestrictSUIDSGID/RestrictRealtime,
+capability sets, address-family restriction, and ReadWritePaths.
+
+The exact writable-path set must equal the observed state root and socket
+parent. It is then mapped to V82's abstract `[socket_parent,state_root]` labels.
+
+## Runtime control denial
+
+V83 uses read-only polkit authorization queries for the training MainPID.
+
+It requires denial for reviewed systemd unit-control verbs and generic
+manager/unit-file/reload actions. The collector never executes those control
+verbs.
+
+## Success meaning
+
+A successful V83 call returns both the derived V82 classifier input and its
+source-policy decision. It may report `live_observation_backed=true` but still
+reports:
+
+```text
+live_host_qualification_performed=false
+independent_custody_proven=false
+production_gate_ready=false
+attempt_claimed=false
+training_execution_performed=false
+```
+
+Those remaining trust and continuity properties require a later qualification
+receipt or independently witnessed operator review.
+
+## Live invocation boundary
+
+No live command is added to CI. Source CI exercises parsers and synthetic
+observation conversion only.
+
+A future operator run must execute the collector directly on Xiphos with
+read-only privilege and supply the exact reviewed unit/path selectors.
+
+## Proof
+
+```bash
+node --check tools/apollyon-custody-host-evidence-v1.mjs
+node --check scripts/prove_apollyon_custody_host_evidence_v1.mjs
+node scripts/prove_apollyon_custody_host_evidence_v1.mjs
+```
+
+The source proof validates proc/systemd/ACL parsers, positive V82 composition,
+negative runtime-control and process-inventory cases, wrong-host rejection, and
+absence of filesystem/service mutation primitives.
+
+## CLI
+
+The reviewed live entrypoint is strict and read-only:
+
+```bash
+sudo node tools/apollyon-custody-host-evidence-v1.mjs --collect 
+  --training-unit <reviewed-training.service> 
+  --custody-unit <reviewed-custody.service> 
+  --state-root <absolute-reviewed-custody-root> 
+  --socket-path <absolute-reviewed-custody.sock>
+```
+
+Exactly those four selectors are accepted. The CLI has no mutation, install,
+credential, key, wallet, transaction, training, or retry flags.
+
+The resulting receipt hashes the state-root and socket path in its selector
+binding instead of echoing those absolute paths.
