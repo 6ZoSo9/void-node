@@ -1,3 +1,4 @@
+import { buyVoidPresaleFeeEnvelopeValidV1 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -418,12 +419,15 @@ function normalizeInput(
   }
 
   const gasLimit = parsePositive(input?.gas_limit);
-  const maxFee = parsePositive(input?.max_fee_per_gas_wei);
+  const maxFee = parseNonNegative(input?.max_fee_per_gas_wei);
   const priority = parseNonNegative(input?.max_priority_fee_per_gas_wei);
   if (
     gasLimit === null ||
     maxFee === null ||
     priority === null ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      maxFee, priority, call.fulfillment_contract_address,
+    ) ||
     priority > maxFee
   ) {
     return held("payment_keyed_plan_fee_envelope_invalid");
@@ -713,7 +717,11 @@ function parseRecord(
     Number(value.nonce) < 0 ||
     !call ||
     parsePositive(value.gas_limit) === null ||
-    parsePositive(value.max_fee_per_gas_wei) === null ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      parseNonNegative(value.max_fee_per_gas_wei),
+      parseNonNegative(value.max_priority_fee_per_gas_wei),
+      call.fulfillment_contract_address,
+    ) ||
     parseNonNegative(value.max_priority_fee_per_gas_wei) === null ||
     !SHA256.test(
       text(value.runtime_policy_fingerprint_sha256).toLowerCase(),

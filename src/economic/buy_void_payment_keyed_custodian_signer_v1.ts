@@ -1,3 +1,10 @@
+import {
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
+  buyVoidPresaleMarkerFingerprintLinesV1,
+  buyVoidPresaleRequiredAccessListV1,
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import {
   Interface,
@@ -267,7 +274,7 @@ function validateRequest(
 
   const nonceBig = decimal(input.nonce, false);
   const gasLimit = decimal(input.gas_limit, true);
-  const maxFee = decimal(input.max_fee_per_gas_wei, true);
+  const maxFee = decimal(input.max_fee_per_gas_wei, false);
   const priorityFee = decimal(input.max_priority_fee_per_gas_wei, false);
   const voidAmount = decimal(input.void_amount_units, true);
   const tokenAtoms = decimal(input.token_amount_atoms, true);
@@ -277,6 +284,7 @@ function validateRequest(
     gasLimit === null ||
     maxFee === null ||
     priorityFee === null ||
+    !buyVoidPresaleFeeEnvelopeValidV1(maxFee, priorityFee, target) ||
     priorityFee > maxFee ||
     voidAmount === null ||
     tokenAtoms === null ||
@@ -357,6 +365,7 @@ function validateRequest(
       "call_fingerprint_sha256=" + callFingerprint,
       "transaction_plan_fingerprint_sha256=" + planFingerprint,
       "type=2",
+      ...buyVoidPresaleMarkerFingerprintLinesV1(target),
       "nonce=" + String(nonce),
       "gas_limit=" + gasLimit.toString(),
       "max_fee_per_gas_wei=" + maxFee.toString(),
@@ -439,6 +448,9 @@ function validateRequest(
       to: target,
       value: 0n,
       data: calldata,
+      ...(isBuyVoidEpoch2PresaleTargetV1(target)
+        ? { accessList: buyVoidPresaleRequiredAccessListV1(target) }
+        : {}),
     },
   };
 }
@@ -479,8 +491,7 @@ function validateSignedTransaction(
     transaction.maxPriorityFeePerGas !== expected.maxPriorityFeePerGas ||
     transaction.value !== 0n ||
     text(transaction.data).toLowerCase() !== expected.data.toLowerCase() ||
-    !Array.isArray(accessList) ||
-    accessList.length !== 0 ||
+    !buyVoidPresaleAccessListExactV1(accessList, expected.to) ||
     !/^0x[0-9a-f]{64}$/.test(transactionHash) ||
     transactionHash !== computedHash
   ) {

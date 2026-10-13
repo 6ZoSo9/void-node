@@ -1,3 +1,8 @@
+import {
+  buyVoidPresaleRequiredAccessListV1,
+  isBuyVoidEpoch2PresaleTargetV1,
+  buyVoidPresaleProductionRpcMatchesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import * as http from "node:http";
 import { Interface, getAddress } from "ethers";
@@ -334,6 +339,15 @@ function normalizePolicy(
     return {
       ok: false,
       reason: "payment_keyed_transaction_preparation_address_invalid",
+      fingerprint,
+    };
+  }
+  // The archived and successor economic chains share chainId 2050.
+  // Pin E2 delivery to the selected production RPC before any RPC calls.
+  if (!buyVoidPresaleProductionRpcMatchesV1(contract, normalizedUrl)) {
+    return {
+      ok: false,
+      reason: "payment_keyed_transaction_preparation_epoch2_rpc_not_selected",
       fingerprint,
     };
   }
@@ -829,7 +843,8 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
   const gasPriceResponse = await callRpc("eth_gasPrice", []);
   if (gasPriceResponse.ok === false) return gasPriceResponse.decision;
   const observedGasPrice = parseHexQuantity(gasPriceResponse.value);
-  if (observedGasPrice === null || observedGasPrice <= 0n) {
+  if (observedGasPrice === null || (observedGasPrice === 0n &&
+      !isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address))) {
     return held("payment_keyed_transaction_preparation_gas_price_invalid", {
       attempt_id: binding.attempt_id,
       rpc_url_fingerprint_sha256: policy.rpc_url_fingerprint_sha256,
@@ -839,6 +854,18 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
 
   const estimateResponse = await callRpc("eth_estimateGas", [
     {
+      ...(isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)
+        ? {
+            type: "0x2",
+            chainId: "0x802",
+            accessList: buyVoidPresaleRequiredAccessListV1(
+              policy.fulfillment_contract_address,
+            ),
+            ...(observedGasPrice === 0n
+              ? { maxFeePerGas: "0x0", maxPriorityFeePerGas: "0x0" }
+              : {}),
+          }
+        : {}),
       from: policy.fulfillment_wallet_address,
       to: policy.fulfillment_contract_address,
       value: "0x0",
@@ -886,7 +913,8 @@ export async function runBuyVoidPaymentKeyedTransactionPreparationV1(
     BPS_DENOMINATOR,
   );
   if (
-    computedMaxFee <= 0n ||
+    (computedMaxFee === 0n &&
+      !isBuyVoidEpoch2PresaleTargetV1(policy.fulfillment_contract_address)) ||
     computedMaxFee > policy.max_fee_per_gas_wei
   ) {
     return held(

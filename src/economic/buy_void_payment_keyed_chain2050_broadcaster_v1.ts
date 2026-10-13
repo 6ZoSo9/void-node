@@ -1,3 +1,4 @@
+import { buyVoidPresaleAccessListExactV1 } from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import { Interface, Transaction, getAddress } from "ethers";
 
@@ -288,7 +289,8 @@ export function inspectBuyVoidPaymentKeyedSignedTransactionV1(input: {
     transaction.type !== 2 ||
     transaction.chainId !== 2050n ||
     to !== contract ||
-    transaction.value !== 0n
+    transaction.value !== 0n ||
+    !buyVoidPresaleAccessListExactV1(transaction.accessList, contract)
   ) {
     return held(
       "payment_keyed_signed_transaction_envelope_mismatch",

@@ -10,6 +10,17 @@ const DISCOVERY_PATH = "/.well-known/void-agent-discovery.json";
 const ROUTE_PATH = "/__void/agents/paid-work/submissions/v1";
 const encoder = new TextEncoder();
 
+// Each independent negative uses its own simulated public origin. In the
+// hardened client, a response whose cancellation never finishes must keep
+// that origin quarantined; later independent fixtures cannot reuse it.
+let independentProofOriginNumber = 0;
+function independentProofOrigin() {
+  independentProofOriginNumber += 1;
+  return "https://paid-work-case-" +
+    String(independentProofOriginNumber).padStart(2, "0") +
+    ".example.invalid";
+}
+
 function bytes(text) {
   return encoder.encode(text);
 }
@@ -121,6 +132,24 @@ function unreadableBodyResponse(cancelImpl) {
   };
 }
 
+function signalIgnoringReadResponse({ cancelImpl, releaseImpl, readPromise }) {
+  return {
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        return {
+          read() {
+            return readPromise;
+          },
+          cancel: cancelImpl,
+          releaseLock: releaseImpl,
+        };
+      },
+    },
+  };
+}
+
 {
   const payload = discoveryJson();
   const fixture = makeFetch(() =>
@@ -133,7 +162,7 @@ function unreadableBodyResponse(cancelImpl) {
     }),
   );
   const result = await probeVoidAiAgentPaidWorkV1({
-    baseUrl: "https://paid-work.example.invalid",
+    baseUrl: independentProofOrigin(),
     timeoutMs: 1000,
     maxResponseBytes: 1024,
     fetchImpl: fixture.fetch,
@@ -174,7 +203,7 @@ function unreadableBodyResponse(cancelImpl) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -207,7 +236,7 @@ function unreadableBodyResponse(cancelImpl) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -240,7 +269,7 @@ function unreadableBodyResponse(cancelImpl) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -271,7 +300,7 @@ function unreadableBodyResponse(cancelImpl) {
   const started = Date.now();
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 800,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -301,7 +330,7 @@ function unreadableBodyResponse(cancelImpl) {
   });
   await expectPrimarySizeError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -337,7 +366,7 @@ function unreadableBodyResponse(cancelImpl) {
   const started = Date.now();
   await assert.rejects(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -366,14 +395,14 @@ function unreadableBodyResponse(cancelImpl) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
     }),
   );
   assert.equal(error.name, "AbortError");
-  assert.match(error.message, /synthetic_admitted_read_timeout/);
+  assert.equal(error.message, "response_body_read_timeout");
   assert.ok(Date.now() - started < 650, "admitted read timeout teardown escaped bounded cleanup window");
   assert.equal(cancelCalls, 1);
   assert.equal(abortEvents, 1);
@@ -393,14 +422,14 @@ function unreadableBodyResponse(cancelImpl) {
   );
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 120,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
     }),
   );
   assert.equal(error.name, "AbortError");
-  assert.match(error.message, /synthetic_admitted_read_failure/);
+  assert.equal(error.message, "response_body_read_timeout");
   assert.equal(cancelCalls, 1);
 }
 
@@ -419,7 +448,7 @@ function unreadableBodyResponse(cancelImpl) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 800,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -441,7 +470,7 @@ function unreadableBodyResponse(cancelImpl) {
   );
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -466,7 +495,7 @@ function unreadableBodyResponse(cancelImpl) {
   const started = Date.now();
   const error = await capturePrimaryError(
     () => probeVoidAiAgentPaidWorkV1({
-      baseUrl: "https://paid-work.example.invalid",
+      baseUrl: independentProofOrigin(),
       timeoutMs: 1000,
       maxResponseBytes: 1024,
       fetchImpl: fixture.fetch,
@@ -477,6 +506,1002 @@ function unreadableBodyResponse(cancelImpl) {
   assert.equal(abortEvents, 1);
 }
 
+{
+  let settleRead;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => {
+    settleRead = resolve;
+  });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() {
+      cancelCalls += 1;
+    },
+    releaseImpl() {
+      releaseCalls += 1;
+    },
+  }));
+  const baseUrl = "https://late-read.example.invalid";
+  const started = Date.now();
+  const timeout = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.ok(Date.now() - started < 500, "signal-ignoring read escaped owned deadline");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0, "pending read lock must remain owned");
+
+  const quarantined = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1, "quarantine must prevent replacement fetch generation");
+
+  settleRead({ done: true, value: undefined });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "late settlement must release the retained reader lock");
+
+  const recoveredPayload = discoveryJson();
+  const recovered = makeFetch(() => new Response(recoveredPayload, {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  const recoveredResult = await probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: recovered.fetch,
+  });
+  assert.equal(recoveredResult.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// Untrusted response status must be sampled once: 301 then 500 must not
+// bypass redirect refusal, or release an active body whose cancel has failed.
+{
+  let statusReads = 0, cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    get status() { statusReads += 1; return statusReads === 1 ? 301 : 500; },
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_status_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://mutable-status-redirect.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message, "redirect_forbidden:301");
+  assert.equal(statusReads, 1, "must not read mutable HTTP status twice");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A throwing status accessor must preserve the original error and the same
+// admitted response body instead of releasing a live origin generation.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    get status() { throw new Error("synthetic_status_getter_failure"); },
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_status_body_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://throwing-status-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_status_getter_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// Both the headers property accessor and the captured get() method may fail.
+// These are ordinary response-body cleanup obligations, not fresh admissions.
+for (const failureCase of ["headers_property", "headers_get_method"]) {
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    get headers() {
+      if (failureCase === "headers_property") {
+        throw new Error("synthetic_headers_property_failure");
+      }
+      return { get() { throw new Error("synthetic_headers_get_failure"); } };
+    },
+    body: { cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_headers_cancel_failure"));
+    } },
+  }));
+  const baseUrl = "https://throwing-" + failureCase + ".example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    failureCase === "headers_property"
+      ? "synthetic_headers_property_failure" : "synthetic_headers_get_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// Cancellation capability must be bound *before* AbortSignal callbacks.
+// A synchronous abort listener may replace the original never-settling
+// cancel method with a resolved no-op. That fake must not release the slot.
+{
+  let originalCancelCalls = 0;
+  let fakeCancelCalls = 0;
+  let abortEvents = 0;
+  const fixture = makeFetch((signal) => {
+    const body = {
+      cancel() {
+        originalCancelCalls += 1;
+        return new Promise(() => {});
+      },
+    };
+    signal.addEventListener("abort", () => {
+      abortEvents += 1;
+      body.cancel = () => {
+        fakeCancelCalls += 1;
+        return Promise.resolve();
+      };
+    }, { once: true });
+    return {
+      status: 200,
+      headers: new Headers({ "content-length": "2048" }),
+      body,
+    };
+  });
+  const baseUrl = "https://abort-swaps-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(abortEvents, 1);
+  assert.equal(originalCancelCalls, 1,
+    "must invoke original cancellation captured before abort listener");
+  assert.equal(fakeCancelCalls, 0, "must never invoke forged cancel function");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "one unresolved original cancellation must prevent replacement fetches");
+}
+
+// Cancellation must use the exact first method returned by a mutable
+// accessor, never a second apparent resolved no-op.
+{
+  let cancelGets = 0, realCancelCalls = 0, fakeCancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: { get cancel() {
+      cancelGets += 1;
+      return cancelGets === 1
+        ? () => { realCancelCalls += 1; return new Promise(() => {}); }
+        : () => { fakeCancelCalls += 1; return Promise.resolve(); };
+    } },
+  }));
+  const baseUrl = "https://mutable-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message, "response_too_large:2048");
+  assert.equal(cancelGets, 1, "cancel accessor may be observed only once");
+  assert.equal(realCancelCalls, 1);
+  assert.equal(fakeCancelCalls, 0, "unreviewed second cancel function forbidden");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// The same single-cancel snapshot is required for an already timed-out fetch
+// whose delayed response introduces an untrusted body after owner return.
+{
+  let resolveFetch, cancelGets = 0, realCancelCalls = 0, fakeCancelCalls = 0;
+  const lateResponse = new Promise((resolve) => { resolveFetch = resolve; });
+  let fetchCalls = 0;
+  const fetchImpl = () => { fetchCalls += 1; return lateResponse; };
+  const baseUrl = "https://mutable-late-cancel-method.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  resolveFetch({ body: { get cancel() {
+    cancelGets += 1;
+    return cancelGets === 1
+      ? () => { realCancelCalls += 1; return new Promise(() => {}); }
+      : () => { fakeCancelCalls += 1; return Promise.resolve(); };
+  } } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(cancelGets, 1);
+  assert.equal(realCancelCalls, 1);
+  assert.equal(fakeCancelCalls, 0);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fetchCalls, 1);
+}
+
+// A mutable body accessor must be snapshotted before getReader() can throw.
+// An unsafe second read returning null cannot skip cancellation or clear the
+// origin that already owns the original body.
+{
+  let bodyAccesses = 0;
+  let cancelCalls = 0;
+  let readerCalls = 0;
+  const admittedBody = {
+    getReader() {
+      readerCalls += 1;
+      throw new Error("synthetic_acquisition_failure_original_body");
+    },
+    cancel() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_original_body_cancel_failure"));
+    },
+  };
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    get body() {
+      bodyAccesses += 1;
+      return bodyAccesses === 1 ? admittedBody : null;
+    },
+  }));
+  const baseUrl = "https://mutable-response-body.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const result = await capturePrimaryError(run);
+  assert.equal(result.message, "synthetic_acquisition_failure_original_body");
+  assert.equal(bodyAccesses, 1, "body accessor must be read only once");
+  assert.equal(readerCalls, 1);
+  assert.equal(cancelCalls, 1, "original admitted body must be cancelled");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A body accessor that throws on its *first* access cannot establish a
+// reliable cleanup target; its generation must fail closed without retries.
+{
+  let accessCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    get body() {
+      accessCalls += 1;
+      throw new Error("synthetic_body_getter_denied");
+    },
+  }));
+  const baseUrl = "https://throwing-body-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_body_getter_denied");
+  assert.equal(accessCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A throwing cancel property accessor must not overwrite the original
+// getReader() failure or be confused with confirmed cancellation.
+{
+  let readerCalls = 0;
+  let cancellationGetterCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        readerCalls += 1;
+        throw new Error("synthetic_original_reader_error");
+      },
+      get cancel() {
+        cancellationGetterCalls += 1;
+        throw new Error("synthetic_cancel_getter_error");
+      },
+    },
+  }));
+  const baseUrl = "https://throwing-cancel-getter.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  assert.equal((await capturePrimaryError(run)).message,
+    "synthetic_original_reader_error");
+  assert.equal(readerCalls, 1);
+  assert.equal(cancellationGetterCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+}
+
+// A custom getReader() may throw while the body still needs cancellation.
+{
+  let cancelCalls = 0;
+  let readerCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        readerCalls += 1;
+        throw new Error("synthetic_get_reader_failure");
+      },
+      cancel() {
+        cancelCalls += 1;
+        return Promise.reject(new Error("synthetic_acquisition_cancel_failure"));
+      },
+    },
+  }));
+  const baseUrl = "https://get-reader-failure.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failure = await capturePrimaryError(run);
+  assert.equal(failure.message, "synthetic_get_reader_failure");
+  assert.equal(cancelCalls, 1);
+  assert.equal(readerCalls, 1);
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "reader acquisition failure reentered fetch");
+  assert.equal(cancelCalls, 1);
+}
+
+// Real WHATWG Response, locked by a foreign reader: body.cancel() rejects.
+// The client must not open another origin generation during that lock.
+{
+  const sourceBody = new ReadableStream({
+    start(controller) { controller.enqueue(bytes("{")); },
+  });
+  const lockedResponse = new Response(sourceBody, {
+    status: 200, headers: { "content-type": "application/json" },
+  });
+  const externallyHeldReader = lockedResponse.body.getReader();
+  try {
+    const fixture = makeFetch(() => lockedResponse);
+    const baseUrl = "https://already-locked-body.example.invalid";
+    const run = () => probeVoidAiAgentPaidWorkV1({
+      baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+    });
+    const rejected = await capturePrimaryError(run);
+    assert.ok(rejected instanceof Error);
+    assert.notEqual(rejected.message, "response_body_read_generation_unresolved");
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+    assert.equal(fixture.calls, 1, "locked stream must keep one origin slot");
+  } finally {
+    await externallyHeldReader.cancel();
+    externallyHeldReader.releaseLock();
+  }
+}
+
+// Early rejection can leave an already-admitted response body unresolved.
+// Even if its nominal byte ceiling fails before reading, failed cleanup must
+// not allow repeated same-origin bodies to accumulate.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return Promise.reject(new Error("synthetic_oversize_cancel_rejection"));
+      },
+    },
+  }));
+  const baseUrl = "https://oversize-cancel-rejected.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    assert.equal((await capturePrimaryError(run)).message,
+      "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "failed oversize cancellation must retain origin");
+  assert.equal(cancelCalls, 1);
+}
+
+// Malformed declared length with a permanently non-settling cancellation
+// retains the original generation but does not hang the original caller.
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "invalid" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+  }));
+  const baseUrl = "https://invalid-length-cancel-stall.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const started = Date.now();
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_content_length_invalid:invalid");
+  assert.ok(Date.now() - started < 650, "malformed length cancellation unbounded");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  assert.equal(cancelCalls, 1);
+}
+
+// An oversize streamed chunk is a non-deadline failure. Its owner keeps the
+// reader lock until cancellation is proven, even if cancellation rejects.
+{
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        return {
+          read: async () => ({ done: false, value: bytes("z".repeat(2048)) }),
+          cancel() {
+            cancelCalls += 1;
+            return Promise.reject(new Error("synthetic_stream_cancel_rejection"));
+          },
+          releaseLock() { releaseCalls += 1; },
+        };
+      },
+    },
+  }));
+  const baseUrl = "https://stream-oversize-cancel-rejected.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0, "unconfirmed cancellation must retain reader");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  assert.equal(releaseCalls, 0);
+}
+
+// The initiating response may already have returned its bounded size error.
+// A genuinely later successful cancellation must retire its original origin
+// generation, but not before the cancellation promise actually resolves.
+{
+  let finishCancel;
+  let cancelCalls = 0;
+  const pendingCancel = new Promise((resolve) => { finishCancel = resolve; });
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({ "content-length": "2048" }),
+    body: {
+      cancel() { cancelCalls += 1; return pendingCancel; },
+    },
+  }));
+  const baseUrl = "https://oversize-cancel-late-success.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const failed = await capturePrimaryError(run);
+  assert.equal(failed.message, "response_too_large:2048");
+  assert.equal(cancelCalls, 1);
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  finishCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// A partial late read is not proof that the body is terminal. If cancellation
+// rejects, neither its lock nor the origin slot may be released.
+{
+  let resolveRead;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => { resolveRead = resolve; });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_partial_cancel_rejected"));
+    },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const baseUrl = "https://partial-late-read-cancel-reject.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  resolveRead({ done: false, value: bytes("still-open") });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 0, "partial read with rejected cancel must retain lock");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const blocked = await capturePrimaryError(run);
+    assert.equal(blocked.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "partial read must not reopen origin");
+  assert.equal(cancelCalls, 1, "failed cancellation is not retried");
+}
+
+// If the owner returned after its bounded cleanup window, a subsequently
+// successful cancellation must retire the *same* partial late-read generation,
+// but only after its actual reader promise has settled.
+{
+  let resolveRead;
+  let finishCancel;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((resolve) => { resolveRead = resolve; });
+  const cancelPromise = new Promise((resolve) => { finishCancel = resolve; });
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() { cancelCalls += 1; return cancelPromise; },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const baseUrl = "https://partial-late-read-cancel-later.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  });
+  const started = Date.now();
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.ok(Date.now() - started < 650, "pending cancel exceeded bounded caller cleanup");
+  assert.equal(cancelCalls, 1);
+  resolveRead({ done: false, value: bytes("partial") });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 0, "partial late read must not release lock prematurely");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1);
+  finishCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "confirmed cancellation retires partial reader once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+  assert.equal(releaseCalls, 1);
+}
+
+// Concurrent same-origin requests must share one read-generation slot from
+// the start of fetch, not merely after the first unreadable body times out.
+{
+  let admitFetch;
+  let settleRead;
+  let fetchCalls = 0;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fetchGate = new Promise((resolve) => { admitFetch = resolve; });
+  const readPromise = new Promise((resolve) => { settleRead = resolve; });
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    return fetchGate;
+  };
+  const baseUrl = "https://parallel-pending-read.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 100,
+    maxResponseBytes: 1024,
+    fetchImpl,
+  });
+  const first = capturePrimaryError(run);
+  const contenders = Array.from({ length: 12 }, () => capturePrimaryError(run));
+  assert.equal(fetchCalls, 1, "only one same-origin fetch may start before the first read");
+  const concurrent = await Promise.all(contenders);
+  for (const rejected of concurrent) {
+    assert.equal(rejected.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fetchCalls, 1, "concurrent requests must not create alternate generations");
+
+  admitFetch(signalIgnoringReadResponse({
+    readPromise,
+    cancelImpl() { cancelCalls += 1; },
+    releaseImpl() { releaseCalls += 1; },
+  }));
+  const timedOut = await first;
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0);
+  const whilePending = await capturePrimaryError(run);
+  assert.equal(whilePending.message, "response_body_read_generation_unresolved");
+  assert.equal(fetchCalls, 1);
+
+  settleRead({ done: true, value: undefined });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "late read settles and releases the original lock once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  }));
+  const recoveredResult = await probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: recovered.fetch,
+  });
+  assert.equal(recoveredResult.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2, "late settlement must reopen the origin");
+}
+
+// The body's reader may also own an earlier abort listener installed during
+// getReader(). A raced rejection cannot change the deterministic owner error.
+{
+  let readAbortEvents = 0;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const baseUrl = "https://reader-abort-listener-order.example.invalid";
+  const fixture = makeFetch((signal) => {
+    let rejectRead;
+    const heldRead = new Promise((_, reject) => { rejectRead = reject; });
+    return {
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: {
+        getReader() {
+          signal.addEventListener("abort", () => {
+            readAbortEvents += 1;
+            rejectRead(new Error("reader_abort_listener_won_first"));
+          }, { once: true });
+          return {
+            read() { return heldRead; },
+            cancel() { cancelCalls += 1; },
+            releaseLock() { releaseCalls += 1; },
+          };
+        },
+      },
+    };
+  });
+  const result = await capturePrimaryError(() => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl: fixture.fetch,
+  }));
+  assert.equal(result.name, "AbortError");
+  assert.equal(result.message, "response_body_read_timeout");
+  assert.equal(readAbortEvents, 1);
+  assert.equal(cancelCalls, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCalls, 1, "settled rejected read must release exactly once");
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// A fetch registered before the client deadline listener can reject first
+// when AbortSignal fires. The owned timeout still outranks that custom error.
+{
+  let fetchCalls = 0;
+  const baseUrl = "https://abort-listener-order.example.invalid";
+  const fetchImpl = (_url, options) => {
+    fetchCalls += 1;
+    return new Promise((_, reject) => {
+      options.signal.addEventListener("abort", () => {
+        reject(new Error("synthetic_fetch_abort_listener_won_first"));
+      }, { once: true });
+    });
+  };
+  const result = await capturePrimaryError(() => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  }));
+  assert.equal(result.name, "AbortError");
+  assert.equal(result.message, "response_fetch_timeout",
+    "custom fetch abort rejection must not replace the owned timeout");
+  assert.equal(fetchCalls, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// Abort-ignoring fetch before response headers must not hang the owner, nor
+// allow a new same-origin generation while that original fetch is unresolved.
+{
+  let fetchCalls = 0;
+  const baseUrl = "https://never-settles-before-headers.example.invalid";
+  const fetchImpl = () => {
+    fetchCalls += 1;
+    return new Promise(() => {});
+  };
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 40, maxResponseBytes: 1024, fetchImpl,
+  });
+  const started = Date.now();
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  assert.ok(Date.now() - started < 650, "pre-header fetch exceeded owned deadline");
+  for (let i = 0; i < 4; i += 1) {
+    const quarantined = await capturePrimaryError(run);
+    assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fetchCalls, 1, "unresolved fetch must prevent replacement origin generations");
+}
+
+// A late response may own a body that ignored abort. Retain the same slot
+// through body cancellation, then reopen only on successful cleanup.
+{
+  let releaseFetch;
+  let releaseCancel;
+  let cancelCalls = 0;
+  let fetchCalls = 0;
+  const outstanding = new Promise((resolve) => { releaseFetch = resolve; });
+  const cancelled = new Promise((resolve) => { releaseCancel = resolve; });
+  const baseUrl = "https://late-fetch-cancellation.example.invalid";
+  const fetchImpl = () => {
+    fetchCalls += 1;
+    return outstanding;
+  };
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timedOut = await capturePrimaryError(run);
+  assert.equal(timedOut.name, "AbortError");
+  assert.equal(timedOut.message, "response_fetch_timeout");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  releaseFetch({
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return cancelled;
+      },
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(cancelCalls, 1, "late response body cancellation required once");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved",
+    "unfinished late cancellation must preserve original origin slot");
+  assert.equal(fetchCalls, 1);
+  releaseCancel();
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// A late fetch rejection has no response body and must retire only its own
+// generation; it cannot leave the origin quarantined indefinitely.
+{
+  let rejectFetch;
+  const outstanding = new Promise((_, reject) => { rejectFetch = reject; });
+  const baseUrl = "https://late-fetch-reject.example.invalid";
+  const fetchImpl = () => outstanding;
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 45, maxResponseBytes: 1024, fetchImpl,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_fetch_timeout");
+  rejectFetch(new Error("late_fetch_rejection"));
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = makeFetch(() => new Response(discoveryJson(), {
+    status: 200, headers: { "content-type": "application/json" },
+  }));
+  const ready = await probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 1000, maxResponseBytes: 1024, fetchImpl: recovered.fetch,
+  });
+  assert.equal(ready.discovery.http_status, 200);
+  assert.equal(recovered.calls, 2);
+}
+
+// Reader cancellation must be captured before a timeout dispatches abort.
+// An earlier synchronous listener can otherwise replace reader.cancel and
+// reject the read before bounded cleanup observes the original capability.
+{
+  let rejectRead;
+  let originalCancelCalls = 0;
+  let fakeCancelCalls = 0;
+  let releaseCalls = 0;
+  const readPromise = new Promise((_, reject) => { rejectRead = reject; });
+  const fixture = makeFetch((signal) => {
+    const reader = {
+      read() {
+        return readPromise;
+      },
+      cancel() {
+        originalCancelCalls += 1;
+        return new Promise(() => {});
+      },
+      releaseLock() {
+        releaseCalls += 1;
+      },
+    };
+    signal.addEventListener("abort", () => {
+      reader.cancel = () => {
+        fakeCancelCalls += 1;
+        return Promise.resolve();
+      };
+      rejectRead(new Error("synthetic_abort_swapped_reader_rejection"));
+    }, { once: true });
+    return {
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: { getReader() { return reader; } },
+    };
+  });
+  const baseUrl = "https://abort-swaps-reader-cancel.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl, timeoutMs: 40, maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+  const timeout = await capturePrimaryError(run);
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(originalCancelCalls, 1,
+    "must invoke reader cancellation captured before abort");
+  assert.equal(fakeCancelCalls, 0, "must never invoke forged reader cancel");
+  assert.equal(releaseCalls, 0,
+    "unconfirmed original cancellation must retain reader lock");
+  assert.equal((await capturePrimaryError(run)).message,
+    "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "unconfirmed reader cancellation must retain one origin generation");
+}
+
+{
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const fixture = makeFetch(() => signalIgnoringReadResponse({
+    readPromise: new Promise(() => {}),
+    cancelImpl() {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_signal_ignoring_cancel_failure"));
+    },
+    releaseImpl() {
+      releaseCalls += 1;
+    },
+  }));
+  const baseUrl = "https://quarantined-read.example.invalid";
+  const timeout = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl,
+      timeoutMs: 40,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(timeout.name, "AbortError");
+  assert.equal(timeout.message, "response_body_read_timeout");
+  assert.equal(cancelCalls, 1);
+  assert.equal(releaseCalls, 0);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const quarantined = await capturePrimaryError(
+      () => probeVoidAiAgentPaidWorkV1({
+        baseUrl,
+        timeoutMs: 40,
+        maxResponseBytes: 1024,
+        fetchImpl: fixture.fetch,
+      }),
+    );
+    assert.equal(quarantined.message, "response_body_read_generation_unresolved");
+  }
+  assert.equal(fixture.calls, 1, "one unresolved read must not accumulate replacement generations");
+  assert.equal(cancelCalls, 1, "unresolved read cancellation must be attempted exactly once");
+}
+
+// A terminal read whose decoded body is complete but whose reader lock cannot
+// be released must not authorize a replacement generation on the same origin.
+{
+  const payload = discoveryJson();
+  let reads = 0;
+  let releaseCalls = 0;
+  let cancelCalls = 0;
+  const fixture = makeFetch(() => ({
+    status: 200,
+    headers: new Headers({
+      "content-type": "application/json",
+      "content-length": String(bytes(payload).byteLength),
+    }),
+    body: {
+      getReader() {
+        return {
+          async read() {
+            reads += 1;
+            if (reads === 1) {
+              return { done: false, value: bytes(payload) };
+            }
+            return { done: true, value: undefined };
+          },
+          cancel() {
+            cancelCalls += 1;
+          },
+          releaseLock() {
+            releaseCalls += 1;
+            throw new Error("synthetic_terminal_release_failure");
+          },
+        };
+      },
+    },
+  }));
+  const baseUrl = "https://terminal-release-failure.example.invalid";
+  const run = () => probeVoidAiAgentPaidWorkV1({
+    baseUrl,
+    timeoutMs: 1000,
+    maxResponseBytes: 1024,
+    fetchImpl: fixture.fetch,
+  });
+
+  const first = await capturePrimaryError(run);
+  assert.equal(first.message, "response_body_read_generation_unresolved");
+  assert.equal(reads, 2);
+  assert.equal(releaseCalls, 1);
+  assert.equal(cancelCalls, 0);
+  assert.equal(fixture.calls, 1,
+    "failed terminal lock release must block the next route fetch");
+
+  const second = await capturePrimaryError(run);
+  assert.equal(second.message, "response_body_read_generation_unresolved");
+  assert.equal(fixture.calls, 1,
+    "failed terminal lock release must retain exactly one origin generation");
+  assert.equal(releaseCalls, 1);
+}
+
 console.log("VOID_AI_AGENT_PAID_WORK_CLIENT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("declared_response_bound_prebuffer=true");
 console.log("streamed_response_bound_prebuffer=true");
@@ -484,6 +1509,33 @@ console.log("malformed_content_length_fail_closed=true");
 console.log("rejection_abort_owned=true");
 console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
+console.log("signal_ignoring_read_deadline=true");
+console.log("unresolved_read_generation_quarantined=true");
+console.log("terminal_read_release_failure_quarantined=true");
+console.log("partial_late_read_failed_cancel_quarantined=true");
+console.log("oversize_body_rejected_cancel_quarantined=true");
+console.log("get_reader_throw_unconfirmed_cancel_quarantined=true");
+console.log("mutable_body_getter_cleanup_snapshot=true");
+console.log("mutable_status_redirect_refusal=true");
+console.log("throwing_status_and_header_origin_quarantined=true");
+console.log("mutable_cancel_method_snapshot=true");
+console.log("cancel_method_pinned_before_abort=true");
+console.log("reader_cancel_method_pinned_before_abort=true");
+console.log("late_fetch_mutable_cancel_snapshot=true");
+console.log("throwing_body_getter_origin_quarantined=true");
+console.log("throwing_cancel_getter_primary_error_preserved=true");
+console.log("native_locked_stream_origin_quarantined=true");
+console.log("malformed_length_pending_cancel_quarantined=true");
+console.log("stream_oversize_failed_cancel_retains_reader=true");
+console.log("late_successful_oversize_cancel_releases_origin=true");
+console.log("partial_late_read_late_confirmed_cancel_recovery=true");
+console.log("concurrent_read_generation_singleflight=true");
+console.log("signal_ignoring_fetch_total_deadline=true");
+console.log("fetch_abort_rejection_owned_timeout=true");
+console.log("reader_abort_rejection_owned_timeout=true");
+console.log("late_fetch_cancellation_retains_quarantine=true");
+console.log("late_fetch_rejection_recovery=true");
+console.log("late_read_settlement_recovery=true");
 console.log("admitted_read_failure_teardown_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("unreadable_body_teardown_bounded=true");
