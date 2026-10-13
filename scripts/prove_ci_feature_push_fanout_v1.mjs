@@ -209,6 +209,11 @@ for (const file of trustedTargetGuardTargets) {
     file + ": target context must execute current trusted base code",
   );
   assert.equal(
+    text.includes("uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"),
+    true,
+    file + ": elevated target checkout action must be immutably pinned",
+  );
+  assert.equal(
     text.includes("persist-credentials: false"),
     true,
     file + ": checkout credentials must not persist",
