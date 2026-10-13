@@ -45,6 +45,128 @@ const VOID_BUY_VOID_PUBLIC_EDGE_BASE_USDC_V1 =
 const VOID_BUY_VOID_PUBLIC_EDGE_ETH_USDC_V1 =
   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
+const VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1 = Array.isArray;
+const VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_KEYS_V1 = Object.keys;
+const VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1 = Object.hasOwn;
+
+const VOID_BUY_VOID_PUBLIC_EDGE_OUTER_FIELDS_V1 = Object.freeze({
+  schema: true,
+  marker: true,
+  ok: true,
+  idempotent: true,
+  one_active_request_cap_enforced: true,
+  request: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_REQUEST_FIELDS_V1 = Object.freeze({
+  schema: true,
+  legacy_schema: true,
+  marker: true,
+  ok: true,
+  request_id: true,
+  created_at_ms: true,
+  status: true,
+  launch_authority: true,
+  funding_model: true,
+  account: true,
+  source_chain: true,
+  payment_chain: true,
+  payment_chain_id: true,
+  asset_in: true,
+  usdc_contract: true,
+  usdc_decimals: true,
+  usdc_amount: true,
+  requested_amount_usdc: true,
+  rate_void_per_usdc: true,
+  price_usdc_per_void: true,
+  pool_void_total: true,
+  quoted_void: true,
+  sale_state_before_request: true,
+  receive_address: true,
+  receiver_binding_source: true,
+  void_destination_address: true,
+  delivery_address: true,
+  delivery_wallet: true,
+  delivery_chain: true,
+  delivery_chain_id: true,
+  tx_hash: true,
+  note: true,
+  acknowledgements: true,
+  request_contract: true,
+  payment_instructions: true,
+  safety: true,
+  persisted: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_PERSISTED_FIELDS_V1 = Object.freeze({
+  ok: true,
+  file: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_REQUEST_CONTRACT_FIELDS_V1 = Object.freeze({
+  request_before_payment_required: true,
+  one_active_request_per_void_destination: true,
+  payment_sender_must_equal_void_destination: true,
+  payment_tx_hash_bound_after_request_by_operator: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_SAFETY_FIELDS_V1 = Object.freeze({
+  automatic_fulfillment: true,
+  activation_required: true,
+  manual_review_required: true,
+  wallet_send_by_page: true,
+  token_approval_by_page: true,
+  no_investment_return_promised: true,
+  no_automatic_token_delivery_promised: true,
+  do_not_send_from_exchange: true,
+  private_rpc_public: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_ACKNOWLEDGEMENT_FIELDS_V1 = Object.freeze({
+  self_custody: true,
+  native_usdc: true,
+  request_before_payment: true,
+  sender_equals_void_destination: true,
+  no_automatic_fulfillment: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_LAUNCH_AUTHORITY_FIELDS_V1 = Object.freeze({
+  expires_at_ms: true,
+});
+const VOID_BUY_VOID_PUBLIC_EDGE_INSTRUCTION_FIELDS_V1 = Object.freeze({
+  request_id: true,
+  send_asset: true,
+  send_chain: true,
+  send_chain_id: true,
+  token_contract: true,
+  token_decimals: true,
+  send_to: true,
+  send_from: true,
+  amount: true,
+  expires_at_ms: true,
+  do_not_send_before_request: true,
+  do_not_send_from_exchange_or_pooled_custody: true,
+  keep_transaction_hash: true,
+});
+
+function voidBuyVoidPublicEdgeClosedOwnKeysV1(
+  value,
+  allowed,
+  exactCount = null,
+) {
+  if (!value || typeof value !== "object" ||
+      VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(value)) {
+    return false;
+  }
+  const keys = VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_KEYS_V1(value);
+  if (exactCount !== null && keys.length !== exactCount) {
+    return false;
+  }
+  for (let index = 0; index < keys.length; index += 1) {
+    if (!VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1(
+      allowed,
+      keys[index],
+    )) {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
   let uploadExpired = false;
   try {
@@ -324,7 +446,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         new TextDecoder("utf-8", { fatal: true }).decode(responseBody),
       );
       if (!parsedBody || typeof parsedBody !== "object" ||
-          Array.isArray(parsedBody)) {
+          VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(parsedBody)) {
         throw new Error("buy_void_post_upstream_json_object_required");
       }
     } catch {
@@ -392,9 +514,10 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       // Both are valid server receipts, but no internal file location may
       // cross the unauthenticated edge. Refuse any other persisted metadata.
       const persisted = checkout?.persisted;
-      const persistedKeys = persisted && typeof persisted === "object" &&
-        !Array.isArray(persisted) ? Object.keys(persisted) : [];
-      const hasLegacyFile = persistedKeys.includes("file");
+      const hasLegacyFile =
+        persisted && typeof persisted === "object" &&
+        !VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(persisted) &&
+        VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1(persisted, "file");
       if (parsedBody.schema !==
             "void_public_buy_void_checkout_request_result_v1" ||
           parsedBody.marker !==
@@ -403,7 +526,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           parsedBody.idempotent !== false ||
           parsedBody.one_active_request_cap_enforced !== true ||
           !checkout || typeof checkout !== "object" ||
-          Array.isArray(checkout) ||
+          VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(checkout) ||
           checkout.schema !== "void_public_buy_void_checkout_request_v1" ||
           checkout.marker !== "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" ||
           checkout.ok !== true ||
@@ -411,10 +534,13 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           !/^[A-Za-z0-9_-]{1,128}$/.test(checkout.request_id) ||
           checkout.status !== "awaiting_payment_tx_hash" ||
           !persisted || typeof persisted !== "object" ||
-          Array.isArray(persisted) ||
-          !Object.hasOwn(persisted, "ok") ||
-          persistedKeys.length !== (hasLegacyFile ? 2 : 1) ||
-          persistedKeys.some((key) => key !== "ok" && key !== "file") ||
+          VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(persisted) ||
+          !VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1(persisted, "ok") ||
+          !voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            persisted,
+            VOID_BUY_VOID_PUBLIC_EDGE_PERSISTED_FIELDS_V1,
+            hasLegacyFile ? 2 : 1,
+          ) ||
           (hasLegacyFile && (typeof persisted.file !== "string" ||
             persisted.file.length === 0)) ||
           persisted.ok !== true) {
@@ -424,61 +550,42 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       // top-level names (src/index.ts checkout request object + persisted).
       // Unknown fields may contain operator/private payment metadata. Never
       // spread them into a public HTTP 201 or a legacy redacted copy.
-      const outerFields = new Set([
-        "schema","marker","ok","idempotent",
-        "one_active_request_cap_enforced","request",
-      ]);
-      const requestFields = new Set([
-        "schema","legacy_schema","marker","ok","request_id",
-        "created_at_ms","status","launch_authority","funding_model","account",
-        "source_chain","payment_chain","payment_chain_id","asset_in","usdc_contract",
-        "usdc_decimals","usdc_amount","requested_amount_usdc","rate_void_per_usdc","price_usdc_per_void",
-        "pool_void_total","quoted_void","sale_state_before_request","receive_address","receiver_binding_source",
-        "void_destination_address","delivery_address","delivery_wallet","delivery_chain","delivery_chain_id",
-        "tx_hash","note","acknowledgements","request_contract","payment_instructions",
-        "safety","persisted",
-      ]);
-      if (Object.keys(parsedBody).length !== outerFields.size ||
-          Object.keys(parsedBody).some(key => !outerFields.has(key)) ||
-          Object.keys(checkout).some(key => !requestFields.has(key))) {
+      if (!voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            parsedBody,
+            VOID_BUY_VOID_PUBLIC_EDGE_OUTER_FIELDS_V1,
+            6,
+          ) ||
+          !voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            checkout,
+            VOID_BUY_VOID_PUBLIC_EDGE_REQUEST_FIELDS_V1,
+          )) {
         throw new Error("buy_void_post_created_public_fields_invalid");
       }
 
       // Opaque nested additions can be private operational metadata even
       // when all checked fields and outer request keys are legitimate.
-      // Only names produced by the reviewed native checkout request may
-      // appear in these public receipt subobjects.
-      const requestContractKeys = new Set([
-        "request_before_payment_required",
-        "one_active_request_per_void_destination",
-        "payment_sender_must_equal_void_destination",
-        "payment_tx_hash_bound_after_request_by_operator",
-      ]);
-      const safetyKeys = new Set([
-        "automatic_fulfillment","activation_required",
-        "manual_review_required","wallet_send_by_page",
-        "token_approval_by_page","no_investment_return_promised",
-        "no_automatic_token_delivery_promised",
-        "do_not_send_from_exchange","private_rpc_public",
-      ]);
-      const acknowledgementKeys = new Set([
-        "self_custody","native_usdc","request_before_payment",
-        "sender_equals_void_destination","no_automatic_fulfillment",
-      ]);
-      // Public checkout receipts intentionally expose only the bounded lease
-      // expiry from the internal coupled launch authority. Never forward
-      // opaque internal authority metadata across the unauthenticated edge.
-      const launchAuthorityKeys = new Set(["expires_at_ms"]);
-      const closedNestedKeys = (object, allowed) =>
-        object && typeof object === "object" &&
-        !Array.isArray(object) &&
-        Object.keys(object).every(key => allowed.has(key));
-      if (!closedNestedKeys(checkout.request_contract, requestContractKeys) ||
-          !closedNestedKeys(checkout.safety, safetyKeys) ||
-          !closedNestedKeys(checkout.launch_authority, launchAuthorityKeys) ||
-          (Object.hasOwn(checkout, "acknowledgements") &&
-            !closedNestedKeys(checkout.acknowledgements,
-              acknowledgementKeys))) {
+      // Use only module-load-captured own-key predicates: same-process
+      // replacement of Object/Array/Set methods cannot authorize disclosure.
+      if (!voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            checkout.request_contract,
+            VOID_BUY_VOID_PUBLIC_EDGE_REQUEST_CONTRACT_FIELDS_V1,
+          ) ||
+          !voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            checkout.safety,
+            VOID_BUY_VOID_PUBLIC_EDGE_SAFETY_FIELDS_V1,
+          ) ||
+          !voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            checkout.launch_authority,
+            VOID_BUY_VOID_PUBLIC_EDGE_LAUNCH_AUTHORITY_FIELDS_V1,
+          ) ||
+          (VOID_BUY_VOID_PUBLIC_EDGE_OBJECT_HAS_OWN_V1(
+              checkout,
+              "acknowledgements",
+            ) &&
+            !voidBuyVoidPublicEdgeClosedOwnKeysV1(
+              checkout.acknowledgements,
+              VOID_BUY_VOID_PUBLIC_EDGE_ACKNOWLEDGEMENT_FIELDS_V1,
+            ))) {
         throw new Error("buy_void_post_created_nested_public_fields_invalid");
       }
 
@@ -497,7 +604,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
       const instructionExpiry = instruction?.expires_at_ms;
       const launchExpiry = checkout.launch_authority?.expires_at_ms;
       if (!instruction || typeof instruction !== "object" ||
-          Array.isArray(instruction) ||
+          VOID_BUY_VOID_PUBLIC_EDGE_ARRAY_IS_ARRAY_V1(instruction) ||
           checkout.tx_hash !== "" ||
           checkout.payment_chain !== intendedChain ||
           checkout.payment_chain_id !== chainId ||
@@ -573,15 +680,11 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         throw new Error("buy_void_post_created_void_quote_invalid");
       }
       // Unknown nested payment-instruction fields are not public receipts.
-      const instructionKeys=Object.keys(instruction);
-      const allowedInstructionKeys=new Set([
-        "request_id","send_asset","send_chain","send_chain_id",
-        "token_contract","token_decimals","send_to","send_from",
-        "amount","expires_at_ms","do_not_send_before_request",
-        "do_not_send_from_exchange_or_pooled_custody","keep_transaction_hash",
-      ]);
-      if (instructionKeys.length!==allowedInstructionKeys.size ||
-          instructionKeys.some(k=>!allowedInstructionKeys.has(k))) {
+      if (!voidBuyVoidPublicEdgeClosedOwnKeysV1(
+            instruction,
+            VOID_BUY_VOID_PUBLIC_EDGE_INSTRUCTION_FIELDS_V1,
+            13,
+          )) {
         throw new Error("buy_void_post_created_instruction_keyset_invalid");
       }
       if (hasLegacyFile) {
