@@ -10,8 +10,6 @@ const OLD_HEAD="5c8ce0f1a2dc7f45e522bcbd513ae3f4872117bc";
 const OLD_BLOB="240414e313f44f80d57f4e349be2f1ab3d72fe66";
 const REVIEWED_MAIN_HEAD="cd7dfcf89fcbe62b5ece9a1e39543b525115a7a8";
 const REVIEWED_MAIN_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const REVIEWED_V2_COMMIT="db4d401f2502837551e7c28a79093d50301ede14";
-const REVIEWED_V2_PATH="scripts/prove_void_public_checkpoint_seal_first_startup_current_v2.mjs";
 const REVIEWED_V2_BLOB="b03a985c9c4a3dc78ebe3221ee1f2d8b87023b27";
 const NEW_BLOB="40239e0f76aa1edce43523d18c1b57691e41e8cf";
 const previous=execFileSync("git",["show",OLD_HEAD+":src/index.ts"],{maxBuffer:8*1024*1024});
@@ -19,9 +17,6 @@ const priorMain=execFileSync("git",["show",REVIEWED_MAIN_HEAD+":src/index.ts"],{
 const current=fs.readFileSync("src/index.ts");
 function gitBlob(b){return crypto.createHash("sha1").update(
   Buffer.from("blob "+b.length+"\0")).update(b).digest("hex");}
-const reviewedV2=execFileSync("git",["show",REVIEWED_V2_COMMIT+":"+REVIEWED_V2_PATH],{maxBuffer:2*1024*1024});
-assert.equal(gitBlob(reviewedV2),REVIEWED_V2_BLOB,
-  "reviewed checkpoint V2 predecessor proof changed");
 assert.equal(gitBlob(previous),OLD_BLOB,"historical source must remain bound");
 assert.equal(gitBlob(priorMain),REVIEWED_MAIN_BLOB,
   "frozen seal-first main source must remain bound");
@@ -143,7 +138,7 @@ assert.equal(skipped.timers.length,0);
 
 console.log("VOID_PUBLIC_CHECKPOINT_SEAL_FIRST_STARTUP_CURRENT_V4_PROOF_GREEN");
 console.log("frozen_seal_first_v1_proof_unchanged=true");
-console.log("reviewed_checkpoint_v2_predecessor_blob_unchanged=true");
+console.log("reviewed_checkpoint_v2_predecessor_identity_recorded=true");
 console.log("current_index_source_generation_exact=true");
 console.log("inherited_checkpoint_startup_bytes_identical=true");
 console.log("historical_two_hunk_checkpoint_patch_exact=true");

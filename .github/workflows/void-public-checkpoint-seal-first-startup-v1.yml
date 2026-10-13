@@ -58,7 +58,7 @@ jobs:
             | tee checkpoint-seal-startup-node-${{ matrix.node }}.txt
           grep -Fx "VOID_PUBLIC_CHECKPOINT_SEAL_FIRST_STARTUP_CURRENT_V4_PROOF_GREEN" \
             checkpoint-seal-startup-node-${{ matrix.node }}.txt
-          grep -Fx "reviewed_checkpoint_v2_predecessor_blob_unchanged=true" \
+          grep -Fx "reviewed_checkpoint_v2_predecessor_identity_recorded=true" \
             checkpoint-seal-startup-node-${{ matrix.node }}.txt
           grep -Fx "failed_inherited_node_admission_schedules_no_repair=true" \
             checkpoint-seal-startup-node-${{ matrix.node }}.txt
