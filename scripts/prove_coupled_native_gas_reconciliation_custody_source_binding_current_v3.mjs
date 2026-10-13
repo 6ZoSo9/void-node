@@ -374,6 +374,16 @@ const workflowSource = fs.readFileSync(
   ),
   "utf8",
 );
+const v3TriggerMatches =
+  workflowSource.match(
+    /^\s*-\s*"scripts\/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v3[.]mjs"\s*$/gmu,
+  ) || [];
+assert.equal(
+  v3TriggerMatches.length,
+  2,
+  "V3 proof must be present in both pull_request and main-push trigger closures",
+);
+
 for (const required of [
   "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v3.mjs",
   HISTORICAL_PACKAGE_JSON_BLOB,
