@@ -25,6 +25,8 @@ const LEGACY =
   "scripts/void_buy_void_epoch2_credential_attestation_v1.ts";
 const OPERATOR_DOC =
   "docs/operators/buy-void-epoch2-installed-credential-attestation-v1.md";
+const WORKFLOW =
+  ".github/workflows/buy-void-epoch2-installed-credential-attestation-v1.yml";
 const GIT = "/usr/bin/git";
 
 function cleanEnv(extra = {}) {
@@ -85,6 +87,14 @@ assert.match(
   /show "\$\{head\}:scripts\/void_buy_void_epoch2_credential_attestation_sealed_v1[.]mjs"/u,
 );
 assert.match(operatorDoc, /--expected-head "\$head"/u);
+const workflowSource = fs.readFileSync(path.join(ROOT, WORKFLOW), "utf8");
+for (const relative of Object.keys(EPOCH2_SOURCE_TUPLE_BLOBS)) {
+  assert.equal(
+    workflowSource.includes('      - "' + relative + '"'),
+    true,
+    "workflow trigger missing reviewed Epoch-2 source path: " + relative,
+  );
+}
 const importSpecs = [...sealedSource.matchAll(
   /^import .* from "([^"]+)";$/gmu,
 )].map((match) => match[1]);
@@ -343,6 +353,7 @@ console.log("operator_wrapper_pins_git_object_head=true");
 console.log("expected_head_checked_before_systemd=true");
 console.log("epoch2_source_tuple_data_only=true");
 console.log("repository_source_module_execution=false");
+console.log("epoch2_source_tuple_workflow_trigger_complete=true");
 console.log("direct_worktree_probe_rejected=true");
 console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
