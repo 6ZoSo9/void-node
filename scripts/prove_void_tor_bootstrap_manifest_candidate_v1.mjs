@@ -41,7 +41,7 @@ try{
  const repoEscapePayload=path.join(repoLink,".void-tor-candidate-symlink-escape-payload.bin");
  assert.equal(fs.existsSync(repoEscapeManifest),false);assert.equal(fs.existsSync(repoEscapePayload),false);
  const escape=spawnSync(process.execPath,[SCRIPT,"--receipt",q,"--expected-source-sha",SOURCE,"--manifest-output",repoEscapeManifest,"--payload-output",repoEscapePayload],{cwd:ROOT,encoding:"utf8",timeout:20_000});
- assert.notEqual(escape.status,0);assert.match(escape.stderr,/parent must be canonical and symlink-free|must resolve outside repository/u);
+ assert.notEqual(escape.status,0);assert.match(escape.stderr,/parent must be a real directory|parent must be canonical and symlink-free|must resolve outside repository/u);
  assert.equal(fs.existsSync(repoEscapeManifest),false);assert.equal(fs.existsSync(repoEscapePayload),false);
 }finally{fs.rmSync(temp,{recursive:true,force:true});}
 console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
