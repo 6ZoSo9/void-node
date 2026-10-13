@@ -778,7 +778,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   // is a HOLD, not an invitation to chmod historical customer state.
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   assertPrivateRequestDirV1(dir);
-  return withLaunchMutation(reqObj, async (assertCurrentAuthority) => {
+  return withLaunchMutation(reqObj, async (assertCurrentAuthority: () => unknown) => {
     // Keep one private-directory FD across history read and publication.
     // Journal inode pinning and journal/sidecar crash atomicity remain HOLD.
     if (typeof fs.constants.O_NOFOLLOW !== "number" ||
