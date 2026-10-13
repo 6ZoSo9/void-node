@@ -14,7 +14,7 @@ const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "717d6cadaf30606e571e5641cfedf9dddfbdd52d";
+  "884b7f6fc1d5cb209157b93d53bffa9fdeee2799";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -56,7 +56,7 @@ for(const required of [
   '"/opt/void-apollyon-custody-v2-preentry-v1/"',
   'INSTALLED_SOURCE_ROOT=Path("/opt/void-apollyon-custody-v2-reviewed-v1")',
   'RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"',
-  '"abb68e12cbd13bedfa7bf598b50b0a96709d898b"',
+  '"156b850276e74802f0f39595078e8e212b8cb9ac"',
   '"06e110108c74c450074ed6500ac7f7458f49b5aa"',
   '"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74"',
   '"VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER',

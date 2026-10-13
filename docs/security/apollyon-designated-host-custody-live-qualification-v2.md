@@ -40,7 +40,7 @@ execution source for live mode.
 Reviewed pre-entry launcher source blob:
 
 ```text
-717d6cadaf30606e571e5641cfedf9dddfbdd52d
+884b7f6fc1d5cb209157b93d53bffa9fdeee2799
 ```
 
 Installing either `/opt` tree is a **separate privileged mutation gate** and

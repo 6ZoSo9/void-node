@@ -435,8 +435,12 @@ function fixture(generation,observed,verification,boot="aa".repeat(32)){
             action_id,details:[],exit_status:1,result:"explicitly_denied",
           })),
         ],
+        installed_systemd_package_version:"255.4-1ubuntu8.11",
         observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
         pkcheck_subject:"4242,123456,1000",
+        running_installed_systemd_version_match:true,
+        running_systemd_manager_major:255,
+        running_systemd_manager_version:"255.4-1ubuntu8.11",
         polkit_deny_rule:{
           action_id_only:true,bytes:512,
           denied_action_ids:["org.freedesktop.systemd1.manage-units",...globals],
