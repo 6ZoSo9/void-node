@@ -21,7 +21,9 @@ export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CONFIRMATION_V1 =
 export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1 =
   Number.MAX_SAFE_INTEGER;
 export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1 =
-  231_582n;
+  1n;
+export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1 =
+  21_000n;
 
 export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_AUTHORITY_V1 =
   Object.freeze({
@@ -249,6 +251,15 @@ export function buildBuyVoidEpoch2CredentialCapabilityProbeV1(input: {
   });
 }
 
+export function buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1(
+  probe: Readonly<BuyVoidEpoch2CredentialProbeV1> | null | undefined,
+): boolean {
+  return !!probe &&
+    probe.gasLimit === VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1 &&
+    probe.gasLimit > 0n &&
+    probe.gasLimit < VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1;
+}
+
 export function buyVoidEpoch2CredentialProbeFingerprintV1(
   probe: Readonly<BuyVoidEpoch2CredentialProbeV1>,
 ): string {
@@ -277,6 +288,7 @@ export function buyVoidEpoch2CredentialProbeSemanticsExactV1(
       probe.chainId !== 2050n ||
       probe.nonce !== VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1 ||
       probe.gasLimit !== VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1 ||
+      !buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1(probe) ||
       probe.maxFeePerGas !== 0n ||
       probe.maxPriorityFeePerGas !== 0n ||
       probe.value !== 0n ||
@@ -471,6 +483,9 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
       amount_atoms: "1",
       max_fee_per_gas_wei: "0",
       max_priority_fee_per_gas_wei: "0",
+      below_evm_intrinsic_gas: true,
+      minimum_evm_intrinsic_gas: 
+        VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1.toString(),
       probe_envelope_sha256:
         buyVoidEpoch2CredentialProbeFingerprintV1(input.probe),
       transaction_hash: verified.transaction_hash,
