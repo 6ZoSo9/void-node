@@ -416,6 +416,14 @@ function cancelReaderBestEffort(reader) {
   }
 }
 
+function cancelBodyBestEffort(body) {
+  try {
+    Promise.resolve(body.cancel()).catch(() => undefined);
+  } catch (error) {
+    void error;
+  }
+}
+
 async function readBoundedText(response, signal) {
   const declaredLength = response.headers.get("content-length");
   if (
@@ -423,6 +431,9 @@ async function readBoundedText(response, signal) {
     Number.isFinite(Number(declaredLength)) &&
     Number(declaredLength) > MAX_RESPONSE_BYTES
   ) {
+    if (response.body !== null) {
+      cancelBodyBestEffort(response.body);
+    }
     throw new Error(`response exceeds ${MAX_RESPONSE_BYTES} bytes`);
   }
   if (response.body === null) return "";

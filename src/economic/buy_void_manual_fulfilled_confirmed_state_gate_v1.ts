@@ -7,6 +7,9 @@ import type {
 import {
   resolveBuyVoidConfirmedStatesByRequestV1 as listBuyVoidConfirmedStatesV1,
 } from "./buy_void_confirmed_state_request_resolution_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+} from "./buy_void_fulfilled_reconciliation_mode_v1.js";
 
 export const VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1 =
   "VOID_BUY_VOID_MANUAL_FULFILLED_CONFIRMED_STATE_GATE_V1";
@@ -39,12 +42,26 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
   ) => Promise<unknown>,
 ): Promise<BuyVoidManualFulfilledConfirmedStateGateResultV1> {
   let effective_prior_status = "";
+  let historical_fulfilled_event_seen = false;
+  let historical_fulfilled_event_for_reconciliation: Record<string, any> | null = null;
   try {
+    const history = await __voidReadBuyVoidOperatorEventsV1();
+    if (!Array.isArray(history)) {
+      throw new Error("operator_event_history_not_array");
+    }
+    // The latest status alone cannot be the terminal-state authority:
+    // a later legacy reviewed/rejected row can mask a prior fulfillment.
+    for (const row of history) {
+      if (row?.request_id === id && row?.operator_status === "fulfilled") {
+        historical_fulfilled_event_seen = true;
+        if (row && typeof row === "object" && !Array.isArray(row)) {
+          historical_fulfilled_event_for_reconciliation = row;
+        }
+        break;
+      }
+    }
     const projected_request =
-      __voidApplyBuyVoidOperatorEventsV1(
-        [found],
-        await __voidReadBuyVoidOperatorEventsV1(),
-      )[0] || found;
+      __voidApplyBuyVoidOperatorEventsV1([found], history)[0] || found;
     effective_prior_status = String(
       projected_request?.effective_status || found.status || "",
     )
@@ -66,9 +83,100 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     };
   }
 
+  // An older fulfilled event remains terminal even when legacy history
+  // already contains a later reviewed/rejected entry hiding it from the
+  // latest-event projection. A new fulfillment is also a duplicate.
+  if (historical_fulfilled_event_seen &&
+      effective_prior_status !== "fulfilled") {
+    return {
+      ok: false,
+      status_code: 409,
+      body: {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: false,
+        error: operator_status === "fulfilled"
+          ? "manual_fulfilled_already_recorded"
+          : "manual_fulfilled_terminal_status_immutable",
+        request_id: id,
+        operator_status,
+        prior_status: effective_prior_status,
+        historical_fulfillment_detected: true,
+      },
+    };
+  }
+
+  // A fulfilled delivery is terminal in the operator projection. Later
+  // reviewed/rejected annotations cannot hide its completed receipt.
+  // Historical corrections require a separate reviewed closeout flow.
+  if (effective_prior_status === "fulfilled" &&
+      operator_status !== "fulfilled") {
+    return {
+      ok: false,
+      status_code: 409,
+      body: {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: false,
+        error: "manual_fulfilled_terminal_status_immutable",
+        request_id: id,
+        operator_status,
+        prior_status: effective_prior_status,
+      },
+    };
+  }
+
   let canonical_confirmed_state: any = null;
   if (operator_status === "fulfilled") {
     if (effective_prior_status === "fulfilled") {
+      // A prior fulfilled journal row may have survived a crash before its
+      // derived sidecar was published. Re-enter the authoritative under-lock
+      // writer with the exact historical event so it can verify the pinned
+      // journal generation and repair only a missing byte-identical sidecar.
+      // Preserve the external duplicate response: this is reconciliation,
+      // never a second fulfillment or a new terminal event.
+      if (historical_fulfilled_event_for_reconciliation !== null) {
+        try {
+          const reconciliationEvent = {
+            ...historical_fulfilled_event_for_reconciliation,
+          };
+          Object.defineProperty(
+            reconciliationEvent,
+            VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+            {
+              value: true,
+              enumerable: false,
+              writable: false,
+              configurable: false,
+            },
+          );
+          await __voidWriteBuyVoidOperatorEventV1(reconciliationEvent);
+        } catch (error: any) {
+          const reconciliationError = String(error?.message || error);
+          if (
+            [
+              "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+              "buy_void_operator_fulfilled_terminal_under_lock",
+              "buy_void_operator_terminal_history_changed_since_read",
+              "buy_void_operator_terminal_sidecar_conflict",
+            ].includes(reconciliationError)
+          ) {
+            return {
+              ok: false,
+              status_code: 409,
+              body: {
+                schema: "void_buy_void_operator_mark_v1",
+                ok: false,
+                error: "manual_fulfilled_reconciliation_conflict",
+                request_id: id,
+                operator_status,
+                void_delivery_tx_hash,
+                prior_status: effective_prior_status,
+                reconciliation_error: reconciliationError,
+              },
+            };
+          }
+          throw error;
+        }
+      }
       return {
         ok: false,
         status_code: 409,
@@ -326,7 +434,30 @@ export default async function evaluateBuyVoidManualFulfilledConfirmedStateGateV1
     quoted_void: found.quoted_void,
   };
 
-  await __voidWriteBuyVoidOperatorEventV1(event);
+  try {
+    await __voidWriteBuyVoidOperatorEventV1(event);
+  } catch (error: any) {
+    // The writer's authoritative under-request-lock history check catches
+    // a fulfillment committed *after* the route's pre-read projection.
+    // Only this exact expected refusal is 409; unrelated disk/custody
+    // uncertainty must not be silently converted into an ordinary status.
+    if (error?.message === "buy_void_operator_fulfilled_terminal_under_lock") {
+      return {
+        ok: false,
+        status_code: 409,
+        body: {
+          schema: "void_buy_void_operator_mark_v1",
+          ok: false,
+          error: "manual_fulfilled_terminal_status_immutable",
+          request_id: id,
+          operator_status,
+          prior_status: effective_prior_status,
+          concurrent_terminal_fulfillment_detected: true,
+        },
+      };
+    }
+    throw error;
+  }
   return {
     ok: true,
     status_code: 200,

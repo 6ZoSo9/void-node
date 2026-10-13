@@ -1,10 +1,19 @@
+import {
+  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+  VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
+  buyVoidPresaleAccessListExactV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  Interface,
   Wallet,
   getAddress,
 } from "ethers";
+import type {
+  BuyVoidDeliveryUnsignedTransactionV1,
+} from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
 import type {
   BuyVoidNativeDeliverySignerV1,
   BuyVoidNativeDeliveryUnsignedTransactionV1,
@@ -15,6 +24,11 @@ export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1 =
 
 export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1 =
   "buy-void-native-fulfillment-wallet-v1";
+
+// Independent systemd credential name for the successor immutable E2 fulfiller.
+// Never reinterpret the retired E1 wallet credential as a new-chain signer.
+export const VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1 =
+  "buy-void-epoch2-fulfiller-v1";
 
 export const VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_AUTHORITY_V1 = {
   systemd_credential_only: true,
@@ -131,6 +145,18 @@ function held(
 function renderTransaction(
   transaction: Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1>,
 ): Record<string, unknown> {
+  // The native-transfer v1 type remains unchanged. The payment-keyed E2
+  // composer supplies a separately bound optional access-list extension.
+  const marker = (
+    transaction as Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1> & {
+      accessList?: Array<{ address: string; storageKeys: string[] }>;
+    }
+  ).accessList;
+  // Both the marker and its absence are validated against the actual
+  // destination. E2 may never omit it; legacy targets may never carry it.
+  if (!buyVoidPresaleAccessListExactV1(marker, transaction.to)) {
+    throw new Error("buy_void_credential_signer_epoch2_marker_invalid");
+  }
   return {
     type: 2,
     chainId: transaction.chainId,
@@ -141,7 +167,192 @@ function renderTransaction(
     to: transaction.to,
     value: transaction.value,
     data: transaction.data,
+    ...(marker !== undefined ? { accessList: marker } : {}),
   };
+}
+
+class CredentialFdReadHoldV1 extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
+function credentialStatSameV1(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+function readPinnedCredentialBytesV1(
+  directory: string,
+  credentialPath: string,
+  credentialId: typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1 |
+    typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1 =
+      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1,
+): { ok: true; bytes: Buffer } | { ok: false; reason: string } {
+  let directoryFd = -1;
+  let credentialFd = -1;
+  let scratch: Buffer | null = null;
+  let result: Buffer | null = null;
+  let reason = "";
+  const reject = (why: string): never => {
+    throw new CredentialFdReadHoldV1(why);
+  };
+
+  try {
+    if (process.platform !== "linux" ||
+        typeof process.getuid !== "function") {
+      reject("credential_fd_platform_unsupported");
+    }
+    const userId = BigInt((process.getuid as () => number)());
+    const directoryFlag = fs.constants.O_DIRECTORY;
+    const noFollowFlag = fs.constants.O_NOFOLLOW;
+    if (!Number.isInteger(directoryFlag) ||
+        !Number.isInteger(noFollowFlag) ||
+        directoryFlag === 0 || noFollowFlag === 0 ||
+        !fs.existsSync("/proc/self/fd")) {
+      reject("credential_fd_primitives_unavailable");
+    }
+
+    // Pin and revalidate every path component. Sticky root-owned parents
+    // (for example /tmp in inert tests) are allowed only as ancestors,
+    // never as the credentials directory itself.
+    const root = path.parse(directory).root;
+    const components = path.relative(root, directory).split(path.sep)
+      .filter(Boolean);
+    const ancestors: Array<{ name: string; stat: fs.BigIntStats }> = [];
+    let current = root;
+    const inspectAncestor = (name: string, isLeaf: boolean) => {
+      const stat = fs.lstatSync(name, { bigint: true });
+      const mode = stat.mode & 0o7777n;
+      const stickyProtected = !isLeaf && stat.uid === 0n &&
+        (mode & 0o1000n) !== 0n;
+      if (stat.isSymbolicLink() || !stat.isDirectory() ||
+          (stat.uid !== 0n && stat.uid !== userId) ||
+          ((mode & 0o022n) !== 0n && !stickyProtected)) {
+        reject("credential_directory_namespace_untrusted");
+      }
+      ancestors.push({ name, stat });
+    };
+    inspectAncestor(root, components.length === 0);
+    for (let index = 0; index < components.length; index += 1) {
+      current = path.join(current, components[index]);
+      inspectAncestor(current, index === components.length - 1);
+    }
+
+    const beforeDirectory = ancestors[ancestors.length - 1].stat;
+    directoryFd = fs.openSync(directory,
+      fs.constants.O_RDONLY | directoryFlag | noFollowFlag);
+    const openedDirectory = fs.fstatSync(directoryFd, { bigint: true });
+    if (!credentialStatSameV1(beforeDirectory, openedDirectory)) {
+      reject("credential_directory_fd_identity_changed");
+    }
+
+    const beforeCredential: fs.BigIntStats = (() => {
+      try {
+        return fs.lstatSync(credentialPath, { bigint: true });
+      } catch {
+        throw new CredentialFdReadHoldV1("credential_missing_or_unreadable");
+      }
+    })();
+    if (beforeCredential.isSymbolicLink()) {
+      reject("credential_symlink_forbidden");
+    }
+    if (!beforeCredential.isFile()) {
+      reject("credential_not_regular_file");
+    }
+    if (beforeCredential.uid !== userId ||
+        beforeCredential.nlink !== 1n) {
+      reject("credential_owner_or_links_invalid");
+    }
+    if (beforeCredential.size < 1n ||
+        beforeCredential.size > BigInt(MAX_CREDENTIAL_BYTES)) {
+      reject("credential_size_out_of_policy");
+    }
+    if (((beforeCredential.mode & 0o777n) & 0o077n) !== 0n) {
+      reject("credential_permissions_too_broad");
+    }
+
+    // This fixed-name open is relative to the already pinned directory,
+    // not a second pathname lookup through an ambient mutable ancestor.
+    const pinnedLeaf = "/proc/self/fd/" + String(directoryFd) + "/" +
+      credentialId;
+    credentialFd = fs.openSync(pinnedLeaf,
+      fs.constants.O_RDONLY | noFollowFlag);
+    const openedCredential = fs.fstatSync(credentialFd, { bigint: true });
+    if (!credentialStatSameV1(beforeCredential, openedCredential)) {
+      reject("credential_file_fd_identity_changed");
+    }
+
+    scratch = Buffer.alloc(MAX_CREDENTIAL_BYTES + 1);
+    let readCount = 0;
+    while (readCount < scratch.length) {
+      const n = fs.readSync(credentialFd, scratch, readCount,
+        scratch.length - readCount, null);
+      if (!Number.isSafeInteger(n) || n < 0) {
+        reject("credential_fd_read_invalid");
+      }
+      if (n === 0) break;
+      readCount += n;
+    }
+    if (readCount !== Number(beforeCredential.size) ||
+        readCount > MAX_CREDENTIAL_BYTES) {
+      reject("credential_fd_bytes_changed");
+    }
+
+    const afterCredential = fs.fstatSync(credentialFd, { bigint: true });
+    const visibleCredential = fs.lstatSync(credentialPath, { bigint: true });
+    const afterDirectory = fs.fstatSync(directoryFd, { bigint: true });
+    const visibleDirectory = fs.lstatSync(directory, { bigint: true });
+    if (!credentialStatSameV1(beforeCredential, afterCredential) ||
+        !credentialStatSameV1(beforeCredential, visibleCredential) ||
+        !credentialStatSameV1(beforeDirectory, afterDirectory) ||
+        !credentialStatSameV1(beforeDirectory, visibleDirectory)) {
+      reject("credential_file_or_directory_changed_during_read");
+    }
+    for (const ancestor of ancestors) {
+      if (!credentialStatSameV1(
+        ancestor.stat, fs.lstatSync(ancestor.name, { bigint: true }),
+      )) {
+        reject("credential_parent_namespace_changed");
+      }
+    }
+    result = Buffer.from(scratch.subarray(0, readCount));
+  } catch (error) {
+    // A missing credential or directory still returns the historical HOLD.
+    // All other descriptor failures remain fail-closed.
+    const errorCode = (error as NodeJS.ErrnoException)?.code;
+    reason = error instanceof CredentialFdReadHoldV1
+      ? error.reason
+      : errorCode === "ENOENT" || errorCode === "ENOTDIR"
+        ? "credential_missing_or_unreadable"
+        : "credential_fd_read_failed";
+  } finally {
+    if (scratch !== null) scratch.fill(0);
+    for (const fd of [credentialFd, directoryFd]) {
+      if (fd >= 0) {
+        try {
+          fs.closeSync(fd);
+        } catch {
+          reason = "credential_fd_close_uncertain";
+        }
+      }
+    }
+  }
+  if (reason || result === null) {
+    if (result !== null) result.fill(0);
+    return { ok: false, reason: reason || "credential_fd_read_failed" };
+  }
+  return { ok: true, bytes: result };
 }
 
 export function createBuyVoidNativeFulfillmentWalletCredentialSignerV1(
@@ -171,42 +382,13 @@ export function createBuyVoidNativeFulfillmentWalletCredentialSignerV1(
     return held("credential_path_escape_detected");
   }
 
-  let stat: fs.Stats;
-  try {
-    stat = fs.lstatSync(credentialPath);
-  } catch (error) {
-    return held("credential_missing_or_unreadable", {
-      detail: { error_class: safeErrorClass(error) },
-    });
+  const credentialRead = readPinnedCredentialBytesV1(
+    normalizedDirectory, credentialPath,
+  );
+  if ("reason" in credentialRead) {
+    return held(credentialRead.reason);
   }
-
-  if (stat.isSymbolicLink()) {
-    return held("credential_symlink_forbidden");
-  }
-  if (!stat.isFile()) {
-    return held("credential_not_regular_file");
-  }
-  if (stat.size <= 0 || stat.size > MAX_CREDENTIAL_BYTES) {
-    return held("credential_size_out_of_policy", {
-      detail: { size_bytes: stat.size },
-    });
-  }
-
-  const mode = stat.mode & 0o777;
-  if ((mode & 0o077) !== 0) {
-    return held("credential_permissions_too_broad", {
-      detail: { mode: mode.toString(8).padStart(3, "0") },
-    });
-  }
-
-  let credentialBytes: Buffer;
-  try {
-    credentialBytes = fs.readFileSync(credentialPath);
-  } catch (error) {
-    return held("credential_read_failed", {
-      detail: { error_class: safeErrorClass(error) },
-    });
-  }
+  const credentialBytes = credentialRead.bytes;
 
   let privateKey = "";
   try {
@@ -271,5 +453,168 @@ export function createBuyVoidNativeFulfillmentWalletCredentialSignerV1(
     signer,
     authority:
       VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_AUTHORITY_V1,
+  };
+}
+
+export const VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1 =
+  "VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1" as const;
+
+// This function is not mounted into the running Buy VOID application.
+// Only a separately provisioned systemd LoadCredential with this NEW name
+// and the immutable E2 fulfiller's actual private key can produce READY.
+// It does not accept a supplied wallet address or key path.
+
+const EPOCH2_FULFILLMENT_ABI_V1 = new Interface([
+  "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
+]);
+
+// Pure pre-sign check; a GREEN result is only an envelope-shape decision,
+// never proof of payment, signer custody, submission or live sale authority.
+export function validateBuyVoidEpoch2FulfillerCredentialEnvelopeV1(
+  value: unknown,
+): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  try {
+    const tx = value as Readonly<BuyVoidDeliveryUnsignedTransactionV1>;
+    if (tx.type !== 2 || tx.chainId !== 2050n ||
+        !Number.isSafeInteger(tx.nonce) || tx.nonce < 0 ||
+        typeof tx.gasLimit !== "bigint" || tx.gasLimit <= 0n ||
+        tx.gasLimit > 320_000n ||
+        typeof tx.maxFeePerGas !== "bigint" || tx.maxFeePerGas < 0n ||
+        tx.maxFeePerGas > 5_000_000_000n ||
+        tx.maxPriorityFeePerGas !== 0n ||
+        tx.value !== 0n ||
+        normalizeAddress(tx.to) !==
+          VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1 ||
+        !buyVoidPresaleAccessListExactV1(tx.accessList, tx.to) ||
+        typeof tx.data !== "string") {
+      return false;
+    }
+    const args = EPOCH2_FULFILLMENT_ABI_V1.decodeFunctionData(
+      "fulfill", tx.data,
+    );
+    const paymentId = String(args[0]).toLowerCase();
+    const recipient = normalizeAddress(args[1]);
+    const amount = args[2];
+    return /^0x[0-9a-f]{64}$/.test(paymentId) &&
+      paymentId !== "0x" + "0".repeat(64) &&
+      recipient !== null &&
+      recipient !== "0x" + "0".repeat(40) &&
+      typeof amount === "bigint" &&
+      amount > 0n && amount <= 10_000_000n * 10n ** 18n &&
+      EPOCH2_FULFILLMENT_ABI_V1.encodeFunctionData("fulfill", [
+        paymentId, recipient, amount,
+      ]).toLowerCase() === tx.data.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+export function createBuyVoidEpoch2FulfillerCredentialSignerV1(input: {
+  credentials_directory: string;
+}): {
+  ok: true;
+  status: "ready";
+  marker: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1;
+  credential_id: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1;
+  public_address: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+  signer: {
+    get_address: () => Promise<string>;
+    sign_transaction: (
+      transaction: Readonly<BuyVoidDeliveryUnsignedTransactionV1>,
+    ) => Promise<string>;
+  };
+  credential_content_read: true;
+  signing_performed_by_factory: false;
+  transaction_broadcast_by_factory: false;
+  runtime_activation_authorized: false;
+} | {
+  ok: false;
+  status: "HOLD";
+  marker: typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1;
+  reason: string;
+  credential_content_read: boolean;
+  signing_performed_by_factory: false;
+  transaction_broadcast_by_factory: false;
+  runtime_activation_authorized: false;
+} {
+  const heldE2 = (reason: string, read = false) => ({
+    ok: false as const,
+    status: "HOLD" as const,
+    marker: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1,
+    reason,
+    credential_content_read: read,
+    signing_performed_by_factory: false as const,
+    transaction_broadcast_by_factory: false as const,
+    runtime_activation_authorized: false as const,
+  });
+  if (!input || typeof input.credentials_directory !== "string" ||
+      !path.isAbsolute(input.credentials_directory) ||
+      path.normalize(input.credentials_directory) !==
+        input.credentials_directory) {
+    return heldE2("epoch2_credentials_directory_invalid");
+  }
+  const credentialPath = path.join(
+    input.credentials_directory, VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+  );
+  const read = readPinnedCredentialBytesV1(
+    input.credentials_directory, credentialPath,
+    VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+  );
+  if ("reason" in read) return heldE2(read.reason);
+  let key = "";
+  try {
+    key = read.bytes.toString("utf8").trim();
+  } finally {
+    read.bytes.fill(0);
+  }
+  if (!PRIVATE_KEY.test(key)) {
+    key = "";
+    return heldE2("epoch2_credential_private_key_shape_invalid", true);
+  }
+  let wallet: Wallet;
+  try {
+    wallet = new Wallet(key.startsWith("0x") ? key : "0x" + key);
+  } catch {
+    key = "";
+    return heldE2("epoch2_credential_public_derivation_failed", true);
+  }
+  key = "";
+  if (wallet.address.toLowerCase() !==
+      VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
+    return heldE2("epoch2_immutable_fulfiller_public_identity_mismatch", true);
+  }
+
+  const signer = {
+    async get_address(): Promise<string> {
+      return VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1;
+    },
+    async sign_transaction(
+      tx: Readonly<BuyVoidDeliveryUnsignedTransactionV1>,
+    ): Promise<string> {
+      if (!validateBuyVoidEpoch2FulfillerCredentialEnvelopeV1(tx)) {
+        throw new Error("epoch2_fulfiller_transaction_envelope_invalid");
+      }
+      // No broadcasting or durable key/transaction storage occurs here.
+      return await wallet.signTransaction({
+        ...renderTransaction(
+          tx as unknown as Readonly<BuyVoidNativeDeliveryUnsignedTransactionV1>,
+        ),
+      });
+    },
+  };
+  return {
+    ok: true,
+    status: "ready",
+    marker: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1,
+    credential_id: VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+    public_address: VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+    signer,
+    credential_content_read: true,
+    signing_performed_by_factory: false,
+    transaction_broadcast_by_factory: false,
+    runtime_activation_authorized: false,
   };
 }

@@ -6,7 +6,10 @@ on:
       - ".github/workflows/buy-void-manual-fulfilled-complete-request-state-set-v1.yml"
       - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
       - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_operator_under_lock_terminal_v1.ts"
       - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "src/economic/buy_void_confirmed_state_journal_v1.ts"
       - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
   push:
@@ -15,7 +18,10 @@ on:
       - ".github/workflows/buy-void-manual-fulfilled-complete-request-state-set-v1.yml"
       - "src/economic/buy_void_confirmed_state_request_resolution_v1.ts"
       - "src/economic/buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "scripts/prove_buy_void_operator_under_lock_terminal_v1.ts"
       - "scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts"
+      - "scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts"
       - "src/economic/buy_void_confirmed_state_journal_v1.ts"
       - "src/economic/buy_void_confirmed_closeout_runtime_v1.ts"
 
@@ -50,6 +56,20 @@ jobs:
         run: |
           node_modules/.bin/tsx \
             scripts/prove_buy_void_manual_fulfilled_complete_request_state_set_v1.ts
+
+      - name: Prove mounted manual fulfilled confirmed-state gate
+        run: |
+          node_modules/.bin/tsx \
+            scripts/prove_buy_void_manual_fulfilled_confirmed_state_gate_v1.ts
+
+      - name: Prove actual writer under-lock terminal status
+        run: |
+          set -euo pipefail
+          node_modules/.bin/tsx \
+            scripts/prove_buy_void_operator_under_lock_terminal_v1.ts \
+            | tee "$RUNNER_TEMP/terminal-history-proof-v1.txt"
+          grep -Fx 'terminal_history_hostile_intrinsics_ignored=true' \
+            "$RUNNER_TEMP/terminal-history-proof-v1.txt"
 
       - name: Typecheck repository
         run: npm run typecheck

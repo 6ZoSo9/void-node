@@ -1,3 +1,7 @@
+import {
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import * as http from "node:http";
 
@@ -416,9 +420,7 @@ function requestBinding(
     !target ||
     nonce < 0n ||
     gas <= 0n ||
-    maxFee <= 0n ||
-    priority < 0n ||
-    priority > maxFee ||
+    !buyVoidPresaleFeeEnvelopeValidV1(maxFee, priority, target) ||
     !HEX_BYTES.test(calldata) ||
     calldata.length < 4
   ) {
@@ -463,6 +465,9 @@ function exactTransaction(
     quantity(tx.maxPriorityFeePerGas) ===
       expected.max_priority_fee_per_gas_wei &&
     quantity(tx.value) === 0n &&
+    buyVoidPresaleAccessListExactV1(
+      tx.accessList, expected.transaction_to,
+    ) &&
     input === expected.transaction_calldata
   );
 }

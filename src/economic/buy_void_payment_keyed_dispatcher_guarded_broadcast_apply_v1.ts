@@ -1,4 +1,11 @@
 import path from "node:path";
+import {
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
+import {
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_MATERIAL_V1,
+  buyVoidEpoch2CredentialSourceBindingMatchesV1,
+} from "./buy_void_epoch2_credential_source_binding_v1.js";
 
 import {
   buildBuyVoidPaymentKeyedDispatcherGuardedBroadcastContextV1,
@@ -332,7 +339,22 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
   const evidenceId = text(
     process.env[envs.credential_binding_evidence_id],
   );
-  if (!credentials || !evidenceId) {
+  const epoch2SourceId = text(
+    process.env[envs.epoch2_credential_source_binding_id],
+  );
+  const epoch2 = isBuyVoidEpoch2PresaleTargetV1(
+    policy.fulfillment_contract_address,
+  );
+  if (!credentials ||
+      (epoch2
+        ? Boolean(evidenceId) ||
+          !buyVoidEpoch2CredentialSourceBindingMatchesV1(
+            epoch2SourceId,
+            policy.fulfillment_contract_address,
+            policy.server_policy.preparation_policy.rpc_url,
+            policy.fulfillment_wallet_address,
+          )
+        : !evidenceId)) {
     return held(context, "signing_dependencies_not_configured");
   }
 
@@ -342,6 +364,9 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
       createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1({
         enabled: true,
         credential_binding_evidence_id: evidenceId,
+        ...(epoch2
+          ? { epoch2_credential_source_binding_id: epoch2SourceId }
+          : {}),
         credentials_directory: credentials,
         fulfillment_wallet_address:
           policy.fulfillment_wallet_address,
@@ -374,7 +399,12 @@ export async function applyBuyVoidPaymentKeyedDispatcherGuardedBroadcastV1(
     bootstrap.marker !==
       VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1 ||
     bootstrap.chain_id !== "2050" ||
-    bootstrap.credential_binding_evidence_id !== evidenceId ||
+    (epoch2
+      ? bootstrap.credential_binding_evidence_id !== null ||
+        bootstrap.epoch2_credential_source_binding_id !== epoch2SourceId ||
+        bootstrap.credential_id !==
+          VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_MATERIAL_V1.credential_id
+      : bootstrap.credential_binding_evidence_id !== evidenceId) ||
     bootstrap.authority.composition_time_credential_read !== false ||
     bootstrap.authority.composition_time_rpc_call !== false ||
     bootstrap.authority.composition_time_signing !== false ||
