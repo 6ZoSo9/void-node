@@ -224,7 +224,16 @@ export function prepareApollyonReviewedExecutionTreeV2(sourceRoot=ROOT){
       policy_v2:paths[POLICY_V2_REL],
     });
   }catch(error){
-    if(privateRoot)fs.rmSync(privateRoot,{recursive:true,force:true});
+    if(privateRoot){
+      try{
+        fs.rmSync(privateRoot,{recursive:true,force:true});
+      }catch(cleanupError){
+        throw new Error(
+          "apollyon_live_qualification_v2_cleanup_failed:"+privateRoot,
+          {cause:cleanupError},
+        );
+      }
+    }
     throw error;
   }finally{
     for(const bytes of sourceBytes.values())bytes.fill(0);
@@ -240,7 +249,15 @@ export async function loadApollyonReviewedPolicyV2(prepared){
   return module.qualifyApollyonCustodyHostPolicyV2;
 }
 export function cleanupApollyonReviewedExecutionTreeV2(prepared){
-  if(prepared?.root)fs.rmSync(prepared.root,{recursive:true,force:true});
+  if(!prepared?.root)return;
+  try{
+    fs.rmSync(prepared.root,{recursive:true,force:true});
+  }catch(error){
+    throw new Error(
+      "apollyon_live_qualification_v2_cleanup_failed:"+prepared.root,
+      {cause:error},
+    );
+  }
 }
 function sortJson(value){
   if(Array.isArray(value))return value.map(sortJson);
@@ -642,13 +659,23 @@ async function main(){
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1])){
   main().catch((error)=>{
-    process.stderr.write(`HOLD=${String(error?.message||error)}\n`);
+    const reason=String(error?.message||error);
+    const cleanupPrefix="apollyon_live_qualification_v2_cleanup_failed:";
+    const cleanupFailed=reason.startsWith(cleanupPrefix);
+    process.stderr.write(`HOLD=${reason}\n`);
     process.stderr.write(
       "host_observation_read_only=true\n"+
       "filesystem_write=true\n"+
       "private_temporary_filesystem_write=true\n"+
       "repository_source_write=false\n"+
-      "persistent_host_mutation=false\n"+
+      (cleanupFailed
+        ? "persistent_host_mutation=unknown\n"+
+          "temporary_filesystem_cleanup_proven=false\n"+
+          "retained_private_tree_possible=true\n"+
+          "retained_private_tree="+reason.slice(cleanupPrefix.length)+"\n"
+        : "persistent_host_mutation=false\n"+
+          "temporary_filesystem_cleanup_proven=true\n"+
+          "retained_private_tree_possible=false\n")+
       "service_action=false\n"+
       "attempt_claim=false\ntraining_execution=false\n"+
       "live_service_source_identity_proven=false\n",
