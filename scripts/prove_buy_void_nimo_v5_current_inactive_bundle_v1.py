@@ -146,7 +146,7 @@ def canonical(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def same_inode(left: os.stat_result, right: os.stat_result) -> bool:
+def same_identity(left: os.stat_result, right: os.stat_result) -> bool:
     return (
         left.st_dev == right.st_dev
         and left.st_ino == right.st_ino
@@ -154,8 +154,11 @@ def same_inode(left: os.stat_result, right: os.stat_result) -> bool:
         and left.st_gid == right.st_gid
         and left.st_mode == right.st_mode
         and left.st_nlink == right.st_nlink
-        and left.st_size == right.st_size
     )
+
+
+def same_file(left: os.stat_result, right: os.stat_result) -> bool:
+    return same_identity(left, right) and left.st_size == right.st_size
 
 
 def read_exact_file(path: Path, max_bytes: int) -> bytes:
@@ -171,7 +174,7 @@ def read_exact_file(path: Path, max_bytes: int) -> bytes:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         opened = os.fstat(fd)
-        if not same_inode(visible, opened):
+        if not same_file(visible, opened):
             hold("file_open_identity_mismatch:" + str(path))
         data = bytearray()
         while len(data) < opened.st_size:
@@ -184,8 +187,8 @@ def read_exact_file(path: Path, max_bytes: int) -> bytes:
         after = os.fstat(fd)
         visible_after = path.lstat()
         if (
-            not same_inode(opened, after)
-            or not same_inode(after, visible_after)
+            not same_file(opened, after)
+            or not same_file(after, visible_after)
             or opened.st_mtime_ns != after.st_mtime_ns
             or opened.st_ctime_ns != after.st_ctime_ns
             or after.st_mtime_ns != visible_after.st_mtime_ns
@@ -540,7 +543,7 @@ def open_private_output_parent(target: Path) -> tuple[int, os.stat_result]:
         hold("output_parent_not_private")
     fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     opened = os.fstat(fd)
-    if not same_inode(visible, opened):
+    if not same_file(visible, opened):
         os.close(fd)
         hold("output_parent_identity_mismatch")
     return fd, opened
@@ -574,7 +577,7 @@ def write_new(path: Path, raw: bytes) -> None:
         os.fsync(fd)
         final = os.fstat(fd)
         if (
-            not same_inode(created_identity, final)
+            not same_file(created_identity, final)
             or final.st_size != len(raw)
         ):
             hold("output_file_changed")
@@ -586,9 +589,9 @@ def write_new(path: Path, raw: bytes) -> None:
     parent_after = path.parent.lstat()
     file_after = path.lstat()
     if (
-        not same_inode(parent_identity, parent_after)
+        not same_identity(parent_identity, parent_after)
         or created_identity is None
-        or not same_inode(created_identity, file_after)
+        or not same_file(created_identity, file_after)
         or file_after.st_size != len(raw)
     ):
         hold("output_visible_identity_changed")
