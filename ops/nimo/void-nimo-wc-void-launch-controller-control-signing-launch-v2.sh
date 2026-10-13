@@ -1,5 +1,5 @@
-# Audited package/control source-generation successor; signing protocol remains V1.
 #!/bin/bash
+# Audited package/control source-generation successor; signing protocol remains V1.
 set -Eeuo pipefail
 umask 077
 

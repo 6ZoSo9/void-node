@@ -1,5 +1,5 @@
-// Audited package/control source-generation successor; signing protocol remains V1.
 #!/usr/bin/env node
+// Audited package/control source-generation successor; signing protocol remains V1.
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";

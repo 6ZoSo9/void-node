@@ -1,5 +1,5 @@
-// Audited package/control source-generation successor proof; protocol remains V1.
 #!/usr/bin/env node
+// Audited package/control source-generation successor proof; protocol remains V1.
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
