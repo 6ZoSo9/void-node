@@ -1,5 +1,5 @@
-// Audited-package generation successor. Historical V1 remains immutable.
 #!/usr/bin/env node
+// Audited-package generation successor. Historical V1 remains immutable.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

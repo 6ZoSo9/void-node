@@ -1,5 +1,5 @@
-// Audited-package generation successor proof. Historical V1 remains immutable.
 #!/usr/bin/env node
+// Audited-package generation successor proof. Historical V1 remains immutable.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
