@@ -14,10 +14,18 @@ UID rename/unlink denial through the socket parent's immediate parent.
 V2 additionally requires explicit service-control denial evidence before the
 historical `runtime_can_control_service=false` field can be admitted. The
 evidence is bound to the exact training PID, Linux process start-time ticks and
-UID, requires zero inherited/permitted/effective/ambient capabilities plus
-`NoNewPrivs: 1`, and binds the installed systemd package to the running PID 1
-D-Bus Manager.Version value. Both must match exactly and resolve to reviewed
-major 255; package/runtime version drift HOLDS.
+UID. It also inventories the complete live process set touching the training UID
+twice, requires that set to remain stable across inspection, and requires every
+such process to have zero inherited/permitted/effective/ambient capabilities,
+all four Linux UID slots equal to the training UID, and `NoNewPrivs: 1`.
+This prevents a harmless caller-selected PID from masking a privileged sibling.
+
+The systemd boundary is pinned to the exact reviewed package generation
+`255.4-1ubuntu8.11`, not merely major 255. The collector queries the system
+bus owner PID for `org.freedesktop.systemd1` through
+`GetConnectionUnixProcessID` and requires it to equal PID 1 before accepting
+`Manager.Version`. Installed package, running manager version and reviewed
+package must all match exactly; owner/version/package drift HOLDS.
 
 V2 also requires an exact root-owned, non-group/world-writable, single-link
 Polkit deny rule at
