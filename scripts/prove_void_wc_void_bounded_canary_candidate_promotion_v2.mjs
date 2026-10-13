@@ -241,7 +241,7 @@ assert.equal(result.package_lock_git_blob_sha1, EXPECTED_BLOBS.package_lock);
 assert.equal(result.reviewed_binding_count, 40);
 assert.equal(
   result.reviewed_binding_manifest_sha256,
-  "ca014788702440abf66aef1b0e615463faa8d0cefd1340c6896dcf6be2f81a65",
+  "34f2a361c24db5dd1476017296e344e569b0fb3ded3eca5411bbadb036b8b686",
 );
 assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
