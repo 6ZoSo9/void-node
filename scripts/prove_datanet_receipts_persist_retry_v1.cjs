@@ -25,11 +25,16 @@ const mockFs = {
     const call = streamCalls;
     const stream = new EventEmitter();
     setImmediate(() => {
+      const firstLineEnd = receiptBytes.indexOf(0x0a) + 1;
       if (call === 1) {
-        const firstLineEnd = receiptBytes.indexOf(0x0a) + 1;
         stream.emit("data", receiptBytes.subarray(0, firstLineEnd).toString("utf8"));
         stream.emit("error", new Error("synthetic_read_failure"));
         stream.emit("data", "late-data-must-be-ignored\n");
+        stream.emit("end");
+        return;
+      }
+      if (call === 2) {
+        stream.emit("data", receiptBytes.subarray(0, firstLineEnd).toString("utf8"));
         stream.emit("end");
         return;
       }
@@ -104,8 +109,13 @@ function metric(body, name) {
   assert.match(failed, /^# err=1$/m);
   assert.equal(metric(failed, "void_datanet_receipts_persist_lines_total"), 0);
 
+  const shortRead = await invokeRoute();
+  assert.match(shortRead, /^# err=1$/m);
+  assert.equal(metric(shortRead, "void_datanet_receipts_persist_lines_total"), 0);
+  assert.equal(streamCalls, 2, "short read must consume one failed scan");
+
   const [retryA, retryB] = await Promise.all([invokeRoute(), invokeRoute()]);
-  assert.equal(streamCalls, 2, "concurrent retry must share one scanner");
+  assert.equal(streamCalls, 3, "concurrent retry must share one scanner");
   for (const body of [retryA, retryB]) {
     assert.doesNotMatch(body, /^# err=1$/m);
     assert.equal(metric(body, "void_datanet_receipts_persist_lines_total"), 2);
@@ -116,11 +126,12 @@ function metric(body, name) {
   }
 
   const stable = await invokeRoute();
-  assert.equal(streamCalls, 2, "unchanged file must not be rescanned");
+  assert.equal(streamCalls, 3, "unchanged file must not be rescanned");
   assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 2);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("failed_read_rollback=true");
+  console.log("short_read_rollback=true");
   console.log("concurrent_scan_coalesced=true");
   console.log("same_bytes_counted_once=true");
 })().catch((error) => {

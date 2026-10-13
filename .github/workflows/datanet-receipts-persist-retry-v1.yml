@@ -37,6 +37,7 @@ jobs:
           node scripts/prove_datanet_receipts_persist_retry_v1.cjs | tee proof.txt
           grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" proof.txt
           grep -Fx "failed_read_rollback=true" proof.txt
+          grep -Fx "short_read_rollback=true" proof.txt
           grep -Fx "concurrent_scan_coalesced=true" proof.txt
           grep -Fx "same_bytes_counted_once=true" proof.txt
       - name: Diff hygiene

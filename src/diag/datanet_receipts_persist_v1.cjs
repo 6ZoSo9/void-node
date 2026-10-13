@@ -114,9 +114,11 @@ async function scanOnceUnlocked() {
 
     const start = st.pos;
     const end = s.size - 1;
+    const expectedBytes = end - start + 1;
     await new Promise((resolve, reject) => {
       const rs = fs.createReadStream(file, { start, end, encoding: "utf8" });
       let settled = false;
+      let readBytes = 0;
       const settle = (done, value) => {
         if (settled) return;
         settled = true;
@@ -124,6 +126,7 @@ async function scanOnceUnlocked() {
       };
       rs.on("data", (chunk) => {
         if (settled) return;
+        readBytes += Buffer.byteLength(chunk, "utf8");
         st.buf += chunk;
         let idx;
         while ((idx = st.buf.indexOf("\n")) >= 0) {
@@ -133,7 +136,13 @@ async function scanOnceUnlocked() {
         }
       });
       rs.once("error", (error) => settle(reject, error));
-      rs.once("end", () => settle(resolve));
+      rs.once("end", () => {
+        if (readBytes !== expectedBytes) {
+          settle(reject, new Error(`short_read:${readBytes}/${expectedBytes}`));
+          return;
+        }
+        settle(resolve);
+      });
     });
 
     st.pos = s.size;
