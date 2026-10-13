@@ -14,9 +14,9 @@ const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
   "tools/apollyon-custody-host-policy-qualification-v2.mjs":
-    "83afde66ad89c29ec7b40932b2ebd7e0b2ce7bc7",
+    "9c14868ab7c3106fd0782f0d184600acbe602e2d",
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-    "25c553567172c1372a29f5e81bc45422022d7f4f",
+    "550f2b29a176f8ae2a288d9bdadaea46ef4a23f9",
   "tools/apollyon-authorization-custody-core-v1.mjs":
     "f9f18db5bbfeea466202ef0d7babe08c3c401d66",
   "tools/apollyon-authorization-custody-service-v1.mjs":
@@ -63,6 +63,7 @@ for(const required of [
   "prepareApollyonReviewedExecutionTreeV2",
   "loadApollyonReviewedPolicyV2",
   "runApollyonReviewedCollectorSelfTestV2",
+  '"--training-pid"',
   '"/proc/self/fd/3"',
   '"/usr/bin/python3"',
   'next_gate:"live_custody_service_source_identity_binding_v2"',
