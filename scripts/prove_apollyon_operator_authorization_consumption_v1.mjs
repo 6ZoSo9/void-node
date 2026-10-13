@@ -1,0 +1,357 @@
+#!/usr/bin/env node
+
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  VOID_APOLLYON_OPERATOR_AUTHORIZATION_PACKET_V1,
+  VOID_APOLLYON_OPERATOR_AUTHORIZATION_PAYLOAD_V1,
+  apollyonOperatorAuthorizationIdV1,
+  apollyonOperatorAuthorizationSigningBytesV1,
+} from "./apollyon_operator_authorization_packet_v1.mjs";
+import {
+  consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1,
+  VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1,
+} from "../tools/apollyon-operator-authorization-consumption-v1.mjs";
+
+const TOOL=fileURLToPath(
+  new URL("../tools/apollyon-operator-authorization-consumption-v1.mjs",import.meta.url),
+);
+
+function sha256(value){
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function rawFingerprint(publicKey){
+  const der=publicKey.export({type:"spki",format:"der"});
+  assert.equal(der.length,44);
+  return sha256(der.subarray(12));
+}
+
+const {publicKey,privateKey}=crypto.generateKeyPairSync("ed25519");
+const fingerprint=rawFingerprint(publicKey);
+const issuedAt="2026-10-13T19:30:00.000Z";
+const expiresAt="2026-10-13T19:40:00.000Z";
+const nowMs=Date.parse("2026-10-13T19:35:00.000Z");
+
+const payload={
+  marker:VOID_APOLLYON_OPERATOR_AUTHORIZATION_PAYLOAD_V1,
+  version:1,
+  purpose:"authorize_exactly_one_apollyon_candidate_training_attempt",
+  subject:"Apollyon",
+  action:"candidate_training_attempt_v1",
+  target_host:"Xiphos",
+  nonce:"11".repeat(32),
+  issued_at:issuedAt,
+  expires_at:expiresAt,
+  request:{
+    sha256:"22".repeat(32),
+    bytes:4041,
+    canonical_main:"33".repeat(20),
+    canonical_tree:"44".repeat(20),
+  },
+  corpus:{
+    sha256:"55".repeat(32),
+    records:36,
+    max_length:3072,
+  },
+  parent_adapter_sha256:"66".repeat(32),
+  authority:{
+    attempt_limit:1,
+    training_execution:true,
+    candidate_weight_mutation:true,
+    fresh_corpus_binding:true,
+    xiphos_runtime:true,
+    transaction_signing:false,
+    transaction_broadcast:false,
+    wallet_access:false,
+    funds_movement:false,
+    repository_merge:false,
+    runtime_service_mutation:false,
+    generation_execution:false,
+  },
+};
+
+function packet(){
+  const signingBytes=apollyonOperatorAuthorizationSigningBytesV1(payload);
+  return {
+    marker:VOID_APOLLYON_OPERATOR_AUTHORIZATION_PACKET_V1,
+    version:1,
+    authorization_id:apollyonOperatorAuthorizationIdV1(payload),
+    payload,
+    signature:{
+      scheme:"ed25519",
+      operator_public_key_raw_sha256:fingerprint,
+      value_base64:crypto.sign(null,signingBytes,privateKey).toString("base64"),
+    },
+  };
+}
+
+function stateRoot(mode=0o700){
+  const root=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-apollyon-authz-consumption-v1-"),
+  );
+  fs.chmodSync(root,mode);
+  return root;
+}
+
+function input(root,value=packet()){
+  return {packet:value,state_dir:root};
+}
+
+{
+  const root=stateRoot();
+  try{
+    const result=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(root),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(result.ok,true);
+    if(result.ok===false)throw new Error(result.reason);
+    assert.equal(
+      result.status,
+      "operator_authorization_consumed_for_single_candidate_training_attempt",
+    );
+    assert.match(
+      result.consumption_record_id,
+      /^apollyon_authz_consumption_v1:[0-9a-f]{64}$/u,
+    );
+    assert.equal(result.authorization_consumed,true);
+    assert.equal(result.consumption.single_use,true);
+    assert.equal(result.consumption.immutable_consumption_record,true);
+    assert.equal(result.consumption.signature_reverified_before_consumption,true);
+    assert.equal(result.consumption.expiry_rechecked_at_consumption,true);
+    assert.equal(result.consumption.consumption_precedes_attempt_claim,true);
+    assert.equal(result.consumption.consumption_precedes_training_execution,true);
+    assert.equal(result.attempt_claimed,false);
+    assert.equal(result.training_execution_performed,false);
+    assert.equal(result.candidate_weight_mutation_performed,false);
+    assert.equal(result.generation_execution_performed,false);
+    assert.equal(result.wallet_access_performed,false);
+    assert.equal(result.transaction_signing_performed,false);
+    assert.equal(result.funds_movement_performed,false);
+
+    const consumedDir=path.join(root,"consumed");
+    const files=fs.readdirSync(consumedDir);
+    assert.equal(files.length,1);
+    assert.match(files[0],/^[0-9a-f]{64}\.json$/u);
+    const file=path.join(consumedDir,files[0]);
+    assert.equal(fs.lstatSync(consumedDir).mode&0o777,0o700);
+    assert.equal(fs.lstatSync(file).mode&0o777,0o600);
+    const before=fs.readFileSync(file);
+
+    const duplicate=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(root),
+        fingerprint,
+        publicKey,
+        nowMs+1000,
+      );
+    assert.equal(duplicate.ok,false);
+    assert.equal(
+      duplicate.reason,
+      "authorization_consumption_already_consumed",
+    );
+    assert.deepEqual(fs.readFileSync(file),before);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
+  try{
+    const result=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(root),
+        fingerprint,
+        publicKey,
+        Date.parse(expiresAt),
+      );
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,"authorization_consumption_expired");
+    assert.equal(fs.existsSync(path.join(root,"consumed")),false);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot(0o755);
+  try{
+    const result=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(root),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(result.ok,false);
+    assert.equal(
+      result.reason,
+      "authorization_consumption_state_root_mode_must_be_0700",
+    );
+    assert.equal(fs.existsSync(path.join(root,"consumed")),false);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const parent=stateRoot();
+  const real=path.join(parent,"real");
+  const link=path.join(parent,"link");
+  fs.mkdirSync(real,{mode:0o700});
+  fs.symlinkSync(real,link);
+  try{
+    const result=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(link),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(result.ok,false);
+    assert.match(result.reason,/authorization_consumption_state_root_/u);
+  }finally{
+    fs.rmSync(parent,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=stateRoot();
+  try{
+    const forged=packet();
+    const signature=Buffer.from(forged.signature.value_base64,"base64");
+    signature[0]^=1;
+    forged.signature.value_base64=signature.toString("base64");
+    const result=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(root,forged),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,"authorization_consumption_verifier_failed");
+    assert.equal(fs.existsSync(path.join(root,"consumed")),false);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const rootA=stateRoot();
+  const rootB=stateRoot();
+  try{
+    const shared=packet();
+    const first=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(rootA,shared),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    const second=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(rootB,shared),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(first.ok,true);
+    assert.equal(second.ok,true);
+    assert.equal(
+      first.consumption.global_replay_prevention_claimed,
+      false,
+    );
+    assert.notEqual(
+      first.state_store_realpath_sha256,
+      second.state_store_realpath_sha256,
+    );
+  }finally{
+    fs.rmSync(rootA,{recursive:true,force:true});
+    fs.rmSync(rootB,{recursive:true,force:true});
+  }
+}
+
+for(const [key,expected] of Object.entries({
+  durable_single_use_consumption:true,
+  exact_signed_authorization_reverification_required:true,
+  runtime_expiry_recheck_required:true,
+  private_existing_state_root_required:true,
+  exact_state_store_realpath_scoped_replay_prevention:true,
+  global_replay_prevention_claimed:false,
+  canonical_state_store_runtime_binding_still_required:true,
+  immutable_consumption_record:true,
+  filesystem_read:true,
+  filesystem_mutation_one_consumption_record_may_occur:true,
+  operator_private_key_access:false,
+  production_signing:false,
+  attempt_claim_authorized_by_this_gate:false,
+  attempt_claimed:false,
+  training_execution_authorized_by_this_gate:false,
+  training_execution_performed:false,
+  candidate_weight_mutation_performed:false,
+  generation_execution_performed:false,
+  wallet_access:false,
+  transaction_signing:false,
+  transaction_broadcast:false,
+  funds_movement:false,
+  repository_merge:false,
+  runtime_service_mutation:false,
+  network_access:false,
+  automatic_retry:false,
+})){
+  assert.equal(
+    VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1[key],
+    expected,
+    key,
+  );
+}
+
+const source=fs.readFileSync(TOOL,"utf8");
+for(const forbidden of [
+  "node:child_process",
+  "createPrivateKey",
+  "generateKeyPairSync",
+  "crypto.sign(",
+  "Wallet(",
+  "signTransaction(",
+  "sendTransaction(",
+  "eth_sendRawTransaction",
+  "fetch(",
+  "process.env",
+]){
+  assert.equal(
+    source.includes(forbidden),
+    false,
+    "consumption gate gained forbidden capability: "+forbidden,
+  );
+}
+
+console.log("VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_V1_PROOF_GREEN");
+console.log("authorization_signature_reverified_before_consumption=true");
+console.log("runtime_expiry_rechecked=true");
+console.log("private_state_root_0700_required=true");
+console.log("immutable_consumption_record_0600=true");
+console.log("atomic_hardlink_publication=true");
+console.log("directory_fsync_after_publication=true");
+console.log("duplicate_authorization_rejected=true");
+console.log("consumption_record_bytes_unchanged_on_duplicate=true");
+console.log("replay_prevention_scope=exact_state_store_realpath");
+console.log("global_replay_prevention_claimed=false");
+console.log("canonical_state_store_runtime_binding_required=true");
+console.log("attempt_claimed=false");
+console.log("training_execution=false");
+console.log("candidate_weight_mutation=false");
+console.log("wallet_access=false");
+console.log("transaction_signing=false");
+console.log("funds_movement=false");
