@@ -30,6 +30,21 @@ function gitBlob(bytes){
 for(const [relative,expected] of Object.entries(HISTORICAL)){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }
+const workflow=fs.readFileSync(
+  path.join(ROOT,".github/workflows/apollyon-custody-socket-parent-namespace-v2.yml"),
+  "utf8",
+);
+for(const relative of [
+  ...Object.keys(HISTORICAL),
+  "tools/apollyon-custody-host-policy-qualification-v2.mjs",
+  "scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs",
+  "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py",
+  "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py",
+  "docs/security/apollyon-custody-host-policy-qualification-v2.md",
+  "docs/security/apollyon-designated-host-custody-evidence-readonly-v2.md",
+]){
+  assert.equal(workflow.includes('"' + relative + '"'),true,"workflow trigger missing "+relative);
+}
 const now=1_800_000_000_000;
 function v1Fixture(){
   return {
