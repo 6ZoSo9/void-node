@@ -66,9 +66,9 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave4_earn_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "073ff6c31a2559b133295913a05ff8d162f591c9f217ff25f6ec03d965b6aa44",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "24be0168d458a58e55bc2c444e82c0ead16aeceac9b954c208f7bc4d5d694ab3",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "6e0da00dcfa0b7b8abf72ddb33f87028afcdfa6d1539c3f37d984b14a69bf88e",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "fab2b52ac2b81c729425d177e3d8ac2cdac7f1b64da442c50d06a00ad4d8dfb4",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "06afbb78413e56360d33c0d35b7551db2558075f26436477d0ebcd46cc300bf6",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "192e81ad37dc60a27e18bf569a68c971e1bb13959e26f0e82f614770d3079020",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -76,7 +76,7 @@
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
-    "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
+    "public/void-app-wave1-v1/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "9c216f2127b22a8fd0c0d65cd8d4532ad399799adc80eca67eb7fcc9218b785c",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "c3280ee022e07dbb8a9c8fa35156563358a786477b9c3e28a0ecc3b1706813d1"
   },
@@ -114,5 +114,6 @@
   "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
   "validate_status_live_region_refresh_date": "2026-10-10",
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
-  "same_route_modal_navigation_focus_refresh_date": "2026-10-13"
+  "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
+  "advanced_unavailable_controls_truth_refresh_date": "2026-10-13"
 }

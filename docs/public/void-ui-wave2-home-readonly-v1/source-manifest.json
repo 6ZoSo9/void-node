@@ -36,7 +36,7 @@
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "073ff6c31a2559b133295913a05ff8d162f591c9f217ff25f6ec03d965b6aa44",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "fab2b52ac2b81c729425d177e3d8ac2cdac7f1b64da442c50d06a00ad4d8dfb4",
     "docs/public/void-ui-wave2-home-readonly-v1/ACCEPTANCE_CRITERIA.md": "f652dfbaa3f1a934b75a97c8c0707db75de4042cec65b1a24186f0018cdfa6d3",
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
     "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
@@ -51,8 +51,8 @@
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "1e5b4c1c1906ec79c096521b3d6a9d121dc17cd7a99741775da1064baa0d41c2",
-    "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
-    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "23cf10bedb1c25ec76d60bf7660b34f7b1feaf24a4a25f910681b71982fb0ba3",
+    "public/void-app-wave1-v1/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
+    "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "54aa3118f098de6177728db11accff530b65f8bf83757441ae89176a20c17964",
     "src/index.ts": "0911349bc7b63975478cd48ba0f3d3ab70938eeb9515946cb2acbbd191afb3a7",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
@@ -141,5 +141,6 @@
   "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
   "validate_status_live_region_refresh_date": "2026-10-10",
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
-  "same_route_modal_navigation_focus_refresh_date": "2026-10-13"
+  "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
+  "advanced_unavailable_controls_truth_refresh_date": "2026-10-13"
 }

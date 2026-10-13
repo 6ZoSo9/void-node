@@ -28,6 +28,9 @@ const indexText = read(indexPath);
 const html = read(path.join(shellDir, "index.html"));
 const appJs = read(path.join(shellDir, "assets", "js", "app.js"));
 const viewsJs = read(path.join(shellDir, "assets", "js", "views.js"));
+const componentsCss = read(
+  path.join(shellDir, "assets", "css", "components.css")
+);
 
 const requiredShellFiles = [
   "index.html",
@@ -563,6 +566,55 @@ if (
   )
 ) {
   fail("command and mobile navigation links must share the same-route focus repair");
+}
+
+const advancedSettingsStart = html.indexOf(
+  '<div class="settings-list" role="list">'
+);
+const advancedSettingsEnd = html.indexOf(
+  "\n      </div>\n    </div>\n  </aside>",
+  advancedSettingsStart
+);
+if (advancedSettingsStart < 0 || advancedSettingsEnd < 0) {
+  fail("Advanced availability list is incomplete");
+}
+const advancedSettingsBlock = html.slice(
+  advancedSettingsStart,
+  advancedSettingsEnd
+);
+if (/<button\b/i.test(advancedSettingsBlock)) {
+  fail("unavailable Advanced destinations must not remain enabled controls");
+}
+for (const name of ["Records", "Diagnostics", "Operator tools", "Developer"]) {
+  const marker =
+    `<div class="settings-list__item" role="listitem"><span><strong>${name}</strong>`;
+  if (!advancedSettingsBlock.includes(marker)) {
+    fail(`Advanced availability item missing: ${name}`);
+  }
+}
+if (
+  (advancedSettingsBlock.match(/Unavailable in the public app\./g) ?? [])
+    .length !== 4
+) {
+  fail("every unavailable Advanced destination needs participant-facing copy");
+}
+if (
+  (
+    advancedSettingsBlock.match(
+      /class="status-chip status-chip--warning" aria-hidden="true">Unavailable<\/span>/g
+    ) ?? []
+  ).length !== 4
+) {
+  fail("every unavailable Advanced destination needs one visible status");
+}
+for (const marker of [
+  ".settings-list button, .settings-list__item {",
+  ".settings-list__item > span:first-child",
+  ".settings-list__item .status-chip { flex: none; }",
+]) {
+  if (!componentsCss.includes(marker)) {
+    fail(`Advanced availability styling missing: ${marker}`);
+  }
 }
 
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;

@@ -21,8 +21,8 @@
   "authority_added": false,
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "073ff6c31a2559b133295913a05ff8d162f591c9f217ff25f6ec03d965b6aa44",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "24be0168d458a58e55bc2c444e82c0ead16aeceac9b954c208f7bc4d5d694ab3",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "fab2b52ac2b81c729425d177e3d8ac2cdac7f1b64da442c50d06a00ad4d8dfb4",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "06afbb78413e56360d33c0d35b7551db2558075f26436477d0ebcd46cc300bf6",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -33,7 +33,7 @@
     "public/void-app-wave1-v1/assets/js/earn-live.js": "1ec51efe296a1d1a9817eb8e9e0cd7b022ebaceb9de9fff2ae00280fba0f13a2",
     "public/void-app-wave1-v1/assets/js/views.js": "fcc430a7d35ef01186e149af215095e06cae3576e5ba77faf449720ea241dbe6",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "1e5b4c1c1906ec79c096521b3d6a9d121dc17cd7a99741775da1064baa0d41c2",
-    "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
+    "public/void-app-wave1-v1/index.html": "b8ec43af415f6a9b67cb544f6d560445cd9a2bb36867ff60f89b8244912f4993",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "9c216f2127b22a8fd0c0d65cd8d4532ad399799adc80eca67eb7fcc9218b785c",
@@ -71,5 +71,6 @@
   "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
   "validate_status_live_region_refresh_date": "2026-10-10",
   "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
-  "same_route_modal_navigation_focus_refresh_date": "2026-10-13"
+  "same_route_modal_navigation_focus_refresh_date": "2026-10-13",
+  "advanced_unavailable_controls_truth_refresh_date": "2026-10-13"
 }
