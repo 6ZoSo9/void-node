@@ -13,6 +13,8 @@ const NEW_PACKAGE="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";
 const NEW_LOCK="15b5c82ea36f13079a2f9e8863722f654eb3f201";
 const FROZEN_V5="scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 const FROZEN_V5_BLOB="70292a0b283d8f06814f153105e27397f924c19d";
+const FROZEN_DYNAMIC="scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs";
+const FROZEN_DYNAMIC_BLOB="368ade74f36acad899420db5cf994363d6dfa04a";
 const E2_QUALIFIER="tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs";
 const E2_QUALIFIER_BLOB="834f17d99c0351c0f2b10fb024f3ee43afae8a42";
 const HISTORICAL_HEAD="22a30e3ffad6047a472488104c769140bd050878";
@@ -60,6 +62,7 @@ for(const [rel,want] of [
   ["package.json",NEW_PACKAGE],
   ["package-lock.json",NEW_LOCK],
   [FROZEN_V5,FROZEN_V5_BLOB],
+  [FROZEN_DYNAMIC,FROZEN_DYNAMIC_BLOB],
   [E2_QUALIFIER,E2_QUALIFIER_BLOB],
 ]){
   assert.equal(git(["rev-parse","HEAD:"+rel]),want,"commit drift: "+rel);
@@ -75,6 +78,11 @@ assert.ok(
   frozenSource.includes('const SOURCE_HEAD = "'+HISTORICAL_HEAD+'";'),
   "frozen V5 source parent changed",
 );
+const frozenDynamicSource=fs.readFileSync(path.join(ROOT,FROZEN_DYNAMIC),"utf8");
+assert.ok(
+  frozenDynamicSource.includes('const PACKAGE_LOCK_BLOB = "'+OLD_LOCK+'";'),
+  "frozen dynamic-tool package-lock identity changed",
+);
 
 const derivation=spawnSync(process.execPath,[path.join(ROOT,FROZEN_V5),"--derive"],{
   cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,
@@ -83,6 +91,17 @@ assert.equal(derivation.error,undefined);
 assert.notEqual(
   derivation.status,0,
   "frozen V5 derivation unexpectedly accepted audited package generation",
+);
+
+const dynamicDerivation=spawnSync(
+  process.execPath,
+  [path.join(ROOT,FROZEN_DYNAMIC),"--derive"],
+  {cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000},
+);
+assert.equal(dynamicDerivation.error,undefined);
+assert.notEqual(
+  dynamicDerivation.status,0,
+  "frozen dynamic-tool derivation unexpectedly accepted audited package generation",
 );
 
 const qualifier=spawnSync(process.execPath,[path.join(ROOT,E2_QUALIFIER)],{
@@ -123,6 +142,9 @@ const refusal={
   audited_package_json_git_blob_sha1:NEW_PACKAGE,
   audited_package_lock_git_blob_sha1:NEW_LOCK,
   frozen_v5_candidate_script_git_blob_sha1:FROZEN_V5_BLOB,
+  frozen_dynamic_tool_script_git_blob_sha1:FROZEN_DYNAMIC_BLOB,
+  historical_dynamic_tool_candidate_derived:false,
+  historical_dynamic_tool_candidate_refused_audited_package_generation:true,
   dynamic_tool_execution_identity_verified:false,
   dynamic_tool_transitive_closure_verified:false,
   complete_executable_closure_verified:false,

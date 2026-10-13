@@ -131,6 +131,7 @@ jobs:
           console.log("HISTORICAL_V5_CANDIDATE_REFUSED_AUDITED_PACKAGE_GENERATION=true");
           NODE
               touch "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"
+              touch "$RUNNER_TEMP/audited-package-enforcement-refusal"
               ;;
             f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
               if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/historical-v5-error.log"; then
@@ -185,9 +186,34 @@ jobs:
 
       - name: Derive current dynamic-tool source census without execution authority
         run: |
+          set -euo pipefail
           node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
           test "$(git hash-object scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs)" = "368ade74f36acad899420db5cf994363d6dfa04a"
-          if test -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
+
+          if test -f "$RUNNER_TEMP/audited-package-enforcement-refusal"; then
+            audited_refusal="$RUNNER_TEMP/enforcement-v5-audited-refusal-${{ matrix.node }}.json"
+            node --input-type=module - <<'NODE' "$audited_refusal"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.audited_package_generation_refusal,true);
+          assert.equal(j.historical_dynamic_tool_candidate_derived,false);
+          assert.equal(
+            j.historical_dynamic_tool_candidate_refused_audited_package_generation,
+            true,
+          );
+          assert.equal(
+            j.frozen_dynamic_tool_script_git_blob_sha1,
+            "368ade74f36acad899420db5cf994363d6dfa04a",
+          );
+          assert.equal(j.dynamic_tool_execution_identity_verified,false);
+          assert.equal(j.dynamic_tool_transitive_closure_verified,false);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.candidate_identity_accepted,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          console.log("HISTORICAL_DYNAMIC_TOOL_CANDIDATE_REFUSED_AUDITED_PACKAGE_GENERATION=true");
+          NODE
+          elif test -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
             # E2 may alter the V5 closure while leaving the older dynamic-tool
             # subset itself unchanged. Preserve either exact historic result.
             if node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > "$RUNNER_TEMP/legacy-dynamic-tools.json" 2> "$RUNNER_TEMP/legacy-dynamic-error.log"; then
@@ -209,9 +235,7 @@ jobs:
             fi
           else
             node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > dynamic-tools-${{ matrix.node }}.json
-          fi
-          if test ! -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
-          node --input-type=module - <<'NODE' "dynamic-tools-${{ matrix.node }}.json"
+            node --input-type=module - <<'NODE' "dynamic-tools-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
