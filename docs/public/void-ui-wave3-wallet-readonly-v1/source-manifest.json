@@ -21,8 +21,8 @@
   "authority_added": false,
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "db9b4891c8c17fe0e6d625fd455aac9c722cc011236c79955580c3bd81047bc6",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "073ff6c31a2559b133295913a05ff8d162f591c9f217ff25f6ec03d965b6aa44",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "a2d516e03c38dea01588f433ad49fef8b5954ea25a4fc93afa49e981f8db6ec0",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -70,5 +70,6 @@
   "earn_invalid_input_supersession_refresh_date": "2026-10-07",
   "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
   "validate_status_live_region_refresh_date": "2026-10-10",
-  "wallet_http200_evidence_truth_refresh_date": "2026-10-11"
+  "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
+  "same_route_modal_navigation_focus_refresh_date": "2026-10-13"
 }
