@@ -100,8 +100,8 @@ jobs:
       - name: Requalify exact real saga dynamic edge
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs --workspace > "enforcement-v6-real-saga-${{ matrix.node }}.json"
-          node --input-type=module - <<'NODE' "enforcement-v6-real-saga-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs --workspace > "$RUNNER_TEMP/enforcement-v6-real-saga-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/enforcement-v6-real-saga-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
@@ -115,24 +115,31 @@ jobs:
       - name: Requalify exact real saga behavior with inert adapters
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs | tee "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"network_request_performed": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"credential_access_performed": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"wallet_access_performed": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"signing_performed": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"transaction_broadcast_performed": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
-          grep -F '"money_movement": false' "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          node scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs | tee "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"network_request_performed": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"credential_access_performed": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"wallet_access_performed": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"signing_performed": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"transaction_broadcast_performed": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          grep -F '"money_movement": false' "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log"
 
       - name: Requalify reviewed ethers package bytes
         run: |
           set -euo pipefail
-          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs | tee "enforcement-v6-package-runtime-${{ matrix.node }}.log"
-          grep -Fx 'root_package=ethers' "enforcement-v6-package-runtime-${{ matrix.node }}.log"
-          grep -Fx 'packages_aggregate_sha256=5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73' "enforcement-v6-package-runtime-${{ matrix.node }}.log"
-          grep -Fx 'runtime_chain_wallet_transaction_funds_authority=0' "enforcement-v6-package-runtime-${{ matrix.node }}.log"
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs | tee "$RUNNER_TEMP/enforcement-v6-package-runtime-${{ matrix.node }}.log"
+          grep -Fx 'root_package=ethers' "$RUNNER_TEMP/enforcement-v6-package-runtime-${{ matrix.node }}.log"
+          grep -Fx 'packages_aggregate_sha256=5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73' "$RUNNER_TEMP/enforcement-v6-package-runtime-${{ matrix.node }}.log"
+          grep -Fx 'runtime_chain_wallet_transaction_funds_authority=0' "$RUNNER_TEMP/enforcement-v6-package-runtime-${{ matrix.node }}.log"
 
       - name: Self-test current scanner
         run: node scripts/prove_buy_void_enforcement_artifact_attestation_v6_candidate.mjs --self-test
+
+      - name: Stage bounded evidence only after clean-repository package proof
+        run: |
+          set -euo pipefail
+          cp -- "$RUNNER_TEMP/enforcement-v6-real-saga-${{ matrix.node }}.json" "enforcement-v6-real-saga-${{ matrix.node }}.json"
+          cp -- "$RUNNER_TEMP/enforcement-v6-saga-behavior-${{ matrix.node }}.log" "enforcement-v6-saga-behavior-${{ matrix.node }}.log"
+          cp -- "$RUNNER_TEMP/enforcement-v6-package-runtime-${{ matrix.node }}.log" "enforcement-v6-package-runtime-${{ matrix.node }}.log"
 
       - name: Derive unaccepted current V6 enforcement candidate
         run: |
