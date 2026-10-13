@@ -114,7 +114,7 @@ jobs:
           python3 scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py --plan >"$log" 2>&1
           rc=$?
           set -e
-          test "$rc" -eq 1
+          test "$rc" -eq 2
           grep -Fq 'VOID_NIMO_V4_INACTIVE_BUNDLE_V1_HOLD:' "$log"
           grep -Fq 'runtime_bytes_invalid:' "$log"
           grep -Fq 'dist/economic/buy_void_filesystem_bakery_lock_v1.js' "$log"
