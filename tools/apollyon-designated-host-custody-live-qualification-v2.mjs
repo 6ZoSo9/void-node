@@ -19,6 +19,8 @@ export const VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_AUTHORITY_
     private_temporary_filesystem_write:true,
     repository_source_write:false,
     persistent_host_mutation:false,
+    installed_preentry_launcher_required:true,
+    direct_worktree_privileged_invocation_supported:false,
     exact_v2_collector_blob_required:true,
     exact_v2_policy_blob_required:true,
     caller_supplied_evidence:false,
@@ -73,6 +75,7 @@ const REVIEWED_EXECUTION_FILES=Object.freeze({
 const MAX_STDOUT_BYTES=128*1024;
 const MAX_STDERR_BYTES=32*1024;
 const MAX_COLLECTOR_MS=20_000;
+const INSTALLED_LAUNCH_MARKER="VOID_APOLLYON_V2_INSTALLED_LAUNCHER_V1";
 const SAFE_NAME=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
 const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
 
@@ -563,6 +566,9 @@ async function main(){
   if(process.argv.length===3&&process.argv[2]==="--self-test"){
     await selfTest();
     return;
+  }
+  if(process.env.VOID_APOLLYON_V2_INSTALLED_LAUNCHER!==INSTALLED_LAUNCH_MARKER){
+    fail("apollyon_live_qualification_v2_installed_preentry_launcher_required");
   }
   if(process.geteuid?.()!==0)fail("apollyon_live_qualification_v2_root_required");
   const config=parseCli(process.argv.slice(2));
