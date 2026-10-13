@@ -515,7 +515,7 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
       max_fee_per_gas_wei: "0",
       max_priority_fee_per_gas_wei: "0",
       below_evm_intrinsic_gas: true,
-      minimum_evm_intrinsic_gas: 
+      minimum_evm_intrinsic_gas:
         VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1.toString(),
       probe_envelope_sha256:
         buyVoidEpoch2CredentialProbeFingerprintV1(input.probe),

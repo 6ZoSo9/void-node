@@ -29,7 +29,7 @@ const EXPECTED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "6fa849de89bd71fd25d73ed62661afc722d1976a",
+    "66e18fd566825e2f2f71a673418209f6824b7c81",
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
@@ -257,7 +257,7 @@ function assertSourceGeneration(): {
     sparse_checkout: sparseCheckout,
     entries: worktreeEntries,
   });
-  if (!worktree.ok) throw new Error(worktree.reason);
+  if ("reason" in worktree) throw new Error(worktree.reason);
   if (!/^[0-9a-f]{40}$/u.test(head) || !/^[0-9a-f]{40}$/u.test(tree) ||
       branch !== "main") {
     throw new Error("epoch2_attestation_head_invalid");
@@ -411,7 +411,7 @@ async function main(): Promise<void> {
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
-  if (!signer.ok) throw new Error(signer.reason);
+  if ("reason" in signer) throw new Error(signer.reason);
   const publicAddress = (await signer.signer.get_address()).toLowerCase();
   if (publicAddress !== VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
     throw new Error("epoch2_attestation_immutable_fulfiller_mismatch");
@@ -475,5 +475,5 @@ if (process.argv[1] &&
     }, null, 2));
     process.exitCode = 2;
   });
-  
+
 }

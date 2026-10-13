@@ -168,7 +168,6 @@ const verified = verifyBuyVoidEpoch2CredentialSignedProbeV1({
   probe,
 });
 assert.equal(verified.ok, true);
-if (!verified.ok) throw new Error(verified.reason);
 assert.equal(verified.signer, dummy.address.toLowerCase());
 assert.match(verified.transaction_hash, /^0x[0-9a-f]{64}$/u);
 assert.match(verified.raw_signed_transaction_sha256, /^[0-9a-f]{64}$/u);

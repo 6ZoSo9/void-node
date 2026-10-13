@@ -31,7 +31,7 @@ const REVIEWED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "08526c6c279739fdddda1456ffa906d6ef707187",
+    "66e18fd566825e2f2f71a673418209f6824b7c81",
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
