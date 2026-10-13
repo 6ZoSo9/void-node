@@ -1,0 +1,152 @@
+name: VOID Nimo V5 private stage v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/void_nimo_v5_private_stage_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-private-stage-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-private-stage-v1.yml"
+      - "scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/void_nimo_v5_private_stage_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-private-stage-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-private-stage-v1.yml"
+      - "scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact stack parent
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git merge-base --is-ancestor 1ddd4ff7eccddc8d1645fb7123052cf865160f2e HEAD
+
+      - name: Set up Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Build exact V5 compiler-only candidate
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Derive exact hosted V5 archive identity
+        run: |
+          set -euo pipefail
+          private="$(mktemp -d)"
+          chmod 0700 "$private"
+          echo "PRIVATE=$private" >> "$GITHUB_ENV"
+          python3 -I -B scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py \
+            --package "$private/void-nimo-v5-inactive.tar" > "$RUNNER_TEMP/v5-package.json"
+          node --input-type=module - "$RUNNER_TEMP/v5-package.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.candidate_manifest_id,"voidwfb5_10391f1bf567fba6d9cab2099fb1db2b180333baa01ae868fe62367208984dcb");
+          assert.equal(j.archive_bytes,266240);
+          assert.equal(j.archive_sha256,"ede5706fa6ecaf50a3e22e893a7fc24d65ed1c640901c16e151239319296ab21");
+          assert.equal(j.runtime_files_exact,8);
+          assert.equal(j.source_generation_qualified,true);
+          assert.equal(j.private_stage_qualified,false);
+          assert.equal(j.live_nimo_installed,false);
+          assert.equal(j.production_gate_ready,false);
+          assert.equal(j.presale_activation,false);
+          assert.equal(j.funds_moved,false);
+          NODE
+
+      - name: Prove private-stage source
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/void_nimo_v5_private_stage_v1.py
+          python3 -I -B scripts/void_nimo_v5_private_stage_v1.py \
+            --plan "$PRIVATE/void-nimo-v5-inactive.tar" > "$RUNNER_TEMP/v5-stage-plan.json"
+          python3 -I -B scripts/void_nimo_v5_private_stage_v1.py \
+            --self-test "$PRIVATE/void-nimo-v5-inactive.tar" > "$RUNNER_TEMP/v5-stage-self-test.json"
+          node --input-type=module - "$RUNNER_TEMP/v5-stage-plan.json" "$RUNNER_TEMP/v5-stage-self-test.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          for(const path of process.argv.slice(2)){
+            const j=JSON.parse(fs.readFileSync(path,"utf8"));
+            assert.equal(j.marker,"VOID_NIMO_V5_PRIVATE_STAGE_V1");
+            assert.equal(j.archive_bytes,266240);
+            assert.equal(j.archive_sha256,"ede5706fa6ecaf50a3e22e893a7fc24d65ed1c640901c16e151239319296ab21");
+            assert.equal(j.candidate_manifest_id,"voidwfb5_10391f1bf567fba6d9cab2099fb1db2b180333baa01ae868fe62367208984dcb");
+            assert.equal(j.runtime_files_exact,8);
+            assert.equal(j.private_stage_source_qualified,true);
+            assert.equal(j.live_nimo_private_stage_performed,false);
+            assert.equal(j.live_nimo_installed,false);
+            assert.equal(j.production_gate_ready,false);
+            assert.equal(j.presale_activation,false);
+            assert.equal(j.funds_moved,false);
+          }
+          NODE
+          echo "VOID_NIMO_V5_PRIVATE_STAGE_SOURCE_GREEN"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload stage proof receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v5-private-stage-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/v5-package.json
+            ${{ runner.temp }}/v5-stage-plan.json
+            ${{ runner.temp }}/v5-stage-self-test.json
+          if-no-files-found: error
+          retention-days: 7
