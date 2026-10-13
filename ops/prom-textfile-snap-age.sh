@@ -1,1 +1,0 @@
-/usr/local/bin/prom-textfile-snap-age.sh
