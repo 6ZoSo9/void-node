@@ -12,6 +12,9 @@ import {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  parseSystemdObservation,
+  serviceCgroupBound,
+  canonicalUserBusPaths,
 } from "./void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
 
 const ROOT = process.cwd();
@@ -25,9 +28,6 @@ function cleanEnv(extra = {}) {
   return {
     PATH: "/usr/bin:/bin",
     HOME: String(process.env.HOME || ""),
-    XDG_RUNTIME_DIR: String(process.env.XDG_RUNTIME_DIR || ""),
-    DBUS_SESSION_BUS_ADDRESS:
-      String(process.env.DBUS_SESSION_BUS_ADDRESS || ""),
     GIT_OPTIONAL_LOCKS: "0",
     GIT_NO_REPLACE_OBJECTS: "1",
     GIT_CONFIG_NOSYSTEM: "1",
@@ -79,6 +79,80 @@ assert.match(sealedSource, /epoch2_sealed_node_execution_context_invalid/u);
 assert.match(sealedSource, /root_owned_node_binary_verified: true/u);
 assert.match(sealedSource, /node_loader_environment_empty: true/u);
 assert.match(sealedSource, /process[.]argv\[1\] !== "-"/u);
+
+assert.equal(
+  /process[.]env[.]DBUS_SESSION_BUS_ADDRESS/u.test(sealedSource),
+  false,
+);
+assert.equal(/process[.]env[.]XDG_RUNTIME_DIR/u.test(sealedSource), false);
+assert.match(
+  sealedSource,
+  /epoch2_sealed_service_main_pid_cgroup_mismatch/u,
+);
+assert.match(sealedSource, /epoch2_sealed_process_invocation_mismatch/u);
+
+const proofUid = typeof process.getuid === "function" ? process.getuid() : 1000;
+const busPaths = canonicalUserBusPaths(proofUid);
+assert.equal(busPaths.runtime_directory, "/run/user/" + String(proofUid));
+assert.equal(busPaths.bus_path, busPaths.runtime_directory + "/bus");
+assert.equal(busPaths.bus_address, "unix:path=" + busPaths.bus_path);
+
+const invocation = "a".repeat(32);
+const processCommit = "b".repeat(40);
+const processTree = "c".repeat(40);
+const show = [
+  "ActiveState=active",
+  "SubState=running",
+  "MainPID=4242",
+  "InvocationID=" + invocation,
+  "LoadCredential=buy-void-epoch2-fulfiller-v1:/private/e2-fulfiller.key",
+  "",
+].join("\n");
+const environment = Buffer.from([
+  "INVOCATION_ID=" + invocation,
+  "CREDENTIALS_DIRECTORY=/run/user/" + String(proofUid) +
+    "/credentials/void-node-live.service",
+  "VOID_PROCESS_SOURCE_COMMIT=" + processCommit,
+  "VOID_PROCESS_SOURCE_TREE=" + processTree,
+  "VOID_PROCESS_SOURCE_BRANCH=main",
+  "",
+].join("\0"), "utf8");
+const goodCgroup =
+  "0::/user.slice/user-" + String(proofUid) +
+  ".slice/user@" + String(proofUid) +
+  ".service/app.slice/void-node-live.service\n";
+const badCgroup =
+  "0::/user.slice/user-" + String(proofUid) +
+  ".slice/user@" + String(proofUid) +
+  ".service/app.slice/other.service\n";
+assert.equal(serviceCgroupBound(goodCgroup, proofUid), true);
+assert.equal(serviceCgroupBound(badCgroup, proofUid), false);
+const systemdObserved =
+  parseSystemdObservation(show, environment, goodCgroup, proofUid);
+assert.equal(systemdObserved.main_pid, 4242);
+assert.equal(systemdObserved.invocation_id, invocation);
+assert.equal(systemdObserved.process_invocation_id, invocation);
+assert.match(systemdObserved.main_pid_cgroup_sha256, /^[0-9a-f]{64}$/u);
+assert.throws(
+  () => parseSystemdObservation(show, environment, badCgroup, proofUid),
+  /epoch2_sealed_service_main_pid_cgroup_mismatch/u,
+);
+const wrongInvocationEnvironment = Buffer.from(
+  environment.toString("utf8").replace(
+    "INVOCATION_ID=" + invocation,
+    "INVOCATION_ID=" + "d".repeat(32),
+  ),
+  "utf8",
+);
+assert.throws(
+  () => parseSystemdObservation(
+    show,
+    wrongInvocationEnvironment,
+    goodCgroup,
+    proofUid,
+  ),
+  /epoch2_sealed_process_invocation_mismatch/u,
+);
 
 // Independent crypto vectors: the sealed probe does not rely on ethers or tsx.
 assert.equal(
@@ -235,6 +309,10 @@ console.log("private_key_string_materialization=false");
 console.log("sec1_der_buffer_zeroed=true");
 console.log("trusted_node_binary_required=true");
 console.log("node_loader_environment_empty=true");
+console.log("ambient_dbus_session_address_ignored=true");
+console.log("canonical_user_bus_path_bound=true");
+console.log("main_pid_systemd_cgroup_bound=true");
+console.log("process_invocation_id_bound=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
