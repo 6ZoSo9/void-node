@@ -43,7 +43,10 @@ V86 requires root on Xiphos for read-only cross-UID observation. It:
 9. rechecks all live identities again; and
 10. feeds the V84 receipt, custody assertion, and exact record into V85.
 
-Only after all checks pass does V86 report:
+Importing V86 grants no proof. Its exported authority metadata states
+`same_live_custody_session_binding_proven_by_import=false`.
+
+Only after all checks pass does a live V86 result report:
 
 ```text
 same_live_custody_session_binding_required=true
