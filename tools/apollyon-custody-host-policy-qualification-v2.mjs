@@ -21,9 +21,13 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   reviewed_systemd_major_pinned:true,
   running_systemd_manager_version_bound:true,
   running_installed_systemd_version_match_required:true,
+  reviewed_systemd_package_version_pinned:true,
+  systemd_bus_owner_pid1_required:true,
+  all_training_uid_processes_capability_free_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
+const REVIEWED_SYSTEMD_PACKAGE_VERSION="255.4-1ubuntu8.11";
 const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
 const SAFE_RUNTIME_USER=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
 const SYSTEMD_MANAGE_UNIT_VERBS=Object.freeze([
@@ -67,27 +71,31 @@ function normalizeSocketParentV2(value){
 function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
-    "all_systemd_control_actions_explicitly_denied","checked_actions",
-    "installed_systemd_package_version","observed_systemd_version_line","pkcheck_subject",
-    "polkit_deny_rule","reviewed_systemd_major","running_installed_systemd_version_match",
+    "all_systemd_control_actions_explicitly_denied",
+    "all_training_uid_processes_capability_free",
+    "checked_actions","installed_systemd_package_version",
+    "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule",
+    "reviewed_systemd_major","reviewed_systemd_package_version",
+    "running_installed_systemd_version_match",
     "running_systemd_manager_major","running_systemd_manager_version",
-    "runtime_can_control_service","service_unit","training_pid",
+    "runtime_can_control_service","service_unit","systemd_bus_owner_pid",
+    "systemd_bus_owner_pid_is_pid1","training_pid",
     "training_process_capabilities","training_process_start_time_ticks",
-    "training_uid",
+    "training_uid","training_uid_process_count",
+    "training_uid_process_set_stable","training_uid_processes",
   ],code);
   if(
     value.reviewed_systemd_major!==REVIEWED_SYSTEMD_MAJOR||
-    typeof value.observed_systemd_version_line!=="string"||
-    typeof value.installed_systemd_package_version!=="string"||
-    typeof value.running_systemd_manager_version!=="string"||
+    value.reviewed_systemd_package_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
+    value.installed_systemd_package_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
+    value.running_systemd_manager_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
     value.running_systemd_manager_major!==REVIEWED_SYSTEMD_MAJOR||
     value.running_installed_systemd_version_match!==true||
-    !/^systemd\s+255\s+\([^()]+\)$/u.test(value.observed_systemd_version_line)||
+    value.systemd_bus_owner_pid!==1||
+    value.systemd_bus_owner_pid_is_pid1!==true||
+    typeof value.observed_systemd_version_line!=="string"||
     value.observed_systemd_version_line!==
-      "systemd 255 ("+value.installed_systemd_package_version+")"||
-    !/^[A-Za-z0-9.+:~_-]{1,120}$/u.test(value.installed_systemd_package_version)||
-    value.running_systemd_manager_version!==value.installed_systemd_package_version||
-    !/^255(?:[.-]|$)/u.test(value.running_systemd_manager_version)||
+      "systemd 255 ("+REVIEWED_SYSTEMD_PACKAGE_VERSION+")"||
     !Number.isSafeInteger(value.training_pid)||value.training_pid<=0||
     !Number.isSafeInteger(value.training_uid)||value.training_uid!==identities.training_uid||
     typeof value.training_process_start_time_ticks!=="string"||
@@ -96,8 +104,15 @@ function normalizeServiceControl(value,identities){
       value.training_process_start_time_ticks+","+String(value.training_uid)||
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
     value.all_systemd_control_actions_explicitly_denied!==true||
+    value.all_training_uid_processes_capability_free!==true||
+    value.training_uid_process_set_stable!==true||
+    !Number.isSafeInteger(value.training_uid_process_count)||
+    value.training_uid_process_count<1||
+    !Array.isArray(value.training_uid_processes)||
+    value.training_uid_processes.length!==value.training_uid_process_count||
     value.runtime_can_control_service!==false
   )fail(code);
+
   exactKeys(value.polkit_deny_rule,[
     "action_id_only","bytes","denied_action_ids","details_can_change_result",
     "group_other_writable","lexically_first","mode","owner_gid","owner_uid",
@@ -119,7 +134,8 @@ function normalizeServiceControl(value,identities){
     value.polkit_deny_rule.group_other_writable!==false||
     value.polkit_deny_rule.retained_ancestors_root_owned!==true||
     value.polkit_deny_rule.retained_ancestors_group_other_writable!==false||
-    typeof value.polkit_deny_rule.runtime_user!=="string"||!SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    typeof value.polkit_deny_rule.runtime_user!=="string"||
+    !SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
     value.polkit_deny_rule.path!==
       "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
     !Number.isSafeInteger(value.polkit_deny_rule.bytes)||
@@ -133,16 +149,42 @@ function normalizeServiceControl(value,identities){
     canonicalApollyonCustodyHostPolicyJsonV1(value.polkit_deny_rule.denied_action_ids)!==
       canonicalApollyonCustodyHostPolicyJsonV1(expectedActions)
   )fail(code);
-  exactKeys(value.training_process_capabilities,[
-    "ambient","effective","inheritable","no_new_privileges","permitted",
-  ],code);
+
+  const validateCapabilities=(caps)=>{
+    exactKeys(caps,[
+      "ambient","effective","inheritable","no_new_privileges","permitted",
+    ],code);
+    if(
+      caps.ambient!=="0"||
+      caps.effective!=="0"||
+      caps.inheritable!=="0"||
+      caps.permitted!=="0"||
+      caps.no_new_privileges!==true
+    )fail(code);
+  };
+  validateCapabilities(value.training_process_capabilities);
+
+  let previousPid=0;
+  let selected=null;
+  for(const process of value.training_uid_processes){
+    exactKeys(process,["capabilities","pid","start_time_ticks","uid"],code);
+    if(
+      !Number.isSafeInteger(process.pid)||process.pid<=previousPid||
+      process.uid!==value.training_uid||
+      typeof process.start_time_ticks!=="string"||
+      !/^[1-9][0-9]*$/u.test(process.start_time_ticks)
+    )fail(code);
+    validateCapabilities(process.capabilities);
+    if(process.pid===value.training_pid)selected=process;
+    previousPid=process.pid;
+  }
   if(
-    value.training_process_capabilities.ambient!=="0"||
-    value.training_process_capabilities.effective!=="0"||
-    value.training_process_capabilities.inheritable!=="0"||
-    value.training_process_capabilities.permitted!=="0"||
-    value.training_process_capabilities.no_new_privileges!==true
+    selected===null||
+    selected.start_time_ticks!==value.training_process_start_time_ticks||
+    canonicalApollyonCustodyHostPolicyJsonV1(selected.capabilities)!==
+      canonicalApollyonCustodyHostPolicyJsonV1(value.training_process_capabilities)
   )fail(code);
+
   const expected=[
     {action_id:"org.freedesktop.systemd1.manage-units",details:[]},
     ...SYSTEMD_MANAGE_UNIT_VERBS.map((verb)=>({
@@ -172,6 +214,12 @@ function normalizeServiceControl(value,identities){
       details:Object.freeze(entry.details.map((detail)=>Object.freeze({...detail}))),
     }))),
     training_process_capabilities:Object.freeze({...value.training_process_capabilities}),
+    training_uid_processes:Object.freeze(
+      value.training_uid_processes.map((process)=>Object.freeze({
+        ...process,
+        capabilities:Object.freeze({...process.capabilities}),
+      })),
+    ),
   });
 }
 function historicalV1Input(input,sp){
