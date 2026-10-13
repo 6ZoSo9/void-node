@@ -73,6 +73,41 @@ const pessimisticProm = [
   "",
 ].join("\n");
 
+let getterReads = 0;
+let getterMustThrow = true;
+let getterUseCalls = 0;
+let getterMiddleware = null;
+const getterApp = {};
+Object.defineProperty(getterApp, "use", {
+  configurable: true,
+  get() {
+    getterReads += 1;
+    if (getterMustThrow) throw new Error("synthetic_transient_use_getter");
+    return function use(middleware) {
+      assert.equal(this, getterApp, "captured use receiver changed");
+      getterUseCalls += 1;
+      getterMiddleware = middleware;
+    };
+  },
+});
+const transientGetter = evaluate(getterApp);
+assert.doesNotThrow(() => transientGetter.intervalCallback());
+assert.equal(getterReads, 1);
+assert.equal(getterUseCalls, 0);
+assert.equal(transientGetter.clearCalls(), 0);
+assert.equal(transientGetter.sandbox.__void_ready_bridge_v3_mount_state, undefined);
+getterMustThrow = false;
+assert.doesNotThrow(() => transientGetter.intervalCallback());
+assert.equal(getterReads, 2);
+assert.equal(getterUseCalls, 1);
+assert.equal(transientGetter.clearCalls(), 1);
+assert.equal(transientGetter.sandbox.__void_ready_bridge_v3_mounted, true);
+assert.equal(transientGetter.sandbox.__void_ready_bridge_v3_mount_state, "mounted");
+assert.equal(typeof getterMiddleware, "function");
+assert.doesNotThrow(() => transientGetter.intervalCallback());
+assert.equal(getterReads, 2, "mounted retry re-read app.use");
+assert.equal(getterUseCalls, 1, "mounted retry duplicated middleware");
+
 let partialUseCalls = 0;
 let partialMiddleware = null;
 const partial = evaluate({
@@ -93,8 +128,6 @@ assert.equal(
   "indeterminate",
 );
 
-// Express adapters may retain middleware even if app.use throws.
-// A partial registration must not advertise healthy readiness.
 const partialJsonBody = pessimisticJson();
 const partialJsonBefore = JSON.stringify(partialJsonBody);
 const partialJsonResponse = invokeRetainedMiddleware(
@@ -140,7 +173,6 @@ assert.equal(success.sandbox.__void_ready_bridge_v3_mounted, true);
 assert.equal(success.sandbox.__void_ready_bridge_v3_mount_state, "mounted");
 assert.equal(typeof registeredMiddleware, "function");
 
-// A completed mount must retain the original positive-head bridge behavior.
 const mountedJsonResponse = invokeRetainedMiddleware(
   registeredMiddleware,
   "/__void/ready.json",
@@ -184,6 +216,9 @@ assert.doesNotThrow(() => success.intervalCallback());
 assert.equal(successUseCalls, 1, "completed retry duplicated middleware");
 
 console.log("void_ready_bridge_registration_retry_v1=PASS");
+console.log("transient_use_getter_retry_preserved=true");
+console.log("captured_use_receiver_preserved=true");
+console.log("mounted_retry_skips_use_getter=true");
 console.log("missing_app_retry_preserved=true");
 console.log("install_then_throw_state=indeterminate");
 console.log("indeterminate_retry_refused=true");
