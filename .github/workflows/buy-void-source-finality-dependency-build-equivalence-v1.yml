@@ -1,0 +1,136 @@
+name: VOID Buy VOID source-finality dependency build equivalence v1
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs"
+      - ".github/workflows/buy-void-source-finality-dependency-build-equivalence-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: dependency build equivalence / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact audited candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: current
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact historical dependency baseline
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 59b8fa9d3fa3b238655839f9cfc573ebb91752dd
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install both exact locks without package scripts
+        run: |
+          set -euo pipefail
+          (cd baseline && npm ci --ignore-scripts --no-audit --no-fund)
+          (cd current && npm ci --ignore-scripts --no-audit --no-fund)
+
+      - name: Build historical and audited package generations
+        run: |
+          set -euo pipefail
+          (cd baseline && npm run build)
+          (cd current && npm run build)
+
+      - name: Preserve frozen V5 positive baseline and current refusal
+        run: |
+          set -euo pipefail
+          baseline_receipt="$RUNNER_TEMP/baseline-v5-node-${{ matrix.node }}.json"
+          (cd baseline && node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive) > "$baseline_receipt"
+          current_hold="$RUNNER_TEMP/current-v5-hold-node-${{ matrix.node }}.txt"
+          if (cd current && node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive) > "$current_hold" 2>&1; then
+            echo "UNEXPECTED_FROZEN_V5_PACKAGE_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq "build_input_blob_mismatch:package.json" "$current_hold"
+
+      - name: Prove exact compiled-byte equivalence
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/dependency-equivalence-node-${{ matrix.node }}.json"
+          node current/scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs \
+            --baseline baseline \
+            --current current \
+            --baseline-v5-candidate "$RUNNER_TEMP/baseline-v5-node-${{ matrix.node }}.json" \
+            > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_source_finality_dependency_build_equivalence_v1");
+          assert.equal(j.source_and_build_semantics_unchanged,true);
+          assert.equal(j.compiled_artifact_bytes_equal,true);
+          assert.equal(j.frozen_v5_refuses_audited_package_generation,true);
+          assert.equal(j.artifacts.length,6);
+          assert.equal(j.compiled_artifact_generation_verified,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.runtime_service_mutation,false);
+          assert.equal(j.wallet_signer_transaction_payment_funds_authority,false);
+          console.log("VOID_BUY_VOID_SOURCE_FINALITY_DEPENDENCY_BUILD_EQUIVALENCE_V1_GREEN");
+          NODE
+
+      - name: Upload exact derivation receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-finality-dependency-equivalence-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/dependency-equivalence-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Candidate diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C current rev-parse HEAD)" = "$HEAD"
+          git -C current diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download exact Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-source-finality-dependency-equivalence-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - name: Require cross-node exact receipt bytes
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "receipts/dependency-equivalence-node-$v.json"
+          done
+          cmp receipts/dependency-equivalence-node-22.json receipts/dependency-equivalence-node-24.json
+          cmp receipts/dependency-equivalence-node-22.json receipts/dependency-equivalence-node-26.json
+          echo "VOID_BUY_VOID_SOURCE_FINALITY_DEPENDENCY_BUILD_EQUIVALENCE_CROSS_NODE_GREEN"
