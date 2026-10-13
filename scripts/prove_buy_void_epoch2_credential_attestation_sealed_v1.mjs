@@ -67,6 +67,9 @@ assert.deepEqual(importSpecs.sort(), [
 ].sort());
 assert.equal(/\bimport\s*\(/u.test(sealedSource), false);
 assert.equal(/from ["']ethers["']/u.test(sealedSource), false);
+assert.equal(/base64url/u.test(sealedSource), false);
+assert.equal(/format: "jwk"/u.test(sealedSource), false);
+assert.match(sealedSource, /type: "sec1"/u);
 assert.equal(/--import\s+tsx/u.test(sealedSource), false);
 assert.equal(/eth_sendRawTransaction/u.test(sealedSource), false);
 assert.equal(/fulfill\s*\(/u.test(sealedSource), false);
@@ -225,6 +228,8 @@ console.log("dirty_top_level_sentinel_never_executed=true");
 console.log("keccak_empty_vector_green=true");
 console.log("ethereum_private_key_one_address_vector_green=true");
 console.log("domain_separated_nontransaction_signature_green=true");
+console.log("private_key_string_materialization=false");
+console.log("sec1_der_buffer_zeroed=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
