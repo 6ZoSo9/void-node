@@ -687,15 +687,17 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           )) {
         throw new Error("buy_void_post_created_instruction_keyset_invalid");
       }
-      if (hasLegacyFile) {
-        // Re-encode ONLY after removing the verified legacy private leaf.
-        // Safe {ok:true} receipts retain their original noncanonical bytes.
-        const publicReceipt = {
-          ...parsedBody,
-          request: { ...checkout, persisted: { ok: true } },
-        };
-        responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
-      }
+      // Never publish the upstream wire bytes after validating only their
+      // parsed JSON meaning. Duplicate JSON keys can hide a private first
+      // value behind a safe last value that wins JSON.parse while the raw
+      // bytes still disclose the private value to an unauthenticated caller.
+      // Re-encode every accepted 201 from the validated object, and always
+      // collapse the reviewed persistence receipt to {ok:true}.
+      const publicReceipt = {
+        ...parsedBody,
+        request: { ...checkout, persisted: { ok: true } },
+      };
+      responseBody = Buffer.from(JSON.stringify(publicReceipt), "utf8");
     }
 
     // Privacy is independent of backend rollout order. The retired public
