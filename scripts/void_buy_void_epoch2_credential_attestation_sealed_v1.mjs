@@ -632,13 +632,6 @@ function absorbBlock(state, block) {
   }
 }
 
-function base64url(bytes) {
-  return bytes.toString("base64")
-    .replace(/\+/gu, "-")
-    .replace(/\//gu, "_")
-    .replace(/=+$/gu, "");
-}
-
 function keyMaterial(privateKey) {
   const ecdh = crypto.createECDH("secp256k1");
   ecdh.setPrivateKey(privateKey);
@@ -651,28 +644,27 @@ function keyMaterial(privateKey) {
   const address =
     "0x" + digest.subarray(12).toString("hex").toLowerCase();
   digest.fill(0);
-  const x = Buffer.from(publicKey.subarray(1, 33));
-  const y = Buffer.from(publicKey.subarray(33, 65));
-  const jwkPrivate = {
-    kty: "EC",
-    crv: "secp256k1",
-    x: base64url(x),
-    y: base64url(y),
-    d: base64url(privateKey),
-  };
-  const jwkPublic = {
-    kty: "EC",
-    crv: "secp256k1",
-    x: base64url(x),
-    y: base64url(y),
-  };
-  const privateObject =
-    crypto.createPrivateKey({ key: jwkPrivate, format: "jwk" });
-  const publicObject =
-    crypto.createPublicKey({ key: jwkPublic, format: "jwk" });
+
+  // RFC 5915 ECPrivateKey with named-curve secp256k1 (1.3.132.0.10).
+  // This keeps the private scalar in zeroable Buffers and avoids JWK/base64
+  // string materialization of credential bytes.
+  const der = Buffer.concat([
+    Buffer.from("302e0201010420", "hex"),
+    privateKey,
+    Buffer.from("a00706052b8104000a", "hex"),
+  ]);
+  let privateObject;
+  try {
+    privateObject = crypto.createPrivateKey({
+      key: der,
+      format: "der",
+      type: "sec1",
+    });
+  } finally {
+    der.fill(0);
+  }
+  const publicObject = crypto.createPublicKey(privateObject);
   const publicFingerprint = sha256Bytes(publicKey);
-  x.fill(0);
-  y.fill(0);
   publicKey.fill(0);
   return { address, privateObject, publicObject, publicFingerprint };
 }
@@ -845,6 +837,7 @@ async function main() {
       immutable_fulfiller_identity_proven: true,
       active_signing_capability_proven: true,
       raw_private_key_output: false,
+      private_key_string_materialization: false,
       raw_signed_transaction_output: false,
       rpc_call_performed: false,
       transaction_constructed: false,
