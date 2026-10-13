@@ -24,6 +24,17 @@ SERVICE_PROPERTIES=(
  'CapabilityBoundingSet','AmbientCapabilities','RestrictAddressFamilies','ReadWritePaths',
  'RefuseManualStart','RefuseManualStop','ActiveState','MainPID',
 )
+REVIEWED_SYSTEMD_MAJOR=255
+SYSTEMD_MANAGE_UNIT_VERBS=(
+ 'start','verify-active','stop','reload','reload-or-start','restart','try-restart',
+ 'try-reload','nop','reload-or-restart','reload-or-try-restart','kill','clean',
+ 'set-property','reset-failed','ref','bind-mount','mount-image',
+)
+SYSTEMD_GLOBAL_CONTROL_ACTIONS=(
+ 'org.freedesktop.systemd1.manage-unit-files',
+ 'org.freedesktop.systemd1.reload-daemon',
+ 'org.freedesktop.systemd1.set-environment',
+)
 UNIT_RE=re.compile(r'^[A-Za-z0-9_.@-]+\.service$')
 MAX_TTL_MS=300_000
 class Hold(RuntimeError): pass
@@ -91,6 +102,9 @@ def run(args:list[str])->str:
  except (OSError,subprocess.SubprocessError) as e: raise Hold('apollyon_custody_collector_probe_execution_failed') from e
  if p.returncode!=0: hold('apollyon_custody_collector_probe_failed')
  return p.stdout
+def run_status(args:list[str])->subprocess.CompletedProcess[str]:
+ try:return subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=8,check=False,env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LC_ALL':'C'})
+ except (OSError,subprocess.SubprocessError) as e: raise Hold('apollyon_custody_collector_probe_execution_failed') from e
 def systemd_show(unit:str)->dict[str,str]:
  if not UNIT_RE.fullmatch(unit):hold('apollyon_custody_collector_service_unit_invalid')
  args=['/usr/bin/systemctl','show',unit,'--no-pager']+[f'--property={x}' for x in SERVICE_PROPERTIES]
@@ -100,6 +114,58 @@ def systemd_show(unit:str)->dict[str,str]:
    k,v=line.split('=',1); out[k]=v
  if set(out)!=set(SERVICE_PROPERTIES):hold('apollyon_custody_collector_service_properties_incomplete')
  return out
+def classify_pkcheck_status(code:int)->str:
+ if code==0:return 'authorized'
+ if code==1:return 'denied'
+ if code==2:return 'challenge'
+ if code==3:return 'dismissed'
+ return 'error'
+def systemd_version_line()->str:
+ lines=run(['/usr/bin/systemctl','--version']).splitlines()
+ if not lines:hold('apollyon_custody_collector_systemd_version_failed')
+ line=lines[0].strip(); m=re.match(r'^systemd\s+([0-9]+)(?:\s|$)',line)
+ if not m or int(m.group(1))!=REVIEWED_SYSTEMD_MAJOR:hold('apollyon_custody_collector_systemd_major_not_reviewed')
+ return line
+def training_process_subject(pid:int,training)->dict[str,Any]:
+ if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
+ try:
+  stat_text=Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
+  status_text=Path(f'/proc/{pid}/status').read_text(encoding='utf-8')
+ except (OSError,UnicodeError) as e:raise Hold('apollyon_custody_collector_training_process_unreadable') from e
+ close=stat_text.rfind(') ')
+ if close<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ fields=stat_text[close+2:].strip().split()
+ if len(fields)<20 or not fields[19].isdecimal() or int(fields[19])<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ uid_line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
+ if uid_line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
+ uid_parts=uid_line.split()[1:]
+ if len(uid_parts)!=4 or any((not x.isdecimal()) or int(x)!=training.pw_uid for x in uid_parts):hold('apollyon_custody_collector_training_process_uid_invalid')
+ caps={}
+ for key in ('CapInh','CapPrm','CapEff','CapAmb'):
+  line=next((x for x in status_text.splitlines() if x.startswith(key+':')),None)
+  if line is None:hold('apollyon_custody_collector_training_process_capabilities_invalid')
+  raw=line.split(':',1)[1].strip()
+  if not re.fullmatch(r'[0-9A-Fa-f]+',raw) or int(raw,16)!=0:hold('apollyon_custody_collector_training_process_capabilities_nonzero')
+  caps[key]='0'
+ nnp=next((x for x in status_text.splitlines() if x.startswith('NoNewPrivs:')),None)
+ if nnp is None or nnp.split(':',1)[1].strip()!='1':hold('apollyon_custody_collector_training_process_no_new_privileges_not_enforced')
+ start=fields[19]; subject=f'{pid},{start},{training.pw_uid}'
+ return {'capabilities':{'ambient':caps['CapAmb'],'effective':caps['CapEff'],'inheritable':caps['CapInh'],'no_new_privileges':True,'permitted':caps['CapPrm']},'pid':pid,'start_time_ticks':start,'subject':subject,'uid':training.pw_uid}
+def pkcheck_denial(action_id:str,subject:str,details:tuple[tuple[str,str],...]=())->dict[str,Any]:
+ args=['/usr/bin/pkcheck','--action-id',action_id,'--process',subject]
+ for key,value in details:args.extend(['--detail',key,value])
+ p=run_status(args); classification=classify_pkcheck_status(p.returncode)
+ if classification!='denied':
+  hold('apollyon_custody_collector_runtime_service_control_authorized' if classification=='authorized' else 'apollyon_custody_collector_runtime_service_control_not_explicitly_denied')
+ return {'action_id':action_id,'details':[{'key':k,'value':v} for k,v in details],'exit_status':1,'result':'explicitly_denied'}
+def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
+ if not UNIT_RE.fullmatch(unit):hold('apollyon_custody_collector_service_unit_invalid')
+ version=systemd_version_line(); process=training_process_subject(training_pid,training)
+ checks=[pkcheck_denial('org.freedesktop.systemd1.manage-units',process['subject'])]
+ for verb in SYSTEMD_MANAGE_UNIT_VERBS:
+  checks.append(pkcheck_denial('org.freedesktop.systemd1.manage-units',process['subject'],(('unit',unit),('verb',verb))))
+ for action in SYSTEMD_GLOBAL_CONTROL_ACTIONS:checks.append(pkcheck_denial(action,process['subject']))
+ return {'all_systemd_control_actions_explicitly_denied':True,'checked_actions':checks,'observed_systemd_version_line':version,'pkcheck_subject':process['subject'],'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,'runtime_can_control_service':False,'service_unit':unit,'training_pid':process['pid'],'training_process_capabilities':process['capabilities'],'training_process_start_time_ticks':process['start_time_ticks'],'training_uid':process['uid']}
 def proc_uids()->dict[int,set[int]]:
  out={}
  for p in Path('/proc').iterdir():
@@ -131,7 +197,7 @@ def path_evidence(state_root:Path,socket_path:Path,training,custody,ipc_gid:int)
  sp_ev={'custody_uid_write_allowed':can_write(spst,custody.pw_uid,cg),'direct':True,'mode':mode(spst),'owner_gid':spst.st_gid,'owner_uid':spst.st_uid,'retained_ancestor_count':len(sap),'retained_ancestors_direct':True,'retained_ancestors_group_other_writable':any(stat.S_IMODE(x.st_mode)&0o022 for x in sap),'retained_ancestors_root_owned':all(x.st_uid==0 for x in sap),'retained_ancestors_symlink_free':True,'symlink':False,'training_uid_rename_unlink_denied':not can_write(lstat_direct(sp.parent,'dir'),training.pw_uid,tg),'training_uid_traverse_allowed':can_x(spst,training.pw_uid,tg),'training_uid_write_denied':not can_write(spst,training.pw_uid,tg)}
  sock_ev={'custody_uid_connect_allowed':can_write(sk,custody.pw_uid,cg),'mode':mode(sk),'owner_gid':sk.st_gid,'owner_uid':sk.st_uid,'training_uid_connect_allowed':can_write(sk,training.pw_uid,tg),'type':'AF_UNIX_socket'}
  return state,consumed_ev,sp_ev,sock_ev
-def service_evidence(unit:str,state_root:Path,socket_parent:Path,custody,ipc_gid:int)->dict[str,Any]:
+def service_evidence(unit:str,state_root:Path,socket_parent:Path,custody,ipc_gid:int,control:dict[str,Any])->dict[str,Any]:
  p=systemd_show(unit); uid=resolve_uid(p['User']); gid=resolve_gid(p['Group']); supp=sorted(resolve_gid(x) for x in words(p['SupplementaryGroups']))
  rw=[]
  for item in words(p['ReadWritePaths']):
@@ -147,7 +213,7 @@ def service_evidence(unit:str,state_root:Path,socket_parent:Path,custody,ipc_gid
  if mainpid<=0 or proc_uids().get(custody.pw_uid,set())!={mainpid}:hold('apollyon_custody_collector_custody_uid_process_exclusivity_failed')
  if uid!=custody.pw_uid or gid!=custody.pw_gid or supp!=[ipc_gid]:hold('apollyon_custody_collector_service_identity_mismatch')
  umask=p['UMask']; umask=f'{int(umask,8):04o}' if umask else ''
- return {'ambient_capabilities':words(p['AmbientCapabilities']),'capability_bounding_set':words(p['CapabilityBoundingSet']),'custody_uid_only_reviewed_service':True,'group_gid':gid,'lock_personality':boolprop(p['LockPersonality']),'manager':'system','no_new_privileges':boolprop(p['NoNewPrivileges']),'private_devices':boolprop(p['PrivateDevices']),'private_tmp':boolprop(p['PrivateTmp']),'protect_control_groups':boolprop(p['ProtectControlGroups']),'protect_home':boolprop(p['ProtectHome']),'protect_kernel_logs':boolprop(p['ProtectKernelLogs']),'protect_kernel_modules':boolprop(p['ProtectKernelModules']),'protect_kernel_tunables':boolprop(p['ProtectKernelTunables']),'protect_system':p['ProtectSystem'],'read_write_targets':rw,'restrict_address_families':words(p['RestrictAddressFamilies']),'restrict_realtime':boolprop(p['RestrictRealtime']),'restrict_suid_sgid':boolprop(p['RestrictSUIDSGID']),'runtime_can_control_service':False,'supplementary_gids':supp,'umask':umask,'user_uid':uid}
+ return {'ambient_capabilities':words(p['AmbientCapabilities']),'capability_bounding_set':words(p['CapabilityBoundingSet']),'custody_uid_only_reviewed_service':True,'group_gid':gid,'lock_personality':boolprop(p['LockPersonality']),'manager':'system','no_new_privileges':boolprop(p['NoNewPrivileges']),'private_devices':boolprop(p['PrivateDevices']),'private_tmp':boolprop(p['PrivateTmp']),'protect_control_groups':boolprop(p['ProtectControlGroups']),'protect_home':boolprop(p['ProtectHome']),'protect_kernel_logs':boolprop(p['ProtectKernelLogs']),'protect_kernel_modules':boolprop(p['ProtectKernelModules']),'protect_kernel_tunables':boolprop(p['ProtectKernelTunables']),'protect_system':p['ProtectSystem'],'read_write_targets':rw,'restrict_address_families':words(p['RestrictAddressFamilies']),'restrict_realtime':boolprop(p['RestrictRealtime']),'restrict_suid_sgid':boolprop(p['RestrictSUIDSGID']),'runtime_can_control_service':control['runtime_can_control_service'],'supplementary_gids':supp,'umask':umask,'user_uid':uid}
 def collect(a)->dict[str,Any]:
  if os.geteuid()!=0:hold('apollyon_custody_collector_root_required')
  if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold('apollyon_custody_collector_wrong_host')
@@ -157,21 +223,21 @@ def collect(a)->dict[str,Any]:
  if cu.pw_gid in tg or tr.pw_gid in cg:hold('apollyon_custody_collector_primary_group_cross_membership')
  sr=canonical_abs(a.state_root,'apollyon_custody_collector_state_root_invalid'); sp=canonical_abs(a.socket_path,'apollyon_custody_collector_socket_path_invalid')
  if sp.parent==sr or sp.parent.is_relative_to(sr) or sr.is_relative_to(sp.parent):hold('apollyon_custody_collector_paths_not_separated')
- sev,cev,spev,sockev=path_evidence(sr,sp,tr,cu,ipc.gr_gid); service=service_evidence(a.service_unit,sr,sp.parent,cu,ipc.gr_gid); snap=snapshot(a.ttl_ms); now=time.time_ns()//1_000_000
+ sev,cev,spev,sockev=path_evidence(sr,sp,tr,cu,ipc.gr_gid); control=service_control_evidence(tr,a.training_pid,a.service_unit); service=service_evidence(a.service_unit,sr,sp.parent,cu,ipc.gr_gid,control); snap=snapshot(a.ttl_ms); now=time.time_ns()//1_000_000
  if now<snap['observed_at_ms'] or now>=snap['expires_at_ms']:hold('apollyon_custody_collector_clock_window_invalid')
- return {'consumed_directory':cev,'evidence_snapshot':snap,'identities':{'custody_gid':cu.pw_gid,'custody_supplementary_gids':cg,'custody_uid':cu.pw_uid,'ipc_gid':ipc.gr_gid,'training_gid':tr.pw_gid,'training_supplementary_gids':tg,'training_uid':tr.pw_uid},'marker':EVIDENCE_MARKER,'service':service,'socket':sockev,'socket_parent':spev,'source_binding':source,'state_root':sev,'target_host':TARGET_HOST,'verification_now_ms':now,'version':2}
+ return {'consumed_directory':cev,'evidence_snapshot':snap,'identities':{'custody_gid':cu.pw_gid,'custody_supplementary_gids':cg,'custody_uid':cu.pw_uid,'ipc_gid':ipc.gr_gid,'training_gid':tr.pw_gid,'training_supplementary_gids':tg,'training_uid':tr.pw_uid},'marker':EVIDENCE_MARKER,'service':service,'service_control':control,'socket':sockev,'socket_parent':spev,'source_binding':source,'state_root':sev,'target_host':TARGET_HOST,'verification_now_ms':now,'version':2}
 def self_test():
- assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False
+ assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
  try:boolprop('bad')
  except Hold:pass
  else:raise AssertionError('invalid boolean did not HOLD')
  print(MARKER+'_SELF_TEST=GREEN')
 def make_parser():
- p=argparse.ArgumentParser(); p.add_argument('--training-user');p.add_argument('--custody-user');p.add_argument('--ipc-group');p.add_argument('--state-root');p.add_argument('--socket-path');p.add_argument('--service-unit');p.add_argument('--ttl-ms',type=int,default=300_000);p.add_argument('--self-test',action='store_true');return p
+ p=argparse.ArgumentParser(); p.add_argument('--training-user');p.add_argument('--training-pid',type=int);p.add_argument('--custody-user');p.add_argument('--ipc-group');p.add_argument('--state-root');p.add_argument('--socket-path');p.add_argument('--service-unit');p.add_argument('--ttl-ms',type=int,default=300_000);p.add_argument('--self-test',action='store_true');return p
 def main()->int:
  a=make_parser().parse_args()
  if a.self_test:self_test();return 0
- if any(getattr(a,k) in (None,'') for k in ('training_user','custody_user','ipc_group','state_root','socket_path','service_unit')):print('HOLD=apollyon_custody_collector_required_argument_missing',file=sys.stderr);return 2
+ if any(getattr(a,k) in (None,'') for k in ('training_user','training_pid','custody_user','ipc_group','state_root','socket_path','service_unit')):print('HOLD=apollyon_custody_collector_required_argument_missing',file=sys.stderr);return 2
  try:e=collect(a)
  except Hold as x:
   print('HOLD='+str(x),file=sys.stderr);print('read_only=true\nhost_mutation=false\nservice_action=false\noperator_private_key_access=false\nattempt_claim=false\ntraining_execution=false',file=sys.stderr);return 2
