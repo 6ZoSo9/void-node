@@ -15,49 +15,72 @@ host-policy classifier.
 
 ## Pre-entry trust root
 
-Direct privileged execution from the repository worktree is **unsupported**.
-Live mode in the Node runner requires
-`VOID_APOLLYON_V2_INSTALLED_LAUNCHER_V1`, supplied only by the reviewed
-pre-entry launcher after it has started from this fixed installed path:
+Direct privileged execution from the repository worktree, direct privileged
+Node execution, and direct privileged Python execution are **unsupported**.
+
+The first reviewed live entrypoint is a small native executable installed at:
+
+```text
+/opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_native_preentry_v1
+```
+
+Reviewed native pre-entry source blob:
+
+```text
+a167b1a46a213644b7bf52f54706c170b491bb8e
+```
+
+The native source has no setuid transition, shell, package, service, network,
+key, claim, training, transaction, or funds capability. Live mode requires
+effective UID 0 supplied by the operator's separately controlled privilege
+boundary; the installed binary itself must not be setuid.
+
+Before Python evaluates any launcher source, the native pre-entry:
+
+- proves `/proc/self/exe` resolves to the exact fixed installed native path;
+- requires that native executable to be a direct root-owned, single-link,
+  executable, non-group/world-writable file beneath trusted root-owned,
+  non-group/world-writable ancestry;
+- treats `/usr/bin/python3` only as the fixed requested interpreter path;
+- resolves its canonical interpreter target, requires trusted root-owned
+  ancestry and a direct root-owned, single-link, executable,
+  non-group/world-writable target;
+- opens that target with `O_NOFOLLOW`, rechecks descriptor/path identity, and
+  invokes it with `fexecve()`; and
+- supplies fixed `-I -B`, the fixed installed Python-launcher pathname, a
+  minimal environment, and the marker
+  `VOID_APOLLYON_V2_NATIVE_PREENTRY=VOID_APOLLYON_V2_NATIVE_PREENTRY_V1`.
+
+The Python launcher refuses live mode without that exact marker. Its fixed path
+is:
 
 ```text
 /opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_installed_live_launcher_v1.py
 ```
 
-The installed launcher must itself be a direct root-owned, single-link,
-non-group/world-writable file beneath root-owned/non-group/world-writable
-ancestors. It reads the separately installed reviewed source root at:
+Reviewed Python-launcher source blob:
+
+```text
+d80f848d3412729d0299ccd65fd6845fc1405c21
+```
+
+That launcher then authenticates the separately installed reviewed source root:
 
 ```text
 /opt/void-apollyon-custody-v2-reviewed-v1
 ```
 
-and authenticates every reviewed file before starting Node. It then
-materializes those bytes into a private temporary execution tree and starts the
-runner only from that private tree. A modified worktree runner is never an
-execution source for live mode.
+before starting Node. It materializes exact reviewed bytes into a private
+temporary execution tree. The live Node executable is independently admitted as
+a direct root-owned, single-link, executable, non-group/world-writable file
+beneath trusted root-owned/non-group/world-writable ancestry, retained with
+`O_NOFOLLOW`, and executed through inherited `/proc/self/fd/<fd>`.
 
-Reviewed pre-entry launcher source blob:
-
-```text
-976586fa920800042337c6b25545298c1d8cdd88
-```
-
-Installing either `/opt` tree is a **separate privileged mutation gate** and
-is not performed by this PR or its CI. The launcher's `--self-test` may resolve
-hosted CI Node from `PATH`; live mode remains fixed to `/usr/bin/node`.
-
-Before live execution, the installed launcher now admits `/usr/bin/node` only
-as a direct regular executable with one hard link, root ownership, no
-group/world write bits, and root-owned/non-group/world-writable ancestry
-including `/`. It retains an `O_NOFOLLOW` descriptor and executes Node
-through `/proc/self/fd/<fd>` with that descriptor explicitly inherited, so a
-later pathname replacement cannot redirect the privileged execution.
-
-Private reviewed-tree construction is failure-clean: any exception after the
-temporary root is created removes that partial tree before the error escapes;
-cleanup failure itself HOLDS explicitly rather than silently claiming a
-non-persistent boundary.
+Installing the native executable, Python launcher, or reviewed `/opt` source
+tree is a **separate privileged mutation gate** and is not performed by this PR
+or its CI. CI compiles the native source only into the ephemeral runner
+temporary directory and exercises `--self-test`; it does not install or
+execute the production fixed path.
 
 ## Exact source binding
 
@@ -148,9 +171,12 @@ bytes before any claim path can proceed.
 
 ## Invocation
 
+After a separately reviewed installed-host gate has placed and attested the
+native executable, Python launcher, and reviewed source tree, the accepted live
+entry shape is:
+
 ```bash
-sudo /usr/bin/python3 -I -B \
-  /opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_installed_live_launcher_v1.py \
+sudo /opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_native_preentry_v1 \
   --training-user <training-user> \
   --training-pid <live-training-pid> \
   --custody-user <custody-user> \
@@ -160,19 +186,30 @@ sudo /usr/bin/python3 -I -B \
   --service-unit <custody-service>.service
 ```
 
-A command of the form `sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs ...`
-is intentionally not an accepted live invocation.
+The following are intentionally **not** accepted live entrypoints:
 
-The installed launcher creates one private pre-entry execution tree, and the runner creates and removes its own reviewed dependency tree.
-Normal success and ordinary HOLD paths report
-`private_temporary_filesystem_write=true`,
-`repository_source_write=false`, and
-`persistent_host_mutation=false`. If cleanup itself fails, the launcher
-instead reports `persistent_host_mutation=unknown`,
-`temporary_filesystem_cleanup_proven=false`, and the exact possible retained
-private-tree path; it never overclaims successful cleanup. It performs no service mutation,
-private-key access, signing, attempt claim, training execution,
-wallet/transaction operation or funds movement.
+```text
+sudo /usr/bin/python3 .../apollyon_v2_installed_live_launcher_v1.py ...
+sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs ...
+```
+
+The installed launcher creates one private pre-entry execution tree, and the
+Node runner creates and removes its own reviewed dependency tree. Normal success
+and ordinary HOLD paths report the temporary-write boundary truthfully. If
+either the outer launcher or inner Node runner cannot remove its temporary
+reviewed tree, it instead reports:
+
+```text
+persistent_host_mutation=unknown
+temporary_filesystem_cleanup_proven=false
+retained_private_tree_possible=true
+retained_private_tree=<exact possible retained path>
+```
+
+It never converts a cleanup error into a false
+`persistent_host_mutation=false` claim. No service mutation, private-key
+access, signing, attempt claim, training execution, wallet/transaction
+operation or funds movement is granted by this source lane.
 
 ## Next gate
 
