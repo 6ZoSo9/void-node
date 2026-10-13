@@ -47,6 +47,13 @@ for value in [' systemctl start ',' systemctl stop ',' systemctl restart ','user
  assert value not in low,value
 assert mod.EVIDENCE_MARKER=='VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2'
 assert mod.MARKER=='VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_EVIDENCE_READONLY_V2'
+assert source.count("def parse_installed_systemd_version_line") == 1
+assert source.count("def parse_running_systemd_manager_version") == 1
+assert source.count("def training_process_subject") == 1
+assert source.count("def service_control_evidence") == 1
+assert source.count("def collect(a)") == 1
+assert source.count("if __name__=='__main__':raise SystemExit(main())") == 1
+assert source.rstrip().endswith("if __name__=='__main__':raise SystemExit(main())")
 assert mod.REVIEWED_SYSTEMD_MAJOR==255
 assert mod.classify_pkcheck_status(1)=='denied'
 assert mod.classify_pkcheck_status(0)=='authorized'
