@@ -280,6 +280,24 @@ export function buyVoidEpoch2CredentialProbeFingerprintV1(
   }));
 }
 
+export function buyVoidEpoch2CredentialProbeMatchesChallengeV1(
+  probe: Readonly<BuyVoidEpoch2CredentialProbeV1> | null | undefined,
+  sourceHead: unknown,
+  challengeHex: unknown,
+): boolean {
+  if (!probe) return false;
+  try {
+    const expected = buildBuyVoidEpoch2CredentialCapabilityProbeV1({
+      source_head: String(sourceHead || ""),
+      challenge_hex: String(challengeHex || ""),
+    });
+    return buyVoidEpoch2CredentialProbeFingerprintV1(probe) ===
+      buyVoidEpoch2CredentialProbeFingerprintV1(expected);
+  } catch {
+    return false;
+  }
+}
+
 export function buyVoidEpoch2CredentialProbeSemanticsExactV1(
   probe: Readonly<BuyVoidEpoch2CredentialProbeV1> | null | undefined,
 ): boolean {
@@ -391,6 +409,7 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
   full_runtime_source_blob: string;
   attestation_source_blob: string;
   expected_signer: string;
+  challenge_hex: string;
   probe: Readonly<BuyVoidEpoch2CredentialProbeV1>;
   raw_signed_transaction: string;
   systemd_observation: BuyVoidEpoch2SystemdCredentialObservationV1;
@@ -434,6 +453,16 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
       systemd.process_source_tree !== sourceTree ||
       systemd.process_source_branch !== sourceBranch) {
     throw new Error("epoch2_attestation_process_source_identity_mismatch");
+  }
+
+  const challenge = String(input?.challenge_hex || "").toLowerCase();
+  if (!HEX64.test(challenge) ||
+      !buyVoidEpoch2CredentialProbeMatchesChallengeV1(
+        input.probe,
+        sourceHead,
+        challenge,
+      )) {
+    throw new Error("epoch2_attestation_probe_challenge_binding_invalid");
   }
 
   const verified = verifyBuyVoidEpoch2CredentialSignedProbeV1({
@@ -480,6 +509,13 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     fulfillment_contract: VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
     probe: {
       nonce: input.probe.nonce,
+      gas_limit: input.probe.gasLimit.toString(),
+      intrinsic_gas_floor: 
+        VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_INTRINSIC_GAS_FLOOR_V1.toString(),
+      intrinsically_invalid_by_gas_limit:
+        input.probe.gasLimit <
+        VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_INTRINSIC_GAS_FLOOR_V1,
+      challenge_sha256: sha256(challenge),
       amount_atoms: "1",
       max_fee_per_gas_wei: "0",
       max_priority_fee_per_gas_wei: "0",
