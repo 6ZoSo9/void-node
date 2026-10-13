@@ -1606,6 +1606,76 @@ console.log("authority_callback_tuple_iterator_poison_isolated=true");
 }
 console.log("ambient_array_find_some_request_authority=false");
 
+// Request destination and payment-hash normalization must use the captured
+// built-ins even if the ambient String prototype is replaced after import.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const lock=async (_request,operation)=>operation(()=>({ready:true}));
+  const readRows=async()=>fs.existsSync(path.join(root,"requests.jsonl"))
+    ? lines(root) : [];
+  const callbacks=[
+    lock,readRows,async()=>[],requests=>requests,()=>false,()=>true,
+  ];
+  const existing=request(
+    "buyvoid_string_intrinsic_guard_existing_aaaaaaaa","3","base","6");
+  const oldTrim=Object.getOwnPropertyDescriptor(String.prototype,"trim");
+  const oldLower=Object.getOwnPropertyDescriptor(String.prototype,"toLowerCase");
+  assert.equal(typeof oldTrim?.value,"function");
+  assert.equal(typeof oldLower?.value,"function");
+  let trimCalls=0,lowerCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,callbacks);
+    assert.equal(created.reused_request,null);
+    Object.defineProperty(String.prototype,"trim",{
+      configurable:true,writable:true,value:function(){
+        trimCalls++;
+        throw new Error("INJECT_STRING_TRIM_AUTHORITY_FAILURE");
+      },
+    });
+    Object.defineProperty(String.prototype,"toLowerCase",{
+      configurable:true,writable:true,value:function(){
+        lowerCalls++;
+        throw new Error("INJECT_STRING_LOWER_AUTHORITY_FAILURE");
+      },
+    });
+    let trimPositive=false,lowerPositive=false;
+    try { " x ".trim(); }
+    catch(error) {
+      trimPositive=String(error?.message||error).includes(
+        "INJECT_STRING_TRIM_AUTHORITY_FAILURE");
+    }
+    try { "A".toLowerCase(); }
+    catch(error) {
+      lowerPositive=String(error?.message||error).includes(
+        "INJECT_STRING_LOWER_AUTHORITY_FAILURE");
+    }
+    assert.equal(trimPositive,true);
+    assert.equal(lowerPositive,true);
+    trimCalls=0;
+    lowerCalls=0;
+    const retry=request(
+      "buyvoid_string_intrinsic_guard_retry_bbbbbbbb","3","base","6");
+    const reused=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      retry,callbacks);
+    assert.equal(reused.reused_request?.request_id,existing.request_id);
+    assert.equal(trimCalls,0,
+      "request authority must not call ambient String.prototype.trim");
+    assert.equal(lowerCalls,0,
+      "request authority must not call ambient String.prototype.toLowerCase");
+    assert.equal(lines(root).length,1,
+      "poisoned string normalization must not create a second obligation");
+  } finally {
+    Object.defineProperty(String.prototype,"trim",oldTrim);
+    Object.defineProperty(String.prototype,"toLowerCase",oldLower);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_string_request_authority_intrinsics=false");
+
 // An ambient Array.prototype iterator can omit an own property name
 // from an Object.keys() array even though keys.length remains unchanged.
 // Demonstrate that a naive for..of copier drops payment_instructions,
