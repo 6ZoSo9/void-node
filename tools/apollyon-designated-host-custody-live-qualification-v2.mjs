@@ -56,9 +56,9 @@ const COLLECTOR_REL=
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py";
 const POLICY_V1_REL="tools/apollyon-custody-host-policy-qualification-v1.mjs";
 const POLICY_V2_REL="tools/apollyon-custody-host-policy-qualification-v2.mjs";
-const COLLECTOR_BLOB_SHA1="25c553567172c1372a29f5e81bc45422022d7f4f";
+const COLLECTOR_BLOB_SHA1="550f2b29a176f8ae2a288d9bdadaea46ef4a23f9";
 const POLICY_V1_BLOB_SHA1="6f34e79d94c502e31ca4923fd78922d4875550a5";
-const POLICY_BLOB_SHA1="83afde66ad89c29ec7b40932b2ebd7e0b2ce7bc7";
+const POLICY_BLOB_SHA1="9c14868ab7c3106fd0782f0d184600acbe602e2d";
 const REVIEWED_EXECUTION_FILES=Object.freeze({
   [COLLECTOR_REL]:COLLECTOR_BLOB_SHA1,
   [POLICY_V1_REL]:POLICY_V1_BLOB_SHA1,
@@ -216,10 +216,21 @@ function safeUnit(value){
   if(typeof value!=="string"||!SAFE_UNIT.test(value))fail("apollyon_live_qualification_v2_service_unit_invalid");
   return value;
 }
+function safePid(value){
+  if(typeof value!=="string"||!/^[1-9][0-9]{0,9}$/u.test(value)){
+    fail("apollyon_live_qualification_v2_training_pid_invalid");
+  }
+  const parsed=Number(value);
+  if(!Number.isSafeInteger(parsed)||parsed<1||parsed>0x7fff_ffff){
+    fail("apollyon_live_qualification_v2_training_pid_invalid");
+  }
+  return String(parsed);
+}
 function collectorArgs(config,collectorSpecifier){
   return [
     "-I","-B",collectorSpecifier,
     "--training-user",safeName(config.training_user,"apollyon_live_qualification_v2_training_user_invalid"),
+    "--training-pid",safePid(config.training_pid),
     "--custody-user",safeName(config.custody_user,"apollyon_live_qualification_v2_custody_user_invalid"),
     "--ipc-group",safeName(config.ipc_group,"apollyon_live_qualification_v2_ipc_group_invalid"),
     "--state-root",exactAbs(config.state_root,"apollyon_live_qualification_v2_state_root_invalid"),
@@ -396,6 +407,51 @@ function fixture(generation,observed,verification,boot="aa".repeat(32)){
       restrict_address_families:["AF_UNIX"],restrict_realtime:true,restrict_suid_sgid:true,
       runtime_can_control_service:false,supplementary_gids:[980],umask:"0077",user_uid:994,
     },
+    service_control:(()=>{
+      const unit="void-apollyon-authorization-custody-v1.service";
+      const verbs=[
+        "start","verify-active","stop","reload","reload-or-start","restart","try-restart",
+        "try-reload","nop","reload-or-restart","reload-or-try-restart","kill","clean",
+        "set-property","reset-failed","ref","bind-mount","mount-image",
+      ];
+      const globals=[
+        "org.freedesktop.systemd1.manage-unit-files",
+        "org.freedesktop.systemd1.reload-daemon",
+        "org.freedesktop.systemd1.set-environment",
+      ];
+      return {
+        all_systemd_control_actions_explicitly_denied:true,
+        checked_actions:[
+          {action_id:"org.freedesktop.systemd1.manage-units",details:[],exit_status:1,result:"explicitly_denied"},
+          ...verbs.map((verb)=>({
+            action_id:"org.freedesktop.systemd1.manage-units",
+            details:[{key:"unit",value:unit},{key:"verb",value:verb}],
+            exit_status:1,result:"explicitly_denied",
+          })),
+          ...globals.map((action_id)=>({
+            action_id,details:[],exit_status:1,result:"explicitly_denied",
+          })),
+        ],
+        observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
+        pkcheck_subject:"4242,123456,1000",
+        polkit_deny_rule:{
+          action_id_only:true,bytes:512,
+          denied_action_ids:["org.freedesktop.systemd1.manage-units",...globals],
+          details_can_change_result:false,group_other_writable:false,
+          lexically_first:true,mode:"0644",owner_gid:0,owner_uid:0,
+          path:"/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules",
+          retained_ancestors_group_other_writable:false,
+          retained_ancestors_root_owned:true,runtime_user:"zoso",
+          sha256:"77".repeat(32),single_link:true,symlink:false,
+        },
+        reviewed_systemd_major:255,runtime_can_control_service:false,
+        service_unit:unit,training_pid:4242,
+        training_process_capabilities:{
+          ambient:"0",effective:"0",inheritable:"0",no_new_privileges:true,permitted:"0",
+        },
+        training_process_start_time_ticks:"123456",training_uid:1000,
+      };
+    })(),
     socket:{
       custody_uid_connect_allowed:true,mode:"0660",owner_gid:980,owner_uid:994,
       training_uid_connect_allowed:true,type:"AF_UNIX_socket",
@@ -495,7 +551,7 @@ function parseCli(argv){
     out[name]=value;
   }
   const expected=[
-    "training_user","custody_user","ipc_group",
+    "training_user","training_pid","custody_user","ipc_group",
     "state_root","socket_path","service_unit",
   ];
   if(Object.keys(out).sort().join("\n")!==expected.sort().join("\n")){
