@@ -24,22 +24,27 @@ const mockFs = {
     streamCalls += 1;
     const call = streamCalls;
     const stream = new EventEmitter();
+    stream.bytesRead = 0;
+    const emitData = (bytes) => {
+      stream.bytesRead += bytes.length;
+      stream.emit("data", bytes.toString("utf8"));
+    };
     setImmediate(() => {
       const firstLineEnd = receiptBytes.indexOf(0x0a) + 1;
       if (call === 1) {
-        stream.emit("data", receiptBytes.subarray(0, firstLineEnd).toString("utf8"));
+        emitData(receiptBytes.subarray(0, firstLineEnd));
         stream.emit("error", new Error("synthetic_read_failure"));
         stream.emit("data", "late-data-must-be-ignored\n");
         stream.emit("end");
         return;
       }
       if (call === 2) {
-        stream.emit("data", receiptBytes.subarray(0, firstLineEnd).toString("utf8"));
+        emitData(receiptBytes.subarray(0, firstLineEnd));
         stream.emit("end");
         return;
       }
       const chunk = receiptBytes.subarray(options.start, options.end + 1);
-      stream.emit("data", chunk.toString("utf8"));
+      emitData(chunk);
       stream.emit("end");
     });
     return stream;
