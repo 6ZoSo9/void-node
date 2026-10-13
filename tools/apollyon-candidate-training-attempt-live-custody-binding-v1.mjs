@@ -92,6 +92,7 @@ function assertBlob(pathname,expected,code){
 function rootOwnedPinnedBlob(pathname,expected,code){
   const file=exactAbs(pathname,code);
   assertNoSymlinkAncestors(file,code);
+  assertRootOwnedProtectedAncestors(file,code);
   if(fs.realpathSync.native(file)!==file)fail(code);
   const before=fs.lstatSync(file,{bigint:true});
   if(
@@ -174,6 +175,19 @@ function assertNoSymlinkAncestors(target,code){
   for(const segment of target.slice(parsed.root.length).split(path.sep).filter(Boolean)){
     cursor=path.join(cursor,segment);
     if(fs.lstatSync(cursor,{bigint:true}).isSymbolicLink())fail(code);
+  }
+}
+function assertRootOwnedProtectedAncestors(target,code){
+  const parsed=path.parse(target);
+  let cursor=parsed.root;
+  const parent=path.dirname(target);
+  for(const segment of parent.slice(parsed.root.length).split(path.sep).filter(Boolean)){
+    cursor=path.join(cursor,segment);
+    const metadata=fs.lstatSync(cursor,{bigint:true});
+    if(
+      !metadata.isDirectory()||metadata.isSymbolicLink()||metadata.uid!==0n||
+      Number(metadata.mode&0o022n)!==0
+    )fail(code);
   }
 }
 function openPinnedDirectory(directory,expectedMode,code){
