@@ -344,8 +344,9 @@ function readRedactedConfigText(
   assertRedactedConfigNamespace(absolute, uid, namespaceError);
   const before = fs.lstatSync(absolute, { bigint: true });
   const mode = before.mode & 0o777n;
-  const ownerAccepted =
-    before.uid === 0n || before.uid === BigInt(uid);
+  const ownerAccepted = privateToOwner
+    ? before.uid === BigInt(uid)
+    : (before.uid === 0n || before.uid === BigInt(uid));
   const modeAccepted = privateToOwner
     ? (mode & 0o077n) === 0n
     : (mode & 0o022n) === 0n;
