@@ -39,8 +39,11 @@ The caller supplies an existing absolute state root. V79 requires:
 - exact mode `0700`; and
 - canonical realpath equality.
 
-V79 creates only a `consumed/` child when absent. That directory is mode
-`0700`. Consumption records are mode `0600`.
+V79 creates a private create-once store-generation identity file when the
+state root is first admitted, then creates the `consumed/` child when absent.
+The identity file and consumption records are mode `0600`; `consumed/` is
+mode `0700`. Every receipt binds the store-generation ID as well as the
+state-root realpath.
 
 ## Atomic consumption
 
@@ -53,12 +56,16 @@ never overwritten, truncated, deleted, or released.
 
 ## Replay scope
 
-Replay prevention is intentionally scoped to one exact state-store realpath.
-The receipt binds the SHA-256 of that realpath.
+Replay prevention is intentionally scoped to one exact durable state-store
+**generation**, not pathname text alone. The receipt binds both the realpath and
+a private create-once store-generation ID. If the same pathname is deleted and
+recreated, it receives a different generation ID and cannot masquerade as the
+same replay domain.
 
 V79 does **not** claim global replay protection across independently selected
-stores. Production composition must bind exactly one canonical Apollyon
-authorization-consumption store before this gate is used live.
+or replaced store generations. Production composition must bind exactly one
+canonical Apollyon authorization-consumption store generation and preserve that
+identity across restart/recovery before this gate is used live.
 
 ## Authority boundary
 
@@ -101,7 +108,9 @@ node scripts/prove_apollyon_operator_authorization_consumption_v1.mjs
 
 The proof uses only an ephemeral Ed25519 fixture key and temporary
 owner-private directories. It proves successful consumption, immutable replay
-rejection, expiry rejection, private-root enforcement, symlink rejection,
-signature corruption rejection, and the intentionally local replay scope.
+rejection within one store generation, expiry rejection, private-root
+enforcement, symlink rejection, signature corruption rejection, distinct
+generation identity after same-path replacement, and the intentionally local
+replay scope.
 
 No production operator key or Xiphos runtime is accessed by the proof.

@@ -124,6 +124,8 @@ function input(root,value=packet()){
       /^apollyon_authz_consumption_v1:[0-9a-f]{64}$/u,
     );
     assert.equal(result.authorization_consumed,true);
+    assert.match(result.state_store_generation_id,/^apollyon_authz_store_v1:[0-9a-f]{64}$/u);
+    assert.match(result.state_store_generation_sha256,/^[0-9a-f]{64}$/u);
     assert.equal(result.consumption.single_use,true);
     assert.equal(result.consumption.immutable_consumption_record,true);
     assert.equal(result.consumption.signature_reverified_before_consumption,true);
@@ -272,13 +274,62 @@ function input(root,value=packet()){
       first.consumption.global_replay_prevention_claimed,
       false,
     );
+    assert.notEqual(first.state_store_generation_id,second.state_store_generation_id);
     assert.notEqual(
-      first.state_store_realpath_sha256,
-      second.state_store_realpath_sha256,
+      first.state_store_generation_sha256,
+      second.state_store_generation_sha256,
     );
   }finally{
     fs.rmSync(rootA,{recursive:true,force:true});
     fs.rmSync(rootB,{recursive:true,force:true});
+  }
+}
+
+{
+  const parent=stateRoot();
+  const fixed=path.join(parent,"fixed-store");
+  fs.mkdirSync(fixed,{mode:0o700});
+  fs.chmodSync(fixed,0o700);
+  try{
+    const shared=packet();
+    const first=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(fixed,shared),
+        fingerprint,
+        publicKey,
+        nowMs,
+      );
+    assert.equal(first.ok,true);
+    if(first.ok===false)throw new Error(first.reason);
+    const firstGeneration=first.state_store_generation_id;
+    const firstPathFingerprint=first.state_store_realpath_sha256;
+
+    fs.rmSync(fixed,{recursive:true,force:true});
+    fs.mkdirSync(fixed,{mode:0o700});
+    fs.chmodSync(fixed,0o700);
+
+    const second=
+      consumeApollyonOperatorAuthorizationAgainstFingerprintWithClockV1(
+        input(fixed,shared),
+        fingerprint,
+        publicKey,
+        nowMs+1000,
+      );
+    assert.equal(second.ok,true);
+    if(second.ok===false)throw new Error(second.reason);
+    assert.equal(second.state_store_realpath_sha256,firstPathFingerprint);
+    assert.notEqual(second.state_store_generation_id,firstGeneration);
+    assert.notEqual(
+      second.state_store_generation_sha256,
+      first.state_store_generation_sha256,
+    );
+    assert.equal(
+      second.consumption.same_realpath_replacement_is_new_store_generation,
+      true,
+    );
+    assert.equal(second.consumption.global_replay_prevention_claimed,false);
+  }finally{
+    fs.rmSync(parent,{recursive:true,force:true});
   }
 }
 
@@ -287,12 +338,13 @@ for(const [key,expected] of Object.entries({
   exact_signed_authorization_reverification_required:true,
   runtime_expiry_recheck_required:true,
   private_existing_state_root_required:true,
-  exact_state_store_realpath_scoped_replay_prevention:true,
+  exact_state_store_generation_scoped_replay_prevention:true,
+  same_realpath_replacement_is_new_store_generation:true,
   global_replay_prevention_claimed:false,
   canonical_state_store_runtime_binding_still_required:true,
   immutable_consumption_record:true,
   filesystem_read:true,
-  filesystem_mutation_one_consumption_record_may_occur:true,
+  filesystem_mutation_store_identity_and_one_consumption_record_may_occur:true,
   operator_private_key_access:false,
   production_signing:false,
   attempt_claim_authorized_by_this_gate:false,
@@ -346,7 +398,8 @@ console.log("atomic_hardlink_publication=true");
 console.log("directory_fsync_after_publication=true");
 console.log("duplicate_authorization_rejected=true");
 console.log("consumption_record_bytes_unchanged_on_duplicate=true");
-console.log("replay_prevention_scope=exact_state_store_realpath");
+console.log("replay_prevention_scope=exact_state_store_generation");
+console.log("same_realpath_replacement_is_new_store_generation=true");
 console.log("global_replay_prevention_claimed=false");
 console.log("canonical_state_store_runtime_binding_required=true");
 console.log("attempt_claimed=false");

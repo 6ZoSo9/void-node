@@ -18,12 +18,13 @@ export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1 =
     exact_signed_authorization_reverification_required:true,
     runtime_expiry_recheck_required:true,
     private_existing_state_root_required:true,
-    exact_state_store_realpath_scoped_replay_prevention:true,
+    exact_state_store_generation_scoped_replay_prevention:true,
+    same_realpath_replacement_is_new_store_generation:true,
     global_replay_prevention_claimed:false,
     canonical_state_store_runtime_binding_still_required:true,
     immutable_consumption_record:true,
     filesystem_read:true,
-    filesystem_mutation_one_consumption_record_may_occur:true,
+    filesystem_mutation_store_identity_and_one_consumption_record_may_occur:true,
     operator_private_key_access:false,
     production_signing:false,
     attempt_claim_authorized_by_this_gate:false,
@@ -44,6 +45,9 @@ export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1 =
 
 const AUTHORIZATION_ID=/^apollyon_authz_v1:([0-9a-f]{64})$/u;
 const CONSUMPTION_ID=/^apollyon_authz_consumption_v1:[0-9a-f]{64}$/u;
+const STORE_ID=/^apollyon_authz_store_v1:[0-9a-f]{64}$/u;
+const STORE_ID_FILE=".apollyon-authorization-consumption-store-v1.json";
+const STORE_ID_MARKER="VOID_APOLLYON_AUTHORIZATION_CONSUMPTION_STORE_V1";
 const MAX_RECORD_BYTES=64*1024;
 
 function text(value){
@@ -73,6 +77,8 @@ function held(reason,options={}){
     reason,
     authorization_id:options.authorization_id??null,
     state_store_realpath_sha256:options.state_store_realpath_sha256??null,
+    state_store_generation_id:options.state_store_generation_id??null,
+    state_store_generation_sha256:options.state_store_generation_sha256??null,
     authorization_consumed:false,
     attempt_claimed:false,
     training_execution_performed:false,
@@ -243,6 +249,7 @@ function atomicCreateCanonicalJson(file,value){
 
   const fd=fs.openSync(temporary,"wx",0o600);
   try{
+    fs.fchmodSync(fd,0o600);
     fs.writeFileSync(fd,bytes);
     fs.fsyncSync(fd);
   }finally{
@@ -265,6 +272,58 @@ function atomicCreateCanonicalJson(file,value){
       if(error?.code!=="ENOENT")throw error;
     }
   }
+}
+
+function sameRecordMeta(a,b){
+  return a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+
+function readStateStoreGeneration(root){
+  const file=path.join(root,STORE_ID_FILE);
+  assertPrivateRecord(file);
+  const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  try{
+    const before=fs.fstatSync(fd);
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    const visible=fs.lstatSync(file);
+    if(!sameRecordMeta(before,after)||!sameRecordMeta(after,visible)){
+      throw new Error("authorization_consumption_store_identity_changed");
+    }
+    const value=JSON.parse(bytes.toString("utf8"));
+    if(
+      !value||typeof value!=="object"||Array.isArray(value)||
+      Object.keys(value).sort().join("\n")!=="marker\nstore_id\nversion"||
+      value.marker!==STORE_ID_MARKER||
+      value.version!==1||
+      !STORE_ID.test(value.store_id)||
+      canonicalApollyonOperatorAuthorizationJsonV1(value)+"\n"!==bytes.toString("utf8")
+    ){
+      throw new Error("authorization_consumption_store_identity_invalid");
+    }
+    return Object.freeze({...value});
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function ensureStateStoreGeneration(root){
+  try{
+    return readStateStoreGeneration(root);
+  }catch(error){
+    if(error?.code!=="ENOENT")throw error;
+  }
+  const candidate={
+    marker:STORE_ID_MARKER,
+    version:1,
+    store_id:"apollyon_authz_store_v1:"+crypto.randomBytes(32).toString("hex"),
+  };
+  const outcome=atomicCreateCanonicalJson(path.join(root,STORE_ID_FILE),candidate);
+  if(outcome!=="created"&&outcome!=="exists"){
+    throw new Error("authorization_consumption_store_identity_publish_failed");
+  }
+  return readStateStoreGeneration(root);
 }
 
 function readClock(clock){
@@ -324,6 +383,26 @@ function consumeInternal(
     );
   }
 
+  let storeGeneration;
+  try{
+    storeGeneration=ensureStateStoreGeneration(root.realpath);
+  }catch(error){
+    return held(
+      "authorization_consumption_store_identity_failed",
+      {
+        ...storeContext,
+        detail:{error_class:safeErrorClass(error)},
+      },
+    );
+  }
+  const storeContext={
+    authorization_id:verified.authorization_id,
+    state_store_realpath_sha256:root.realpath_sha256,
+    state_store_generation_id:storeGeneration.store_id,
+    state_store_generation_sha256:
+      sha256(root.realpath+"\n"+storeGeneration.store_id),
+  };
+
   let consumedDirectory;
   try{
     consumedDirectory=ensurePrivateConsumedDirectory(root.realpath);
@@ -331,8 +410,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_store_prepare_failed",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
         detail:{error_class:safeErrorClass(error)},
       },
     );
@@ -345,8 +423,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_clock_invalid_before_publish",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
         detail:{error_class:safeErrorClass(error)},
       },
     );
@@ -358,8 +435,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_not_yet_valid_before_publish",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
       },
     );
   }
@@ -367,8 +443,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_expired_before_publish",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
       },
     );
   }
@@ -391,12 +466,15 @@ function consumeInternal(
     expires_at_utc:input.packet.payload.expires_at,
     consumed_at_utc:canonicalUtcFromMs(consumeNow),
     state_store_realpath_sha256:root.realpath_sha256,
+    state_store_generation_id:storeGeneration.store_id,
+    state_store_generation_sha256:storeContext.state_store_generation_sha256,
     consumption:{
       single_use:true,
       authorization_consumed:true,
       immutable_consumption_record:true,
-      replay_rejected_within_exact_state_store:true,
-      replay_prevention_scope:"exact_state_store_realpath",
+      replay_rejected_within_exact_state_store_generation:true,
+      replay_prevention_scope:"exact_state_store_generation",
+      same_realpath_replacement_is_new_store_generation:true,
       global_replay_prevention_claimed:false,
       canonical_state_store_runtime_binding_required:true,
       signature_reverified_before_consumption:true,
@@ -437,8 +515,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_record_id_invalid",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
       },
     );
   }
@@ -451,8 +528,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_atomic_publish_failed",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
         detail:{error_class:safeErrorClass(error)},
       },
     );
@@ -461,8 +537,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_already_consumed",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
       },
     );
   }
@@ -480,8 +555,7 @@ function consumeInternal(
     return held(
       "authorization_consumption_readback_failed",
       {
-        authorization_id:verified.authorization_id,
-        state_store_realpath_sha256:root.realpath_sha256,
+        ...storeContext,
         detail:{error_class:safeErrorClass(error)},
       },
     );
