@@ -128,6 +128,8 @@ assert.equal(
   "indeterminate",
 );
 
+// Express adapters may retain middleware even if app.use throws.
+// A partial registration must not advertise healthy readiness.
 const partialJsonBody = pessimisticJson();
 const partialJsonBefore = JSON.stringify(partialJsonBody);
 const partialJsonResponse = invokeRetainedMiddleware(
@@ -173,6 +175,7 @@ assert.equal(success.sandbox.__void_ready_bridge_v3_mounted, true);
 assert.equal(success.sandbox.__void_ready_bridge_v3_mount_state, "mounted");
 assert.equal(typeof registeredMiddleware, "function");
 
+// A completed mount must retain the original positive-head bridge behavior.
 const mountedJsonResponse = invokeRetainedMiddleware(
   registeredMiddleware,
   "/__void/ready.json",
