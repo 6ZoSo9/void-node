@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildTorBootstrapManifestCandidateV1,validateTorQualificationReceiptForManifestV1,writeCandidateOutputsV1,writeExclusiveOwnedV1 } from "./build_void_tor_bootstrap_manifest_candidate_v1.mjs";
+import { buildTorBootstrapManifestCandidateV1,validateTorQualificationReceiptForManifestV1,removeOwnedOutputV1,writeCandidateOutputsV1,writeExclusiveOwnedV1 } from "./build_void_tor_bootstrap_manifest_candidate_v1.mjs";
 import { buildTorQualificationReceiptV1 } from "./qualify_void_public_seed_tor_v1.mjs";
 import { loadTorBootstrapReleaseRootFile,loadTorBootstrapSignedManifestLifecycleFile } from "./lib/void_tor_bootstrap_release_root_v1.mjs";
 
@@ -54,6 +54,19 @@ try{
  }finally{fs.fchmodSync=realFchmod;}
  assert.equal(injectedChmod,true);
  assert.equal(fs.existsSync(chmodFail),false);
+
+ const standaloneSuccess=path.join(ownershipTemp,"standalone-success.bin");
+ const standaloneOwned=writeExclusiveOwnedV1(
+  standaloneSuccess,
+  Buffer.from("owned-success","utf8"),
+ );
+ assert.equal(fs.readFileSync(standaloneSuccess,"utf8"),"owned-success");
+ assert.equal(
+  removeOwnedOutputV1(standaloneOwned),
+  true,
+  "public owned-output cleanup must remain valid after parent descriptor closes",
+ );
+ assert.equal(fs.existsSync(standaloneSuccess),false);
 
  // A validated output parent must remain the same directory through creation.
  // Swap the visible path to a repository-pointing symlink after both parents
@@ -159,6 +172,7 @@ try{
 console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
 console.log("foreign_output_eexist_preserved=true");
 console.log("post_create_chmod_failure_cleaned=true");
+console.log("closed_parent_descriptor_not_exported_for_cleanup=true");
 console.log("transaction_cleanup_owned_outputs_only=true");
 console.log("output_parent_swap_before_create_holds=true");
 console.log("output_parent_swap_after_precreate_check_no_repo_write=true");
