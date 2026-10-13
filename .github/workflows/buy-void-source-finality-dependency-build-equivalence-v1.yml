@@ -39,7 +39,7 @@ jobs:
         with:
           ref: 68d9122fa557718882e36858906b960efa0acf3a
           path: baseline
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Use supported Node
