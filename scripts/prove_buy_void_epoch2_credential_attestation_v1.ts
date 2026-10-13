@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { Wallet } from "ethers";
 import {
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_WORKTREE_PATHS_V1,
+  assessBuyVoidEpoch2CredentialAttestationWorktreeV1,
+} from "./void_buy_void_epoch2_credential_attestation_v1.js";
+import {
   VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
 } from "../src/economic/buy_void_epoch2_fulfillment_access_list_v1.js";
 import {
@@ -20,6 +24,66 @@ import {
 const HEAD = "a".repeat(40);
 const TREE = "d".repeat(40);
 const CHALLENGE = "b".repeat(64);
+const CLEAN_BLOB = "1".repeat(40);
+const cleanWorktreeEntries = () =>
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_WORKTREE_PATHS_V1.map(
+    (worktreePath) => ({
+      path: worktreePath,
+      index_tag: "H",
+      head_blob: CLEAN_BLOB,
+      worktree_blob: CLEAN_BLOB,
+    }),
+  );
+const assessWorktree = (overrides: {
+  tracked_status?: string;
+  sparse_checkout?: boolean;
+  entries?: ReturnType<typeof cleanWorktreeEntries>;
+} = {}) => assessBuyVoidEpoch2CredentialAttestationWorktreeV1({
+  tracked_status: overrides.tracked_status ?? "",
+  sparse_checkout: overrides.sparse_checkout ?? false,
+  entries: overrides.entries ?? cleanWorktreeEntries(),
+});
+assert.deepEqual(assessWorktree(), { ok: true });
+assert.deepEqual(
+  assessWorktree({ tracked_status: " M src/economic/example.ts" }),
+  { ok: false, reason: "epoch2_attestation_tracked_worktree_dirty" },
+);
+assert.deepEqual(
+  assessWorktree({ sparse_checkout: true }),
+  { ok: false, reason: "epoch2_attestation_sparse_checkout_forbidden" },
+);
+for (const unsafeTag of ["h", "S"]) {
+  const entries = cleanWorktreeEntries();
+  entries[0] = { ...entries[0], index_tag: unsafeTag };
+  assert.deepEqual(
+    assessWorktree({ entries }),
+    { ok: false, reason: "epoch2_attestation_worktree_index_flag_unsafe" },
+  );
+}
+{
+  const entries = cleanWorktreeEntries();
+  entries[1] = { ...entries[1], worktree_blob: "2".repeat(40) };
+  assert.deepEqual(
+    assessWorktree({ entries }),
+    { ok: false, reason: "epoch2_attestation_worktree_blob_mismatch" },
+  );
+}
+{
+  const entries = cleanWorktreeEntries().slice(1);
+  assert.deepEqual(
+    assessWorktree({ entries }),
+    { ok: false, reason: "epoch2_attestation_worktree_entry_cardinality_invalid" },
+  );
+}
+{
+  const entries = cleanWorktreeEntries();
+  entries[1] = { ...entries[1], path: entries[0].path };
+  assert.deepEqual(
+    assessWorktree({ entries }),
+    { ok: false, reason: "epoch2_attestation_worktree_entry_duplicate_or_invalid" },
+  );
+}
+
 const probe = buildBuyVoidEpoch2CredentialCapabilityProbeV1({
   source_head: HEAD,
   challenge_hex: CHALLENGE,
@@ -250,6 +314,15 @@ for (const required of [
   "VOID_PROCESS_SOURCE_TREE",
   "VOID_PROCESS_SOURCE_BRANCH",
   "buyVoidEpoch2SystemdCredentialObservationStableV1",
+  "assessBuyVoidEpoch2CredentialAttestationWorktreeV1",
+  "sanitizedGitEnvironment",
+  "GIT_CONFIG_NOSYSTEM",
+  "core.fsmonitor=false",
+  "status\", \"--porcelain=v1\", \"--untracked-files=no",
+  "ls-files\", \"-v",
+  "worktreeGitBlob(relative)",
+  "const source = assertSourceGeneration();",
+  "import(\"../src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js\")",
   "raw = \"\"",
 ]) {
   assert.equal(cli.includes(required), true, "CLI missing " + required);
@@ -262,6 +335,7 @@ for (const forbidden of [
   "broadcast_signed_transaction",
   "writeFileSync(",
   "appendFileSync(",
+  "import {\\n  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1",
 ]) {
   assert.equal(cli.includes(forbidden), false, "CLI contains " + forbidden);
 }
@@ -282,6 +356,12 @@ console.log("live_user_service_binding_parser_proven=true");
 console.log("systemd_managed_credentials_directory_required=true");
 console.log("live_process_source_commit_tree_branch_bound=true");
 console.log("systemd_invocation_stable_across_signing_required=true");
+console.log("worktree_authority_bytes_bound=true");
+console.log("dirty_or_sparse_worktree_held=true");
+console.log("assume_unchanged_or_skip_worktree_held=true");
+console.log("worktree_blob_substitution_held=true");
+console.log("git_environment_sanitized=true");
+console.log("authority_modules_imported_after_source_preflight=true");
 console.log("probe_nonce_number_max_safe_integer=true");
 console.log("probe_zero_fee=true");
 console.log("probe_amount_atoms=1");
