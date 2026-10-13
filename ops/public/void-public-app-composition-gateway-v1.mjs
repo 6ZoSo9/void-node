@@ -465,12 +465,17 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
         "self_custody","native_usdc","request_before_payment",
         "sender_equals_void_destination","no_automatic_fulfillment",
       ]);
+      // Public checkout receipts intentionally expose only the bounded lease
+      // expiry from the internal coupled launch authority. Never forward
+      // opaque internal authority metadata across the unauthenticated edge.
+      const launchAuthorityKeys = new Set(["expires_at_ms"]);
       const closedNestedKeys = (object, allowed) =>
         object && typeof object === "object" &&
         !Array.isArray(object) &&
         Object.keys(object).every(key => allowed.has(key));
       if (!closedNestedKeys(checkout.request_contract, requestContractKeys) ||
           !closedNestedKeys(checkout.safety, safetyKeys) ||
+          !closedNestedKeys(checkout.launch_authority, launchAuthorityKeys) ||
           (Object.hasOwn(checkout, "acknowledgements") &&
             !closedNestedKeys(checkout.acknowledgements,
               acknowledgementKeys))) {

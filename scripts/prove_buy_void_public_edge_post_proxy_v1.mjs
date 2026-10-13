@@ -760,6 +760,7 @@ const upstream = http.createServer(
           proofCase === "private_safety_key_201" ||
           proofCase === "private_contract_key_201" ||
           proofCase === "private_acknowledgements_key_201" ||
+          proofCase === "private_launch_authority_key_201" ||
           proofCase === "expired_instruction_201" ||
           proofCase === "overlong_instruction_201" ||
           proofCase === "future_created_201" ||
@@ -884,6 +885,7 @@ const upstream = http.createServer(
           "private_safety_key_201",
           "private_contract_key_201",
           "private_acknowledgements_key_201",
+          "private_launch_authority_key_201",
         ].includes(proofCase)) {
           const checkout = { ...mutated.request };
           const privateValue = "SENTINEL_PRIVATE_CHECKOUT_NESTED_METADATA";
@@ -894,6 +896,11 @@ const upstream = http.createServer(
           } else if (proofCase === "private_contract_key_201") {
             checkout.request_contract = {
               ...checkout.request_contract, private_customer_path: privateValue,
+            };
+          } else if (proofCase === "private_launch_authority_key_201") {
+            checkout.launch_authority = {
+              ...checkout.launch_authority,
+              private_credential_hint: privateValue,
             };
           } else {
             checkout.acknowledgements = {
@@ -1653,6 +1660,7 @@ try {
     "private_safety_key_201",
     "private_contract_key_201",
     "private_acknowledgements_key_201",
+    "private_launch_authority_key_201",
     "expired_instruction_201",
     "overlong_instruction_201",
     "future_created_201",
@@ -1807,6 +1815,7 @@ try {
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("nested_safety_contract_acknowledgement_private_keys_refused=true");
+  console.log("nested_launch_authority_private_keys_refused=true");
   console.log("legacy_201_private_path_redacted_without_losing_success=true");
   console.log("full_legacy_201_payment_instructions_preserved=true");
   console.log("unexpected_persisted_metadata_holds=true");
