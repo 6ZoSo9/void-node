@@ -83,6 +83,14 @@ The gateway does not gain a general mutation proxy.
   sub-micro amount or missing quote field fails closed as uncertain 502.
   The nested payment-instructions keyset is also an exact allowlist; private,
   unknown, or extra metadata cannot cross the public API inside a valid 201.
+  The same public-201 egress policy now also closes the nested
+  `request_contract` (four reviewed flags), `safety` (nine reviewed
+  flags) and, when present, `acknowledgements` (five reviewed flags).
+  Any unrecognized nested field, even on an otherwise payment-valid
+  HTTP 201, is a generic uncertain 502 rather than a private operational
+  value forwarded to an unauthenticated client. Disposable negative
+  fixtures inject private-looking fields into all three subobjects, and a
+  full native-source positive fixture includes all reviewed flags.
   This is the reviewed fixed-price presale generation, not permission to
   change pricing or activate a market.
 - A newly created 201 is an actionable *short* payment lease:
