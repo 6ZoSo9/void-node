@@ -15,6 +15,7 @@ import {
   privateKeyFromCredential,
   buildChallenge,
   parseSystemdObservation,
+  redactedLoadCredentialBindingFromShow,
   serviceCgroupBound,
   canonicalUserBusPaths,
 } from "./void_buy_void_epoch2_credential_attestation_sealed_v1.mjs";
@@ -214,6 +215,92 @@ assert.throws(
   ),
   /epoch2_sealed_process_invocation_mismatch/u,
 );
+
+// Ubuntu/systemd may redact LoadCredential from systemctl show as exactly
+// "[unprintable]". In that mode the sealed probe may recover only the one
+// reviewed E2 binding from its active private drop-in; all other semantics
+// remain tied to the cgroup-bound process and materialized credential directory.
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-e2-loadcredential-redacted-"),
+  );
+  const dropIn = path.join(
+    root,
+    "97-buy-void-epoch2-fulfiller-credential-v1.conf",
+  );
+  fs.writeFileSync(
+    dropIn,
+    "[Service]\n" +
+      "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+      "/private/e2-fulfiller.key\n",
+    { encoding: "utf8", mode: 0o600 },
+  );
+  fs.chmodSync(dropIn, 0o600);
+  try {
+    const redactedShow = [
+      "ActiveState=active",
+      "SubState=running",
+      "MainPID=4242",
+      "InvocationID=" + invocation,
+      "LoadCredential=[unprintable]",
+      "DropInPaths=" + dropIn,
+      "",
+    ].join("\n");
+    const binding =
+      redactedLoadCredentialBindingFromShow(redactedShow, proofUid);
+    assert.equal(
+      binding,
+      "buy-void-epoch2-fulfiller-v1:/private/e2-fulfiller.key",
+    );
+    const redactedObserved = parseSystemdObservation(
+      redactedShow,
+      environment,
+      goodCgroup,
+      proofUid,
+      binding,
+    );
+    assert.equal(
+      redactedObserved.loadcredential_binding_sha256,
+      systemdObserved.loadcredential_binding_sha256,
+    );
+    assert.equal(
+      redactedObserved.credentials_directory_sha256,
+      systemdObserved.credentials_directory_sha256,
+    );
+    assert.equal(
+      redactedObserved.main_pid_cgroup_sha256,
+      systemdObserved.main_pid_cgroup_sha256,
+    );
+    assert.throws(
+      () => parseSystemdObservation(
+        redactedShow,
+        environment,
+        goodCgroup,
+        proofUid,
+      ),
+      /epoch2_sealed_loadcredential_cardinality_invalid/u,
+    );
+
+    fs.chmodSync(dropIn, 0o644);
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
+      /epoch2_sealed_redacted_dropin_policy_invalid/u,
+    );
+    fs.chmodSync(dropIn, 0o600);
+
+    const wrongId = fs.readFileSync(dropIn, "utf8").replace(
+      "buy-void-epoch2-fulfiller-v1:",
+      "buy-void-native-fulfillment-wallet-v1:",
+    );
+    fs.writeFileSync(dropIn, wrongId, { encoding: "utf8", mode: 0o600 });
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
+      /epoch2_sealed_redacted_dropin_semantics_invalid/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 const syntheticSource = Object.freeze({
   head: processCommit,
