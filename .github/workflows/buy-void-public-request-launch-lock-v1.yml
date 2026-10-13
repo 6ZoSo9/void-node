@@ -39,8 +39,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
           test "$(git hash-object src/index.ts)" = "40239e0f76aa1edce43523d18c1b57691e41e8cf"
-          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "684a952a191749dad106f5de8079d2dd72851898"
-          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "42fd74b99beba467d3d67245976e39c0d2d967c0"
+          test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "0fd7cb486466233eac53899069f22e5ed3563662"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "26bb9725b4a4639bff4b3ce4375aeb9e827830be"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -113,6 +113,7 @@ jobs:
             'authority_callback_tuple_iterator_poison_isolated=true' \
             'ambient_array_find_some_request_authority=false' \
             'ambient_string_request_authority_intrinsics=false' \
+            'ambient_collection_intrinsics_request_authority=false' \
             'new_request_nonplain_snapshot_holds_without_mutation=true' \
             'ambient_array_iterator_payment_terms_preserved=true' \
             'operator_immutable_nested_payment_instructions_iterator_guard=true' \

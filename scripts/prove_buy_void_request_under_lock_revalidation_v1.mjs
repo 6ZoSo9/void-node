@@ -1676,6 +1676,238 @@ console.log("ambient_array_find_some_request_authority=false");
 }
 console.log("ambient_string_request_authority_intrinsics=false");
 
+
+// Remaining collection/static intrinsics are mutable after module import too.
+// Poison only the exact synthetic economic objects/IDs: unrelated Node
+// internals retain native behavior while the ACTUAL compiled helper proves
+// it never consults these ambient hooks for request-history authority.
+{
+  const helperSource=fs.readFileSync(
+    "src/economic/buy_void_public_request_under_launch_lock_v1.ts","utf8");
+  for(const [label,pattern] of [
+    ["live_Array_isArray",/\bArray[.]isArray\s*\(/u],
+    ["live_Object_hasOwn",/\bObject[.]hasOwn\s*\(/u],
+    ["live_Array_from",/\bArray[.]from\s*\(/u],
+    ["ambient_Map_constructor",/\bnew\s+Map\b/u],
+    ["ambient_Set_constructor",/\bnew\s+Set\b/u],
+    ["ambient_WeakSet_constructor",/\bnew\s+WeakSet\b/u],
+    ["ambient_Map_get_set_values",/\bbyId[.](?:get|set|values)\s*\(/u],
+  ]){
+    assert.doesNotMatch(helperSource,pattern,label);
+  }
+
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const existing=request(
+    "buyvoid_collection_intrinsic_existing_aaaaaaaa","3","base","7");
+  const retry=request(
+    "buyvoid_collection_intrinsic_retry_bbbbbbbb","3","base","7");
+  const createCallbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const nativeArrayIsArray=Array.isArray;
+  const nativeHasOwn=Object.hasOwn;
+  const nativeArrayFrom=Array.from;
+  const nativeMapGet=Map.prototype.get;
+  const nativeMapSet=Map.prototype.set;
+  const nativeMapValues=Map.prototype.values;
+  const nativeSetAdd=Set.prototype.add;
+  const nativeSetHas=Set.prototype.has;
+  const nativePush=Array.prototype.push;
+  const nativeWeakHas=WeakSet.prototype.has;
+  const nativeWeakAdd=WeakSet.prototype.add;
+  const nativeWeakDelete=WeakSet.prototype.delete;
+  let observed=null;
+  let guardedResult=null;
+  let guardedError=null;
+  const calls={
+    isArray:0,hasOwn:0,arrayFrom:0,mapGet:0,mapSet:0,mapValues:0,
+    setAdd:0,setHas:0,push:0,weakHas:0,weakAdd:0,weakDelete:0,
+  };
+  const isEconomicArray=(value)=>{
+    if(!nativeArrayIsArray(value)||value.length<1)return false;
+    for(let i=0;i<value.length;i+=1){
+      if(nativeHasOwn(value,String(i))&&
+          value[i]?.request_id===existing.request_id)return true;
+    }
+    return false;
+  };
+  try{
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,createCallbacks);
+    assert.equal(created.reused_request,null);
+    observed=lines(root);
+    assert.equal(observed.length,1);
+
+    Object.defineProperty(Array,"isArray",{
+      configurable:true,writable:true,value(value){
+        if(value===observed||isEconomicArray(value)){
+          calls.isArray++;
+          return false;
+        }
+        return nativeArrayIsArray(value);
+      },
+    });
+    Object.defineProperty(Object,"hasOwn",{
+      configurable:true,writable:true,value(target,key){
+        if(target===observed||isEconomicArray(target)){
+          calls.hasOwn++;
+          return false;
+        }
+        return nativeHasOwn(target,key);
+      },
+    });
+    Object.defineProperty(Array,"from",{
+      configurable:true,writable:true,value(input,...rest){
+        if(Object.prototype.toString.call(input)==="[object Map Iterator]"){
+          calls.arrayFrom++;
+          return [];
+        }
+        return Reflect.apply(nativeArrayFrom,Array,[input,...rest]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"get",{
+      configurable:true,writable:true,value(key){
+        if(key===existing.request_id){
+          calls.mapGet++;
+          return undefined;
+        }
+        return Reflect.apply(nativeMapGet,this,[key]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"set",{
+      configurable:true,writable:true,value(key,value){
+        if(key===existing.request_id){
+          calls.mapSet++;
+          return this;
+        }
+        return Reflect.apply(nativeMapSet,this,[key,value]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"values",{
+      configurable:true,writable:true,value(){
+        if(Reflect.apply(nativeMapGet,this,[existing.request_id])!==undefined){
+          calls.mapValues++;
+          return Reflect.apply(nativeMapValues,new Map(),[]);
+        }
+        return Reflect.apply(nativeMapValues,this,[]);
+      },
+    });
+    Object.defineProperty(Set.prototype,"add",{
+      configurable:true,writable:true,value(value){
+        if(value===existing.request_id){
+          calls.setAdd++;
+          return this;
+        }
+        return Reflect.apply(nativeSetAdd,this,[value]);
+      },
+    });
+    Object.defineProperty(Set.prototype,"has",{
+      configurable:true,writable:true,value(value){
+        if(value===existing.request_id){
+          calls.setHas++;
+          return false;
+        }
+        return Reflect.apply(nativeSetHas,this,[value]);
+      },
+    });
+    Object.defineProperty(Array.prototype,"push",{
+      configurable:true,writable:true,value(...values){
+        if(values.some(value=>value?.request_id===existing.request_id)){
+          calls.push++;
+          return this.length;
+        }
+        return Reflect.apply(nativePush,this,values);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"has",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakHas++;
+          return false;
+        }
+        return Reflect.apply(nativeWeakHas,this,[value]);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"add",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakAdd++;
+          return this;
+        }
+        return Reflect.apply(nativeWeakAdd,this,[value]);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"delete",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakDelete++;
+          return true;
+        }
+        return Reflect.apply(nativeWeakDelete,this,[value]);
+      },
+    });
+
+    const guardedCallbacks=[
+      readers.withLock,
+      async()=>observed,
+      async()=>[],
+      requests=>requests,
+      ()=>false,
+      ()=>true,
+    ];
+    try{
+      guardedResult=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+        retry,guardedCallbacks);
+    }catch(error){
+      guardedError=error;
+    }
+  }finally{
+    Object.defineProperty(Array,"isArray",{
+      configurable:true,writable:true,value:nativeArrayIsArray});
+    Object.defineProperty(Object,"hasOwn",{
+      configurable:true,writable:true,value:nativeHasOwn});
+    Object.defineProperty(Array,"from",{
+      configurable:true,writable:true,value:nativeArrayFrom});
+    Object.defineProperty(Map.prototype,"get",{
+      configurable:true,writable:true,value:nativeMapGet});
+    Object.defineProperty(Map.prototype,"set",{
+      configurable:true,writable:true,value:nativeMapSet});
+    Object.defineProperty(Map.prototype,"values",{
+      configurable:true,writable:true,value:nativeMapValues});
+    Object.defineProperty(Set.prototype,"add",{
+      configurable:true,writable:true,value:nativeSetAdd});
+    Object.defineProperty(Set.prototype,"has",{
+      configurable:true,writable:true,value:nativeSetHas});
+    Object.defineProperty(Array.prototype,"push",{
+      configurable:true,writable:true,value:nativePush});
+    Object.defineProperty(WeakSet.prototype,"has",{
+      configurable:true,writable:true,value:nativeWeakHas});
+    Object.defineProperty(WeakSet.prototype,"add",{
+      configurable:true,writable:true,value:nativeWeakAdd});
+    Object.defineProperty(WeakSet.prototype,"delete",{
+      configurable:true,writable:true,value:nativeWeakDelete});
+  }
+  try{
+    assert.equal(guardedError,null,
+      "captured collection intrinsics must keep the guarded helper usable");
+    assert.equal(guardedResult?.reused_request?.request_id,existing.request_id);
+    assert.equal(lines(root).length,1,
+      "ambient collection poison cannot append a second durable obligation");
+    assert.deepEqual(calls,{
+      isArray:0,hasOwn:0,arrayFrom:0,mapGet:0,mapSet:0,mapValues:0,
+      setAdd:0,setHas:0,push:0,weakHas:0,weakAdd:0,weakDelete:0,
+    },"economic authority must not consult post-import collection hooks");
+  }finally{
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_collection_intrinsics_request_authority=false");
+
 // An ambient Array.prototype iterator can omit an own property name
 // from an Object.keys() array even though keys.length remains unchanged.
 // Demonstrate that a naive for..of copier drops payment_instructions,
