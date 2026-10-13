@@ -164,7 +164,6 @@ function boundLeafPathV1(binding){
 function ownedIdentity(binding,st){
   return Object.freeze({
     file:binding.target,
-    boundFile:boundLeafPathV1(binding),
     dev:st.dev,
     ino:st.ino,
   });
@@ -174,13 +173,24 @@ function sameOwnedIdentity(st,owned){
 }
 export function removeOwnedOutputV1(owned,fsImpl=fs){
   if(!owned) return false;
-  const file=owned.boundFile||owned.file;
   let visible;
-  try{visible=fsImpl.lstatSync(file);}catch(error){
+  try{visible=fsImpl.lstatSync(owned.file);}catch(error){
     if(error?.code==="ENOENT") return false;
     throw error;
   }
   if(!sameOwnedIdentity(visible,owned)) return false;
+  fsImpl.rmSync(owned.file,{force:false});
+  return true;
+}
+function removeOwnedBoundOutputV1(owned,binding,fsImpl=fs){
+  if(!owned||!binding)return false;
+  const file=boundLeafPathV1(binding);
+  let visible;
+  try{visible=fsImpl.lstatSync(file);}catch(error){
+    if(error?.code==="ENOENT")return false;
+    throw error;
+  }
+  if(!sameOwnedIdentity(visible,owned))return false;
   fsImpl.rmSync(file,{force:false});
   return true;
 }
@@ -209,7 +219,7 @@ function writeExclusiveBoundV1(binding,bytes,label,fsImpl=fs,{testOnlyAfterParen
     return owned;
   }catch(error){
     if(fd!==null){try{fsImpl.closeSync(fd);}catch(cleanupError){void cleanupError;}}
-    if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch(cleanupError){void cleanupError;}}
+    if(owned){try{removeOwnedBoundOutputV1(owned,binding,fsImpl);}catch(cleanupError){void cleanupError;}}
     if(!owned&&error?.code==="EEXIST") fail("candidate output already exists: "+binding.target);
     throw error;
   }
@@ -258,7 +268,7 @@ export function writeCandidateOutputsV1({
     return Object.freeze({manifest:created[0].owned,payload:created[1].owned});
   }catch(error){
     for(let i=created.length-1;i>=0;i-=1){
-      try{removeOwnedOutputV1(created[i].owned,fsImpl);}catch(cleanupError){void cleanupError;}
+      try{removeOwnedBoundOutputV1(created[i].owned,created[i].binding,fsImpl);}catch(cleanupError){void cleanupError;}
     }
     throw error;
   }finally{
