@@ -1,0 +1,147 @@
+name: VOID Buy VOID source-finality compiled artifact attestation v5
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v5-candidate-evidence-v1.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v5.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Check lock and derivation proofs
+        run: |
+          node --check scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs
+          node --check scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --self-test
+
+      - name: Build exact source-finality artifacts
+        run: npm run build
+
+      - name: Reproduce archived V5 candidate exactly
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive \
+            > "$RUNNER_TEMP/v5-candidate.json"
+          cmp "$RUNNER_TEMP/v5-candidate.json" \
+            docs/architecture/buy-void-source-finality-compiled-artifact-v5-candidate-evidence-v1.json
+
+      - name: Verify exact one-bit V5 lock
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5.mjs --derive \
+            > "locked-v5-${{ matrix.node }}.json"
+          cmp "locked-v5-${{ matrix.node }}.json" \
+            docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5.mjs \
+            | tee "locked-v5-${{ matrix.node }}.txt"
+          grep -Fx 'compiled_artifact_generation_verified=true' "locked-v5-${{ matrix.node }}.txt"
+          grep -Fx 'deployed_artifact_generation_verified=false' "locked-v5-${{ matrix.node }}.txt"
+          grep -Fx 'runtime_mount_authority=false' "locked-v5-${{ matrix.node }}.txt"
+          grep -Fx 'production_source_finality_authority_ready=false' "locked-v5-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "locked-v5-${{ matrix.node }}.txt"
+
+      - name: Upload exact lock evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-finality-locked-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            locked-v5-${{ matrix.node }}.json
+            locked-v5-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+
+  cross-node:
+    needs: [verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all locked V5 evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-source-finality-locked-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./locked-v5
+
+      - name: Require exact Node 22 24 26 lock equality
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "locked-v5/locked-v5-$v.json"
+            test -s "locked-v5/locked-v5-$v.txt"
+          done
+          cmp locked-v5/locked-v5-22.json locked-v5/locked-v5-24.json
+          cmp locked-v5/locked-v5-22.json locked-v5/locked-v5-26.json
+          cmp locked-v5/locked-v5-22.txt locked-v5/locked-v5-24.txt
+          cmp locked-v5/locked-v5-22.txt locked-v5/locked-v5-26.txt
+          sha256sum locked-v5/locked-v5-22.json
+          echo "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_V5_CROSS_NODE_LOCK_GREEN"
+          echo "compiled_artifact_generation_verified=true"
+          echo "deployed_artifact_generation_verified=false"
+          echo "production_source_finality_authority_ready=false"
+          echo "funds_movement=false"
