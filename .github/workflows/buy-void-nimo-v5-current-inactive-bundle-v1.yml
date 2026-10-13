@@ -122,7 +122,7 @@ jobs:
           cp "$private/void-nimo-v5-inactive.tar"             "evidence/void-nimo-v5-inactive-node-${{ matrix.node }}.tar"
           cp "v3-v4-classifier-${{ matrix.node }}.json" evidence/
 
-          node --input-type=module - <<'NODE'             "evidence/v5-plan-${{ matrix.node }}.json"             "evidence/v5-package-${{ matrix.node }}.json"             "evidence/v5-inspect-${{ matrix.node }}.json"
+          node --input-type=module - "evidence/v5-plan-${{ matrix.node }}.json" "evidence/v5-package-${{ matrix.node }}.json" "evidence/v5-inspect-${{ matrix.node }}.json" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const [planPath,packagePath,inspectPath]=process.argv.slice(2);
