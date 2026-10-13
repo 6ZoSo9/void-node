@@ -27,6 +27,8 @@ on:
       - "tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs"
       - "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_v1.mjs"
       - "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v2.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v3.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v3.mjs"
       - "docs/architecture/coupled-native-gas-reconciliation-custody-source-binding-v1.md"
       - ".github/workflows/coupled-native-gas-reconciliation-custody-source-binding-v1.yml"
   push:
@@ -94,8 +96,24 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Prove current source generation and historical V1 refusal
-        run: node scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v2.mjs
+      - name: Prove exact reviewed source generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v2.mjs
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              node scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_current_v3.mjs
+              ;;
+            *)
+              echo "unknown native-gas custody package generation: $package_blob:$lock_blob" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
