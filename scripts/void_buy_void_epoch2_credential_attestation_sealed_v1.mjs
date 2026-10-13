@@ -90,6 +90,10 @@ function trustedExecutable(candidate, leaf) {
 
 const GIT = trustedExecutable("/usr/bin/git", "git");
 const SYSTEMCTL = trustedExecutable("/usr/bin/systemctl", "systemctl");
+const NODE = trustedExecutable(
+  process.execPath,
+  path.basename(fs.realpathSync(process.execPath)),
+);
 
 function git(root, args) {
   return execFileSync(GIT, [
@@ -735,6 +739,13 @@ async function main() {
       throw new Error("epoch2_sealed_unknown_argument");
     }
   }
+  if (process.execPath !== NODE ||
+      process.execArgv.length !== 1 ||
+      process.execArgv[0] !== "--input-type=module" ||
+      String(process.env.NODE_OPTIONS || "") !== "" ||
+      String(process.env.NODE_PATH || "") !== "") {
+    throw new Error("epoch2_sealed_node_execution_context_invalid");
+  }
   if (!probe) {
     console.log(JSON.stringify({
       marker: MARKER,
@@ -841,6 +852,8 @@ async function main() {
       raw_signed_transaction_output: false,
       rpc_call_performed: false,
       transaction_constructed: false,
+      root_owned_node_binary_verified: true,
+      node_loader_environment_empty: true,
       transaction_broadcast_performed: false,
       transaction_submission_performed: false,
       filesystem_write_performed: false,
