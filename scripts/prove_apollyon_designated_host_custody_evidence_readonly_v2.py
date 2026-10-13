@@ -30,6 +30,10 @@ for value in [
  "'training_uid_rename_unlink_denied':not can_write(lstat_direct(sp.parent,'dir'),training.pw_uid,tg)",
  "system.posix_acl_access","CLOCK_BOOTTIME","'/usr/bin/systemctl','show'",
  "'/usr/bin/systemctl','--version'","'/usr/bin/pkcheck'","'--process'",
+ "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
+ "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
+ "expected_polkit_deny_rule","'action_id_only':True","'details_can_change_result':False",
+ "'lexically_first':True","'retained_ancestors_root_owned':True",
  "'org.freedesktop.systemd1.manage-units'","'org.freedesktop.systemd1.manage-unit-files'",
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
@@ -48,6 +52,19 @@ assert mod.classify_pkcheck_status(0)=='authorized'
 assert mod.classify_pkcheck_status(2)=='challenge'
 assert mod.classify_pkcheck_status(3)=='dismissed'
 assert mod.classify_pkcheck_status(127)=='error'
+rule=mod.expected_polkit_deny_rule('zoso').decode('utf-8')
+for action in (
+ 'org.freedesktop.systemd1.manage-units',
+ 'org.freedesktop.systemd1.manage-unit-files',
+ 'org.freedesktop.systemd1.reload-daemon',
+ 'org.freedesktop.systemd1.set-environment',
+):
+ assert f'action.id === "{action}"' in rule
+assert 'polkit.message' not in rule
+assert 'polkit.gettext_domain' not in rule
+assert 'action.lookup' not in rule
+assert 'subject.user === "zoso"' in rule
+assert 'return polkit.Result.NO;' in rule
 assert [str(x) for x in mod.ancestors(Path('/run/void-apollyon'))]==['/run','/']
 print('VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_EVIDENCE_READONLY_V2_PROOF_GREEN')
 print('historical_v83_collector_unchanged=true')
@@ -57,6 +74,9 @@ print('socket_parent_additional_acl_checks=true')
 print('socket_parent_training_rename_unlink_observed=true')
 print('training_pid_starttime_uid_bound=true')
 print('explicit_pkcheck_denial_required=true')
+print('exact_action_id_only_polkit_deny_rule=true')
+print('polkit_message_details_irrelevant_by_rule=true')
+print('polkit_deny_rule_lexically_first=true')
 print('systemd_control_surface_reviewed_major=255')
 print('training_process_capabilities_zero_required=true')
 print('training_process_no_new_privileges_required=true')
