@@ -29,7 +29,7 @@ const EXPECTED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "a97141a8c9cd8ac3fe97d65b5633b7703ce20cec",
+    "6fa849de89bd71fd25d73ed62661afc722d1976a",
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
