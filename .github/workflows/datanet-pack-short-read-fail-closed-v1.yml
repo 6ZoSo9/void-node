@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/datanet/pack.ts"
+      - "src/voidctl/index.ts"
       - "scripts/prove_datanet_pack_short_read_fail_closed_v1.mjs"
       - ".github/workflows/datanet-pack-short-read-fail-closed-v1.yml"
   workflow_dispatch:
