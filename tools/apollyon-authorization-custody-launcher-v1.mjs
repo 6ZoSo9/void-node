@@ -148,6 +148,9 @@ function parseCli(argv){
 }
 async function main(){
   if(typeof process.getuid==="function"&&process.getuid()===0) fail("apollyon_custody_launcher_refuses_root_runtime");
+  for(const name of ["NODE_OPTIONS","NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
+    if(typeof process.env[name]==="string"&&process.env[name]!=="") fail("apollyon_custody_launcher_loader_environment_forbidden");
+  }
   assertRootOwnedImmutableFile(SERVICE,SERVICE_BLOB_SHA1,"apollyon_custody_launcher_service_blob_invalid");
   assertRootOwnedImmutableFile(CORE,CORE_BLOB_SHA1,"apollyon_custody_launcher_core_blob_invalid");
   assertRootOwnedImmutableFile(VERIFIER,VERIFIER_BLOB_SHA1,"apollyon_custody_launcher_verifier_blob_invalid");
