@@ -16,6 +16,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
   workflow_dispatch:
 
 permissions:
