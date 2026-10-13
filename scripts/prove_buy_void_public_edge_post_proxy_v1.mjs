@@ -242,7 +242,7 @@ const coupledLaunchAuthority = (expiresAtMs) => ({
   coupled_launch_id:
     "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
   source_composition_id: "sha256:" + "1".repeat(64),
-  activation_generation: "0x" + "2".repeat(64),
+  activation_generation: "0x" + "A".repeat(64),
   generation_tip_sha256: "sha256:" + "3".repeat(64),
   activation_receipt_id: "voidbclive1_" + "4".repeat(64),
   activation_receipt_sha256: "5".repeat(64),
