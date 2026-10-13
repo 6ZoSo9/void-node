@@ -38,7 +38,8 @@ SYSTEMD_GLOBAL_CONTROL_ACTIONS=(
 POLKIT_DENY_ACTIONS=('org.freedesktop.systemd1.manage-units',*SYSTEMD_GLOBAL_CONTROL_ACTIONS)
 POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')
 POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))
-RULE_RE=re.compile(r'^[A-Za-z0-9_.-]{1,200}\\.rules$')
+RULE_RE=re.compile(r'^[A-Za-z0-9_.-]{1,200}\.rules$')
+UNIT_RE=re.compile(r'^[A-Za-z0-9_.@-]+\.service$')
 MAX_TTL_MS=300_000
 class Hold(RuntimeError): pass
 def hold(code:str)->None: raise Hold(code)
