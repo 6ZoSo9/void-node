@@ -23,19 +23,72 @@ const HEX32 = /^[0-9a-f]{32}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const MASK64 = (1n << 64n) - 1n;
 
-const REVIEWED_BLOBS = Object.freeze({
-  "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs":
-    "834f17d99c0351c0f2b10fb024f3ee43afae8a42",
-  "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts":
-    "5fd9296d10d810b1976c159578f13cca5d1594fe",
-  "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
-    "af2179651a88a74b158e7f3602fc5b3c30701f87",
-  "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "66e18fd566825e2f2f71a673418209f6824b7c81",
+const EPOCH2_SOURCE_TUPLE_BLOBS = Object.freeze({
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
     "4de9832a0f8e384e477177b55975e8557ec9147c",
+  "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
+    "af2179651a88a74b158e7f3602fc5b3c30701f87",
+  "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts":
+    "1c72f07509521a4bc2a57a2865851f623a3955ad",
+  "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts":
+    "a0c64bee56d38af5e879524ea2ca75f5d2d707a6",
+  "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts":
+    "4159894a4188f02d8c40e80e515840e6cc11225d",
+  "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts":
+    "f0c7baeb7057a74f150c2e9e50634ca7948f92ae",
+  "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts":
+    "0d9eb90c27031b9820a139be2af63c4c07433e20",
+  "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts":
+    "aa2f60c57c4cb8fed280d67397636ddd08a415cc",
+  "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts":
+    "1e774ba0a26eecc1fb633faea8e8c27b4ebf806d",
+  "src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.ts":
+    "b20e6574abb56be8ae11d73974edda45e54a0b9a",
+  "src/economic/buy_void_payment_keyed_custodian_signer_v1.ts":
+    "2ff9274880db4c5e29dbc73acf363f75c6a2b33f",
+  "src/economic/buy_void_payment_keyed_custodian_broadcast_v1.ts":
+    "9e753c04f1127b440c28675199ae2c1f97a0f077",
+  "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts":
+    "d184aef61760e4f0109b016d6f5331e93136048d",
+  "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts":
+    "2deaee8ae4e0fbd909b417eef96a76012174c668",
+  "src/economic/buy_void_payment_keyed_chain2050_inspection_v1.ts":
+    "b68a9e39cf5548f065042f590c58b341020cce7e",
+  "src/economic/buy_void_payment_keyed_plan_reservation_v1.ts":
+    "85ab70a1cee8c236dcab7bbb87cbf324bad49a40",
+  "src/economic/buy_void_payment_keyed_preparation_custody_v1.ts":
+    "3b06f5d87f1647003348c7459cb3797a3394d343",
+  "src/economic/buy_void_epoch2_signer_control_v1.ts":
+    "785fe80d74ae5f6840da22a19a337cd2bcee9944",
+  "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts":
+    "5fd9296d10d810b1976c159578f13cca5d1594fe",
+  "scripts/prove_buy_void_epoch2_credential_signer_v1.ts":
+    "19c991849243f3d751e3b924d551a9ece0ec0486",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
+    "4e5d9a633b05d9254424c2132fc6620b94ff3692",
+  "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json":
+    "2c861c021192c034c98404989cd25b26788cd0f0",
+  "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json":
+    "1b605ebf698b69ef3a27eb2546df700878b53cf9",
+  "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs":
+    "db6a56b56eea4fe150ad1ebc98519bc263b70ee2",
+  "ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json":
+    "ed853b88329cd3a708b22a025cec0fe48540168a",
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json":
+    "5bc18bfdf27d982a6ded3b1e1ae2f26353a84189",
+});
+if (Object.keys(EPOCH2_SOURCE_TUPLE_BLOBS).length !== 27) {
+  throw new Error("epoch2_sealed_source_tuple_cardinality_invalid");
+}
+
+const REVIEWED_BLOBS = Object.freeze({
+  ...EPOCH2_SOURCE_TUPLE_BLOBS,
+  "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs":
+    "834f17d99c0351c0f2b10fb024f3ee43afae8a42",
+  "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
+    "66e18fd566825e2f2f71a673418209f6824b7c81",
 });
 
 const SEALED_PATH =
@@ -226,28 +279,11 @@ function assertReviewedSource(root) {
     }
   }
 
-  const qualifier = execFileSync(process.execPath, [
-    path.join(root,
-      "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"),
-  ], {
-    cwd: root,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-    timeout: 15_000,
-    maxBuffer: 256 * 1024,
-    env: {
-      PATH: "/usr/bin:/bin",
-      HOME: String(process.env.HOME || ""),
-      GIT_OPTIONAL_LOCKS: "0",
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_CONFIG_GLOBAL: "/dev/null",
-      GIT_CONFIG_SYSTEM: "/dev/null",
-    },
-  });
-  if (!qualifier.includes(
-        "status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD") ||
-      !qualifier.includes("source_qualification_complete=true")) {
-    throw new Error("epoch2_sealed_source_qualifier_not_green");
+  for (const [relative, expectedBlob] of
+    Object.entries(EPOCH2_SOURCE_TUPLE_BLOBS)) {
+    if (observed[relative] !== expectedBlob) {
+      throw new Error("epoch2_sealed_source_tuple_drift");
+    }
   }
   return Object.freeze({ head, tree, branch, blobs: Object.freeze(observed) });
 }
@@ -982,6 +1018,7 @@ export {
   MARKER,
   CONFIRM,
   EXPECTED_ADDRESS,
+  EPOCH2_SOURCE_TUPLE_BLOBS,
   REVIEWED_BLOBS,
   AUTHORITY_PATHS,
   keccak256,
