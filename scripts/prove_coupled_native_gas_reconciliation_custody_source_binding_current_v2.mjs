@@ -15,12 +15,22 @@ const MARKER =
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_CURRENT_V2";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REVIEWED_BASE_COMMIT = "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66";
+const AUTO_FULFILLMENT =
+  "src/economic/buy_void_auto_fulfillment_v1.ts";
 const BAKERY =
   "src/economic/buy_void_filesystem_bakery_lock_v1.ts";
+const HISTORICAL_AUTO_FULFILLMENT_BLOB =
+  "1ac1ad6213be83f1aa8261a554caa91544fe5e09";
+const CURRENT_AUTO_FULFILLMENT_BLOB =
+  "b7c963b1d55f000d82ad82289b31107b432503de";
 const HISTORICAL_BAKERY_BLOB =
   "03376ad9853c1ca37c5be4d7f36d9daccab25078";
 const CURRENT_BAKERY_BLOB =
   "9bd47abb857368d928c0ca289766cdf3571629ba";
+const CURRENT_OVERRIDES = new Map([
+  [AUTO_FULFILLMENT, CURRENT_AUTO_FULFILLMENT_BLOB],
+  [BAKERY, CURRENT_BAKERY_BLOB],
+]);
 const HEX40 = /^[0-9a-f]{40}$/u;
 
 function closedGitEnv() {
@@ -105,17 +115,28 @@ function canonical(value) {
   );
 }
 
+const historicalAutoFulfillment =
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.find(
+    (row) => row.path === AUTO_FULFILLMENT,
+  );
 const historicalBakery =
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.find(
     (row) => row.path === BAKERY,
   );
+assert.equal(
+  historicalAutoFulfillment?.git_blob_sha1,
+  HISTORICAL_AUTO_FULFILLMENT_BLOB,
+);
 assert.equal(historicalBakery?.git_blob_sha1, HISTORICAL_BAKERY_BLOB);
 
 const currentSources =
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.map(
     (row) =>
-      row.path === BAKERY
-        ? Object.freeze({ path: BAKERY, git_blob_sha1: CURRENT_BAKERY_BLOB })
+      CURRENT_OVERRIDES.has(row.path)
+        ? Object.freeze({
+            path: row.path,
+            git_blob_sha1: CURRENT_OVERRIDES.get(row.path),
+          })
         : Object.freeze({ ...row }),
   );
 
@@ -126,6 +147,10 @@ const changed = currentSources.filter(
       .git_blob_sha1,
 );
 assert.deepEqual(changed, [
+  {
+    path: AUTO_FULFILLMENT,
+    git_blob_sha1: CURRENT_AUTO_FULFILLMENT_BLOB,
+  },
   { path: BAKERY, git_blob_sha1: CURRENT_BAKERY_BLOB },
 ]);
 
@@ -155,6 +180,10 @@ function classifyCurrent(input) {
       repository_tree_sha: input.repository_tree_sha,
       reviewed_base_commit_sha: REVIEWED_BASE_COMMIT,
       reviewed_sources: currentSources,
+      historical_v1_auto_fulfillment_git_blob_sha1:
+        HISTORICAL_AUTO_FULFILLMENT_BLOB,
+      current_auto_fulfillment_git_blob_sha1:
+        CURRENT_AUTO_FULFILLMENT_BLOB,
       historical_v1_bakery_git_blob_sha1: HISTORICAL_BAKERY_BLOB,
       current_bakery_git_blob_sha1: CURRENT_BAKERY_BLOB,
       historical_v1_accepted: false,
@@ -281,7 +310,7 @@ assert.equal(historical.ok, false);
 if (historical.ok) throw new Error("historical V1 unexpectedly accepted");
 assert.equal(
   historical.reason,
-  "source_binding_reviewed_source_drift:" + BAKERY,
+  "source_binding_reviewed_source_drift:" + AUTO_FULFILLMENT,
 );
 assert.equal(historical.production_gate_ready, false);
 
@@ -289,6 +318,14 @@ console.log(MARKER + "_GREEN");
 console.log("repository_head_sha=" + head);
 console.log("repository_tree_sha=" + tree);
 console.log("reviewed_source_count=" + currentSources.length);
+console.log(
+  "historical_v1_auto_fulfillment_git_blob_sha1=" +
+    HISTORICAL_AUTO_FULFILLMENT_BLOB,
+);
+console.log(
+  "current_auto_fulfillment_git_blob_sha1=" +
+    CURRENT_AUTO_FULFILLMENT_BLOB,
+);
 console.log("historical_v1_bakery_git_blob_sha1=" + HISTORICAL_BAKERY_BLOB);
 console.log("current_bakery_git_blob_sha1=" + CURRENT_BAKERY_BLOB);
 console.log("historical_v1_expected_hold=true");
