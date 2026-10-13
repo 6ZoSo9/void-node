@@ -321,7 +321,13 @@ function normalizeSocketParent(value,identities){
       "mode",
       "owner_gid",
       "owner_uid",
+      "retained_ancestor_count",
+      "retained_ancestors_direct",
+      "retained_ancestors_group_other_writable",
+      "retained_ancestors_root_owned",
+      "retained_ancestors_symlink_free",
       "symlink",
+      "training_uid_rename_unlink_denied",
       "training_uid_traverse_allowed",
       "training_uid_write_denied",
     ],
@@ -333,9 +339,16 @@ function normalizeSocketParent(value,identities){
     value.mode!=="0750"||
     value.direct!==true||
     value.symlink!==false||
+    !Number.isSafeInteger(value.retained_ancestor_count)||
+    value.retained_ancestor_count<2||
+    value.retained_ancestors_root_owned!==true||
+    value.retained_ancestors_direct!==true||
+    value.retained_ancestors_symlink_free!==true||
+    value.retained_ancestors_group_other_writable!==false||
     value.custody_uid_write_allowed!==true||
     value.training_uid_traverse_allowed!==true||
-    value.training_uid_write_denied!==true
+    value.training_uid_write_denied!==true||
+    value.training_uid_rename_unlink_denied!==true
   ){
     fail("apollyon_custody_policy_socket_parent_invalid");
   }
