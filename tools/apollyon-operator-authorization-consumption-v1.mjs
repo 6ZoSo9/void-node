@@ -81,7 +81,8 @@ function held(reason,options={}){
     state_store_realpath_sha256:options.state_store_realpath_sha256??null,
     state_store_generation_id:options.state_store_generation_id??null,
     state_store_generation_sha256:options.state_store_generation_sha256??null,
-    authorization_consumed:false,
+    authorization_consumption_recorded:false,
+    authorization_single_use_guaranteed:false,
     attempt_claimed:false,
     training_execution_performed:false,
     candidate_weight_mutation_performed:false,
@@ -506,7 +507,7 @@ function consumeInternal(
       automatic_retry_performed:false,
     },
     next_gate:
-      "candidate_training_attempt_claim_from_consumed_authorization_v1",
+      "independently_protected_authorization_consumption_authority_v1",
   };
 
   const record={
