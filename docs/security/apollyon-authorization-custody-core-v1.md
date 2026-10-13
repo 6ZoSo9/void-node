@@ -11,8 +11,9 @@ outside the training writer UID.
 
 The core takes an existing private state root and existing `consumed/`
 directory, pins both directory descriptors, independently verifies the exact
-V78 operator authorization, and publishes at most one create-only record for
-that authorization inside the pinned custody generation.
+V78 operator authorization, and publishes a create-only record for that
+authorization inside the pinned custody generation. A duplicate is rejected
+while that exact record remains present.
 
 It contains no trainer, attempt-claim primitive, network client, wallet,
 transaction signer, or production operator private-key loader.
@@ -97,6 +98,24 @@ attempt_claimed=false
 training_execution_performed=false
 ```
 
+### Custody-UID leaf limitation
+
+The retained directory descriptors prevent pathname replacement from
+redirecting the live core, but they do not make an individual file undeletable
+by the UID that owns `consumed/`.
+
+V80 therefore explicitly keeps:
+
+```text
+duplicate_rejected_while_record_present=true
+custody_uid_leaf_unlink_resistance_claimed=false
+single_use_guaranteed_by_core=false
+```
+
+The proof deliberately unlinks a successful record as the custody UID and
+shows that the same signed packet can be recorded again under the same custody
+generation. That is a declared source boundary, not a hidden replay claim.
+
 Record creation uses `O_CREAT|O_EXCL|O_NOFOLLOW`, mode `0600`, file fsync,
 and directory fsync. Existing records are never overwritten.
 
@@ -145,4 +164,5 @@ node scripts/prove_apollyon_authorization_custody_core_v1.mjs
 
 The proof uses only an ephemeral Ed25519 fixture key and temporary directories.
 It proves exact consume/duplicate/assert behavior, expiry rejection, root mode
-enforcement, and live root/consumed-directory replacement HOLDs.
+enforcement, live root/consumed-directory replacement HOLDs, and the declared
+custody-UID leaf-unlink limitation.
