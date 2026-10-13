@@ -452,10 +452,12 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
       "observed_at_ms",
       "runtime_control_denied",
       "socket",
+      "socket_ancestors",
       "socket_parent",
       "state_ancestors",
       "state_root",
       "training_identity",
+      "verification_now_ms",
     ],
     "apollyon_custody_host_evidence_observation_invalid",
   );
@@ -644,6 +646,7 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
 
   const observation=Object.freeze({
     hostname:os.hostname(),
+    verification_now_ms:Date.now(),
     observed_at_ms:observedAt,
     expires_at_ms:observedAt+TTL_MS,
     evidence_generation:Math.max(

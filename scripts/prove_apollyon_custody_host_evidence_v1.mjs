@@ -23,6 +23,7 @@ const TOOL=fileURLToPath(
 function observation(){
   return {
     hostname:"Xiphos",
+    verification_now_ms:1_800_000_000_000,
     observed_at_ms:1_800_000_000_000,
     expires_at_ms:1_800_000_120_000,
     evidence_generation:123456,
