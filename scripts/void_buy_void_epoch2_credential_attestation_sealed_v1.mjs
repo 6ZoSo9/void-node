@@ -18,6 +18,10 @@ const SOURCE_BINDING_ID =
   "5fde8cc7fcd0493619c105ac9f367063fbdacd74e8ae50df76454c6d298206f1";
 const MAX_CREDENTIAL_BYTES = 256;
 const MAX_FILE_BYTES = 2_000_000;
+const MAX_DROPIN_BYTES = 64 * 1024;
+const LOAD_CREDENTIAL_REDACTED = "[unprintable]";
+const EPOCH2_CREDENTIAL_DROPIN_BASENAME =
+  "97-buy-void-epoch2-fulfiller-credential-v1.conf";
 const SHA40 = /^[0-9a-f]{40}$/u;
 const HEX32 = /^[0-9a-f]{32}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
@@ -288,7 +292,7 @@ function assertReviewedSource(root) {
   return Object.freeze({ head, tree, branch, blobs: Object.freeze(observed) });
 }
 
-function parseSystemdObservation(show, environ, cgroup, uid = process.getuid()) {
+function parseSystemdShowProperties(show) {
   const props = new Map();
   for (const line of String(show).split(/\r?\n/u)) {
     if (!line) continue;
@@ -300,6 +304,80 @@ function parseSystemdObservation(show, environ, cgroup, uid = process.getuid()) 
     }
     props.set(key, line.slice(at + 1));
   }
+  return props;
+}
+
+export function redactedLoadCredentialBindingFromShow(
+  show,
+  uid = process.getuid(),
+) {
+  if (!Number.isSafeInteger(uid) || uid < 0) {
+    throw new Error("epoch2_sealed_redacted_loadcredential_uid_invalid");
+  }
+  const props = parseSystemdShowProperties(show);
+  if (props.get("LoadCredential") !== LOAD_CREDENTIAL_REDACTED) {
+    throw new Error("epoch2_sealed_redacted_loadcredential_marker_invalid");
+  }
+  const dropIns = String(props.get("DropInPaths") || "")
+    .split(/\s+/u).filter(Boolean);
+  const matches = dropIns.filter(
+    (candidate) =>
+      path.basename(candidate) === EPOCH2_CREDENTIAL_DROPIN_BASENAME,
+  );
+  if (matches.length !== 1) {
+    throw new Error("epoch2_sealed_redacted_dropin_cardinality_invalid");
+  }
+  const dropInPath = matches[0];
+  if (!path.isAbsolute(dropInPath) ||
+      path.normalize(dropInPath) !== dropInPath) {
+    throw new Error("epoch2_sealed_redacted_dropin_path_invalid");
+  }
+
+  const before = fs.lstatSync(dropInPath, { bigint: true });
+  const mode = before.mode & 0o777n;
+  if (before.isSymbolicLink() || !before.isFile() ||
+      before.uid !== BigInt(uid) || before.nlink !== 1n ||
+      before.size < 1n || before.size > BigInt(MAX_DROPIN_BYTES) ||
+      (mode & 0o077n) !== 0n) {
+    throw new Error("epoch2_sealed_redacted_dropin_policy_invalid");
+  }
+  const bytes = readPinnedRegularFile(dropInPath, MAX_DROPIN_BYTES);
+  let text = "";
+  try {
+    text = bytes.toString("utf8");
+  } finally {
+    bytes.fill(0);
+  }
+  const after = fs.lstatSync(dropInPath, { bigint: true });
+  if (!statIdentitySame(before, after)) {
+    throw new Error("epoch2_sealed_redacted_dropin_changed");
+  }
+  const lines = text.split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) =>
+      line.length > 0 && !line.startsWith("#") && !line.startsWith(";")
+    );
+  if (lines.length !== 2 || lines[0] !== "[Service]" ||
+      !lines[1].startsWith("LoadCredential=" + CREDENTIAL_ID + ":")) {
+    throw new Error("epoch2_sealed_redacted_dropin_semantics_invalid");
+  }
+  const binding = lines[1].slice("LoadCredential=".length);
+  const sourcePath = binding.slice((CREDENTIAL_ID + ":").length);
+  if (!path.isAbsolute(sourcePath) ||
+      path.normalize(sourcePath) !== sourcePath) {
+    throw new Error("epoch2_sealed_redacted_source_path_invalid");
+  }
+  return binding;
+}
+
+function parseSystemdObservation(
+  show,
+  environ,
+  cgroup,
+  uid = process.getuid(),
+  redactedBinding = null,
+) {
+  const props = parseSystemdShowProperties(show);
   if (props.get("ActiveState") !== "active" ||
       props.get("SubState") !== "running") {
     throw new Error("epoch2_sealed_service_not_active_running");
@@ -320,10 +398,21 @@ function parseSystemdObservation(show, environ, cgroup, uid = process.getuid()) 
     .split(/\s+/u).filter(Boolean);
   const prefix = CREDENTIAL_ID + ":";
   const matches = loads.filter((row) => row.startsWith(prefix));
-  if (matches.length !== 1) {
+  let loadCredentialBinding = null;
+  if (matches.length === 1) {
+    loadCredentialBinding = matches[0];
+  } else if (
+    matches.length === 0 &&
+    loads.length === 1 &&
+    loads[0] === LOAD_CREDENTIAL_REDACTED &&
+    typeof redactedBinding === "string" &&
+    redactedBinding.startsWith(prefix)
+  ) {
+    loadCredentialBinding = redactedBinding;
+  } else {
     throw new Error("epoch2_sealed_loadcredential_cardinality_invalid");
   }
-  const sourcePath = matches[0].slice(prefix.length);
+  const sourcePath = loadCredentialBinding.slice(prefix.length);
   if (!path.isAbsolute(sourcePath) || path.normalize(sourcePath) !== sourcePath) {
     throw new Error("epoch2_sealed_loadcredential_source_invalid");
   }
@@ -372,7 +461,7 @@ function parseSystemdObservation(show, environ, cgroup, uid = process.getuid()) 
     credential_id: CREDENTIAL_ID,
     credentials_directory: credentialsDirectory,
     loadcredential_binding_sha256:
-      sha256Bytes(Buffer.from(matches[0], "utf8")),
+      sha256Bytes(Buffer.from(loadCredentialBinding, "utf8")),
     credentials_directory_sha256:
       sha256Bytes(Buffer.from(credentialsDirectory, "utf8")),
     main_pid_cgroup_sha256:
@@ -461,6 +550,7 @@ function observeLiveSystemd() {
     "-p", "MainPID",
     "-p", "InvocationID",
     "-p", "LoadCredential",
+    "-p", "DropInPaths",
   ], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
@@ -488,7 +578,17 @@ function observeLiveSystemd() {
     "/proc/" + String(pid) + "/cgroup",
     { encoding: "utf8" },
   );
-  return parseSystemdObservation(show, environ, cgroup, userBus.uid);
+  const redactedBinding =
+    /^LoadCredential=\[unprintable\]$/mu.test(show)
+      ? redactedLoadCredentialBindingFromShow(show, userBus.uid)
+      : null;
+  return parseSystemdObservation(
+    show,
+    environ,
+    cgroup,
+    userBus.uid,
+    redactedBinding,
+  );
 }
 
 function observationStable(before, after) {
