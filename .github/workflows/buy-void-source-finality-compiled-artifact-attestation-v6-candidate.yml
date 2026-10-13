@@ -1,0 +1,127 @@
+name: VOID Buy VOID V6 compiled-artifact dependency successor candidate
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v6_candidate.mjs"
+      - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
+      - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-v6-candidate.md"
+      - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v6-candidate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: V6 dependency successor / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact stacked candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install audited lock without package scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact current artifacts
+        run: npm run build
+      - name: Preserve locked V4 and frozen V5 refusal
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs
+          hold="$RUNNER_TEMP/v5-package-refusal.txt"
+          if node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive >"$hold" 2>&1; then
+            echo "UNEXPECTED_FROZEN_V5_PACKAGE_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq "build_input_blob_mismatch:package.json" "$hold"
+      - name: Prove V6 descriptor boundary
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v6_candidate.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v6_candidate.mjs --self-test
+      - name: Derive unaccepted V6 candidate
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/v6-candidate-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v6_candidate.mjs --derive >"$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_source_finality_compiled_artifact_attestation_v6");
+          assert.equal(j.version,6);
+          assert.equal(j.historical_unaccepted_v5_candidate?.candidate_accepted,false);
+          assert.equal(j.reviewed_package_runtime?.profile_id,
+            "voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451");
+          assert.equal(j.reviewed_package_runtime?.packages_aggregate_sha256,
+            "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73");
+          assert.equal(j.reviewed_package_runtime?.dependency_equivalence_receipt_sha256,
+            "3e3714b3b5674d9dbf1356f523de9e969d50bfb1065a719435733f25336c6b56");
+          assert.equal(j.artifact_count,6);
+          assert.equal(j.compiled_artifact_generation_verified,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.runtime_mount_authority,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          console.log("VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_V6_DEPENDENCY_CANDIDATE_GREEN");
+          NODE
+      - name: Upload exact V6 candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-finality-v6-dependency-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/v6-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download exact Node 22 24 26 candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-source-finality-v6-dependency-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidates
+      - name: Require byte-identical V6 candidates
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "candidates/v6-candidate-$v.json"; done
+          cmp candidates/v6-candidate-22.json candidates/v6-candidate-24.json
+          cmp candidates/v6-candidate-22.json candidates/v6-candidate-26.json
+          echo "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_V6_CROSS_NODE_GREEN"
