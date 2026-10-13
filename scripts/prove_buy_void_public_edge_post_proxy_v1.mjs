@@ -526,7 +526,21 @@ const fullAccepted201Receipt = {
     },
     safety: {
       automatic_fulfillment: false,
+      activation_required: true,
       manual_review_required: true,
+      wallet_send_by_page: false,
+      token_approval_by_page: false,
+      no_investment_return_promised: true,
+      no_automatic_token_delivery_promised: true,
+      do_not_send_from_exchange: true,
+      private_rpc_public: false,
+    },
+    acknowledgements: {
+      self_custody: true,
+      native_usdc: true,
+      request_before_payment: true,
+      sender_equals_void_destination: true,
+      no_automatic_fulfillment: true,
     },
     payment_instructions: {
       request_id: full201RequestId,
@@ -743,6 +757,9 @@ const upstream = http.createServer(
           proofCase === "wrong_original_usdc_201" ||
           proofCase === "wrong_quote_precision_201" ||
           proofCase === "private_instruction_key_201" ||
+          proofCase === "private_safety_key_201" ||
+          proofCase === "private_contract_key_201" ||
+          proofCase === "private_acknowledgements_key_201" ||
           proofCase === "expired_instruction_201" ||
           proofCase === "overlong_instruction_201" ||
           proofCase === "future_created_201" ||
@@ -862,6 +879,33 @@ const upstream = http.createServer(
             };
           }
           mutated.request=checkout;
+        }
+        if ([
+          "private_safety_key_201",
+          "private_contract_key_201",
+          "private_acknowledgements_key_201",
+        ].includes(proofCase)) {
+          const checkout = { ...mutated.request };
+          const privateValue = "SENTINEL_PRIVATE_CHECKOUT_NESTED_METADATA";
+          if (proofCase === "private_safety_key_201") {
+            checkout.safety = {
+              ...checkout.safety, private_signer_hint: privateValue,
+            };
+          } else if (proofCase === "private_contract_key_201") {
+            checkout.request_contract = {
+              ...checkout.request_contract, private_customer_path: privateValue,
+            };
+          } else {
+            checkout.acknowledgements = {
+              self_custody: true,
+              native_usdc: true,
+              request_before_payment: true,
+              sender_equals_void_destination: true,
+              no_automatic_fulfillment: true,
+              private_provisioning_note: privateValue,
+            };
+          }
+          mutated.request = checkout;
         }
         if (proofCase === "expired_instruction_201" ||
             proofCase === "overlong_instruction_201" ||
@@ -1606,6 +1650,9 @@ try {
     "wrong_original_usdc_201",
     "wrong_quote_precision_201",
     "private_instruction_key_201",
+    "private_safety_key_201",
+    "private_contract_key_201",
+    "private_acknowledgements_key_201",
     "expired_instruction_201",
     "overlong_instruction_201",
     "future_created_201",
@@ -1759,6 +1806,7 @@ try {
   console.log("all_non201_fixtures_seed_private_identity_and_cache_headers=true");
   console.log("uncertain_submission_outcome_explicit_no_retry=true");
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
+  console.log("nested_safety_contract_acknowledgement_private_keys_refused=true");
   console.log("legacy_201_private_path_redacted_without_losing_success=true");
   console.log("full_legacy_201_payment_instructions_preserved=true");
   console.log("unexpected_persisted_metadata_holds=true");
