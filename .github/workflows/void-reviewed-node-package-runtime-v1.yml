@@ -8,6 +8,9 @@ on:
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-enforcement-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-v1.md"
       - "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs"
       - "docs/security/reviewed-node-package-runtime-enforcement-candidate-v1.md"
       - "package.json"
@@ -166,3 +169,78 @@ jobs:
           console.log("package_count="+j.profile.package_count);
           console.log("profile_acceptance=false");
           NODE
+
+  enforce-enforcement-profile-lock:
+    if: github.event_name == 'pull_request'
+    needs: [enforcement-profile-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact profile-lock head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact stacked head
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Re-enforce compact combined profile identity
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs \
+            | tee "enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'profile_identity_accepted=true' "enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'private_express_and_ethers_import_green=true' "enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'complete_executable_closure_verified=false' "enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "enforcement-profile-lock-${{ matrix.node }}.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-enforcement-package-profile-lock-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: enforcement-profile-lock-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Exact diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  enforcement-profile-lock-cross-node:
+    if: github.event_name == 'pull_request'
+    needs: [enforce-enforcement-profile-lock]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-enforcement-package-profile-lock-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: ./lock-receipts
+      - name: Require exact lock receipts
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "lock-receipts/enforcement-profile-lock-$v.txt"; done
+          cmp lock-receipts/enforcement-profile-lock-22.txt lock-receipts/enforcement-profile-lock-24.txt
+          cmp lock-receipts/enforcement-profile-lock-22.txt lock-receipts/enforcement-profile-lock-26.txt
+          grep -Fx 'profile_id=voidrnpr1_c15b7f3cb00d85f378a69cfc536c3845e29f9be7047e3af0f9fbd646eb2f5860' lock-receipts/enforcement-profile-lock-22.txt
+          echo "VOID_ENFORCEMENT_PACKAGE_PROFILE_LOCK_CROSS_NODE_GREEN"

@@ -1,0 +1,32 @@
+{
+  "marker": "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_V1",
+  "version": 1,
+  "status": "REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_IDENTITY",
+  "repository": "6ZoSo9/void-node",
+  "candidate_parent": "ed25d1e85a9d1e4893061b4b0665be9525d6f2ef",
+  "root_packages": [
+    "ethers",
+    "express"
+  ],
+  "package_json_git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  "package_lock_git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+  "profile_id": "voidrnpr1_c15b7f3cb00d85f378a69cfc536c3845e29f9be7047e3af0f9fbd646eb2f5860",
+  "packages_aggregate_sha256": "5eb57ae9bfa6a0f195d5ccf40697985f0043456057525c3fdca7f4c894173561",
+  "profile_canonical_sha256": "65c9ff47940de6d97c7c798b91abf1ab9ccdaf2504a964eb74f305d70d593a7d",
+  "candidate_json_sha256": "73ee204fea61cdba3f2cd3958b1c806932284cdb2a114235b2ffdbcb63e3143d",
+  "package_count": 82,
+  "total_file_count": 2498,
+  "total_bytes": 21267803,
+  "root_versions": {
+    "ethers": "6.17.0",
+    "express": "4.22.2"
+  },
+  "profile_identity_accepted": true,
+  "superseded_on_package_metadata_change": true,
+  "complete_executable_closure_verified": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
