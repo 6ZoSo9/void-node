@@ -1,5 +1,17 @@
 # Canonical producer source custody — read-only at-use preflight v1
 
+## Current V5 source generation — October 13, 2026
+
+The machine-readable range-error response advances `src/index.ts` to exact Git blob `39088dae3f1f9d10eb345f2ef9eed9626b471383`. Historical V1–V4 canonical guards/proofs remain immutable.
+
+Current V5 evidence:
+- guard `runtime/canonical-producer-self-http-guard-v5.cjs`, Git blob `1284d80dfa3bcd4b5d1c47beab5ab5866a96c08e`;
+- observer proof `scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs`, Git blob `9cb12bd2d7af47515857c73e96da07f3d7f6bf58`;
+- source-generation dispatcher `scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs`, Git blob `c37a9d0d5f8bb5367a9759c552afba98f430ff07`.
+
+V5 is behavior-equivalent to reviewed V4 except marker, exact source identity, and self-stack filename. The launcher maps the new source blob only to V5 and preserves unknown-source HOLD plus root-owned source-custody admission.
+
+
 ## Current V4 source generation — October 13, 2026
 
 The current source-only successor is bound to exact `src/index.ts` Git blob
