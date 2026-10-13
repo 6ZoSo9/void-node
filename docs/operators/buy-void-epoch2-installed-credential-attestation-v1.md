@@ -71,9 +71,17 @@ After exact operator confirmation, the sealed probe:
 10. requires the installed key to derive the immutable Epoch-2 fulfiller
    `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`;
 11. signs one fresh domain-separated **non-transaction** ECDSA challenge with
-    Node builtin `crypto.sign`, verifies it locally with `crypto.verify`, and
-    discards both private-key bytes and raw signature bytes;
-12. emits only public source/service identities and hashes. It constructs no
+    Node builtin `crypto.sign` and verifies it locally with `crypto.verify`;
+12. emits the random challenge nonce, the 64-byte IEEE-P1363 signature encoded
+    as hex, and the signer public key encoded as SPKI DER hex. These are public
+    verification materials: an offline reviewer can reconstruct the exact
+    challenge, verify the signature with Node builtin crypto, derive the
+    secp256k1 public point and independently confirm the immutable Ethereum
+    fulfiller address. The private-key and in-memory signature buffers are
+    zeroed after the public evidence record is constructed;
+13. emits only public source/service identities, hashes and public
+    cryptographic verification material. It never emits credential contents,
+    a private key, or the raw systemd credential path. It constructs no
     transaction, performs no RPC request, and cannot submit or broadcast one.
 
 The prior transaction-shaped capability probe remains source/test history. Its
@@ -150,6 +158,25 @@ contents into ChatGPT, a shell argument, a Git file, or probe output.
 A GREEN result is evidence only. It does not enable Buy VOID, mutate the
 service, restart systemd, call Chain 2050, construct/broadcast a transaction,
 accept a payment, activate the presale/WC market, or move funds.
+
+## Independent public verification
+
+The GREEN JSON is intentionally sufficient for offline cryptographic review
+without the credential file. A reviewer can:
+
+1. reconstruct the exact challenge bytes as
+   `domain + NUL + source_head + NUL + source_tree + NUL + invocation_id + NUL + nonce_hex`;
+2. require the SHA-256 of those bytes to equal `challenge_sha256`;
+3. import `public_key_spki_der_hex` as a secp256k1 SPKI public key;
+4. verify `public_signature_p1363_hex` over the reconstructed challenge with
+   SHA-256 and IEEE-P1363 encoding;
+5. derive the uncompressed secp256k1 public point from that public key, apply
+   Ethereum Keccak-256 address derivation, and require
+   `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`.
+
+The public signature, public key and nonce are not credential secrets. The
+credential scalar, credential bytes, raw credential path and signed transaction
+bytes remain absent.
 
 ## Source-generation binding
 
