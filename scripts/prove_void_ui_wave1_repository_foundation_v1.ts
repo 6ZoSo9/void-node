@@ -528,6 +528,43 @@ if (
   fail("Escape without an active layer must not restore stale focus");
 }
 
+const sameRouteCloseStart = appJs.indexOf(
+  "function closeNavigationLayer(event) {"
+);
+const sameRouteCloseEnd = appJs.indexOf(
+  "\ndocument.querySelectorAll('.command-results a, .mobile-more-grid a')",
+  sameRouteCloseStart
+);
+if (sameRouteCloseStart < 0 || sameRouteCloseEnd < 0) {
+  fail("same-route navigation close handler is incomplete");
+}
+const sameRouteCloseBlock = appJs.slice(sameRouteCloseStart, sameRouteCloseEnd);
+for (const marker of [
+  "const destinationHash = event.currentTarget.hash;",
+  "closeAll(false);",
+  "if (destinationHash === location.hash) {",
+  "document.getElementById('app-main').focus({ preventScroll: true });",
+]) {
+  if (!sameRouteCloseBlock.includes(marker)) {
+    fail(`same-route navigation close handler missing: ${marker}`);
+  }
+}
+if (
+  sameRouteCloseBlock.indexOf("closeAll(false);") >
+  sameRouteCloseBlock.indexOf(
+    "document.getElementById('app-main').focus({ preventScroll: true });"
+  )
+) {
+  fail("same-route navigation must close the modal before moving focus");
+}
+if (
+  !appJs.includes(
+    "link.addEventListener('click', closeNavigationLayer);"
+  )
+) {
+  fail("command and mobile navigation links must share the same-route focus repair");
+}
+
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
 
 for (const forbidden of [

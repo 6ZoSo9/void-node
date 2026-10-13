@@ -66,9 +66,9 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave4_earn_readonly_v1.ts",
   "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest would create an unstable self-reference.",
   "repository_hashes": {
-    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "db9b4891c8c17fe0e6d625fd455aac9c722cc011236c79955580c3bd81047bc6",
-    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "42a8355c94ed7012b3f6b6564920b044de0ec4a99fcc98beaf0a947c2d304f88",
+    "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "073ff6c31a2559b133295913a05ff8d162f591c9f217ff25f6ec03d965b6aa44",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "4ffdc715adb54b708d7e6b1d192daa399bf7c63af49d78dae863be9f7ff09ee4",
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json": "5d334865d9b3c5fb61dd8b1ab36e09c547592fb8395569b4e65cf84247957314",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5d490dff4febff19d58ea2ab1e856219e0cd38d7eca14b81dacd658116020886",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
@@ -95,7 +95,7 @@
   "modal_background_direct_body_surface_refresh_date": "2026-09-27",
   "wallet_account_query_type_strict_refresh_date": "2026-09-27",
   "wallet_snapshot_freshness_refresh_date": "2026-09-29",
-  "repository_hashes_reconciled_current_main_date": "2026-10-07",
+  "repository_hashes_reconciled_current_main_date": "2026-10-13",
   "earn_snapshot_identity_freshness_refresh_date": "2026-09-29",
   "earn_transport_lifetime_refresh_date": "2026-09-29",
   "earn_snapshot_schema_closure_refresh_date": "2026-09-29",
@@ -113,5 +113,6 @@
   "earn_invalid_input_supersession_refresh_date": "2026-10-07",
   "wallet_session_persistence_best_effort_refresh_date": "2026-10-07",
   "validate_status_live_region_refresh_date": "2026-10-10",
-  "wallet_http200_evidence_truth_refresh_date": "2026-10-11"
+  "wallet_http200_evidence_truth_refresh_date": "2026-10-11",
+  "same_route_modal_navigation_focus_refresh_date": "2026-10-13"
 }

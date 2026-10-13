@@ -157,8 +157,16 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+function closeNavigationLayer(event) {
+  const destinationHash = event.currentTarget.hash;
+  closeAll(false);
+  if (destinationHash === location.hash) {
+    document.getElementById('app-main').focus({ preventScroll: true });
+  }
+}
+
 document.querySelectorAll('.command-results a, .mobile-more-grid a').forEach((link) => {
-  link.addEventListener('click', () => closeAll(false));
+  link.addEventListener('click', closeNavigationLayer);
 });
 
 if (!location.hash) location.hash = '#/home';
