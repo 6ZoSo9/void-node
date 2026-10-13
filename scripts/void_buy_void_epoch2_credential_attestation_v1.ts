@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-const ATTESTATION_MARKER = "ATTESTATION_MARKER";
+const ATTESTATION_MARKER = "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_V1";
 const ATTESTATION_CONFIRMATION =
   "probeBuyVoidEpoch2InstalledCredentialSigningCapabilityV1";
 
@@ -142,7 +142,7 @@ function worktreeGitBlob(relative: string): string {
       }
     }
     return crypto.createHash("sha1")
-      .update(Buffer.from("blob " + bytes.length + "\\0", "utf8"))
+      .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
       .update(bytes).digest("hex");
   } finally {
     if (bytes !== null) bytes.fill(0);
@@ -232,7 +232,7 @@ function assertSourceGeneration(): {
     "ls-files", "-v", "--",
     ...VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_WORKTREE_PATHS_V1,
   ]);
-  for (const line of tagged.split("\\n").filter(Boolean)) {
+  for (const line of tagged.split("\n").filter(Boolean)) {
     if (line.length < 3 || line[1] !== " ") {
       throw new Error("epoch2_attestation_worktree_index_output_invalid");
     }
