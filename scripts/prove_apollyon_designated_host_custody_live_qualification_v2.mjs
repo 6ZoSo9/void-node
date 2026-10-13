@@ -13,8 +13,13 @@ const TOOL=path.join(
 const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
+const NATIVE_PREENTRY=path.join(
+  ROOT,"ops/xiphos/apollyon_v2_native_preentry_v1.c",
+);
+const NATIVE_PREENTRY_BLOB_SHA1=
+  "a167b1a46a213644b7bf52f54706c170b491bb8e";
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "976586fa920800042337c6b25545298c1d8cdd88";
+  "d80f848d3412729d0299ccd65fd6845fc1405c21";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -50,13 +55,18 @@ assert.equal(
   INSTALLED_LAUNCHER_BLOB_SHA1,
   "installed launcher source blob",
 );
+assert.equal(
+  gitBlob(fs.readFileSync(NATIVE_PREENTRY)),
+  NATIVE_PREENTRY_BLOB_SHA1,
+  "native pre-entry source blob",
+);
 const launcherSource=fs.readFileSync(INSTALLED_LAUNCHER,"utf8");
 for(const required of [
   'FIXED_LAUNCHER=Path(',
   '"/opt/void-apollyon-custody-v2-preentry-v1/"',
   'INSTALLED_SOURCE_ROOT=Path("/opt/void-apollyon-custody-v2-reviewed-v1")',
   'RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"',
-  '"6a302c134e3b8c592f60852815372c41a88146da"',
+  '"428f1d69d8231d014229af0daacf0b446230f74c"',
   '"06e110108c74c450074ed6500ac7f7458f49b5aa"',
   '"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74"',
   '"VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER',
@@ -74,6 +84,12 @@ for(const required of [
   'pass_fds=(node_fd,)',
   'apollyon_v2_installed_launcher_node_untrusted',
   'apollyon_v2_installed_launcher_materialization_cleanup_failed',
+  'NATIVE_PREENTRY_MARKER="VOID_APOLLYON_V2_NATIVE_PREENTRY_V1"',
+  'VOID_APOLLYON_V2_NATIVE_PREENTRY',
+  'apollyon_v2_installed_launcher_native_preentry_required',
+  'apollyon_v2_installed_launcher_post_execution_cleanup_failed:',
+  'post_execution_cleanup_failure_classified=true',
+  'cleanup_failure_retained_path_reported=true',
 ]){
   assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
 }
@@ -111,6 +127,10 @@ for(const required of [
   'spawnSync("/proc/self/fd/4"',
   'stdio:["ignore","pipe","pipe",collectorFd,python.fd]',
   'apollyon_live_qualification_v2_python_interpreter_untrusted',
+  'apollyon_live_qualification_v2_cleanup_failed:',
+  'temporary_filesystem_cleanup_proven=false',
+  'retained_private_tree_possible=true',
+  'persistent_host_mutation=unknown',
   'next_gate:"live_custody_service_source_identity_binding_v2"',
   "attempt_claim:false",
   "training_execution:false",
@@ -125,6 +145,28 @@ for(const forbidden of [
   "live_service_source_identity_proven:true",
   "attempt_claimed:true", "training_execution_performed:true",
 ]) assert.equal(source.includes(forbidden),false,forbidden);
+
+const nativeSource=fs.readFileSync(NATIVE_PREENTRY,"utf8");
+for(const required of [
+  '#define MARKER "VOID_APOLLYON_V2_NATIVE_PREENTRY_V1"',
+  '#define FIXED_SELF "/opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_native_preentry_v1"',
+  '#define FIXED_PYTHON "/usr/bin/python3"',
+  '#define FIXED_LAUNCHER "/opt/void-apollyon-custody-v2-preentry-v1/apollyon_v2_installed_live_launcher_v1.py"',
+  'require_self_identity();',
+  'open_trusted_python()',
+  'O_RDONLY | O_NOFOLLOW',
+  'fexecve(python_fd, next_argv, envp);',
+  'VOID_APOLLYON_V2_NATIVE_PREENTRY=VOID_APOLLYON_V2_NATIVE_PREENTRY_V1',
+  'setuid_binary=false',
+]){
+  assert.equal(nativeSource.includes(required),true,"native pre-entry missing "+required);
+}
+for(const forbidden of [
+  'setuid(', 'seteuid(', 'setresuid(', 'chmod(', 'chown(',
+  'system(', 'popen(', 'execvp(', 'execlp(', '/bin/sh',
+]){
+  assert.equal(nativeSource.includes(forbidden),false,"native pre-entry forbidden "+forbidden);
+}
 
 const module=await import(pathToFileURL(TOOL).href+"?proof="+Date.now());
 const synthetic=fs.mkdtempSync(
@@ -204,6 +246,8 @@ console.log("historical_v1_live_qualification_unchanged=true");
 console.log("exact_v2_policy_blob=true");
 console.log("exact_v2_collector_blob=true");
 console.log("private_reviewed_execution_tree=true");
+console.log("native_pre_python_entry_required=true");
+console.log("native_preentry_source_blob=a167b1a46a213644b7bf52f54706c170b491bb8e");
 console.log("installed_preentry_launcher_required=true");
 console.log("direct_worktree_privileged_invocation_supported=false");
 console.log("modified_runner_rejected_before_node=true");
@@ -211,6 +255,8 @@ console.log("policy_preimport_replacement_rejected=true");
 console.log("postprepare_policy_replacement_inert=true");
 console.log("postprepare_collector_replacement_inert=true");
 console.log("collector_descriptor_execution=true");
+console.log("runner_cleanup_failure_persistence_unknown=true");
+console.log("launcher_cleanup_failure_persistence_unknown=true");
 console.log("two_live_observations_required=true");
 console.log("socket_parent_namespace_v2_required=true");
 console.log("live_host_qualification_performed_capability=true");
