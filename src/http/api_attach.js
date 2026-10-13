@@ -3,6 +3,7 @@
 // Copyright (c) 2025 6ZoSo9
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ATTACH_BLOCK_RANGE_MAX_SPAN = void 0;
 exports.parseAttachBlockRange = parseAttachBlockRange;
 exports.startAttachServer = startAttachServer;
 // src/http/api_attach.ts
@@ -19,6 +20,7 @@ var path = require("node:path");
 var seg_store_js_1 = require("../chain/seg_store.js");
 var PORT = Number(process.env.ATTACH_PORT || 4310);
 var DATA_DIR = process.env.DATA_DIR || "data";
+exports.ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
 function parseAttachBlockRange(fromRaw, toRaw, head) {
     var from = Number(fromRaw !== null && fromRaw !== void 0 ? fromRaw : 0);
     var to = Number(toRaw !== null && toRaw !== void 0 ? toRaw : head);
@@ -30,7 +32,10 @@ function parseAttachBlockRange(fromRaw, toRaw, head) {
         to < from) {
         return null;
     }
-    return { from: from, to: Math.min(to, head) };
+    return {
+        from: from,
+        to: Math.min(to, head, from + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1),
+    };
 }
 function startAttachServer(opts) {
     var _a, _b;
