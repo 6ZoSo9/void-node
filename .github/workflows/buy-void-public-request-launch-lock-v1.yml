@@ -7,6 +7,7 @@ on:
       - "src/economic/buy_void_public_request_under_launch_lock_v1.ts"
       - "scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs"
       - "scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs"
+      - "scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs"
       - ".github/workflows/buy-void-public-request-launch-lock-v1.yml"
       - "docs/architecture/buy-void-public-request-launch-lock-v1.md"
       - "package.json"
@@ -39,10 +40,11 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/index.ts)" = "123ec1792a027f93d4c9030749a0e7e136a75a44"
+          test "$(git hash-object src/index.ts)" = "39088dae3f1f9d10eb345f2ef9eed9626b471383"
           test "$(git hash-object src/economic/buy_void_public_request_under_launch_lock_v1.ts)" = "58c921a1e9efdb3d672aee3dc102369561c42a15"
           test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v1.mjs)" = "26bb9725b4a4639bff4b3ce4375aeb9e827830be"
           test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs)" = "94d4ef0544264a4ec23b2def7b4d31066f709310"
+          test "$(git hash-object scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs)" = "f5283db33a35417c55faa4a5a1401b86266d2227"
       - name: Install supported Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -61,11 +63,17 @@ jobs:
             exit 1
           fi
           grep -Fq 'reviewed new index source drift' "$RUNNER_TEMP/request-lock-v1-hold.txt"
-          node --check scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs
-          node scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs | tee "request-lock-node-${{ matrix.node }}.txt"
+          if node scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs > "$RUNNER_TEMP/request-lock-v2-hold.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_REQUEST_LOCK_V2_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq 'reviewed new index source drift' "$RUNNER_TEMP/request-lock-v2-hold.txt"
+          node --check scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs
+          node scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs | tee "request-lock-node-${{ matrix.node }}.txt"
           for marker in \
-            'VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V2_GREEN' \
+            'VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V3_GREEN' \
             'frozen_request_lock_v1_proof_unchanged=true' \
+            'frozen_request_lock_v2_proof_unchanged=true' \
             'negative_predecessor_duplicate_append_observed=true' \
             'current_concurrent_same_intent_exactly_one_append=true' \
             'expired_launch_lease_after_history_read_holds=true' \
