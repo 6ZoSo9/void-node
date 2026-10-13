@@ -982,6 +982,14 @@ assert.match(gateSource, /withBuyLaunchRequestAuthorityMutationV1/);
 assert.match(gateSource, /const assertCurrentAuthority = \(\) => \{/);
 assert.match(
   gateSource,
+  /const assertCurrentAuthority = \(\) => \{[\s\S]*const mutationAdmissionNowMs = now\(\);[\s\S]*const currentGate = readBuyLaunchGateV1\(\s*env,\s*mutationAdmissionNowMs,\s*\);[\s\S]*classifyBuyLaunchRequestMutationAdmissionV1\(/u,
+);
+assert.doesNotMatch(
+  gateSource,
+  /const currentGate = readBuyLaunchGateV1\(\s*env,\s*gateReadStartedAtMs,\s*\);[\s\S]{0,500}const assertCurrentAuthority/u,
+);
+assert.match(
+  gateSource,
   /assertCurrentAuthority\(\);\s*return operation\(assertCurrentAuthority\);/,
 );
 assert.match(gateSource, /withBuyLaunchGenerationTransitionPublicationV1/);
@@ -1143,6 +1151,9 @@ console.log("mid_verification_generation_change_rejected=true");
 console.log("shared_generation_authority_bakery_lock_required=true");
 console.log("request_mutation_generation_lock_required=true");
 console.log("request_mutation_fresh_post_gate_expiry_check=true");
+console.log("request_mutation_fresh_live_gate_reread=true");
+console.log("request_mutation_receipt_replacement_fails_closed=true");
+console.log("request_mutation_coherent_receipt_renewal_observable=true");
 console.log("generation_transition_publication_generation_lock_required=true");
 console.log("canonical_generation_publisher_uses_shared_lock=true");
 console.log("generation_publication_write_ahead_intent_required=true");

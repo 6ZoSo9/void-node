@@ -1634,12 +1634,17 @@ export async function withBuyLaunchRequestAuthorityMutationV1(
   }
   return withBuyLaunchGenerationAuthorityLockV1(() => {
     const gateReadStartedAtMs = now();
-    const currentGate = readBuyLaunchGateV1(
-      env,
-      gateReadStartedAtMs,
-    );
     const assertCurrentAuthority = () => {
       const mutationAdmissionNowMs = now();
+      // Generation transitions are serialized by this same bakery lock, but
+      // the signed activation receipt is an independent private file. Reread
+      // the full live gate on every authority assertion so receipt deletion,
+      // replacement, source-gate withdrawal, or coherent lease renewal is
+      // observed before any request/payment mutation can proceed.
+      const currentGate = readBuyLaunchGateV1(
+        env,
+        mutationAdmissionNowMs,
+      );
       const admission =
         classifyBuyLaunchRequestMutationAdmissionV1(
           request,
