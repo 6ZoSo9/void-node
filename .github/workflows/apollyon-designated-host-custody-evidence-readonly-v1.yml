@@ -1,0 +1,56 @@
+name: Apollyon designated-host custody evidence read-only v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "docs/security/apollyon-designated-host-custody-evidence-readonly-v1.md"
+      - ".github/workflows/apollyon-designated-host-custody-evidence-readonly-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "docs/security/apollyon-designated-host-custody-evidence-readonly-v1.md"
+      - ".github/workflows/apollyon-designated-host-custody-evidence-readonly-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact candidate revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Syntax and self-test
+        run: |
+          python3 -m py_compile ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py
+          python3 -I -B ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py --self-test
+      - name: Prove read-only collector source
+        run: python3 -I -B scripts/prove_apollyon_designated_host_custody_evidence_readonly_v1.py
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
