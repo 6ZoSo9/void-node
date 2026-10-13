@@ -307,36 +307,11 @@ function parseSystemdShowProperties(show) {
   return props;
 }
 
-function redactedLoadCredentialBindingFromShow(
-  show,
-  uid = process.getuid(),
-) {
-  if (!Number.isSafeInteger(uid) || uid < 0) {
-    throw new Error("epoch2_sealed_redacted_loadcredential_uid_invalid");
-  }
-  const props = parseSystemdShowProperties(show);
-  if (props.get("LoadCredential") !== LOAD_CREDENTIAL_REDACTED) {
-    throw new Error("epoch2_sealed_redacted_loadcredential_marker_invalid");
-  }
-  const dropIns = String(props.get("DropInPaths") || "")
-    .split(/\s+/u).filter(Boolean);
-  const matches = dropIns.filter(
-    (candidate) =>
-      path.basename(candidate) === EPOCH2_CREDENTIAL_DROPIN_BASENAME,
-  );
-  if (matches.length !== 1) {
-    throw new Error("epoch2_sealed_redacted_dropin_cardinality_invalid");
-  }
-  const dropInPath = matches[0];
-  if (!path.isAbsolute(dropInPath) ||
-      path.normalize(dropInPath) !== dropInPath) {
-    throw new Error("epoch2_sealed_redacted_dropin_path_invalid");
-  }
-
-  const namespaceRoot = path.parse(dropInPath).root;
+function assertRedactedConfigNamespace(absolute, uid, errorCode) {
+  const namespaceRoot = path.parse(absolute).root;
   const parentParts = path.relative(
     namespaceRoot,
-    path.dirname(dropInPath),
+    path.dirname(absolute),
   ).split(path.sep).filter(Boolean);
   let currentParent = namespaceRoot;
   for (const part of parentParts) {
@@ -348,34 +323,136 @@ function redactedLoadCredentialBindingFromShow(
     if (stat.isSymbolicLink() || !stat.isDirectory() ||
         (stat.uid !== 0n && stat.uid !== BigInt(uid)) ||
         ((parentMode & 0o022n) !== 0n && !stickyProtected)) {
-      throw new Error("epoch2_sealed_redacted_dropin_namespace_untrusted");
+      throw new Error(errorCode);
     }
   }
+}
 
-  const before = fs.lstatSync(dropInPath, { bigint: true });
-  const mode = before.mode & 0o777n;
-  if (before.isSymbolicLink() || !before.isFile() ||
-      before.uid !== BigInt(uid) || before.nlink !== 1n ||
-      before.size < 1n || before.size > BigInt(MAX_DROPIN_BYTES) ||
-      (mode & 0o077n) !== 0n) {
-    throw new Error("epoch2_sealed_redacted_dropin_policy_invalid");
+function readRedactedConfigText(
+  absolute,
+  uid,
+  {
+    privateToOwner,
+    namespaceError,
+    policyError,
+    changedError,
+  },
+) {
+  if (!path.isAbsolute(absolute) || path.normalize(absolute) !== absolute) {
+    throw new Error(policyError);
   }
-  const bytes = readPinnedRegularFile(dropInPath, MAX_DROPIN_BYTES);
+  assertRedactedConfigNamespace(absolute, uid, namespaceError);
+  const before = fs.lstatSync(absolute, { bigint: true });
+  const mode = before.mode & 0o777n;
+  const ownerAccepted =
+    before.uid === 0n || before.uid === BigInt(uid);
+  const modeAccepted = privateToOwner
+    ? (mode & 0o077n) === 0n
+    : (mode & 0o022n) === 0n;
+  if (before.isSymbolicLink() || !before.isFile() ||
+      !ownerAccepted || before.nlink !== 1n ||
+      before.size < 1n || before.size > BigInt(MAX_DROPIN_BYTES) ||
+      !modeAccepted) {
+    throw new Error(policyError);
+  }
+  const bytes = readPinnedRegularFile(absolute, MAX_DROPIN_BYTES);
   let text = "";
   try {
     text = bytes.toString("utf8");
   } finally {
     bytes.fill(0);
   }
-  const after = fs.lstatSync(dropInPath, { bigint: true });
+  const after = fs.lstatSync(absolute, { bigint: true });
   if (!statIdentitySame(before, after)) {
-    throw new Error("epoch2_sealed_redacted_dropin_changed");
+    throw new Error(changedError);
   }
-  const lines = text.split(/\r?\n/u)
+  return text;
+}
+
+function activeUnitLines(text) {
+  return String(text).split(/\r?\n/u)
     .map((line) => line.trim())
     .filter((line) =>
       line.length > 0 && !line.startsWith("#") && !line.startsWith(";")
     );
+}
+
+function redactedLoadCredentialBindingFromShow(
+  show,
+  uid = process.getuid(),
+) {
+  if (!Number.isSafeInteger(uid) || uid < 0) {
+    throw new Error("epoch2_sealed_redacted_loadcredential_uid_invalid");
+  }
+  const props = parseSystemdShowProperties(show);
+  if (props.get("LoadCredential") !== LOAD_CREDENTIAL_REDACTED) {
+    throw new Error("epoch2_sealed_redacted_loadcredential_marker_invalid");
+  }
+
+  const fragmentPath = String(props.get("FragmentPath") || "");
+  if (!path.isAbsolute(fragmentPath) ||
+      path.normalize(fragmentPath) !== fragmentPath) {
+    throw new Error("epoch2_sealed_redacted_fragment_path_invalid");
+  }
+
+  const dropIns = String(props.get("DropInPaths") || "")
+    .split(/\s+/u).filter(Boolean);
+  const matches = dropIns.filter(
+    (candidate) =>
+      path.basename(candidate) === EPOCH2_CREDENTIAL_DROPIN_BASENAME,
+  );
+  if (matches.length !== 1) {
+    throw new Error("epoch2_sealed_redacted_dropin_cardinality_invalid");
+  }
+  if (dropIns.length !== 1) {
+    throw new Error("epoch2_sealed_redacted_unreviewed_dropin_present");
+  }
+
+  const dropInPath = matches[0];
+  if (!path.isAbsolute(dropInPath) ||
+      path.normalize(dropInPath) !== dropInPath) {
+    throw new Error("epoch2_sealed_redacted_dropin_path_invalid");
+  }
+  if (fragmentPath === dropInPath) {
+    throw new Error("epoch2_sealed_redacted_fragment_path_invalid");
+  }
+
+  const fragmentText = readRedactedConfigText(
+    fragmentPath,
+    uid,
+    {
+      privateToOwner: false,
+      namespaceError:
+        "epoch2_sealed_redacted_fragment_namespace_untrusted",
+      policyError:
+        "epoch2_sealed_redacted_fragment_policy_invalid",
+      changedError:
+        "epoch2_sealed_redacted_fragment_changed",
+    },
+  );
+  const credentialDirective = /^(?:LoadCredential|LoadCredentialEncrypted|SetCredential|SetCredentialEncrypted|ImportCredential|ImportCredentialEx)\s*=/u;
+  if (activeUnitLines(fragmentText).some(
+    (line) => credentialDirective.test(line),
+  )) {
+    throw new Error(
+      "epoch2_sealed_redacted_fragment_credential_directive_present",
+    );
+  }
+
+  const dropInText = readRedactedConfigText(
+    dropInPath,
+    uid,
+    {
+      privateToOwner: true,
+      namespaceError:
+        "epoch2_sealed_redacted_dropin_namespace_untrusted",
+      policyError:
+        "epoch2_sealed_redacted_dropin_policy_invalid",
+      changedError:
+        "epoch2_sealed_redacted_dropin_changed",
+    },
+  );
+  const lines = activeUnitLines(dropInText);
   if (lines.length !== 2 || lines[0] !== "[Service]" ||
       !lines[1].startsWith("LoadCredential=" + CREDENTIAL_ID + ":")) {
     throw new Error("epoch2_sealed_redacted_dropin_semantics_invalid");
@@ -569,6 +646,7 @@ function observeLiveSystemd() {
     "-p", "MainPID",
     "-p", "InvocationID",
     "-p", "LoadCredential",
+    "-p", "FragmentPath",
     "-p", "DropInPaths",
   ], {
     encoding: "utf8",

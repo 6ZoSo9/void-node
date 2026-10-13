@@ -218,23 +218,33 @@ assert.throws(
 
 // Ubuntu/systemd may redact LoadCredential from systemctl show as exactly
 // "[unprintable]". In that mode the sealed probe may recover only the one
-// reviewed E2 binding from its active private drop-in; all other semantics
-// remain tied to the cgroup-bound process and materialized credential directory.
+// reviewed E2 binding when the complete active file topology is conservative:
+// the reviewed E2 drop-in is the sole active drop-in and the base unit contains
+// no credential-provisioning directive that could compete with or reset it.
 {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-e2-loadcredential-redacted-"),
   );
+  const baseUnit = path.join(root, "void-node-live.service");
   const dropIn = path.join(
     root,
     "97-buy-void-epoch2-fulfiller-credential-v1.conf",
   );
+  const extraDropIn = path.join(root, "99-override.conf");
+  const safeBase =
+    "[Unit]\nDescription=VOID proof service\n" +
+    "[Service]\nExecStart=/usr/bin/node /safe/index.js\n";
+  const reviewedDropIn =
+    "[Service]\n" +
+    "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+    "/private/e2-fulfiller.key\n";
+  fs.writeFileSync(baseUnit, safeBase, { encoding: "utf8", mode: 0o600 });
   fs.writeFileSync(
     dropIn,
-    "[Service]\n" +
-      "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
-      "/private/e2-fulfiller.key\n",
+    reviewedDropIn,
     { encoding: "utf8", mode: 0o600 },
   );
+  fs.chmodSync(baseUnit, 0o600);
   fs.chmodSync(dropIn, 0o600);
   try {
     const redactedShow = [
@@ -243,6 +253,7 @@ assert.throws(
       "MainPID=4242",
       "InvocationID=" + invocation,
       "LoadCredential=[unprintable]",
+      "FragmentPath=" + baseUnit,
       "DropInPaths=" + dropIn,
       "",
     ].join("\n");
@@ -281,6 +292,67 @@ assert.throws(
       /epoch2_sealed_loadcredential_cardinality_invalid/u,
     );
 
+    const conflictingOverride =
+      "[Service]\n" +
+      "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+      "/private/conflicting-e2.key\n";
+    fs.writeFileSync(
+      extraDropIn,
+      conflictingOverride,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    fs.chmodSync(extraDropIn, 0o600);
+    const conflictingShow =
+      redactedShow.replace(
+        "DropInPaths=" + dropIn,
+        "DropInPaths=" + dropIn + " " + extraDropIn,
+      );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(
+        conflictingShow,
+        proofUid,
+      ),
+      /epoch2_sealed_redacted_unreviewed_dropin_present/u,
+    );
+
+    fs.writeFileSync(
+      extraDropIn,
+      "[Service]\nLoadCredential=\n",
+      { encoding: "utf8", mode: 0o600 },
+    );
+    const resetShow =
+      redactedShow.replace(
+        "DropInPaths=" + dropIn,
+        "DropInPaths=" + dropIn + " " + extraDropIn,
+      );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(resetShow, proofUid),
+      /epoch2_sealed_redacted_unreviewed_dropin_present/u,
+    );
+
+    fs.writeFileSync(
+      baseUnit,
+      safeBase +
+        "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+        "/private/base-conflict.key\n",
+      { encoding: "utf8", mode: 0o600 },
+    );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
+      /epoch2_sealed_redacted_fragment_credential_directive_present/u,
+    );
+    fs.writeFileSync(baseUnit, safeBase, { encoding: "utf8", mode: 0o600 });
+
+    const missingFragmentShow =
+      redactedShow.replace("FragmentPath=" + baseUnit, "FragmentPath=");
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(
+        missingFragmentShow,
+        proofUid,
+      ),
+      /epoch2_sealed_redacted_fragment_path_invalid/u,
+    );
+
     fs.chmodSync(dropIn, 0o644);
     assert.throws(
       () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
@@ -297,6 +369,10 @@ assert.throws(
       () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
       /epoch2_sealed_redacted_dropin_semantics_invalid/u,
     );
+    fs.writeFileSync(dropIn, reviewedDropIn, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
 
     const realParent = path.join(root, "real-parent");
     const linkedParent = path.join(root, "linked-parent");
@@ -307,9 +383,7 @@ assert.throws(
     );
     fs.writeFileSync(
       realDropIn,
-      "[Service]\n" +
-        "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
-        "/private/e2-fulfiller.key\n",
+      reviewedDropIn,
       { encoding: "utf8", mode: 0o600 },
     );
     fs.symlinkSync(realParent, linkedParent, "dir");
@@ -568,6 +642,11 @@ console.log("ambient_dbus_session_address_ignored=true");
 console.log("canonical_user_bus_path_bound=true");
 console.log("main_pid_systemd_cgroup_bound=true");
 console.log("process_invocation_id_bound=true");
+console.log("redacted_only_reviewed_dropin_active=true");
+console.log("redacted_base_fragment_credential_free=true");
+console.log("redacted_conflicting_dropin_holds=true");
+console.log("redacted_reset_dropin_holds=true");
+console.log("redacted_base_fragment_conflict_holds=true");
 console.log("signed_challenge_binds_full_systemd_observation=true");
 console.log("signed_challenge_binds_loadcredential_hash=true");
 console.log("signed_challenge_binds_credentials_directory_hash=true");

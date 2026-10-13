@@ -56,12 +56,18 @@ After exact operator confirmation, the sealed probe:
    `LoadCredential=buy-void-epoch2-fulfiller-v1:...` binding. When systemd
    exposes the binding normally, the sealed probe uses that exact value. On
    systemd builds that return exactly `LoadCredential=[unprintable]`, it
-   accepts no generic redaction bypass: `DropInPaths` must contain exactly
-   one active
-   `97-buy-void-epoch2-fulfiller-credential-v1.conf`, that drop-in must be a
-   same-UID regular single-link private file, and its only effective service
-   directive must be the exact E2 `LoadCredential` binding with an absolute
-   normalized source path;
+   accepts no generic redaction bypass: `FragmentPath` must identify a
+   trusted stable base unit containing no `LoadCredential`,
+   `LoadCredentialEncrypted`, `SetCredential`,
+   `SetCredentialEncrypted`, `ImportCredential` or
+   `ImportCredentialEx` directive; `DropInPaths` must contain **exactly one
+   active drop-in total**, the reviewed
+   `97-buy-void-epoch2-fulfiller-credential-v1.conf`; and that same-UID
+   regular single-link private file must contain only the exact E2
+   `LoadCredential` binding with an absolute normalized source path. Any
+   additional active drop-in or credential-provisioning base-unit directive
+   fails closed because the redacted effective precedence cannot otherwise be
+   proved from source files alone;
 6. obtains `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from
    the cgroup-bound live service MainPID environment, requires the materialized
    fixed E2 credential to exist there under systemd's private namespace, and
