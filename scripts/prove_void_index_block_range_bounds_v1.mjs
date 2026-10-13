@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import {
+  ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
   ATTACH_BLOCK_RANGE_MAX_SPAN,
+  attachBlockRangeErrorV1,
   parseAttachBlockRange,
 } from "../src/http/api_attach.ts";
 
@@ -18,8 +20,8 @@ const route = indexSource.slice(routeStart, routeEnd);
 
 assert.match(
   indexSource,
-  /import \{ parseAttachBlockRange \} from "\.\/http\/api_attach\.js";/,
-  "public entrypoint must reuse the reviewed canonical parser",
+  /import \{ attachBlockRangeErrorV1, parseAttachBlockRange \} from "\.\/http\/api_attach\.js";/,
+  "public entrypoint must reuse the reviewed canonical parser and error contract",
 );
 assert.match(
   route,
@@ -27,6 +29,9 @@ assert.match(
   "public route must preserve from/start and to/end aliases through the canonical parser",
 );
 assert.match(route, /if \(!range\)[\s\S]*status\(400\)/);
+assert.match(route, /attachBlockRangeErrorV1\(/);
+assert.match(route, /req\.query\.from \?\? req\.query\.start/);
+assert.match(route, /req\.query\.to \?\? req\.query\.end/);
 assert.match(route, /for \(let i = range\.from; i <= range\.to; i\+\+\)/);
 assert.doesNotMatch(
   route,
@@ -81,6 +86,39 @@ for (const [name, from, to, head] of [
   );
 }
 
+
+assert.equal(ATTACH_BLOCK_RANGE_ERROR_CODE_V1, "VOID_BLOCK_RANGE_INVALID_V1");
+assert.deepEqual(
+  attachBlockRangeErrorV1(undefined, undefined, 1000),
+  {
+    ok: false,
+    error: "bad range",
+    code: "VOID_BLOCK_RANGE_INVALID_V1",
+    reason: "range_span_exceeds_limit",
+    max_heights: 250,
+    recovery: { from: 0, to: 249 },
+    aliases: { from: ["from", "start"], to: ["to", "end"] },
+  },
+);
+assert.deepEqual(
+  attachBlockRangeErrorV1("10", "260", 1000),
+  {
+    ok: false,
+    error: "bad range",
+    code: "VOID_BLOCK_RANGE_INVALID_V1",
+    reason: "range_span_exceeds_limit",
+    max_heights: 250,
+    recovery: { from: 10, to: 259 },
+    aliases: { from: ["from", "start"], to: ["to", "end"] },
+  },
+);
+assert.equal(attachBlockRangeErrorV1("2", "1", 1000).reason, "invalid_bounds");
+
+assert.deepEqual(
+  parseAttachBlockRange("1001", "1001", 1000),
+  { from: 1001, to: 1000 },
+  "beyond-head request remains an intentional empty range",
+);
 console.log("void_index_block_range_bounds_v1=PASS");
 console.log("canonical_parser_reused=true");
 console.log("public_aliases_preserved=true");
