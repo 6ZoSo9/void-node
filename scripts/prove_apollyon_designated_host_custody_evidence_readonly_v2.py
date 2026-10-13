@@ -40,6 +40,9 @@ for value in [
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
  "training_uid_process_inventory","all_training_uid_processes_capability_free",
+ "training_thread_subject","training_process_thread_inventory",
+ "all_training_uid_threads_capability_free","training_uid_thread_count",
+ "training_uid_thread_sets_stable","thread_inventory_sha256",
  "training_uid_process_set_stable","training_uid_processes",
  "REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)",
  "parse_systemd_bus_owner_pid","GetConnectionUnixProcessID",
@@ -56,6 +59,9 @@ assert source.count("def parse_installed_systemd_version_line") == 1
 assert source.count("def parse_running_systemd_manager_version") == 1
 assert source.count("def training_process_subject") == 1
 assert source.count("def training_uid_process_inventory") == 1
+assert source.count("def training_thread_subject") == 1
+assert source.count("def training_process_thread_inventory") == 1
+assert source.count("def zero_capability_credentials") == 1
 assert source.count("def parse_systemd_bus_owner_pid") == 1
 assert source.count("def service_control_evidence") == 1
 assert source.count("def collect(a)") == 1
@@ -76,6 +82,40 @@ assert running['running_systemd_manager_major']==255
 assert running['running_systemd_manager_version']=='255.4-1ubuntu8.11'
 assert owner['systemd_bus_owner_pid']==1
 assert owner['systemd_bus_owner_pid_is_pid1'] is True
+synthetic_status='''Name:\tfixture
+Uid:\t1000\t1000\t1000\t1000
+CapInh:\t0000000000000000
+CapPrm:\t0000000000000000
+CapEff:\t0000000000000000
+CapAmb:\t0000000000000000
+NoNewPrivs:\t1
+'''
+class Training:
+ pw_uid=1000
+credentials=mod.zero_capability_credentials(synthetic_status,Training())
+assert credentials['uid_slots']==[1000,1000,1000,1000]
+assert credentials['capabilities']=={
+ 'ambient':'0','effective':'0','inheritable':'0',
+ 'no_new_privileges':True,'permitted':'0',
+}
+try:
+ mod.zero_capability_credentials(
+  synthetic_status.replace('CapEff:\t0000000000000000','CapEff:\t0000000000000001'),
+  Training(),
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('privileged synthetic thread unexpectedly admitted')
+try:
+ mod.zero_capability_credentials(
+  synthetic_status.replace('Uid:\t1000\t1000\t1000\t1000','Uid:\t1000\t0\t1000\t1000'),
+  Training(),
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('mixed-UID synthetic thread unexpectedly admitted')
 assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',)
 try:
  mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.12)')
@@ -120,6 +160,9 @@ print('running_installed_systemd_version_match_required=true')
 print('training_process_capabilities_zero_required=true')
 print('training_process_no_new_privileges_required=true')
 print('all_training_uid_processes_capability_free_required=true')
+print('all_training_uid_threads_capability_free_required=true')
+print('training_uid_thread_inventory_double_snapshot=true')
+print('training_uid_thread_inventory_digest_bound=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
