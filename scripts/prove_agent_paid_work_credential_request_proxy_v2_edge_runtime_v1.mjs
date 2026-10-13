@@ -88,19 +88,30 @@ async function sendRaw(port,bytes){
 }
 function maxHeaderRequestParts(proxy,body){
   const digest=crypto.createHash("sha256").update(body).digest("hex");
-  const lines=[
+  const fixed=[
     "POST "+ROUTE+" HTTP/1.1",
     "Host: public.example",
     "Content-Type: application/json",
     "Content-Length: "+body.length,
     "X-Void-Payload-Sha256: "+digest,
     "Connection: close",
-    "X-Pad: ",
   ];
-  const prefix=Buffer.from(lines.join("\r\n"),"ascii");
-  const fillerBytes=32*1024-prefix.length;
+  const maxHeaderValueBytes=16*1024;
+  const skeleton=Buffer.from(
+    [...fixed,"X-Pad-A: ","X-Pad-B: "].join("\r\n"),
+    "ascii",
+  );
+  const fillerBytes=32*1024-skeleton.length;
   assert(fillerBytes>=0);
-  const header=Buffer.concat([prefix,Buffer.alloc(fillerBytes,0x61)]);
+  const firstFillerBytes=Math.min(maxHeaderValueBytes,fillerBytes);
+  const secondFillerBytes=fillerBytes-firstFillerBytes;
+  assert(firstFillerBytes<=maxHeaderValueBytes);
+  assert(secondFillerBytes>=0&&secondFillerBytes<=maxHeaderValueBytes);
+  const header=Buffer.from([
+    ...fixed,
+    "X-Pad-A: "+"a".repeat(firstFillerBytes),
+    "X-Pad-B: "+"b".repeat(secondFillerBytes),
+  ].join("\r\n"),"ascii");
   assert.equal(header.length,32*1024);
   const terminator=Buffer.from("\r\n\r\n","ascii");
   return Object.freeze({
@@ -209,6 +220,15 @@ try{
     boundaryParts.restAndBody,
   ]);
   assert.equal(boundary.status,202);
+  assert.equal(gatewayCalls.length,3);
+
+  const oversizedHeaderValue=await sendRaw(
+    info.port,
+    requestBytes(proxy4(203,0,113,14),body,{
+      extraHeaders:["X-Oversized: "+"x".repeat(16*1024+1)],
+    }),
+  );
+  assert.equal(oversizedHeaderValue.status,413);
   assert.equal(gatewayCalls.length,3);
 
   const badHash=await sendRaw(info.port,requestBytes(proxy4(203,0,113,12),body,{hash:"0".repeat(64)}));
