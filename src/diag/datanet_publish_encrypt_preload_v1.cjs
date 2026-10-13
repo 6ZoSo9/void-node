@@ -278,17 +278,24 @@ try {
   }
 
   function __void_install(){
-    const app = __void_get_app();
-    if (!app || typeof app.use !== "function") return false;
     const G = globalThis;
     if (G.__void_datanet_nonenc_receipts_v1_installed) return true;
-    G.__void_datanet_nonenc_receipts_v1_installed = true;
+    if (G.__void_datanet_nonenc_receipts_v1_mount_state === "indeterminate") return true;
+
+    const app = __void_get_app();
+    if (!app) return false;
+    let use;
+    try { use = app.use; } catch (voidDatanetNonencReceiptsUseGetterError) {
+      void voidDatanetNonencReceiptsUseGetterError;
+      return false;
+    }
+    if (typeof use !== "function") return false;
 
     // discover receipts file from env if you later add it; default to data_a path.
     const defaultFile = (process.env.VOID_DATANET_RECEIPTS_FILE || (process.env.HOME ? (process.env.HOME + "/dev/void-node/data_a/datanet/receipts/datanet.jsonl") : ""));
     const RECEIPTS_FILE = defaultFile;
 
-    app.use((req, res, next) => {
+    const middleware = (req, res, next) => {
       try {
         const url = (req && req.originalUrl) ? String(req.originalUrl) : "";
         // only these endpoints
@@ -414,7 +421,17 @@ try {
         }
       } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
       return next();
-    });
+    };
+
+    G.__void_datanet_nonenc_receipts_v1_mount_state = "indeterminate";
+    try {
+      use.call(app, middleware);
+    } catch (voidDatanetNonencReceiptsRegistrationError) {
+      void voidDatanetNonencReceiptsRegistrationError;
+      return true;
+    }
+    G.__void_datanet_nonenc_receipts_v1_installed = true;
+    G.__void_datanet_nonenc_receipts_v1_mount_state = "mounted";
 
     try { console.error("[datanet.nonenc.receipts.v1] mounted: receipt logging for /datanet/v1/publish + /datanet/v1/fetch*"); } catch (voidDatanetPublishEncryptPreloadCatchError) { void voidDatanetPublishEncryptPreloadCatchError; /* VOID_DATANET_PUBLISH_ENCRYPT_PRELOAD_EMPTY_CATCH_VISIBILITY_V1 */ }
     return true;
