@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import {
+  ATTACH_BLOCK_RANGE_MAX_SPAN,
   parseAttachBlockRange,
 } from "../src/http/api_attach.ts";
 
@@ -12,7 +13,11 @@ for (const source of [tsSource, jsSource]) {
   assert.match(source, /Number\.isSafeInteger\(head\)/);
   assert.match(source, /Number\.isSafeInteger\(from\)/);
   assert.match(source, /Number\.isSafeInteger\(to\)/);
-  assert.match(source, /Math\.min\(to, head\)/);
+  assert.match(source, /ATTACH_BLOCK_RANGE_MAX_SPAN\s*=\s*250/);
+  assert.match(
+    source,
+    /Math\.min\(to, head, from \+ .*ATTACH_BLOCK_RANGE_MAX_SPAN - 1\)/,
+  );
   assert.match(source, /parseAttachBlockRange\(/);
 }
 assert.doesNotMatch(
@@ -26,10 +31,26 @@ assert.doesNotMatch(
   "compiled route must not iterate the unbounded request values",
 );
 
+assert.equal(ATTACH_BLOCK_RANGE_MAX_SPAN, 250);
 assert.deepEqual(
   parseAttachBlockRange(undefined, undefined, 7),
   { from: 0, to: 7 },
-  "omitted bounds must retain the canonical 0..head default",
+  "small omitted bounds must retain the canonical 0..head default",
+);
+assert.deepEqual(
+  parseAttachBlockRange(undefined, undefined, 1000),
+  { from: 0, to: 249 },
+  "large omitted bounds must stop at the fixed inclusive span",
+);
+assert.deepEqual(
+  parseAttachBlockRange("10", "259", 1000),
+  { from: 10, to: 259 },
+  "the exact fixed inclusive span must be accepted",
+);
+assert.deepEqual(
+  parseAttachBlockRange("10", "260", 1000),
+  { from: 10, to: 259 },
+  "an over-limit range must be deterministically capped",
 );
 assert.deepEqual(
   parseAttachBlockRange("2", "9", 5),
@@ -37,7 +58,7 @@ assert.deepEqual(
   "a caller-supplied upper bound beyond head must stop at canonical head",
 );
 assert.deepEqual(
-  parseAttachBlockRange("9", "9", 5),
+  parseAttachBlockRange("9", "999999", 5),
   { from: 9, to: 5 },
   "a range wholly beyond head must terminate without scanning",
 );
