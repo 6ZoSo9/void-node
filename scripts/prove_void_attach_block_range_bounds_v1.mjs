@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url);
-const {
+import {
   parseAttachBlockRange,
-} = require("../src/http/api_attach.js");
+} from "../src/http/api_attach.ts";
 
 const tsSource = readFileSync("src/http/api_attach.ts", "utf8");
 const jsSource = readFileSync("src/http/api_attach.js", "utf8");
