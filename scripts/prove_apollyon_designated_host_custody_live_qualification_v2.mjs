@@ -14,9 +14,9 @@ const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
   "tools/apollyon-custody-host-policy-qualification-v2.mjs":
-    "9c14868ab7c3106fd0782f0d184600acbe602e2d",
+    "623cc8fd8b0726d96e3773d1f7c5e97b15d99a74",
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-    "8c7c1488d75133acb6159ed69e3e1660cd241ffa",
+    "430d15cc99735554717e7bab5d11d301961edd4d",
   "tools/apollyon-authorization-custody-core-v1.mjs":
     "f9f18db5bbfeea466202ef0d7babe08c3c401d66",
   "tools/apollyon-authorization-custody-service-v1.mjs":
@@ -57,9 +57,9 @@ for(const required of [
   "same_live_custody_session_binding_proven:false",
   "independent_custody_proven:false",
   "custody_production_gate_ready:false",
-  "COLLECTOR_BLOB_SHA1=\"8c7c1488d75133acb6159ed69e3e1660cd241ffa\"",
+  "COLLECTOR_BLOB_SHA1=\"430d15cc99735554717e7bab5d11d301961edd4d\"",
   "POLICY_V1_BLOB_SHA1=\"6f34e79d94c502e31ca4923fd78922d4875550a5\"",
-  "POLICY_BLOB_SHA1=\"9c14868ab7c3106fd0782f0d184600acbe602e2d\"",
+  "POLICY_BLOB_SHA1=\"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74\"",
   "prepareApollyonReviewedExecutionTreeV2",
   "loadApollyonReviewedPolicyV2",
   "runApollyonReviewedCollectorSelfTestV2",
