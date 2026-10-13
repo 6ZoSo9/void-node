@@ -236,11 +236,23 @@ const accepted201Destination = "0x1111111111111111111111111111111111111111";
 const accepted201Receiver = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
 const accepted201Usdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const accepted201RequestId = "buyvoid_edge_201_aaaaaaaa";
+const coupledLaunchAuthority = (expiresAtMs) => ({
+  marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+  version: 1,
+  coupled_launch_id:
+    "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+  source_composition_id: "sha256:" + "1".repeat(64),
+  activation_generation: "0x" + "2".repeat(64),
+  generation_tip_sha256: "sha256:" + "3".repeat(64),
+  activation_receipt_id: "voidbclive1_" + "4".repeat(64),
+  activation_receipt_sha256: "5".repeat(64),
+  expires_at_ms: expiresAtMs,
+});
 const exactAccepted201Receipt = {
   request: {
     persisted: { ok: true },
     created_at_ms: accepted201CreatedAtMs,
-    launch_authority: { expires_at_ms: accepted201ExpiresAtMs },
+    launch_authority: coupledLaunchAuthority(accepted201ExpiresAtMs),
     status: "awaiting_payment_tx_hash",
     tx_hash: "",
     request_id: accepted201RequestId,
@@ -296,6 +308,10 @@ const exactAccepted201Receipt = {
   ok: true,
   marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
   schema: "void_public_buy_void_checkout_request_result_v1",
+};
+const exactAcceptedPublic201Receipt = structuredClone(exactAccepted201Receipt);
+exactAcceptedPublic201Receipt.request.launch_authority = {
+  expires_at_ms: accepted201ExpiresAtMs,
 };
 const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n";
 
@@ -469,7 +485,7 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
     assert.equal(res.statusCode, 201);
     assert.deepEqual(
       res.responseBytes,
-      Buffer.from(JSON.stringify(exactAccepted201Receipt), "utf8"),
+      Buffer.from(JSON.stringify(exactAcceptedPublic201Receipt), "utf8"),
     );
     assert.equal(h.active.size, 0);
   }
@@ -564,7 +580,17 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
       const naiveAuthority = cases.find(
         (entry) => entry.name === "launch_authority",
       ).value.request.launch_authority;
-      const naiveAllowed = new Set(["expires_at_ms"]);
+      const naiveAllowed = new Set([
+        "activation_generation",
+        "activation_receipt_id",
+        "activation_receipt_sha256",
+        "coupled_launch_id",
+        "expires_at_ms",
+        "generation_tip_sha256",
+        "marker",
+        "source_composition_id",
+        "version",
+      ]);
       assert.equal(
         Object.keys(naiveAuthority).every((key) => naiveAllowed.has(key)),
         true,
@@ -643,7 +669,7 @@ const fullAccepted201Receipt = {
     persisted: { ok: true },
     request_id: full201RequestId,
     created_at_ms: fullCreatedAtMs,
-    launch_authority: { expires_at_ms: fullExpiresAtMs },
+    launch_authority: coupledLaunchAuthority(fullExpiresAtMs),
     status: "awaiting_payment_tx_hash",
     tx_hash: "",
     source_chain: "base",
@@ -704,6 +730,10 @@ const fullAccepted201Receipt = {
       do_not_send_from_exchange_or_pooled_custody: true,
     },
   },
+};
+const fullAcceptedPublic201Receipt = structuredClone(fullAccepted201Receipt);
+fullAcceptedPublic201Receipt.request.launch_authority = {
+  expires_at_ms: fullExpiresAtMs,
 };
 const fullAccepted201Json = JSON.stringify(fullAccepted201Receipt, null, 3)+"\n";
 const fullLegacy201Json = JSON.stringify({
@@ -1581,7 +1611,7 @@ try {
     "application/json; charset=utf-8");
   const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
   const canonicalAccepted201Bytes = Buffer.from(
-    JSON.stringify(exactAccepted201Receipt),
+    JSON.stringify(exactAcceptedPublic201Receipt),
     "utf8",
   );
   assert.deepEqual(
@@ -1595,7 +1625,16 @@ try {
     "noncanonical upstream wire bytes must never be forwarded verbatim",
   );
   assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
-    exactAccepted201Receipt);
+    exactAcceptedPublic201Receipt);
+  assert.deepEqual(
+    JSON.parse(accepted201Bytes.toString("utf8")).request.launch_authority,
+    { expires_at_ms: accepted201ExpiresAtMs },
+  );
+  assert.equal(
+    accepted201Bytes.toString("utf8").includes("activation_receipt_sha256"),
+    false,
+    "private coupled-launch authority metadata must be redacted publicly",
+  );
 
   // A duplicate raw JSON key can hide a private first value behind a safe
   // last value that wins JSON.parse. Validation of only the parsed object is
@@ -1615,7 +1654,7 @@ try {
     canonicalAccepted201Bytes,
     "duplicate-key receipt must collapse to the canonical reviewed object",
   );
-  assert.deepEqual(JSON.parse(duplicateWireText), exactAccepted201Receipt);
+  assert.deepEqual(JSON.parse(duplicateWireText), exactAcceptedPublic201Receipt);
 
   // Canonical main still emits {ok:true,file:<private path>} on HTTP 201.
   // That 201 is valid, but its private file path and original ETag must
@@ -1627,7 +1666,7 @@ try {
   const legacyPublicText = await legacy201.text();
   assert.equal(legacyPublicText.includes("SENTINEL_PRIVATE_BUY_REQUEST_DIR"),
     false, "private sidecar path must never be public");
-  assert.deepEqual(JSON.parse(legacyPublicText), exactAccepted201Receipt);
+  assert.deepEqual(JSON.parse(legacyPublicText), exactAcceptedPublic201Receipt);
 
   // Backend accepts reviewed legacy field aliases; the added receipt/
   // intent-binding check must not silently break a valid older API client.
@@ -1662,7 +1701,7 @@ try {
   const full201Bytes = Buffer.from(await full201.arrayBuffer());
   assert.deepEqual(
     full201Bytes,
-    Buffer.from(JSON.stringify(fullAccepted201Receipt), "utf8"),
+    Buffer.from(JSON.stringify(fullAcceptedPublic201Receipt), "utf8"),
     "full native-USDC buyer receipt must be re-encoded from validated data",
   );
   assert.notDeepEqual(
@@ -1671,7 +1710,7 @@ try {
     "pretty/noncanonical upstream wire formatting is not receipt authority",
   );
   const fullReceipt = JSON.parse(full201Bytes.toString("utf8"));
-  assert.deepEqual(fullReceipt, fullAccepted201Receipt);
+  assert.deepEqual(fullReceipt, fullAcceptedPublic201Receipt);
 
   // Also exercise the *complete* node receipt with legacy persisted.file.
   // All canonical payment instructions remain intact after field redaction.
@@ -1683,7 +1722,7 @@ try {
     false);
   assert.equal(fullLegacyPublic.includes("SENTINEL_PRIVATE_BUY_REQUEST_ETAG"),
     false);
-  assert.deepEqual(JSON.parse(fullLegacyPublic), fullAccepted201Receipt);
+  assert.deepEqual(JSON.parse(fullLegacyPublic), fullAcceptedPublic201Receipt);
   assert.equal(fullReceipt.request.created_at_ms + 4*60*1000,
     fullReceipt.request.payment_instructions.expires_at_ms);
   assert.equal(fullReceipt.request.launch_authority.expires_at_ms,
@@ -2023,6 +2062,7 @@ try {
   console.log("canonical_201_schema_marker_idempotent_request_required=true");
   console.log("nested_safety_contract_acknowledgement_private_keys_refused=true");
   console.log("nested_launch_authority_private_keys_refused=true");
+  console.log("live_nine_field_launch_authority_accepted_then_redacted=true");
   console.log("legacy_201_private_path_redacted_without_losing_success=true");
   console.log("full_legacy_201_payment_instructions_preserved=true");
   console.log("unexpected_persisted_metadata_holds=true");
