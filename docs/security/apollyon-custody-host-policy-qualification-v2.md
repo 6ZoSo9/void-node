@@ -14,11 +14,17 @@ UID rename/unlink denial through the socket parent's immediate parent.
 V2 additionally requires explicit service-control denial evidence before the
 historical `runtime_can_control_service=false` field can be admitted. The
 evidence is bound to the exact training PID, Linux process start-time ticks and
-UID. It also inventories the complete live process set touching the training UID
-twice, requires that set to remain stable across inspection, and requires every
-such process to have zero inherited/permitted/effective/ambient capabilities,
-all four Linux UID slots equal to the training UID, and `NoNewPrivs: 1`.
-This prevents a harmless caller-selected PID from masking a privileged sibling.
+UID. It inventories the complete live process set touching the training UID
+twice and requires that set to remain stable. For every admitted process it then
+enumerates `/proc/<pid>/task/<tid>`, reads every thread's UID slots,
+capability sets, `NoNewPrivs`, and start-time identity twice, and requires the
+thread set plus credential transcript to remain unchanged. Every thread must
+have all four UID slots equal to the training UID, zero
+inherited/permitted/effective/ambient capabilities, and `NoNewPrivs: 1`.
+The evidence stores bounded per-process thread counts and SHA-256 inventory
+digests rather than unbounded raw thread records. This prevents either a
+privileged sibling process or privileged sibling thread from hiding behind a
+clean caller-selected PID.
 
 The systemd boundary is pinned to the exact reviewed package generation
 `255.4-1ubuntu8.11`, not merely major 255. The collector queries the system
