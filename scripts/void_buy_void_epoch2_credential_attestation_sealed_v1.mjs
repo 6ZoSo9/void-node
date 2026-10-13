@@ -370,6 +370,14 @@ function readRedactedConfigText(
   return text;
 }
 
+function assertNoSystemdLineContinuation(text, errorCode) {
+  for (const physicalLine of String(text).split(/\r?\n/u)) {
+    if (/\\[ \t]*$/u.test(physicalLine)) {
+      throw new Error(errorCode);
+    }
+  }
+}
+
 function activeUnitLines(text) {
   return String(text).split(/\r?\n/u)
     .map((line) => line.trim())
@@ -434,6 +442,10 @@ function redactedLoadCredentialBindingFromShow(
         "epoch2_sealed_redacted_fragment_changed",
     },
   );
+  assertNoSystemdLineContinuation(
+    fragmentText,
+    "epoch2_sealed_redacted_fragment_line_continuation_forbidden",
+  );
   const credentialDirective = /^(?:LoadCredential|LoadCredentialEncrypted|SetCredential|SetCredentialEncrypted|ImportCredential|ImportCredentialEx)\s*=/u;
   if (activeUnitLines(fragmentText).some(
     (line) => credentialDirective.test(line),
@@ -455,6 +467,10 @@ function redactedLoadCredentialBindingFromShow(
       changedError:
         "epoch2_sealed_redacted_dropin_changed",
     },
+  );
+  assertNoSystemdLineContinuation(
+    dropInText,
+    "epoch2_sealed_redacted_dropin_line_continuation_forbidden",
   );
   const lines = activeUnitLines(dropInText);
   if (lines.length !== 2 || lines[0] !== "[Service]" ||

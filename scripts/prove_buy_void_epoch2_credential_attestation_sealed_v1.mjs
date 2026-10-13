@@ -344,6 +344,36 @@ assert.throws(
     );
     fs.writeFileSync(baseUnit, safeBase, { encoding: "utf8", mode: 0o600 });
 
+    fs.writeFileSync(
+      baseUnit,
+      safeBase +
+        "LoadCredential" + "\\" + "\n" +
+        " =buy-void-epoch2-fulfiller-v1:/private/continued.key\n",
+      { encoding: "utf8", mode: 0o600 },
+    );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
+      /epoch2_sealed_redacted_fragment_line_continuation_forbidden/u,
+    );
+    fs.writeFileSync(baseUnit, safeBase, { encoding: "utf8", mode: 0o600 });
+
+    fs.writeFileSync(
+      dropIn,
+      "[Service]\n" +
+        "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+        "/private/e2-fulfiller.key" + "\\" + "\n" +
+        " # continued\n",
+      { encoding: "utf8", mode: 0o600 },
+    );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
+      /epoch2_sealed_redacted_dropin_line_continuation_forbidden/u,
+    );
+    fs.writeFileSync(dropIn, reviewedDropIn, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+
     const staleDaemonShow =
       redactedShow.replace("NeedDaemonReload=no", "NeedDaemonReload=yes");
     assert.throws(
@@ -658,6 +688,8 @@ console.log("redacted_base_fragment_credential_free=true");
 console.log("redacted_conflicting_dropin_holds=true");
 console.log("redacted_reset_dropin_holds=true");
 console.log("redacted_base_fragment_conflict_holds=true");
+console.log("redacted_fragment_line_continuation_holds=true");
+console.log("redacted_dropin_line_continuation_holds=true");
 console.log("redacted_daemon_reload_required_holds=true");
 console.log("signed_challenge_binds_full_systemd_observation=true");
 console.log("signed_challenge_binds_loadcredential_hash=true");

@@ -69,7 +69,10 @@ After exact operator confirmation, the sealed probe:
    `LoadCredential` binding with an absolute normalized source path. Any
    additional active drop-in or credential-provisioning base-unit directive
    fails closed because the redacted effective precedence cannot otherwise be
-   proved from source files alone;
+   proved from source files alone. Backslash-newline continuations are also
+   rejected in both the base fragment and reviewed drop-in before directive
+   parsing, so physical-line splitting cannot hide a logical systemd
+   credential directive;
 6. obtains `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from
    the cgroup-bound live service MainPID environment, requires the materialized
    fixed E2 credential to exist there under systemd's private namespace, and
