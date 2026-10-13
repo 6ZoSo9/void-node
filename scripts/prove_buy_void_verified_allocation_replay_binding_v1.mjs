@@ -7,6 +7,7 @@ import {
   VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_AUTHORITY_V1,
   VOID_BUY_VOID_VERIFIED_ALLOCATION_REPLAY_BINDING_V1,
   classifyBuyVoidVerifiedAllocationReplayBindingV1,
+  classifyBuyVoidPreappendVerifiedPaymentLineageV1,
 } from "../dist/economic/buy_void_verified_allocation_replay_binding_v1.js";
 import {
   planBuyVoidAllocationReservationV1,
@@ -267,6 +268,86 @@ for (const key of [
 const partialOpening = { ...request, tx_hash: "", receive_address: undefined };
 gap(scan([partialOpening, request], [event]));
 
+// A missing ORIGINAL buyer delivery wallet can never be backfilled into
+// payment/allocated authority by a later, unauthenticated full request row.
+// This gap differs from late tx and receive binding, both still permitted.
+for (const absentBuyerWallet of [undefined, null, ""]) {
+  const first = { ...request, delivery_address: absentBuyerWallet };
+  const late = { ...request, status: "buyer-wallet-backfilled" };
+  hold(scan([first, late], [event]),
+    /request_initial_delivery_address_missing/u);
+  hold(scan([first, late], [event], allocationBytes),
+    /request_initial_delivery_address_missing/u);
+  // The target must HOLD before even treating a never-verified request as
+  // a potentially recoverable allocation/payment obligation.
+  hold(scan([first, late], []),
+    /request_initial_delivery_address_missing/u);
+  const preappend = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([first, late]),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  assert.equal(preappend.ok, false);
+  assert.equal(preappend.status, "held");
+  assert.match(preappend.reason || "",
+    /request_initial_delivery_address_missing/u);
+  assert.equal(preappend.operation_performed, false);
+}
+// Verified payment with the original buyer delivery wallet DOES remain
+// admissible when its transaction hash and receive address are later filled.
+const validLateBinding = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+  request,
+  event,
+  requests_jsonl: buf([partialOpening, request]),
+  prior_operator_events_jsonl: Buffer.alloc(0),
+  allocation_jsonl: Buffer.alloc(0),
+});
+assert.equal(validLateBinding.ok, true, validLateBinding.reason);
+assert.equal(validLateBinding.status, "ready");
+
+// A missing first buyer wallet on an unrelated UNVERIFIED legacy request is
+// scoped negative evidence, not a global denial of a qualified paid request.
+const legacyMissingWallet = {
+  ...request,
+  request_id: "buyvoid_missingwallet_aaaaaaaa",
+  tx_hash: tx("9"),
+  delivery_address: undefined,
+};
+const lateLegacyWallet = {
+  ...legacyMissingWallet,
+  delivery_address: request.delivery_address,
+  status: "retrospective-wallet",
+};
+gap(scan([legacyMissingWallet, lateLegacyWallet, request], [event]));
+good(scan([legacyMissingWallet, lateLegacyWallet, request], [event],
+  allocationBytes), "allocation_present");
+hold(scan([legacyMissingWallet, lateLegacyWallet, request],
+  [event], Buffer.alloc(0), legacyMissingWallet.request_id),
+  /request_initial_delivery_address_missing/u);
+const forgedLegacyVerified = {
+  ...event, request_id: legacyMissingWallet.request_id,
+  tx_hash: legacyMissingWallet.tx_hash,
+  payment_verifier: {
+    ...event.payment_verifier,
+    transaction_hash: legacyMissingWallet.tx_hash,
+  },
+};
+hold(scan([legacyMissingWallet, lateLegacyWallet, request],
+  [forgedLegacyVerified, event]),
+  /request_initial_delivery_address_missing/u);
+
+// Once the FIRST wallet is bound, a different later wallet cannot become
+// authoritative even if the verifier also claims that different wallet.
+const changedWallet = addr("7");
+hold(scan([request, { ...request, delivery_address: changedWallet,
+  status: "caller-wallet-rewrite" }], [{
+    ...event,
+    payment_verifier: { ...event.payment_verifier,
+      delivery_address: changedWallet, from_address: changedWallet },
+  }]), /request_history_lineage_drift/u);
+
 // Backfilling a legacy token or launch tuple from a later mutable row cannot
 // convert unqualified original history into a recoverable payment allocation.
 hold(scan([{ ...request, usdc_contract: undefined }, request], [event]),
@@ -434,6 +515,94 @@ malformedUtf8Allocation[allocationIdOffset] = 0xff;
 hold(scan([request], [event], malformedUtf8Allocation),
   /encoded data was not valid for encoding utf-8/iu);
 
+// Security regression: caller Buffers must not be able to shadow native
+// length and hide an already-verified, fsynced operator event during replay.
+// This is all synthetic memory; no real request/payment or ledger is opened.
+{
+  // A forged zero .length previously let Buffer.from(priorEvents) silently
+  // drop the already-durable event so a duplicate could be "ready" again.
+  const originalPriorEvents = buf([event]);
+  const hiddenPriorEvents = Buffer.from(originalPriorEvents);
+  Object.defineProperty(hiddenPriorEvents, "length", {
+    value: 0, configurable: true,
+  });
+  const result = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: hiddenPriorEvents,
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  hold(result, /operator_events_bytes_invalid/u);
+
+  let getterCalls = 0;
+  const getterPriorEvents = Buffer.from(originalPriorEvents);
+  Object.defineProperty(getterPriorEvents, "length", {
+    configurable: true,
+    get() { getterCalls++; return 0; },
+  });
+  hold(classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: getterPriorEvents,
+    allocation_jsonl: Buffer.alloc(0),
+  }), /operator_events_bytes_invalid/u);
+  assert.equal(getterCalls, 0, "length getter must never execute");
+
+  const shadowRequests = buf([request]);
+  Object.defineProperty(shadowRequests, "length", {
+    value: 0, configurable: true,
+  });
+  hold(mutate({ requests_jsonl: shadowRequests }), /requests_bytes_invalid/u);
+
+  // Proxies must hold without ever invoking their caller-provided traps,
+  // even though Node's Buffer.isBuffer reports true for a Buffer Proxy.
+  let proxyTraps = 0;
+  const proxied = new Proxy(buf([request]), {
+    get() { proxyTraps++; throw Error("unexpected Buffer proxy getter"); },
+    getPrototypeOf() {
+      proxyTraps++; throw Error("unexpected Buffer prototype trap");
+    },
+  });
+  hold(mutate({ requests_jsonl: proxied }), /requests_bytes_invalid/u);
+  assert.equal(proxyTraps, 0, "Buffer Proxy traps must not execute");
+
+  const accessorBytes = buf([request]);
+  Object.defineProperty(accessorBytes, "buffer", {
+    configurable: true,
+    get() {
+      getterCalls++; throw Error("unexpected caller buffer getter");
+    },
+  });
+  hold(mutate({ requests_jsonl: accessorBytes }), /requests_bytes_invalid/u);
+  assert.equal(getterCalls, 0, "Buffer backing getter must never execute");
+
+  // A shared backing could mutate during a supposed immutable snapshot.
+  const sharedBytes = Buffer.from(new SharedArrayBuffer(8));
+  hold(mutate({ requests_jsonl: sharedBytes }), /requests_bytes_invalid/u);
+
+  // Transferring an ArrayBuffer leaves a zero-length detached view which
+  // otherwise looks like legitimate "no prior rows" after length inspection.
+  const detachedBytes = Buffer.from(new ArrayBuffer(8));
+  const toDetach = detachedBytes.buffer;
+  structuredClone(toDetach, { transfer: [toDetach] });
+  hold(mutate({ requests_jsonl: detachedBytes }), /requests_bytes_invalid/u);
+
+  // Valid unchanged bytes and the original first-buyer scenario still pass.
+  gap(mutate({ requests_jsonl: buf([request]) }));
+  const originalReady = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request,
+    event,
+    requests_jsonl: buf([partialOpening, request]),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
+  });
+  assert.equal(originalReady.ok, true, originalReady.reason);
+  assert.equal(originalReady.status, "ready");
+  assert.equal(originalReady.operation_performed, false);
+}
+
 // This workflow supports manual dispatch, where pull_request base/head are
 // both absent; the committed last-commit check is explicit, not empty revs.
 const workflowText = readFileSync(
@@ -459,12 +628,20 @@ console.log("request_chain_alias_conflicts_held=true");
 console.log("unrelated_legacy_chain_alias_conflict_scoped_without_authority=true");
 console.log("fatal_utf8_decoder_error_required_on_allocation_fixture=true");
 console.log("initial_token_and_launch_backfill_held=true");
+console.log("first_original_buyer_delivery_wallet_required=true");
+console.log("later_buyer_wallet_backfill_cannot_authorize_verified_payment=true");
+console.log("unrelated_unverified_missing_buyer_wallet_is_scoped=true");
+console.log("legitimate_late_tx_and_receive_binding_retained=true");
+console.log("preappend_original_buyer_wallet_verified=true");
 console.log("unrelated_unverified_legacy_request_not_global_hold=true");
 console.log("target_and_verified_legacy_initial_qualification_hold=true");
 console.log("nonconsecutive_stale_request_snapshot_replay_held=true");
 console.log("exact_canonical_allocation_history_replay_idempotent=true");
 console.log("orphan_conflicting_drift_oversell_history_held=true");
 console.log("allocation_raw_utf8_and_canonical_jsonl_checked=true");
+console.log("buffer_intrinsic_length_and_detached_copy_required=true");
+console.log("caller_buffer_length_override_cannot_hide_prior_payment=true");
+console.log("buffer_proxy_getter_shared_and_detached_intake_held=true");
 console.log("manual_dispatch_diff_revision_fallback_checked=true");
 console.log("descriptor_custody_or_payment_fsync_claimed=false");
 console.log("allocation_write_or_runtime_activation=false");

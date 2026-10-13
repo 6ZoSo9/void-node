@@ -79,20 +79,21 @@ jobs:
           assert.equal(j.schema,"void_buy_void_source_finality_compiled_artifact_attestation_v5");
           assert.equal(j.marker,"VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5");
           assert.equal(j.version,5);
-          assert.equal(j.source_stack_head,"3533626d7167c98ba8d65d2c423b460b1a3199fc");
+          assert.equal(j.source_stack_head,"22a30e3ffad6047a472488104c769140bd050878");
           assert.equal(j.predecessor?.manifest_git_blob_sha1,
             "a07f2e9b03958a58280c4d940fe49097a9413af5");
           assert.equal(j.predecessor?.compiled_artifact_generation_sha256,
             "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06");
           assert.equal(j.reviewed_source_finality_v6_source_git_blob_sha1,
-            "e7ac4c296930587e7b7ec415e57bb18190c88962");
+            "d371b1b08d2afc383d5e4ad831464752843791a3");
           assert.equal(j.verified_payment_v2_source_git_blob_sha1,
-            "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac");
+            "550ede02fc0b7d6874c324af58b5ef9c5591b311");
           assert.equal(j.artifact_count,6);
           assert.equal(j.artifacts.length,6);
           assert.deepEqual(j.changed_artifact_paths,[
             "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
             "dist/economic/buy_void_payment_rpc_observer_v1.js",
+            "dist/economic/buy_void_verified_payment_v2.js",
           ]);
           assert.equal(j.compiled_artifact_generation_verified,false);
           assert.equal(j.deployed_artifact_generation_verified,false);

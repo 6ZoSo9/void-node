@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 
 src = Path("src/index.ts").read_text()
+verified_v2 = Path("src/economic/buy_void_verified_payment_v2.ts").read_text()
 doc = Path("docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md").read_text()
 
 marker = "VOID_USDC_TO_VOID_PRESALE_ALLOCATION_RESERVATION_RECORD_V1"
@@ -87,7 +88,6 @@ required_src = [
     "wc_ledger_write: false",
     "void_transfer_now: false",
     "operator-events.jsonl",
-    'operator_status: "payment_verified"',
     'operator_status === "fulfilled"',
     "allocation_reserved_void",
     "only payment_verified operator events may reserve presale allocation",
@@ -96,6 +96,32 @@ required_src = [
 for item in required_src:
     if item not in src:
         raise SystemExit(f"missing_source_item={item}")
+
+# Canonical payment_verified was moved from the large HTTP router into the
+# typed V2 verified-payment event builder. Source-presence by itself is not
+# a wallet, allocation, or production payment authorization.
+constructor = re.search(
+    r'const\s+event\s*:\s*BuyVoidVerifiedPaymentEventV2\s*=\s*\{'
+    r'(?P<body>.*?)\n\s*\};',
+    verified_v2,
+    re.DOTALL,
+)
+if not constructor or (
+    'operator_status: "payment_verified"' not in constructor.group("body")
+    or 'payment_verified: true' not in constructor.group("body")
+):
+    raise SystemExit("canonical_v2_payment_verified_constructor_missing")
+
+# Require the same mounted HTTP payment verification path to call that V2
+# builder and preserve the separate capacity-admission writer. The producer
+# must not silently move back to an ad-hoc inline event constructor.
+for item in [
+    'import("./economic/buy_void_verified_payment_v2.js")',
+    'buildBuyVoidVerifiedPaymentEventV2({request:found',
+    'writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r',
+]:
+    if item not in src:
+        raise SystemExit(f"canonical_v2_route_writer_binding_missing={item}")
 
 bad_src = [
     "allocation_reservation_record_green: true",
@@ -190,6 +216,8 @@ for item in [
 
 print("allocation_reservation_record_source_green=true")
 print("payment_verified_event_not_allocation_reserved_declared=true")
+print("canonical_v2_payment_verified_constructor_bound=true")
+print("canonical_v2_route_capacity_writer_bound=true")
 print("allocation_reservation_record_green_false=true")
 print("allocation_reservation_record_write_enabled_false=true")
 print("append_only_allocation_reservation_record_enforced_false=true")

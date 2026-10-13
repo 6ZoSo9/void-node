@@ -10,6 +10,16 @@ import {
 import {
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
 } from "../dist/economic/buy_void_allocation_reservation_high_water_v1.js";
+import {
+  classifyBuyVoidVerifiedAllocationReplayBindingV1,
+} from "../dist/economic/buy_void_verified_allocation_replay_binding_v1.js";
+import {
+  observeBuyVoidCustodyAllocationRootsReadOnlyV1,
+} from "../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs";
+import {
+  observeBuyVoidCustodyPaymentLedgersReadOnlyV1,
+} from "../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
+
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1 =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1";
 
@@ -18,15 +28,20 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1 =
     source_only_service: true,
     unix_socket_only: true,
     server_controlled_socket_path: true,
+    server_controlled_request_root: true,
     server_controlled_ledger_root: true,
     server_controlled_custody_root: true,
     exact_request_schema_required: true,
     exact_response_schema_required: true,
     canonical_allocation_planner_reused: false,
     canonical_high_water_binding_reused: true,
+    canonical_verified_payment_replay_classifier_reused: true,
+    descriptor_bound_payment_history_read: true,
     canonical_publication_writer_reused: false,
     one_allocation_transition_per_reserve: false,
+    verified_payment_provenance_descriptor_bound: true,
     verified_payment_provenance_independently_bound: false,
+    payment_capacity_lock_verified: false,
     reserve_method_enabled: false,
     recovery_terminal_before_new_transition: false,
     caller_selected_path: false,
@@ -61,11 +76,6 @@ const RESPONSE_SCHEMA =
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const RESPONSE_TIMEOUT_MS = 5_000;
-const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
-const MAX_HIGH_WATER_BYTES = 4096;
-const LEDGER_NAME = "allocation-reservations-v1.jsonl";
-const HIGH_WATER_NAME = "allocation-reservation-high-water-v1.json";
-const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 
 const ENVELOPE_KEYS = Object.freeze([
   "schema",
@@ -173,6 +183,14 @@ function absolutePath(value, code) {
   return resolved;
 }
 
+function pathsOverlap(left, right) {
+  return (
+    left === right ||
+    left.startsWith(right + path.sep) ||
+    right.startsWith(left + path.sep)
+  );
+}
+
 function boundedInteger(value, minimum, maximum, code) {
   const parsed = Number(value);
   if (
@@ -214,64 +232,6 @@ function assertDirectDirectory(
   }
   if ((stat.mode & 0o777) !== expectedMode) fail(code);
   if (expectedGid !== null && stat.gid !== expectedGid) fail(code);
-}
-
-function readBoundedFile(root, name, maximum, allowEmpty, code) {
-  assertDirectDirectory(root, code + "_root");
-  const file = path.join(root, name);
-  const beforePath = fs.lstatSync(file, { bigint: true });
-  if (
-    !beforePath.isFile() ||
-    beforePath.isSymbolicLink() ||
-    beforePath.nlink !== 1n ||
-    beforePath.size < (allowEmpty ? 0n : 1n) ||
-    beforePath.size > BigInt(maximum) ||
-    (
-      typeof process.getuid === "function" &&
-      beforePath.uid !== BigInt(process.getuid())
-    ) ||
-    (Number(beforePath.mode) & 0o077) !== 0
-  ) {
-    fail(code);
-  }
-  const fd = fs.openSync(file, fs.constants.O_RDONLY | O_NOFOLLOW);
-  try {
-    const before = fs.fstatSync(fd, { bigint: true });
-    if (
-      !before.isFile() ||
-      before.nlink !== 1n ||
-      before.dev !== beforePath.dev ||
-      before.ino !== beforePath.ino ||
-      before.size !== beforePath.size
-    ) {
-      fail(code);
-    }
-    const size = Number(before.size);
-    const bytes = Buffer.alloc(size);
-    let offset = 0;
-    while (offset < size) {
-      const count = fs.readSync(fd, bytes, offset, size - offset, offset);
-      if (count <= 0) fail(code + "_short_read");
-      offset += count;
-    }
-    const after = fs.fstatSync(fd, { bigint: true });
-    const afterPath = fs.lstatSync(file, { bigint: true });
-    if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs ||
-      before.ctimeNs !== after.ctimeNs ||
-      after.dev !== afterPath.dev ||
-      after.ino !== afterPath.ino ||
-      after.size !== afterPath.size
-    ) {
-      fail(code + "_changed_during_read");
-    }
-    return bytes;
-  } finally {
-    fs.closeSync(fd);
-  }
 }
 
 function held(reason) {
@@ -319,6 +279,7 @@ function normalizeOptions(raw) {
     raw,
     [
       "socket_path",
+      "request_root",
       "ledger_root",
       "custody_root",
       "socket_group_gid",
@@ -329,6 +290,10 @@ function normalizeOptions(raw) {
     value.socket_path,
     "allocation_custody_service_socket_path_invalid",
   );
+  const requestRoot = absolutePath(
+    value.request_root,
+    "allocation_custody_service_request_root_invalid",
+  );
   const ledgerRoot = absolutePath(
     value.ledger_root,
     "allocation_custody_service_ledger_root_invalid",
@@ -337,15 +302,20 @@ function normalizeOptions(raw) {
     value.custody_root,
     "allocation_custody_service_custody_root_invalid",
   );
+  const socketParent = path.dirname(socketPath);
   if (
-    ledgerRoot === custodyRoot ||
-    path.dirname(socketPath) === ledgerRoot ||
-    path.dirname(socketPath) === custodyRoot
+    pathsOverlap(requestRoot, ledgerRoot) ||
+    pathsOverlap(requestRoot, custodyRoot) ||
+    pathsOverlap(ledgerRoot, custodyRoot) ||
+    pathsOverlap(socketParent, requestRoot) ||
+    pathsOverlap(socketParent, ledgerRoot) ||
+    pathsOverlap(socketParent, custodyRoot)
   ) {
     fail("allocation_custody_service_paths_not_separated");
   }
   return Object.freeze({
     socket_path: socketPath,
+    request_root: requestRoot,
     ledger_root: ledgerRoot,
     custody_root: custodyRoot,
     socket_group_gid: boundedInteger(
@@ -358,20 +328,26 @@ function normalizeOptions(raw) {
 }
 
 function readAuthorityState(options) {
-  const ledger = readBoundedFile(
-    options.ledger_root,
-    LEDGER_NAME,
-    MAX_LEDGER_BYTES,
-    true,
-    "allocation_custody_service_ledger_invalid",
-  );
-  const highWater = readBoundedFile(
-    options.custody_root,
-    HIGH_WATER_NAME,
-    MAX_HIGH_WATER_BYTES,
-    false,
-    "allocation_custody_service_high_water_invalid",
-  );
+  // Reuse the existing paired descriptor observer rather than reopening
+  // independent paths. These are server options, never request fields.
+  // A stable read window is NOT a cross-root atomic snapshot or write lease.
+  const observed = observeBuyVoidCustodyAllocationRootsReadOnlyV1({
+    ledger_root: options.ledger_root,
+    high_water_root: options.custody_root,
+  });
+  if (
+    observed?.observed !== true ||
+    observed.status !== "observed" ||
+    observed.operation_performed !== false ||
+    observed.filesystem_write !== false ||
+    observed.cross_root_atomic_snapshot_proven !== false ||
+    !Buffer.isBuffer(observed.allocation_jsonl) ||
+    !Buffer.isBuffer(observed.allocation_high_water_bytes)
+  ) {
+    fail("allocation_custody_service_observation_unqualified");
+  }
+  const ledger = observed.allocation_jsonl;
+  const highWater = observed.allocation_high_water_bytes;
   const ledgerDecision =
     classifyBuyVoidAllocationReservationLedgerV1(ledger);
   if (ledgerDecision.ok !== true) {
@@ -452,21 +428,83 @@ function responseEnvelope(requestSha256, decision) {
   });
 }
 
+function readVerifiedPaymentAuthority(options, request, allocationState) {
+  const observed = observeBuyVoidCustodyPaymentLedgersReadOnlyV1({
+    request_dir: options.request_root,
+  });
+  if (
+    observed?.observed !== true ||
+    observed.cross_file_read_window_unchanged_proven !== true ||
+    observed.filesystem_write !== false ||
+    !Buffer.isBuffer(observed.requests_jsonl) ||
+    !Buffer.isBuffer(observed.operator_events_jsonl)
+  ) {
+    fail("allocation_custody_service_payment_history_observation_unqualified");
+  }
+
+  const replay = classifyBuyVoidVerifiedAllocationReplayBindingV1({
+    request_id: request.request_id,
+    requests_jsonl: observed.requests_jsonl,
+    operator_events_jsonl: observed.operator_events_jsonl,
+    allocation_jsonl: allocationState.ledger,
+  });
+  const missing =
+    replay?.status === "verified_allocation_missing" &&
+    replay.reason === "verified_allocation_requires_protected_recovery";
+  const present =
+    replay?.ok === true &&
+    replay.status === "allocation_present" &&
+    replay.reason === null;
+  if (
+    (!missing && !present) ||
+    replay.request_id !== request.request_id ||
+    typeof replay.canonical_payment_identity !== "string" ||
+    !/^sha256:[0-9a-f]{64}$/u.test(
+      String(replay.payment_verified_event_sha256 || ""),
+    )
+  ) {
+    fail("allocation_custody_service_verified_payment_provenance_invalid");
+  }
+  if (
+    request.payment_verified_event_sha256 !==
+    replay.payment_verified_event_sha256
+  ) {
+    fail("allocation_custody_service_caller_payment_event_digest_mismatch");
+  }
+
+  return Object.freeze({
+    request_id: replay.request_id,
+    canonical_payment_identity: replay.canonical_payment_identity,
+    payment_verified_event_sha256: replay.payment_verified_event_sha256,
+    allocation_present: present,
+    descriptor_bound_payment_history_read: true,
+    payment_capacity_lock_verified: false,
+  });
+}
+
 function recoverCore() {
-  // A syntactically valid publication intent does not establish that the
-  // underlying payment_verified event was independently verified and fsynced.
-  // Older intents may originate from caller-asserted green flags.
-  // Block even explicit IPC recovery until that durable lineage is proven.
+  // Recovery has no request_id selector in the frozen V1 wire contract.
+  // A syntactically valid publication intent therefore still cannot establish
+  // which durable payment_verified obligation authorized it. Keep recovery
+  // fail-closed until the shared serialized recovery protocol is explicit.
   return held("allocation_custody_service_verified_payment_recovery_not_bound");
 }
 
-function reserveCore() {
-  // The socket request contains caller-asserted payment/duplicate/capacity
-  // booleans and digest-shaped strings, not independently verified authority.
-  // Until the custody service can descriptor-bind a durable payment_verified
-  // event inside the shared admission serialization boundary, no client may
-  // cause an allocation write through this IPC method.
-  return held("allocation_custody_service_verified_payment_provenance_not_bound");
+function reserveCore(options, request) {
+  // The caller supplies an identifier and a claimed event digest, but neither
+  // is payment authority. Independently observe the server-configured durable
+  // request/operator histories, bind them through the canonical replay
+  // classifier to the protected allocation state, and require the claimed
+  // digest to identify that exact durable payment event.
+  const allocationState = readAuthorityState(options);
+  readVerifiedPaymentAuthority(options, request, allocationState);
+
+  // This closes only the durable provenance-read seam. The existing global
+  // payment-capacity bakery queue is private to the web UID and exposes no
+  // cross-UID verifiable lease. Until custody and the payment writer share one
+  // independently verifiable serialization domain, no allocation mutation is
+  // authorized here.
+  return held("allocation_custody_service_payment_capacity_lock_not_bound");
 }
 
 export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
@@ -494,7 +532,7 @@ export async function handleVoidBuyAllocationCustodyServiceEnvelopeV1(
   try {
     let decision;
     if (envelope.method === "reserve") {
-      decision = reserveCore();
+      decision = reserveCore(options, envelope.request);
     } else if (envelope.method === "recover") {
       decision = recoverCore();
     } else {
@@ -736,6 +774,7 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
     started = true;
     return Object.freeze({
       socket_path: options.socket_path,
+      request_root: options.request_root,
       ledger_root: options.ledger_root,
       custody_root: options.custody_root,
       runtime_integration: false,
@@ -815,6 +854,9 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_CONTRACT_V1 =
     version: 1,
     exact_request_schema: true,
     exact_response_schema: true,
+    server_controlled_request_root: true,
+    descriptor_bound_payment_provenance: true,
+    payment_capacity_lock_verified: false,
     max_request_bytes: MAX_REQUEST_BYTES,
     max_response_bytes: MAX_RESPONSE_BYTES,
     response_timeout_ms: RESPONSE_TIMEOUT_MS,

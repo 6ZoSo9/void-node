@@ -52,6 +52,8 @@ const moduleRequired = [
   "idempotent: true",
   "idempotent: false",
   "const persisted = await persistRequest(",
+  "buy_void_request_tx_hash_persist_unconfirmed",
+  "const afterRequests = await readRequests();",
   "withBuyVoidFilesystemBakeryLockAsyncV1",
   "txHashBindingLockPath",
 ];
@@ -167,6 +169,7 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
   async function run(
     authority: boolean | "throw",
     persistenceLeaseConflict = false,
+    persistenceMode: "write" | "reuse" | "silent" | "mismatch" = "write",
   ): Promise<{
     status: number;
     body: any;
@@ -175,6 +178,7 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
   }> {
     const routes = new Map<string, Function>();
     const persisted: any[] = [];
+    let current = structuredClone(baseRequest);
     let authorityCalls = 0;
     const app = {
       get(pathname: string, handler: Function) {
@@ -189,15 +193,28 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
       app,
       localOnly: () => true,
       mutationIntent: () => true,
-      readRequests: async () => [structuredClone(baseRequest)],
+      readRequests: async () => [structuredClone(current)],
       persistRequest: async (request) => {
         if (persistenceLeaseConflict) {
           throw new Error(
             "request_launch_authority_expired_or_superseded",
           );
         }
+        if (persistenceMode === "reuse") {
+          // New public-create helper: idempotent response, no append.
+          return { dir: "/synthetic", file: null, reused_request: current };
+        }
+        if (persistenceMode === "silent") {
+          // Legacy-looking truthy response with no actual state change.
+          return { ok: true };
+        }
         persisted.push(structuredClone(request));
-        return { ok: true };
+        current = structuredClone(request);
+        if (persistenceMode === "mismatch") {
+          current.tx_hash = "0x" + "f".repeat(64);
+        }
+        return { dir: "/synthetic", file: "/synthetic/request.json",
+          reused_request: null };
       },
       requestLaunchAuthorityReady: () => {
         authorityCalls += 1;
@@ -263,6 +280,22 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
   );
   assert.equal(lostDuringPersist.persisted.length, 0);
   assert.equal(lostDuringPersist.authority_calls, 1);
+
+  // A reused destination is NOT confirmation that the tx hash was appended.
+  for (const mode of ["reuse", "silent", "mismatch"] as const) {
+    const notPersisted = await run(true, false, mode);
+    assert.equal(notPersisted.status, 503, mode);
+    assert.equal(notPersisted.body?.ok, false, mode);
+    assert.equal(
+      notPersisted.body?.error,
+      "buy_void_request_tx_hash_persist_unconfirmed",
+      mode,
+    );
+    assert.equal(notPersisted.authority_calls, 1, mode);
+    if (mode !== "mismatch") {
+      assert.equal(notPersisted.persisted.length, 0, mode);
+    }
+  }
 
   const allowed = await run(true);
   assert.equal(allowed.status, 200);
@@ -399,3 +432,5 @@ await exerciseDuplicateHashConcurrencyGuard();
 console.log("launch_authority_runtime_guard_exercised=true");
 console.log("duplicate_tx_hash_concurrency_serialized=true");
 console.log("persistence_time_launch_authority_conflict_409=true");
+console.log("unpersisted_tx_hash_binding_response_held=true");
+console.log("post_persist_tx_hash_state_reobserved=true");

@@ -27,9 +27,9 @@ The pure classifier requires canonical UTF-8 JSONL with complete LF-terminated,
 final row, and bounded size/row count. It validates request snapshot shape and immutable field transitions across the
 shared history, then qualifies each payment obligation against its original
 request. The initial request snapshot for any **target or verified/allocation
-obligation** must bind a canonical USDC contract and closed coupled launch
-tuple, rejecting missing original authority **even if the allocation ledger
-is empty**. An unrelated *unverified* legacy request lacking those fields
+obligation** must bind a canonical USDC contract, a nonempty original buyer
+delivery wallet, and a closed coupled launch tuple, rejecting missing original
+authority **even if the allocation ledger is empty**. An unrelated *unverified* legacy request lacking those fields
 may coexist without blocking a fully qualified newer request. Such a legacy
 request remains permanently unqualified and cannot be upgraded by a later
 self-reported request snapshot. Malformed populated authority still HOLDs. Later full request snapshots may only add
@@ -95,6 +95,39 @@ Exact launch-authority **shape** is bound to supplied request bytes, but the
 classifier cannot independently verify that the original generation receipt
 was actually accepted, or that a later request update preceded a verified
 payment; either claim requires separately trusted event/launch chronology.
+
+## First-original buyer delivery wallet is permanent payment evidence
+
+The first accepted request row for an obligation must already name a
+**syntactically valid, nonempty buyer delivery wallet**. Later request rows may
+legitimately fill initially absent transaction hashes, receive addresses and
+USDC amount details when otherwise canonical, but **cannot manufacture or
+replace the original buyer's delivery address**. If a first row omits that
+wallet (property absent, `null`, or `""`), subsequent request snapshots
+that provide an address remain `request_initial_delivery_address_missing`
+HOLD for that request, regardless of whether the later `payment_verified`
+event and existing allocation row claim matching addresses.
+
+This original-wallet qualifier is frozen separately from the latest delivery
+address value and is checked for the requested target, **every** verified
+payment/event in the shared ledger, and the preappend paid-event admission
+classifier. An unrelated, unverified legacy request lacking an initial wallet
+does not globally block an independently qualified paid request. A valid
+original buyer wallet still cannot change in later snapshots; such drift
+continues to HOLD. Existing permissive late transaction-hash and receive-address
+binding is deliberately preserved.
+
+A later wallet assignment could become authoritative only through a **distinct,
+independently authenticated, create-once buyer destination ceremony** preceding
+payment, with durable first-original chronology. No such ceremony is granted
+or inferred from these caller-supplied JSONL snapshots. The pure replay
+classifier neither proves filesystem custody nor an actual customer payment,
+and it does not write allocation or enable the sale.
+
+The synthetic regression exercises all three absent-original forms, matching
+later backfills with and without allocation bytes, preappend admission denial,
+per-request legacy scoping, a forged changed-wallet payment event, and positive
+late transaction/receive binding. It touches no actual buyer records.
 
 ## What this proves *and does not prove*
 

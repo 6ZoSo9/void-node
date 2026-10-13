@@ -239,9 +239,8 @@ const KEY_PATH = path.resolve(
 
 console.log("[void-node] config", { DATA_DIR, HTTP_PORT, P2P_PORT, KEY_PATH });
 
-/* Optional legacy helper (safe to keep for scripts/tests) */
-const __apiSegStore =
-new SegStore(DATA_DIR, { segmentMaxBytes: 8 * 1024 * 1024, sparseEvery: 16 } as any);
+/* Bind legacy helper after Node's inherited-seal admission. */
+let __apiSegStore: SegStore | null = null;
 
 /* ------------------------- Top-level main -------------------------- */
 async function __main__() {
@@ -327,6 +326,19 @@ async function __main__() {
     }
   });
 
+  /* ---------- boot node ---------- */
+  const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
+  const udpSwarmRuntimeConfig =
+    readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env);
+  const node = new Node(P2P_PORT, kp, {
+    allowEmptyBlocks: ALLOW_EMPTY_BLOCKS,
+    relayServer: udpSwarmRuntimeConfig.relay_server_enabled,
+    udpSwarmRelayEndpoint:
+      udpSwarmRuntimeConfig.relay_public_endpoint ?? undefined,
+    udpSwarmAllowNonPublicEndpoint:
+      udpSwarmRuntimeConfig.allow_nonpublic_endpoints,
+  });
+  __apiSegStore = node.store;
   if (process.env.VOID_SKIP_AUTOREPAIR === "1") {
     storageRepairState = "skipped";
     storageRepairFinishedAt = Date.now();
@@ -354,18 +366,7 @@ async function __main__() {
     }, 1);
   }
 
-  /* ---------- boot node ---------- */
-  const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
-  const udpSwarmRuntimeConfig =
-    readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env);
-  const node = new Node(P2P_PORT, kp, {
-    allowEmptyBlocks: ALLOW_EMPTY_BLOCKS,
-    relayServer: udpSwarmRuntimeConfig.relay_server_enabled,
-    udpSwarmRelayEndpoint:
-      udpSwarmRuntimeConfig.relay_public_endpoint ?? undefined,
-    udpSwarmAllowNonPublicEndpoint:
-      udpSwarmRuntimeConfig.allow_nonpublic_endpoints,
-  });
+
 // [ADD] expose live node globally for shims/bridges
 ;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
 console.log("[shim] published global node (post-construct)");

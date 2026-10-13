@@ -14,10 +14,10 @@ import {
 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE_HEAD = "3533626d7167c98ba8d65d2c423b460b1a3199fc";
+const SOURCE_HEAD = "22a30e3ffad6047a472488104c769140bd050878";
 const SOURCE_PREFLIGHT_GIT_BLOB = "b61615c8b928a95c33100878ca70aa147abad103";
-const SOURCE_V6_GIT_BLOB = "e7ac4c296930587e7b7ec415e57bb18190c88962";
-const SOURCE_V2_GIT_BLOB = "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
+const SOURCE_V6_GIT_BLOB = "d371b1b08d2afc383d5e4ad831464752843791a3";
+const SOURCE_V2_GIT_BLOB = "550ede02fc0b7d6874c324af58b5ef9c5591b311";
 const OLD_ENFORCEMENT_V1_MANIFEST_BLOB = "b9d8a57f8a67f2e9180b15a608c178bc95bf84b5";
 const OLD_ENFORCEMENT_V4_MANIFEST_BLOB = "d9e391bb058132b83a4eeaec00797e41dab9fa26";
 const OLD_ENFORCEMENT_V4_SET_SHA = "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b";
@@ -36,7 +36,7 @@ const INPUTS = Object.freeze([
 ]);
 const EXTERNALS = new Set([
   "express","ethers","node:crypto","node:fs","node:path","node:http",
-  "node:https","node:perf_hooks","node:url",
+  "node:https","node:perf_hooks","node:url","node:util",
 ]);
 const MAX_BYTES = 16*1024*1024;
 
@@ -239,6 +239,19 @@ function closedArtifacts() {
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
+  // Current reviewed V2 verifier imports built-in util.types.isProxy to
+  // reject adversarial Proxy inputs BEFORE policy semantic evaluation.
+  // This is a precise builtin addition, not an allowance for arbitrary
+  // third-party modules, eval or dynamic loader imports.
+  const verifiedPaymentBuiltin=scan(
+    "dist/economic/buy_void_verified_payment_v2.js",
+    Buffer.from('import { types as utilTypes } from "node:util";\n'),
+  );
+  assert.deepEqual(verifiedPaymentBuiltin.externals, ["node:util"]);
+  assert.throws(() => scan(
+    "dist/economic/buy_void_verified_payment_v2.js",
+    Buffer.from('import { execSync } from "node:child_process";\n'),
+  ), undefined, "unreviewed runtime builtin must still HOLD");
   const reviewedGlobals=scan(ENTRY,Buffer.from(
     'const GLOBAL_DEPENDENCIES="__void_buy_void_delivery_runtime_dependencies_v1";\n'+
     'const value=globalThis[GLOBAL_DEPENDENCIES];\n'+
@@ -288,6 +301,8 @@ function runSelfTest() {
   console.log("reviewed_absolute_git_invocation_integrated=true");
   console.log("VOID_BUY_VOID_ENFORCEMENT_V5_CANDIDATE_SELF_TEST_GREEN");
   console.log("nonliteral_and_external_imports_rejected=true");
+  console.log("reviewed_node_util_builtin_only=true");
+  console.log("unreviewed_node_child_process_builtin_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
   console.log("computed_global_dynamic_loader_aliases_rejected=true");

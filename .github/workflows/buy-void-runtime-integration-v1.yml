@@ -9,12 +9,18 @@ on:
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
+      - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
   pull_request:
     paths:
       - "src/index.ts"
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
+      - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
+      - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
+      - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -25,7 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - id: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -33,7 +40,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts
+      - id: install
+        run: npm ci --ignore-scripts
       - name: Focused Buy VOID TypeScript
         run: |
           ./node_modules/.bin/tsc \
@@ -48,6 +56,10 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             scripts/prove_buy_void_*.ts
+      - name: Build exact current runtime before compiled-byte proofs
+        run: |
+          set -euo pipefail
+          npm run build
       - name: Runtime integration proofs
         run: |
           ./node_modules/.bin/tsx scripts/prove_buy_void_runtime_integration_v1.ts
@@ -74,9 +86,119 @@ jobs:
           echo "VOID_TEST_POSTGRES_SERVER_KEY_PATH=$RUNNER_TEMP/postgres-runtime-proof-key.pem" >> "$GITHUB_ENV"
       - name: Buy VOID proof stack
         run: |
+          set -euo pipefail
           for proof in scripts/prove_buy_void_*.ts
           do
+            echo "VOID_BUY_VOID_PROOF_STACK_BEGIN=$proof"
             case "$proof" in
+              scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)
+                # Frozen E1 inherited-source verifier must reject E2. Do not
+                # re-pin it or silently mark its OLD E1 execution as ready.
+                test "$(git hash-object tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
+                test "$(git hash-object scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
+                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2" && \
+                   node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-current.log" 2>&1; then
+                  grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-current.log"
+                  grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-current.log"
+                  grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/epoch2-source-current.log"
+                  grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/epoch2-source-current.log"
+                  set +e
+                  ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                  historical_status=$?
+                  set -e
+                  test "$historical_status" -ne 0
+                  grep -F 'head_inherited_source_blob_mismatch:src/economic/buy_void_payment_keyed_full_runtime_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                  echo 'HISTORICAL_E1_CLAIM_REFUSED_E2_SOURCE_AND_E2_QUALIFIED_SOURCE_ONLY=true'
+                  continue
+                fi
+                ;;
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V1_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'exact reviewed dispatcher source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V2_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)
+                # Frozen V2 is historical: its first fixed dependency is the
+                # prior central writer generation. The current under-lock
+                # terminal writer must cause exact first-dependency HOLD.
+                # Never repin or execute V2 as a current positive proof.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'reviewed source changed:src/economic/buy_void_verified_payment_capacity_admission_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'f591f7407d9afc2cf77e0f90923aa11b4817fd4e' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'd2410a871c0318502654acd2428b2a4366d27185' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DUAL_RAIL_V2_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v2.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                # This frozen proof checks its old replay source before the
+                # later central writer pin; select the earliest exact HOLD.
+                grep -Fq 'reviewed handoff source blob mismatch:src/economic/buy_void_verified_allocation_replay_binding_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '435ed6000caad046f48fb318fbc7c865393f3b6c' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'b451bcd895986dadaf6e53954671062068316ccf' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_HANDOFF_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)
+                # This exact proof and Nimo V3 bundle are frozen historical generations.
+                # Current source is qualified by crash V6, joint custody, package
+                # preservation and the dedicated Nimo admission workflows. Do not
+                # execute or silently repin the historical proof against successor bytes.
+                test "$(git hash-object -- "$proof")" = "4ef9379ff3130795533a7d2d59b5f737eafa0a00"
+                test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "8d84955e1e093a5c5af63241e62b8722fadd2f29"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
+                echo "VOID_HISTORICAL_WITNESS_BUNDLE_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)
+                # Frozen V3 Nimo runtime-bundle candidate was built from source main
+                # 851513f... and must not be rederived against the final first-original generation.
+                test "$(git hash-object -- "$proof")" = "0d8778b937f564eee5eabfcdb554c6ea8ffde0c8"
+                test "$(git hash-object src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts)" = "453550bcab9c5caf192c6d9d813bce9ce4433b0a"
+                test "$(git hash-object scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs)" = "56e581b15e133f751070df1d5cf432ae4568cce8"
+                test "$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)" = "8d84955e1e093a5c5af63241e62b8722fadd2f29"
+                test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = "b451bcd895986dadaf6e53954671062068316ccf"
+                echo "VOID_HISTORICAL_WITNESS_BUNDLE_V3_PROOF_PRESERVED_CURRENT_FIRST_ORIGINAL_GENERATION=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5.ts|scripts/prove_buy_void_source_finality_generation_provenance_v5_deadline.ts|scripts/prove_buy_void_allocation_custody_qualification_v1.ts)
                 # Historical source/custody generations remain covered by
                 # dedicated preservation workflows. Current source-finality is
@@ -85,6 +207,7 @@ jobs:
                 ;;
             esac
             ./node_modules/.bin/tsx "$proof"
+            echo "VOID_BUY_VOID_PROOF_STACK_GREEN=$proof"
           done
       - name: Remove disposable PostgreSQL factory credentials
         if: always()
@@ -95,5 +218,11 @@ jobs:
             sudo rm -rf -- "$VOID_TEST_POSTGRES_CREDENTIALS_DIRECTORY"
           fi
           rm -f "$RUNNER_TEMP/postgres-runtime-proof-key.pem"
-      - run: npm run build
-      - run: git diff --check
+      # Preserve independent diagnostics without masking an earlier proof failure.
+      # Do not start these steps after cancellation or failed prerequisites.
+      - name: Build after proof failures
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - name: Diff hygiene after proof failures
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        run: git diff --check

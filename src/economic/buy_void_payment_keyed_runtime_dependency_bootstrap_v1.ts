@@ -1,3 +1,17 @@
+import {
+  buyVoidCurrentPresaleApplyTargetV1,
+  buyVoidPresaleAccessListExactV1,
+  buyVoidPresaleFeeEnvelopeValidV1,
+  buyVoidPresaleFulfillerMatchesV1,
+  buyVoidPresaleProductionRpcMatchesV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
+import {
+  buyVoidEpoch2CredentialSourceBindingMatchesV1,
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+} from "./buy_void_epoch2_credential_source_binding_v1.js";
+import {
+  isBuyVoidEpoch2PresaleTargetV1,
+} from "./buy_void_epoch2_fulfillment_access_list_v1.js";
 import crypto from "node:crypto";
 import path from "node:path";
 import {
@@ -13,8 +27,11 @@ import {
 } from "./buy_void_delivery_submission_guard_v1.js";
 import {
   createBuyVoidNativeFulfillmentWalletCredentialSignerV1,
+  createBuyVoidEpoch2FulfillerCredentialSignerV1,
   VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1,
   VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1,
+  VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1,
+  VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1,
 } from "./buy_void_native_fulfillment_wallet_credential_signer_v1.js";
 import {
   createBuyVoidPaymentKeyedChain2050BroadcasterV1,
@@ -38,8 +55,9 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_AUTHORITY_
   source_only_contract: true,
   canonical_chain_id: "2050",
   canonical_payment_keyed_fulfillment_only: true,
-  existing_fixed_systemd_credential_reused: true,
-  existing_credential_binding_evidence_reused: true,
+  historical_epoch1_credential_preserved: true,
+  epoch2_distinct_credential_required: true,
+  epoch2_source_id_not_installed_credential_evidence: true,
   durable_submission_guard_reused: true,
   payment_keyed_chain2050_broadcaster_reused: true,
   composition_time_credential_read: false,
@@ -65,6 +83,9 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_AUTHORITY_
 export type BuyVoidPaymentKeyedRuntimeDependencyBootstrapPolicyV1 = {
   enabled: boolean;
   credential_binding_evidence_id: string;
+  // Source selector is separate from the retired E1 wallet evidence.
+  // Matching this public ID does not attest installed E2 credential custody.
+  epoch2_credential_source_binding_id?: string;
   credentials_directory: string;
   fulfillment_wallet_address: string;
   fulfillment_contract_address: string;
@@ -90,11 +111,15 @@ export type BuyVoidPaymentKeyedRuntimeDependencyBootstrapDecisionV1 =
       version: 1;
       chain_id: "2050";
       credential_id:
-        typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1;
+        | typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1
+        | typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1;
       credential_signer_marker:
-        typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1;
+        | typeof VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1
+        | typeof VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1;
       credential_binding_evidence_id:
-        typeof VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1;
+        typeof VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1 | null;
+      epoch2_credential_source_binding_id: string | null;
+      epoch2_credential_installed_verified: false;
       submission_guard_marker:
         typeof VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1;
       broadcaster_marker:
@@ -133,6 +158,8 @@ export type BuyVoidPaymentKeyedRuntimeDependencyBootstrapDecisionV1 =
     };
 
 type NormalizedV1 = {
+  epoch2: boolean;
+  epoch2_credential_source_binding_id: string | null;
   credentials_directory: string;
   wallet: string;
   contract: string;
@@ -226,15 +253,6 @@ function normalize(
     );
   }
 
-  if (
-    text(input.credential_binding_evidence_id) !==
-      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1
-  ) {
-    return held(
-      "payment_keyed_runtime_credential_binding_evidence_id_mismatch",
-    );
-  }
-
   const credentials = absoluteNonRoot(input.credentials_directory);
   const guardRoot = absoluteNonRoot(input.submission_guard_root_dir);
   const wallet = address(input.fulfillment_wallet_address);
@@ -251,8 +269,6 @@ function normalize(
     !wallet ||
     !contract ||
     wallet === contract ||
-    !evidenceWallet ||
-    wallet !== evidenceWallet ||
     maxAtoms === null
   ) {
     return held(
@@ -260,7 +276,49 @@ function normalize(
     );
   }
 
+  // The Epoch-2 contract enforces an immutable launch-operator fulfiller;
+  // a historically attested wallet must never be accepted by address rebinding.
+  if (!buyVoidPresaleFulfillerMatchesV1(contract, wallet)) {
+    return held("payment_keyed_runtime_epoch2_fulfiller_mismatch");
+  }
+  if (!buyVoidPresaleProductionRpcMatchesV1(contract, text(input.rpc_url))) {
+    return held("payment_keyed_runtime_epoch2_rpc_not_selected");
+  }
+
+  // The claimed-PostgreSQL dispatcher may call this bootstrap directly,
+  // bypassing the parent runtime's apply guard. Reject the same retired E1
+  // and noncanonical E2 execution targets before creating a submission guard,
+  // constructing a broadcaster or ever opening the signing credential.
+  if (!buyVoidCurrentPresaleApplyTargetV1(
+    contract, text(input.rpc_url), wallet,
+  )) {
+    return held("payment_keyed_runtime_current_epoch2_target_required");
+  }
+
+  const epoch2 = isBuyVoidEpoch2PresaleTargetV1(contract);
+  const legacyEvidenceId = text(input.credential_binding_evidence_id);
+  const epoch2SourceId = text(input.epoch2_credential_source_binding_id);
+  if (epoch2) {
+    if (legacyEvidenceId) {
+      return held("payment_keyed_runtime_epoch2_legacy_credential_evidence_forbidden");
+    }
+    if (!buyVoidEpoch2CredentialSourceBindingMatchesV1(
+      epoch2SourceId, contract, text(input.rpc_url), wallet,
+    )) {
+      return held("payment_keyed_runtime_epoch2_source_binding_mismatch");
+    }
+  } else if (
+    legacyEvidenceId !==
+      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1 ||
+    !evidenceWallet || wallet !== evidenceWallet
+  ) {
+    return held("payment_keyed_runtime_credential_binding_evidence_id_mismatch");
+  }
+
   return {
+    epoch2,
+    epoch2_credential_source_binding_id: epoch2
+      ? VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1 : null,
     credentials_directory: credentials,
     wallet,
     contract,
@@ -289,12 +347,14 @@ function validateUnsignedFulfillment(
     !Number.isSafeInteger(transaction.nonce) ||
     transaction.nonce < 0 ||
     transaction.gasLimit <= 0n ||
-    transaction.maxFeePerGas <= 0n ||
-    transaction.maxPriorityFeePerGas < 0n ||
-    transaction.maxPriorityFeePerGas >
-      transaction.maxFeePerGas ||
+    !buyVoidPresaleFeeEnvelopeValidV1(
+      transaction.maxFeePerGas,
+      transaction.maxPriorityFeePerGas,
+      expectedContract,
+    ) ||
     target !== expectedContract ||
-    transaction.value !== 0n
+    transaction.value !== 0n ||
+    !buyVoidPresaleAccessListExactV1(transaction.accessList, expectedContract)
   ) {
     throw new Error(
       "payment_keyed_runtime_dependency_unsigned_transaction_invalid",
@@ -376,6 +436,7 @@ function validateSignedExact(
     parsed.maxPriorityFeePerGas !==
       unsigned.maxPriorityFeePerGas ||
     parsed.value !== unsigned.value ||
+    !buyVoidPresaleAccessListExactV1(parsed.accessList, expectedContract) ||
     text(parsed.data).toLowerCase() !==
       text(unsigned.data).toLowerCase()
   ) {
@@ -442,12 +503,16 @@ export function createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1(
         normalized.max_atoms,
       );
 
-      const credential =
-        createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
-          credentials_directory:
-            normalized.credentials_directory,
-          expected_wallet_address: normalized.wallet,
-        });
+      // Distinct E2 signer reads only the separate systemd E2 leaf when
+      // an explicit signing action occurs. Source binding is not custody.
+      const credential = normalized.epoch2
+        ? createBuyVoidEpoch2FulfillerCredentialSignerV1({
+            credentials_directory: normalized.credentials_directory,
+          })
+        : createBuyVoidNativeFulfillmentWalletCredentialSignerV1({
+            credentials_directory: normalized.credentials_directory,
+            expected_wallet_address: normalized.wallet,
+          });
       if (credential.ok === false) {
         throw new Error(
           "payment_keyed_runtime_credential_signer_not_ready:" +
@@ -476,12 +541,18 @@ export function createBuyVoidPaymentKeyedRuntimeDependencyBootstrapV1(
       VOID_BUY_VOID_PAYMENT_KEYED_RUNTIME_DEPENDENCY_BOOTSTRAP_V1,
     version: 1,
     chain_id: "2050",
-    credential_id:
-      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1,
-    credential_signer_marker:
-      VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1,
-    credential_binding_evidence_id:
-      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+    credential_id: normalized.epoch2
+      ? VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_ID_V1
+      : VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1,
+    credential_signer_marker: normalized.epoch2
+      ? VOID_BUY_VOID_EPOCH2_FULFILLER_CREDENTIAL_SIGNER_V1
+      : VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_SIGNER_V1,
+    credential_binding_evidence_id: normalized.epoch2
+      ? null
+      : VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+    epoch2_credential_source_binding_id:
+      normalized.epoch2_credential_source_binding_id,
+    epoch2_credential_installed_verified: false,
     submission_guard_marker:
       VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
     broadcaster_marker:

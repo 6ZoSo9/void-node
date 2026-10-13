@@ -31,6 +31,8 @@ const SOURCE_PATH =
 const LEDGER_NAME = "allocation-reservations-v1.jsonl";
 const HIGH_WATER_NAME = "allocation-reservation-high-water-v1.json";
 const INTENT_NAME = "allocation-reservation-publication-intent-v1.json";
+const REQUESTS_NAME = "requests.jsonl";
+const OPERATOR_EVENTS_NAME = "operator-events.jsonl";
 
 const sha = (hex) => "sha256:" + hex.repeat(64);
 const sha256Id = (bytes) =>
@@ -67,11 +69,15 @@ const trueAuthority = new Set([
   "source_only_service",
   "unix_socket_only",
   "server_controlled_socket_path",
+  "server_controlled_request_root",
   "server_controlled_ledger_root",
   "server_controlled_custody_root",
   "exact_request_schema_required",
   "exact_response_schema_required",
   "canonical_high_water_binding_reused",
+  "canonical_verified_payment_replay_classifier_reused",
+  "descriptor_bound_payment_history_read",
+  "verified_payment_provenance_descriptor_bound",
 ]);
 for (const [key, value] of Object.entries(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1,
@@ -110,6 +116,64 @@ const baseCandidate = Object.freeze({
   inventory_allocation_guard_green: true,
   operator_activation_record_green: true,
 });
+
+function installVerifiedPaymentHistory(f) {
+  const nativeUsdc =
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+  const receiveAddress = "0x" + "2".repeat(40);
+  const request = Object.freeze({
+    request_id: baseCandidate.request_id,
+    source_chain: baseCandidate.source_chain,
+    tx_hash: baseCandidate.payment_transaction_hash,
+    quoted_void: baseCandidate.quote_void_amount,
+    usdc_amount: baseCandidate.quote_usdc_amount,
+    delivery_address: baseCandidate.buyer_delivery_wallet,
+    receive_address: receiveAddress,
+    usdc_contract: nativeUsdc,
+    launch_authority: baseCandidate.launch_authority,
+  });
+  const event = Object.freeze({
+    schema: "void_buy_void_verified_payment_event_v2",
+    marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
+    request_id: request.request_id,
+    operator_status: "payment_verified",
+    payment_verified: true,
+    payment_identity_input_complete: true,
+    marked_at_ms: baseCandidate.created_at_ms - 1,
+    tx_hash: request.tx_hash,
+    quoted_void: request.quoted_void,
+    payment_verifier: Object.freeze({
+      chain: "base",
+      transaction_hash: request.tx_hash,
+      log_index: "7",
+      block_number: "100",
+      confirmations: "12",
+      usdc_contract: nativeUsdc,
+      from_address: request.delivery_address,
+      receive_address: request.receive_address,
+      delivery_address: request.delivery_address,
+      amount_units: "3000000",
+      requested_units: "3000000",
+    }),
+  });
+  const requestLine = JSON.stringify(request) + "\n";
+  const eventLine = JSON.stringify(event) + "\n";
+  fs.writeFileSync(
+    path.join(f.requestRoot, REQUESTS_NAME),
+    requestLine,
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    path.join(f.requestRoot, OPERATOR_EVENTS_NAME),
+    eventLine,
+    { mode: 0o600 },
+  );
+  return Object.freeze({
+    ...baseCandidate,
+    payment_verified_event_sha256:
+      sha256Id(Buffer.from(eventLine, "utf8")),
+  });
+}
 
 function canonicalWireJson(value) {
   if (value === null) return "null";
@@ -237,12 +301,24 @@ function fixture() {
     path.join(os.tmpdir(), "void-allocation-custody-service-v1-"),
   );
   fs.chmodSync(root, 0o700);
+  const requestRoot = path.join(root, "requests");
   const ledgerRoot = path.join(root, "ledger");
   const custodyRoot = path.join(root, "custody");
   const socketParent = path.join(root, "run");
+  fs.mkdirSync(requestRoot, { mode: 0o700 });
   fs.mkdirSync(ledgerRoot, { mode: 0o700 });
   fs.mkdirSync(custodyRoot, { mode: 0o700 });
   fs.mkdirSync(socketParent, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(requestRoot, REQUESTS_NAME),
+    "{}\n",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    path.join(requestRoot, OPERATOR_EVENTS_NAME),
+    "{}\n",
+    { mode: 0o600 },
+  );
   fs.writeFileSync(path.join(ledgerRoot, LEDGER_NAME), "", { mode: 0o600 });
   const genesis = requireOk(
     deriveBuyVoidAllocationReservationHighWaterV1(""),
@@ -254,10 +330,12 @@ function fixture() {
   );
   return {
     root,
+    requestRoot,
     ledgerRoot,
     custodyRoot,
     options: Object.freeze({
       socket_path: path.join(socketParent, "custody.sock"),
+      request_root: requestRoot,
       ledger_root: ledgerRoot,
       custody_root: custodyRoot,
       socket_group_gid: 12345,
@@ -305,7 +383,7 @@ async function decision(f, method, request) {
     const forged = await decision(f, "reserve", { ...baseCandidate });
     assert.equal(forged.ok, false);
     assert.equal(forged.reason,
-      "allocation_custody_service_verified_payment_provenance_not_bound");
+      "allocation_custody_service_verified_payment_provenance_invalid");
     assert.equal(forged.operation_performed, false);
     assert.equal(forged.record_id, null);
     assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
@@ -317,6 +395,39 @@ async function decision(f, method, request) {
     assert.equal(retry.ok, false);
     assert.equal(retry.reason, forged.reason);
     assert.equal(retry.operation_performed, false);
+
+    const verifiedCandidate = installVerifiedPaymentHistory(f);
+    const verified = await decision(
+      f,
+      "reserve",
+      { ...verifiedCandidate },
+    );
+    assert.equal(verified.ok, false);
+    assert.equal(
+      verified.reason,
+      "allocation_custody_service_payment_capacity_lock_not_bound",
+    );
+    assert.equal(verified.operation_performed, false);
+    assert.equal(verified.record_id, null);
+    assert.equal(
+      fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
+      "",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.custodyRoot, HIGH_WATER_NAME), "utf8"),
+      f.genesisHighWater,
+    );
+    const digestMismatch = await decision(f, "reserve", {
+      ...verifiedCandidate,
+      payment_verified_event_sha256: sha("9"),
+    });
+    assert.equal(digestMismatch.ok, false);
+    assert.equal(
+      digestMismatch.reason,
+      "allocation_custody_service_caller_payment_event_digest_mismatch",
+    );
+    assert.equal(digestMismatch.operation_performed, false);
+
     const clean = await decision(f, "recover", {});
     assert.equal(clean.ok, false);
     assert.equal(clean.reason,
@@ -359,7 +470,7 @@ async function decision(f, method, request) {
     const forged = await decision(f, "reserve", { ...baseCandidate });
     assert.equal(forged.ok, false);
     assert.equal(forged.reason,
-      "allocation_custody_service_verified_payment_provenance_not_bound");
+      "allocation_custody_service_verified_payment_provenance_invalid");
     assert.equal(forged.operation_performed, false);
     assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), true);
     assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), true);
@@ -480,7 +591,7 @@ async function decision(f, method, request) {
     const forged = await socketExchange(f.options.socket_path, reserveLine, "", true);
     assert.equal(forged.decision.ok, false);
     assert.equal(forged.decision.reason,
-      "allocation_custody_service_verified_payment_provenance_not_bound");
+      "allocation_custody_service_verified_payment_provenance_invalid");
     assert.equal(forged.decision.operation_performed, false);
     assert.equal(forged.decision.record_id, null);
     assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
@@ -564,7 +675,112 @@ async function decision(f, method, request) {
   }
 }
 
+// Inserted into the EXISTING custody service proof, before its final source checks.
+// Only private, disposable fixtures created by fixture() are inspected here.
+{
+  const f = fixture();
+  const ledgerFile = path.join(f.ledgerRoot, LEDGER_NAME);
+  const highFile = path.join(f.custodyRoot, HIGH_WATER_NAME);
+  let cases = 0;
+  const checkHeld = async () => {
+    const result = await decision(f, "inspect", {});
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "allocation_custody_service_observation_unqualified");
+    assert.equal(result.operation_performed, false);
+    assert.equal(result.funds_movement, false);
+    assert.equal(result.record_count, null);
+    cases++;
+  };
+  try {
+    // Observe the real integrated open calls: no write-capable descriptor.
+    const originalOpen = fs.openSync;
+    let descriptorRelativeOpens = 0;
+    try {
+      fs.openSync = function(target, flags, ...rest) {
+        assert.equal(typeof flags, "number");
+        assert.equal(flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR |
+          fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_APPEND), 0);
+        if (String(target).startsWith("/proc/self/fd/")) descriptorRelativeOpens++;
+        return originalOpen.call(fs, target, flags, ...rest);
+      };
+      const control = requireOk(await decision(f, "inspect", {}));
+      assert.equal(control.record_count, 0);
+      assert.equal(control.operation_performed, false);
+      assert.equal(control.funds_movement, false);
+      cases++;
+    } finally {
+      fs.openSync = originalOpen;
+    }
+    assert.ok(descriptorRelativeOpens >= 2, "canonical descriptor observer not used");
+
+    for (const file of [ledgerFile, highFile]) {
+      for (const mode of [0o400, 0o644]) {
+        fs.chmodSync(file, mode);
+        try { await checkHeld(); }
+        finally { fs.chmodSync(file, 0o600); }
+      }
+      const saved = file + ".saved";
+      fs.renameSync(file, saved);
+      try {
+        await checkHeld();
+        fs.symlinkSync(saved, file);
+        try { await checkHeld(); }
+        finally { fs.unlinkSync(file); }
+        fs.linkSync(saved, file);
+        try { await checkHeld(); }
+        finally { fs.unlinkSync(file); }
+      } finally {
+        fs.renameSync(saved, file);
+      }
+    }
+    fs.chmodSync(f.ledgerRoot, 0o750);
+    try { await checkHeld(); }
+    finally { fs.chmodSync(f.ledgerRoot, 0o700); }
+
+    for (const bytes of [Buffer.alloc(0), Buffer.alloc(4097, 32)]) {
+      fs.writeFileSync(highFile, bytes);
+      try { await checkHeld(); }
+      finally { fs.writeFileSync(highFile, f.genesisHighWater); }
+    }
+    // This sparse fixture must be refused before a full 64 MiB read.
+    fs.truncateSync(ledgerFile, 64 * 1024 * 1024 + 1);
+    try { await checkHeld(); }
+    finally { fs.truncateSync(ledgerFile, 0); }
+
+    const nested = path.join(f.ledgerRoot, "nested-custody");
+    fs.mkdirSync(nested, { mode: 0o700 });
+    const nestedFixture = {
+      ...f, options: { ...f.options, custody_root: nested },
+    };
+    await assert.rejects(
+      () => decision(nestedFixture, "inspect", {}),
+      /allocation_custody_service_paths_not_separated/u,
+    );
+    assert.equal(fs.readFileSync(ledgerFile, "utf8"), "");
+    assert.equal(fs.readFileSync(highFile, "utf8"), f.genesisHighWater);
+    cases++;
+
+    // Imports and inspect do not recover pre-existing publication intentions.
+    const intent = path.join(f.ledgerRoot, INTENT_NAME);
+    fs.writeFileSync(intent, "untrusted-pending-intent\n", { mode: 0o600 });
+    const restored = requireOk(await decision(f, "inspect", {}));
+    assert.equal(restored.status, "inspected");
+    assert.equal(restored.record_count, 0);
+    assert.equal(restored.operation_performed, false);
+    assert.equal(fs.readFileSync(intent, "utf8"), "untrusted-pending-intent\n");
+    assert.equal(fs.readFileSync(ledgerFile, "utf8"), "");
+    assert.equal(fs.readFileSync(highFile, "utf8"), f.genesisHighWater);
+    cases++;
+    assert.equal(cases, 17);
+    console.log("custody_inspection_descriptor_reader_cases=17");
+    console.log("custody_inspection_reserve_recover_authority=false");
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
 const source = sourceBytes.toString("utf8");
+assert.doesNotMatch(source, /request_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /ledger_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /custody_root\s*:\s*envelope/u);
 assert.doesNotMatch(source, /caller_selected_generation\s*:\s*true/u);
@@ -572,7 +788,10 @@ assert.match(source, /service_started_by_import:\s*false/u);
 assert.doesNotMatch(source, /planBuyVoidAllocationReservationV1/u);
 assert.doesNotMatch(source,
   /persistBuyVoidAllocationReservationPublicationWriterV1/u);
-assert.match(source, /allocation_custody_service_verified_payment_provenance_not_bound/u);
+assert.match(source, /observeBuyVoidCustodyPaymentLedgersReadOnlyV1/u);
+assert.match(source, /classifyBuyVoidVerifiedAllocationReplayBindingV1/u);
+assert.match(source, /allocation_custody_service_payment_capacity_lock_not_bound/u);
+assert.match(source, /allocation_custody_service_verified_payment_provenance_invalid/u);
 assert.doesNotMatch(source,
   /recoverBuyVoidAllocationReservationPublicationWriterV1/u);
 assert.match(source,
@@ -581,6 +800,11 @@ assert.match(source,
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1_PROOF_GREEN");
 console.log("exact_service_source_bound=true");
 console.log("server_controlled_roots=true");
+console.log("server_controlled_request_root=true");
+console.log("descriptor_bound_payment_history_read=true");
+console.log("canonical_verified_payment_replay_classifier_reused=true");
+console.log("durable_payment_provenance_reaches_capacity_lock_hold=true");
+console.log("caller_payment_digest_mismatch_held=true");
 console.log("caller_selected_path=false");
 console.log("caller_selected_generation=false");
 console.log("arbitrary_bytes_write=false");

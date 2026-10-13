@@ -2,13 +2,11 @@
 
 ## Review objective
 
-This source-only Draft is requalified onto the composed enforcement lineage:
-[#2669](https://github.com/6ZoSo9/void-node/pull/2669) merged into parent
-[#2667](https://github.com/6ZoSo9/void-node/pull/2667) at exact source commit
-`a5409d50bbff85aab84e6d0eea962589fc1ff3e6`.
-That parent contains the composed V6 runtime/operator-auth source, the reviewed
-saga file staged into a STOPPED candidate Docker image, and the source-only
-saga import-initialization audit. None of those proofs executes the real saga.
+This source-only Draft originated on the composed enforcement lineage from
+[#2669](https://github.com/6ZoSo9/void-node/pull/2669) / [#2667](https://github.com/6ZoSo9/void-node/pull/2667)
+at historical source commit `a5409d50bbff85aab84e6d0eea962589fc1ff3e6`. The current integration
+successor binds the same compiled importer and saga source identities to stabilized
+source parent `eeef850affd912a0d1e019bfac2d681b38ea24ed`. None of these proofs executes the real saga.
 
 Neither prior check establishes what the **real emitted compiled**
 `defaultSagaModule()` function does when it uses:
@@ -26,9 +24,11 @@ factory shape/resolution, never of the actual saga's behavior.
   `acf2f88b513bbe50e192531f9fc8d261b69bd0f1`.
 - Original saga source Git blob: `d6a2d1cd82e5e255f435c1e21d1783774a44b2b1`,
   58,023 bytes. The real saga is ONLY read and hashed, NOT imported.
-- Original positive stopped-image Dockerfile Git blob:
+- Historical positive stopped-image Dockerfile Git blob:
   `15375dfb34bc457ac57865ae07642b5602f9e958`.
-- TypeScript 5.9.3, locked package inputs and exact parent ancestry required.
+- Current deterministic Dockerfile Git blob:
+  `2acd9bcf0416eeb0f9fd72c1a556696863ff1607`.
+- TypeScript 5.9.3, locked package inputs and exact stabilized-parent ancestry required.
 
 The verifier uses the composed lineage's reviewed Linux descriptor-relative
 bounded file reader to inspect only these source/compiler/compiled inputs.

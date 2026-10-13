@@ -471,6 +471,143 @@ try {
     true,
     "bootstrap no-progress rejection waited for cancel settlement",
   );
+
+  let rejectedReadReleaseCount=0;
+  let rejectedReadCancelCount=0;
+  globalThis.fetch=(async ()=>({
+    redirected:false,
+    url:"",
+    status:200,
+    headers:new Headers({"content-type":"application/json"}),
+    body:{
+      getReader(){
+        return {
+          read(){
+            return Promise.reject(
+              new Error("bootstrap synthetic settled read failure"),
+            );
+          },
+          cancel(){
+            rejectedReadCancelCount += 1;
+            return Promise.resolve();
+          },
+          releaseLock(){
+            rejectedReadReleaseCount += 1;
+          },
+        };
+      },
+    },
+  } as unknown as Response)) as typeof fetch;
+  await assert.rejects(
+    fetchVoidPublicP2pBootstrapContentBytesV1({
+      mirror:{
+        transport:"https",
+        base_url:"https://mirror.example/void/bootstrap/v2",
+        failure_domain:"mirror-a",
+      },
+      url:"https://mirror.example/void/bootstrap/v2/records/voidpbr2_"+"e".repeat(64)+".json",
+    }),
+    /synthetic settled read failure/u,
+  );
+  assert.equal(rejectedReadReleaseCount,1);
+  assert.equal(rejectedReadCancelCount,0);
+
+  const OriginalAbortController=globalThis.AbortController;
+  let deadlineController:AbortController|undefined;
+  class CapturingAbortController extends OriginalAbortController {
+    constructor(){
+      super();
+      deadlineController=this;
+    }
+  }
+  Object.defineProperty(globalThis,"AbortController",{
+    configurable:true,
+    writable:true,
+    value:CapturingAbortController,
+  });
+  let deadlineReadStartedResolve:(()=>void)|undefined;
+  const deadlineReadStarted=new Promise<void>((resolve)=>{
+    deadlineReadStartedResolve=resolve;
+  });
+  const deadlineReadPending=new Promise<never>(()=>undefined);
+  let deadlineCancelCalledResolve:(()=>void)|undefined;
+  const deadlineCancelCalled=new Promise<void>((resolve)=>{
+    deadlineCancelCalledResolve=resolve;
+  });
+  let releaseDeadlineCancel:(()=>void)|undefined;
+  const deadlineCancelPending=new Promise<void>((resolve)=>{
+    releaseDeadlineCancel=resolve;
+  });
+  let deadlineReaderReleased=false;
+  globalThis.fetch=(async ()=>({
+    redirected:false,
+    url:"",
+    status:200,
+    headers:new Headers({"content-type":"application/json"}),
+    body:{
+      getReader(){
+        return {
+          read(){
+            deadlineReadStartedResolve?.();
+            return deadlineReadPending;
+          },
+          cancel(){
+            deadlineCancelCalledResolve?.();
+            return deadlineCancelPending;
+          },
+          releaseLock(){
+            deadlineReaderReleased=true;
+          },
+        };
+      },
+    },
+  } as unknown as Response)) as typeof fetch;
+  try {
+    const deadlineOperation=
+      fetchVoidPublicP2pBootstrapContentBytesV1({
+        mirror:{
+          transport:"https",
+          base_url:"https://mirror.example/void/bootstrap/v2",
+          failure_domain:"mirror-a",
+        },
+        url:"https://mirror.example/void/bootstrap/v2/records/voidpbr2_"+"d".repeat(64)+".json",
+      });
+    await deadlineReadStarted;
+    deadlineController?.abort(
+      new Error("bootstrap content response read deadline exceeded"),
+    );
+    let deadlineSettled=false;
+    void deadlineOperation.then(
+      ()=>{deadlineSettled=true;},
+      ()=>{deadlineSettled=true;},
+    );
+    await deadlineCancelCalled;
+    await Promise.resolve();
+    await Promise.resolve();
+    const deadlineSettledBeforeCancelRelease=deadlineSettled;
+    releaseDeadlineCancel?.();
+    await assert.rejects(
+      deadlineOperation,
+      /read deadline exceeded/u,
+    );
+    assert.equal(
+      deadlineSettledBeforeCancelRelease,
+      true,
+      "bootstrap deadline rejection waited for cancel settlement",
+    );
+    assert.equal(
+      deadlineReaderReleased,
+      false,
+      "bootstrap released a reader with an unresolved read generation",
+    );
+  } finally {
+    releaseDeadlineCancel?.();
+    Object.defineProperty(globalThis,"AbortController",{
+      configurable:true,
+      writable:true,
+      value:OriginalAbortController,
+    });
+  }
 } finally {
   globalThis.fetch=originalFetch;
 }
@@ -510,6 +647,9 @@ console.log("caller_selectable_trust_path=false");
 console.log("immutable_mirror_namespace_enforced=true");
 console.log("bounded_fetch=true");
 console.log("zero_progress_bootstrap_stream_rejected=true");
+console.log("settled_bootstrap_read_failure_releases_reader=true");
+console.log("signal_ignoring_bootstrap_read_deadline_owned=true");
+console.log("nonsettling_bootstrap_cancel_does_not_extend_deadline=true");
 console.log("entrypoint_mount_binding_wired=true");
 console.log("rejected_opt_in_cleans_up_runtime_mount_and_node=true");
 console.log("production_key_generated_or_read=false");

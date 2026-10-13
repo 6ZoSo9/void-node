@@ -76,7 +76,7 @@ jobs:
             import fs from "node:fs";
             const x=JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
             assert.equal(x.schema,"void_buy_void_compiled_saga_loader_inert_resolution_v1");
-            assert.equal(x.exact_source_parent,"a5409d50bbff85aab84e6d0eea962589fc1ff3e6");
+            assert.equal(x.exact_source_parent,"eeef850affd912a0d1e019bfac2d681b38ea24ed");
             assert.equal(x.compiled_importer_sha256,"b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1");
             assert.equal(x.reviewed_saga_source_git_blob_sha1,"d6a2d1cd82e5e255f435c1e21d1783774a44b2b1");
             assert.equal(x.extracted_compiled_factory_shape_verified,true);

@@ -647,9 +647,15 @@ tree, repository JS/MJS/CJS helpers, package/lock/build config, workflow, actual
 Node binary, every emitted `dist` file and every installed dependency file/link.
 Untracked compiler inputs reject. All source files must match Git blobs before
 and after compilation; dependencies and the Node binary must remain equal.
-The installed TypeScript version must equal the lockfile's 5.9.3. The proof does
-not infer npm-package publisher identity from a content hash; locked installation
-and workflow/compiler/kernel custody are trust inputs.
+The tracked-source pass reads each bound file once, requires stable regular-file
+metadata, checks its exact Git blob identity, and records its SHA-256. The
+separate `src/` complement walk is metadata-only: it rejects extra files,
+symlinks and hard links without re-reading content already exact-bound to Git.
+This removes a redundant content-hash pass; it does not remove either complete
+pre/post source-identity check. The installed TypeScript version must equal the
+lockfile's 5.9.3. The proof does not infer npm-package publisher identity from a
+content hash; locked installation and workflow/compiler/kernel custody are trust
+inputs.
 
 Input enumeration and reads are bounded: at most 65,536 Git entries, 32,768
 inventory entries, depth 32, 32 MiB per ordinary file, 512 MiB per tree and
@@ -758,7 +764,9 @@ runtime module's private identity map, and revalidate its kernel metadata before
 and after inventory checks. Closed, fabricated and foreign-process capabilities
 reject. Ordinary build admission without a retained session capability still
 hashes the executed executable. The source/build inventories and all later
-admission/session boundary checks remain complete.
+admission/session boundary checks remain complete. The source complement no
+longer performs a semantically unused second content hash over `src/`; the
+64-tick preparation-plus-startup deadline is unchanged.
 
 The byte-first verifier independently reconstructs the complete compiler/helper
 source inventory from committed Git blobs in one bounded batch per source head.

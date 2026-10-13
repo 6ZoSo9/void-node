@@ -401,15 +401,17 @@ const setChip = (node, tone, label) => {
   node.textContent = label;
 };
 
-const setSourceState = (selector, source) => {
+const setSourceState = (selector, source, evidenceAvailable) => {
   const status = (
     typeof source?.status === 'number' &&
     Number.isSafeInteger(source.status) &&
     source.status >= 0 &&
     source.status <= 599
   ) ? source.status : null;
+  // A reachable HTTP 200 source is not necessarily usable Wallet evidence.
+  // Keep its transport status visible without implying semantic availability.
   const label = status === 200
-    ? 'Available'
+    ? evidenceAvailable === true ? 'Available' : 'HTTP 200 · Unusable evidence'
     : status && status > 0
       ? `HTTP ${status}`
       : 'Unavailable';
@@ -531,9 +533,9 @@ export const renderWalletV1 = (
       ? `${balances.production_wc.entries} entries · non-spendable canary`
       : 'Production balance unavailable'
   );
-  setSourceState('[data-wallet-source-status]', sources.wallet_status);
-  setSourceState('[data-wallet-source-ledger]', sources.ledger_wc);
-  setSourceState('[data-wallet-source-production]', sources.production_wc);
+  setSourceState('[data-wallet-source-status]', sources.wallet_status, wallet.source_available);
+  setSourceState('[data-wallet-source-ledger]', sources.ledger_wc, balances.ledger_wc.available);
+  setSourceState('[data-wallet-source-production]', sources.production_wc, balances.production_wc.available);
 };
 
 const invalidateWalletRequest = (reason) => {

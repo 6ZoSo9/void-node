@@ -1,0 +1,122 @@
+name: VOID Buy VOID custody launch high-water writer v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_custody_launch_authority_v2.mjs"
+      - "src/economic/buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs"
+      - "docs/architecture/buy-void-custody-launch-high-water-writer-v1.md"
+      - ".github/workflows/buy-void-custody-launch-high-water-writer-v1.yml"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-custody-launch-high-water-writer-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Use pinned Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove custody launch high-water writer
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_launch_high_water_writer_v1.mjs \
+            | tee "custody-launch-high-water-writer-node-${{ matrix.node }}.txt"
+          for marker in \
+            'VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_V1_GREEN' \
+            'current_idempotent=true' \
+            'advance_persisted=true' \
+            'advance_replay_idempotent=true' \
+            'bootstrap_write_performed=false' \
+            'malformed_candidate_rejected=true' \
+            'authority_change_before_replace_rejected=true' \
+            'root_replacement_rejected=true' \
+            'symlink_custody_root_rejected=true' \
+            'post_rename_failure_reports_mutation=true' \
+            'production_source_gate_HOLD=true' \
+            'runtime_integration=false' \
+            'custody_reserve_method_enabled=false' \
+            'custody_recover_method_enabled=false' \
+            'production_allocation_mutation_ready=false' \
+            'funds_moved=false'
+          do
+            grep -Fx "$marker" \
+              "custody-launch-high-water-writer-node-${{ matrix.node }}.txt"
+          done
+
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-launch-high-water-writer-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: custody-launch-high-water-writer-node-${{ matrix.node }}.txt
+          retention-days: 1
+          if-no-files-found: error
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-launch-high-water-writer-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./evidence
+
+      - name: Require byte-identical proof
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "evidence/custody-launch-high-water-writer-node-$v.txt"
+          done
+          cmp evidence/custody-launch-high-water-writer-node-22.txt \
+              evidence/custody-launch-high-water-writer-node-24.txt
+          cmp evidence/custody-launch-high-water-writer-node-22.txt \
+              evidence/custody-launch-high-water-writer-node-26.txt
+          echo "VOID_BUY_VOID_CUSTODY_LAUNCH_HIGH_WATER_WRITER_CROSS_NODE_GREEN"
+          echo "production_allocation_mutation_ready=false"
+          echo "funds_moved=false"

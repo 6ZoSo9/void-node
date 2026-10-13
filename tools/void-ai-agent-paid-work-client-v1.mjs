@@ -29,6 +29,13 @@ const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
 const MAX_RESPONSE_BYTES_LIMIT = 4_194_304;
 const MAX_REQUEST_BYTES = 65_536;
 const REJECTION_TEARDOWN_MAX_MS = 250;
+const RESPONSE_READ_QUARANTINES_V1 = new Map();
+
+function retireResponseGenerationV1(origin, generation) {
+  if (RESPONSE_READ_QUARANTINES_V1.get(origin) === generation) {
+    RESPONSE_READ_QUARANTINES_V1.delete(origin);
+  }
+}
 
 function usage() {
   return [
@@ -275,23 +282,54 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
   };
 }
 
-async function settleCancellationBounded(target, controller) {
+function captureCancellationCapabilityV1(target) {
+  let cancelMethod;
+  let captureFailed = false;
+  try {
+    cancelMethod = target?.cancel;
+  } catch {
+    captureFailed = true;
+  }
+  return { cancelMethod, captureFailed };
+}
+
+async function settleCancellationBounded(
+  target,
+  controller,
+  onConfirmed = null,
+  capturedCapability = null,
+) {
+  // Capture the exact cancellation capability before abort dispatch: an
+  // injected synchronous AbortSignal listener can replace a pending cancel
+  // with a resolved no-op. A reader path may supply the capability captured
+  // before its pending read began.
+  const { cancelMethod, captureFailed } =
+    capturedCapability ?? captureCancellationCapabilityV1(target);
   if (!controller.signal.aborted) {
     controller.abort();
   }
-  if (!target || typeof target.cancel !== "function") return;
-
+  if (captureFailed || typeof cancelMethod !== "function") return;
   let cancellation;
   try {
-    cancellation = Promise.resolve(target.cancel());
+    cancellation = Promise.resolve(Reflect.apply(cancelMethod, target, []));
   } catch {
     return;
   }
 
+  // Observe confirmed cancellation even if it settles after the bounded
+  // caller teardown wait. Rejection/timeout cannot certify stream closure.
+  const witnessedCancellation = cancellation.then(
+    () => {
+      if (typeof onConfirmed === "function") {
+        try { onConfirmed(); } catch { /* remain fail-closed */ }
+      }
+    },
+    () => undefined,
+  );
   let timer;
   try {
     await Promise.race([
-      cancellation.catch(() => undefined),
+      witnessedCancellation,
       new Promise((resolve) => {
         timer = setTimeout(resolve, REJECTION_TEARDOWN_MAX_MS);
       }),
@@ -301,32 +339,245 @@ async function settleCancellationBounded(target, controller) {
   }
 }
 
-async function boundedRead(response, maximumBytes, controller) {
-  const contentLengthRaw = response.headers.get("content-length");
+// An ordinary response rejection can leave its body active. Preserve the
+// origin slot until cancellation succeeds; timeout/rejection is not cleanup.
+async function cancelBodyWithGenerationV1(body, controller, origin, generation) {
+  if (body !== null && body !== undefined) {
+    generation.unresolvedOperation = true;
+  }
+  await settleCancellationBounded(body, controller, () => {
+    retireResponseGenerationV1(origin, generation);
+  });
+}
+
+function releaseReaderLockBestEffortV1(reader) {
+  try {
+    reader.releaseLock();
+    return true;
+  } catch {
+    // Uncertain reader lock ownership cannot release an unresolved generation.
+    return false;
+  }
+}
+
+// A custom fetch implementation may ignore AbortSignal just as a stream
+// reader may. Own the same original request deadline through response headers.
+// An unfinished fetch keeps its per-origin slot until its late settlement,
+// and a late response with a body keeps the slot through actual cancellation.
+async function fetchAgainstOwnedDeadlineV1(
+  fetchPromise,
+  controller,
+  origin,
+  generation,
+) {
+  let deadlineWon = false;
+  let rejectDeadline;
+  const deadline = new Promise((_, reject) => {
+    rejectDeadline = reject;
+  });
+  const onAbort = () => {
+    deadlineWon = true;
+    rejectDeadline(new DOMException("response_fetch_timeout", "AbortError"));
+  };
+  if (controller.signal.aborted) {
+    onAbort();
+  } else {
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    return await Promise.race([fetchPromise, deadline]);
+  } catch (error) {
+    if (deadlineWon) {
+      generation.unresolvedOperation = true;
+      const retire = () => retireResponseGenerationV1(origin, generation);
+      const onLateResponse = (response) => {
+        try {
+          const body = response?.body;
+          if (!body) {
+            retire();
+            return;
+          }
+          // If a late body cannot be cancelled, retain the fail-closed slot;
+          // allowing another generation would accumulate abandoned bodies.
+          const cancelMethod = body.cancel;
+          if (typeof cancelMethod !== "function") return;
+          const cancellation = Promise.resolve(
+            Reflect.apply(cancelMethod, body, []),
+          );
+          // A rejecting or permanently pending cancellation cannot prove
+          // cleanup. Only the exact successful settlement retires this slot.
+          void cancellation.then(retire, () => undefined);
+        } catch {
+          // Uncertain late body cleanup remains quarantined.
+        }
+      };
+      void fetchPromise.then(onLateResponse, retire);
+      // Fetch may reject from its earlier-installed abort listener before
+      // Promise.race receives our deadline rejection. Once the owned clock
+      // wins, return the deterministic owned AbortError, not fetch's error.
+      throw new DOMException("response_fetch_timeout", "AbortError");
+    }
+    throw error;
+  } finally {
+    controller.signal.removeEventListener("abort", onAbort);
+  }
+}
+
+async function readAgainstOwnedDeadlineV1(
+  reader,
+  controller,
+  readScope,
+  readGeneration,
+  deferRelease,
+) {
+  const readPromise = Promise.resolve().then(() => reader.read());
+  let deadlineWon = false;
+  let rejectDeadline;
+  const deadline = new Promise((_, reject) => {
+    rejectDeadline = reject;
+  });
+  const onAbort = () => {
+    deadlineWon = true;
+    rejectDeadline(new DOMException("response_body_read_timeout", "AbortError"));
+  };
+
+  if (controller.signal.aborted) {
+    onAbort();
+  } else {
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    return await Promise.race([readPromise, deadline]);
+  } catch (error) {
+    if (deadlineWon) {
+      // This origin was reserved before fetch initiation; retain the same
+      // generation while an abort-ignoring reader remains unresolved.
+      readGeneration.unresolvedOperation = true;
+      deferRelease();
+      // A partial late read is not terminal: the old body can remain live
+      // even after read() settles. Only terminal done=true, or a *confirmed*
+      // cancel together with settled read, permits retiring this origin.
+      const cleanup = {
+        readSettled: false,
+        terminal: false,
+        cancellationConfirmed: false,
+        retired: false,
+        releaseIfSafe() {
+          if (this.retired || !this.readSettled ||
+              (!this.terminal && !this.cancellationConfirmed)) return;
+          if (!releaseReaderLockBestEffortV1(reader)) return;
+          this.retired = true;
+          retireResponseGenerationV1(readScope, readGeneration);
+        },
+        confirmCancellation() {
+          this.cancellationConfirmed = true;
+          this.releaseIfSafe();
+        },
+      };
+      readGeneration.pendingReadCleanup = cleanup;
+      void readPromise.then(
+        (result) => {
+          cleanup.readSettled = true;
+          cleanup.terminal = result?.done === true;
+          cleanup.releaseIfSafe();
+        },
+        () => {
+          cleanup.readSettled = true;
+          cleanup.releaseIfSafe();
+        },
+      );
+      // A reader may register an earlier AbortSignal listener than this
+      // deadline race. Preserve the owned result even if that reader's
+      // rejection wins the Promise.race scheduling order.
+      throw new DOMException("response_body_read_timeout", "AbortError");
+    }
+    throw error;
+  } finally {
+    controller.signal.removeEventListener("abort", onAbort);
+  }
+}
+
+// Capture the admitted body only once. A response.body accessor can change,
+// disappear, or throw between reader acquisition and cleanup.
+function admittedResponseBodyV1(response, controller, generation) {
+  try {
+    return response.body;
+  } catch (error) {
+    generation.unresolvedOperation = true;
+    if (!controller.signal.aborted) controller.abort();
+    throw error;
+  }
+}
+
+async function boundedRead(getHeader, responseBody, maximumBytes, controller, readScope, readGeneration) {
+  let contentLengthRaw;
+  try {
+    contentLengthRaw = getHeader("content-length");
+  } catch (error) {
+    // Headers are untrusted until parsed. A throwing getter must not
+    // release a still-live, already admitted body generation.
+    await cancelBodyWithGenerationV1(
+      responseBody, controller, readScope, readGeneration,
+    );
+    throw error;
+  }
   if (contentLengthRaw !== null) {
-    const contentLengthText = contentLengthRaw.trim();
+    const contentLengthText =
+      typeof contentLengthRaw === "string" ? contentLengthRaw.trim() : "";
     if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
-      await settleCancellationBounded(response.body, controller);
+      await cancelBodyWithGenerationV1(
+        responseBody, controller, readScope, readGeneration,
+      );
       fail(`response_content_length_invalid:${contentLengthText}`);
     }
     const contentLength = Number(contentLengthText);
     if (!Number.isSafeInteger(contentLength) || contentLength > maximumBytes) {
-      await settleCancellationBounded(response.body, controller);
+      await cancelBodyWithGenerationV1(
+        responseBody, controller, readScope, readGeneration,
+      );
       fail(`response_too_large:${contentLengthText}`);
     }
   }
 
-  if (!response.body || typeof response.body.getReader !== "function") {
-    await settleCancellationBounded(response.body, controller);
+  if (!responseBody) {
+    await cancelBodyWithGenerationV1(
+      responseBody, controller, readScope, readGeneration,
+    );
     fail("response_body_unavailable");
   }
-  const reader = response.body.getReader();
+  let reader;
+  try {
+    const getReader = responseBody.getReader;
+    if (typeof getReader !== "function") fail("response_body_unavailable");
+    reader = Reflect.apply(getReader, responseBody, []);
+  } catch (error) {
+    // Even a getReader accessor or an already-locked body can fail.
+    // Cancel the original admitted body, never a re-read accessor.
+    await cancelBodyWithGenerationV1(
+      responseBody, controller, readScope, readGeneration,
+    );
+    throw error;
+  }
   const chunks = [];
   let total = 0;
+  let readerReleaseDeferred = false;
+  let readerCancellationCapability = null;
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      // Capture before the pending read: an earlier synchronous abort
+      // listener may otherwise replace reader.cancel before cleanup begins.
+      readerCancellationCapability = captureCancellationCapabilityV1(reader);
+      const { done, value } = await readAgainstOwnedDeadlineV1(
+        reader,
+        controller,
+        readScope,
+        readGeneration,
+        () => {
+          readerReleaseDeferred = true;
+        },
+      );
       if (done) break;
       assertCondition(value instanceof Uint8Array, "response_body_invalid_chunk");
       total += value.byteLength;
@@ -336,13 +587,31 @@ async function boundedRead(response, maximumBytes, controller) {
       chunks.push(Buffer.from(value));
     }
   } catch (error) {
-    await settleCancellationBounded(reader, controller);
+    if (readerReleaseDeferred) {
+      // Deadline timeout has a pending read; retire it only after terminal
+      // settlement or confirmed cancellation plus actual read settlement.
+      await settleCancellationBounded(reader, controller, () => {
+        readGeneration.pendingReadCleanup?.confirmCancellation();
+      }, readerCancellationCapability);
+    } else {
+      // A non-deadline reader/chunk failure can also leave an active body.
+      // Keep its lock and origin slot until cancellation really succeeds.
+      readGeneration.unresolvedOperation = true;
+      readerReleaseDeferred = true;
+      await settleCancellationBounded(reader, controller, () => {
+        if (releaseReaderLockBestEffortV1(reader)) {
+          retireResponseGenerationV1(readScope, readGeneration);
+        }
+      }, readerCancellationCapability);
+    }
     throw error;
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Reader cleanup must never replace the primary terminal result.
+    if (!readerReleaseDeferred &&
+        !releaseReaderLockBestEffortV1(reader)) {
+      // A decoded terminal response does not prove that its reader released
+      // the underlying resource. Preserve this origin generation instead of
+      // accumulating replacement readers behind a successful decode.
+      readGeneration.unresolvedOperation = true;
     }
   }
 
@@ -372,29 +641,70 @@ async function fetchBoundedV1({
   maximumBytes,
   fetchImpl,
 }) {
+  const readScope = new URL(url).origin;
+  if (RESPONSE_READ_QUARANTINES_V1.has(readScope)) {
+    fail("response_body_read_generation_unresolved");
+  }
+  // Reserve before the first await, rather than only after timeout. Without
+  // this slot, simultaneous signal-ignoring reads can accumulate unbounded
+  // unresolved generations under the same public origin.
+  const readGeneration = { unresolvedOperation: false };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  RESPONSE_READ_QUARANTINES_V1.set(readScope, readGeneration);
 
   try {
-    const response = await fetchImpl(url, {
+    const fetchPromise = Promise.resolve(fetchImpl(url, {
       method,
       headers,
       body,
       redirect: "manual",
       signal: controller.signal,
-    });
-    if (response.status >= 300 && response.status < 400) {
-      await settleCancellationBounded(response.body, controller);
-      fail(`redirect_forbidden:${response.status}`);
+    }));
+    const response = await fetchAgainstOwnedDeadlineV1(
+      fetchPromise, controller, readScope, readGeneration,
+    );
+    const responseBody = admittedResponseBodyV1(
+      response, controller, readGeneration,
+    );
+    let status;
+    let getHeader;
+    try {
+      // Read each untrusted response accessor exactly once.
+      status = response.status;
+      const headers = response.headers;
+      const headerMethod = headers?.get;
+      if (!Number.isInteger(status) || status < 100 || status > 599 ||
+          typeof headerMethod !== "function") {
+        fail("response_http_envelope_invalid");
+      }
+      getHeader = (name) => Reflect.apply(headerMethod, headers, [name]);
+    } catch (error) {
+      await cancelBodyWithGenerationV1(
+        responseBody, controller, readScope, readGeneration,
+      );
+      throw error;
+    }
+    if (status >= 300 && status < 400) {
+      await cancelBodyWithGenerationV1(
+        responseBody, controller, readScope, readGeneration,
+      );
+      fail(`redirect_forbidden:${status}`);
     }
     const raw = await boundedRead(
-      response,
-      maximumBytes,
-      controller,
+      getHeader, responseBody,
+      maximumBytes, controller, readScope, readGeneration,
     );
-    return { response, raw };
+    // Callers consume a stable numeric status and one captured Header method,
+    // never a second mutable getter on the response-like object.
+    return { response: { status, headers: { get: getHeader } }, raw };
   } finally {
     clearTimeout(timer);
+    // Normal/error completion retires only its own slot. An unresolved read
+    // owns the slot until its *actual* read promise settles and releases.
+    if (!readGeneration.unresolvedOperation) {
+      retireResponseGenerationV1(readScope, readGeneration);
+    }
   }
 }
 

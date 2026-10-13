@@ -37,6 +37,10 @@ const NETWORK_BINDING_REPAIR_BOUNDARY = [
 const COMPOSITION_PROOF_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
 ];
+const RESPONSE_BODY_LIFETIME_REPAIR_BOUNDARY = [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
   "docs/public/ai-agent-first-contact-v1.md",
   "docs/public/ai-agent-public-utility-v1.md",
@@ -649,12 +653,16 @@ await new Promise((resolve, reject) => {
   server.listen(0, "127.0.0.1", resolve);
 });
 
-async function runClient(args, overrides = []) {
+async function runClient(args, overrides = [], options = {}) {
   fixtureOverrides = new Map(overrides);
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const nodeArgs = Array.isArray(options.nodeArgs)
+      ? options.nodeArgs
+      : [];
     const child = spawn(
       process.execPath,
-      [CLIENT_PATH, ...args],
+      [...nodeArgs, CLIENT_PATH, ...args],
       {
         cwd: ROOT,
         stdio: ["ignore", "pipe", "pipe"],
@@ -662,6 +670,15 @@ async function runClient(args, overrides = []) {
     );
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    const wallTimer =
+      Number.isFinite(options.wallTimeoutMs) &&
+      options.wallTimeoutMs > 0
+        ? setTimeout(() => {
+            timedOut = true;
+            child.kill("SIGKILL");
+          }, options.wallTimeoutMs)
+        : null;
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
@@ -671,20 +688,259 @@ async function runClient(args, overrides = []) {
       stderr += chunk;
     });
     child.once("error", (error) => {
+      if (wallTimer !== null) clearTimeout(wallTimer);
       fixtureOverrides = new Map();
       reject(error);
     });
     child.once("close", (code) => {
+      if (wallTimer !== null) clearTimeout(wallTimer);
       fixtureOverrides = new Map();
-      resolve({ code, stdout, stderr });
+      resolve({
+        code,
+        stdout,
+        stderr,
+        timedOut,
+        elapsedMs: Date.now() - startedAt,
+      });
     });
   });
+}
+
+function importDataUrl(source) {
+  return `data:text/javascript,${encodeURIComponent(source)}`;
 }
 
 try {
   const address = server.address();
   assert.equal(typeof address, "object");
   const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const declaredOversizeCancel = await runClient(
+    [
+      "--base-url",
+      "http://127.0.0.1:1",
+      "--timeout-ms",
+      "100",
+    ],
+    [],
+    {
+      nodeArgs: [
+        "--import",
+        importDataUrl(`
+          let fetchCount = 0;
+          let cancelCount = 0;
+          let getReaderCount = 0;
+          globalThis.fetch = async () => {
+            fetchCount += 1;
+            return {
+              ok: true,
+              status: 200,
+              headers: {
+                get: (name) =>
+                  name === "content-length" ? "65537" : null,
+              },
+              body: {
+                cancel: () => {
+                  cancelCount += 1;
+                  return new Promise(() => undefined);
+                },
+                getReader: () => {
+                  getReaderCount += 1;
+                  throw new Error("declared oversize must not acquire reader");
+                },
+              },
+            };
+          };
+          process.on("exit", () => {
+            if (
+              fetchCount !== 1 ||
+              cancelCount !== 1 ||
+              getReaderCount !== 0
+            ) {
+              process.exitCode = 91;
+            }
+          });
+        `),
+      ],
+      wallTimeoutMs: 3_000,
+    },
+  );
+  assert.equal(declaredOversizeCancel.timedOut, false);
+  assert.equal(
+    declaredOversizeCancel.code,
+    2,
+    declaredOversizeCancel.stderr,
+  );
+  assert.equal(declaredOversizeCancel.elapsedMs < 3_000, true);
+  assert.equal(
+    JSON.parse(declaredOversizeCancel.stdout)
+      .checks.first_contact_manifest_reachable,
+    false,
+  );
+
+  const nonSettlingRead = await runClient(
+    [
+      "--base-url",
+      "http://127.0.0.1:1",
+      "--timeout-ms",
+      "100",
+    ],
+    [],
+    {
+      nodeArgs: [
+        "--import",
+        importDataUrl(`
+          let releaseCount = 0;
+          globalThis.fetch = async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            body: {
+              getReader: () => ({
+                read: () => new Promise(() => undefined),
+                cancel: () => Promise.resolve(),
+                releaseLock: () => { releaseCount += 1; },
+              }),
+            },
+          });
+          process.on("exit", () => {
+            if (releaseCount !== 0) process.exitCode = 91;
+          });
+        `),
+      ],
+      wallTimeoutMs: 3_000,
+    },
+  );
+  assert.equal(nonSettlingRead.timedOut, false);
+  assert.equal(nonSettlingRead.code, 2, nonSettlingRead.stderr);
+  assert.equal(nonSettlingRead.elapsedMs < 3_000, true);
+  assert.equal(
+    JSON.parse(nonSettlingRead.stdout)
+      .checks.first_contact_manifest_reachable,
+    false,
+  );
+
+  for (const lateReadMode of ["resolve", "reject"]) {
+    const lateSettlingRead = await runClient(
+      [
+        "--base-url",
+        "http://127.0.0.1:1",
+        "--timeout-ms",
+        "100",
+      ],
+      [],
+      {
+        nodeArgs: [
+          "--import",
+          importDataUrl(`
+            let releaseCount = 0;
+            const mode = ${JSON.stringify(lateReadMode)};
+            globalThis.fetch = async () => ({
+              ok: true,
+              status: 200,
+              headers: { get: () => null },
+              body: {
+                getReader: () => ({
+                  read: () => new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                      if (mode === "resolve") {
+                        resolve({ done: true, value: undefined });
+                      } else {
+                        reject(new Error("late-settled-read-failure"));
+                      }
+                    }, 150);
+                  }),
+                  cancel: () => Promise.resolve(),
+                  releaseLock: () => { releaseCount += 1; },
+                }),
+              },
+            });
+            process.on("exit", () => {
+              if (releaseCount !== 1) process.exitCode = 91;
+            });
+          `),
+        ],
+        wallTimeoutMs: 3_000,
+      },
+    );
+    assert.equal(lateSettlingRead.timedOut, false);
+    assert.equal(lateSettlingRead.code, 2, lateSettlingRead.stderr);
+    assert.equal(lateSettlingRead.elapsedMs < 3_000, true);
+    assert.equal(
+      JSON.parse(lateSettlingRead.stdout)
+        .checks.first_contact_manifest_reachable,
+      false,
+    );
+  }
+
+  const nonSettlingCancel = await runClient(
+    ["--base-url", "http://127.0.0.1:1"],
+    [],
+    {
+      nodeArgs: [
+        "--import",
+        importDataUrl(`
+          let releaseCount = 0;
+          globalThis.fetch = async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            body: {
+              getReader: () => ({
+                read: async () => ({
+                  done: false,
+                  value: new Uint8Array(65_537),
+                }),
+                cancel: () => new Promise(() => undefined),
+                releaseLock: () => { releaseCount += 1; },
+              }),
+            },
+          });
+          process.on("exit", () => {
+            if (releaseCount !== 1) process.exitCode = 91;
+          });
+        `),
+      ],
+      wallTimeoutMs: 3_000,
+    },
+  );
+  assert.equal(nonSettlingCancel.timedOut, false);
+  assert.equal(nonSettlingCancel.code, 2, nonSettlingCancel.stderr);
+  assert.equal(nonSettlingCancel.elapsedMs < 3_000, true);
+
+  const settledReadFailure = await runClient(
+    ["--base-url", "http://127.0.0.1:1"],
+    [],
+    {
+      nodeArgs: [
+        "--import",
+        importDataUrl(`
+          let releaseCount = 0;
+          globalThis.fetch = async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            body: {
+              getReader: () => ({
+                read: () => Promise.reject(
+                  new Error("settled-read-failure"),
+                ),
+                cancel: () => Promise.resolve(),
+                releaseLock: () => { releaseCount += 1; },
+              }),
+            },
+          });
+          process.on("exit", () => {
+            if (releaseCount !== 1) process.exitCode = 91;
+          });
+        `),
+      ],
+      wallTimeoutMs: 3_000,
+    },
+  );
+  assert.equal(settledReadFailure.timedOut, false);
+  assert.equal(settledReadFailure.code, 2, settledReadFailure.stderr);
+  assert.equal(settledReadFailure.elapsedMs < 3_000, true);
 
   const result = await runClient(["--base-url", baseUrl]);
 
@@ -1467,6 +1723,7 @@ if (workingBoundary.length > 0) {
   const recognizedRepairBoundary = [
     NETWORK_BINDING_REPAIR_BOUNDARY,
     COMPOSITION_PROOF_REPAIR_BOUNDARY,
+    RESPONSE_BODY_LIFETIME_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
     POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
@@ -1541,6 +1798,10 @@ console.log("required_readiness_contracts_exact=true");
 console.log("authority_widening_adversaries_rejected=12");
 console.log("connection_mode=read_only");
 console.log("get_only_client=true");
+console.log("response_body_deadline_owned=true");
+console.log("nonsettling_cancel_cannot_delay_rejection=true");
+console.log("declared_oversize_body_cancelled=true");
+console.log("unresolved_reader_generation_quarantined=true");
 console.log("paid_work_promised=false");
 console.log("work_credit_earning_promised=false");
 console.log("mutation_authority_granted=false");

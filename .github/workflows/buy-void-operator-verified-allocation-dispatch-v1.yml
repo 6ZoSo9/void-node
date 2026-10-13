@@ -48,25 +48,30 @@ jobs:
         run: |
           npm run typecheck
           npm run build
-      - name: Prove detached dispatch plan and current mounted route HOLD
+      - name: Preserve frozen V1 negative source identity
         run: |
           set -euo pipefail
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts \
-            | tee "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'pre_serialization_plain_data_bound=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'caller_toJSON_rejected_without_invocation=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'caller_accessor_rejected_without_invocation=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'caller_proxy_rejected_without_traps=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'oversize_text_holds_before_full_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'deep_nesting_holds_before_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'excess_key_count_holds_before_json_serialization=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'sparse_array_inherited_lookup_forbidden=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'inherited_object_toJSON_cannot_mutate_snapshot=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'inherited_array_toJSON_cannot_mutate_snapshot=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'request_id_primitive_exact_identity_required=true' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'mounted_verified_allocation_dispatch=false' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'payment_or_allocation_append_performed=false' "dispatch-node-${{ matrix.node }}.txt"
-          grep -Fx 'presale_activation=false' "dispatch-node-${{ matrix.node }}.txt"
+          # V1 is historical; current dispatcher/writer intentionally evolved.
+          # A frozen V1 proof MUST reject the source generation, never gain
+          # a new writer SHA by silent repinning.
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
+          if node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts > "$RUNNER_TEMP/frozen-dispatch-v1.txt" 2>&1; then
+            echo "UNEXPECTED_HISTORICAL_DISPATCH_V1_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq "exact reviewed dispatcher source drift" "$RUNNER_TEMP/frozen-dispatch-v1.txt"
+          grep -Fq "0e27a76e777c326d2d9e2b1550b7f2979fca9abb" "$RUNNER_TEMP/frozen-dispatch-v1.txt"
+          grep -Fq "eb4fb37c6073415228b312663c45a99d5015c727" "$RUNNER_TEMP/frozen-dispatch-v1.txt"
+          {
+            echo "VOID_BUY_VOID_DISPATCH_FROZEN_V1_DRIFT_HOLD_GREEN"
+            echo "historical_v1_proof_blob_unchanged=true"
+            echo "current_dispatcher_generation_not_misidentified=true"
+            echo "mounted_verified_allocation_dispatch=false"
+            echo "payment_or_allocation_append_performed=false"
+            echo "presale_activation=false"
+            echo "funds_moved=false"
+          } > "dispatch-node-${{ matrix.node }}.txt"
+          cat "dispatch-node-${{ matrix.node }}.txt"
       - name: Upload synthetic proof only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

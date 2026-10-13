@@ -194,6 +194,10 @@ const syntheticFs = {
 };
 const context = vm.createContext({
   exports: {},
+  // The writer declaration is extracted into a synthetic VM; mirror its exact
+  // production Symbol.for import without executing host/runtime modules.
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1:
+    Symbol.for("VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1"),
   process: { pid: 1, getuid: () => 1, env: { VOID_BUY_REQUEST_DIR: requestDir, get VOID_BUY_POOL_VOID_TOTAL() { return pool; } } },
   path,
   Buffer,
@@ -262,7 +266,13 @@ evaluate(declarations(admissionPath, [
   "projectBuyVoidVerifiedPaymentCapacityV1", "freezeDecision",
   "classifyBuyVoidVerifiedPaymentCapacityAdmissionV1",
   "canonicalRequestSourceChainV1", "canonicalRequestTxHashV1",
-  "LEDGER_MAX_BYTES", "CAPACITY_HISTORY_UTF8", "parseStrictJsonLinesV1", "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
+  "LEDGER_MAX_BYTES", "CAPACITY_HISTORY_UTF8",
+  "CAPACITY_HISTORY_DECODE_V1", "CAPACITY_HISTORY_APPLY_V1",
+  "CAPACITY_HISTORY_SUBARRAY_V1", "CAPACITY_HISTORY_BYTE_LENGTH_V1",
+  "CAPACITY_HISTORY_PARSE_V1", "CAPACITY_HISTORY_STRINGIFY_V1",
+  "CAPACITY_HISTORY_SET_PROTO_V1", "CAPACITY_HISTORY_DEFINE_V1",
+  "CAPACITY_HISTORY_DESCRIPTOR_V1", "parseStrictJsonLinesV1",
+  "readStrictCapacityLedgerV1", "assertProjectionMatchesStrictLedgerV1",
   "O_NOFOLLOW", "sameFileIdentityV1", "sameFileInodeCustodyV1", "readStrictJsonLinesFromDirectoryV1", "readStrictJsonLinesV1",
   "fsyncDirectoryV1", "paymentVerifiedSidecarPathV1", "ensurePaymentVerifiedSidecarExactV1",
   "CANONICAL_EVENT_MAX_DEPTH_V1", "CANONICAL_EVENT_MAX_NODES_V1",
@@ -330,6 +340,16 @@ const event = (row: any) => ({
   marked_at_ms: 1,
   payment_verifier: { chain: row.source_chain },
 });
+// The writer is evaluated in a separate VM realm. Build only its synthetic
+// caller fixtures in that same realm so the strict plain-record validator
+// tests real data rather than rejecting host-realm Object.prototype.
+const vmPlainJsonCopy = (value: any): any =>
+  vm.runInContext("JSON.parse", context)(JSON.stringify(value));
+assert.equal(
+  Object.getPrototypeOf(vmPlainJsonCopy({})),
+  vm.runInContext("Object.prototype", context),
+);
+
 const a = request("a", 10.1);
 const b = request("b", 10.2);
 rows.push(a, b, request("c", 8));
@@ -441,7 +461,9 @@ events.splice(0, events.length, event(a));
 operations = 0;
 let launchCalls = 0;
 const write = () => context.writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-  event: event(b), request: b, request_dir: requestDir, read_sale_state: sale,
+  event: vmPlainJsonCopy(event(b)),
+  request: vmPlainJsonCopy(b),
+  request_dir: requestDir, read_sale_state: sale,
   with_launch_authority_mutation: (
     _request: any,
     operation: (assert_current_authority: () => any) => any,

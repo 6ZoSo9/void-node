@@ -40,6 +40,28 @@ export function git(root, ...args) {
     env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" } });
   assert.equal(r.status, 0, "source inspection failed"); return r.stdout;
 }
+function sourcePaths(root, directory) {
+  const base = realChain(root, directory); assert(fs.statSync(base).isDirectory());
+  const paths = []; let entries = 0;
+  const walk = (relative, depth) => {
+    assert(depth <= 32); const dir = fs.opendirSync(path.join(root, relative));
+    try {
+      for (let item; (item = dir.readSync()) !== null;) {
+        assert(++entries <= MAX_FILES); const name = `${relative}/${item.name}`; assert(name.length <= 512);
+        const stat = fs.lstatSync(path.join(root, name));
+        assert(!stat.isSymbolicLink(), "source symlink rejected");
+        if (stat.isDirectory()) walk(name, depth + 1);
+        else {
+          assert(stat.isFile() && stat.nlink === 1 && stat.size <= MAX_FILE, "source regular file required");
+          paths.push(name);
+        }
+      }
+    } finally { dir.closeSync(); }
+  };
+  walk(directory, 0); paths.sort();
+  assert(paths.length > 0 && paths.length <= MAX_FILES);
+  return paths;
+}
 export function sourceIdentity(root) {
   const head = git(root, "rev-parse", "HEAD").toString().trim(), tree = git(root, "rev-parse", "HEAD^{tree}").toString().trim();
   assert(/^[0-9a-f]{40}$/.test(head) && /^[0-9a-f]{40}$/.test(tree));
@@ -58,7 +80,10 @@ export function sourceIdentity(root) {
     members.push({ path: name, bytes: bytes.length, sha256: sha256(bytes) }); assert(members.length <= MAX_FILES);
   }
   assert(members.some(m => m.path === "src/index.ts"));
-  equal(inventory(root, "src").members.map(m => m.path), members.filter(m => m.path.startsWith("src/")).map(m => m.path).sort(), "untracked compiler input");
+  // Content was already read once above, checked against its exact Git blob,
+  // and SHA-256-bound into the receipt. The complement walk closes the visible
+  // src pathname universe without redundantly hashing the same bytes again.
+  equal(sourcePaths(root, "src"), members.filter(m => m.path.startsWith("src/")).map(m => m.path).sort(), "untracked compiler input");
   return { head, tree, members, aggregate_sha256: sha256(canonical(members)) };
 }
 export function inventory(root, directory) {

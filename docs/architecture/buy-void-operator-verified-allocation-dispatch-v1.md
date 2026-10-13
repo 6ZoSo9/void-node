@@ -18,6 +18,40 @@ old mainline route, that parent includes the reviewed private operator
 capability and native-USDC payment-instruction guards. The source-only
 helper here changes none of those routes or authentication rules.
 
+## Outer dispatch authority object boundary (source-only successor)
+
+In addition to the existing per-event and per-request plain-data snapshots,
+the dispatcher must validate its **outer input container** before reading even
+`input.event` or an apparent server-owned root/callback. Without that guard,
+a JavaScript Proxy or accessor property on the outer object can run a caller
+callback while the dispatcher is selecting the legacy writer versus the
+payment→allocation handoff. The inner snapshots do not cover this earlier
+read and do not justify calling the outer container trusted.
+
+The reviewed successor reads the outer container only after rejecting Node
+detectable Proxies (including revoked ones), arrays, non-plain prototypes,
+symbol/unreviewed own keys, accessor descriptors and hidden own fields. It
+accepts only the original seven closed caller input keys as own enumerable
+data properties and copies them once into a frozen null-prototype record.
+No getters, `toJSON` or user-defined coercion are invoked. The nested
+event/request serialization budgets and status/root checks remain unchanged;
+the two server callback references remain functions and are never called by
+the planning step.
+
+Inert tests exercise direct and revoked Proxies without trap execution,
+outer event and private-root getters without callback execution,
+non-enumerable callback fields, extra symbol keys, outer `toJSON`,
+inherited getters, and a positive null-prototype input. The original
+payment_verified→allocation route selection and all nonpayment status
+semantics are preserved.
+
+This guard still protects **only unmounted planning code**. It does not
+authenticate an operator, grant the web process private custody roots,
+enable the actual custody reserve/recover service, or switch the current
+mounted payment-only producer. The live route and all monetary permissions
+remain HOLD until independent source, host, permission, high-water,
+allocation replay and buyer/payment evidence qualification.
+
 ## Source-only dispatch contract
 
 `src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts`

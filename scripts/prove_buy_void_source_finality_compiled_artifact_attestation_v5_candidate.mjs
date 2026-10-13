@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const MARKER =
   "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5";
 const SOURCE_STACK_HEAD =
-  "3533626d7167c98ba8d65d2c423b460b1a3199fc";
+  "22a30e3ffad6047a472488104c769140bd050878";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH =
   "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json";
@@ -20,12 +20,12 @@ const PREDECESSOR_MANIFEST_GIT_BLOB_SHA1 =
 const PREDECESSOR_COMPILED_ARTIFACT_GENERATION_SHA256 =
   "7e767d9e8977052220c60ab1e0e4c6411259aa3cfeadb7f073270ce4d2d7af06";
 const EXPECTED_VERIFIER_SOURCE_GIT_BLOB_SHA1 =
-  "c77bb6144b27eb8fdaff168200cea24d9c0ee9ac";
+  "550ede02fc0b7d6874c324af58b5ef9c5591b311";
 // Derive-only evidence. Verifier artifact SHA-256/byte count cannot be
 // declared accepted until cross-Node review and a locked successor manifest.
 const COMPILED_ARTIFACT_ATTESTATION_ACCEPTED_V5 = false;
 const EXPECTED_V6_SOURCE_GIT_BLOB_SHA1 =
-  "e7ac4c296930587e7b7ec415e57bb18190c88962";
+  "d371b1b08d2afc383d5e4ad831464752843791a3";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
 const EXPECTED_INPUT_BLOBS = Object.freeze({
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
@@ -52,7 +52,6 @@ const PREDECESSOR_UNCHANGED_PATHS = Object.freeze([
   "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
   "dist/economic/buy_void_source_finality_authority_v2.js",
   "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
-  "dist/economic/buy_void_verified_payment_v2.js",
 ]);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -312,10 +311,11 @@ async function derive() {
       tsconfig_build_git_blob_sha1: EXPECTED_INPUT_BLOBS["tsconfig.build.json"],
       source_finality_sources_changed: true,
       change_reason:
-        "payment_rpc_total_deadline_success_settlement_and_v6_source_identity",
+        "payment_rpc_deadline_and_verified_payment_plain_data_source_identity",
       changed_source_paths: Object.freeze([
         "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
         "src/economic/buy_void_payment_rpc_observer_v1.ts",
+        "src/economic/buy_void_verified_payment_v2.ts",
       ]),
     }),
     reviewed_source_generation: Object.freeze({
@@ -330,6 +330,7 @@ async function derive() {
     changed_artifact_paths: Object.freeze([
       "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
       "dist/economic/buy_void_payment_rpc_observer_v1.js",
+      "dist/economic/buy_void_verified_payment_v2.js",
     ]),
     predecessor_common_artifact_bytes_match: true,
     verified_payment_v2_source_git_blob_sha1:

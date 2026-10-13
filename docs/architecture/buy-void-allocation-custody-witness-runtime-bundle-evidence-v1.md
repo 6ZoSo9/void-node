@@ -149,3 +149,41 @@ must bind:
 The predecessor #2516 receipts remain historical and are not reusable. Neither
 fresh receipt alone closes #2452, and this source lane does not authorize the
 reinstall or collection ceremony.
+
+## October 10 combined V3 successor: derived, not installed
+
+The restored frozen original witness V1 remains identified by manifest
+`voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7`;
+the **separate proposed V2** remains unaccepted and its reviewed lock Git
+blob is `73c7f88348a1d6b208336df8779940657607bd7d`.
+Neither immutable predecessor identity is repinned, modified or declared
+installed.
+
+The current cumulative Buy VOID source changed exactly **one of the proposed
+V2 witness's fifteen reviewed source/build inputs**:
+`src/economic/buy_void_allocation_reservation_ledger_v1.ts` original Git
+blob `c3fc204710a9189723651cfeb6ffc52b1aa049db` → hardened
+`66617a89d5ad9f81b5a21d98cca55fcda6902a80`. All other fourteen
+witness source/build Git blobs are unchanged. The original compiled V1/V2
+ledger SHA-256 was `af497a5b7f62b08b60e90a527ae3365540fd2a13fcd99f6dd4e8253423869c0f`;
+the current build returns
+`97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0`.
+
+`scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs` verifies
+all fifteen reviewed source/build inputs, checks the exact immutable V2 lock
+and original V1 Git contract, and derives a **new content-addressed V3 candidate**
+from all eight current compiled runtime files. Exactly **seven of eight** must
+remain byte-identical to proposed V2 and only the ledger may differ. Six
+synthetic candidate-mutation controls must hold. The preexisting Node22/24/26
+witness evidence workflow now preserves the exact expected **V1 refusal**,
+checks this distinct V3 successor, and compares raw candidate transcripts
+across all three Node versions. Those are disposable CI observations, not
+proof of an installed runtime on Nimo.
+
+**Production HOLD:** any V3 manifest derived in CI is **not installed,
+authenticated, root-owned, protected against rollback, reviewed as a complete
+runtime execution closure, or accepted by a live witness**. It does not enable
+the `payment_verified → allocation_reserved` route, custody reserve/recover,
+real customer payment, signing or coupled VOID/WC presale. No V2 staging
+archive may be labeled or installed as a V3 bundle. Separate host
+attestation and operator authorization are required.

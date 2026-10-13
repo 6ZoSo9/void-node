@@ -1,7 +1,8 @@
 # Buy VOID saga import-initialization source audit
 
-This source-only unaccepted successor is stacked on Draft #2647,
-exact head 5a38cc34ca497b8b39a299aba09ce012d9d3c181.
+The original source-only audit was stacked on Draft #2647 at exact head
+5a38cc34ca497b8b39a299aba09ce012d9d3c181. This integration successor binds the same reviewed saga bytes
+to stabilized #2675 source parent eeef850affd912a0d1e019bfac2d681b38ea24ed.
 
 Draft #2647 has a dedicated GREEN stopped-image byte-identity check
 showing that the 58,023-byte reviewed fulfillment saga is now present
@@ -12,7 +13,9 @@ This new proof does NOT import the real saga. It reads the same pinned
 tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs through the
 Linux descriptor-relative reader inherited from the reviewed lineage.
 It requires saga Git blob d6a2d1cd82e5e255f435c1e21d1783774a44b2b1
-and Dockerfile Git blob 15375dfb34bc457ac57865ae07642b5602f9e958.
+and current Dockerfile Git blob 2acd9bcf0416eeb0f9fd72c1a556696863ff1607.
+The predecessor Dockerfile blob 15375dfb34bc457ac57865ae07642b5602f9e958 remains historical evidence; the
+current blob differs only by the reviewed deterministic build command `RUN npm ci`.
 
 The TypeScript JS AST must identify only three Node builtin imports,
 50 named function declarations, and 32 immutable top-level constants.
@@ -68,8 +71,8 @@ PROTECT THE CORE.
 This successor is derived from #2667 rather than inheriting the historical
 #2652 result. Current-main composition does not require the historical component
 branch to be an ancestor. Instead, the reviewed absolute-`/usr/bin/git` helper
-reads the exact historical parent tree and requires its saga and Dockerfile
-blobs to match the pinned identities; the current files are then independently
-read through the descriptor-relative helper and required to match those same
-blobs. The real saga remains unimported and unexecuted; this is only
+reads the exact stabilized source-parent tree and requires its saga and
+Dockerfile blobs to match the pinned identities; the current files are then
+independently read through the descriptor-relative helper and required to match
+those same bytes. The real saga remains unimported and unexecuted; this is only
 import-initialization syntax policy evidence.

@@ -24,6 +24,9 @@ import {
   classifyBuyVoidPreappendVerifiedPaymentLineageV1,
   classifyBuyVoidVerifiedAllocationReplayBindingV1,
 } from "./buy_void_verified_allocation_replay_binding_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+} from "./buy_void_fulfilled_reconciliation_mode_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1";
@@ -401,47 +404,96 @@ function readPinnedLedgerBytesV1(
   });
 }
 
-// The append writer commits exact JSON.stringify(row) + LF bytes. Never accept
-// a truncated final line, normalized UTF-8, duplicate member, or reformatted
-// history as authoritative paid-capacity evidence.
-const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+// Preserve the native byte and JSON parsing boundary at module load. A
+// post-import same-process modification of String/Array/JSON/decoder prototypes
+// must never omit a durable terminal event from the authoritative history.
+const CAPACITY_HISTORY_UTF8 = new TextDecoder("utf-8", {
+  fatal: true, ignoreBOM: true,
+});
+const CAPACITY_HISTORY_DECODE_V1 =
+  TextDecoder.prototype.decode.bind(CAPACITY_HISTORY_UTF8);
+const CAPACITY_HISTORY_APPLY_V1 = Reflect.apply;
+const CAPACITY_HISTORY_SUBARRAY_V1 = Uint8Array.prototype.subarray;
+const CAPACITY_HISTORY_BYTE_LENGTH_V1 = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+)!.get!;
+const CAPACITY_HISTORY_PARSE_V1 = JSON.parse;
+const CAPACITY_HISTORY_STRINGIFY_V1 = JSON.stringify;
+const CAPACITY_HISTORY_SET_PROTO_V1 = Object.setPrototypeOf;
+const CAPACITY_HISTORY_DEFINE_V1 = Object.defineProperty;
+const CAPACITY_HISTORY_DESCRIPTOR_V1 = Object.getOwnPropertyDescriptor;
+
+// The writer persists canonical JSON.stringify(row) + LF bytes. Frame by the
+// *original octets* before parsing: no String#split/slice/endsWith, inherited
+// Array iteration/mappers, mutable JSON methods or caller-visible toJSON hooks.
 function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
-  if (bytes.length === 0) return [];
-  if (bytes.length >= 3 && bytes[0] === 0xef &&
+  const length = CAPACITY_HISTORY_APPLY_V1(
+    CAPACITY_HISTORY_BYTE_LENGTH_V1, bytes, [],
+  ) as number;
+  if (!Number.isSafeInteger(length) || length < 0 ||
+      length > LEDGER_MAX_BYTES) {
+    fail(code + "_bytes_invalid");
+  }
+  if (length === 0) return [];
+  if (length >= 3 && bytes[0] === 0xef &&
       bytes[1] === 0xbb && bytes[2] === 0xbf) {
     fail(code + "_utf8_bom_not_canonical");
   }
-  let text: string;
+  if (bytes[length - 1] !== 0x0a) {
+    fail(code + "_truncated_or_noncanonical");
+  }
+  // Entire-stream fatal validation also rejects a malformed last row.
   try {
-    text = CAPACITY_HISTORY_UTF8.decode(bytes);
+    CAPACITY_HISTORY_DECODE_V1(bytes);
   } catch {
     fail(code + "_utf8_invalid");
   }
-  if (!text.endsWith("\n") || text.includes("\r") ||
-      text.charCodeAt(0) === 0xfeff) {
-    fail(code + "_truncated_or_noncanonical");
-  }
-  const lines = text.slice(0, -1).split("\n");
-  if (lines.some((line) => line.length === 0)) {
-    fail(code + "_empty_row");
-  }
-  return lines.map((line) => {
+  const rows: any[] = [];
+  let start = 0;
+  let count = 0;
+  for (let i = 0; i < length; i += 1) {
+    const octet = bytes[i];
+    if (octet === 0x0d) {
+      fail(code + "_truncated_or_noncanonical");
+    }
+    if (octet !== 0x0a) continue;
+    if (i === start) fail(code + "_empty_row");
+    const frame = CAPACITY_HISTORY_APPLY_V1(
+      CAPACITY_HISTORY_SUBARRAY_V1, bytes, [start, i],
+    ) as Uint8Array;
+    let line: string;
+    try {
+      line = CAPACITY_HISTORY_DECODE_V1(frame);
+    } catch {
+      fail(code + "_utf8_invalid");
+    }
     let value: unknown;
     try {
-      value = JSON.parse(line);
+      value = CAPACITY_HISTORY_PARSE_V1(line, (_key, parsed) => {
+        if (parsed !== null && typeof parsed === "object") {
+          // Null-prototype objects *and arrays* cannot inherit toJSON.
+          CAPACITY_HISTORY_SET_PROTO_V1(parsed, null);
+        }
+        return parsed;
+      });
     } catch {
       fail(code + "_json_invalid");
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       fail(code + "_row_invalid");
     }
-    if (JSON.stringify(value) !== line) {
+    if (CAPACITY_HISTORY_STRINGIFY_V1(value) !== line) {
       fail(code + "_row_noncanonical");
     }
-    return value;
-  });
+    CAPACITY_HISTORY_DEFINE_V1(rows, String(count), {
+      value, writable: true, configurable: true, enumerable: true,
+    });
+    count += 1;
+    start = i + 1;
+  }
+  if (start !== length) fail(code + "_truncated_or_noncanonical");
+  return rows;
 }
-
 function readStrictJsonLinesFromDirectoryV1(
   directory: PinnedRequestDirectoryV1,
   name: string,
@@ -2486,6 +2538,166 @@ export async function writeBuyVoidVerifiedPaymentAllocationHandoffV1(
   });
 }
 
+function publishOperatorTerminalSidecarAtomicallyV1(
+  directory: PinnedRequestDirectoryV1,
+  sidecarName: string,
+  expectedBytes: Buffer,
+  allowExisting: boolean,
+): "created" | "existing" {
+  const code = "buy_void_operator_terminal_sidecar";
+  const visiblePath = path.join(directory.path, sidecarName);
+  const pinnedPath = path.join(directory.proc_path, sidecarName);
+  const tempPrefix = "." + sidecarName + ".tmp-";
+  const isAbsent = (name: string): boolean => {
+    try {
+      fs.lstatSync(name, { bigint: true });
+      return false;
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") return true;
+      throw error;
+    }
+  };
+  const verifyExisting = (): boolean => {
+    assertPinnedRequestDirectoryVisibleV1(directory);
+    if (isAbsent(pinnedPath)) return false;
+    if (!allowExisting) {
+      fail("buy_void_operator_terminal_sidecar_already_exists");
+    }
+    const visible = fs.lstatSync(visiblePath, { bigint: true });
+    if (
+      !visible.isFile() || visible.isSymbolicLink() ||
+      visible.size !== BigInt(expectedBytes.length) ||
+      visible.nlink < 1n ||
+      (typeof process.getuid === "function" &&
+        visible.uid !== BigInt(process.getuid())) ||
+      (Number(visible.mode) & 0o022) !== 0
+    ) fail(code + "_conflict");
+    const nonblock = typeof fs.constants.O_NONBLOCK === "number"
+      ? fs.constants.O_NONBLOCK : 0;
+    const fd = fs.openSync(
+      pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW | nonblock,
+    );
+    try {
+      const before = fs.fstatSync(fd, { bigint: true });
+      if (!before.isFile() || !sameFileIdentityV1(visible, before)) {
+        fail(code + "_conflict");
+      }
+      const bytes = Buffer.alloc(expectedBytes.length + 1);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(
+          fd, bytes, offset, bytes.length - offset, offset,
+        );
+        if (count === 0) break;
+        offset += count;
+      }
+      if (offset !== expectedBytes.length ||
+          !bytes.subarray(0, offset).equals(expectedBytes)) {
+        fail(code + "_conflict");
+      }
+      const afterRead = fs.fstatSync(fd, { bigint: true });
+      const stillVisible = fs.lstatSync(visiblePath, { bigint: true });
+      if (!sameFileIdentityV1(before, afterRead) ||
+          !sameFileIdentityV1(afterRead, stillVisible)) {
+        fail(code + "_path_changed");
+      }
+      if (afterRead.nlink > 1n) {
+        const linkedTemps: string[] = [];
+        for (const name of fs.readdirSync(directory.proc_path)) {
+          if (!name.startsWith(tempPrefix)) continue;
+          const temp = path.join(directory.proc_path, name);
+          const meta = fs.lstatSync(temp, { bigint: true });
+          if (meta.isFile() && !meta.isSymbolicLink() &&
+              meta.dev === afterRead.dev && meta.ino === afterRead.ino) {
+            linkedTemps.push(temp);
+          }
+        }
+        if (BigInt(linkedTemps.length) !== afterRead.nlink - 1n) {
+          fail(code + "_hardlink_conflict");
+        }
+        for (const temp of linkedTemps) {
+          assertPinnedRequestDirectoryVisibleV1(directory);
+          const meta = fs.lstatSync(temp, { bigint: true });
+          if (!meta.isFile() || meta.isSymbolicLink() ||
+              meta.dev !== afterRead.dev || meta.ino !== afterRead.ino) {
+            fail(code + "_temp_changed");
+          }
+          fs.unlinkSync(temp);
+        }
+        fs.fsyncSync(directory.fd);
+      }
+      const finalFd = fs.fstatSync(fd, { bigint: true });
+      const finalVisible = fs.lstatSync(visiblePath, { bigint: true });
+      validateLedgerStatV1(finalFd, code);
+      validateLedgerStatV1(finalVisible, code);
+      if (finalFd.size !== BigInt(expectedBytes.length) ||
+          !sameFileIdentityV1(finalFd, finalVisible) ||
+          finalFd.dev !== before.dev || finalFd.ino !== before.ino) {
+        fail(code + "_path_changed");
+      }
+      assertPinnedRequestDirectoryVisibleV1(directory);
+      return true;
+    } finally {
+      fs.closeSync(fd);
+    }
+  };
+
+  if (verifyExisting()) return "existing";
+  const tempName =
+    tempPrefix + String(process.pid) + "-" + randomBytes(8).toString("hex");
+  const tempPath = path.join(directory.proc_path, tempName);
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  const fd = fs.openSync(
+    tempPath,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT |
+      fs.constants.O_EXCL | O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    const written = fs.writeSync(
+      fd, expectedBytes, 0, expectedBytes.length, null,
+    );
+    if (written !== expectedBytes.length) {
+      fail(code + "_short_write");
+    }
+    fs.fsyncSync(fd);
+    const temporary = fs.fstatSync(fd, { bigint: true });
+    validateLedgerStatV1(temporary, code);
+    if (temporary.size !== BigInt(expectedBytes.length)) {
+      fail(code + "_temp_bytes_changed");
+    }
+    assertPinnedRequestDirectoryVisibleV1(directory);
+    fs.linkSync(tempPath, pinnedPath);
+    fs.fsyncSync(directory.fd);
+    fs.unlinkSync(tempPath);
+    fs.fsyncSync(directory.fd);
+  } finally {
+    fs.closeSync(fd);
+    // On a failed pre-publication write, DO NOT unlink tempPath. The private
+    // child pathname is mutable even though the directory FD is pinned: a
+    // same-UID rename can replace our temp inode with an unrelated file.
+    // lstat+unlink, even with an extra inode check, is subject to a
+    // compare/unlink race. Fail closed and retain the hidden leaf for bounded
+    // operator-reviewed cleanup; it carries no public fulfillment authority.
+    // After publication an exact sidecar replay independently checks/cleans
+    // only verified joined hard links; the terminal journal stays canonical.
+  }
+  // Verify against the same pinned request directory before returning GREEN.
+  // Existing now means published bytes and a single visible hard link.
+  const final = openPinnedLedgerV1(
+    directory, sidecarName, code, { writable: false, create: false },
+  );
+  if (final === null) fail(code + "_missing_after_publish");
+  try {
+    const data = readPinnedLedgerBytesV1(final, code).bytes;
+    if (!data.equals(expectedBytes)) fail(code + "_conflict");
+  } finally {
+    fs.closeSync(final.fd);
+  }
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  return "created";
+}
+
 export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   event: any;
   request: any;
@@ -2513,6 +2725,28 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
 
+  // A reconciliation marker is an explicit restriction, never an authority
+  // grant. It is deliberately non-enumerable so canonical persisted event
+  // bytes remain identical to the historical JSON row. Forging the marker can
+  // only disable the append path; it cannot create a fulfillment.
+  const reconciliationDescriptor = Object.getOwnPropertyDescriptor(
+    event,
+    VOID_BUY_VOID_FULFILLED_RECONCILIATION_ONLY_V1,
+  );
+  const reconciliationOnly = reconciliationDescriptor !== undefined;
+  if (
+    reconciliationDescriptor !== undefined &&
+    (
+      !Object.hasOwn(reconciliationDescriptor, "value") ||
+      reconciliationDescriptor.value !== true ||
+      reconciliationDescriptor.enumerable !== false ||
+      reconciliationDescriptor.writable !== false ||
+      reconciliationDescriptor.configurable !== false
+    )
+  ) {
+    fail("buy_void_operator_fulfilled_reconciliation_marker_invalid");
+  }
+
   // Status authority must already be a primitive own data property.
   // Do not invoke an accessor or let an event-level toJSON synthesize a
   // different status during serialization.
@@ -2531,6 +2765,9 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     fail("buy_void_operator_event_capacity_status_noncanonical");
   }
   const admittedOperatorStatus = statusDescriptor.value;
+  if (reconciliationOnly && admittedOperatorStatus !== "fulfilled") {
+    fail("buy_void_operator_fulfilled_reconciliation_status_invalid");
+  }
 
   // Serialize exactly once before choosing the payment/nonpayment path. The
   // detached bytes are the only bytes that may be persisted.
@@ -2566,22 +2803,141 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
         request_id: requestId,
       },
       () => {
-        fs.appendFileSync(
-          path.join(requestDir, "operator-events.jsonl"),
-          operatorEventLine,
-        );
-        fs.writeFileSync(
-          path.join(
-            requestDir,
-            "operator-event-" +
-              requestId +
-              "-" +
-              String(operatorEvent.marked_at_ms || "") +
-              ".json",
-          ),
-          JSON.stringify(operatorEvent, null, 2),
-        );
-        return { ok: true, dir: requestDir };
+        // The pre-lock operator status projection is advisory. A competing
+        // fulfilled append may have committed before this request acquired
+        // the shared terminal-closeout request lock. Re-read authoritative
+        // JSONL under this exact lock and reject masked historic fulfillment
+        // BEFORE any event or sidecar write.
+        // Keep the same validated journal and directory descriptors open
+        // through history admission, the actual append and sidecar creation.
+        // A later pathname replacement must never redirect the write.
+        const sidecarTime = String(operatorEvent.marked_at_ms ?? "");
+        if (!/^(?:0|[1-9][0-9]{0,15})$/u.test(sidecarTime)) {
+          fail("buy_void_operator_terminal_sidecar_timestamp_invalid");
+        }
+        const sidecarName =
+          "operator-event-" + requestId + "-" + sidecarTime + ".json";
+        const directory = openPinnedRequestDirectoryV1(requestDir);
+        let operatorLedger: PinnedLedgerV1 | null = null;
+        try {
+          const code = "buy_void_operator_terminal_history";
+          operatorLedger = openPinnedLedgerV1(
+            directory, "operator-events.jsonl", code,
+            {
+              writable: !reconciliationOnly,
+              create: !reconciliationOnly,
+            },
+          );
+          if (operatorLedger === null) {
+            fail(
+              reconciliationOnly
+                ? "buy_void_operator_fulfilled_reconciliation_missing_under_lock"
+                : "buy_void_operator_terminal_history_unavailable",
+            );
+          }
+          const strictRead = readPinnedLedgerBytesV1(operatorLedger, code);
+          const priorEvents = parseStrictJsonLinesV1(
+            strictRead.bytes, code,
+          );
+          // The journal is authoritative. Reuse it only when the single
+          // already-committed fulfilled row is byte-canonical and exactly
+          // the event admitted by this operation. A later same-request row
+          // (including a legacy downgrade) makes recovery ambiguous.
+          const exactEventJson = CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent);
+          let fulfilledAlreadyCommitted = false;
+          let historicalFulfillmentSeen = false;
+          for (let rowIndex = 0; rowIndex < priorEvents.length; rowIndex += 1) {
+            const slot = CAPACITY_HISTORY_DESCRIPTOR_V1(
+              priorEvents, String(rowIndex),
+            );
+            if (!slot || !Object.hasOwn(slot, "value")) {
+              fail("buy_void_operator_terminal_history_ambiguous");
+            }
+            const row = slot.value;
+            const rowRequest = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "request_id");
+            const rowStatus = CAPACITY_HISTORY_DESCRIPTOR_V1(row, "operator_status");
+            if (!rowRequest || !Object.hasOwn(rowRequest, "value") ||
+                !rowStatus || !Object.hasOwn(rowStatus, "value") ||
+                typeof rowRequest.value !== "string" ||
+                typeof rowStatus.value !== "string") {
+              fail("buy_void_operator_terminal_history_ambiguous");
+            }
+            if (rowRequest.value !== requestId) continue;
+            if (historicalFulfillmentSeen) {
+              fail("buy_void_operator_fulfilled_terminal_under_lock");
+            }
+            if (rowStatus.value === "fulfilled") {
+              historicalFulfillmentSeen = true;
+              if (operatorStatus !== "fulfilled" ||
+                  CAPACITY_HISTORY_STRINGIFY_V1(row) !== exactEventJson) {
+                fail("buy_void_operator_fulfilled_terminal_under_lock");
+              }
+              fulfilledAlreadyCommitted = true;
+            }
+          }
+
+          // Recheck the exact journal generation even on a recovery-only
+          // path; do not create a sidecar against a changed/detached log.
+          const atUse = assertPinnedLedgerVisibleV1(operatorLedger, code);
+          if (!sameFileIdentityV1(strictRead.stat, atUse)) {
+            fail("buy_void_operator_terminal_history_changed_since_read");
+          }
+          if (reconciliationOnly && !fulfilledAlreadyCommitted) {
+            fail(
+              "buy_void_operator_fulfilled_reconciliation_missing_under_lock",
+            );
+          }
+          const sidecarNameCode = "buy_void_operator_terminal_sidecar";
+          const sidecarBytes = Buffer.from(
+            CAPACITY_HISTORY_STRINGIFY_V1(operatorEvent, null, 2), "utf8",
+          );
+          if (sidecarBytes.length < 2 ||
+              sidecarBytes.length > LEDGER_MAX_BYTES) {
+            fail("buy_void_operator_terminal_sidecar_bytes_invalid");
+          }
+          // Refuse an existing final sidecar BEFORE the initial journal
+          // append; otherwise a name collision could commit an event that
+          // cannot be projected. Recovery-only mode never appends.
+          if (!fulfilledAlreadyCommitted) {
+            assertPinnedRequestDirectoryVisibleV1(directory);
+            try {
+              fs.lstatSync(
+                path.join(directory.proc_path, sidecarName),
+                { bigint: true },
+              );
+              fail("buy_void_operator_terminal_sidecar_already_exists");
+            } catch (error: any) {
+              if (String(error?.code || "") !== "ENOENT") throw error;
+            }
+            appendPaymentVerifiedEventDurableV1(
+              operatorLedger, strictRead.stat, operatorEventLine,
+            );
+          }
+          const committedLedger = assertPinnedLedgerVisibleV1(
+            operatorLedger, code,
+          );
+          // Publish only fully written and fsynced hidden-temp bytes through
+          // a create-only link in this pinned directory. Recovery verifies
+          // the exact prior fulfilled row and never appends a duplicate.
+          const sidecarState = publishOperatorTerminalSidecarAtomicallyV1(
+            directory, sidecarName, sidecarBytes, fulfilledAlreadyCommitted,
+          );
+          const afterSidecarLedger = assertPinnedLedgerVisibleV1(
+            operatorLedger, code,
+          );
+          if (!sameFileIdentityV1(committedLedger, afterSidecarLedger)) {
+            fail("buy_void_operator_terminal_history_changed_after_sidecar");
+          }
+          return {
+            ok: true, dir: requestDir,
+            journal_reused: fulfilledAlreadyCommitted,
+            sidecar_recovered: fulfilledAlreadyCommitted &&
+              sidecarState === "created",
+          };
+        } finally {
+          if (operatorLedger !== null) fs.closeSync(operatorLedger.fd);
+          fs.closeSync(directory.fd);
+        }
       },
     );
   }

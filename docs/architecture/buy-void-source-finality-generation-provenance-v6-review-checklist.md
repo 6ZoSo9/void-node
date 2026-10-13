@@ -9,10 +9,10 @@
   `9df9648f546eb9320259eae1d3930a7c132a6511`, blob
   `0073818ad6f6418e895bf794024c9d678b3bef86`.
 - [ ] Verified-payment V2 record is exact source commit
-  `52deccca51077d457177e738135dbb0e0536d2f3`, blob
-  `c77bb6144b27eb8fdaff168200cea24d9c0ee9ac`.
+  `1397e6e17f53084158bdc2137dae0b38f6d6929a`, blob
+  `550ede02fc0b7d6874c324af58b5ef9c5591b311`.
 - [ ] Canonical five-record digest is
-  `ecdcb0f86b2fb18fd035828c1cf7cbc5025b1014703a2307c10fc6722c7424f1`.
+  `35691ec1fe0c19f08e9d1c256ce160c1f47139877832b97c0686d93ab42560f8`.
 - [ ] Historical V5 returns source-file mismatch on the changed generation; no
   predecessor pin or historical compiled/enforcement/package identity is waived.
 - [ ] All five V6 module-derived files are bounded, single-link, regular,

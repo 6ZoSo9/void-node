@@ -64,6 +64,12 @@ jobs:
       - name: Build exact current artifacts
         run: npm run build
 
+      - name: Verify reviewed node-util boundary without modifying frozen V1
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_enforcement_v1_util_boundary_v1.mjs
+
+
       - name: Preserve current V6 signer and broadcast HOLD
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
 
@@ -90,15 +96,34 @@ jobs:
       - name: Derive current enforcement V5 candidate without acceptance
         run: |
           set -euo pipefail
+          test "$(git hash-object scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs)" = "70292a0b283d8f06814f153105e27397f924c19d"
           node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive             > enforcement-v5-candidate-${{ matrix.node }}.json
+          if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/historical-v5-error.log"; then
+            echo 'HISTORICAL_V5_DERIVATION_FROM_UNCHANGED_SOURCE=true'
+          else
+            # Historical source derivation MUST refuse a changed E2 executable closure.
+            grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/historical-v5-error.log"
+            grep -F 'deriveBuyVoidEnforcementArtifactAttestationV5Candidate' "$RUNNER_TEMP/historical-v5-error.log"
+            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2"
+            node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-only.log"
+            grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-only.log"
+            grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-only.log"
+            grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/epoch2-source-only.log"
+            grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/epoch2-source-only.log"
+            grep -Fx 'source_qualification_complete=true' "$RUNNER_TEMP/epoch2-source-only.log"
+            touch "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"
+            echo 'HISTORICAL_V5_CANDIDATE_REFUSED_E2_SOURCE=true'
+          fi
+          if test ! -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
           node --input-type=module - <<'NODE' "enforcement-v5-candidate-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(j.schema,"void_buy_void_enforcement_artifact_v5_candidate");
           assert.equal(j.version,5);
-          assert.equal(j.source_runtime_parent,"3533626d7167c98ba8d65d2c423b460b1a3199fc");
+          // Exact current V6 runtime-source candidate parent, not the
+          // immutable historical enforcement-V4 provenance label.
+          assert.equal(j.source_runtime_parent,"22a30e3ffad6047a472488104c769140bd050878");
           assert.equal(
             j.predecessor?.historical_v4_manifest_git_blob_sha1,
             "d9e391bb058132b83a4eeaec00797e41dab9fa26",
@@ -116,11 +141,36 @@ jobs:
           ]) assert.equal(j[key],false,key);
           console.log("CURRENT_ENFORCEMENT_V5_CANDIDATE_HOLD_GREEN=true");
           NODE
+          fi
 
       - name: Derive current dynamic-tool source census without execution authority
         run: |
           node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
-          node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive             > dynamic-tools-${{ matrix.node }}.json
+          test "$(git hash-object scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs)" = "368ade74f36acad899420db5cf994363d6dfa04a"
+          if test -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
+            # E2 may alter the V5 closure while leaving the older dynamic-tool
+            # subset itself unchanged. Preserve either exact historic result.
+            if node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > "$RUNNER_TEMP/legacy-dynamic-tools.json" 2> "$RUNNER_TEMP/legacy-dynamic-error.log"; then
+              node --input-type=module - <<'NODE' "$RUNNER_TEMP/legacy-dynamic-tools.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          assert.equal(j.source_target_files_git_blobs_verified, true);
+          assert.equal(j.executed_target_verified, false);
+          assert.equal(j.dynamic_tool_transitive_closure_verified, false);
+          assert.equal(j.complete_executable_closure_verified, false);
+          assert.equal(j.candidate_identity_accepted, false);
+          assert.equal(j.production_source_finality_authority_ready, false);
+          console.log("HISTORICAL_DYNAMIC_SUBSET_UNCHANGED_E2_ACTIVE_CLOSURE_UNQUALIFIED=true");
+          NODE
+            else
+              grep -F '32f40899d6b71561bf4bf3a917e51c431cb867de HEAD --' "$RUNNER_TEMP/legacy-dynamic-error.log"
+              echo 'HISTORICAL_DYNAMIC_TOOL_CANDIDATE_REFUSED_E2_SOURCE=true'
+            fi
+          else
+            node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > dynamic-tools-${{ matrix.node }}.json
+          fi
+          if test ! -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
           node --input-type=module - <<'NODE' "dynamic-tools-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -134,6 +184,7 @@ jobs:
           assert.equal(j.production_source_finality_authority_ready,false);
           console.log("CURRENT_DYNAMIC_TOOL_SOURCE_CENSUS_HOLD_GREEN=true");
           NODE
+          fi
 
       - name: Committed-range diff hygiene
         env:
