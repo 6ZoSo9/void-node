@@ -29,6 +29,28 @@ const REQUEST_HISTORY_CREATE_V1 = Object.create;
 const REQUEST_HISTORY_IS_ARRAY_V1 = Array.isArray;
 const REQUEST_HISTORY_HAS_OWN_V1 = Object.hasOwn;
 const REQUEST_HISTORY_FINITE_V1 = Number.isFinite;
+const REQUEST_HISTORY_STRING_V1 = String;
+const REQUEST_HISTORY_NUMBER_V1 = Number;
+const REQUEST_HISTORY_STRING_TRIM_V1 = String.prototype.trim;
+const REQUEST_HISTORY_STRING_LOWER_V1 = String.prototype.toLowerCase;
+
+function requestHistoryTrimLowerV1(value: unknown): string {
+  const raw = REQUEST_HISTORY_STRING_V1(value ?? "");
+  const trimmed = REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_TRIM_V1, raw, [],
+  ) as string;
+  return REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_LOWER_V1, trimmed, [],
+  ) as string;
+}
+
+function requestHistoryLowerV1(value: unknown): string {
+  return REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_LOWER_V1,
+    REQUEST_HISTORY_STRING_V1(value ?? ""),
+    [],
+  ) as string;
+}
 
 // A new buyer request is admitted only from this closed, owned, detached
 // snapshot. Even a captured native JSON.stringify invokes an inherited
@@ -775,9 +797,9 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     let active: any = null;
     const txHashRevision =
       reqObj?.status === "payment_submitted_pending_manual_review";
-    const target = String(
+    const target = requestHistoryTrimLowerV1(
       reqObj.void_destination_address || "",
-    ).trim().toLowerCase();
+    );
     if (!target) holdHistoryV1("request_destination_absent");
     for (let i = 0; i < projected.length; i += 1) {
       if (!Object.hasOwn(projected, i)) {
@@ -787,12 +809,12 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       if (!other || typeof other !== "object" || Array.isArray(other)) {
         throw new Error("buy_void_request_history_projection_row_invalid");
       }
-      const destination = String(
+      const destination = requestHistoryTrimLowerV1(
         other.void_destination_address ||
         other.delivery_address ||
         other.delivery_wallet ||
         "",
-      ).trim().toLowerCase();
+      );
       if (destination !== target ||
           isTerminal(other.effective_status || other.status) ||
           !launchMatches(other)) continue;
@@ -822,7 +844,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         const row = durableRequestHistory[i];
         if (row.request_id !== reqObj.request_id &&
             typeof row.tx_hash === "string" &&
-            row.tx_hash.toLowerCase() === reqObj.tx_hash.toLowerCase()) {
+            requestHistoryLowerV1(row.tx_hash) ===
+              requestHistoryLowerV1(reqObj.tx_hash)) {
           holdHistoryV1("operator_revision_duplicate_tx_hash");
         }
       }
@@ -836,11 +859,11 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         currentRequestStates, reqObj.request_id,
       ) !== null) holdHistoryV1("new_request_id_already_durable");
       if (active) {
-        const amount = Number(active.usdc_amount ??
+        const amount = REQUEST_HISTORY_NUMBER_V1(active.usdc_amount ??
           active.requested_amount_usdc ?? 0);
-        const chain = String(active.source_chain || "base");
-        if (Number.isFinite(amount) &&
-            amount === Number(reqObj.usdc_amount) &&
+        const chain = REQUEST_HISTORY_STRING_V1(active.source_chain || "base");
+        if (REQUEST_HISTORY_FINITE_V1(amount) &&
+            amount === REQUEST_HISTORY_NUMBER_V1(reqObj.usdc_amount) &&
             chain === reqObj.source_chain) {
           // A crash may leave an fsynced journal with no sidecar. Restore
           // only a missing sidecar from the canonical latest JSONL row;
