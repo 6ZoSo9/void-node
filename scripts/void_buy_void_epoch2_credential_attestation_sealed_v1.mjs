@@ -1061,6 +1061,7 @@ export {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  buildChallenge,
   assertReviewedSource,
   parseSystemdObservation,
   serviceCgroupBound,
