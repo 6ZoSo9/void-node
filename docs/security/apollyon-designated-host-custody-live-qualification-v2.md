@@ -15,15 +15,29 @@ host-policy classifier.
 
 ## Exact source binding
 
-The live runner pins:
+The live runner binds a complete reviewed execution closure **before first
+policy evaluation or collector execution**:
 
 ```text
-V2 collector 25c553567172c1372a29f5e81bc45422022d7f4f
+V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
 V2 policy    83afde66ad89c29ec7b40932b2ebd7e0b2ce7bc7
+V2 collector 25c553567172c1372a29f5e81bc45422022d7f4f
+custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
+service      8961572ba5834371b1229f790a1960940fc74935
+client       fb31dbbda76c94f0ad08e38094c151a24a78b486
 ```
 
+It performs stable no-follow source reads, copies those exact bytes into a
+private execution tree, imports V2 (and its V1 relative dependency) only from
+that tree, and launches Python on the private collector through inherited file
+descriptor `/proc/self/fd/3`. The collector's own source-binding check therefore
+sees the exact private core/service/client bytes and cannot be redirected by a
+later worktree pathname replacement.
+
 The focused proof also pins historical V84/V1 tool, proof and documentation so
-the successor cannot silently rewrite the earlier evidence generation.
+the successor cannot silently rewrite the earlier evidence generation. It
+includes pre-import and post-preparation replacement sentinels for policy and
+collector bytes.
 
 ## Two-observation rule
 
@@ -81,8 +95,13 @@ sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs \
   --service-unit <custody-service>.service
 ```
 
-No filesystem/service mutation, private-key access, signing, attempt claim,
-training execution, wallet/transaction operation or funds movement occurs.
+The runner creates and removes one private temporary reviewed execution tree.
+That is reported truthfully as
+`private_temporary_filesystem_write=true`,
+`repository_source_write=false`, and
+`persistent_host_mutation=false`. It performs no service mutation,
+private-key access, signing, attempt claim, training execution,
+wallet/transaction operation or funds movement.
 
 ## Next gate
 

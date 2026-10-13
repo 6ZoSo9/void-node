@@ -3,8 +3,12 @@ name: Apollyon designated-host custody live qualification v2
 on:
   pull_request:
     paths:
+      - "tools/apollyon-custody-host-policy-qualification-v1.mjs"
       - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
       - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "tools/apollyon-authorization-custody-core-v1.mjs"
+      - "tools/apollyon-authorization-custody-service-v1.mjs"
+      - "tools/apollyon-authorization-custody-client-v1.mjs"
       - "tools/apollyon-designated-host-custody-live-qualification-v1.mjs"
       - "scripts/prove_apollyon_designated_host_custody_live_qualification_v1.mjs"
       - "docs/security/apollyon-designated-host-custody-live-qualification-v1.md"

@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  qualifyApollyonCustodyHostPolicyV2,
-} from "./apollyon-custody-host-policy-qualification-v2.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_V2 =
   "VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_V2";
 
 export const VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_AUTHORITY_V2 =
   Object.freeze({
-    read_only:true,
+    host_observation_read_only:true,
     designated_host_only:true,
+    filesystem_read:true,
+    filesystem_write:true,
+    private_temporary_filesystem_write:true,
+    repository_source_write:false,
+    persistent_host_mutation:false,
     exact_v2_collector_blob_required:true,
     exact_v2_policy_blob_required:true,
     caller_supplied_evidence:false,
@@ -31,7 +34,6 @@ export const VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_AUTHORITY_
     same_live_custody_session_binding_proven:false,
     independent_custody_proven:false,
     custody_production_gate_ready:false,
-    host_mutation:false,
     service_action:false,
     operator_private_key_access:false,
     production_signing:false,
@@ -50,13 +52,24 @@ export const VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_AUTHORITY_
 
 const HERE=dirname(fileURLToPath(import.meta.url));
 const ROOT=resolve(HERE,"..");
-const COLLECTOR=resolve(
-  ROOT,
-  "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py",
-);
-const POLICY=resolve(ROOT,"tools/apollyon-custody-host-policy-qualification-v2.mjs");
+const COLLECTOR_REL=
+  "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py";
+const POLICY_V1_REL="tools/apollyon-custody-host-policy-qualification-v1.mjs";
+const POLICY_V2_REL="tools/apollyon-custody-host-policy-qualification-v2.mjs";
 const COLLECTOR_BLOB_SHA1="25c553567172c1372a29f5e81bc45422022d7f4f";
+const POLICY_V1_BLOB_SHA1="6f34e79d94c502e31ca4923fd78922d4875550a5";
 const POLICY_BLOB_SHA1="83afde66ad89c29ec7b40932b2ebd7e0b2ce7bc7";
+const REVIEWED_EXECUTION_FILES=Object.freeze({
+  [COLLECTOR_REL]:COLLECTOR_BLOB_SHA1,
+  [POLICY_V1_REL]:POLICY_V1_BLOB_SHA1,
+  [POLICY_V2_REL]:POLICY_BLOB_SHA1,
+  "tools/apollyon-authorization-custody-core-v1.mjs":
+    "f9f18db5bbfeea466202ef0d7babe08c3c401d66",
+  "tools/apollyon-authorization-custody-service-v1.mjs":
+    "8961572ba5834371b1229f790a1960940fc74935",
+  "tools/apollyon-authorization-custody-client-v1.mjs":
+    "fb31dbbda76c94f0ad08e38094c151a24a78b486",
+});
 const MAX_STDOUT_BYTES=128*1024;
 const MAX_STDERR_BYTES=32*1024;
 const MAX_COLLECTOR_MS=20_000;
@@ -71,8 +84,115 @@ function gitBlobSha1(bytes){
     .update(bytes)
     .digest("hex");
 }
-function assertBlob(pathname,expected,code){
-  if(gitBlobSha1(fs.readFileSync(pathname))!==expected)fail(code);
+function sameIdentity(a,b){
+  return a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&a.mode===b.mode&&
+    a.uid===b.uid&&a.gid===b.gid&&a.nlink===b.nlink;
+}
+function readReviewedSource(sourceRoot,relative,expected,code){
+  const pathname=resolve(sourceRoot,relative);
+  const before=fs.lstatSync(pathname);
+  if(
+    before.isSymbolicLink()||!before.isFile()||before.nlink!==1||
+    before.size<1||before.size>2*1024*1024
+  )fail(code);
+  const fd=fs.openSync(
+    pathname,
+    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK,
+  );
+  try{
+    const opened=fs.fstatSync(fd);
+    if(!sameIdentity(before,opened))fail(code);
+    const bytes=fs.readFileSync(fd);
+    const afterFd=fs.fstatSync(fd);
+    const afterPath=fs.lstatSync(pathname);
+    if(
+      !sameIdentity(opened,afterFd)||!sameIdentity(before,afterPath)||
+      bytes.length!==before.size||gitBlobSha1(bytes)!==expected
+    )fail(code);
+    return bytes;
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+function ensurePrivateDirectory(pathname){
+  if(!fs.existsSync(pathname))fs.mkdirSync(pathname,{mode:0o700});
+  fs.chmodSync(pathname,0o700);
+  const st=fs.lstatSync(pathname);
+  if(
+    st.isSymbolicLink()||!st.isDirectory()||st.nlink<1||
+    st.uid!==process.geteuid?.()||(st.mode&0o777)!==0o700
+  )fail("apollyon_live_qualification_v2_private_tree_directory_invalid");
+}
+function writePrivateReviewedFile(root,relative,bytes,expected){
+  const parts=relative.split("/");
+  let parent=root;
+  for(const part of parts.slice(0,-1)){
+    parent=path.join(parent,part);
+    ensurePrivateDirectory(parent);
+  }
+  const target=path.join(root,...parts);
+  fs.writeFileSync(target,bytes,{flag:"wx",mode:0o400});
+  fs.chmodSync(target,0o400);
+  const verified=readReviewedSource(
+    root,relative,expected,
+    "apollyon_live_qualification_v2_private_tree_blob_mismatch",
+  );
+  verified.fill(0);
+  return target;
+}
+export function prepareApollyonReviewedExecutionTreeV2(sourceRoot=ROOT){
+  const canonicalRoot=resolve(sourceRoot);
+  if(
+    typeof sourceRoot!=="string"||canonicalRoot!==sourceRoot||
+    sourceRoot.includes("\0")
+  )fail("apollyon_live_qualification_v2_source_root_invalid");
+  const sourceBytes=new Map();
+  for(const [relative,expected] of Object.entries(REVIEWED_EXECUTION_FILES)){
+    sourceBytes.set(
+      relative,
+      readReviewedSource(
+        canonicalRoot,relative,expected,
+        "apollyon_live_qualification_v2_reviewed_source_blob_mismatch:"+relative,
+      ),
+    );
+  }
+  let privateRoot=null;
+  try{
+    privateRoot=fs.mkdtempSync(
+      path.join(os.tmpdir(),"void-apollyon-custody-v2-reviewed-"),
+    );
+    fs.chmodSync(privateRoot,0o700);
+    ensurePrivateDirectory(privateRoot);
+    const paths={};
+    for(const [relative,expected] of Object.entries(REVIEWED_EXECUTION_FILES)){
+      const bytes=sourceBytes.get(relative);
+      paths[relative]=writePrivateReviewedFile(
+        privateRoot,relative,bytes,expected,
+      );
+    }
+    return Object.freeze({
+      root:privateRoot,
+      collector:paths[COLLECTOR_REL],
+      policy_v2:paths[POLICY_V2_REL],
+    });
+  }catch(error){
+    if(privateRoot)fs.rmSync(privateRoot,{recursive:true,force:true});
+    throw error;
+  }finally{
+    for(const bytes of sourceBytes.values())bytes.fill(0);
+  }
+}
+export async function loadApollyonReviewedPolicyV2(prepared){
+  const module=await import(
+    pathToFileURL(prepared.policy_v2).href+"?reviewed="+POLICY_BLOB_SHA1
+  );
+  if(typeof module.qualifyApollyonCustodyHostPolicyV2!=="function"){
+    fail("apollyon_live_qualification_v2_reviewed_policy_export_missing");
+  }
+  return module.qualifyApollyonCustodyHostPolicyV2;
+}
+export function cleanupApollyonReviewedExecutionTreeV2(prepared){
+  if(prepared?.root)fs.rmSync(prepared.root,{recursive:true,force:true});
 }
 function sortJson(value){
   if(Array.isArray(value))return value.map(sortJson);
@@ -96,9 +216,9 @@ function safeUnit(value){
   if(typeof value!=="string"||!SAFE_UNIT.test(value))fail("apollyon_live_qualification_v2_service_unit_invalid");
   return value;
 }
-function collectorArgs(config){
+function collectorArgs(config,collectorSpecifier){
   return [
-    "-I","-B",COLLECTOR,
+    "-I","-B",collectorSpecifier,
     "--training-user",safeName(config.training_user,"apollyon_live_qualification_v2_training_user_invalid"),
     "--custody-user",safeName(config.custody_user,"apollyon_live_qualification_v2_custody_user_invalid"),
     "--ipc-group",safeName(config.ipc_group,"apollyon_live_qualification_v2_ipc_group_invalid"),
@@ -108,14 +228,37 @@ function collectorArgs(config){
     "--ttl-ms","300000",
   ];
 }
-function runCollector(config){
-  const result=spawnSync("/usr/bin/python3",collectorArgs(config),{
-    encoding:"utf8",
-    env:{PATH:"/usr/sbin:/usr/bin:/sbin:/bin",LC_ALL:"C",PYTHONDONTWRITEBYTECODE:"1"},
-    timeout:MAX_COLLECTOR_MS,
-    maxBuffer:MAX_STDOUT_BYTES+MAX_STDERR_BYTES,
-    windowsHide:true,
-  });
+function spawnReviewedCollector(prepared,args){
+  const fd=fs.openSync(
+    prepared.collector,
+    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK,
+  );
+  try{
+    const st=fs.fstatSync(fd);
+    if(
+      !st.isFile()||st.isSymbolicLink?.()||st.nlink!==1||
+      st.uid!==process.geteuid?.()||(st.mode&0o777)!==0o400
+    )fail("apollyon_live_qualification_v2_private_collector_invalid");
+    return spawnSync("/usr/bin/python3",["-I","-B","/proc/self/fd/3",...args],{
+      encoding:"utf8",
+      env:{PATH:"/usr/sbin:/usr/bin:/sbin:/bin",LC_ALL:"C",PYTHONDONTWRITEBYTECODE:"1"},
+      timeout:MAX_COLLECTOR_MS,
+      maxBuffer:MAX_STDOUT_BYTES+MAX_STDERR_BYTES,
+      windowsHide:true,
+      stdio:["ignore","pipe","pipe",fd],
+    });
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+export function runApollyonReviewedCollectorSelfTestV2(prepared){
+  return spawnReviewedCollector(prepared,["--self-test"]);
+}
+function runCollector(config,prepared){
+  const result=spawnReviewedCollector(
+    prepared,
+    collectorArgs(config,"/proc/self/fd/3").slice(3),
+  );
   if(result.error)fail("apollyon_live_qualification_v2_collector_execution_failed");
   if(result.signal!==null)fail("apollyon_live_qualification_v2_collector_signaled");
   if(result.status!==0){
@@ -146,9 +289,14 @@ function stableProjection(evidence){
   delete copy.evidence_snapshot;
   return copy;
 }
-export function qualifyApollyonDesignatedHostCustodyLivePairV2(first,second){
-  const q1=qualifyApollyonCustodyHostPolicyV2(first);
-  const q2=qualifyApollyonCustodyHostPolicyV2(second);
+export function qualifyApollyonDesignatedHostCustodyLivePairV2(
+  first,second,qualifyPolicy,
+){
+  if(typeof qualifyPolicy!=="function"){
+    fail("apollyon_live_qualification_v2_reviewed_policy_required");
+  }
+  const q1=qualifyPolicy(first);
+  const q2=qualifyPolicy(second);
   if(
     q1?.ok!==true||q1.status!=="source_policy_qualified"||
     q2?.ok!==true||q2.status!=="source_policy_qualified"
@@ -277,42 +425,63 @@ function fixture(generation,observed,verification,boot="aa".repeat(32)){
     version:2,
   };
 }
-function selfTest(){
-  const first=fixture(100,100000,100100);
-  const second=fixture(200,100200,100300);
-  const result=qualifyApollyonDesignatedHostCustodyLivePairV2(first,second);
-  if(
-    result.live_host_qualification_performed!==true||
-    result.socket_parent_namespace_custody_live_qualified!==true||
-    result.live_service_source_identity_proven!==false||
-    result.custody_production_gate_ready!==false||
-    result.attempt_claimed!==false
-  )fail("apollyon_live_qualification_v2_self_test_positive_failed");
+async function selfTest(){
+  const prepared=prepareApollyonReviewedExecutionTreeV2(ROOT);
   try{
-    qualifyApollyonDesignatedHostCustodyLivePairV2(first,fixture(100,100200,100300));
-    fail("missing_generation_hold");
-  }catch(error){
-    if(error.message!=="apollyon_live_qualification_v2_generation_not_monotonic")throw error;
-  }
-  try{
-    qualifyApollyonDesignatedHostCustodyLivePairV2(
-      first,fixture(200,100200,100300,"bb".repeat(32)),
+    const qualifyPolicy=await loadApollyonReviewedPolicyV2(prepared);
+    const first=fixture(100,100000,100100);
+    const second=fixture(200,100200,100300);
+    const result=qualifyApollyonDesignatedHostCustodyLivePairV2(
+      first,second,qualifyPolicy,
     );
-    fail("missing_boot_hold");
-  }catch(error){
-    if(error.message!=="apollyon_live_qualification_v2_boot_changed")throw error;
+    if(
+      result.live_host_qualification_performed!==true||
+      result.socket_parent_namespace_custody_live_qualified!==true||
+      result.live_service_source_identity_proven!==false||
+      result.custody_production_gate_ready!==false||
+      result.attempt_claimed!==false
+    )fail("apollyon_live_qualification_v2_self_test_positive_failed");
+    try{
+      qualifyApollyonDesignatedHostCustodyLivePairV2(
+        first,fixture(100,100200,100300),qualifyPolicy,
+      );
+      fail("missing_generation_hold");
+    }catch(error){
+      if(error.message!=="apollyon_live_qualification_v2_generation_not_monotonic")throw error;
+    }
+    try{
+      qualifyApollyonDesignatedHostCustodyLivePairV2(
+        first,fixture(200,100200,100300,"bb".repeat(32)),qualifyPolicy,
+      );
+      fail("missing_boot_hold");
+    }catch(error){
+      if(error.message!=="apollyon_live_qualification_v2_boot_changed")throw error;
+    }
+    const drift=fixture(200,100200,100300);
+    drift.socket_parent.retained_ancestors_group_other_writable=true;
+    try{
+      qualifyApollyonDesignatedHostCustodyLivePairV2(
+        first,drift,qualifyPolicy,
+      );
+      fail("missing_namespace_hold");
+    }catch(error){
+      if(!String(error.message).includes("socket_parent_invalid"))throw error;
+    }
+    const collectorTest=runApollyonReviewedCollectorSelfTestV2(prepared);
+    if(collectorTest.error||collectorTest.signal!==null||collectorTest.status!==0){
+      fail("apollyon_live_qualification_v2_collector_self_test_failed");
+    }
+    if(!String(collectorTest.stdout||"").includes(
+      "VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_EVIDENCE_READONLY_V2_SELF_TEST=GREEN",
+    )){
+      fail("apollyon_live_qualification_v2_collector_self_test_marker_missing");
+    }
+    console.log(
+      "VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_V2_SELF_TEST=GREEN",
+    );
+  }finally{
+    cleanupApollyonReviewedExecutionTreeV2(prepared);
   }
-  const drift=fixture(200,100200,100300);
-  drift.socket_parent.retained_ancestors_group_other_writable=true;
-  try{
-    qualifyApollyonDesignatedHostCustodyLivePairV2(first,drift);
-    fail("missing_namespace_hold");
-  }catch(error){
-    if(!String(error.message).includes("socket_parent_invalid"))throw error;
-  }
-  console.log(
-    "VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_LIVE_QUALIFICATION_V2_SELF_TEST=GREEN",
-  );
 }
 function parseCli(argv){
   const out={};
@@ -334,36 +503,42 @@ function parseCli(argv){
   }
   return out;
 }
-function main(){
+async function main(){
   if(process.argv.length===3&&process.argv[2]==="--self-test"){
-    selfTest();
+    await selfTest();
     return;
   }
   if(process.geteuid?.()!==0)fail("apollyon_live_qualification_v2_root_required");
-  assertBlob(
-    COLLECTOR,COLLECTOR_BLOB_SHA1,
-    "apollyon_live_qualification_v2_collector_blob_mismatch",
-  );
-  assertBlob(
-    POLICY,POLICY_BLOB_SHA1,
-    "apollyon_live_qualification_v2_policy_blob_mismatch",
-  );
   const config=parseCli(process.argv.slice(2));
-  const first=runCollector(config);
-  const second=runCollector(config);
-  process.stdout.write(
-    canonical(qualifyApollyonDesignatedHostCustodyLivePairV2(first,second))+"\n",
-  );
+  const prepared=prepareApollyonReviewedExecutionTreeV2(ROOT);
+  try{
+    const qualifyPolicy=await loadApollyonReviewedPolicyV2(prepared);
+    const first=runCollector(config,prepared);
+    const second=runCollector(config,prepared);
+    process.stdout.write(
+      canonical(
+        qualifyApollyonDesignatedHostCustodyLivePairV2(
+          first,second,qualifyPolicy,
+        ),
+      )+"\n",
+    );
+  }finally{
+    cleanupApollyonReviewedExecutionTreeV2(prepared);
+  }
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1])){
-  try{main();}
-  catch(error){
+  main().catch((error)=>{
     process.stderr.write(`HOLD=${String(error?.message||error)}\n`);
     process.stderr.write(
-      "read_only=true\nhost_mutation=false\nservice_action=false\n"+
+      "host_observation_read_only=true\n"+
+      "filesystem_write=true\n"+
+      "private_temporary_filesystem_write=true\n"+
+      "repository_source_write=false\n"+
+      "persistent_host_mutation=false\n"+
+      "service_action=false\n"+
       "attempt_claim=false\ntraining_execution=false\n"+
       "live_service_source_identity_proven=false\n",
     );
     process.exitCode=2;
-  }
+  });
 }
