@@ -74,6 +74,27 @@ function serviceControlFixture(){
     checked_actions:checks,
     observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
     pkcheck_subject:"4242,123456,1000",
+    polkit_deny_rule:{
+      action_id_only:true,
+      bytes:512,
+      denied_action_ids:[
+        "org.freedesktop.systemd1.manage-units",
+        ...globalControlActions,
+      ],
+      details_can_change_result:false,
+      group_other_writable:false,
+      lexically_first:true,
+      mode:"0644",
+      owner_gid:0,
+      owner_uid:0,
+      path:"/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules",
+      retained_ancestors_group_other_writable:false,
+      retained_ancestors_root_owned:true,
+      runtime_user:"zoso",
+      sha256:"77".repeat(32),
+      single_link:true,
+      symlink:false,
+    },
     reviewed_systemd_major:255,
     runtime_can_control_service:false,
     service_unit:serviceUnit,
@@ -154,6 +175,21 @@ for(const mutate of [
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
+  const bad=v2Fixture();bad.service_control.polkit_deny_rule.action_id_only=false;
+  bad.service_control.polkit_deny_rule.details_can_change_result=true;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.polkit_deny_rule.lexically_first=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.denied_action_ids=
+    ["org.freedesktop.systemd1.manage-units"];
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
   const bad=v2Fixture();bad.service_control.reviewed_systemd_major=256;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
@@ -169,6 +205,7 @@ for(const [key,expected] of Object.entries({
   historical_v1_classifier_reused:true,socket_parent_retained_ancestor_binding:true,
   socket_parent_training_rename_unlink_denied_required:true,
   explicit_training_pid_service_control_denial_required:true,
+  exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
   reviewed_systemd_major_pinned:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
@@ -183,6 +220,8 @@ console.log("historical_v83_collector_bytes_unchanged=true");
 console.log("socket_parent_retained_ancestor_binding=true");
 console.log("socket_parent_training_rename_unlink_denied_required=true");
 console.log("explicit_training_pid_service_control_denial_required=true");
+console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
+console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
