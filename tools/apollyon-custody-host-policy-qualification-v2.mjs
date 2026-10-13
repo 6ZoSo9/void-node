@@ -24,6 +24,8 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   reviewed_systemd_package_version_pinned:true,
   systemd_bus_owner_pid1_required:true,
   all_training_uid_processes_capability_free_required:true,
+  all_training_uid_threads_capability_free_required:true,
+  training_uid_thread_stability_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
@@ -73,6 +75,7 @@ function normalizeServiceControl(value,identities){
   exactKeys(value,[
     "all_systemd_control_actions_explicitly_denied",
     "all_training_uid_processes_capability_free",
+    "all_training_uid_threads_capability_free",
     "checked_actions","installed_systemd_package_version",
     "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule",
     "reviewed_systemd_major","reviewed_systemd_package_version",
@@ -83,6 +86,7 @@ function normalizeServiceControl(value,identities){
     "training_process_capabilities","training_process_start_time_ticks",
     "training_uid","training_uid_process_count",
     "training_uid_process_set_stable","training_uid_processes",
+    "training_uid_thread_count","training_uid_thread_sets_stable",
   ],code);
   if(
     value.reviewed_systemd_major!==REVIEWED_SYSTEMD_MAJOR||
@@ -105,9 +109,13 @@ function normalizeServiceControl(value,identities){
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
     value.all_systemd_control_actions_explicitly_denied!==true||
     value.all_training_uid_processes_capability_free!==true||
+    value.all_training_uid_threads_capability_free!==true||
     value.training_uid_process_set_stable!==true||
+    value.training_uid_thread_sets_stable!==true||
     !Number.isSafeInteger(value.training_uid_process_count)||
     value.training_uid_process_count<1||
+    !Number.isSafeInteger(value.training_uid_thread_count)||
+    value.training_uid_thread_count<value.training_uid_process_count||
     !Array.isArray(value.training_uid_processes)||
     value.training_uid_processes.length!==value.training_uid_process_count||
     value.runtime_can_control_service!==false
@@ -166,19 +174,33 @@ function normalizeServiceControl(value,identities){
 
   let previousPid=0;
   let selected=null;
+  let threadTotal=0;
   for(const process of value.training_uid_processes){
-    exactKeys(process,["capabilities","pid","start_time_ticks","uid"],code);
+    exactKeys(process,[
+      "all_threads_capability_free","capabilities","pid","start_time_ticks",
+      "thread_count","thread_inventory_sha256","thread_set_stable",
+      "uid","uid_slots",
+    ],code);
     if(
       !Number.isSafeInteger(process.pid)||process.pid<=previousPid||
       process.uid!==value.training_uid||
+      !Array.isArray(process.uid_slots)||process.uid_slots.length!==4||
+      process.uid_slots.some((uid)=>uid!==value.training_uid)||
       typeof process.start_time_ticks!=="string"||
-      !/^[1-9][0-9]*$/u.test(process.start_time_ticks)
+      !/^[1-9][0-9]*$/u.test(process.start_time_ticks)||
+      !Number.isSafeInteger(process.thread_count)||process.thread_count<1||
+      typeof process.thread_inventory_sha256!=="string"||
+      !/^[0-9a-f]{64}$/u.test(process.thread_inventory_sha256)||
+      process.thread_set_stable!==true||
+      process.all_threads_capability_free!==true
     )fail(code);
     validateCapabilities(process.capabilities);
+    threadTotal+=process.thread_count;
     if(process.pid===value.training_pid)selected=process;
     previousPid=process.pid;
   }
   if(
+    threadTotal!==value.training_uid_thread_count||
     selected===null||
     selected.start_time_ticks!==value.training_process_start_time_ticks||
     canonicalApollyonCustodyHostPolicyJsonV1(selected.capabilities)!==
@@ -217,6 +239,7 @@ function normalizeServiceControl(value,identities){
     training_uid_processes:Object.freeze(
       value.training_uid_processes.map((process)=>Object.freeze({
         ...process,
+        uid_slots:Object.freeze([...process.uid_slots]),
         capabilities:Object.freeze({...process.capabilities}),
       })),
     ),
