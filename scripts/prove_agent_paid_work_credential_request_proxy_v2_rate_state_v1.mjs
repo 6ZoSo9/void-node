@@ -94,11 +94,11 @@ try{
 
   const corrupt=path.join(root,"corrupt.json");
   fs.writeFileSync(corrupt,"{bad}\n",{mode:0o600});
-  assert.throws(
+  await assert.rejects(
     ()=>createVoidAgentCredentialRequestProxyV2RateStateV1({
       state_file:corrupt,window_ms:60_000,max_requests_per_source:2,
     }).admit(sourceA,70_000),
-    /./u,
+    /rate_state_json_invalid/u,
   );
 
   const permissive=path.join(root,"permissive.json");
