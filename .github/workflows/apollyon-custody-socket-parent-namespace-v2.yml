@@ -5,8 +5,10 @@ on:
     paths:
       - "tools/apollyon-custody-host-policy-qualification-v1.mjs"
       - "scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v1.md"
       - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py"
       - "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "docs/security/apollyon-designated-host-custody-evidence-readonly-v1.md"
       - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
       - "scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs"
       - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
