@@ -165,6 +165,16 @@ assert.throws(
 
 {
   const bad=observation();
+  bad.verification_now_ms=bad.expires_at_ms;
+  const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    /evidence_freshness_invalid/u,
+  );
+}
+
+{
+  const bad=observation();
   bad.runtime_control_denied=false;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
