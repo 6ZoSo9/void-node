@@ -195,9 +195,25 @@ function readCustodyRecord(consumed,authorizationId){
   const fd=fs.openSync(file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0));
   try{
     const before=fs.fstatSync(fd,{bigint:true});
+    if(!before.isFile()||!sameIdentity(st,before)){
+      fail("apollyon_live_binding_custody_record_open_identity_mismatch");
+    }
     const bytes=fs.readFileSync(fd);
     const after=fs.fstatSync(fd,{bigint:true});
-    if(!sameIdentity(before,after)||before.size!==after.size||before.mtimeNs!==after.mtimeNs||before.ctimeNs!==after.ctimeNs||BigInt(bytes.length)!==after.size){
+    const visibleAfter=fs.lstatSync(file,{bigint:true});
+    if(
+      !after.isFile()||
+      visibleAfter.isSymbolicLink()||
+      !sameIdentity(before,after)||
+      !sameIdentity(after,visibleAfter)||
+      before.size!==after.size||
+      before.mtimeNs!==after.mtimeNs||
+      before.ctimeNs!==after.ctimeNs||
+      after.size!==visibleAfter.size||
+      after.mtimeNs!==visibleAfter.mtimeNs||
+      after.ctimeNs!==visibleAfter.ctimeNs||
+      BigInt(bytes.length)!==after.size
+    ){
       fail("apollyon_live_binding_custody_record_changed");
     }
     const text=bytes.toString("utf8");
