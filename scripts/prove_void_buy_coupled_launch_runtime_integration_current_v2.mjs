@@ -9,6 +9,8 @@ import {
   deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
 } from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
+  SOURCE_BLOBS as EPOCH2_SOURCE_BLOBS,
+  STATUS as EPOCH2_SOURCE_STATUS,
   verifyCurrentEpoch2ClaimSourceV1,
 } from "../tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs";
 import {
@@ -724,9 +726,36 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  // Frozen enforcement V5 is historical source authority. Modern Epoch-2
-  // changes MUST make that derivation refuse; current source is qualified
-  // independently by the reviewed E2 source tuple instead of repinning V5.
+  // Frozen V5 is historical authority and must continue to refuse the
+  // reviewed Epoch-2 executable-source change. Current review identity comes
+  // from the separately content-addressed Epoch-2 source tuple; this does not
+  // repin V5 or promote signer/runtime/payment authority.
+  assert.throws(
+    () => deriveBuyVoidEnforcementArtifactAttestationV5Candidate(),
+    error => {
+      assert.match(
+        String(error?.message || error),
+        /22a30e3ffad6047a472488104c769140bd050878 HEAD --/u,
+      );
+      return true;
+    },
+    "historical V5 must HOLD current Epoch-2 source generation",
+  );
+
+  const epoch2Source = verifyCurrentEpoch2ClaimSourceV1();
+  assert.equal(epoch2Source.ok, true);
+  assert.equal(epoch2Source.status, EPOCH2_SOURCE_STATUS);
+  assert.equal(epoch2Source.credential_binding_established, false);
+  assert.equal(epoch2Source.runtime_or_payment_activation_authorized, false);
+  assert.equal(epoch2Source.historical_v1_authority_inherited, false);
+  assert.ok(Object.keys(EPOCH2_SOURCE_BLOBS).length >= 27);
+  assert.equal(
+    EPOCH2_SOURCE_BLOBS[
+      "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+    ],
+    "2deaee8ae4e0fbd909b417eef96a76012174c668",
+  );
+
   const historicalV4 = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
@@ -740,45 +769,11 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
     "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
   );
 
-  let historicalV5Refused = false;
-  try {
-    deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
-  } catch (error) {
-    const diagnostic = String(error?.stack || error?.message || error);
-    assert.match(
-      diagnostic,
-      /22a30e3ffad6047a472488104c769140bd050878 HEAD --/u,
-      "frozen V5 refusal must bind its historical source parent",
-    );
-    assert.match(
-      diagnostic,
-      /deriveBuyVoidEnforcementArtifactAttestationV5Candidate/u,
-      "frozen V5 refusal must originate in the reviewed derivation",
-    );
-    historicalV5Refused = true;
-  }
-  assert.equal(
-    historicalV5Refused,
-    true,
-    "modern E2 source must not be silently accepted by frozen V5",
-  );
-
-  const currentSource = verifyCurrentEpoch2ClaimSourceV1();
-  assert.equal(currentSource.ok, true);
-  assert.equal(
-    currentSource.status,
-    "EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD",
-  );
-  assert.equal(currentSource.historical_v1_authority_inherited, false);
-  assert.equal(currentSource.credential_binding_established, false);
-  assert.equal(currentSource.runtime_or_payment_activation_authorized, false);
-
   console.log("historical_enforcement_v4_predecessor_immutable=true");
-  console.log("historical_enforcement_v5_source_refusal_verified=true");
+  console.log("historical_enforcement_v5_epoch2_source_hold=true");
   console.log("current_epoch2_source_tuple_qualified=true");
   console.log("current_enforcement_v5_candidate_derived=false");
   console.log("current_enforcement_v5_candidate_acceptance=false");
-  console.log("dynamic_tool_execution_identity_verified=false");
   console.log("complete_executable_closure_verified=false");
 }
 console.log("native_usdc_request_and_verified_event_policy_held=true");
