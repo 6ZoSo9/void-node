@@ -61,9 +61,23 @@ function assertNoSymlinkAncestors(target,code){
     if(fs.lstatSync(cursor).isSymbolicLink()) fail(code);
   }
 }
+function assertRootOwnedProtectedAncestors(target,code){
+  const parsed=path.parse(target);
+  let cursor=parsed.root;
+  const parent=path.dirname(target);
+  for(const segment of parent.slice(parsed.root.length).split(path.sep).filter(Boolean)){
+    cursor=path.join(cursor,segment);
+    const metadata=fs.lstatSync(cursor,{bigint:true});
+    if(
+      !metadata.isDirectory()||metadata.isSymbolicLink()||metadata.uid!==0n||
+      Number(metadata.mode&0o022n)!==0
+    )fail(code);
+  }
+}
 function assertRootOwnedImmutableFile(file,expectedBlob,code){
   const canonical=canonicalAbs(file,code);
   assertNoSymlinkAncestors(canonical,code);
+  assertRootOwnedProtectedAncestors(canonical,code);
   if(fs.realpathSync.native(canonical)!==canonical) fail(code);
   const before=fs.lstatSync(canonical,{bigint:true});
   if(
