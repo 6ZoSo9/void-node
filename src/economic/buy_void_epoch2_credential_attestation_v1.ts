@@ -510,11 +510,6 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     probe: {
       nonce: input.probe.nonce,
       gas_limit: input.probe.gasLimit.toString(),
-      intrinsic_gas_floor: 
-        VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_INTRINSIC_GAS_FLOOR_V1.toString(),
-      intrinsically_invalid_by_gas_limit:
-        input.probe.gasLimit <
-        VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_INTRINSIC_GAS_FLOOR_V1,
       challenge_sha256: sha256(challenge),
       amount_atoms: "1",
       max_fee_per_gas_wei: "0",
