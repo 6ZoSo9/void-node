@@ -362,7 +362,7 @@ assert.doesNotMatch(persistBridge,/fs[.]appendFileSync|fs[.]writeFileSync/u);
 const helperAt = requestHelper.indexOf(
   "export async function persistBuyVoidPublicRequestUnderLaunchLockV1(");
 const lockHeldAt = requestHelper.indexOf(
-  "return withLaunchMutation(reqObj, async (assertCurrentAuthority) => {",helperAt);
+  "return withLaunchMutation(reqObj, async (assertCurrentAuthority",helperAt);
 const strictHistoryAt = requestHelper.indexOf(
   "assertCompleteRequestHistoryUnderLockV1(pinnedDir, requestHistory)",lockHeldAt);
 const journalRetainedAt = requestHelper.indexOf(

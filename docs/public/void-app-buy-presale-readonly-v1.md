@@ -20,6 +20,18 @@ newly fetched snapshot passes the complete OPEN contract.
 The participant-visible policy price remains mechanically bound to the
 canonical `VOID_BUY_PRICE_USDC_PER_VOID` default in `src/index.ts`.
 
+## Readiness-generation binding
+
+A confirmed checkout response is actionable only within the exact browser
+readiness generation under which its POST began. The unauthenticated public edge
+intentionally exposes only the bounded launch-authority expiry, not internal
+activation-generation or receipt identifiers. Therefore any later readiness GET
+(including OPEN → OPEN) permanently retires the prior payment instructions to a
+conservative prior-request warning. The attempted intent remains no-retry.
+
+An uncertain POST outcome is not payment authority and remains visible as a
+warning across readiness refreshes.
+
 ## Request boundary
 
 When the gate is OPEN, the page may POST one guarded request to

@@ -1,0 +1,114 @@
+name: VOID Precision web recovery current gateway V2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-precision-web-recovery-current-gateway-v2.yml"
+      - "tools/void-precision-web-recovery-evidence-v2.mjs"
+      - "scripts/prove_void_precision_web_recovery_evidence_v2.mjs"
+      - "docs/operators/precision-web-recovery-current-gateway-v2.md"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "scripts/prove_void_precision_web_recovery_evidence_v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "ops/public/void-public-frontdoor-cutover-v1.sh"
+      - "public/void-public-frontdoor-v1/index.html"
+      - "scripts/prove_buy_void_public_edge_post_proxy_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Precision current gateway V2 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact immutable source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Review source and legacy immutable witnesses
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "b086b612fe5ee1dc1d5bcc4838d926af890d1435"
+          test "$(git hash-object tools/void-precision-web-recovery-evidence-v1.mjs)" = "fca92451258bfd5446cb675530dbdb70b6ecf5df"
+          test "$(git hash-object scripts/prove_void_precision_web_recovery_evidence_v1.mjs)" = "c6554e860ead91042170df22d4aae49ceb2eabc0"
+      - name: Install supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact dependencies without lifecycle
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove V2 current source and original V1 negative
+        run: |
+          set -Eeuo pipefail
+          node --check tools/void-precision-web-recovery-evidence-v2.mjs
+          node --check scripts/prove_void_precision_web_recovery_evidence_v2.mjs
+          node scripts/prove_void_precision_web_recovery_evidence_v2.mjs | tee "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V2_PROOF_GREEN' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'frozen_v1_new_gateway_rejection_intact=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'current_source_generation_bound=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'hostile_path_git_substitution_rejected=true' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'installation_authorized=false' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+          grep -Fx 'independent_acceptance=false' "$RUNNER_TEMP/precision-gateway-v2-node-${{ matrix.node }}.txt"
+      - name: Requalify exact checkout gateway behavior with disposable HTTP
+        run: |
+          set -Eeuo pipefail
+          node --check scripts/prove_buy_void_public_edge_post_proxy_v1.mjs
+          node scripts/prove_buy_void_public_edge_post_proxy_v1.mjs
+      - name: Strict repository hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -Eeuo pipefail
+          test -z "$(git status --porcelain=v1)"
+          if [ -z "${BASE:-}" ]; then BASE="$(git rev-parse HEAD^1)"; fi
+          git merge-base --is-ancestor "$BASE" HEAD
+          git diff --check "$BASE" HEAD
+      - name: Upload exact source-only V2 receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: precision-current-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/precision-gateway-v2-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  compare:
+    name: Compare raw V2 source proof across Node 22 24 26
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: precision-current-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./proof
+      - name: Require same exact reviewed source result
+        run: |
+          set -Eeuo pipefail
+          for v in 22 24 26; do test -s "proof/precision-gateway-v2-node-$v.txt"; done
+          cmp proof/precision-gateway-v2-node-22.txt proof/precision-gateway-v2-node-24.txt
+          cmp proof/precision-gateway-v2-node-22.txt proof/precision-gateway-v2-node-26.txt
+          echo "VOID_PRECISION_CURRENT_GATEWAY_V2_THREE_NODE_GREEN"
+          echo "installed_host_accepted=false"
+          echo "presale_or_wc_activated=false"
+          echo "funds_moved=false"
