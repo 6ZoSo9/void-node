@@ -1,5 +1,12 @@
 # Buy VOID operator verified-allocation dispatch V2
 
+## October 13, 2026 — current router V6
+
+V1/V2/V3/V4/V5 remain immutable historical dispatcher generations. The range-error response change is outside the mounted operator writer slice and advances the exact router Git blob to `39088dae3f1f9d10eb345f2ef9eed9626b471383`.
+
+Dispatcher V6 proof `scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts` is Git blob `e37e8a70e8713ae41f1fb1d6fd04b1064ee73af2`. It pins frozen V5 proof `870754b9888b535a16629b8b181e55c3182c328a`, requires V5 to refuse the new router, and reruns the complete source-only planner/mounted-route adversaries. Production mounting, payment intake, signing, broadcast, presale activation, and funds movement remain false.
+
+
 ## October 13, 2026 — current router V5
 
 V1/V2/V3/V4 remain immutable historical dispatcher generations. The bounded
