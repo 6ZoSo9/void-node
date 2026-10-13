@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-precision-web-recovery-evidence-v1.yml"
+      - "tools/void-precision-web-recovery-evidence-v2.mjs"
+      - "scripts/prove_void_precision_web_recovery_evidence_v2.mjs"
       - "docs/operators/precision-web-recovery-evidence-v1.md"
       - "scripts/prove_void_precision_web_recovery_evidence_v1.mjs"
       - "tools/void-precision-web-recovery-evidence-v1.mjs"
@@ -19,6 +21,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/void-precision-web-recovery-evidence-v1.yml"
+      - "tools/void-precision-web-recovery-evidence-v2.mjs"
+      - "scripts/prove_void_precision_web_recovery_evidence_v2.mjs"
       - "docs/operators/precision-web-recovery-evidence-v1.md"
       - "scripts/prove_void_precision_web_recovery_evidence_v1.mjs"
       - "tools/void-precision-web-recovery-evidence-v1.mjs"
@@ -56,8 +60,19 @@ jobs:
         run: |
           node --check tools/void-precision-web-recovery-evidence-v1.mjs
           node --check scripts/prove_void_precision_web_recovery_evidence_v1.mjs
-      - name: Prove Precision web recovery evidence contract
-        run: node scripts/prove_void_precision_web_recovery_evidence_v1.mjs
+      - name: Preserve frozen V1 source refusal
+        run: |
+          set +e
+          node scripts/prove_void_precision_web_recovery_evidence_v1.mjs \
+            > "$RUNNER_TEMP/precision-v1.stdout" 2> "$RUNNER_TEMP/precision-v1.stderr"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-app-composition-gateway-v1.mjs' \
+            "$RUNNER_TEMP/precision-v1.stderr"
+          echo "frozen_precision_v1_refusal=GREEN"
+      - name: Prove current gateway V2 successor
+        run: node scripts/prove_void_precision_web_recovery_evidence_v2.mjs
       - name: Existing public stack regressions
         run: |
           node --check ops/public/public-seed-adapter-v1.mjs
