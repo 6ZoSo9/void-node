@@ -29,6 +29,7 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_PARENT_ACTION_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_V1,
+  buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1,
   handleBuyVoidPaymentKeyedFullRuntimeCommandV1,
   runBuyVoidPaymentKeyedFullRuntimeV1,
 } from "../src/economic/buy_void_payment_keyed_full_runtime_v1.js";
@@ -59,6 +60,56 @@ const PAYMENT_KEY = "d".repeat(64);
 const FULFILL = new Interface([
   "function fulfill(bytes32 paymentDeliveryId,address recipient,uint256 amountAtoms)",
 ]);
+
+const statusPolicy: any = {
+  configured: true,
+  fulfillment_wallet_address: WALLET,
+  fulfillment_contract_address: CONTRACT,
+  server_policy: {
+    preparation_policy: {
+      rpc_url: E2_RPC,
+    },
+  },
+};
+assert.equal(
+  buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(statusPolicy, {
+    CREDENTIALS_DIRECTORY: "/run/credentials/void-node",
+    VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID: "",
+    VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID:
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+  }),
+  true,
+  "exact E2 credential environment must be reported configured",
+);
+assert.equal(
+  buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(statusPolicy, {
+    CREDENTIALS_DIRECTORY: "/run/credentials/void-node",
+    VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID:
+      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+    VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID:
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+  }),
+  false,
+  "legacy E1 evidence must not satisfy E2 status",
+);
+assert.equal(
+  buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(statusPolicy, {
+    CREDENTIALS_DIRECTORY: "/run/credentials/void-node",
+    VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID: "",
+    VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID: "f".repeat(64),
+  }),
+  false,
+  "wrong E2 source binding must not satisfy status",
+);
+assert.equal(
+  buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(statusPolicy, {
+    VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID: "",
+    VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID:
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
+  }),
+  false,
+  "missing credentials directory must not satisfy E2 status",
+);
 
 const tmp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-pk-full-runtime-"),

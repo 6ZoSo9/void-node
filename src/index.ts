@@ -18856,7 +18856,7 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
     });
 
 
-    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return await __blm(reqObj,()=>{const json=JSON.stringify(reqObj);fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}})}
+    async function __voidPersistBuyVoidRequestV1(r:any){const m=await import("./economic/buy_void_public_request_under_launch_lock_v1.js");return m.persistBuyVoidPublicRequestUnderLaunchLockV1(r,[__blm,__voidReadBuyVoidRequestsV1,__voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,__voidBuyVoidTerminalStatusV1,__blo])}
 
     function __voidBuyVoidReadParamV1(req:any, name:string){
       const q = (req && req.query) || {};
@@ -18983,38 +18983,8 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           });
         }
 
-        const existingRequests = await __voidReadBuyVoidRequestsV1();
-        const existingEvents = await __voidReadBuyVoidOperatorEventsV1();
-        const effectiveRequests = __voidApplyBuyVoidOperatorEventsV1(existingRequests, existingEvents);
-        const destinationLower = void_destination_address.toLowerCase();
-        const activeForDestination = effectiveRequests.find((request:any)=>{
-          const boundDestination = String(request.void_destination_address || request.delivery_address || request.delivery_wallet || "").trim().toLowerCase();
-          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__blo(request);
-        });
-
-        if (activeForDestination) {
-          const activeAmount = Number(activeForDestination.usdc_amount ?? activeForDestination.requested_amount_usdc ?? 0);
-          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount && (activeForDestination.source_chain || "base") === source_chain) {
-            return res.json({
-              schema: "void_public_buy_void_checkout_request_result_v1",
-              marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-              ok: true,
-              idempotent: true,
-              one_active_request_cap_enforced: true,
-              request: activeForDestination
-            });
-          }
-
-          return res.status(409).json({
-            schema: "void_public_buy_void_checkout_request_result_v1",
-            marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-            ok: false,
-            error: "one_active_request_per_void_destination",
-            existing_request_id: String(activeForDestination.request_id || ""),
-            existing_status: String(activeForDestination.effective_status || activeForDestination.status || ""),
-            void_destination_address
-          });
-        }
+        // Strict history and destination checks happen only in the lock.
+        // Do not let a public fast return bypass canonical journal validation.
 
         const request_id = "buyvoid_" + Date.now().toString(36) + "_" + Math.random().toString(16).slice(2,10);
         const created_at_ms = Date.now();
@@ -19088,7 +19058,21 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
 
         if(!__blo(requestObj))throw new Error("request_launch_authority_expired_or_superseded");
         const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
-        requestObj.persisted = { ok:true, file:persisted.file };
+        // An address/amount/chain match is not proof of the original caller.
+        // Never expose that buyer's record or request ID to an anonymous retry.
+        if(persisted.reused_request){
+          return res.status(409).json({
+            schema:"void_public_buy_void_checkout_request_result_v1",
+            marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+            ok:false,
+            error:"one_active_request_per_void_destination",
+            one_active_request_cap_enforced:true
+          });
+        }
+        // The private sidecar path is an internal persistence detail.
+        // Buyer-facing HTTP 201 proves only a retained request; never disclose
+        // VOID_BUY_REQUEST_DIR, the filename, or a path through requestObj.
+        requestObj.persisted = { ok:true };
 
         return res.status(201).json({
           schema: "void_public_buy_void_checkout_request_result_v1",
@@ -19098,7 +19082,25 @@ return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.
           one_active_request_cap_enforced: true,
           request: requestObj
         });
-      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded";return res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:h?m:"buy_void_checkout_request_failed",message:m})}
+      }catch(e:any){
+        // A public caller must not receive raw internal exception data
+        // (filesystem paths, source-state details, or request metadata).
+        const reason=String(e?.message||e);
+        const lease=reason==="request_launch_authority_expired_or_superseded";
+        const conflict=reason==="buy_void_request_active_destination_changed_during_lock";
+        return res.status(lease||conflict?409:500).json({
+          schema:"void_public_buy_void_checkout_request_result_v1",
+          marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+          ok:false,
+          error:conflict?"one_active_request_per_void_destination":
+            lease?"request_launch_authority_expired_or_superseded":
+            "buy_void_checkout_request_failed",
+          // Identical public 409 envelope for a guessed matching or changed
+          // amount/rail. Unauthenticated destination control must not reveal
+          // the earlier buyer's private original request terms.
+          ...(conflict?{one_active_request_cap_enforced:true}:{})
+        });
+      }
     });
 
 

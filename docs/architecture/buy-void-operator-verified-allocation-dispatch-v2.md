@@ -45,3 +45,22 @@ and the actual current V3 source-only positive proof on Node 22/24/26.
 Historical test/proof source bytes are unchanged and cannot be treated
 as current acceptance. No public runtime, custody UID, funds, payment
 or presale authority is enabled by this requalification.
+
+
+## October 12, 2026 — request-lock router V4
+
+V1/V2/V3 remain immutable historical generations. The request-lock successor
+changes public checkout persistence/privacy outside the mounted operator writer
+slice, producing exact `src/index.ts` Git blob
+`40239e0f76aa1edce43523d18c1b57691e41e8cf`.
+
+Dispatcher V4 reuses the reviewed V3 parser and adversarial plan checks, binds
+that exact router, and requires the frozen V3 proof Git blob
+`794b3bb8e2c386be7fad607a3adf79aadff5332d` to remain unchanged and refuse
+the new router generation. It does not mount the verified-allocation
+dispatcher: `mounted_verified_allocation_dispatch=false` remains required.
+
+The source-only V4 proof Git blob is
+`752deafb5a8ff884cfcfc0ff7ef8fded2a92287b`. No service, credential,
+customer-ledger, wallet, signer, payment, allocation, presale, or funds
+mutation is authorized.

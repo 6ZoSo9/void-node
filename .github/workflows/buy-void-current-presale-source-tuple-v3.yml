@@ -9,6 +9,7 @@ on:
       - "scripts/prove_buy_void_dispatch_own_array_index_v1.mjs"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts"
@@ -51,6 +52,7 @@ jobs:
           test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "794b3bb8e2c386be7fad607a3adf79aadff5332d"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts)" = "752deafb5a8ff884cfcfc0ff7ef8fded2a92287b"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "fa57e8a5e3ba919ce11ea28150443d15116246d7"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "3343d64a22ee98aa451ad35dac5aa4223ed6819f"
@@ -91,19 +93,27 @@ jobs:
             fi
             echo "historical_refusal_verified=$proof"
           done
+          log="$RUNNER_TEMP/dispatcher-v3.hold"
+          set +e
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts >"$log" 2>&1
+          status=$?
+          set -e
+          test "$status" -eq 1
+          grep -Fq 'current mounted router generation drift' "$log"
+          echo "historical_refusal_verified=scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts"
           node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
           node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs
           echo current_positive_begin=crash_v6
           node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > crash-${{ matrix.node }}.json
           echo current_positive_begin=first_original_v4
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > handoff-${{ matrix.node }}.txt
-          echo current_positive_begin=dispatcher_v3
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts > dispatch-${{ matrix.node }}.txt
+          echo current_positive_begin=dispatcher_v4
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts > dispatch-${{ matrix.node }}.txt
           echo current_positive_begin=dual_rail_v3
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > dualrail-${{ matrix.node }}.txt
           grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' crash-${{ matrix.node }}.json
           grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' handoff-${{ matrix.node }}.txt
-          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V3_GREEN' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V4_GREEN' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'reviewed_replay_source_blob=b451bcd895986dadaf6e53954671062068316ccf' dualrail-${{ matrix.node }}.txt

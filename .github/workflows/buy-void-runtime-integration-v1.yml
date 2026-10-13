@@ -96,7 +96,7 @@ jobs:
                 # re-pin it or silently mark its OLD E1 execution as ready.
                 test "$(git hash-object tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
                 test "$(git hash-object scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
-                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2" && \
+                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42" && \
                    node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-current.log" 2>&1; then
                   grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-current.log"
                   grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-current.log"
@@ -134,6 +134,21 @@ jobs:
                 grep -Fq '0e27a76e777c326d2d9e2b1550b7f2979fca9abb' "$RUNNER_TEMP/$(basename "$proof").hold"
                 grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$RUNNER_TEMP/$(basename "$proof").hold"
                 echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V2_HELD=$proof"
+                continue
+                ;;
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)
+                # Frozen V3 binds the historical mounted router generation.
+                # Current src/index.ts is the separately reviewed V4 producer
+                # generation and must make V3 fail closed before V4 runs.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'current mounted router generation drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '1fde828c97175560f98ab070af33eefc595f8002' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '40239e0f76aa1edce43523d18c1b57691e41e8cf' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V3_HELD=$proof"
                 continue
                 ;;
               scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)
