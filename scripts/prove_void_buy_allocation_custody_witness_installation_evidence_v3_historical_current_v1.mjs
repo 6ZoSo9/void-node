@@ -14,6 +14,33 @@ import {
 } from "../dist/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.js";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const WORKFLOW=
+  ".github/workflows/buy-void-allocation-custody-witness-installation-evidence-v3.yml";
+const REQUIRED_WORKFLOW_TRIGGER_PATHS=Object.freeze([
+  "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs",
+  "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs",
+  "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py",
+  "src/economic/buy_void_allocation_reservation_ledger_v1.ts",
+  "src/economic/buy_void_verified_allocation_replay_binding_v1.ts",
+  "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+  "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs",
+  "src/economic/buy_void_allocation_custody_external_witness_v1.ts",
+  "src/economic/buy_void_allocation_custody_witness_transport_v1.ts",
+  "src/economic/buy_void_allocation_reservation_high_water_v1.ts",
+  "src/economic/buy_void_auto_fulfillment_v1.ts",
+  "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+  "tsconfig.json",
+  "tsconfig.build.json",
+  "scripts/copy_void_runtime_js_v1.mjs",
+  "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+  "package.json",
+  "package-lock.json",
+  "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts",
+  "scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v3_historical_current_v1.mjs",
+  "scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v3.mjs",
+  "tools/void-buy-allocation-custody-witness-installation-evidence-v3.mjs",
+]);
+
 const CURRENT_CLASSIFIER="scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs";
 const FROZEN_INSTALLATION_PROOF=
   "scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v3.mjs";
@@ -82,6 +109,22 @@ function run(command,args){
   });
   if(result.error)throw result.error;
   return result;
+}
+
+const workflowText=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
+assert.match(
+  workflowText,
+  /push:\s*\n\s*branches:\s*\n(?:\s*-\s*[^\n]+\n)*\s*-\s*main\s*\n/u,
+  "installation-evidence workflow must requalify relevant changes on main",
+);
+for(const relative of REQUIRED_WORKFLOW_TRIGGER_PATHS){
+  const exactLine=`      - "${relative}"`;
+  const count=workflowText.split(exactLine).length-1;
+  assert.equal(
+    count,
+    2,
+    "workflow trigger path must appear in push and pull_request: "+relative,
+  );
 }
 
 assert.equal(sourceBlob(CURRENT_CLASSIFIER),EXPECTED.current_classifier_blob);
@@ -182,6 +225,8 @@ const receipt=Object.freeze({
   current_runtime_candidate_files:Object.freeze(runtimeFiles),
   current_nimo_bundle_generation_qualified:false,
   current_nimo_installation_evidence_generation_qualified:false,
+  workflow_trigger_closure_verified:true,
+  main_push_requalification_enabled:true,
   current_nimo_installation_successor_required:true,
   live_nimo_installed:false,
   verified_payment_to_allocation_mounted:false,
