@@ -486,7 +486,7 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
     marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
     version:1,
     target_host:"Xiphos",
-    verification_now_ms:observation.observed_at_ms,
+    verification_now_ms:observation.verification_now_ms,
     evidence_snapshot:Object.freeze({
       observed_at_ms:observation.observed_at_ms,
       expires_at_ms:observation.expires_at_ms,
@@ -641,7 +641,7 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
     custody_process_count:
       custodyCount.count===1&&custodyCount.last_pid===custodyPid
         ? 1
-        : custodyCount.count,
+        : Math.max(2,custodyCount.count),
     runtime_control_denied:runtimeDenied,
     state_ancestors:ancestors,
     state_root:Object.freeze({
