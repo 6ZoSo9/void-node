@@ -70,9 +70,15 @@ function fixture(){
       mode:"0750",
       direct:true,
       symlink:false,
+      retained_ancestor_count:3,
+      retained_ancestors_root_owned:true,
+      retained_ancestors_direct:true,
+      retained_ancestors_symlink_free:true,
+      retained_ancestors_group_other_writable:false,
       custody_uid_write_allowed:true,
       training_uid_traverse_allowed:true,
       training_uid_write_denied:true,
+      training_uid_rename_unlink_denied:true,
     },
     socket:{
       owner_uid:994,
@@ -173,6 +179,24 @@ function clone(value){
 {
   const bad=fixture();
   bad.socket_parent.training_uid_write_denied=false;
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV1(bad),
+    /socket_parent_invalid/u,
+  );
+}
+
+{
+  const bad=fixture();
+  bad.socket_parent.training_uid_rename_unlink_denied=false;
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV1(bad),
+    /socket_parent_invalid/u,
+  );
+}
+
+{
+  const bad=fixture();
+  bad.socket_parent.retained_ancestors_group_other_writable=true;
   assert.throws(
     ()=>qualifyApollyonCustodyHostPolicyV1(bad),
     /socket_parent_invalid/u,
