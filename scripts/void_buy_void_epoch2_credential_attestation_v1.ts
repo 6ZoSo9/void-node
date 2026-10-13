@@ -366,6 +366,7 @@ async function main(): Promise<void> {
       ATTESTATION_CONFIRMATION) {
     throw new Error("epoch2_credential_attestation_confirmation_mismatch");
   }
+  throw new Error("epoch2_attestation_sealed_git_object_probe_required");
   if (process.platform !== "linux") {
     throw new Error("epoch2_credential_attestation_linux_required");
   }
