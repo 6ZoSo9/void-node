@@ -41,8 +41,7 @@ function help(): string {
   return [
     "Usage:",
     "  node --import tsx scripts/void_buy_void_epoch2_credential_attestation_v1.ts",
-    "  node --import tsx scripts/void_buy_void_epoch2_credential_attestation_v1.ts --probe --confirm " +
-      ATTESTATION_CONFIRMATION,
+    "  Live probe: use the sealed Git-object command in the operator documentation.",
     "",
     "Default mode is disabled and performs no systemd, /proc, credential, or signing access.",
     "This historical TypeScript CLI refuses every explicit --probe.",
