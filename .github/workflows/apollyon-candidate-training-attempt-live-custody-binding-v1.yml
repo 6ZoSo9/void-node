@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/apollyon-candidate-training-attempt-live-custody-binding-v1.mjs"
+      - "tools/apollyon-authorization-custody-launcher-v1.mjs"
       - "scripts/prove_apollyon_candidate_training_attempt_live_custody_binding_v1.mjs"
       - "docs/security/apollyon-candidate-training-attempt-live-custody-binding-v1.md"
       - ".github/workflows/apollyon-candidate-training-attempt-live-custody-binding-v1.yml"
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "tools/apollyon-candidate-training-attempt-live-custody-binding-v1.mjs"
+      - "tools/apollyon-authorization-custody-launcher-v1.mjs"
       - "scripts/prove_apollyon_candidate_training_attempt_live_custody_binding_v1.mjs"
       - "docs/security/apollyon-candidate-training-attempt-live-custody-binding-v1.md"
       - ".github/workflows/apollyon-candidate-training-attempt-live-custody-binding-v1.yml"
@@ -39,6 +41,7 @@ jobs:
       - name: Syntax and dependency proof
         run: |
           node --check tools/apollyon-candidate-training-attempt-live-custody-binding-v1.mjs
+          node --check tools/apollyon-authorization-custody-launcher-v1.mjs
           node --check scripts/prove_apollyon_candidate_training_attempt_live_custody_binding_v1.mjs
           node scripts/prove_apollyon_candidate_training_attempt_claim_contract_v1.mjs
       - name: Prove live binding source boundary
