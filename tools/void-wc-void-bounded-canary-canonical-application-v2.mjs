@@ -1276,7 +1276,7 @@ function validatePlan(plan) {
   exactObject(plan, PLAN_KEYS, "CANONICAL_APPLICATION_PLAN_SHAPE_INVALID");
   if (
     plan.marker !== VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_PLAN_V2 ||
-    plan.version !== 1 ||
+    plan.version !== 2 ||
     plan.status !== "CANONICAL_BOUNDED_CANARY_APPLICATION_PREPARED" ||
     plan.chain_id !== 2050 ||
     plan.execution_epoch !== 2 ||
