@@ -10,6 +10,7 @@ import {
 } from "../src/http/api_attach.ts";
 
 const indexSource = readFileSync("src/index.ts", "utf8");
+const apiAttachSource = readFileSync("src/http/api_attach.ts", "utf8");
 const routeStart = indexSource.indexOf('app.get("/blocks/range"');
 const routeEnd = indexSource.indexOf(
   "/* Bulk block import (follower) */",
@@ -29,6 +30,7 @@ assert.match(
   "public route must preserve from/start and to/end aliases through the canonical parser",
 );
 assert.match(route, /if \(!range\)[\s\S]*status\(400\)[.]json\(attachBlockRangeErrorV1\(\)\)/);
+assert.match(apiAttachSource, /status\(400\)[.]json\(attachBlockRangeErrorV1\(\)\)/);
 assert.match(route, /for \(let i = range\.from; i <= range\.to; i\+\+\)/);
 assert.doesNotMatch(
   route,
