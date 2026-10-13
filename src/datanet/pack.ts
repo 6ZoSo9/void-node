@@ -24,6 +24,7 @@ export type ManifestV1 = {
 };
 
 const PACK_CHUNK_FILE_RE = /^chunk_\d{6}\.bin$/;
+export const MAX_PACK_CHUNK_BYTES = 64 * 1024 * 1024;
 
 export function packFile(inFile: string, opts: PackOpts): ManifestV1 {
   if (
