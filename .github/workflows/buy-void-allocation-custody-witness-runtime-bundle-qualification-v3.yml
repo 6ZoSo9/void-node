@@ -139,7 +139,7 @@ jobs:
           set -euo pipefail
           out="generation-${{ matrix.node }}.json"
           if [[ "$MODE" == "historical_v3" ]]; then
-            node --input-type=module - <<'NODE'               "candidate-${{ matrix.node }}.txt"               "qualification-${{ matrix.node }}.txt"               "evidence-${{ matrix.node }}.txt"               "$out"
+            node --input-type=module - "candidate-${{ matrix.node }}.txt" "qualification-${{ matrix.node }}.txt" "evidence-${{ matrix.node }}.txt" "$out" <<'NODE'
           import crypto from "node:crypto";
           import fs from "node:fs";
           const [candidate,qualification,evidence,out]=process.argv.slice(2);
