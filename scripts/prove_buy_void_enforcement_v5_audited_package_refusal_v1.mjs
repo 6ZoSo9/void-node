@@ -134,4 +134,4 @@ const refusal={
   presale_activation:false,
   funds_movement:false
 };
-process.stdout.write(JSON.stringify(refusal,null,2)+"\\n");
+process.stdout.write(JSON.stringify(refusal,null,2)+"\n");
