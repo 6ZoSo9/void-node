@@ -175,7 +175,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-verified-allocation-dispatch-v6-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: dispatch-v5-node-${{ matrix.node }}.txt
+          path: dispatch-v6-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff whitespace hygiene
