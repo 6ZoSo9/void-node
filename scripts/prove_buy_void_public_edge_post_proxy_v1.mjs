@@ -850,6 +850,25 @@ const upstream = http.createServer(
         }));
         return;
       }
+      if (proofCase === "duplicate_private_wire_201") {
+        const duplicatePrivateWire = exactAccepted201Json.replace(
+          '"persisted": {',
+          '"persisted":{"private_path":"SENTINEL_DUPLICATE_PRIVATE_WIRE"},\n    "persisted": {',
+        );
+        assert.notEqual(duplicatePrivateWire, exactAccepted201Json);
+        assert.deepEqual(
+          JSON.parse(duplicatePrivateWire),
+          exactAccepted201Receipt,
+          "duplicate-key adversary must parse to the same validated object",
+        );
+        res.writeHead(201, {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(duplicatePrivateWire)),
+          etag: '"SENTINEL_DUPLICATE_PRIVATE_WIRE_ETAG"',
+        });
+        res.end(duplicatePrivateWire);
+        return;
+      }
       if (proofCase === "valid_201") {
         res.writeHead(201, {
           "content-type": "application/json; charset=utf-8",
@@ -1558,14 +1577,46 @@ try {
   assert.equal(valid201.headers.get("content-type"),
     "application/json; charset=utf-8");
   const accepted201Bytes = Buffer.from(await valid201.arrayBuffer());
-  assert.deepEqual(accepted201Bytes, Buffer.from(exactAccepted201Json,"utf8"),
-    "HTTP 201 byte-for-byte body must not be parsed and reserialized");
+  const canonicalAccepted201Bytes = Buffer.from(
+    JSON.stringify(exactAccepted201Receipt),
+    "utf8",
+  );
+  assert.deepEqual(
+    accepted201Bytes,
+    canonicalAccepted201Bytes,
+    "validated HTTP 201 must be re-encoded from its reviewed parsed object",
+  );
+  assert.notDeepEqual(
+    accepted201Bytes,
+    Buffer.from(exactAccepted201Json, "utf8"),
+    "noncanonical upstream wire bytes must never be forwarded verbatim",
+  );
   assert.deepEqual(JSON.parse(accepted201Bytes.toString("utf8")),
     exactAccepted201Receipt);
 
+  // A duplicate raw JSON key can hide a private first value behind a safe
+  // last value that wins JSON.parse. Validation of only the parsed object is
+  // insufficient if original upstream bytes are then forwarded publicly.
+  const duplicateWire201 = await postProof("duplicate_private_wire_201");
+  assert.equal(duplicateWire201.status, 201,
+    "safe parsed receipt remains an accepted creation result");
+  assert.equal(duplicateWire201.headers.get("etag"), null);
+  const duplicateWireText = await duplicateWire201.text();
+  assert.equal(
+    duplicateWireText.includes("SENTINEL_DUPLICATE_PRIVATE_WIRE"),
+    false,
+    "duplicate-key private wire bytes must be eliminated by re-encoding",
+  );
+  assert.deepEqual(
+    Buffer.from(duplicateWireText, "utf8"),
+    canonicalAccepted201Bytes,
+    "duplicate-key receipt must collapse to the canonical reviewed object",
+  );
+  assert.deepEqual(JSON.parse(duplicateWireText), exactAccepted201Receipt);
+
   // Canonical main still emits {ok:true,file:<private path>} on HTTP 201.
   // That 201 is valid, but its private file path and original ETag must
-  // never leave the edge. The safe successor {ok:true} stays byte-preserved.
+  // never leave the edge. Safe successor receipts are canonicalized too.
   const legacy201 = await postProof("private_path_201");
   assert.equal(legacy201.status, 201, "legacy successful request stays 201");
   assert.equal(legacy201.headers.get("etag"), null,
@@ -1593,8 +1644,10 @@ try {
       acceptedLegacyIntent);
     assert.equal(alias201.status, 201,
       "legacy accepted amount/wallet/rail spelling must remain valid");
-    assert.deepEqual(Buffer.from(await alias201.arrayBuffer()),
-      Buffer.from(exactAccepted201Json, "utf8"));
+    assert.deepEqual(
+      Buffer.from(await alias201.arrayBuffer()),
+      canonicalAccepted201Bytes,
+    );
   }
 
   // This is a second, complete receipt forwarding check. The independent
@@ -1604,8 +1657,16 @@ try {
   assert.equal(full201.headers.get("etag"), null,
     "even a fully qualified nonlegacy receipt must not forward upstream ETag");
   const full201Bytes = Buffer.from(await full201.arrayBuffer());
-  assert.deepEqual(full201Bytes, Buffer.from(fullAccepted201Json, "utf8"),
-    "full native-USDC buyer receipt must preserve every original byte");
+  assert.deepEqual(
+    full201Bytes,
+    Buffer.from(JSON.stringify(fullAccepted201Receipt), "utf8"),
+    "full native-USDC buyer receipt must be re-encoded from validated data",
+  );
+  assert.notDeepEqual(
+    full201Bytes,
+    Buffer.from(fullAccepted201Json, "utf8"),
+    "pretty/noncanonical upstream wire formatting is not receipt authority",
+  );
   const fullReceipt = JSON.parse(full201Bytes.toString("utf8"));
   assert.deepEqual(fullReceipt, fullAccepted201Receipt);
 
@@ -1964,7 +2025,7 @@ try {
   console.log("unexpected_persisted_metadata_holds=true");
   console.log("http201_destination_amount_chain_match_submitted_intent=true");
   console.log("public_request_legacy_intent_aliases_preserved=true");
-  console.log("full_native_usdc_checkout_201_exact_bytes_forwarded=true");
+  console.log("full_native_usdc_checkout_201_validated_object_reencoded=true");
   console.log("full_native_usdc_independent_chain_amount_identities=true");
   console.log("canonical_payment_instructions_recipient_token_rail_and_amount_bound=true");
   console.log("all_201_upstream_etags_suppressed=true");
@@ -1979,7 +2040,7 @@ try {
   console.log("malformed_json_201_rejected=true");
   console.log("invalid_utf8_201_rejected=true");
   console.log("primitive_and_array_201_refused=true");
-  console.log("raw_noncanonical_201_bytes_preserved=true");
+  console.log("raw_noncanonical_and_duplicate_key_201_bytes_never_forwarded=true");
   console.log("header_refusal_upstream_socket_closed_early=true");
   console.log("per_read_deadline_timer_detached=true");
   console.log("monotonic_post_race_late_header_rejected=true");
