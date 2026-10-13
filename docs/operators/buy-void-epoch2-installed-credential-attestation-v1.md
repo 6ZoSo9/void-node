@@ -117,14 +117,21 @@ env -i \
   GIT_CONFIG_GLOBAL=/dev/null \
   GIT_CONFIG_SYSTEM=/dev/null \
   /usr/bin/bash --noprofile --norc -euo pipefail -c '
+    head=$(/usr/bin/git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+      rev-parse --verify HEAD)
+    [[ "$head" =~ ^[0-9a-f]{40}$ ]]
     /usr/bin/git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-      show HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs |
+      show "${head}:scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs" |
     /usr/bin/node --input-type=module - --probe --confirm \
-      probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV1
+      probeBuyVoidEpoch2InstalledCredentialSigningCapabilitySealedV1 \
+      --expected-head "$head"
   '
 ```
 
-Run the command from the repository root. No ambient user-bus variables are
+Run the command from the repository root. The wrapper captures one exact
+40-hex Git head before streaming the probe and the probe independently requires
+that same head during source qualification; a concurrent local branch advance
+therefore HOLDS before systemd or credential access. No ambient user-bus variables are
 needed or accepted as authority. The sealed probe derives the current UID's
 canonical runtime/bus path, requires the runtime directory to be private to
 that UID, requires the bus leaf to be a same-UID Unix socket, and binds the
