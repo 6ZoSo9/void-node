@@ -71,8 +71,8 @@ const runner = file("ops/run-void-node-live-v1.sh").toString("utf8");
 for (const expected of [
   "VOID_CANONICAL_SELF_HTTP_GUARD",
   "VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS",
-  'producer_index_blob="$(git hash-object -- src/index.ts)"',
-  'tracked_index_blob="$(git rev-parse --verify "${source_commit_before}:src/index.ts")"',
+  'producer_index_blob="$(source_git hash-object -- src/index.ts)"',
+  'tracked_index_blob="$(source_git rev-parse --verify "${source_commit_before}:src/index.ts")"',
   'test "$producer_index_blob" = "$tracked_index_blob"',
   '  case "$producer_index_blob" in',
   OLD_SOURCE + ")",

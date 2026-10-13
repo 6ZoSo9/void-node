@@ -48,8 +48,8 @@ const runner=file("ops/run-void-node-live-v1.sh").toString("utf8");
 for(const expectedText of [
   "VOID_CANONICAL_PRODUCER_SOURCE_GENERATION_HOLD",
   "canonical-producer-source-custody-v1.cjs",
-  'producer_index_blob="$(git hash-object -- src/index.ts)"',
-  'tracked_index_blob="$(git rev-parse --verify "${source_commit_before}:src/index.ts")"',
+  'producer_index_blob="$(source_git hash-object -- src/index.ts)"',
+  'tracked_index_blob="$(source_git rev-parse --verify "${source_commit_before}:src/index.ts")"',
   'test "$producer_index_blob" = "$tracked_index_blob"',
 ])assert.ok(runner.includes(expectedText),"runner missing source gate "+expectedText);
 const first=runner.indexOf('  case "$producer_index_blob" in');

@@ -11,15 +11,47 @@ NODE_ENV="${NODE_ENV:-dev}"
 ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd -- "$ROOT"
 
-source_commit_before="$(git rev-parse --verify 'HEAD^{commit}')"
-source_tree_before="$(git rev-parse --verify 'HEAD^{tree}')"
-source_branch_before="$(git symbolic-ref --short -q HEAD)"
-source_status_before="$(git status --porcelain=v1)"
+GIT_BINARY="$(command -v git)"
+GIT_BINARY="$(readlink -f -- "$GIT_BINARY")"
+test -x "$GIT_BINARY"
+case "${GIT_BINARY##*/}" in
+  git) ;;
+  *) exit 1 ;;
+esac
 
-source_commit_after="$(git rev-parse --verify 'HEAD^{commit}')"
-source_tree_after="$(git rev-parse --verify 'HEAD^{tree}')"
-source_branch_after="$(git symbolic-ref --short -q HEAD)"
-source_status_after="$(git status --porcelain=v1)"
+source_git() {
+  env \
+    -u GIT_DIR \
+    -u GIT_WORK_TREE \
+    -u GIT_INDEX_FILE \
+    -u GIT_OBJECT_DIRECTORY \
+    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    -u GIT_NAMESPACE \
+    -u GIT_REPLACE_REF_BASE \
+    -u GIT_CONFIG \
+    -u GIT_CONFIG_PARAMETERS \
+    -u GIT_CONFIG_COUNT \
+    -u GIT_EXEC_PATH \
+    -u GIT_SSH \
+    -u GIT_SSH_COMMAND \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_NO_REPLACE_OBJECTS=1 \
+    GIT_OPTIONAL_LOCKS=0 \
+    GIT_TERMINAL_PROMPT=0 \
+    GIT_ASKPASS=/bin/false \
+    "$GIT_BINARY" -c "safe.directory=$ROOT" "$@"
+}
+
+source_commit_before="$(source_git rev-parse --verify 'HEAD^{commit}')"
+source_tree_before="$(source_git rev-parse --verify 'HEAD^{tree}')"
+source_branch_before="$(source_git symbolic-ref --short -q HEAD)"
+source_status_before="$(source_git status --porcelain=v1)"
+
+source_commit_after="$(source_git rev-parse --verify 'HEAD^{commit}')"
+source_tree_after="$(source_git rev-parse --verify 'HEAD^{tree}')"
+source_branch_after="$(source_git symbolic-ref --short -q HEAD)"
+source_status_after="$(source_git status --porcelain=v1)"
 
 test "$source_commit_before" = "$source_commit_after"
 test "$source_tree_before" = "$source_tree_after"
@@ -63,8 +95,8 @@ if [ "${VOID_CANONICAL_PRODUCER_ROLE:-0}" = "1" ]; then
   # Select an exact reviewed source generation; never bypass the guard.
   # Both the checked-out source and tracked commit must agree, and the
   # selected guard independently rehashes the source at Node startup.
-  producer_index_blob="$(git hash-object -- src/index.ts)"
-  tracked_index_blob="$(git rev-parse --verify "${source_commit_before}:src/index.ts")"
+  producer_index_blob="$(source_git hash-object -- src/index.ts)"
+  tracked_index_blob="$(source_git rev-parse --verify "${source_commit_before}:src/index.ts")"
   test "$producer_index_blob" = "$tracked_index_blob"
   case "$producer_index_blob" in
     1fde828c97175560f98ab070af33eefc595f8002)
