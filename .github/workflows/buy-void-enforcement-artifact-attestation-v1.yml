@@ -98,22 +98,64 @@ jobs:
           set -euo pipefail
           test "$(git hash-object scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs)" = "70292a0b283d8f06814f153105e27397f924c19d"
           node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --self-test
-          if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/historical-v5-error.log"; then
-            echo 'HISTORICAL_V5_DERIVATION_FROM_UNCHANGED_SOURCE=true'
-          else
-            # Historical source derivation MUST refuse a changed E2 executable closure.
-            grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/historical-v5-error.log"
-            grep -F 'deriveBuyVoidEnforcementArtifactAttestationV5Candidate' "$RUNNER_TEMP/historical-v5-error.log"
-            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42"
-            node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-only.log"
-            grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-only.log"
-            grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-only.log"
-            grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/epoch2-source-only.log"
-            grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/epoch2-source-only.log"
-            grep -Fx 'source_qualification_complete=true' "$RUNNER_TEMP/epoch2-source-only.log"
-            touch "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"
-            echo 'HISTORICAL_V5_CANDIDATE_REFUSED_E2_SOURCE=true'
-          fi
+
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              audited_refusal="$RUNNER_TEMP/enforcement-v5-audited-refusal-${{ matrix.node }}.json"
+              node scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs > "$audited_refusal"
+              node --input-type=module - <<'NODE' "$audited_refusal"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_enforcement_v5_historical_refusal_epoch2_v1");
+          assert.equal(j.version,1);
+          assert.equal(j.audited_package_generation_refusal,true);
+          assert.equal(j.current_epoch2_source_tuple_qualified,true);
+          for(const key of [
+            "historical_v5_source_unchanged",
+            "historical_v5_candidate_derived",
+            "historical_v1_authority_inherited",
+            "dynamic_tool_execution_identity_verified",
+            "dynamic_tool_transitive_closure_verified",
+            "complete_executable_closure_verified",
+            "candidate_identity_accepted",
+            "deployed_artifact_generation_verified",
+            "production_source_finality_authority_ready",
+            "signer_control_or_systemd_credential_verified",
+            "production_payment_activation",
+            "presale_activation",
+            "funds_movement",
+          ]) assert.equal(j[key],false,key);
+          console.log("HISTORICAL_V5_CANDIDATE_REFUSED_AUDITED_PACKAGE_GENERATION=true");
+          NODE
+              touch "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"
+              ;;
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/historical-v5-error.log"; then
+                echo 'HISTORICAL_V5_DERIVATION_FROM_UNCHANGED_SOURCE=true'
+              else
+                # Historical source derivation MUST refuse a changed E2 executable closure.
+                grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/historical-v5-error.log"
+                grep -F 'deriveBuyVoidEnforcementArtifactAttestationV5Candidate' "$RUNNER_TEMP/historical-v5-error.log"
+                test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42"
+                node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-only.log"
+                grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-only.log"
+                grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-only.log"
+                grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/epoch2-source-only.log"
+                grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/epoch2-source-only.log"
+                grep -Fx 'source_qualification_complete=true' "$RUNNER_TEMP/epoch2-source-only.log"
+                touch "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"
+                echo 'HISTORICAL_V5_CANDIDATE_REFUSED_E2_SOURCE=true'
+              fi
+              ;;
+            *)
+              echo "UNKNOWN_ENFORCEMENT_V5_PACKAGE_GENERATION:$package_blob:$lock_blob" >&2
+              exit 1
+              ;;
+          esac
+
           if test ! -f "$RUNNER_TEMP/epoch2-historical-enforcement-refusal"; then
           node --input-type=module - <<'NODE' "enforcement-v5-candidate-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
@@ -121,8 +163,6 @@ jobs:
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(j.schema,"void_buy_void_enforcement_artifact_v5_candidate");
           assert.equal(j.version,5);
-          // Exact current V6 runtime-source candidate parent, not the
-          // immutable historical enforcement-V4 provenance label.
           assert.equal(j.source_runtime_parent,"22a30e3ffad6047a472488104c769140bd050878");
           assert.equal(
             j.predecessor?.historical_v4_manifest_git_blob_sha1,
