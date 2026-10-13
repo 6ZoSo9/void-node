@@ -45,22 +45,24 @@ After exact operator confirmation, the probe:
    - the exact Epoch-2 presale target;
    - the reviewed Epoch-2 access-list marker;
    - nonce `Number.MAX_SAFE_INTEGER`;
-   - gas limit `231582`;
+   - gas limit `1`, deliberately below the 21,000 EVM intrinsic transaction-gas floor;
    - zero max/priority fee;
    - zero native value;
    - one atomic VOID unit to the immutable fulfiller itself;
 8. locally parses the signed transaction and requires the exact signer plus
-   the canonical non-executable probe envelope: MAX_SAFE_INTEGER nonce, fixed
-   gas, zero fees/value, exact presale target/access list, and exact
+   the canonical non-executable probe envelope: MAX_SAFE_INTEGER nonce, gas
+   limit `1` (below EVM intrinsic gas), zero fees/value, exact presale target/access list, and exact
    `fulfill(..., immutable fulfiller, 1)` calldata;
 9. rejects caller-selected executable nonce/fee/calldata variants even if they
    carry a valid signature from the expected key;
 10. discards the raw signed transaction and emits only public identities and
    hashes.
 
-The extreme nonce means the probe is not an executable current-chain
-fulfillment transaction. The code performs no RPC request and never submits or
-broadcasts the signed bytes.
+The probe is non-executable by construction because its gas limit is `1`, below the
+21,000 base EVM intrinsic transaction-gas requirement (and far below the additional
+calldata/access-list intrinsic cost). The extreme nonce is defense in depth, not the
+execution barrier. The code performs no RPC request and never submits or broadcasts
+the signed bytes.
 
 ## Disabled default
 
