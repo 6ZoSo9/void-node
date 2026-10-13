@@ -154,7 +154,14 @@ function atomicWriteJson(
   );
   const descriptor = fs.openSync(temporary, "wx", 0o600);
   try {
-    fs.writeFileSync(descriptor, `${JSON.stringify(value)}\n`, "utf8");
+    // Internal lock claims are plain data, but a hostile ambient
+    // Object.prototype.toJSON must not be able to rewrite claim bytes.
+    // Copy own enumerable fields onto a null-prototype root before encoding.
+    const detached =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? Object.assign(Object.create(null), value)
+        : value;
+    fs.writeFileSync(descriptor, `${JSON.stringify(detached)}\n`, "utf8");
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
@@ -186,7 +193,10 @@ function readClaim(file: string): BuyVoidFilesystemBakeryLockClaimV1 {
     "schema",
     "ticket",
   ].sort();
-  if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+  if (
+    keys.length !== expected.length ||
+    keys.some((key, index) => key !== expected[index])
+  ) {
     throw new Error("bakery_lock_claim_keys_invalid");
   }
   if (value.schema !== CLAIM_SCHEMA) {
