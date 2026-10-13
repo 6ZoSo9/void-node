@@ -14,6 +14,7 @@ on:
       - "docs/security/apollyon-designated-host-custody-live-qualification-v1.md"
       - "tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
       - "ops/xiphos/apollyon_v2_installed_live_launcher_v1.py"
+      - "ops/xiphos/apollyon_v2_native_preentry_v1.c"
       - "scripts/prove_apollyon_designated_host_custody_live_qualification_v2.mjs"
       - "docs/security/apollyon-designated-host-custody-live-qualification-v2.md"
       - ".github/workflows/apollyon-designated-host-custody-live-qualification-v2.yml"
@@ -51,6 +52,10 @@ jobs:
         run: |
           set -euo pipefail
           node --check tools/apollyon-designated-host-custody-live-qualification-v2.mjs
+          cc -std=c11 -Wall -Wextra -Werror -O2 \
+            -o "$RUNNER_TEMP/apollyon-v2-native-preentry" \
+            ops/xiphos/apollyon_v2_native_preentry_v1.c
+          "$RUNNER_TEMP/apollyon-v2-native-preentry" --self-test
           python3 -I -B ops/xiphos/apollyon_v2_installed_live_launcher_v1.py --self-test
           node --check scripts/prove_apollyon_designated_host_custody_live_qualification_v2.mjs
           node tools/apollyon-designated-host-custody-live-qualification-v2.mjs --self-test
