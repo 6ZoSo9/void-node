@@ -105,7 +105,7 @@ env -i \
   GIT_CONFIG_NOSYSTEM=1 \
   GIT_CONFIG_GLOBAL=/dev/null \
   GIT_CONFIG_SYSTEM=/dev/null \
-  /bin/sh -c '
+  /usr/bin/bash --noprofile --norc -euo pipefail -c '
     /usr/bin/git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
       show HEAD:scripts/void_buy_void_epoch2_credential_attestation_sealed_v1.mjs |
     /usr/bin/node --input-type=module - --probe --confirm \
@@ -113,7 +113,10 @@ env -i \
   '
 ```
 
-Direct worktree execution of the sealed file is rejected. The reviewed
+Run the command from the repository root. The sealed probe also requires the
+actual Node executable to be root-owned and non-group/world-writable before it
+can observe systemd or read the credential. Direct worktree execution of the
+sealed file is rejected. The reviewed
 pre-execution proof also dirties an authority-bearing module with a top-level
 sentinel, launches the sealed program from its Git object, and requires HOLD
 with the sentinel never executed.
