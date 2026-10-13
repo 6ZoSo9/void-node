@@ -652,7 +652,7 @@ async function voidBuyVoidPublicEdgePostProxyV1(req, res) {
           !/^sha256:[0-9a-f]{64}$/u.test(
             String(launchAuthority.source_composition_id || ""),
           ) ||
-          !/^0x[0-9a-f]{64}$/u.test(
+          !/^0x[0-9a-fA-F]{64}$/u.test(
             String(launchAuthority.activation_generation || ""),
           ) ||
           !/^sha256:[0-9a-f]{64}$/u.test(
