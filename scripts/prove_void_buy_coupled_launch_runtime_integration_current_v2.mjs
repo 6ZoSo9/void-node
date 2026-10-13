@@ -9,6 +9,9 @@ import {
   deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
 } from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
+  verifyCurrentEpoch2ClaimSourceV1,
+} from "../tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs";
+import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
@@ -721,16 +724,12 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  // The immutable V1 enforcement scanner's historical external-import
-  // allowlist is NOT a verifier for the current native-USDC V2 generation.
-  // Current runtime closure is derived only by the bounded, explicitly
-  // UNACCEPTED V5 scanner; preserve older predecessor bytes separately.
-  const currentCandidate =
-    deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
+  // Frozen enforcement V5 is historical source authority. Modern Epoch-2
+  // changes MUST make that derivation refuse; current source is qualified
+  // independently by the reviewed E2 source tuple instead of repinning V5.
   const historicalV4 = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
-
   assert.equal(
     historicalV4.marker,
     "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V4",
@@ -740,58 +739,46 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
     historicalV4.current_enforcement.enforcement_artifact_set_sha256,
     "854fa637d25f0931c37d5d35fda641adb38ad1f55ca23b2662fb97d42a262a7b",
   );
-  // Archived CI artifact from the reviewed current V5 source: one old
-  // V4 runtime entry is removed and exactly one V6 entry is introduced.
-  // Both statements are checked against the *derived graph*, never
-  // fabricated by repinning the immutable historical V4 manifest.
-  assert.deepEqual(currentCandidate.delta_from_historical_v1.removed_paths, [
-    "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
-  ]);
-  assert.deepEqual(currentCandidate.delta_from_historical_v1.added_paths, [
-    "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
-  ]);
-  assert.ok(
-    currentCandidate.delta_from_historical_v1.changed_paths.includes(
-      "dist/economic/buy_void_verified_payment_v2.js",
-    ),
-    "reviewed native-USDC V2 changed compiled identity must be explicit",
+
+  let historicalV5Refused = false;
+  try {
+    deriveBuyVoidEnforcementArtifactAttestationV5Candidate();
+  } catch (error) {
+    const diagnostic = String(error?.stack || error?.message || error);
+    assert.match(
+      diagnostic,
+      /22a30e3ffad6047a472488104c769140bd050878 HEAD --/u,
+      "frozen V5 refusal must bind its historical source parent",
+    );
+    assert.match(
+      diagnostic,
+      /deriveBuyVoidEnforcementArtifactAttestationV5Candidate/u,
+      "frozen V5 refusal must originate in the reviewed derivation",
+    );
+    historicalV5Refused = true;
+  }
+  assert.equal(
+    historicalV5Refused,
+    true,
+    "modern E2 source must not be silently accepted by frozen V5",
   );
 
+  const currentSource = verifyCurrentEpoch2ClaimSourceV1();
+  assert.equal(currentSource.ok, true);
   assert.equal(
-    currentCandidate.source_runtime_parent,
-    "22a30e3ffad6047a472488104c769140bd050878",
+    currentSource.status,
+    "EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD",
   );
-  assert.equal(
-    currentCandidate.predecessor.historical_v4_manifest_git_blob_sha1,
-    "d9e391bb058132b83a4eeaec00797e41dab9fa26",
-  );
-  assert.equal(
-    currentCandidate.predecessor.historical_v4_enforcement_set_sha256,
-    historicalV4.current_enforcement.enforcement_artifact_set_sha256,
-  );
-  assert.ok(
-    currentCandidate.closed_runtime_artifacts.some(
-      entry =>
-        entry.path ===
-        "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
-    ),
-  );
-  assert.equal(currentCandidate.candidate_identity_accepted, false);
-  assert.equal(currentCandidate.dynamic_tool_execution_identity_verified, false);
-  assert.equal(currentCandidate.dynamic_tool_transitive_closure_verified, false);
-  assert.equal(currentCandidate.complete_executable_closure_verified, false);
-  assert.equal(currentCandidate.deployed_artifact_generation_verified, false);
-  assert.equal(currentCandidate.runtime_mount_authority, false);
-  assert.equal(
-    currentCandidate.production_source_finality_authority_ready,
-    false,
-  );
-  assert.equal(currentCandidate.presale_activation, false);
-  assert.equal(currentCandidate.funds_movement, false);
+  assert.equal(currentSource.historical_v1_authority_inherited, false);
+  assert.equal(currentSource.credential_binding_established, false);
+  assert.equal(currentSource.runtime_or_payment_activation_authorized, false);
 
   console.log("historical_enforcement_v4_predecessor_immutable=true");
-  console.log("current_enforcement_v5_candidate_derived=true");
+  console.log("historical_enforcement_v5_source_refusal_verified=true");
+  console.log("current_epoch2_source_tuple_qualified=true");
+  console.log("current_enforcement_v5_candidate_derived=false");
   console.log("current_enforcement_v5_candidate_acceptance=false");
+  console.log("dynamic_tool_execution_identity_verified=false");
   console.log("complete_executable_closure_verified=false");
 }
 console.log("native_usdc_request_and_verified_event_policy_held=true");
