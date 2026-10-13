@@ -1,0 +1,41 @@
+{
+  "marker": "VOID_BUY_VOID_EPOCH2_SIGNER_CONTROL_PUBLIC_EVIDENCE_V1",
+  "version": 1,
+  "status": "SIGNER_OFFCHAIN_CONTROL_PROVEN",
+  "source_bundle_sha256": "666e392f30afb2f7aec885dc6d7350596ccda5415132436d478de695a90995d5",
+  "source_receipt_sha256": "b38f6f44a7d92e06dea2b7a6b7571cb2dd9b049fc2952eefc7b9af7f837f93b3",
+  "source_verification_sha256": "866ea9e7cde4b6b44b035f8013dd256ae5416f70aee3126671561e05763efe06",
+  "signing_message_sha256": "0492a0ae6b2a3fcbd18c907dc2a847b7f16be07ac49840a420182342b4017dad",
+  "accepted_source_head": "5bc76c0c1410f8db2f3e759a94a2a3184ab800de",
+  "accepted_source_tree": "118fa8680937d88db1e8a83a393408123e01f03c",
+  "immutable_fulfiller": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+  "receipt": {
+    "challenge": {
+      "chain_id": 2050,
+      "execution_epoch": 2,
+      "expires_at_ms": 1791866856795,
+      "immutable_fulfiller": "0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a",
+      "issued_at_ms": 1791866556795,
+      "marker": "VOID_BUY_VOID_EPOCH2_SIGNER_CONTROL_V1",
+      "nonce": "0xed47c28db0dfd2ad01f6e938319c0c1197f13543d2173335adbdca503916b8d5",
+      "presale_contract": "0x530bc90ba74f2539a9e484ccb1be9291c3bc35ce",
+      "production_rpc_url": "http://127.0.0.1:18553/",
+      "purpose": "OFFCHAIN_PROOF_OF_CONTROL_ONLY",
+      "source_head": "5bc76c0c1410f8db2f3e759a94a2a3184ab800de",
+      "version": 1,
+      "void_token": "0x470075b85352eb86f7d089fb9ba88945f12aad94"
+    },
+    "signature": "0xd8de08cf2098aaa372330deaeec3e53561c8df2b3a365b4f2a943465deff68ba37be0dd7fe79a14e294429c86d1865370421938e29edb094ecd14e15750f16161c"
+  },
+  "interpretation": {
+    "signer_offchain_control_proven": true,
+    "systemd_credential_identity_proven": false,
+    "runtime_source_binding_proven": false,
+    "runtime_credential_installed_verified": false,
+    "live_payment_signing_authorized": false,
+    "transaction_sign_or_broadcast_authorized": false,
+    "public_presale_activation_authorized": false,
+    "wc_void_market_activation_authorized": false,
+    "funds_movement_authorized": false
+  }
+}
