@@ -23,6 +23,7 @@ source_git() {
   env \
     -u GIT_DIR \
     -u GIT_WORK_TREE \
+    -u GIT_COMMON_DIR \
     -u GIT_INDEX_FILE \
     -u GIT_OBJECT_DIRECTORY \
     -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
