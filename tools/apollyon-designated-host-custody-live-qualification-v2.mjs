@@ -72,6 +72,7 @@ const REVIEWED_EXECUTION_FILES=Object.freeze({
   "tools/apollyon-authorization-custody-client-v1.mjs":
     "fb31dbbda76c94f0ad08e38094c151a24a78b486",
 });
+const PYTHON_PATH="/usr/bin/python3";
 const MAX_STDOUT_BYTES=128*1024;
 const MAX_STDERR_BYTES=32*1024;
 const MAX_COLLECTOR_MS=20_000;
@@ -90,6 +91,50 @@ function gitBlobSha1(bytes){
 function sameIdentity(a,b){
   return a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&a.mode===b.mode&&
     a.uid===b.uid&&a.gid===b.gid&&a.nlink===b.nlink;
+}
+function assertTrustedRootDirectoryChain(directory,code){
+  const absolute=resolve(directory);
+  if(absolute!==directory)fail(code);
+  const parsed=path.parse(absolute);
+  let cursor=parsed.root;
+  const inspect=(pathname)=>{
+    const st=fs.lstatSync(pathname);
+    if(st.isSymbolicLink()||!st.isDirectory()||st.uid!==0||(st.mode&0o022)!==0){
+      fail(code);
+    }
+  };
+  inspect(cursor);
+  for(const segment of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)){
+    cursor=path.join(cursor,segment);
+    inspect(cursor);
+  }
+}
+function openTrustedPythonInterpreter(){
+  const code="apollyon_live_qualification_v2_python_interpreter_untrusted";
+  assertTrustedRootDirectoryChain(path.dirname(PYTHON_PATH),code);
+  const requested=fs.lstatSync(PYTHON_PATH);
+  if(requested.uid!==0||requested.nlink!==1)fail(code);
+  const canonical=fs.realpathSync.native(PYTHON_PATH);
+  if(!path.isAbsolute(canonical)||resolve(canonical)!==canonical)fail(code);
+  assertTrustedRootDirectoryChain(path.dirname(canonical),code);
+  const before=fs.lstatSync(canonical);
+  if(
+    before.isSymbolicLink()||!before.isFile()||before.uid!==0||
+    before.nlink!==1||(before.mode&0o022)!==0||(before.mode&0o111)===0
+  )fail(code);
+  const fd=fs.openSync(
+    canonical,
+    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK,
+  );
+  try{
+    const opened=fs.fstatSync(fd);
+    const visible=fs.lstatSync(canonical);
+    if(!sameIdentity(before,opened)||!sameIdentity(opened,visible))fail(code);
+    return Object.freeze({fd,canonical});
+  }catch(error){
+    fs.closeSync(fd);
+    throw error;
+  }
 }
 function readReviewedSource(sourceRoot,relative,expected,code){
   const pathname=resolve(sourceRoot,relative);
@@ -243,26 +288,29 @@ function collectorArgs(config,collectorSpecifier){
   ];
 }
 function spawnReviewedCollector(prepared,args){
-  const fd=fs.openSync(
+  const collectorFd=fs.openSync(
     prepared.collector,
     fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK,
   );
+  let python=null;
   try{
-    const st=fs.fstatSync(fd);
+    const st=fs.fstatSync(collectorFd);
     if(
       !st.isFile()||st.isSymbolicLink?.()||st.nlink!==1||
       st.uid!==process.geteuid?.()||(st.mode&0o777)!==0o400
     )fail("apollyon_live_qualification_v2_private_collector_invalid");
-    return spawnSync("/usr/bin/python3",["-I","-B","/proc/self/fd/3",...args],{
+    python=openTrustedPythonInterpreter();
+    return spawnSync("/proc/self/fd/4",["-I","-B","/proc/self/fd/3",...args],{
       encoding:"utf8",
       env:{PATH:"/usr/sbin:/usr/bin:/sbin:/bin",LC_ALL:"C",PYTHONDONTWRITEBYTECODE:"1"},
       timeout:MAX_COLLECTOR_MS,
       maxBuffer:MAX_STDOUT_BYTES+MAX_STDERR_BYTES,
       windowsHide:true,
-      stdio:["ignore","pipe","pipe",fd],
+      stdio:["ignore","pipe","pipe",collectorFd,python.fd],
     });
   }finally{
-    fs.closeSync(fd);
+    fs.closeSync(collectorFd);
+    if(python!==null)fs.closeSync(python.fd);
   }
 }
 export function runApollyonReviewedCollectorSelfTestV2(prepared){
