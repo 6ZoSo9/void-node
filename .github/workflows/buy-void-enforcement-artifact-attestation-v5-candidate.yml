@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "src/economic/**"
-      - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"\n      - "scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs"
       - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
       - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "docs/architecture/buy-void-enforcement-artifact-attestation-v5-candidate.md"
@@ -71,6 +71,15 @@ jobs:
       - name: Derive unaccepted V5 enforcement candidate
         run: |
           set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              node scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs > enforcement-v5-candidate-${{ matrix.node }}.json
+              touch "$RUNNER_TEMP/legacy-v5-rejection-proven"
+              echo 'HISTORICAL_V5_REFUSED_ON_AUDITED_PACKAGE_GENERATION=true'
+              ;;
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
           if node scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs --derive > enforcement-v5-candidate-${{ matrix.node }}.json 2> "$RUNNER_TEMP/legacy-v5-derivation-error.log"; then
             echo 'HISTORICAL_V5_SOURCE_GEN_UNCHANGED=true'
           else
@@ -113,6 +122,12 @@ jobs:
             touch "$RUNNER_TEMP/legacy-v5-rejection-proven"
             echo 'HISTORICAL_V5_REFUSED_AND_EPOCH2_SOURCE_ONLY_QUALIFIED=true'
           fi
+              ;;
+            *)
+              echo "UNKNOWN_ENFORCEMENT_V5_PACKAGE_GENERATION:$package_blob:$lock_blob" >&2
+              exit 1
+              ;;
+          esac
           if test ! -f "$RUNNER_TEMP/legacy-v5-rejection-proven"; then
           node --input-type=module -e '
             import assert from "node:assert/strict";
