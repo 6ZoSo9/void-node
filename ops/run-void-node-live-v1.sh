@@ -112,6 +112,9 @@ if [ "${VOID_CANONICAL_PRODUCER_ROLE:-0}" = "1" ]; then
     123ec1792a027f93d4c9030749a0e7e136a75a44)
       canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v4.cjs")
       ;;
+    7df1f21c730b554c414c88c550a4475234485370)
+      canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v5.cjs")
+      ;;
     *)
       echo "VOID_CANONICAL_PRODUCER_SOURCE_GENERATION_HOLD" >&2
       exit 1
