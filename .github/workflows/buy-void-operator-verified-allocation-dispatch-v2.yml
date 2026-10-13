@@ -155,7 +155,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-verified-allocation-dispatch-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: dispatch-v4-node-${{ matrix.node }}.txt
+          path: dispatch-v5-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff whitespace hygiene
@@ -179,8 +179,8 @@ jobs:
         run: |
           set -euo pipefail
           for v in 22 24 26; do test -s "evidence/dispatch-v5-node-$v.txt"; done
-          cmp evidence/dispatch-v4-node-22.txt evidence/dispatch-v4-node-24.txt
-          cmp evidence/dispatch-v4-node-22.txt evidence/dispatch-v4-node-26.txt
+          cmp evidence/dispatch-v5-node-22.txt evidence/dispatch-v5-node-24.txt
+          cmp evidence/dispatch-v5-node-22.txt evidence/dispatch-v5-node-26.txt
           echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V5_CROSS_NODE_GREEN"
           echo "frozen_dispatcher_v1_proof_unchanged=true"
           echo "mounted_operator_route_verified=false"
