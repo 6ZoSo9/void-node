@@ -84,7 +84,7 @@ async function sendRawChunks(port,writes){
   return {status:Number(match[1]),head,body};
 }
 async function sendRaw(port,bytes){
-  return sendRawChunks(port,[[bytes]]);
+  return sendRawChunks(port,[bytes]);
 }
 function maxHeaderRequestParts(proxy,body){
   const digest=crypto.createHash("sha256").update(body).digest("hex");
@@ -200,13 +200,13 @@ try{
 
   const b1=await sendRaw(info.port,requestBytes(proxy4(203,0,113,11),body));
   assert.equal(b1.status,202);
-  assert.equal(gatewayCalls.length,3);
+  assert.equal(gatewayCalls.length,2);
 
   const boundaryParts=maxHeaderRequestParts(proxy4(203,0,113,13),body);
   const boundary=await sendRawChunks(info.port,[
-    [boundaryParts.beforeTerminator],
-    [boundaryParts.firstTerminatorByte],
-    [boundaryParts.restAndBody],
+    boundaryParts.beforeTerminator,
+    boundaryParts.firstTerminatorByte,
+    boundaryParts.restAndBody,
   ]);
   assert.equal(boundary.status,202);
   assert.equal(gatewayCalls.length,3);
