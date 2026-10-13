@@ -402,6 +402,8 @@ for (const required of [
   "ls-files\", \"-v",
   "worktreeGitBlob(relative)",
   "const source = assertSourceGeneration();",
+  "epoch2_attestation_sealed_git_object_probe_required",
+  "This historical TypeScript CLI refuses every explicit --probe.",
   "import(\"../src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js\")",
   "raw = \"\"",
 ]) {
