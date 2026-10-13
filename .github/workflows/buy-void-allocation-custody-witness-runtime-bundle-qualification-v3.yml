@@ -12,9 +12,15 @@ on:
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v4_private_stage_v1.py"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
+      - "docs/architecture/buy-void-nimo-v3-historical-v4-current-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.yml"
       - "package.json"
       - "package-lock.json"
@@ -27,9 +33,15 @@ on:
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
       - "scripts/prove_buy_void_nimo_v3_inactive_bundle_v1.py"
       - "scripts/void_nimo_v3_private_stage_v1.py"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "scripts/void_nimo_v4_private_stage_v1.py"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "docs/architecture/buy-void-nimo-witness-v2-proposed-lock-v1.json"
       - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.md"
+      - "docs/architecture/buy-void-nimo-v3-historical-v4-current-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-qualification-v3.yml"
       - "package.json"
       - "package-lock.json"
@@ -41,7 +53,7 @@ permissions:
 jobs:
   qualify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -66,50 +78,112 @@ jobs:
           npm run typecheck
           npm run build
 
-      - name: Preserve exact unaccepted V3 candidate
+      - name: Classify closed Nimo source generation
+        id: generation
+        shell: bash
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove \
-            | tee candidate-${{ matrix.node }}.txt
-          grep -Fxq 'candidate_manifest_id=voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454' \
-            candidate-${{ matrix.node }}.txt
-          grep -Fxq 'candidate_v3_installed_on_nimo=false' \
-            candidate-${{ matrix.node }}.txt
+          ledger_blob="$(git hash-object src/economic/buy_void_allocation_reservation_ledger_v1.ts)"
+          replay_blob="$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)"
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+
+          if [[ "$ledger_blob" == "66617a89d5ad9f81b5a21d98cca55fcda6902a80"              && "$package_blob" == "f28c3e9446c7623ef203da36a9642d046e5f34ee"              && "$lock_blob" == "b2671f0149f522b2489247016df0a5ec4bb72b8b" ]]; then
+            mode="historical_v3"
+          elif [[ "$ledger_blob" == "8d84955e1e093a5c5af63241e62b8722fadd2f29"                && "$replay_blob" == "b451bcd895986dadaf6e53954671062068316ccf"                && "$package_blob" == "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"                && "$lock_blob" == "15b5c82ea36f13079a2f9e8863722f654eb3f201" ]]; then
+            mode="audited_current_v4"
+          else
+            echo "UNKNOWN_NIMO_RUNTIME_GENERATION:$ledger_blob:$replay_blob:$package_blob:$lock_blob" >&2
+            exit 1
+          fi
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "NIMO_RUNTIME_GENERATION=$mode"
+
+      - name: Preserve exact unaccepted V3 candidate
+        if: steps.generation.outputs.mode == 'historical_v3'
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs --prove             | tee candidate-${{ matrix.node }}.txt
+          grep -Fxq 'candidate_manifest_id=voidwfb3_cec212bbadb4586f7d479c2284e7a2850f47bdc2205a6dccfad5274c8c7ef454'             candidate-${{ matrix.node }}.txt
+          grep -Fxq 'candidate_v3_installed_on_nimo=false'             candidate-${{ matrix.node }}.txt
           grep -Fxq 'presale_activation=false' candidate-${{ matrix.node }}.txt
           grep -Fxq 'funds_moved=false' candidate-${{ matrix.node }}.txt
 
       - name: Prove separate V3 runtime qualification
+        if: steps.generation.outputs.mode == 'historical_v3'
         run: |
           set -euo pipefail
-          npx --no-install tsx \
-            scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts \
-            | tee qualification-${{ matrix.node }}.txt
-          grep -Fxq \
-            'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V3_GREEN' \
-            qualification-${{ matrix.node }}.txt
+          npx --no-install tsx             scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v3.ts             | tee qualification-${{ matrix.node }}.txt
+          grep -Fxq             'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V3_GREEN'             qualification-${{ matrix.node }}.txt
           grep -Fxq 'historical_v1_blob_preserved=true' qualification-${{ matrix.node }}.txt
           grep -Fxq 'proposed_v2_lock_preserved=true' qualification-${{ matrix.node }}.txt
           grep -Fxq 'unaccepted_candidate_record_rewritten=false' qualification-${{ matrix.node }}.txt
 
       - name: Prove V3 runtime evidence collector
+        if: steps.generation.outputs.mode == 'historical_v3'
         run: |
           set -euo pipefail
-          node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v3.mjs \
-            | tee evidence-${{ matrix.node }}.txt
-          grep -Fxq \
-            'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_EVIDENCE_V3_GREEN' \
-            evidence-${{ matrix.node }}.txt
+          node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v3.mjs             | tee evidence-${{ matrix.node }}.txt
+          grep -Fxq             'VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_EVIDENCE_V3_GREEN'             evidence-${{ matrix.node }}.txt
           grep -Fxq 'double_census_match=true' evidence-${{ matrix.node }}.txt
           grep -Fxq 'live_nimo_installed=false' evidence-${{ matrix.node }}.txt
           grep -Fxq 'presale_activation=false' evidence-${{ matrix.node }}.txt
           grep -Fxq 'funds_moved=false' evidence-${{ matrix.node }}.txt
 
+      - name: Emit exact generation receipt
+        shell: bash
+        env:
+          MODE: ${{ steps.generation.outputs.mode }}
+        run: |
+          set -euo pipefail
+          out="generation-${{ matrix.node }}.json"
+          if [[ "$MODE" == "historical_v3" ]]; then
+            node --input-type=module - <<'NODE'               "candidate-${{ matrix.node }}.txt"               "qualification-${{ matrix.node }}.txt"               "evidence-${{ matrix.node }}.txt"               "$out"
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const [candidate,qualification,evidence,out]=process.argv.slice(2);
+          const sha=file=>crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+          const receipt={
+            schema:"void_buy_void_nimo_v3_historical_v4_current_v1",
+            version:1,
+            mode:"historical_v3",
+            historical_v3_candidate_sha256:sha(candidate),
+            historical_v3_qualification_sha256:sha(qualification),
+            historical_v3_evidence_sha256:sha(evidence),
+            live_nimo_installed:false,
+            verified_payment_to_allocation_mounted:false,
+            production_gate_ready:false,
+            presale_activation:false,
+            funds_moved:false,
+          };
+          fs.writeFileSync(out,JSON.stringify(receipt)+"\n");
+          NODE
+          elif [[ "$MODE" == "audited_current_v4" ]]; then
+            node scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs > "$out"
+          else
+            echo "UNSUPPORTED_NIMO_RUNTIME_GENERATION:$MODE" >&2
+            exit 1
+          fi
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_nimo_v3_historical_v4_current_v1");
+            assert.equal(j.live_nimo_installed,false);
+            assert.equal(j.verified_payment_to_allocation_mounted,false);
+            assert.equal(j.production_gate_ready,false);
+            assert.equal(j.presale_activation,false);
+            assert.equal(j.funds_moved,false);
+          ' "$out"
+
       - run: git diff --check
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: nimo-v3-runtime-qualification-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: nimo-runtime-generation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: |
+            generation-${{ matrix.node }}.json
             candidate-${{ matrix.node }}.txt
             qualification-${{ matrix.node }}.txt
             evidence-${{ matrix.node }}.txt
@@ -123,23 +197,22 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: nimo-v3-runtime-qualification-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: nimo-runtime-generation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: evidence
-      - name: Require byte-identical Node 22 24 26 receipts
+
+      - name: Require byte-identical Node 22 24 26 generation receipts
         run: |
           set -euo pipefail
-          for kind in candidate qualification evidence; do
-            for v in 22 24 26; do
-              test -s "evidence/$kind-$v.txt"
-            done
-            cmp "evidence/$kind-22.txt" "evidence/$kind-24.txt"
-            cmp "evidence/$kind-22.txt" "evidence/$kind-26.txt"
+          for v in 22 24 26; do
+            test -s "evidence/generation-$v.json"
           done
-          cat evidence/qualification-22.txt
-          cat evidence/evidence-22.txt
-          echo VOID_BUY_VOID_NIMO_V3_RUNTIME_BUNDLE_CROSS_NODE_GREEN
+          cmp evidence/generation-22.json evidence/generation-24.json
+          cmp evidence/generation-22.json evidence/generation-26.json
+          cat evidence/generation-22.json
+          echo VOID_BUY_VOID_NIMO_RUNTIME_GENERATION_CROSS_NODE_GREEN
           echo live_nimo_installed=false
           echo verified_payment_to_allocation_mounted=false
+          echo production_gate_ready=false
           echo presale_activation=false
           echo funds_moved=false
