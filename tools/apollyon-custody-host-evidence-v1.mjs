@@ -4,7 +4,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";\nimport { pathToFileURL } from "node:url";
+import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 import {
   VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,

@@ -133,10 +133,10 @@ absence of filesystem/service mutation primitives.
 The reviewed live entrypoint is strict and read-only:
 
 ```bash
-sudo node tools/apollyon-custody-host-evidence-v1.mjs --collect 
-  --training-unit <reviewed-training.service> 
-  --custody-unit <reviewed-custody.service> 
-  --state-root <absolute-reviewed-custody-root> 
+sudo node tools/apollyon-custody-host-evidence-v1.mjs --collect \
+  --training-unit <reviewed-training.service> \
+  --custody-unit <reviewed-custody.service> \
+  --state-root <absolute-reviewed-custody-root> \
   --socket-path <absolute-reviewed-custody.sock>
 ```
 
