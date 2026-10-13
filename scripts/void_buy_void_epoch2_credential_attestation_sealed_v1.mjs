@@ -254,7 +254,7 @@ function assertReviewedSource(root) {
   return Object.freeze({ head, tree, branch, blobs: Object.freeze(observed) });
 }
 
-function parseSystemdObservation(show, environ) {
+function parseSystemdObservation(show, environ, cgroup, uid = process.getuid()) {
   const props = new Map();
   for (const line of String(show).split(/\r?\n/u)) {
     if (!line) continue;
@@ -273,6 +273,10 @@ function parseSystemdObservation(show, environ) {
   const pid = Number(props.get("MainPID"));
   if (!Number.isSafeInteger(pid) || pid <= 1) {
     throw new Error("epoch2_sealed_service_main_pid_invalid");
+  }
+  if (!Number.isSafeInteger(uid) || uid < 0 ||
+      !serviceCgroupBound(cgroup, uid)) {
+    throw new Error("epoch2_sealed_service_main_pid_cgroup_mismatch");
   }
   const invocation = String(props.get("InvocationID") || "").toLowerCase();
   if (!HEX32.test(invocation)) {
@@ -305,6 +309,10 @@ function parseSystemdObservation(show, environ) {
     }
     return values[0];
   };
+  const processInvocation = exactEnv("INVOCATION_ID").toLowerCase();
+  if (processInvocation !== invocation) {
+    throw new Error("epoch2_sealed_process_invocation_mismatch");
+  }
   const credentialsDirectory = exactEnv("CREDENTIALS_DIRECTORY");
   if (!path.isAbsolute(credentialsDirectory) ||
       path.normalize(credentialsDirectory) !== credentialsDirectory ||
@@ -333,13 +341,85 @@ function parseSystemdObservation(show, environ) {
       sha256Bytes(Buffer.from(matches[0], "utf8")),
     credentials_directory_sha256:
       sha256Bytes(Buffer.from(credentialsDirectory, "utf8")),
+    main_pid_cgroup_sha256:
+      sha256Bytes(Buffer.from(String(cgroup), "utf8")),
+    process_invocation_id: processInvocation,
     process_source_commit: processCommit,
     process_source_tree: processTree,
     process_source_branch: processBranch,
   });
 }
 
+function serviceCgroupBound(cgroup, uid) {
+  if (typeof cgroup !== "string" || cgroup.length < 1 ||
+      cgroup.length > 1_048_576 ||
+      !Number.isSafeInteger(uid) || uid < 0) {
+    return false;
+  }
+  const userPrefix =
+    "/user.slice/user-" + String(uid) + ".slice/user@" +
+    String(uid) + ".service/";
+  return cgroup.split("\n").some((line) => {
+    const first = line.indexOf(":");
+    const second = first < 0 ? -1 : line.indexOf(":", first + 1);
+    const cgroupPath = second < 0 ? "" : line.slice(second + 1);
+    if (!cgroupPath.startsWith(userPrefix)) return false;
+    return cgroupPath.endsWith("/" + SERVICE) ||
+      cgroupPath.includes("/" + SERVICE + "/");
+  });
+}
+
+function canonicalUserBusPaths(uid) {
+  if (!Number.isSafeInteger(uid) || uid < 0) {
+    throw new Error("epoch2_sealed_user_bus_uid_invalid");
+  }
+  const runtimeDirectory = "/run/user/" + String(uid);
+  const busPath = runtimeDirectory + "/bus";
+  return Object.freeze({
+    runtime_directory: runtimeDirectory,
+    bus_path: busPath,
+    bus_address: "unix:path=" + busPath,
+  });
+}
+
+function canonicalUserBusEnvironment() {
+  if (process.platform !== "linux" ||
+      typeof process.getuid !== "function") {
+    throw new Error("epoch2_sealed_linux_required");
+  }
+  const uid = process.getuid();
+  const paths = canonicalUserBusPaths(uid);
+  let runtimeStat;
+  let busStat;
+  try {
+    runtimeStat = fs.lstatSync(paths.runtime_directory, { bigint: true });
+    busStat = fs.lstatSync(paths.bus_path, { bigint: true });
+  } catch {
+    throw new Error("epoch2_sealed_user_bus_unavailable");
+  }
+  const runtimeMode = runtimeStat.mode & 0o7777n;
+  if (!runtimeStat.isDirectory() || runtimeStat.isSymbolicLink() ||
+      runtimeStat.uid !== BigInt(uid) || (runtimeMode & 0o077n) !== 0n) {
+    throw new Error("epoch2_sealed_user_runtime_directory_untrusted");
+  }
+  if (!busStat.isSocket() || busStat.isSymbolicLink() ||
+      busStat.uid !== BigInt(uid)) {
+    throw new Error("epoch2_sealed_user_bus_socket_untrusted");
+  }
+  return Object.freeze({
+    uid,
+    paths,
+    bus_stat: busStat,
+    env: Object.freeze({
+      PATH: "/usr/bin:/bin",
+      XDG_RUNTIME_DIR: paths.runtime_directory,
+      DBUS_SESSION_BUS_ADDRESS: paths.bus_address,
+    }),
+  });
+}
+
 function observeLiveSystemd() {
+  const userBus = canonicalUserBusEnvironment();
   const show = execFileSync(SYSTEMCTL, [
     "--user", "show", SERVICE, "--no-pager",
     "-p", "ActiveState",
@@ -352,14 +432,17 @@ function observeLiveSystemd() {
     stdio: ["ignore", "pipe", "ignore"],
     timeout: 10_000,
     maxBuffer: 128 * 1024,
-    env: {
-      PATH: "/usr/bin:/bin",
-      HOME: String(process.env.HOME || ""),
-      XDG_RUNTIME_DIR: String(process.env.XDG_RUNTIME_DIR || ""),
-      DBUS_SESSION_BUS_ADDRESS:
-        String(process.env.DBUS_SESSION_BUS_ADDRESS || ""),
-    },
+    env: userBus.env,
   });
+  let busAfter;
+  try {
+    busAfter = fs.lstatSync(userBus.paths.bus_path, { bigint: true });
+  } catch {
+    throw new Error("epoch2_sealed_user_bus_changed");
+  }
+  if (!statIdentitySame(userBus.bus_stat, busAfter)) {
+    throw new Error("epoch2_sealed_user_bus_changed");
+  }
   const match = show.match(/^MainPID=([0-9]+)$/mu);
   if (!match) throw new Error("epoch2_sealed_service_main_pid_missing");
   const pid = Number(match[1]);
@@ -367,7 +450,11 @@ function observeLiveSystemd() {
     throw new Error("epoch2_sealed_service_main_pid_invalid");
   }
   const environ = fs.readFileSync("/proc/" + String(pid) + "/environ");
-  return parseSystemdObservation(show, environ);
+  const cgroup = fs.readFileSync(
+    "/proc/" + String(pid) + "/cgroup",
+    { encoding: "utf8" },
+  );
+  return parseSystemdObservation(show, environ, cgroup, userBus.uid);
 }
 
 function observationStable(before, after) {
@@ -886,6 +973,9 @@ export {
   keyMaterial,
   privateKeyFromCredential,
   assertReviewedSource,
+  parseSystemdObservation,
+  serviceCgroupBound,
+  canonicalUserBusPaths,
 };
 
 const directFileExecution = process.argv[1] && process.argv[1] !== "-" &&
