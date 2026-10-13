@@ -5,9 +5,11 @@ on:
     paths:
       - "Dockerfile"
       - "scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+      - "scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs"
       - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
       - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "docs/architecture/buy-void-composed-stopped-saga-package-v1.md"
+      - "docs/architecture/buy-void-stopped-real-saga-loader-v1.md"
       - ".github/workflows/buy-void-composed-stopped-saga-package-v1.yml"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
@@ -46,6 +48,10 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Install locked compiler for real-loader qualification
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact current importer
+        run: npm run build
       - name: Prove inherited source-read and Git trust helpers
         run: |
           set -euo pipefail
@@ -69,6 +75,34 @@ jobs:
             assert.equal(a.production_source_finality_authority_ready,false);
             console.log("VOID_SAGA_SOURCE_COPY_CANDIDATE_NO_ACCEPTANCE_GREEN");
           ' "composed-saga-positive-source-${{ matrix.node }}.json"
+      - name: Execute exact real saga module initialization only
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs
+          node scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs --self-test
+          node scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs --workspace > "real-saga-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE' "real-saga-${{ matrix.node }}.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.real_saga_module_imported,true);
+          assert.equal(j.real_saga_module_initialized,true);
+          assert.equal(j.real_saga_exports_invoked,false);
+          assert.equal(j.saga_static_dependencies_builtin_only,true);
+          assert.equal(j.executed_saga_loader_qualified,true);
+          assert.equal(j.dynamic_tool_transitive_closure_verified_for_saga_edge,true);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.funds_movement,false);
+          console.log("VOID_REAL_SAGA_INITIALIZATION_ONLY_GREEN");
+          NODE
+      - name: Upload real saga initialization evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-real-saga-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: real-saga-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload source candidate evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -88,8 +122,28 @@ jobs:
             git diff --check HEAD^ HEAD
           fi
 
-  stopped-image:
+  real-saga-cross-node:
     needs: [source-review]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download Node 22 24 26 real-saga evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-real-saga-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./real-saga-evidence
+      - name: Require byte-identical real-saga initialization reports
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "real-saga-evidence/real-saga-$v.json"; done
+          cmp real-saga-evidence/real-saga-22.json real-saga-evidence/real-saga-24.json
+          cmp real-saga-evidence/real-saga-22.json real-saga-evidence/real-saga-26.json
+          sha256sum real-saga-evidence/real-saga-22.json
+          echo "VOID_REAL_SAGA_INITIALIZATION_CROSS_NODE_GREEN"
+
+  stopped-image:
+    needs: [real-saga-cross-node]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -103,6 +157,8 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
+      - name: Install locked compiler for extracted-loader proof
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build and inspect a STOPPED image only
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -141,6 +197,23 @@ jobs:
             assert.equal(p.production_source_finality_authority_ready,false);
             console.log("VOID_SAGA_STOPPED_IMAGE_EXACT_BYTES_PRESENT_NO_AUTHORITY_GREEN");
           ' "$RUNNER_TEMP/composed-saga-positive-package-identity.json"
+          node scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs --stopped-root "$ROOT" \
+            > "$RUNNER_TEMP/stopped-real-saga-loader.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/stopped-real-saga-loader.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.stopped_image_extracted_bytes,true);
+          assert.equal(j.stopped_image_container_started,false);
+          assert.equal(j.stopped_image_extracted_real_saga_loader_qualified,true);
+          assert.equal(j.real_saga_module_imported,true);
+          assert.equal(j.real_saga_exports_invoked,false);
+          assert.equal(j.dynamic_tool_transitive_closure_verified_for_saga_edge,true);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.funds_movement,false);
+          console.log("VOID_STOPPED_IMAGE_EXTRACTED_REAL_SAGA_LOADER_GREEN");
+          NODE
           docker inspect "$CID" > "$RUNNER_TEMP/composed-saga-positive-inspect-after.json"
           cmp "$RUNNER_TEMP/composed-saga-positive-inspect-before.json" "$RUNNER_TEMP/composed-saga-positive-inspect-after.json"
           test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
@@ -149,6 +222,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-composed-saga-positive-stopped-image-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/composed-saga-positive-package-identity.json
+          path: |
+            ${{ runner.temp }}/composed-saga-positive-package-identity.json
+            ${{ runner.temp }}/stopped-real-saga-loader.json
           if-no-files-found: error
           retention-days: 1
