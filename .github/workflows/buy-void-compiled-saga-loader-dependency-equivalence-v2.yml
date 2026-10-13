@@ -1,0 +1,155 @@
+name: VOID Buy VOID compiled saga dependency equivalence v2
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "Dockerfile"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+      - "scripts/prove_buy_void_compiled_saga_loader_dependency_equivalence_v2.mjs"
+      - ".github/workflows/buy-void-compiled-saga-loader-dependency-equivalence-v2.yml"
+      - "docs/architecture/buy-void-compiled-saga-loader-dependency-equivalence-v2.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: compiled saga dependency equivalence / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact audited candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: current
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact historical dependency baseline
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 0ac56eba7ec488fec94cfce89698a7febfedc0b6
+          path: baseline
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact locks without package scripts
+        run: |
+          set -euo pipefail
+          (cd baseline && npm ci --ignore-scripts --no-audit --no-fund)
+          (cd current && npm ci --ignore-scripts --no-audit --no-fund)
+
+      - name: Build both dependency generations
+        run: |
+          set -euo pipefail
+          (cd baseline && npm run build)
+          (cd current && npm run build)
+
+      - name: Prove historical V1 positive and audited V1 refusal
+        run: |
+          set -euo pipefail
+          baseline_receipt="$RUNNER_TEMP/compiled-saga-v1-baseline-node-${{ matrix.node }}.json"
+          (cd baseline && node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --derive) > "$baseline_receipt"
+          current_hold="$RUNNER_TEMP/compiled-saga-v1-current-hold-node-${{ matrix.node }}.txt"
+          if (cd current && node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --derive) > "$current_hold" 2>&1; then
+            echo "UNEXPECTED_FROZEN_V1_AUDITED_PACKAGE_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq "source input identity drift: package-lock.json" "$current_hold"
+
+      - name: Preserve inert-loader negative behavior in both builds
+        run: |
+          set -euo pipefail
+          (cd baseline && node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --self-test) \
+            | grep -Fx "VOID_COMPILED_SAGA_LOADER_INERT_FIXTURE_SELF_TEST_GREEN"
+          (cd current && node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --self-test) \
+            | grep -Fx "VOID_COMPILED_SAGA_LOADER_INERT_FIXTURE_SELF_TEST_GREEN"
+
+      - name: Prove exact compiled importer equivalence
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/compiled-saga-dependency-equivalence-node-${{ matrix.node }}.json"
+          node current/scripts/prove_buy_void_compiled_saga_loader_dependency_equivalence_v2.mjs \
+            --baseline baseline \
+            --current current \
+            --baseline-v1-receipt "$RUNNER_TEMP/compiled-saga-v1-baseline-node-${{ matrix.node }}.json" \
+            --current-v1-hold "$RUNNER_TEMP/compiled-saga-v1-current-hold-node-${{ matrix.node }}.txt" \
+            > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_compiled_saga_loader_dependency_equivalence_v2");
+          assert.equal(j.historical_v1_positive,true);
+          assert.equal(j.audited_generation_v1_refusal,true);
+          assert.equal(j.compiled_importer_bytes_equal,true);
+          assert.equal(j.extracted_compiled_factory_shape_verified,true);
+          assert.equal(j.inert_loader_behavior_preserved,true);
+          assert.equal(j.real_saga_module_imported,false);
+          assert.equal(j.stopped_image_runtime_loader_qualified,false);
+          assert.equal(j.packaged_image_generation_accepted,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.accepted_enforcement_v5,false);
+          assert.equal(j.presale_activation,false);
+          assert.equal(j.wallet_signer_transaction_payment_funds_authority,false);
+          console.log("VOID_BUY_VOID_COMPILED_SAGA_DEPENDENCY_EQUIVALENCE_V2_GREEN");
+          NODE
+
+      - name: Upload exact equivalence receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: compiled-saga-dependency-equivalence-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/compiled-saga-dependency-equivalence-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C current rev-parse HEAD)" = "$HEAD"
+          git -C current merge-base --is-ancestor "$BASE" "$HEAD"
+          git -C current diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node 22 24 26 receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: compiled-saga-dependency-equivalence-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - name: Require cross-node exact receipt bytes
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "receipts/compiled-saga-dependency-equivalence-node-$v.json"
+          done
+          cmp receipts/compiled-saga-dependency-equivalence-node-22.json receipts/compiled-saga-dependency-equivalence-node-24.json
+          cmp receipts/compiled-saga-dependency-equivalence-node-22.json receipts/compiled-saga-dependency-equivalence-node-26.json
+          echo "VOID_BUY_VOID_COMPILED_SAGA_DEPENDENCY_EQUIVALENCE_CROSS_NODE_GREEN"
