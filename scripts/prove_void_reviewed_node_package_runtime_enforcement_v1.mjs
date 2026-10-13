@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +18,11 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MANIFEST_PATH="ops/security/reviewed-node-package-runtime-enforcement-v1.json";
+const CANDIDATE_SCRIPT=
+  "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs";
+const CANDIDATE_SCRIPT_BLOB="4bffcce6088175f030c899d115b19c8b48482160";
+const EXPECTED_CANDIDATE_SOURCE_PARENT=
+  "21773007311f63c7a2e5d288e8bfa1e2243d49b6";
 const EXPECTED={
   marker:"VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_V1",
   version:1,
@@ -40,6 +47,54 @@ const EXPECTED={
   public_presale_activation:false,
   funds_movement:false,
 };
+function sha256(bytes){
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\\0","utf8"))
+    .update(bytes).digest("hex");
+}
+function rederiveCandidate(){
+  const candidateBytes=fs.readFileSync(CANDIDATE_SCRIPT);
+  assert.equal(gitBlob(candidateBytes),CANDIDATE_SCRIPT_BLOB,
+    "candidate_script_blob_drift");
+  const stdout=execFileSync(
+    process.execPath,
+    [path.join(ROOT,CANDIDATE_SCRIPT),"--derive"],
+    {
+      cwd:ROOT,
+      env:{
+        PATH:"/usr/bin:/bin",
+        HOME:"/nonexistent",
+        LANG:"C",
+        LC_ALL:"C",
+        TZ:"UTC",
+      },
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      timeout:120000,
+      maxBuffer:4*1024*1024,
+    },
+  );
+  assert.equal(sha256(Buffer.from(stdout,"utf8")),EXPECTED.candidate_json_sha256,
+    "candidate_json_sha256_mismatch");
+  const candidate=JSON.parse(stdout);
+  assert.equal(candidate.schema,
+    "void_reviewed_node_package_runtime_enforcement_candidate_v1");
+  assert.equal(candidate.source_parent,EXPECTED_CANDIDATE_SOURCE_PARENT);
+  assert.equal(candidate.profile_candidate_accepted,false);
+  assert.equal(candidate.complete_executable_closure_verified,false);
+  assert.equal(candidate.funds_movement,false);
+  assert.equal(candidate.profile_canonical_sha256,
+    EXPECTED.profile_canonical_sha256);
+  assert.equal(
+    sha256(Buffer.from(canonicalJson(candidate.profile),"utf8")),
+    EXPECTED.profile_canonical_sha256,
+    "candidate_profile_canonical_sha256_mismatch",
+  );
+  return candidate;
+}
 function makeWritable(root){
   if(!fs.existsSync(root))return;
   const st=fs.lstatSync(root);
@@ -57,9 +112,17 @@ function main(){
   assert.equal(canonicalJson(committed),canonicalJson(EXPECTED),
     "enforcement_profile_identity_manifest_drift");
 
+  const candidate=rederiveCandidate();
   const profile=collectReviewedNodePackageRuntimeV1({
     rootPackages:EXPECTED.root_packages,
   });
+  assert.equal(canonicalJson(candidate.profile),canonicalJson(profile),
+    "candidate_profile_rederivation_mismatch");
+  assert.equal(
+    sha256(Buffer.from(canonicalJson(profile),"utf8")),
+    EXPECTED.profile_canonical_sha256,
+    "profile_canonical_sha256_mismatch",
+  );
   assert.equal(profile.profile_id,EXPECTED.profile_id);
   assert.equal(profile.packages_aggregate_sha256,EXPECTED.packages_aggregate_sha256);
   assert.equal(profile.package_count,EXPECTED.package_count);
