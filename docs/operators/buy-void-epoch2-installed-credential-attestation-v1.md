@@ -31,9 +31,11 @@ The live operator path is the builtin-only sealed probe:
 
 It is intentionally **not** loaded from the mutable worktree and does not use
 `tsx`, `ethers`, `node_modules`, or any repository module. The reviewed
-Git-object bytes are streamed directly to plain Node with an empty environment
-except for the minimum user-session variables required to query the user
-systemd manager.
+Git-object bytes are streamed directly to plain Node with a minimal clean
+environment. The sealed probe does not trust an ambient
+`XDG_RUNTIME_DIR` or `DBUS_SESSION_BUS_ADDRESS`; it derives the canonical
+`/run/user/<uid>/bus` endpoint itself and validates the runtime directory and
+Unix socket before querying the user systemd manager.
 
 After exact operator confirmation, the sealed probe:
 
@@ -42,28 +44,36 @@ After exact operator confirmation, the sealed probe:
 2. runs the existing builtin-only Epoch-2 source qualifier only after those
    worktree bytes are pinned;
 3. reads the effective **user** `void-node-live.service` state through the
-   root-owned `/usr/bin/systemctl` executable;
-4. requires exactly one effective
+   root-owned `/usr/bin/systemctl` executable using only the canonical
+   `unix:path=/run/user/<uid>/bus` endpoint, and requires that bus pathname
+   identity to remain stable across the query;
+4. requires the reported `MainPID` to be bound by
+   `/proc/<pid>/cgroup` to
+   `/user.slice/user-<uid>.slice/user@<uid>.service/.../void-node-live.service`,
+   and requires the process environment `INVOCATION_ID` to equal systemd's
+   reported invocation ID;
+5. requires exactly one effective
    `LoadCredential=buy-void-epoch2-fulfiller-v1:...` binding and obtains
-   `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from the live
-   service MainPID environment;
-5. requires the live process source commit/tree to equal the exact attested
-   checkout and repeats the systemd/process observation after signing;
-6. opens only the fixed systemd materialized credential through retained Linux
+   `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from that
+   cgroup-bound live service MainPID environment;
+6. requires the live process source commit/tree to equal the exact attested
+   checkout and repeats the complete systemd/process/cgroup observation after
+   signing;
+7. opens only the fixed systemd materialized credential through retained Linux
    directory/file descriptors with `O_NOFOLLOW`, owner/mode/link/size checks,
    bounded reads, and before/after inode+metadata revalidation;
-7. derives the secp256k1 public key with Node builtin crypto and independently
+8. derives the secp256k1 public key with Node builtin crypto and independently
    derives the Ethereum address with an embedded Keccak-256 implementation;
-8. self-tests Keccak-256 against the empty-message vector and private-key-1
+9. self-tests Keccak-256 against the empty-message vector and private-key-1
    against Ethereum address
    `0x7e5f4552091a69125d5dfcb7b8c2659029395bdf` before touching the live
    credential;
-9. requires the installed key to derive the immutable Epoch-2 fulfiller
+10. requires the installed key to derive the immutable Epoch-2 fulfiller
    `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`;
-10. signs one fresh domain-separated **non-transaction** ECDSA challenge with
+11. signs one fresh domain-separated **non-transaction** ECDSA challenge with
     Node builtin `crypto.sign`, verifies it locally with `crypto.verify`, and
     discards both private-key bytes and raw signature bytes;
-11. emits only public source/service identities and hashes. It constructs no
+12. emits only public source/service identities and hashes. It constructs no
     transaction, performs no RPC request, and cannot submit or broadcast one.
 
 The prior transaction-shaped capability probe remains source/test history. Its
@@ -98,8 +108,6 @@ replacement objects before Node starts:
 env -i \
   HOME="$HOME" \
   PATH=/usr/bin:/bin \
-  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
-  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
   GIT_OPTIONAL_LOCKS=0 \
   GIT_NO_REPLACE_OBJECTS=1 \
   GIT_CONFIG_NOSYSTEM=1 \
@@ -113,9 +121,14 @@ env -i \
   '
 ```
 
-Run the command from the repository root. The sealed probe also requires the
-actual Node executable to be root-owned and non-group/world-writable before it
-can observe systemd or read the credential. Direct worktree execution of the
+Run the command from the repository root. No ambient user-bus variables are
+needed or accepted as authority. The sealed probe derives the current UID's
+canonical runtime/bus path, requires the runtime directory to be private to
+that UID, requires the bus leaf to be a same-UID Unix socket, and binds the
+reported MainPID to the real user-service cgroup plus matching process
+`INVOCATION_ID`. The sealed probe also requires the actual Node executable
+to be root-owned and non-group/world-writable before it can observe systemd or
+read the credential. Direct worktree execution of the
 sealed file is rejected. The reviewed
 pre-execution proof also dirties an authority-bearing module with a top-level
 sentinel, launches the sealed program from its Git object, and requires HOLD
