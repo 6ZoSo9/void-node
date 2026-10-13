@@ -14,12 +14,14 @@ export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_V1 =
 
 export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_AUTHORITY_V1 =
   Object.freeze({
-    durable_single_use_consumption:true,
+    durable_consumption_evidence:true,
     exact_signed_authorization_reverification_required:true,
     runtime_expiry_recheck_required:true,
     private_existing_state_root_required:true,
-    exact_state_store_generation_scoped_replay_prevention:true,
+    duplicate_rejected_while_consumption_slot_intact:true,
     same_realpath_replacement_is_new_store_generation:true,
+    same_uid_namespace_tamper_resistance_claimed:false,
+    single_use_guaranteed_by_this_gate:false,
     global_replay_prevention_claimed:false,
     canonical_state_store_runtime_binding_still_required:true,
     immutable_consumption_record:true,
@@ -452,7 +454,7 @@ function consumeInternal(
   const material={
     marker:VOID_APOLLYON_OPERATOR_AUTHORIZATION_CONSUMPTION_V1,
     version:1,
-    status:"operator_authorization_consumed_for_single_candidate_training_attempt",
+    status:"operator_authorization_consumption_recorded_for_candidate_training_attempt",
     authorization_id:verified.authorization_id,
     operator_public_key_raw_sha256:
       verified.operator_public_key_raw_sha256,
@@ -470,12 +472,13 @@ function consumeInternal(
     state_store_generation_id:storeGeneration.store_id,
     state_store_generation_sha256:storeContext.state_store_generation_sha256,
     consumption:{
-      single_use:true,
-      authorization_consumed:true,
+      single_use_guaranteed_by_this_gate:false,
+      authorization_consumption_recorded:true,
       immutable_consumption_record:true,
-      replay_rejected_within_exact_state_store_generation:true,
-      replay_prevention_scope:"exact_state_store_generation",
+      duplicate_rejected_while_consumption_slot_intact:true,
+      replay_prevention_scope:"intact_consumption_slot_within_state_store_generation",
       same_realpath_replacement_is_new_store_generation:true,
+      same_uid_namespace_tamper_resistance_claimed:false,
       global_replay_prevention_claimed:false,
       canonical_state_store_runtime_binding_required:true,
       signature_reverified_before_consumption:true,
@@ -568,7 +571,8 @@ function consumeInternal(
     durable_consumption_record_published:true,
     consumption_record_mode:"0600",
     state_store_directory_mode:"0700",
-    authorization_consumed:true,
+    authorization_consumption_recorded:true,
+    authorization_single_use_guaranteed:false,
     attempt_claimed:false,
     training_execution_performed:false,
     candidate_weight_mutation_performed:false,
