@@ -228,7 +228,7 @@ try{
   ], { cwd: process.cwd(), encoding: "utf8", env: { PATH: "/usr/bin:/bin", HOME: os.tmpdir(), LC_ALL: "C" } });
   assert.equal(gatewayCurrentGit.status, 0);
   assert.equal(gatewayCurrentGit.stdout.trim(),
-    "974a1b0d825ec921a26aaca61c5560d5e29fba5f");
+    "b086b612fe5ee1dc1d5bcc4838d926af890d1435");
 
   const preflight=
     buildVoidPublicParticipantProductionCompositionPreflightV2();
