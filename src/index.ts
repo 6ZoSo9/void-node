@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { parseAttachBlockRange } from "./http/api_attach.js";
 import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
 import { classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c } from "./http/void_demo003_public_serving_contract_v1.js";
 import {
@@ -8644,14 +8645,17 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
 
   app.get("/blocks/range", (req, res) => {
     const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
-    const from = Number(req.query.from ?? req.query.start ?? 0);
-    const to = Number(req.query.to ?? req.query.end ?? head);
-    if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+    const range = parseAttachBlockRange(
+      req.query.from ?? req.query.start,
+      req.query.to ?? req.query.end,
+      head,
+    );
+    if (!range) {
       return res.status(400).json({ ok: false, error: "bad range" });
     }
     try {
       const blocks: any[] = [];
-      for (let i = from; i <= to; i++) {
+      for (let i = range.from; i <= range.to; i++) {
         const b = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadBlock(i);
         if (b) blocks.push(b);
       }
