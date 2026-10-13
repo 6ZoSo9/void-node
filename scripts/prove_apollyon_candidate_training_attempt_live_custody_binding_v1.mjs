@@ -11,6 +11,8 @@ for(const required of [
   'V85_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e"',
   'V81_BLOB_SHA1="fb31dbbda76c94f0ad08e38094c151a24a78b486"',
   'same_live_custody_session_binding_required:true',
+  'same_live_custody_session_binding_proof_capability:true',
+  'same_live_custody_session_binding_proven_by_import:false',
   'same_live_custody_session_binding_proven:true',
   'stable_service_process_identity_required:true',
   'retained_state_root_descriptor:true',
