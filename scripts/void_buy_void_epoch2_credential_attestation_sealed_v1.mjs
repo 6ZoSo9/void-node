@@ -796,8 +796,8 @@ async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(
-      "Run this reviewed file from the current main Git object on stdin. " +
-      "Direct worktree execution is non-authoritative.",
+      "Run this reviewed file from one pinned current-main Git object on stdin " +
+      "with --expected-head <40-hex-sha>. Direct worktree execution is non-authoritative.",
     );
     return;
   }
@@ -810,9 +810,14 @@ async function main() {
     confirmAt >= 0 && confirmAt + 1 < argv.length
       ? argv[confirmAt + 1]
       : "";
-  const allowed = new Set(["--probe", "--confirm"]);
+  const expectedHeadAt = argv.indexOf("--expected-head");
+  const expectedHead =
+    expectedHeadAt >= 0 && expectedHeadAt + 1 < argv.length
+      ? String(argv[expectedHeadAt + 1]).toLowerCase()
+      : "";
+  const allowed = new Set(["--probe", "--confirm", "--expected-head"]);
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--confirm") {
+    if (argv[i] === "--confirm" || argv[i] === "--expected-head") {
       i += 1;
       continue;
     }
@@ -839,6 +844,9 @@ async function main() {
   if (confirmation !== CONFIRM) {
     throw new Error("epoch2_sealed_confirmation_mismatch");
   }
+  if (!SHA40.test(expectedHead)) {
+    throw new Error("epoch2_sealed_expected_head_invalid");
+  }
   if (process.platform !== "linux" || process.arch !== "x64") {
     throw new Error("epoch2_sealed_linux_x64_required");
   }
@@ -855,6 +863,9 @@ async function main() {
   assertCryptoSelfTest();
   const root = path.resolve(process.cwd());
   const source = assertReviewedSource(root);
+  if (source.head !== expectedHead) {
+    throw new Error("epoch2_sealed_expected_head_mismatch");
+  }
   const trustedNode = trustedExecutable(
     process.execPath,
     path.basename(fs.realpathSync(process.execPath)),
