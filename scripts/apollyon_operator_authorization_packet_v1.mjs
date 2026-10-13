@@ -14,7 +14,7 @@ export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_PAYLOAD_V1 =
 export const VOID_APOLLYON_OPERATOR_AUTHORIZATION_DOMAIN_V1 =
   "void.apollyon.operator-authorization.v1";
 
-const HEX64=/^[0-9a-f]{64}$/u;
+const HEX64=/^[0-9a-f]{64}$/u;\nconst GIT_OID40=/^[0-9a-f]{40}$/u;
 const AUTHORIZATION_ID=/^apollyon_authz_v1:[0-9a-f]{64}$/u;
 const NONCE=/^[0-9a-f]{64}$/u;
 const ED25519_SPKI_PREFIX=Buffer.from("302a300506032b6570032100","hex");
@@ -52,6 +52,13 @@ function safePositiveInteger(value,label,max){
 function hex64(value,label){
   if(typeof value!=="string" || !HEX64.test(value)){
     fail(label+" must be lowercase sha256 hex");
+  }
+  return value;
+}
+
+function gitOid40(value,label){
+  if(typeof value!=="string" || !GIT_OID40.test(value)){
+    fail(label+" must be a lowercase 40-hex Git object ID");
   }
   return value;
 }
