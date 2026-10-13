@@ -145,9 +145,23 @@ const legacyCoreActions = [
   "actions/setup-node@v4",
   "actions/setup-node@v5",
 ];
+const TRUSTED_TARGET_CHECKOUT_V6 =
+  "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803";
 for (const workflowPath of coreActionWorkflows) {
   const workflow = read(workflowPath);
-  assert.ok(workflow.includes("uses: actions/checkout@v6"), workflowPath);
+  if (workflowPath === ".github/workflows/public-repo-hygiene.yml") {
+    assert.ok(
+      workflow.includes("uses: " + TRUSTED_TARGET_CHECKOUT_V6),
+      workflowPath + ": trusted target workflow must pin reviewed checkout v6",
+    );
+    assert.equal(
+      workflow.includes("uses: actions/checkout@v6"),
+      false,
+      workflowPath + ": trusted target workflow must not float checkout v6",
+    );
+  } else {
+    assert.ok(workflow.includes("uses: actions/checkout@v6"), workflowPath);
+  }
   for (const legacyAction of legacyCoreActions) {
     assert.equal(workflow.includes(legacyAction), false, `${workflowPath}: ${legacyAction}`);
   }
