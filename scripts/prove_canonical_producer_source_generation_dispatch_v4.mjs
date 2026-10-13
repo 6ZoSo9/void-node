@@ -25,6 +25,8 @@ const FROZEN_BLOBS = new Map([
   [GENERATIONS[0].proof,"26c5b586e8a97759288a18909ba06312055c54be"],
   [GENERATIONS[1].guard,"eb685800490b5c6549c2b2d41c515bc0ea3a527b"],
   [GENERATIONS[1].proof,"873b4173d37373a4654efde8192a8e5818d637bb"],
+  [GENERATIONS[2].guard,"d2ef970e691b8457ba77f55ce70e5fa92511cea2"],
+  [GENERATIONS[2].proof,"af163c1fd0a70e68bfd8e147b63663f4ed3ff72d"],
 ]);
 const file=(name)=>fs.readFileSync(name);
 const gitBlob=(buffer)=>crypto.createHash("sha1")
@@ -113,7 +115,7 @@ runProof(selected.proof);
 console.log(MARKER+"_GREEN "+JSON.stringify({
   source_blob:sourceBlob,
   selected_guard:selected.guard,
-  frozen_v1_v2_blobs_verified:true,
+  frozen_v1_v2_v3_blobs_verified:true,
   reviewed_v3_predecessor_preserved:true,
   source_generation_selector_positive_negative:true,
   obsolete_guard_refusal:true,
