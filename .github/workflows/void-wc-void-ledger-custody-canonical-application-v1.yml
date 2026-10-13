@@ -6,7 +6,9 @@ on:
       - ".github/workflows/void-wc-void-ledger-custody-canonical-application-v1.yml"
       - "docs/operators/wc-void-ledger-custody-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_ledger_custody_canonical_application_v2.mjs"
       - "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs"
+      - "tools/void-wc-void-ledger-custody-canonical-application-v2.mjs"
       - "tools/void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-v1.mjs"
@@ -30,7 +32,9 @@ on:
       - "tools/void-wc-void-reverse-settlement-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
       - "package.json"
       - "package-lock.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
@@ -42,7 +46,9 @@ on:
       - ".github/workflows/void-wc-void-ledger-custody-canonical-application-v1.yml"
       - "docs/operators/wc-void-ledger-custody-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_ledger_custody_canonical_application_v2.mjs"
       - "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs"
+      - "tools/void-wc-void-ledger-custody-canonical-application-v2.mjs"
       - "tools/void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-v1.mjs"
@@ -66,7 +72,9 @@ on:
       - "tools/void-wc-void-reverse-settlement-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
       - "package.json"
       - "package-lock.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
@@ -99,12 +107,53 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-ledger-custody-canonical-application-v1.mjs
+          node --check tools/void-wc-void-ledger-custody-canonical-application-v2.mjs
           node --check scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
-      - name: Prove ledger custody canonical application
-        run: node scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
-      - name: Upstream ledger/custody, classifier, and reviewed-runtime regressions
+          node --check scripts/prove_void_wc_void_ledger_custody_canonical_application_v2.mjs
+      - name: Prove ledger custody canonical application generation
+        shell: bash
         run: |
-          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
+              echo "ledger_custody_canonical_application_mode=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/ledger-custody-canonical-v1-hold.txt"
+              if node scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED' "$hold"
+              node scripts/prove_void_wc_void_ledger_custody_canonical_application_v2.mjs
+              echo "ledger_custody_canonical_application_mode=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
+      - name: Upstream ledger/custody, classifier, and reviewed-runtime regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              node scripts/prove_void_reviewed_node_package_runtime_v2.mjs
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
           node scripts/prove_void_wc_void_ledger_custody_coupled_candidate_promotion_v1.mjs
           node scripts/prove_void_wc_void_production_readiness_v1.mjs
           node scripts/prove_void_coupled_economic_successor_gate_v1.mjs
