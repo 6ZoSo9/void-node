@@ -40,11 +40,12 @@ execution source for live mode.
 Reviewed pre-entry launcher source blob:
 
 ```text
-8399d43ec6f8021878dd0e796849f7bc9dac469a
+717d6cadaf30606e571e5641cfedf9dddfbdd52d
 ```
 
 Installing either `/opt` tree is a **separate privileged mutation gate** and
-is not performed by this PR or its CI.
+is not performed by this PR or its CI. The launcher's `--self-test` may resolve
+hosted CI Node from `PATH`; live mode remains fixed to `/usr/bin/node`.
 
 ## Exact source binding
 

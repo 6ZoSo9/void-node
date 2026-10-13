@@ -14,7 +14,7 @@ const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "8399d43ec6f8021878dd0e796849f7bc9dac469a";
+  "717d6cadaf30606e571e5641cfedf9dddfbdd52d";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",

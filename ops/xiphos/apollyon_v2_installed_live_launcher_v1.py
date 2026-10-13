@@ -298,8 +298,14 @@ def self_test()->None:
                 f'fs.writeFileSync({marker2.as_posix()!r},"ran");\n',
                 encoding="utf-8",
             )
+            hosted_node=shutil.which("node")
+            if not hosted_node:
+                raise AssertionError("self-test Node executable missing")
+            hosted_node_path=Path(hosted_node).resolve(strict=True)
+            if not hosted_node_path.is_file():
+                raise AssertionError("self-test Node executable invalid")
             result=subprocess.run(
-                [os.fspath(NODE),os.fspath(prepared/RUNNER_REL),"--self-test"],
+                [os.fspath(hosted_node_path),os.fspath(prepared/RUNNER_REL),"--self-test"],
                 env={
                     "PATH":"/usr/sbin:/usr/bin:/sbin:/bin",
                     "LC_ALL":"C",
