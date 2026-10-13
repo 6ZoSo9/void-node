@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import {
+  VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V1,
+  VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
+  canonicalApollyonCustodyHostPolicyJsonV1,
+  qualifyApollyonCustodyHostPolicyV1,
+} from "./apollyon-custody-host-policy-qualification-v1.mjs";
+
+export const VOID_APOLLYON_CUSTODY_HOST_POLICY_QUALIFICATION_V2 =
+  "VOID_APOLLYON_CUSTODY_HOST_POLICY_QUALIFICATION_V2";
+export const VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2 =
+  "VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2";
+export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
+  ...VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V1,
+  historical_v1_classifier_reused:true,
+  socket_parent_retained_ancestor_binding:true,
+  socket_parent_training_rename_unlink_denied_required:true,
+  explicit_training_pid_service_control_denial_required:true,
+  exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
+  reviewed_systemd_major_pinned:true,
+  running_systemd_manager_version_bound:true,
+  running_installed_systemd_version_match_required:true,
+});
+const MAX_ANCESTORS=128;
+const REVIEWED_SYSTEMD_MAJOR=255;
+const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
+const SAFE_RUNTIME_USER=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
+const SYSTEMD_MANAGE_UNIT_VERBS=Object.freeze([
+  "start","verify-active","stop","reload","reload-or-start","restart","try-restart",
+  "try-reload","nop","reload-or-restart","reload-or-try-restart","kill","clean",
+  "set-property","reset-failed","ref","bind-mount","mount-image",
+]);
+const SYSTEMD_GLOBAL_CONTROL_ACTIONS=Object.freeze([
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+  "org.freedesktop.systemd1.set-environment",
+]);
+function fail(code){throw new Error(code);}
+function exactKeys(value,expected,code){
+  if(!value||typeof value!=="object"||Array.isArray(value))fail(code);
+  const actual=Object.keys(value).sort();
+  const wanted=[...expected].sort();
+  if(actual.length!==wanted.length||actual.some((key,index)=>key!==wanted[index]))fail(code);
+}
+function normalizeSocketParentV2(value){
+  const code="apollyon_custody_policy_v2_socket_parent_invalid";
+  exactKeys(value,[
+    "custody_uid_write_allowed","direct","mode","owner_gid","owner_uid",
+    "retained_ancestor_count","retained_ancestors_direct",
+    "retained_ancestors_group_other_writable","retained_ancestors_root_owned",
+    "retained_ancestors_symlink_free","symlink",
+    "training_uid_rename_unlink_denied","training_uid_traverse_allowed",
+    "training_uid_write_denied",
+  ],code);
+  if(!Number.isSafeInteger(value.retained_ancestor_count)||
+     value.retained_ancestor_count<2||value.retained_ancestor_count>MAX_ANCESTORS||
+     value.retained_ancestors_root_owned!==true||
+     value.retained_ancestors_direct!==true||
+     value.retained_ancestors_symlink_free!==true||
+     value.retained_ancestors_group_other_writable!==false||
+     value.training_uid_rename_unlink_denied!==true){
+    fail(code);
+  }
+  return Object.freeze({...value});
+}
+function normalizeServiceControl(value,identities){
+  const code="apollyon_custody_policy_v2_service_control_invalid";
+  exactKeys(value,[
+    "all_systemd_control_actions_explicitly_denied","checked_actions",
+    "installed_systemd_package_version","observed_systemd_version_line","pkcheck_subject",
+    "polkit_deny_rule","reviewed_systemd_major","running_installed_systemd_version_match",
+    "running_systemd_manager_major","running_systemd_manager_version",
+    "runtime_can_control_service","service_unit","training_pid",
+    "training_process_capabilities","training_process_start_time_ticks",
+    "training_uid",
+  ],code);
+  if(
+    value.reviewed_systemd_major!==REVIEWED_SYSTEMD_MAJOR||
+    typeof value.observed_systemd_version_line!=="string"||
+    typeof value.installed_systemd_package_version!=="string"||
+    typeof value.running_systemd_manager_version!=="string"||
+    value.running_systemd_manager_major!==REVIEWED_SYSTEMD_MAJOR||
+    value.running_installed_systemd_version_match!==true||
+    !/^systemd\s+255\s+\([^()]+\)$/u.test(value.observed_systemd_version_line)||
+    value.observed_systemd_version_line!==
+      "systemd 255 ("+value.installed_systemd_package_version+")"||
+    !/^[A-Za-z0-9.+:~_-]{1,120}$/u.test(value.installed_systemd_package_version)||
+    value.running_systemd_manager_version!==value.installed_systemd_package_version||
+    !/^255(?:[.-]|$)/u.test(value.running_systemd_manager_version)||
+    !Number.isSafeInteger(value.training_pid)||value.training_pid<=0||
+    !Number.isSafeInteger(value.training_uid)||value.training_uid!==identities.training_uid||
+    typeof value.training_process_start_time_ticks!=="string"||
+    !/^[1-9][0-9]*$/u.test(value.training_process_start_time_ticks)||
+    value.pkcheck_subject!==String(value.training_pid)+","+
+      value.training_process_start_time_ticks+","+String(value.training_uid)||
+    typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
+    value.all_systemd_control_actions_explicitly_denied!==true||
+    value.runtime_can_control_service!==false
+  )fail(code);
+  exactKeys(value.polkit_deny_rule,[
+    "action_id_only","bytes","denied_action_ids","details_can_change_result",
+    "group_other_writable","lexically_first","mode","owner_gid","owner_uid",
+    "path","retained_ancestors_group_other_writable",
+    "retained_ancestors_root_owned","runtime_user","sha256","single_link","symlink",
+  ],code);
+  const expectedActions=[
+    "org.freedesktop.systemd1.manage-units",
+    ...SYSTEMD_GLOBAL_CONTROL_ACTIONS,
+  ];
+  if(
+    value.polkit_deny_rule.action_id_only!==true||
+    value.polkit_deny_rule.details_can_change_result!==false||
+    value.polkit_deny_rule.lexically_first!==true||
+    value.polkit_deny_rule.owner_uid!==0||
+    value.polkit_deny_rule.owner_gid!==0||
+    value.polkit_deny_rule.single_link!==true||
+    value.polkit_deny_rule.symlink!==false||
+    value.polkit_deny_rule.group_other_writable!==false||
+    value.polkit_deny_rule.retained_ancestors_root_owned!==true||
+    value.polkit_deny_rule.retained_ancestors_group_other_writable!==false||
+    typeof value.polkit_deny_rule.runtime_user!=="string"||!SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    value.polkit_deny_rule.path!==
+      "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
+    !Number.isSafeInteger(value.polkit_deny_rule.bytes)||
+    value.polkit_deny_rule.bytes<1||
+    typeof value.polkit_deny_rule.sha256!=="string"||
+    !/^[0-9a-f]{64}$/u.test(value.polkit_deny_rule.sha256)||
+    typeof value.polkit_deny_rule.mode!=="string"||
+    !/^0[0-7]{3}$/u.test(value.polkit_deny_rule.mode)||
+    (Number.parseInt(value.polkit_deny_rule.mode,8)&0o022)!==0||
+    !Array.isArray(value.polkit_deny_rule.denied_action_ids)||
+    canonicalApollyonCustodyHostPolicyJsonV1(value.polkit_deny_rule.denied_action_ids)!==
+      canonicalApollyonCustodyHostPolicyJsonV1(expectedActions)
+  )fail(code);
+  exactKeys(value.training_process_capabilities,[
+    "ambient","effective","inheritable","no_new_privileges","permitted",
+  ],code);
+  if(
+    value.training_process_capabilities.ambient!=="0"||
+    value.training_process_capabilities.effective!=="0"||
+    value.training_process_capabilities.inheritable!=="0"||
+    value.training_process_capabilities.permitted!=="0"||
+    value.training_process_capabilities.no_new_privileges!==true
+  )fail(code);
+  const expected=[
+    {action_id:"org.freedesktop.systemd1.manage-units",details:[]},
+    ...SYSTEMD_MANAGE_UNIT_VERBS.map((verb)=>({
+      action_id:"org.freedesktop.systemd1.manage-units",
+      details:[{key:"unit",value:value.service_unit},{key:"verb",value:verb}],
+    })),
+    ...SYSTEMD_GLOBAL_CONTROL_ACTIONS.map((action_id)=>({action_id,details:[]})),
+  ];
+  if(!Array.isArray(value.checked_actions)||value.checked_actions.length!==expected.length){
+    fail(code);
+  }
+  for(let index=0;index<expected.length;index+=1){
+    const actual=value.checked_actions[index];
+    exactKeys(actual,["action_id","details","exit_status","result"],code);
+    if(
+      actual.action_id!==expected[index].action_id||
+      actual.exit_status!==1||
+      actual.result!=="explicitly_denied"||
+      canonicalApollyonCustodyHostPolicyJsonV1(actual.details)!==
+        canonicalApollyonCustodyHostPolicyJsonV1(expected[index].details)
+    )fail(code);
+  }
+  return Object.freeze({
+    ...value,
+    checked_actions:Object.freeze(value.checked_actions.map((entry)=>Object.freeze({
+      ...entry,
+      details:Object.freeze(entry.details.map((detail)=>Object.freeze({...detail}))),
+    }))),
+    training_process_capabilities:Object.freeze({...value.training_process_capabilities}),
+  });
+}
+function historicalV1Input(input,sp){
+  return Object.freeze({
+    consumed_directory:input.consumed_directory,
+    evidence_snapshot:input.evidence_snapshot,
+    identities:input.identities,
+    marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
+    service:input.service,
+    socket:input.socket,
+    socket_parent:Object.freeze({
+      custody_uid_write_allowed:sp.custody_uid_write_allowed,
+      direct:sp.direct,mode:sp.mode,owner_gid:sp.owner_gid,owner_uid:sp.owner_uid,
+      symlink:sp.symlink,
+      training_uid_traverse_allowed:sp.training_uid_traverse_allowed,
+      training_uid_write_denied:sp.training_uid_write_denied,
+    }),
+    source_binding:input.source_binding,
+    state_root:input.state_root,
+    target_host:input.target_host,
+    verification_now_ms:input.verification_now_ms,
+    version:1,
+  });
+}
+export function qualifyApollyonCustodyHostPolicyV2(input){
+  exactKeys(input,[
+    "consumed_directory","evidence_snapshot","identities","marker","service",
+    "service_control","socket","socket_parent","source_binding","state_root","target_host",
+    "verification_now_ms","version",
+  ],"apollyon_custody_policy_v2_input_invalid");
+  if(input.marker!==VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2||
+     input.version!==2||input.target_host!=="Xiphos"){
+    fail("apollyon_custody_policy_v2_input_invalid");
+  }
+  const socketParent=normalizeSocketParentV2(input.socket_parent);
+  const serviceControl=normalizeServiceControl(input.service_control,input.identities);
+  if(input.service?.runtime_can_control_service!==serviceControl.runtime_can_control_service){
+    fail("apollyon_custody_policy_v2_service_control_mismatch");
+  }
+  const v1=qualifyApollyonCustodyHostPolicyV1(historicalV1Input(input,socketParent));
+  if(v1.ok!==true||v1.status!=="source_policy_qualified"){
+    fail("apollyon_custody_policy_v2_historical_v1_reuse_failed");
+  }
+  const normalized=Object.freeze({...input,socket_parent:socketParent,service_control:serviceControl});
+  const qualificationId="apollyon_custody_policy_v2:"+
+    crypto.createHash("sha256")
+      .update(canonicalApollyonCustodyHostPolicyJsonV1(normalized)).digest("hex");
+  return Object.freeze({
+    ok:true,marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_QUALIFICATION_V2,
+    version:2,status:"source_policy_qualified",qualification_id:qualificationId,
+    historical_v1_qualification_id:v1.qualification_id,target_host:"Xiphos",
+    source_binding_verified:true,historical_v1_classifier_reused:true,
+    evidence_freshness_checked:true,identity_separation_qualified:true,
+    state_root_policy_qualified:true,consumed_directory_policy_qualified:true,
+    socket_parent_policy_qualified:true,
+    socket_parent_retained_ancestor_policy_qualified:true,
+    socket_parent_training_rename_unlink_policy_qualified:true,
+    socket_policy_qualified:true,service_hardening_policy_qualified:true,
+    service_control_policy_qualified:true,
+    custody_uid_process_exclusivity_evidence_qualified:true,
+    verification_clock_authority_proven:false,
+    evidence_generation_monotonicity_proven:false,
+    live_host_qualification_performed:false,independent_custody_proven:false,
+    production_gate_ready:false,attempt_claimed:false,
+    training_execution_performed:false,wallet_access_performed:false,
+    funds_movement_performed:false,
+    next_gate:"designated_host_read_only_custody_evidence_collection_v2",
+    authority:VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2,
+  });
+}

@@ -1,0 +1,64 @@
+name: Apollyon socket-parent namespace custody v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-custody-host-policy-qualification-v1.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v1.md"
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v1.py"
+      - "docs/security/apollyon-designated-host-custody-evidence-readonly-v1.md"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs"
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "docs/security/apollyon-custody-host-policy-qualification-v2.md"
+      - "docs/security/apollyon-designated-host-custody-evidence-readonly-v2.md"
+      - ".github/workflows/apollyon-custody-socket-parent-namespace-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: socket-parent namespace / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove versioned classifier and read-only collector
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/apollyon-v2-pycache
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-custody-host-policy-qualification-v2.mjs
+          node --check scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs
+          node scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs
+          python3 -m py_compile ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py
+          python3 -m py_compile scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py
+          python3 scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
