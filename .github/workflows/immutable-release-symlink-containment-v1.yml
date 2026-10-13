@@ -2,27 +2,50 @@ name: Immutable release symlink containment v1
 
 on:
   pull_request:
+    paths:
+      - "ops/**"
+      - "runtime/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/prove_immutable_release_symlink_containment_v1.mjs"
+      - ".github/workflows/immutable-release-symlink-containment-v1.yml"
   push:
     branches:
       - main
-  workflow_dispatch:
+    paths:
+      - "ops/**"
+      - "runtime/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/prove_immutable_release_symlink_containment_v1.mjs"
+      - ".github/workflows/immutable-release-symlink-containment-v1.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   symlink-containment:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      HEAD_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
+      - name: Materialize exact head without external actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add head "https://github.com/${HEAD_REPO}.git"
+          git fetch --no-tags --depth=1 head "${HEAD_SHA}"
+          git checkout --detach "${HEAD_SHA}"
+          test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
 
       - name: Install exact dependency tree
         run: npm ci --ignore-scripts --no-audit --no-fund
