@@ -40,12 +40,24 @@ execution source for live mode.
 Reviewed pre-entry launcher source blob:
 
 ```text
-884b7f6fc1d5cb209157b93d53bffa9fdeee2799
+ece29504ed9041960e692261702388fa2549587e
 ```
 
 Installing either `/opt` tree is a **separate privileged mutation gate** and
 is not performed by this PR or its CI. The launcher's `--self-test` may resolve
 hosted CI Node from `PATH`; live mode remains fixed to `/usr/bin/node`.
+
+Before live execution, the installed launcher now admits `/usr/bin/node` only
+as a direct regular executable with one hard link, root ownership, no
+group/world write bits, and root-owned/non-group/world-writable ancestry
+including `/`. It retains an `O_NOFOLLOW` descriptor and executes Node
+through `/proc/self/fd/<fd>` with that descriptor explicitly inherited, so a
+later pathname replacement cannot redirect the privileged execution.
+
+Private reviewed-tree construction is failure-clean: any exception after the
+temporary root is created removes that partial tree before the error escapes;
+cleanup failure itself HOLDS explicitly rather than silently claiming a
+non-persistent boundary.
 
 ## Exact source binding
 
