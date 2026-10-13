@@ -29,7 +29,8 @@ for value in [
  "'retained_ancestors_group_other_writable':any(stat.S_IMODE(x.st_mode)&0o022 for x in sap)",
  "'training_uid_rename_unlink_denied':not can_write(lstat_direct(sp.parent,'dir'),training.pw_uid,tg)",
  "system.posix_acl_access","CLOCK_BOOTTIME","'/usr/bin/systemctl','show'",
- "'/usr/bin/systemctl','--version'","'/usr/bin/pkcheck'","'--process'",
+ "'/usr/bin/systemctl','--version'","'/usr/bin/busctl','--system','get-property'",
+ "'org.freedesktop.systemd1.Manager','Version'","'/usr/bin/pkcheck'","'--process'",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
  "expected_polkit_deny_rule","'action_id_only':True","'details_can_change_result':False",
@@ -52,6 +53,12 @@ assert mod.classify_pkcheck_status(0)=='authorized'
 assert mod.classify_pkcheck_status(2)=='challenge'
 assert mod.classify_pkcheck_status(3)=='dismissed'
 assert mod.classify_pkcheck_status(127)=='error'
+installed=mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')
+running=mod.parse_running_systemd_manager_version('s "255.4-1ubuntu8.11"')
+assert installed['installed_systemd_major']==255
+assert installed['installed_systemd_package_version']=='255.4-1ubuntu8.11'
+assert running['running_systemd_manager_major']==255
+assert running['running_systemd_manager_version']=='255.4-1ubuntu8.11'
 rule=mod.expected_polkit_deny_rule('zoso').decode('utf-8')
 for action in (
  'org.freedesktop.systemd1.manage-units',
@@ -78,6 +85,8 @@ print('exact_action_id_only_polkit_deny_rule=true')
 print('polkit_message_details_irrelevant_by_rule=true')
 print('polkit_deny_rule_lexically_first=true')
 print('systemd_control_surface_reviewed_major=255')
+print('running_systemd_manager_version_bound=true')
+print('running_installed_systemd_version_match_required=true')
 print('training_process_capabilities_zero_required=true')
 print('training_process_no_new_privileges_required=true')
 print('live_host_qualification_performed=false')
