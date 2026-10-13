@@ -199,7 +199,7 @@ function openPinnedDirectory(directory,expectedMode,code){
   if(!opened.isDirectory()||!sameIdentity(opened,visible)){fs.closeSync(fd);fail(code);}
   return Object.freeze({fd,path:directory,proc_path:"/proc/self/fd/"+String(fd),identity:identity(opened)});
 }
-function closePinned(value){ if(value)try{fs.closeSync(value.fd);}catch{} }
+function closePinned(value){ if(value)try{fs.closeSync(value.fd);}catch(error){ void error; } }
 function assertPinnedStable(pinned,code){
   const visible=fs.lstatSync(pinned.path,{bigint:true});
   const opened=fs.fstatSync(pinned.fd,{bigint:true});
