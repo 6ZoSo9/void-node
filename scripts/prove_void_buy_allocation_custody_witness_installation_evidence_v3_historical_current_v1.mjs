@@ -112,18 +112,30 @@ function run(command,args){
 }
 
 const workflowText=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
-assert.match(
-  workflowText,
-  /push:\s*\n\s*branches:\s*\n(?:\s*-\s*[^\n]+\n)*\s*-\s*main\s*\n/u,
+function workflowSection(startMarker,endMarker){
+  const start=workflowText.indexOf(startMarker);
+  const end=workflowText.indexOf(endMarker,start+startMarker.length);
+  assert.ok(start>=0&&end>start,"workflow trigger section missing: "+startMarker);
+  return workflowText.slice(start,end);
+}
+const pushSection=workflowSection("  push:\n","  pull_request:\n");
+const pullRequestSection=workflowSection("  pull_request:\n","  workflow_dispatch:\n");
+assert.equal(
+  pushSection.split("      - main").length-1,
+  1,
   "installation-evidence workflow must requalify relevant changes on main",
 );
 for(const relative of REQUIRED_WORKFLOW_TRIGGER_PATHS){
   const exactLine=`      - "${relative}"`;
-  const count=workflowText.split(exactLine).length-1;
   assert.equal(
-    count,
-    2,
-    "workflow trigger path must appear in push and pull_request: "+relative,
+    pushSection.split(exactLine).length-1,
+    1,
+    "workflow push trigger missing or duplicated: "+relative,
+  );
+  assert.equal(
+    pullRequestSection.split(exactLine).length-1,
+    1,
+    "workflow pull_request trigger missing or duplicated: "+relative,
   );
 }
 
