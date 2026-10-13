@@ -31,7 +31,7 @@ const EXPECTED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "2e8c027d6c42c35b06fba8698c98cc084fa29c19",
+    "a0fe1fd5beda8ce288b2628a9c92f7bb74f82420",
 });
 const SERVICE = "void-node-live.service";
 
