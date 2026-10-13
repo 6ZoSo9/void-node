@@ -17,6 +17,7 @@ for (const token of [
   "GIT_OPTIONAL_LOCKS=0",
   "-u GIT_DIR",
   "-u GIT_WORK_TREE",
+  "-u GIT_COMMON_DIR",
   "-u GIT_INDEX_FILE",
   "-u GIT_OBJECT_DIRECTORY",
   "-u GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -65,7 +66,9 @@ assert.notEqual(process.getuid?.(), 0, "proof must run unprivileged");
 const fixture =
   "/var/lib/void-root-owned-git-proof-" +
   String(process.pid) + "-" + String(process.getuid());
+const hostileCommon = fixture + "-hostile-common";
 assert.match(fixture, /^\/var\/lib\/void-root-owned-git-proof-[0-9]+-[0-9]+$/);
+assert.match(hostileCommon, /^\/var\/lib\/void-root-owned-git-proof-[0-9]+-[0-9]+-hostile-common$/);
 
 function sudo(...args) {
   const r = spawnSync("sudo", ["-n", ...args], {
@@ -117,19 +120,65 @@ try {
     "ordinary unprivileged Git unexpectedly trusted root-owned fixture");
   assert.match(plain.stderr, /dubious ownership|safe\.directory/i);
 
-  const reviewed = spawnSync(
-    "git",
-    ["-c", "safe.directory=" + fixture, "-C", fixture, "rev-parse", "HEAD"],
-    { encoding: "utf8", timeout: 3000, env: gitEnv },
-  );
-  assert.equal(reviewed.status, 0, reviewed.stderr);
-  assert.match(reviewed.stdout.trim(), /^[0-9a-f]{40}$/);
+  function fixtureGit(args, env = gitEnv) {
+    return spawnSync(
+      "git",
+      ["-c", "safe.directory=" + fixture, "-C", fixture, ...args],
+      { encoding: "utf8", timeout: 3000, env },
+    );
+  }
 
-  const status = spawnSync(
-    "git",
-    ["-c", "safe.directory=" + fixture, "-C", fixture, "status", "--porcelain=v1"],
-    { encoding: "utf8", timeout: 3000, env: gitEnv },
+  function fixtureGitText(args, env = gitEnv) {
+    const r = fixtureGit(args, env);
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  }
+
+  const expected = {
+    commit: fixtureGitText(["rev-parse", "--verify", "HEAD^{commit}"]),
+    tree: fixtureGitText(["rev-parse", "--verify", "HEAD^{tree}"]),
+    branch: fixtureGitText(["symbolic-ref", "--short", "-q", "HEAD"]),
+    trackedBlob: fixtureGitText(["rev-parse", "--verify", "HEAD:source.txt"]),
+    workingBlob: fixtureGitText(["hash-object", "--", "source.txt"]),
+  };
+  assert.match(expected.commit, /^[0-9a-f]{40}$/);
+  assert.match(expected.tree, /^[0-9a-f]{40}$/);
+  assert.equal(expected.branch, "main");
+  assert.match(expected.trackedBlob, /^[0-9a-f]{40}$/);
+  assert.equal(expected.workingBlob, expected.trackedBlob);
+
+  sudo("install", "-d", "-m", "0755", hostileCommon);
+  const hostileEnv = { ...gitEnv, GIT_COMMON_DIR: hostileCommon };
+  const polluted = fixtureGit(["rev-parse", "--verify", "HEAD^{commit}"], hostileEnv);
+  assert.ok(
+    polluted.status !== 0 || polluted.stdout.trim() !== expected.commit,
+    "hostile GIT_COMMON_DIR did not exercise the repository-identity override",
   );
+
+  const scrubbedEnv = { ...hostileEnv };
+  delete scrubbedEnv.GIT_COMMON_DIR;
+  assert.equal(
+    fixtureGitText(["rev-parse", "--verify", "HEAD^{commit}"], scrubbedEnv),
+    expected.commit,
+  );
+  assert.equal(
+    fixtureGitText(["rev-parse", "--verify", "HEAD^{tree}"], scrubbedEnv),
+    expected.tree,
+  );
+  assert.equal(
+    fixtureGitText(["symbolic-ref", "--short", "-q", "HEAD"], scrubbedEnv),
+    expected.branch,
+  );
+  assert.equal(
+    fixtureGitText(["rev-parse", "--verify", "HEAD:source.txt"], scrubbedEnv),
+    expected.trackedBlob,
+  );
+  assert.equal(
+    fixtureGitText(["hash-object", "--", "source.txt"], scrubbedEnv),
+    expected.workingBlob,
+  );
+
+  const status = fixtureGit(["status", "--porcelain=v1"], scrubbedEnv);
   assert.equal(status.status, 0, status.stderr);
   assert.equal(status.stdout, "");
 
@@ -140,8 +189,10 @@ try {
   console.log("plain_git_root_owned_fixture_rejected=true");
   console.log("exact_root_safe_directory_git_read_green=true");
   console.log("exact_root_safe_directory_status_green=true");
+  console.log("inherited_git_common_dir_scrubbed=true");
+  console.log("commit_tree_ref_blob_identity_stable=true");
   console.log("global_git_config_mutation=false");
   console.log("production_runtime_mutation=false");
 } finally {
-  sudo("rm", "-rf", "--", fixture);
+  sudo("rm", "-rf", "--", hostileCommon, fixture);
 }
