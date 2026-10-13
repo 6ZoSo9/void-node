@@ -1755,6 +1755,31 @@ function responseStatus(decision: Record<string, any>): number {
   return 400;
 }
 
+export function buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(
+  policy: BuyVoidPaymentKeyedFullRuntimePolicyStateV1,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const names =
+    VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1;
+  if (policy.configured !== true ||
+      !text(env[names.credentials_directory])) {
+    return false;
+  }
+  if (isBuyVoidEpoch2PresaleTargetV1(
+    policy.fulfillment_contract_address,
+  )) {
+    return !text(env[names.credential_binding_evidence_id]) &&
+      buyVoidEpoch2CredentialSourceBindingMatchesV1(
+        text(env[names.epoch2_credential_source_binding_id]),
+        policy.fulfillment_contract_address,
+        policy.server_policy.preparation_policy.rpc_url,
+        policy.fulfillment_wallet_address,
+      );
+  }
+  return text(env[names.credential_binding_evidence_id]) ===
+    VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1;
+}
+
 export function buyVoidPaymentKeyedFullRuntimeStatusV1(
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, unknown> {
@@ -1840,21 +1865,10 @@ export function buyVoidPaymentKeyedFullRuntimeStatusV1(
             policy.invalid_envs,
         }),
     signing_dependency_env_configured:
-      Boolean(
-        text(
-          env[
-            VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1
-              .credentials_directory
-          ],
-        ),
-      ) &&
-      text(
-        env[
-          VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENVS_V1
-            .credential_binding_evidence_id
-        ],
-      ) ===
-        VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
+      buyVoidPaymentKeyedSigningDependencyEnvConfiguredV1(
+        policy,
+        env,
+      ),
     authority:
       VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_AUTHORITY_V1,
   };

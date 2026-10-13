@@ -104,7 +104,7 @@ jobs:
             # Historical source derivation MUST refuse a changed E2 executable closure.
             grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/historical-v5-error.log"
             grep -F 'deriveBuyVoidEnforcementArtifactAttestationV5Candidate' "$RUNNER_TEMP/historical-v5-error.log"
-            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "bb2c938fd48189951a29514cd6d83fc9af05b8a2"
+            test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42"
             node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-only.log"
             grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-only.log"
             grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-only.log"
