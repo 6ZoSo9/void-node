@@ -22,14 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # Never run PR-head code in the elevated pull_request_target context.
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.event.pull_request.head.sha || github.sha }}
+          # pull_request_target must execute only current trusted default-branch
+          # code. Exact PR base/head commits are fetched later as inert Git data.
+          ref: ${{ github.event_name == 'pull_request_target' && github.sha || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Guard exact PR tree against mass deletion
         if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          TRUSTED_DEFAULT_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -37,9 +40,12 @@ jobs:
           [[ "$PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           python3 scripts/check_void_pr_tree_mass_deletion_v1.py --self-test
           if [[ "$GITHUB_EVENT_NAME" == "pull_request_target" ]]; then
-            # Target event checks out trusted BASE, never attacker PR scripts.
-            test "$(git rev-parse HEAD)" = "$PR_BASE_SHA"
+            # Target event executes only trusted current default-branch code.
+            # PR base/head objects are fetched strictly as inert diff data.
+            test "$(git rev-parse HEAD)" = "$TRUSTED_DEFAULT_SHA"
             [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+            test "$(git rev-parse FETCH_HEAD)" = "$PR_BASE_SHA"
             git fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head"
             test "$(git rev-parse FETCH_HEAD)" = "$PR_HEAD_SHA"
           else
