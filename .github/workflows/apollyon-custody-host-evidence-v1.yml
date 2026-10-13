@@ -1,0 +1,58 @@
+name: Apollyon custody host evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-custody-host-evidence-v1.mjs"
+      - "scripts/prove_apollyon_custody_host_evidence_v1.mjs"
+      - "docs/security/apollyon-custody-host-evidence-v1.md"
+      - ".github/workflows/apollyon-custody-host-evidence-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/apollyon-custody-host-evidence-v1.mjs"
+      - "scripts/prove_apollyon_custody_host_evidence_v1.mjs"
+      - "docs/security/apollyon-custody-host-evidence-v1.md"
+      - ".github/workflows/apollyon-custody-host-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact candidate revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Syntax
+        run: |
+          node --check tools/apollyon-custody-host-evidence-v1.mjs
+          node --check scripts/prove_apollyon_custody_host_evidence_v1.mjs
+      - name: Prove read-only collector source
+        run: node scripts/prove_apollyon_custody_host_evidence_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then
+            BASE="$HEAD^"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
