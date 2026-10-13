@@ -333,6 +333,25 @@ function redactedLoadCredentialBindingFromShow(
     throw new Error("epoch2_sealed_redacted_dropin_path_invalid");
   }
 
+  const namespaceRoot = path.parse(dropInPath).root;
+  const parentParts = path.relative(
+    namespaceRoot,
+    path.dirname(dropInPath),
+  ).split(path.sep).filter(Boolean);
+  let currentParent = namespaceRoot;
+  for (const part of parentParts) {
+    currentParent = path.join(currentParent, part);
+    const stat = fs.lstatSync(currentParent, { bigint: true });
+    const parentMode = stat.mode & 0o7777n;
+    const stickyProtected =
+      stat.uid === 0n && (parentMode & 0o1000n) !== 0n;
+    if (stat.isSymbolicLink() || !stat.isDirectory() ||
+        (stat.uid !== 0n && stat.uid !== BigInt(uid)) ||
+        ((parentMode & 0o022n) !== 0n && !stickyProtected)) {
+      throw new Error("epoch2_sealed_redacted_dropin_namespace_untrusted");
+    }
+  }
+
   const before = fs.lstatSync(dropInPath, { bigint: true });
   const mode = before.mode & 0o777n;
   if (before.isSymbolicLink() || !before.isFile() ||
