@@ -1,0 +1,50 @@
+name: Datanet receipts persisted retry v1
+
+on:
+  pull_request:
+    paths:
+      - "src/diag/datanet_receipts_persist_v1.cjs"
+      - "scripts/prove_datanet_receipts_persist_retry_v1.cjs"
+      - ".github/workflows/datanet-receipts-persist-retry-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: retry proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove atomic retry and single-flight scanning
+        run: |
+          set -euo pipefail
+          node --check src/diag/datanet_receipts_persist_v1.cjs
+          node --check scripts/prove_datanet_receipts_persist_retry_v1.cjs
+          node scripts/prove_datanet_receipts_persist_retry_v1.cjs | tee proof.txt
+          grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" proof.txt
+          grep -Fx "failed_read_rollback=true" proof.txt
+          grep -Fx "concurrent_scan_coalesced=true" proof.txt
+          grep -Fx "same_bytes_counted_once=true" proof.txt
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"

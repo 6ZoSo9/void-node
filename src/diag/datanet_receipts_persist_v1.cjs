@@ -80,7 +80,18 @@ function absorbLine(line) {
   st.totals.wc += wc;
 }
 
-async function scanOnce() {
+function snapshotState() {
+  return {
+    file: st.file,
+    ino: st.ino,
+    pos: st.pos,
+    buf: st.buf,
+    totals: { ...st.totals },
+    last_scan_ms: st.last_scan_ms,
+  };
+}
+
+async function scanOnceUnlocked() {
   const file = receiptsFile();
   let s;
   try { s = fs.statSync(file); } catch {
@@ -90,35 +101,69 @@ async function scanOnce() {
     return { file, missing: true };
   }
 
-  if (!st.file || st.file !== file || st.ino !== (s.ino || 0) || s.size < st.pos) {
-    resetFor(file, s.ino || 0);
-  }
+  const beforeScan = snapshotState();
+  try {
+    if (!st.file || st.file !== file || st.ino !== (s.ino || 0) || s.size < st.pos) {
+      resetFor(file, s.ino || 0);
+    }
 
-  if (s.size === st.pos) {
+    if (s.size === st.pos) {
+      st.last_scan_ms = nowMs();
+      return { file, missing: false };
+    }
+
+    const start = st.pos;
+    const end = s.size - 1;
+    await new Promise((resolve, reject) => {
+      const rs = fs.createReadStream(file, { start, end, encoding: "utf8" });
+      let settled = false;
+      const settle = (done, value) => {
+        if (settled) return;
+        settled = true;
+        done(value);
+      };
+      rs.on("data", (chunk) => {
+        if (settled) return;
+        st.buf += chunk;
+        let idx;
+        while ((idx = st.buf.indexOf("\n")) >= 0) {
+          const line = st.buf.slice(0, idx).trim();
+          st.buf = st.buf.slice(idx + 1);
+          if (line) absorbLine(line);
+        }
+      });
+      rs.once("error", (error) => settle(reject, error));
+      rs.once("end", () => settle(resolve));
+    });
+
+    st.pos = s.size;
     st.last_scan_ms = nowMs();
     return { file, missing: false };
+  } catch (error) {
+    st = beforeScan;
+    st.last_scan_ms = nowMs();
+    throw error;
   }
+}
 
-  const start = st.pos;
-  const end = s.size - 1;
-  await new Promise((resolve) => {
-    const rs = fs.createReadStream(file, { start, end, encoding: "utf8" });
-    rs.on("data", (chunk) => {
-      st.buf += chunk;
-      let idx;
-      while ((idx = st.buf.indexOf("\n")) >= 0) {
-        const line = st.buf.slice(0, idx).trim();
-        st.buf = st.buf.slice(idx + 1);
-        if (line) absorbLine(line);
-      }
-    });
-    rs.on("error", () => resolve());
-    rs.on("end", () => resolve());
-  });
+let scanInFlight = null;
+function scanOnce() {
+  if (scanInFlight) return scanInFlight;
 
-  st.pos = s.size;
-  st.last_scan_ms = nowMs();
-  return { file, missing: false };
+  const run = scanOnceUnlocked();
+  let shared;
+  shared = run.then(
+    (value) => {
+      if (scanInFlight === shared) scanInFlight = null;
+      return value;
+    },
+    (error) => {
+      if (scanInFlight === shared) scanInFlight = null;
+      throw error;
+    },
+  );
+  scanInFlight = shared;
+  return shared;
 }
 
 function renderProm(extra) {
