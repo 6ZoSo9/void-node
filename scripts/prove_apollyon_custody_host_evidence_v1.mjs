@@ -46,6 +46,10 @@ function observation(){
       {path:"/var",uid:0,gid:0,mode:"0755",group_other_writable:false},
       {path:"/var/lib",uid:0,gid:0,mode:"0755",group_other_writable:false},
     ],
+    socket_ancestors:[
+      {path:"/",uid:0,gid:0,mode:"0755",group_other_writable:false},
+      {path:"/run",uid:0,gid:0,mode:"0755",group_other_writable:false},
+    ],
     state_root:{
       uid:994,
       gid:981,
@@ -68,6 +72,7 @@ function observation(){
       custody_write:true,
       training_traverse:true,
       training_write:false,
+      training_rename_unlink:false,
     },
     socket:{
       uid:994,
@@ -170,6 +175,26 @@ assert.throws(
   assert.throws(
     ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
     /evidence_freshness_invalid/u,
+  );
+}
+
+{
+  const bad=observation();
+  bad.socket_parent.training_rename_unlink=true;
+  const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    /socket_parent_invalid/u,
+  );
+}
+
+{
+  const bad=observation();
+  bad.socket_ancestors[1].group_other_writable=true;
+  const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    /socket_parent_invalid/u,
   );
 }
 
