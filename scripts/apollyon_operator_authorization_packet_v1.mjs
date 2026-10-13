@@ -207,8 +207,8 @@ export function validateApollyonOperatorAuthorizationPayloadV1(payload,{nowMs=Da
     "payload.request",
   );
   hex64(payload.request.sha256,"payload.request.sha256");
-  hex64(payload.request.canonical_main,"payload.request.canonical_main");
-  hex64(payload.request.canonical_tree,"payload.request.canonical_tree");
+  gitOid40(payload.request.canonical_main,"payload.request.canonical_main");
+  gitOid40(payload.request.canonical_tree,"payload.request.canonical_tree");
   safePositiveInteger(payload.request.bytes,"payload.request.bytes",MAX_REQUEST_BYTES);
 
   exactKeys(
