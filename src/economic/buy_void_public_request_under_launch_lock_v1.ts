@@ -28,7 +28,34 @@ const REQUEST_HISTORY_GET_PROTO_V1 = Object.getPrototypeOf;
 const REQUEST_HISTORY_CREATE_V1 = Object.create;
 const REQUEST_HISTORY_IS_ARRAY_V1 = Array.isArray;
 const REQUEST_HISTORY_HAS_OWN_V1 = Object.hasOwn;
+const REQUEST_HISTORY_ARRAY_PUSH_V1 = Array.prototype.push;
+const REQUEST_HISTORY_WEAK_SET_V1 = WeakSet;
+const REQUEST_HISTORY_WEAK_HAS_V1 = WeakSet.prototype.has;
+const REQUEST_HISTORY_WEAK_ADD_V1 = WeakSet.prototype.add;
+const REQUEST_HISTORY_WEAK_DELETE_V1 = WeakSet.prototype.delete;
 const REQUEST_HISTORY_FINITE_V1 = Number.isFinite;
+const REQUEST_HISTORY_STRING_V1 = String;
+const REQUEST_HISTORY_NUMBER_V1 = Number;
+const REQUEST_HISTORY_STRING_TRIM_V1 = String.prototype.trim;
+const REQUEST_HISTORY_STRING_LOWER_V1 = String.prototype.toLowerCase;
+
+function requestHistoryTrimLowerV1(value: unknown): string {
+  const raw = REQUEST_HISTORY_STRING_V1(value ?? "");
+  const trimmed = REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_TRIM_V1, raw, [],
+  ) as string;
+  return REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_LOWER_V1, trimmed, [],
+  ) as string;
+}
+
+function requestHistoryLowerV1(value: unknown): string {
+  return REQUEST_HISTORY_APPLY_V1(
+    REQUEST_HISTORY_STRING_LOWER_V1,
+    REQUEST_HISTORY_STRING_V1(value ?? ""),
+    [],
+  ) as string;
+}
 
 // A new buyer request is admitted only from this closed, owned, detached
 // snapshot. Even a captured native JSON.stringify invokes an inherited
@@ -36,7 +63,7 @@ const REQUEST_HISTORY_FINITE_V1 = Number.isFinite;
 // prevents one ambient hook from changing admitted amount or destination.
 // This is NOT a new payment, signer or wallet authority.
 function detachCanonicalRequestDataV1(input: unknown): any {
-  const seen = new WeakSet<object>();
+  const seen = new REQUEST_HISTORY_WEAK_SET_V1<object>();
   let visited = 0;
   const visit = (value: unknown, depth: number): unknown => {
     if (++visited > 8192 || depth > 24) {
@@ -51,7 +78,9 @@ function detachCanonicalRequestDataV1(input: unknown): any {
     if (!value || typeof value !== "object") {
       holdHistoryV1("request_snapshot_value_invalid");
     }
-    if (seen.has(value)) holdHistoryV1("request_snapshot_cycle");
+    if (REQUEST_HISTORY_APPLY_V1(
+      REQUEST_HISTORY_WEAK_HAS_V1, seen, [value],
+    )) holdHistoryV1("request_snapshot_cycle");
     const array = REQUEST_HISTORY_IS_ARRAY_V1(value);
     const prototype = REQUEST_HISTORY_GET_PROTO_V1(value);
     if (array ? prototype !== Array.prototype && prototype !== null
@@ -63,7 +92,9 @@ function detachCanonicalRequestDataV1(input: unknown): any {
     if (keys.length > 2048 || REQUEST_HISTORY_OWN_SYMBOLS_V1(value).length) {
       holdHistoryV1("request_snapshot_properties_invalid");
     }
-    seen.add(value);
+    REQUEST_HISTORY_APPLY_V1(
+      REQUEST_HISTORY_WEAK_ADD_V1, seen, [value],
+    );
     let detached: any;
     if (array) {
       if (value.length > 2048 || names.length !== keys.length + 1) {
@@ -113,7 +144,9 @@ function detachCanonicalRequestDataV1(input: unknown): any {
         }
       }
     }
-    seen.delete(value);
+    REQUEST_HISTORY_APPLY_V1(
+      REQUEST_HISTORY_WEAK_DELETE_V1, seen, [value],
+    );
     return detached;
   };
   const snapshot = visit(input, 0);
@@ -262,7 +295,9 @@ type PinnedRequestHistoryV1 = {
 function assertCompleteRequestHistoryUnderLockV1(
   dir: string, observed: unknown,
 ): PinnedRequestHistoryV1 {
-  if (!Array.isArray(observed)) holdHistoryV1("reader_not_array");
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(observed)) {
+    holdHistoryV1("reader_not_array");
+  }
   const ledger = path.join(dir, "requests.jsonl");
   let visible: any;
   try {
@@ -316,15 +351,19 @@ function assertCompleteRequestHistoryUnderLockV1(
          buffer[1] === 0xbb && buffer[2] === 0xbf)) {
       holdHistoryV1("framing_invalid");
     }
-    const presentIds = new Set<string>();
+    const presentIds: Record<string, true> =
+      REQUEST_HISTORY_CREATE_V1(null);
     for (let i = 0; i < observed.length; i += 1) {
-      if (!Object.hasOwn(observed, i)) holdHistoryV1("reader_sparse");
+      if (!REQUEST_HISTORY_HAS_OWN_V1(observed, String(i))) {
+        holdHistoryV1("reader_sparse");
+      }
       const row = observed[i];
-      if (!row || typeof row !== "object" || Array.isArray(row) ||
+      if (!row || typeof row !== "object" ||
+          REQUEST_HISTORY_IS_ARRAY_V1(row) ||
           typeof row.request_id !== "string") {
         holdHistoryV1("reader_row_invalid");
       }
-      presentIds.add(row.request_id);
+      presentIds[row.request_id] = true;
     }
     const durableRows: any[] = [];
     let frameStart = 0;
@@ -351,13 +390,16 @@ function assertCompleteRequestHistoryUnderLockV1(
           return value;
         });
       } catch { holdHistoryV1("malformed_row"); }
-      if (!row || typeof row !== "object" || Array.isArray(row) ||
+      if (!row || typeof row !== "object" ||
+          REQUEST_HISTORY_IS_ARRAY_V1(row) ||
           REQUEST_HISTORY_JSON_STRINGIFY_V1(row) !== line ||
           typeof row.request_id !== "string" || !row.request_id ||
-          !presentIds.has(row.request_id)) {
+          !REQUEST_HISTORY_HAS_OWN_V1(presentIds, row.request_id)) {
         holdHistoryV1("noncanonical_or_omitted_row");
       }
-      durableRows.push(row);
+      REQUEST_HISTORY_APPLY_V1(
+        REQUEST_HISTORY_ARRAY_PUSH_V1, durableRows, [row],
+      );
       frameStart = cursor + 1;
     }
     if (frameStart !== limit) holdHistoryV1("framing_invalid");
@@ -424,15 +466,40 @@ function validTxHashRevisionV1(before: any, after: any): boolean {
     immutableRequestBytesForTransitionV1(before) ===
       immutableRequestBytesForTransitionV1(after);
 }
+function findCanonicalRequestByIdV1(
+  rows: any[], requestId: unknown,
+): any | null {
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(rows)) {
+    holdHistoryV1("request_id_lookup_rows_unqualified");
+  }
+  let found: any = null;
+  for (let i = 0; i < rows.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(rows, String(i))) {
+      holdHistoryV1("request_id_lookup_rows_sparse");
+    }
+    const row = rows[i];
+    if (!row || typeof row !== "object" || REQUEST_HISTORY_IS_ARRAY_V1(row)) {
+      holdHistoryV1("request_id_lookup_row_invalid");
+    }
+    if (row.request_id !== requestId) continue;
+    if (found !== null) {
+      holdHistoryV1("request_id_lookup_duplicate");
+    }
+    found = row;
+  }
+  return found;
+}
+
 function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
   if (!REQUEST_HISTORY_IS_ARRAY_V1(rows) ||
       !Number.isSafeInteger(rows.length) ||
       rows.length > REQUEST_HISTORY_MAX_BYTES_V1) {
     holdHistoryV1("revision_rows_unqualified");
   }
-  const byId = new Map<string, any>();
-  // Walk every durable byte-framed history index, without the replaceable
-  // Array iterator. A skipped active row must not become a new obligation.
+  const byId: Record<string, any> = REQUEST_HISTORY_CREATE_V1(null);
+  const order: string[] = [];
+  // Walk every durable byte-framed history index. A mutable Map prototype or
+  // Array.from implementation must never decide which paid obligation exists.
   for (let i = 0; i < rows.length; i += 1) {
     if (!REQUEST_HISTORY_HAS_OWN_V1(rows, String(i))) {
       holdHistoryV1("revision_rows_sparse");
@@ -441,15 +508,32 @@ function foldCanonicalRequestRevisionsV1(rows: any[]): any[] {
     if (!row || typeof row.request_id !== "string" || !row.request_id) {
       holdHistoryV1("revision_id_invalid");
     }
-    safeRequestSidecarIdV1(row.request_id);
-    const previous = byId.get(row.request_id);
+    const id = safeRequestSidecarIdV1(row.request_id);
+    const existed = REQUEST_HISTORY_HAS_OWN_V1(byId, id);
+    const previous = existed ? byId[id] : undefined;
     if (previous !== undefined && !validTxHashRevisionV1(previous, row)) {
       holdHistoryV1("duplicate_id_transition_unqualified");
     }
-    byId.set(row.request_id, row);
+    if (!existed) {
+      REQUEST_HISTORY_APPLY_V1(REQUEST_HISTORY_ARRAY_PUSH_V1, order, [id]);
+    }
+    byId[id] = row;
   }
-  const folded = Array.from(byId.values());
-  if (folded.length !== byId.size) {
+  const folded: any[] = [];
+  for (let i = 0; i < order.length; i += 1) {
+    if (!REQUEST_HISTORY_HAS_OWN_V1(order, String(i))) {
+      holdHistoryV1("revision_fold_order_sparse");
+    }
+    const id = order[i];
+    if (typeof id !== "string" ||
+        !REQUEST_HISTORY_HAS_OWN_V1(byId, id)) {
+      holdHistoryV1("revision_fold_identity_missing");
+    }
+    REQUEST_HISTORY_APPLY_V1(
+      REQUEST_HISTORY_ARRAY_PUSH_V1, folded, [byId[id]],
+    );
+  }
+  if (folded.length !== order.length) {
     holdHistoryV1("revision_fold_cardinality");
   }
   return folded;
@@ -647,10 +731,46 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   const reqObj = detachCanonicalRequestDataV1(inputRequest);
   const dir = String(process.env.VOID_BUY_REQUEST_DIR ||
     ".runtime/public-buy-void-requests-v1");
-  const [
-    withLaunchMutation, readRequests, readEvents, applyEvents,
-    isTerminal, launchMatches,
-  ] = callbacks;
+  // The callback tuple carries launch-lock and history authority. Never
+  // unpack it through Array.prototype[Symbol.iterator]: same-process ambient
+  // prototype tampering could shift readRequests into the lock position and
+  // make an unpersisted request look successful. Capture exactly six own data
+  // function properties by numeric descriptor instead.
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(callbacks)) {
+    holdHistoryV1("callback_tuple_not_array");
+  }
+  const callbackPrototype = REQUEST_HISTORY_GET_PROTO_V1(callbacks);
+  const callbackNames = REQUEST_HISTORY_OWN_NAMES_V1(callbacks);
+  const callbackKeys = REQUEST_HISTORY_KEYS_V1(callbacks);
+  const callbackLength =
+    REQUEST_HISTORY_OWN_DESCRIPTOR_V1(callbacks, "length");
+  if ((callbackPrototype !== Array.prototype && callbackPrototype !== null) ||
+      !callbackLength ||
+      !REQUEST_HISTORY_HAS_OWN_V1(callbackLength, "value") ||
+      callbackLength.value !== 6 ||
+      callbackNames.length !== 7 ||
+      callbackKeys.length !== 6 ||
+      REQUEST_HISTORY_OWN_SYMBOLS_V1(callbacks).length !== 0) {
+    holdHistoryV1("callback_tuple_shape_invalid");
+  }
+  const capturedCallbacks: any = REQUEST_HISTORY_CREATE_V1(null);
+  for (let i = 0; i < 6; i += 1) {
+    const descriptor =
+      REQUEST_HISTORY_OWN_DESCRIPTOR_V1(callbacks, String(i));
+    if (!descriptor ||
+        !REQUEST_HISTORY_HAS_OWN_V1(descriptor, "value") ||
+        typeof descriptor.value !== "function" ||
+        descriptor.enumerable !== true) {
+      holdHistoryV1("callback_tuple_entry_invalid");
+    }
+    capturedCallbacks[i] = descriptor.value;
+  }
+  const withLaunchMutation = capturedCallbacks[0];
+  const readRequests = capturedCallbacks[1];
+  const readEvents = capturedCallbacks[2];
+  const applyEvents = capturedCallbacks[3];
+  const isTerminal = capturedCallbacks[4];
+  const launchMatches = capturedCallbacks[5];
   if (typeof dir !== "string" || !dir || dir.includes("\0")) {
     throw new Error("buy_void_request_directory_not_configured");
   }
@@ -705,7 +825,7 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       foldCanonicalRequestRevisionsV1(durableRequestHistory);
     safeRequestSidecarIdV1(reqObj?.request_id);
     const projected = applyEvents(currentRequestStates, eventHistory);
-    if (!Array.isArray(projected)) {
+    if (!REQUEST_HISTORY_IS_ARRAY_V1(projected)) {
       throw new Error("buy_void_request_history_projection_unqualified");
     }
     // Never reuse only the first matching request. Old pre-lock versions
@@ -715,24 +835,25 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
     let active: any = null;
     const txHashRevision =
       reqObj?.status === "payment_submitted_pending_manual_review";
-    const target = String(
+    const target = requestHistoryTrimLowerV1(
       reqObj.void_destination_address || "",
-    ).trim().toLowerCase();
+    );
     if (!target) holdHistoryV1("request_destination_absent");
     for (let i = 0; i < projected.length; i += 1) {
-      if (!Object.hasOwn(projected, i)) {
+      if (!REQUEST_HISTORY_HAS_OWN_V1(projected, String(i))) {
         throw new Error("buy_void_request_history_projection_sparse");
       }
       const other = projected[i];
-      if (!other || typeof other !== "object" || Array.isArray(other)) {
+      if (!other || typeof other !== "object" ||
+          REQUEST_HISTORY_IS_ARRAY_V1(other)) {
         throw new Error("buy_void_request_history_projection_row_invalid");
       }
-      const destination = String(
+      const destination = requestHistoryTrimLowerV1(
         other.void_destination_address ||
         other.delivery_address ||
         other.delivery_wallet ||
         "",
-      ).trim().toLowerCase();
+      );
       if (destination !== target ||
           isTerminal(other.effective_status || other.status) ||
           !launchMatches(other)) continue;
@@ -746,8 +867,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
       // The operator route authenticates its mutation intent separately.
       // The launch lock independently requires an exact same-ID,
       // same-obligation transition and no history-hidden tx hash collision.
-      const original = currentRequestStates.find(
-        (row: any) => row.request_id === reqObj.request_id,
+      const original = findCanonicalRequestByIdV1(
+        currentRequestStates, reqObj.request_id,
       );
       if (!original || !active || active.request_id !== reqObj.request_id ||
           !validTxHashRevisionV1(original, reqObj)) {
@@ -762,7 +883,8 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
         const row = durableRequestHistory[i];
         if (row.request_id !== reqObj.request_id &&
             typeof row.tx_hash === "string" &&
-            row.tx_hash.toLowerCase() === reqObj.tx_hash.toLowerCase()) {
+            requestHistoryLowerV1(row.tx_hash) ===
+              requestHistoryLowerV1(reqObj.tx_hash)) {
           holdHistoryV1("operator_revision_duplicate_tx_hash");
         }
       }
@@ -772,21 +894,21 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
           (reqObj?.tx_hash !== "" && reqObj?.tx_hash != null)) {
         holdHistoryV1("public_creation_status_invalid");
       }
-      if (currentRequestStates.some(
-        (row: any) => row.request_id === reqObj.request_id,
-      )) holdHistoryV1("new_request_id_already_durable");
+      if (findCanonicalRequestByIdV1(
+        currentRequestStates, reqObj.request_id,
+      ) !== null) holdHistoryV1("new_request_id_already_durable");
       if (active) {
-        const amount = Number(active.usdc_amount ??
+        const amount = REQUEST_HISTORY_NUMBER_V1(active.usdc_amount ??
           active.requested_amount_usdc ?? 0);
-        const chain = String(active.source_chain || "base");
-        if (Number.isFinite(amount) &&
-            amount === Number(reqObj.usdc_amount) &&
+        const chain = REQUEST_HISTORY_STRING_V1(active.source_chain || "base");
+        if (REQUEST_HISTORY_FINITE_V1(amount) &&
+            amount === REQUEST_HISTORY_NUMBER_V1(reqObj.usdc_amount) &&
             chain === reqObj.source_chain) {
           // A crash may leave an fsynced journal with no sidecar. Restore
           // only a missing sidecar from the canonical latest JSONL row;
           // conflicting existing bytes are never overwritten.
-          const canonical = currentRequestStates.find(
-            (row: any) => row.request_id === active.request_id,
+          const canonical = findCanonicalRequestByIdV1(
+            currentRequestStates, active.request_id,
           );
           if (!canonical) holdHistoryV1("reused_canonical_row_missing");
           qualifyOrRecoverReuseSidecarV1(

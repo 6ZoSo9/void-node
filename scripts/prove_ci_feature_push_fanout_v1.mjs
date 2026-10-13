@@ -203,6 +203,44 @@ for (const file of trustedTargetGuardTargets) {
   assert.match(text, /\n  pull_request_target:/, file + ": pull_request_target coverage required");
   assert.match(text, /\n  push:/, file + ": push coverage required");
   assert.match(text, /permissions:\n  contents: read/, file + ": trusted target must remain read-only");
+  assert.equal(
+    text.includes("ref: ${{ github.event_name == 'pull_request_target' && github.sha || github.event.pull_request.head.sha || github.sha }}"),
+    true,
+    file + ": target context must execute current trusted base code",
+  );
+  assert.equal(
+    text.includes("uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"),
+    true,
+    file + ": elevated target checkout action must be immutably pinned",
+  );
+  assert.equal(
+    text.includes("persist-credentials: false"),
+    true,
+    file + ": checkout credentials must not persist",
+  );
+  assert.equal(
+    text.includes("TRUSTED_DEFAULT_SHA: ${{ github.sha }}"),
+    true,
+    file + ": trusted checkout identity must bind github.sha",
+  );
+  for (const exact of [
+    'test "$(git rev-parse HEAD)" = "$TRUSTED_DEFAULT_SHA"',
+    'git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"',
+    'test "$(git rev-parse FETCH_HEAD)" = "$PR_BASE_SHA"',
+    'git fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head"',
+    'test "$(git rev-parse FETCH_HEAD)" = "$PR_HEAD_SHA"',
+  ]) {
+    assert.equal(
+      text.includes(exact),
+      true,
+      file + ": exact target-context Git-data binding missing: " + exact,
+    );
+  }
+  assert.doesNotMatch(
+    text,
+    /git\s+(?:checkout|switch)[^\n]*(?:PR_HEAD_SHA|refs\/pull)/,
+    file + ": elevated target context must never check out PR-head code",
+  );
   for (const pattern of forbiddenStateful) {
     assert.doesNotMatch(text, pattern, file + ": trusted target guard must remain stateless/read-only");
   }

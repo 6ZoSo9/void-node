@@ -1468,6 +1468,446 @@ for (const existing of [false, true]) {
     fs.rmSync(root,{recursive:true,force:true});
   }
 }
+// The six callback slots are economic authority, not ordinary iterable data.
+// A poisoned Array iterator could previously shift readRequests into the
+// withLaunchMutation slot and make an unpersisted operation look successful.
+// Prove the adversary works against naive tuple destructuring, then require
+// the ACTUAL helper to capture the exact own numeric callback descriptors.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const callbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const oldIterator=Object.getOwnPropertyDescriptor(
+    Array.prototype,Symbol.iterator);
+  assert.equal(typeof oldIterator?.value,"function");
+  let callbackTupleIteratorCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    Object.defineProperty(Array.prototype,Symbol.iterator,{
+      configurable:true,writable:true,
+      value:function(){
+        if(this===callbacks){
+          callbackTupleIteratorCalls++;
+          return oldIterator.value.call([
+            callbacks[1],callbacks[2],callbacks[3],
+            callbacks[4],callbacks[5],
+          ]);
+        }
+        return oldIterator.value.call(this);
+      },
+    });
+    const [naiveWithLaunchMutation]=callbacks;
+    assert.equal(naiveWithLaunchMutation,callbacks[1],
+      "positive control must shift callback authority through the iterator");
+    assert.equal(callbackTupleIteratorCalls,1);
+    const callsBeforeGuardedHelper=callbackTupleIteratorCalls;
+    const candidate=request(
+      "buyvoid_callback_tuple_iterator_guard_aaaaaaaa","3","base","9");
+    const result=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      candidate,callbacks);
+    assert.equal(callbackTupleIteratorCalls,callsBeforeGuardedHelper,
+      "guarded helper must not iterate its authority callback tuple");
+    assert.equal(result.reused_request,null);
+    assert.ok(result.file);
+    const ledger=path.join(root,"requests.jsonl");
+    assert.equal(lines(root).length,1,
+      "guarded callback capture must still durably append exactly one request");
+    assert.equal(lines(root)[0].request_id,candidate.request_id);
+    assert.equal(JSON.parse(fs.readFileSync(result.file,"utf8")).request_id,
+      candidate.request_id);
+    assert.ok(fs.statSync(ledger).size>0);
+  } finally {
+    Object.defineProperty(Array.prototype,Symbol.iterator,oldIterator);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("authority_callback_tuple_iterator_poison_isolated=true");
+
+// Array.prototype.find/some are ambient mutable functions too. A malicious
+// replacement must not hide an already-durable request ID or steer which
+// canonical row authorizes reuse/revision.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const existing=request(
+    "buyvoid_array_lookup_guard_existing_aaaaaaaa","3","base","5");
+  const createCallbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const oldFind=Object.getOwnPropertyDescriptor(Array.prototype,"find");
+  const oldSome=Object.getOwnPropertyDescriptor(Array.prototype,"some");
+  assert.equal(typeof oldFind?.value,"function");
+  assert.equal(typeof oldSome?.value,"function");
+  let findCalls=0,someCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,createCallbacks);
+    assert.equal(created.reused_request,null);
+    Object.defineProperty(Array.prototype,"find",{
+      configurable:true,writable:true,value:function(){
+        findCalls++;
+        throw new Error("INJECT_ARRAY_FIND_AUTHORITY_FAILURE");
+      },
+    });
+    Object.defineProperty(Array.prototype,"some",{
+      configurable:true,writable:true,value:function(){
+        someCalls++;
+        throw new Error("INJECT_ARRAY_SOME_AUTHORITY_FAILURE");
+      },
+    });
+    let findPositive=false,somePositive=false;
+    try { [1].find(()=>true); }
+    catch(error) {
+      findPositive=String(error?.message||error).includes(
+        "INJECT_ARRAY_FIND_AUTHORITY_FAILURE");
+    }
+    try { [1].some(()=>true); }
+    catch(error) {
+      somePositive=String(error?.message||error).includes(
+        "INJECT_ARRAY_SOME_AUTHORITY_FAILURE");
+    }
+    assert.equal(findPositive,true);
+    assert.equal(somePositive,true);
+    findCalls=0;
+    someCalls=0;
+    const guardedCallbacks=[
+      readers.withLock,
+      async()=>lines(root),
+      async()=>[],
+      requests=>requests,
+      ()=>false,
+      ()=>true,
+    ];
+    const retry=request(
+      "buyvoid_array_lookup_guard_retry_bbbbbbbb","3","base","5");
+    const reused=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      retry,guardedCallbacks);
+    assert.equal(reused.reused_request?.request_id,existing.request_id);
+    assert.equal(findCalls,0,
+      "request authority must not call ambient Array.prototype.find");
+    assert.equal(someCalls,0,
+      "request authority must not call ambient Array.prototype.some");
+    assert.equal(lines(root).length,1,
+      "poisoned lookup methods must not create a second durable obligation");
+  } finally {
+    Object.defineProperty(Array.prototype,"find",oldFind);
+    Object.defineProperty(Array.prototype,"some",oldSome);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_array_find_some_request_authority=false");
+
+// Request destination and payment-hash normalization must use the captured
+// built-ins even if the ambient String prototype is replaced after import.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const lock=async (_request,operation)=>operation(()=>({ready:true}));
+  const readRows=async()=>fs.existsSync(path.join(root,"requests.jsonl"))
+    ? lines(root) : [];
+  const callbacks=[
+    lock,readRows,async()=>[],requests=>requests,()=>false,()=>true,
+  ];
+  const existing=request(
+    "buyvoid_string_intrinsic_guard_existing_aaaaaaaa","3","base","6");
+  const oldTrim=Object.getOwnPropertyDescriptor(String.prototype,"trim");
+  const oldLower=Object.getOwnPropertyDescriptor(String.prototype,"toLowerCase");
+  assert.equal(typeof oldTrim?.value,"function");
+  assert.equal(typeof oldLower?.value,"function");
+  let trimCalls=0,lowerCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,callbacks);
+    assert.equal(created.reused_request,null);
+    Object.defineProperty(String.prototype,"trim",{
+      configurable:true,writable:true,value:function(){
+        trimCalls++;
+        throw new Error("INJECT_STRING_TRIM_AUTHORITY_FAILURE");
+      },
+    });
+    Object.defineProperty(String.prototype,"toLowerCase",{
+      configurable:true,writable:true,value:function(){
+        lowerCalls++;
+        throw new Error("INJECT_STRING_LOWER_AUTHORITY_FAILURE");
+      },
+    });
+    let trimPositive=false,lowerPositive=false;
+    try { " x ".trim(); }
+    catch(error) {
+      trimPositive=String(error?.message||error).includes(
+        "INJECT_STRING_TRIM_AUTHORITY_FAILURE");
+    }
+    try { "A".toLowerCase(); }
+    catch(error) {
+      lowerPositive=String(error?.message||error).includes(
+        "INJECT_STRING_LOWER_AUTHORITY_FAILURE");
+    }
+    assert.equal(trimPositive,true);
+    assert.equal(lowerPositive,true);
+    trimCalls=0;
+    lowerCalls=0;
+    const retry=request(
+      "buyvoid_string_intrinsic_guard_retry_bbbbbbbb","3","base","6");
+    const reused=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      retry,callbacks);
+    assert.equal(reused.reused_request?.request_id,existing.request_id);
+    assert.equal(trimCalls,0,
+      "request authority must not call ambient String.prototype.trim");
+    assert.equal(lowerCalls,0,
+      "request authority must not call ambient String.prototype.toLowerCase");
+    assert.equal(lines(root).length,1,
+      "poisoned string normalization must not create a second obligation");
+  } finally {
+    Object.defineProperty(String.prototype,"trim",oldTrim);
+    Object.defineProperty(String.prototype,"toLowerCase",oldLower);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_string_request_authority_intrinsics=false");
+
+
+// Remaining collection/static intrinsics are mutable after module import too.
+// Poison only the exact synthetic economic objects/IDs: unrelated Node
+// internals retain native behavior while the ACTUAL compiled helper proves
+// it never consults these ambient hooks for request-history authority.
+{
+  const helperSource=fs.readFileSync(
+    "src/economic/buy_void_public_request_under_launch_lock_v1.ts","utf8");
+  for(const [label,pattern] of [
+    ["live_Array_isArray",/\bArray[.]isArray\s*\(/u],
+    ["live_Object_hasOwn",/\bObject[.]hasOwn\s*\(/u],
+    ["live_Array_from",/\bArray[.]from\s*\(/u],
+    ["ambient_Map_constructor",/\bnew\s+Map\b/u],
+    ["ambient_Set_constructor",/\bnew\s+Set\b/u],
+    ["ambient_WeakSet_constructor",/\bnew\s+WeakSet\b/u],
+    ["ambient_Map_get_set_values",/\bbyId[.](?:get|set|values)\s*\(/u],
+  ]){
+    assert.doesNotMatch(helperSource,pattern,label);
+  }
+
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const existing=request(
+    "buyvoid_collection_intrinsic_existing_aaaaaaaa","3","base","7");
+  const retry=request(
+    "buyvoid_collection_intrinsic_retry_bbbbbbbb","3","base","7");
+  const createCallbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const nativeArrayIsArray=Array.isArray;
+  const nativeHasOwn=Object.hasOwn;
+  const nativeArrayFrom=Array.from;
+  const nativeMapGet=Map.prototype.get;
+  const nativeMapSet=Map.prototype.set;
+  const nativeMapValues=Map.prototype.values;
+  const nativeSetAdd=Set.prototype.add;
+  const nativeSetHas=Set.prototype.has;
+  const nativePush=Array.prototype.push;
+  const nativeWeakHas=WeakSet.prototype.has;
+  const nativeWeakAdd=WeakSet.prototype.add;
+  const nativeWeakDelete=WeakSet.prototype.delete;
+  let observed=null;
+  let guardedResult=null;
+  let guardedError=null;
+  const calls={
+    isArray:0,hasOwn:0,arrayFrom:0,mapGet:0,mapSet:0,mapValues:0,
+    setAdd:0,setHas:0,push:0,weakHas:0,weakAdd:0,weakDelete:0,
+  };
+  const isEconomicArray=(value)=>{
+    if(!nativeArrayIsArray(value)||value.length<1)return false;
+    for(let i=0;i<value.length;i+=1){
+      if(nativeHasOwn(value,String(i))&&
+          value[i]?.request_id===existing.request_id)return true;
+    }
+    return false;
+  };
+  try{
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,createCallbacks);
+    assert.equal(created.reused_request,null);
+    observed=lines(root);
+    assert.equal(observed.length,1);
+
+    Object.defineProperty(Array,"isArray",{
+      configurable:true,writable:true,value(value){
+        if(value===observed||isEconomicArray(value)){
+          calls.isArray++;
+          return false;
+        }
+        return nativeArrayIsArray(value);
+      },
+    });
+    Object.defineProperty(Object,"hasOwn",{
+      configurable:true,writable:true,value(target,key){
+        if(target===observed||isEconomicArray(target)){
+          calls.hasOwn++;
+          return false;
+        }
+        return nativeHasOwn(target,key);
+      },
+    });
+    Object.defineProperty(Array,"from",{
+      configurable:true,writable:true,value(input,...rest){
+        if(Object.prototype.toString.call(input)==="[object Map Iterator]"){
+          calls.arrayFrom++;
+          return [];
+        }
+        return Reflect.apply(nativeArrayFrom,Array,[input,...rest]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"get",{
+      configurable:true,writable:true,value(key){
+        if(key===existing.request_id){
+          calls.mapGet++;
+          return undefined;
+        }
+        return Reflect.apply(nativeMapGet,this,[key]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"set",{
+      configurable:true,writable:true,value(key,value){
+        if(key===existing.request_id){
+          calls.mapSet++;
+          return this;
+        }
+        return Reflect.apply(nativeMapSet,this,[key,value]);
+      },
+    });
+    Object.defineProperty(Map.prototype,"values",{
+      configurable:true,writable:true,value(){
+        if(Reflect.apply(nativeMapGet,this,[existing.request_id])!==undefined){
+          calls.mapValues++;
+          return Reflect.apply(nativeMapValues,new Map(),[]);
+        }
+        return Reflect.apply(nativeMapValues,this,[]);
+      },
+    });
+    Object.defineProperty(Set.prototype,"add",{
+      configurable:true,writable:true,value(value){
+        if(value===existing.request_id){
+          calls.setAdd++;
+          return this;
+        }
+        return Reflect.apply(nativeSetAdd,this,[value]);
+      },
+    });
+    Object.defineProperty(Set.prototype,"has",{
+      configurable:true,writable:true,value(value){
+        if(value===existing.request_id){
+          calls.setHas++;
+          return false;
+        }
+        return Reflect.apply(nativeSetHas,this,[value]);
+      },
+    });
+    Object.defineProperty(Array.prototype,"push",{
+      configurable:true,writable:true,value(...values){
+        if(values.some(value=>value?.request_id===existing.request_id)){
+          calls.push++;
+          return this.length;
+        }
+        return Reflect.apply(nativePush,this,values);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"has",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakHas++;
+          return false;
+        }
+        return Reflect.apply(nativeWeakHas,this,[value]);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"add",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakAdd++;
+          return this;
+        }
+        return Reflect.apply(nativeWeakAdd,this,[value]);
+      },
+    });
+    Object.defineProperty(WeakSet.prototype,"delete",{
+      configurable:true,writable:true,value(value){
+        if(value===retry){
+          calls.weakDelete++;
+          return true;
+        }
+        return Reflect.apply(nativeWeakDelete,this,[value]);
+      },
+    });
+
+    const guardedCallbacks=[
+      readers.withLock,
+      async()=>observed,
+      async()=>[],
+      requests=>requests,
+      ()=>false,
+      ()=>true,
+    ];
+    try{
+      guardedResult=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+        retry,guardedCallbacks);
+    }catch(error){
+      guardedError=error;
+    }
+  }finally{
+    Object.defineProperty(Array,"isArray",{
+      configurable:true,writable:true,value:nativeArrayIsArray});
+    Object.defineProperty(Object,"hasOwn",{
+      configurable:true,writable:true,value:nativeHasOwn});
+    Object.defineProperty(Array,"from",{
+      configurable:true,writable:true,value:nativeArrayFrom});
+    Object.defineProperty(Map.prototype,"get",{
+      configurable:true,writable:true,value:nativeMapGet});
+    Object.defineProperty(Map.prototype,"set",{
+      configurable:true,writable:true,value:nativeMapSet});
+    Object.defineProperty(Map.prototype,"values",{
+      configurable:true,writable:true,value:nativeMapValues});
+    Object.defineProperty(Set.prototype,"add",{
+      configurable:true,writable:true,value:nativeSetAdd});
+    Object.defineProperty(Set.prototype,"has",{
+      configurable:true,writable:true,value:nativeSetHas});
+    Object.defineProperty(Array.prototype,"push",{
+      configurable:true,writable:true,value:nativePush});
+    Object.defineProperty(WeakSet.prototype,"has",{
+      configurable:true,writable:true,value:nativeWeakHas});
+    Object.defineProperty(WeakSet.prototype,"add",{
+      configurable:true,writable:true,value:nativeWeakAdd});
+    Object.defineProperty(WeakSet.prototype,"delete",{
+      configurable:true,writable:true,value:nativeWeakDelete});
+  }
+  try{
+    assert.equal(guardedError,null,
+      "captured collection intrinsics must keep the guarded helper usable");
+    assert.equal(guardedResult?.reused_request?.request_id,existing.request_id);
+    assert.equal(lines(root).length,1,
+      "ambient collection poison cannot append a second durable obligation");
+    assert.deepEqual(calls,{
+      isArray:0,hasOwn:0,arrayFrom:0,mapGet:0,mapSet:0,mapValues:0,
+      setAdd:0,setHas:0,push:0,weakHas:0,weakAdd:0,weakDelete:0,
+    },"economic authority must not consult post-import collection hooks");
+  }finally{
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_collection_intrinsics_request_authority=false");
+
 // An ambient Array.prototype iterator can omit an own property name
 // from an Object.keys() array even though keys.length remains unchanged.
 // Demonstrate that a naive for..of copier drops payment_instructions,
