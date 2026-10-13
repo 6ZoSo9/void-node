@@ -3,6 +3,7 @@ name: VOID Buy VOID current presale source tuple V3
 on:
   pull_request:
     paths:
+      - "src/index.ts"
       - "src/economic/buy_void_preappend_plain_input_v1.ts"
       - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
       - "scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs"
