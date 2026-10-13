@@ -43,9 +43,15 @@ const mockFs = {
         stream.emit("end");
         return;
       }
+      if (call === 3) {
+        emitData(receiptBytes.subarray(0, firstLineEnd));
+        stream.emit("close");
+        return;
+      }
       const chunk = receiptBytes.subarray(options.start, options.end + 1);
       emitData(chunk);
       stream.emit("end");
+      stream.emit("close");
     });
     return stream;
   },
@@ -119,8 +125,16 @@ function metric(body, name) {
   assert.equal(metric(shortRead, "void_datanet_receipts_persist_lines_total"), 0);
   assert.equal(streamCalls, 2, "short read must consume one failed scan");
 
+  const prematureClose = await invokeRoute();
+  assert.match(prematureClose, /^# err=1$/m);
+  assert.equal(
+    metric(prematureClose, "void_datanet_receipts_persist_lines_total"),
+    0,
+  );
+  assert.equal(streamCalls, 3, "premature close must consume one failed scan");
+
   const [retryA, retryB] = await Promise.all([invokeRoute(), invokeRoute()]);
-  assert.equal(streamCalls, 3, "concurrent retry must share one scanner");
+  assert.equal(streamCalls, 4, "concurrent retry must share one scanner");
   for (const body of [retryA, retryB]) {
     assert.doesNotMatch(body, /^# err=1$/m);
     assert.equal(metric(body, "void_datanet_receipts_persist_lines_total"), 2);
@@ -131,12 +145,14 @@ function metric(body, name) {
   }
 
   const stable = await invokeRoute();
-  assert.equal(streamCalls, 3, "unchanged file must not be rescanned");
+  assert.equal(streamCalls, 4, "unchanged file must not be rescanned");
   assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 2);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("failed_read_rollback=true");
   console.log("short_read_rollback=true");
+  console.log("premature_close_rollback=true");
+  console.log("close_after_end_preserved=true");
   console.log("concurrent_scan_coalesced=true");
   console.log("same_bytes_counted_once=true");
 })().catch((error) => {

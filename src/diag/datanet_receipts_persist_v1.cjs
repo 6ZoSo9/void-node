@@ -142,6 +142,9 @@ async function scanOnceUnlocked() {
         }
         settle(resolve);
       });
+      rs.once("close", () => {
+        settle(reject, new Error("premature_close"));
+      });
     });
 
     st.pos = s.size;

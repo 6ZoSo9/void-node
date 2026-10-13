@@ -40,6 +40,8 @@ jobs:
           grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" "$proof_file"
           grep -Fx "failed_read_rollback=true" "$proof_file"
           grep -Fx "short_read_rollback=true" "$proof_file"
+          grep -Fx "premature_close_rollback=true" "$proof_file"
+          grep -Fx "close_after_end_preserved=true" "$proof_file"
           grep -Fx "concurrent_scan_coalesced=true" "$proof_file"
           grep -Fx "same_bytes_counted_once=true" "$proof_file"
       - name: Diff hygiene
