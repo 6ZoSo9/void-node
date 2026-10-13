@@ -270,6 +270,11 @@ for(const forbidden of [
   );
 }
 
+const systemctlVerbs=[
+  ...source.matchAll(/runText\(SYSTEMCTL,\s*\[\s*"([^"]+)"/gu),
+].map((match)=>match[1]);
+assert.deepEqual(systemctlVerbs,["show"]);
+
 console.log("VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_V1_PROOF_GREEN");
 console.log("designated_host_read_only_observation=true");
 console.log("privileged_read_only_observer_required=true");
