@@ -151,6 +151,20 @@ jobs:
                 echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V3_HELD=$proof"
                 continue
                 ;;
+              scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts)
+                # V4 is now a frozen predecessor. The bounded public-range
+                # source generation must make it fail closed before V5 runs.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'current mounted router generation drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '40239e0f76aa1edce43523d18c1b57691e41e8cf' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_DISPATCH_V4_HELD=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts)
                 # Frozen V2 is historical: its first fixed dependency is the
                 # prior central writer generation. The current under-lock
