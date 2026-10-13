@@ -53,11 +53,20 @@ After exact operator confirmation, the sealed probe:
    and requires the process environment `INVOCATION_ID` to equal systemd's
    reported invocation ID;
 5. requires exactly one effective
-   `LoadCredential=buy-void-epoch2-fulfiller-v1:...` binding and obtains
-   `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from that
-   cgroup-bound live service MainPID environment;
-6. requires the live process source commit/tree to equal the exact attested
-   checkout and repeats the complete systemd/process/cgroup observation after
+   `LoadCredential=buy-void-epoch2-fulfiller-v1:...` binding. When systemd
+   exposes the binding normally, the sealed probe uses that exact value. On
+   systemd builds that return exactly `LoadCredential=[unprintable]`, it
+   accepts no generic redaction bypass: `DropInPaths` must contain exactly
+   one active
+   `97-buy-void-epoch2-fulfiller-credential-v1.conf`, that drop-in must be a
+   same-UID regular single-link private file, and its only effective service
+   directive must be the exact E2 `LoadCredential` binding with an absolute
+   normalized source path;
+6. obtains `CREDENTIALS_DIRECTORY` plus source commit/tree/branch only from
+   the cgroup-bound live service MainPID environment, requires the materialized
+   fixed E2 credential to exist there under systemd's private namespace, and
+   requires the live process source commit/tree to equal the exact attested
+   checkout. The complete systemd/process/cgroup observation is repeated after
    signing;
 7. opens only the fixed systemd materialized credential through retained Linux
    directory/file descriptors with `O_NOFOLLOW`, owner/mode/link/size checks,
