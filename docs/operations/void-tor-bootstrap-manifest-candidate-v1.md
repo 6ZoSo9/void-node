@@ -66,3 +66,8 @@ source evidence, review the receipt/candidate/payload digest, complete the
 offline signing and envelope verification, publish through a separate source PR,
 and pass strict outside-machine Tor plus HTTPS/Tor multipath acceptance on the
 exact published generation.
+
+
+## Descriptor-bound output parent custody
+
+Candidate manifest and signing-payload leaves are created relative to retained Linux directory descriptors opened with O_DIRECTORY and O_NOFOLLOW. Parent dev/inode/owner/mode identity is revalidated before and after creation. Cleanup removes only the invocation-owned leaf through that retained descriptor. A visible parent rename/symlink substitution therefore HOLDs and cannot redirect a candidate write.

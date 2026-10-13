@@ -95,73 +95,121 @@ export function buildTorBootstrapManifestCandidateV1({receipt,expectedSourceSha,
 }
 
 const ROOT_REAL=fs.realpathSync.native(ROOT);
-function outsideRepo(raw,label){
+function outsideRepo(raw,label,fsImpl=fs){
   const target=path.resolve(String(raw||""));
   const parent=path.dirname(target);
   let st;
-  try{st=fs.lstatSync(parent);}catch{fail(`${label} parent must already exist`);}
+  try{st=fsImpl.lstatSync(parent);}catch{fail(`${label} parent must already exist`);}
   if(st.isSymbolicLink()||!st.isDirectory()) fail(`${label} parent must be a real directory`);
-  const realParent=fs.realpathSync.native(parent);
+  const realParent=fsImpl.realpathSync.native(parent);
   if(realParent!==parent) fail(`${label} parent must be canonical and symlink-free`);
   const canonicalTarget=path.join(realParent,path.basename(target));
   const rel=path.relative(ROOT_REAL,canonicalTarget);
   if(rel===""||(rel!==".."&&!rel.startsWith(`..${path.sep}`)&&!path.isAbsolute(rel))) fail(`${label} must resolve outside repository`);
   return canonicalTarget;
 }
-function ownedIdentity(file,st){
-  return Object.freeze({file,dev:st.dev,ino:st.ino});
+function parentIdentity(st){
+ return Object.freeze({dev:st.dev,ino:st.ino,uid:st.uid,gid:st.gid,mode:st.mode,nlink:st.nlink});
 }
-function sameOwnedIdentity(st,owned){
-  return !st.isSymbolicLink()&&st.dev===owned.dev&&st.ino===owned.ino;
+function sameParentIdentity(st,expected){
+ return !st.isSymbolicLink()&&st.isDirectory()&&st.dev===expected.dev&&st.ino===expected.ino&&
+   st.uid===expected.uid&&st.gid===expected.gid&&st.mode===expected.mode&&st.nlink===expected.nlink;
+}
+export function bindOutputTargetV1(file,label="candidate output",fsImpl=fs){
+ if(process.platform!=="linux")fail("candidate output descriptor-relative custody requires Linux");
+ const canonical=outsideRepo(file,label,fsImpl);
+ const parent=path.dirname(canonical),basename=path.basename(canonical);
+ const directoryFlag=fs.constants.O_DIRECTORY,noFollow=fs.constants.O_NOFOLLOW;
+ if(typeof directoryFlag!=="number"||typeof noFollow!=="number")fail("candidate output descriptor flags unavailable");
+ const before=fsImpl.lstatSync(parent);
+ let parentFd=null;
+ try{
+  parentFd=fsImpl.openSync(parent,fs.constants.O_RDONLY|directoryFlag|noFollow);
+  const opened=fsImpl.fstatSync(parentFd),visible=fsImpl.lstatSync(parent);
+  const identity=parentIdentity(opened);
+  if(!sameParentIdentity(opened,parentIdentity(before))||
+     !sameParentIdentity(visible,identity)||
+     fsImpl.realpathSync.native(parent)!==parent)fail("candidate output parent identity drift");
+  const procParent=`/proc/self/fd/${parentFd}`;
+  if(fsImpl.realpathSync.native(procParent)!==parent)fail("candidate output parent descriptor mismatch");
+  return Object.freeze({file:canonical,parent,basename,parentFd,parentIdentity:identity,fdFile:path.join(procParent,basename)});
+ }catch(error){
+  if(parentFd!==null){try{fsImpl.closeSync(parentFd);}catch(cleanupError){void cleanupError;}}
+  throw error;
+ }
+}
+function assertBoundParentStableV1(bound,fsImpl=fs){
+ const opened=fsImpl.fstatSync(bound.parentFd);
+ let visible;
+ try{visible=fsImpl.lstatSync(bound.parent);}catch{fail("candidate output parent identity drift");}
+ if(!sameParentIdentity(opened,bound.parentIdentity)||
+    !sameParentIdentity(visible,bound.parentIdentity)||
+    fsImpl.realpathSync.native(bound.parent)!==bound.parent)fail("candidate output parent identity drift");
+}
+function closeBoundOutputV1(bound,fsImpl=fs){
+ if(!bound)return;
+ try{fsImpl.closeSync(bound.parentFd);}catch(cleanupError){void cleanupError;}
+}
+function ownedIdentity(bound,st){
+ return Object.freeze({file:bound.file,parent:bound.parent,parentDev:bound.parentIdentity.dev,parentIno:bound.parentIdentity.ino,dev:st.dev,ino:st.ino});
+}
+function sameOwnedIdentity(st,owned){return !st.isSymbolicLink()&&st.dev===owned.dev&&st.ino===owned.ino;}
+function removeOwnedBoundOutputV1(bound,owned,fsImpl=fs){
+ if(!owned)return false;
+ let visible;
+ try{visible=fsImpl.lstatSync(bound.fdFile);}catch(error){if(error?.code==="ENOENT")return false;throw error;}
+ if(!sameOwnedIdentity(visible,owned))return false;
+ fsImpl.rmSync(bound.fdFile,{force:false});
+ return true;
 }
 export function removeOwnedOutputV1(owned,fsImpl=fs){
-  if(!owned) return false;
-  let visible;
-  try{visible=fsImpl.lstatSync(owned.file);}catch(error){
-    if(error?.code==="ENOENT") return false;
-    throw error;
-  }
-  if(!sameOwnedIdentity(visible,owned)) return false;
-  fsImpl.rmSync(owned.file,{force:false});
-  return true;
+ if(!owned)return false;
+ let bound;
+ try{bound=bindOutputTargetV1(owned.file,"candidate cleanup",fsImpl);}catch{return false;}
+ try{
+  if(bound.parentIdentity.dev!==owned.parentDev||bound.parentIdentity.ino!==owned.parentIno)return false;
+  return removeOwnedBoundOutputV1(bound,owned,fsImpl);
+ }finally{closeBoundOutputV1(bound,fsImpl);}
+}
+function createBoundOutputV1(bound,bytes,fsImpl=fs){
+ let fd=null,owned=null;
+ try{
+  assertBoundParentStableV1(bound,fsImpl);
+  fd=fsImpl.openSync(bound.fdFile,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);
+  owned=ownedIdentity(bound,fsImpl.fstatSync(fd));
+  fsImpl.fchmodSync(fd,0o600);fsImpl.writeFileSync(fd,bytes);fsImpl.fsyncSync(fd);
+  assertBoundParentStableV1(bound,fsImpl);
+  const visible=fsImpl.lstatSync(bound.fdFile);
+  if(!sameOwnedIdentity(visible,owned))fail("candidate output identity drift");
+  fsImpl.closeSync(fd);fd=null;
+  return owned;
+ }catch(error){
+  if(fd!==null){try{fsImpl.closeSync(fd);}catch(cleanupError){void cleanupError;}}
+  if(owned){try{removeOwnedBoundOutputV1(bound,owned,fsImpl);}catch(cleanupError){void cleanupError;}}
+  if(!owned&&error?.code==="EEXIST")fail("candidate output already exists: "+bound.file);
+  throw error;
+ }
 }
 export function writeExclusiveOwnedV1(file,bytes,fsImpl=fs){
-  let fd=null,owned=null;
-  try{
-    fd=fsImpl.openSync(
-      file,
-      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,
-      0o600,
-    );
-    owned=ownedIdentity(file,fsImpl.fstatSync(fd));
-    fsImpl.fchmodSync(fd,0o600);
-    fsImpl.writeFileSync(fd,bytes);
-    fsImpl.fsyncSync(fd);
-    fsImpl.closeSync(fd);
-    fd=null;
-    const visible=fsImpl.lstatSync(file);
-    if(!sameOwnedIdentity(visible,owned)) fail("candidate output identity drift");
-    return owned;
-  }catch(error){
-    if(fd!==null){try{fsImpl.closeSync(fd);}catch(cleanupError){void cleanupError;}}
-    if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch(cleanupError){void cleanupError;}}
-    if(!owned&&error?.code==="EEXIST") fail("candidate output already exists: "+file);
-    throw error;
-  }
+ const bound=bindOutputTargetV1(file,"candidate output",fsImpl);
+ try{return createBoundOutputV1(bound,bytes,fsImpl);}
+ finally{closeBoundOutputV1(bound,fsImpl);}
 }
 export function writeCandidateOutputsV1({manifestFile,manifestBytes,payloadFile,payloadBytes,fsImpl=fs}={}){
-  if(manifestFile===payloadFile) fail("candidate output collides");
-  const owned=[];
-  try{
-    owned.push(writeExclusiveOwnedV1(manifestFile,manifestBytes,fsImpl));
-    owned.push(writeExclusiveOwnedV1(payloadFile,payloadBytes,fsImpl));
-    return Object.freeze({manifest:owned[0],payload:owned[1]});
-  }catch(error){
-    for(let i=owned.length-1;i>=0;i-=1){
-      try{removeOwnedOutputV1(owned[i],fsImpl);}catch(cleanupError){void cleanupError;}
-    }
-    throw error;
-  }
+ let manifestBound=null,payloadBound=null;const owned=[];
+ try{
+  manifestBound=bindOutputTargetV1(manifestFile,"manifest output",fsImpl);
+  payloadBound=bindOutputTargetV1(payloadFile,"payload output",fsImpl);
+  if(manifestBound.file===payloadBound.file)fail("candidate output collides");
+  owned.push(createBoundOutputV1(manifestBound,manifestBytes,fsImpl));
+  owned.push(createBoundOutputV1(payloadBound,payloadBytes,fsImpl));
+  assertBoundParentStableV1(manifestBound,fsImpl);assertBoundParentStableV1(payloadBound,fsImpl);
+  return Object.freeze({manifest:owned[0],payload:owned[1]});
+ }catch(error){
+  if(payloadBound&&owned[1]){try{removeOwnedBoundOutputV1(payloadBound,owned[1],fsImpl);}catch(cleanupError){void cleanupError;}}
+  if(manifestBound&&owned[0]){try{removeOwnedBoundOutputV1(manifestBound,owned[0],fsImpl);}catch(cleanupError){void cleanupError;}}
+  throw error;
+ }finally{closeBoundOutputV1(payloadBound,fsImpl);closeBoundOutputV1(manifestBound,fsImpl);}
 }
 function args(argv){const out={validityMinutes:90};for(let i=0;i<argv.length;i+=2){const key=argv[i],value=argv[i+1];if(!key?.startsWith("--")||value===undefined)fail("invalid arguments");out[key.slice(2).replace(/-([a-z])/gu,(_m,c)=>c.toUpperCase())]=value;}return out;}
 

@@ -54,6 +54,23 @@ try{
  }finally{fs.fchmodSync=realFchmod;}
  assert.equal(injectedChmod,true);
  assert.equal(fs.existsSync(chmodFail),false);
+
+ const raceRoot=path.join(ownershipTemp,"parent-race"),raceParent=path.join(raceRoot,"out"),heldParent=path.join(raceRoot,"held"),redirect=path.join(raceRoot,"redirect");
+ fs.mkdirSync(raceParent,{recursive:true,mode:0o700});fs.mkdirSync(redirect,{mode:0o700});
+ const raceManifest=path.join(raceParent,"manifest.json"),racePayload=path.join(raceParent,"payload.bin");
+ const realOpen=fs.openSync;let parentSwapped=false;
+ try{
+  fs.openSync=(file,flags,mode)=>{
+   if(!parentSwapped&&typeof file==="string"&&file.startsWith("/proc/self/fd/")&&file.endsWith("/manifest.json")){
+    fs.renameSync(raceParent,heldParent);fs.symlinkSync(redirect,raceParent,"dir");parentSwapped=true;
+   }
+   return realOpen(file,flags,mode);
+  };
+  assert.throws(()=>writeCandidateOutputsV1({manifestFile:raceManifest,manifestBytes:Buffer.from("owned-manifest"),payloadFile:racePayload,payloadBytes:Buffer.from("owned-payload")}),/candidate output parent identity drift/u);
+ }finally{fs.openSync=realOpen;}
+ assert.equal(parentSwapped,true);
+ assert.equal(fs.existsSync(path.join(redirect,"manifest.json")),false);assert.equal(fs.existsSync(path.join(redirect,"payload.bin")),false);
+ assert.equal(fs.existsSync(path.join(heldParent,"manifest.json")),false);assert.equal(fs.existsSync(path.join(heldParent,"payload.bin")),false);
 }finally{fs.rmSync(ownershipTemp,{recursive:true,force:true});}
 
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-candidate-v1-"));
@@ -73,4 +90,4 @@ console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
 console.log("foreign_output_eexist_preserved=true");
 console.log("post_create_chmod_failure_cleaned=true");
 console.log("transaction_cleanup_owned_outputs_only=true");
-console.log("symlinked_output_parent_rejected=true");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");
+console.log("symlinked_output_parent_rejected=true");console.log("output_parent_descriptor_bound=true");console.log("output_parent_swap_redirect_blocked=true");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");
