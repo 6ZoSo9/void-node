@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import path from "node:path";
 import { Interface, Transaction, getAddress } from "ethers";
 import type {
   BuyVoidDeliveryUnsignedTransactionV1,
@@ -46,6 +47,103 @@ const FULFILL = new Interface([
 ]);
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA40 = /^[0-9a-f]{40}$/u;
+
+const HEX32 = /^[0-9a-f]{32}$/u;
+export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SERVICE_V1 =
+  "void-node-live.service";
+export const VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1 =
+  "buy-void-epoch2-fulfiller-v1";
+
+export type BuyVoidEpoch2SystemdCredentialObservationV1 = {
+  service: typeof VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SERVICE_V1;
+  main_pid: number;
+  invocation_id: string;
+  credential_id:
+    typeof VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1;
+  credentials_directory: string;
+  loadcredential_binding_sha256: string;
+  credentials_directory_sha256: string;
+};
+
+export function observeBuyVoidEpoch2SystemdCredentialBindingV1(input: {
+  systemctl_show: string;
+  process_environ: Buffer;
+}): BuyVoidEpoch2SystemdCredentialObservationV1 {
+  const show = String(input?.systemctl_show || "");
+  if (show.length < 1 || show.length > 65_536) {
+    throw new Error("epoch2_systemd_show_size_invalid");
+  }
+  if (!Buffer.isBuffer(input?.process_environ) ||
+      input.process_environ.length < 1 ||
+      input.process_environ.length > 1_048_576) {
+    throw new Error("epoch2_service_environ_size_invalid");
+  }
+  const props = new Map<string, string>();
+  for (const line of show.split(/\r?\n/u)) {
+    if (!line) continue;
+    const at = line.indexOf("=");
+    if (at <= 0) throw new Error("epoch2_systemd_show_line_invalid");
+    const key = line.slice(0, at);
+    if (props.has(key)) throw new Error("epoch2_systemd_show_duplicate_property");
+    props.set(key, line.slice(at + 1));
+  }
+  if (props.get("ActiveState") !== "active" ||
+      props.get("SubState") !== "running") {
+    throw new Error("epoch2_service_not_active_running");
+  }
+  const pid = Number(props.get("MainPID"));
+  if (!Number.isSafeInteger(pid) || pid <= 1) {
+    throw new Error("epoch2_service_main_pid_invalid");
+  }
+  const invocation = String(props.get("InvocationID") || "").toLowerCase();
+  if (!HEX32.test(invocation)) {
+    throw new Error("epoch2_service_invocation_id_invalid");
+  }
+  const loads = String(props.get("LoadCredential") || "")
+    .split(/\s+/u).filter(Boolean);
+  const expectedPrefix =
+    VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1 + ":";
+  const e2Loads = loads.filter((row) => row.startsWith(expectedPrefix));
+  if (e2Loads.length !== 1) {
+    throw new Error("epoch2_loadcredential_binding_cardinality_invalid");
+  }
+  const sourcePath = e2Loads[0].slice(expectedPrefix.length);
+  if (!path.isAbsolute(sourcePath) || path.normalize(sourcePath) !== sourcePath) {
+    throw new Error("epoch2_loadcredential_source_path_invalid");
+  }
+
+  const envText = input.process_environ.toString("utf8");
+  const values = envText.split("\0").filter(Boolean)
+    .filter((row) => row.startsWith("CREDENTIALS_DIRECTORY="))
+    .map((row) => row.slice("CREDENTIALS_DIRECTORY=".length));
+  if (values.length !== 1) {
+    throw new Error("epoch2_credentials_directory_env_cardinality_invalid");
+  }
+  const credentialsDirectory = values[0];
+  if (!path.isAbsolute(credentialsDirectory) ||
+      path.normalize(credentialsDirectory) !== credentialsDirectory ||
+      !(
+        /^\/run\/credentials\/void-node-live[.]service$/u
+          .test(credentialsDirectory) ||
+        /^\/run\/user\/[0-9]+\/credentials\/void-node-live[.]service$/u
+          .test(credentialsDirectory)
+      )) {
+    throw new Error("epoch2_credentials_directory_not_systemd_managed");
+  }
+  return Object.freeze({
+    service: VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SERVICE_V1,
+    main_pid: pid,
+    invocation_id: invocation,
+    credential_id:
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1,
+    credentials_directory: credentialsDirectory,
+    loadcredential_binding_sha256:
+      crypto.createHash("sha256").update(e2Loads[0], "utf8").digest("hex"),
+    credentials_directory_sha256:
+      crypto.createHash("sha256")
+        .update(credentialsDirectory, "utf8").digest("hex"),
+  });
+}
 
 function sha256(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -188,6 +286,7 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
   expected_signer: string;
   probe: Readonly<BuyVoidEpoch2CredentialProbeV1>;
   raw_signed_transaction: string;
+  systemd_observation: BuyVoidEpoch2SystemdCredentialObservationV1;
 }): Record<string, unknown> {
   const sourceHead = String(input?.source_head || "").toLowerCase();
   const blobs = [
@@ -201,6 +300,19 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
   }
   const expectedSigner = normalizedAddress(input.expected_signer);
   if (!expectedSigner) throw new Error("epoch2_attestation_signer_invalid");
+  const systemd = input.systemd_observation;
+  if (
+    !systemd ||
+    systemd.service !== VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SERVICE_V1 ||
+    systemd.credential_id !==
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1 ||
+    !Number.isSafeInteger(systemd.main_pid) || systemd.main_pid <= 1 ||
+    !HEX32.test(systemd.invocation_id) ||
+    !HEX64.test(systemd.loadcredential_binding_sha256) ||
+    !HEX64.test(systemd.credentials_directory_sha256)
+  ) {
+    throw new Error("epoch2_attestation_systemd_observation_invalid");
+  }
 
   const verified = verifyBuyVoidEpoch2CredentialSignedProbeV1({
     raw_signed_transaction: input.raw_signed_transaction,
@@ -224,7 +336,19 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
       credential_source_binding_id:
         VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1,
     },
-    credential_id: "buy-void-epoch2-fulfiller-v1",
+    credential_id:
+      VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CREDENTIAL_ID_V1,
+    systemd: {
+      service: systemd.service,
+      main_pid: systemd.main_pid,
+      invocation_id: systemd.invocation_id,
+      loadcredential_binding_sha256:
+        systemd.loadcredential_binding_sha256,
+      credentials_directory_sha256:
+        systemd.credentials_directory_sha256,
+      raw_loadcredential_source_path_output: false,
+      raw_credentials_directory_output: false,
+    },
     immutable_fulfiller: expectedSigner,
     fulfillment_contract: VOID_BUY_VOID_EPOCH2_PRESALE_ADDRESS_V1,
     probe: {
@@ -239,6 +363,7 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
       raw_signed_transaction_output: false,
     },
     credential_content_read: true,
+    systemd_credential_identity_proven: true,
     immutable_fulfiller_identity_proven: true,
     active_signing_capability_proven: true,
     transaction_broadcast_performed: false,
