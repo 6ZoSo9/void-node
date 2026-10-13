@@ -14,9 +14,10 @@ for (const source of [tsSource, jsSource]) {
   assert.match(source, /Number\.isSafeInteger\(from\)/);
   assert.match(source, /Number\.isSafeInteger\(to\)/);
   assert.match(source, /ATTACH_BLOCK_RANGE_MAX_SPAN\s*=\s*250/);
+  assert.match(source, /Math\.min\(to, head\)/);
   assert.match(
     source,
-    /Math\.min\(to, head, from \+ .*ATTACH_BLOCK_RANGE_MAX_SPAN - 1\)/,
+    /boundedTo - from >= .*ATTACH_BLOCK_RANGE_MAX_SPAN/,
   );
   assert.match(source, /parseAttachBlockRange\(/);
 }
@@ -37,23 +38,23 @@ assert.deepEqual(
   { from: 0, to: 7 },
   "small omitted bounds must retain the canonical 0..head default",
 );
-assert.deepEqual(
+assert.equal(
   parseAttachBlockRange(undefined, undefined, 1000),
-  { from: 0, to: 249 },
-  "large omitted bounds must stop at the fixed inclusive span",
+  null,
+  "large omitted bounds must reject instead of returning an ambiguous partial page",
 );
 assert.deepEqual(
   parseAttachBlockRange("10", "259", 1000),
   { from: 10, to: 259 },
   "the exact fixed inclusive span must be accepted",
 );
-assert.deepEqual(
+assert.equal(
   parseAttachBlockRange("10", "260", 1000),
-  { from: 10, to: 259 },
-  "an over-limit range must be deterministically capped",
+  null,
+  "an over-limit range must reject instead of returning an ambiguous partial page",
 );
 assert.deepEqual(
-  parseAttachBlockRange("2", "9", 5),
+  parseAttachBlockRange("2", "999999", 5),
   { from: 2, to: 5 },
   "a caller-supplied upper bound beyond head must stop at canonical head",
 );

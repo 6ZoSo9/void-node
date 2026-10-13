@@ -36,10 +36,14 @@ export function parseAttachBlockRange(
   ) {
     return null;
   }
-  return {
-    from,
-    to: Math.min(to, head, from + ATTACH_BLOCK_RANGE_MAX_SPAN - 1),
-  };
+  const boundedTo = Math.min(to, head);
+  if (
+    boundedTo >= from &&
+    boundedTo - from >= ATTACH_BLOCK_RANGE_MAX_SPAN
+  ) {
+    return null;
+  }
+  return { from, to: boundedTo };
 }
 
 export function startAttachServer(opts?: { port?: number; dataDir?: string }) {

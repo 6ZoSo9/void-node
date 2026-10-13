@@ -32,10 +32,12 @@ function parseAttachBlockRange(fromRaw, toRaw, head) {
         to < from) {
         return null;
     }
-    return {
-        from: from,
-        to: Math.min(to, head, from + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1),
-    };
+    var boundedTo = Math.min(to, head);
+    if (boundedTo >= from &&
+        boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN) {
+        return null;
+    }
+    return { from: from, to: boundedTo };
 }
 function startAttachServer(opts) {
     var _a, _b;
