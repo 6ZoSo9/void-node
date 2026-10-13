@@ -249,10 +249,19 @@ export function apollyonOperatorAuthorizationIdV1(payload){
 
 function ed25519RawPublicKey(publicKeyInput){
   let key;
-  try{
-    key=createPublicKey(publicKeyInput);
-  }catch(error){
-    fail("operator public key could not be parsed: "+error.message);
+  if(
+    publicKeyInput &&
+    typeof publicKeyInput==="object" &&
+    publicKeyInput.type==="public" &&
+    typeof publicKeyInput.export==="function"
+  ){
+    key=publicKeyInput;
+  }else{
+    try{
+      key=createPublicKey(publicKeyInput);
+    }catch(error){
+      fail("operator public key could not be parsed: "+error.message);
+    }
   }
   if(key.asymmetricKeyType!=="ed25519"){
     fail("operator public key must be ed25519");
