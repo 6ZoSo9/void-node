@@ -469,12 +469,15 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
   const consumed=observation.consumed_directory;
   const service=observation.custody_service;
   const ancestors=observation.state_ancestors;
+  const socketAncestors=observation.socket_ancestors;
   if(
     !training||!custody||
     !Array.isArray(training.groups)||
     !Array.isArray(custody.groups)||
     !Array.isArray(ancestors)||
-    ancestors.length<2
+    ancestors.length<2||
+    !Array.isArray(socketAncestors)||
+    socketAncestors.length<2
   ){
     fail("apollyon_custody_host_evidence_observation_invalid");
   }
@@ -537,9 +540,18 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
       mode:socketParent.mode,
       direct:true,
       symlink:false,
+      retained_ancestor_count:socketAncestors.length,
+      retained_ancestors_root_owned:
+        socketAncestors.every((entry)=>entry.uid===0),
+      retained_ancestors_direct:true,
+      retained_ancestors_symlink_free:true,
+      retained_ancestors_group_other_writable:
+        socketAncestors.some((entry)=>entry.group_other_writable===true),
       custody_uid_write_allowed:socketParent.custody_write===true,
       training_uid_traverse_allowed:socketParent.training_traverse===true,
       training_uid_write_denied:socketParent.training_write===false,
+      training_uid_rename_unlink_denied:
+        socketParent.training_rename_unlink===false,
     }),
     socket:Object.freeze({
       owner_uid:socket.uid,
@@ -610,7 +622,9 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
   const socketParent=directObject(path.dirname(options.socket_path),"directory");
   const socket=directObject(options.socket_path,"socket");
   const ancestors=ancestorChainForStateRoot(stateRoot);
+  const socketAncestors=ancestorChainForStateRoot(socketParent);
   const parentOfState=fs.lstatSync(path.dirname(options.state_root),{bigint:true});
+  const parentOfSocket=fs.lstatSync(path.dirname(socketParent.path),{bigint:true});
   const custodyCount=processCountForUid(custodyIdentity.uid);
   const runtimeDenied=runtimeControlDenied(
     trainingIdentity,
@@ -644,6 +658,7 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
         : Math.max(2,custodyCount.count),
     runtime_control_denied:runtimeDenied,
     state_ancestors:ancestors,
+    socket_ancestors:socketAncestors,
     state_root:Object.freeze({
       uid:Number(stateRoot.stat.uid),
       gid:Number(stateRoot.stat.gid),
@@ -666,6 +681,7 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
       custody_write:canWrite(socketParent.stat,custodyIdentity),
       training_traverse:canTraverse(socketParent.stat,trainingIdentity),
       training_write:canWrite(socketParent.stat,trainingIdentity),
+      training_rename_unlink:canWrite(parentOfSocket,trainingIdentity),
     }),
     socket:Object.freeze({
       uid:Number(socket.stat.uid),
