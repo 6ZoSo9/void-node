@@ -46,9 +46,12 @@ node scripts/build_void_tor_bootstrap_manifest_candidate_v1.mjs \
   --validity-minutes 90
 ```
 
-Outputs must remain outside the repository and are create-only. The payload is
-the exact domain-separated byte sequence from the existing release-root
-contract and contains no private key material.
+Outputs must remain outside the repository and are create-only. Each output
+parent directory must already exist and must be a canonical, symlink-free real
+directory that resolves outside the repository; the builder refuses symlinked
+output parents rather than following them back into source-controlled paths.
+The payload is the exact domain-separated byte sequence from the existing
+release-root contract and contains no private key material.
 
 ## Offline signing boundary
 

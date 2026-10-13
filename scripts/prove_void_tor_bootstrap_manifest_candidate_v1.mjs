@@ -36,5 +36,13 @@ try{
  const now=Date.now(),live=receiptAt(now),q=path.join(temp,"q.json"),m=path.join(temp,"manifest.json"),p=path.join(temp,"payload.bin");fs.writeFileSync(q,`${JSON.stringify(live,null,2)}\n`,{mode:0o600});
  const child=spawnSync(process.execPath,[SCRIPT,"--receipt",q,"--expected-source-sha",SOURCE,"--manifest-output",m,"--payload-output",p,"--validity-minutes","90"],{cwd:ROOT,encoding:"utf8",timeout:20_000});assert.equal(child.status,0,child.stderr||child.stdout);assert.match(child.stdout,/VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_GREEN/u);assert.equal(fs.existsSync(m),true);assert.equal(fs.existsSync(p),true);
  const second=spawnSync(process.execPath,[SCRIPT,"--receipt",q,"--expected-source-sha",SOURCE,"--manifest-output",m,"--payload-output",p],{cwd:ROOT,encoding:"utf8",timeout:20_000});assert.notEqual(second.status,0);assert.match(second.stderr,/output already exists/u);
+ const repoLink=path.join(temp,"repo-link");fs.symlinkSync(ROOT,repoLink,"dir");
+ const repoEscapeManifest=path.join(repoLink,".void-tor-candidate-symlink-escape-manifest.json");
+ const repoEscapePayload=path.join(repoLink,".void-tor-candidate-symlink-escape-payload.bin");
+ assert.equal(fs.existsSync(repoEscapeManifest),false);assert.equal(fs.existsSync(repoEscapePayload),false);
+ const escape=spawnSync(process.execPath,[SCRIPT,"--receipt",q,"--expected-source-sha",SOURCE,"--manifest-output",repoEscapeManifest,"--payload-output",repoEscapePayload],{cwd:ROOT,encoding:"utf8",timeout:20_000});
+ assert.notEqual(escape.status,0);assert.match(escape.stderr,/parent must be canonical and symlink-free|must resolve outside repository/u);
+ assert.equal(fs.existsSync(repoEscapeManifest),false);assert.equal(fs.existsSync(repoEscapePayload),false);
 }finally{fs.rmSync(temp,{recursive:true,force:true});}
-console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");
+console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
+console.log("symlinked_output_parent_rejected=true");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");

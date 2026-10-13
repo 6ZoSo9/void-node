@@ -94,13 +94,21 @@ export function buildTorBootstrapManifestCandidateV1({receipt,expectedSourceSha,
   return Object.freeze({manifest:checked.manifest,manifestId:checked.manifestId,rootId:root.root_id,qualificationId:q.qualification_id,payload:Buffer.from(payload),payloadSha256:sha256(payload)});
 }
 
+const ROOT_REAL=fs.realpathSync.native(ROOT);
 function outsideRepo(raw,label){
   const target=path.resolve(String(raw||""));
-  const rel=path.relative(ROOT,target);
-  if(rel===""||(rel!==".."&&!rel.startsWith(`..${path.sep}`)&&!path.isAbsolute(rel))) fail(`${label} must be outside repository`);
-  return target;
+  const parent=path.dirname(target);
+  let st;
+  try{st=fs.lstatSync(parent);}catch{fail(`${label} parent must already exist`);}
+  if(st.isSymbolicLink()||!st.isDirectory()) fail(`${label} parent must be a real directory`);
+  const realParent=fs.realpathSync.native(parent);
+  if(realParent!==parent) fail(`${label} parent must be canonical and symlink-free`);
+  const canonicalTarget=path.join(realParent,path.basename(target));
+  const rel=path.relative(ROOT_REAL,canonicalTarget);
+  if(rel===""||(rel!==".."&&!rel.startsWith(`..${path.sep}`)&&!path.isAbsolute(rel))) fail(`${label} must resolve outside repository`);
+  return canonicalTarget;
 }
-function writeExclusive(file,bytes){fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});fs.writeFileSync(file,bytes,{flag:"wx",mode:0o600});fs.chmodSync(file,0o600);}
+function writeExclusive(file,bytes){fs.writeFileSync(file,bytes,{flag:"wx",mode:0o600});fs.chmodSync(file,0o600);}
 function args(argv){const out={validityMinutes:90};for(let i=0;i<argv.length;i+=2){const key=argv[i],value=argv[i+1];if(!key?.startsWith("--")||value===undefined)fail("invalid arguments");out[key.slice(2).replace(/-([a-z])/gu,(_m,c)=>c.toUpperCase())]=value;}return out;}
 
 async function main(){
