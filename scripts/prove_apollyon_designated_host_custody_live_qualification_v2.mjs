@@ -14,14 +14,14 @@ const INSTALLED_LAUNCHER=path.join(
   ROOT,"ops/xiphos/apollyon_v2_installed_live_launcher_v1.py",
 );
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "d5ee0900d3bd8e4b08199c1cadf149e526035946";
+  "8399d43ec6f8021878dd0e796849f7bc9dac469a";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
   "tools/apollyon-custody-host-policy-qualification-v2.mjs":
     "623cc8fd8b0726d96e3773d1f7c5e97b15d99a74",
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py":
-    "430d15cc99735554717e7bab5d11d301961edd4d",
+    "06e110108c74c450074ed6500ac7f7458f49b5aa",
   "tools/apollyon-authorization-custody-core-v1.mjs":
     "f9f18db5bbfeea466202ef0d7babe08c3c401d66",
   "tools/apollyon-authorization-custody-service-v1.mjs":
@@ -56,8 +56,8 @@ for(const required of [
   '"/opt/void-apollyon-custody-v2-preentry-v1/"',
   'INSTALLED_SOURCE_ROOT=Path("/opt/void-apollyon-custody-v2-reviewed-v1")',
   'RUNNER_REL="tools/apollyon-designated-host-custody-live-qualification-v2.mjs"',
-  '"cc13d813ddeb91b946c9d8397a353715ebc1a055"',
-  '"430d15cc99735554717e7bab5d11d301961edd4d"',
+  '"abb68e12cbd13bedfa7bf598b50b0a96709d898b"',
+  '"06e110108c74c450074ed6500ac7f7458f49b5aa"',
   '"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74"',
   '"VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER',
   'modified_runner_rejected_before_node=true',
@@ -85,7 +85,7 @@ for(const required of [
   "same_live_custody_session_binding_proven:false",
   "independent_custody_proven:false",
   "custody_production_gate_ready:false",
-  "COLLECTOR_BLOB_SHA1=\"430d15cc99735554717e7bab5d11d301961edd4d\"",
+  "COLLECTOR_BLOB_SHA1=\"06e110108c74c450074ed6500ac7f7458f49b5aa\"",
   "POLICY_V1_BLOB_SHA1=\"6f34e79d94c502e31ca4923fd78922d4875550a5\"",
   "POLICY_BLOB_SHA1=\"623cc8fd8b0726d96e3773d1f7c5e97b15d99a74\"",
   "prepareApollyonReviewedExecutionTreeV2",

@@ -6,8 +6,8 @@ Status: **read-only V2 live namespace qualification runner**.
 
 ## Purpose
 
-This successor preserves historical V84/V1 and consumes the socket-parent
-namespace hardening introduced by #2903.
+This successor preserves historical V84/V1 and consumes the corrected current
+V2 service-control/socket-parent generation from #2906.
 
 It accepts no evidence JSON. It runs the exact V2 designated-host collector
 twice on Xiphos and immediately classifies both observations with the exact V2
@@ -40,7 +40,7 @@ execution source for live mode.
 Reviewed pre-entry launcher source blob:
 
 ```text
-d5ee0900d3bd8e4b08199c1cadf149e526035946
+8399d43ec6f8021878dd0e796849f7bc9dac469a
 ```
 
 Installing either `/opt` tree is a **separate privileged mutation gate** and
@@ -55,7 +55,7 @@ evaluation or collector execution**:
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
 V2 policy    623cc8fd8b0726d96e3773d1f7c5e97b15d99a74
-V2 collector 430d15cc99735554717e7bab5d11d301961edd4d
+V2 collector 06e110108c74c450074ed6500ac7f7458f49b5aa
 custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
 service      8961572ba5834371b1229f790a1960940fc74935
 client       fb31dbbda76c94f0ad08e38094c151a24a78b486

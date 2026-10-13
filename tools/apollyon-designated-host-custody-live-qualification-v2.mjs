@@ -58,7 +58,7 @@ const COLLECTOR_REL=
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py";
 const POLICY_V1_REL="tools/apollyon-custody-host-policy-qualification-v1.mjs";
 const POLICY_V2_REL="tools/apollyon-custody-host-policy-qualification-v2.mjs";
-const COLLECTOR_BLOB_SHA1="430d15cc99735554717e7bab5d11d301961edd4d";
+const COLLECTOR_BLOB_SHA1="06e110108c74c450074ed6500ac7f7458f49b5aa";
 const POLICY_V1_BLOB_SHA1="6f34e79d94c502e31ca4923fd78922d4875550a5";
 const POLICY_BLOB_SHA1="623cc8fd8b0726d96e3773d1f7c5e97b15d99a74";
 const REVIEWED_EXECUTION_FILES=Object.freeze({
