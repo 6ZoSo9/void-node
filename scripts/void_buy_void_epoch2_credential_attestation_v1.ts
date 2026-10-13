@@ -410,7 +410,7 @@ async function main(): Promise<void> {
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
-  if (!signer.ok) {
+  if ("reason" in signer) {
     throw new Error(signer.reason);
   }
   const credentialSigner = signer.signer;
