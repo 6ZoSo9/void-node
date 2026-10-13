@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V1";
 const CONFIRM =
@@ -69,6 +70,7 @@ function sanitizedGitEnvironment() {
     env[key] = value;
   }
   env.GIT_OPTIONAL_LOCKS = "0";
+  env.GIT_NO_REPLACE_OBJECTS = "1";
   env.GIT_CONFIG_NOSYSTEM = "1";
   env.GIT_CONFIG_GLOBAL = "/dev/null";
   env.GIT_CONFIG_SYSTEM = "/dev/null";
@@ -880,7 +882,9 @@ export {
   assertReviewedSource,
 };
 
-if (process.argv[1] === "-") {
+const directFileExecution = process.argv[1] && process.argv[1] !== "-" &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (process.argv[1] === "-" || directFileExecution) {
   main().catch((error) => {
     console.error(JSON.stringify({
       marker: MARKER + "_HOLD",
