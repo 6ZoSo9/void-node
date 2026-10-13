@@ -164,19 +164,37 @@ accept a payment, activate the presale/WC market, or move funds.
 The GREEN JSON is intentionally sufficient for offline cryptographic review
 without the credential file. A reviewer can:
 
-1. reconstruct the exact challenge bytes as
-   `domain + NUL + source_head + NUL + source_tree + NUL + invocation_id + NUL + nonce_hex`;
+1. reconstruct the exact NUL-delimited challenge fields in this order:
+   `domain`, `source_head`, `source_tree`, `source_branch`, `service`,
+   decimal `main_pid`, `invocation_id`, `credential_id`,
+   `loadcredential_binding_sha256`, `credentials_directory_sha256`,
+   `main_pid_cgroup_sha256`, `process_source_commit`,
+   `process_source_tree`, `process_source_branch`, and `nonce_hex`;
 2. require the SHA-256 of those bytes to equal `challenge_sha256`;
 3. import `public_key_spki_der_hex` as a secp256k1 SPKI public key;
 4. verify `public_signature_p1363_hex` over the reconstructed challenge with
    SHA-256 and IEEE-P1363 encoding;
 5. derive the uncompressed secp256k1 public point from that public key, apply
    Ethereum Keccak-256 address derivation, and require
-   `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`.
+   `0x0f0b8aa14e1c9764fa8e4fa8b38fd3d3b8c2498a`;
+6. require the signed process source commit/tree/branch to equal the top-level
+   attested source and require the signed service/credential hashes and cgroup
+   identity to remain part of the evidence record.
 
 The public signature, public key and nonce are not credential secrets. The
 credential scalar, credential bytes, raw credential path and signed transaction
 bytes remain absent.
+
+The checked-in offline classifier is
+`tools/void-buy-void-epoch2-installed-credential-public-evidence-v1.mjs`.
+Its proof is
+`scripts/prove_buy_void_epoch2_installed_credential_public_evidence_v1.mjs`.
+The production classifier fixes the expected signer to the immutable Epoch-2
+fulfiller and rejects mutations of any signed systemd/source field, signature,
+evidence ID, or activation-authority flag. A GREEN classifier result verifies
+the public record; it does **not** authorize payment signing, transaction
+broadcast, public presale activation, WC/VOID market activation or funds
+movement.
 
 ## Source-generation binding
 
