@@ -2,6 +2,7 @@ name: public-repo-hygiene
 
 on:
   pull_request:
+  pull_request_target:
   push:
     branches:
       - main
@@ -10,7 +11,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  # Keep trusted target runs isolated from ordinary PR jobs so a new head
+  # cannot cancel an already-running base-trusted deletion check.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && 'trusted-target' || 'ordinary' }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -18,5 +21,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Never run PR-head code in the elevated pull_request_target context.
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.event.pull_request.head.sha || github.sha }}
+      - name: Guard exact PR tree against mass deletion
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          python3 scripts/check_void_pr_tree_mass_deletion_v1.py --self-test
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request_target" ]]; then
+            # Target event checks out trusted BASE, never attacker PR scripts.
+            test "$(git rev-parse HEAD)" = "$PR_BASE_SHA"
+            [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+            git fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head"
+            test "$(git rev-parse FETCH_HEAD)" = "$PR_HEAD_SHA"
+          else
+            test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          fi
+          python3 scripts/check_void_pr_tree_mass_deletion_v1.py \
+            --base-sha "$PR_BASE_SHA" --head-sha "$PR_HEAD_SHA"
       - name: Check tracked public repo hygiene
         run: bash tools/check_public_repo_hygiene.sh
