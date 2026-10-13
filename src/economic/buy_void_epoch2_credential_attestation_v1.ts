@@ -322,7 +322,7 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     expected_signer: expectedSigner,
     probe: input.probe,
   });
-  if (!verified.ok) throw new Error(verified.reason);
+  if ("reason" in verified) throw new Error(verified.reason);
 
   const body = {
     marker: VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_V1,
