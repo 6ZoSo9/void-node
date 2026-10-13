@@ -1000,10 +1000,20 @@ try {
           ledger, code, () => {},
         );
         fs.writeFileSync(ledger, canonical, { mode: 0o600 });
-        assert.deepEqual(read(), [fixture]);
+        const canonicalRows = read();
+        assert.equal(canonicalRows.length, 1);
+        assert.equal(Object.getPrototypeOf(canonicalRows[0]), null,
+          "strict JSONL rows must not inherit ambient toJSON hooks");
+        assert.deepEqual({ ...canonicalRows[0] }, fixture,
+          "canonical source row bytes must retain every own field");
         fs.writeFileSync(ledger, canonical + canonical, { mode: 0o600 });
-        assert.deepEqual(read(), [fixture, fixture],
-          "valid LF-terminated rows preserve raw order");
+        const repeatedRows = read();
+        assert.equal(repeatedRows.length, 2);
+        for (const row of repeatedRows) {
+          assert.equal(Object.getPrototypeOf(row), null);
+          assert.deepEqual({ ...row }, fixture,
+            "valid LF-terminated rows preserve raw order and own content");
+        }
         for (const { label, bytes, suffix } of adversaries) {
           fs.writeFileSync(ledger, bytes, { mode: 0o600 });
           assert.throws(read, new RegExp(code + suffix, "u"), label);
