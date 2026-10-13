@@ -1,0 +1,60 @@
+name: Apollyon designated-host custody live qualification v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "tools/apollyon-designated-host-custody-live-qualification-v1.mjs"
+      - "scripts/prove_apollyon_designated_host_custody_live_qualification_v1.mjs"
+      - "docs/security/apollyon-designated-host-custody-live-qualification-v1.md"
+      - "tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
+      - "scripts/prove_apollyon_designated_host_custody_live_qualification_v2.mjs"
+      - "docs/security/apollyon-designated-host-custody-live-qualification-v2.md"
+      - ".github/workflows/apollyon-designated-host-custody-live-qualification-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Syntax and self-test
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-designated-host-custody-live-qualification-v2.mjs
+          node --check scripts/prove_apollyon_designated_host_custody_live_qualification_v2.mjs
+          node tools/apollyon-designated-host-custody-live-qualification-v2.mjs --self-test
+          node scripts/prove_apollyon_designated_host_custody_live_qualification_v2.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
