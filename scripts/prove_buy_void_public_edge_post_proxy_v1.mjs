@@ -313,8 +313,8 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
   );
   assert.ok(definitionsStart >= 0 && handlerClose > handlerStart);
   const actualHandler = source.slice(definitionsStart, handlerClose + 2);
-  const makeResponse = () => {
-    const bytes = Buffer.from(exactAccepted201Json, "utf8");
+  const makeResponse = (payload = exactAccepted201Json) => {
+    const bytes = Buffer.from(payload, "utf8");
     let step = 0;
     return {
       status: 201,
@@ -469,6 +469,149 @@ const exactAccepted201Json = JSON.stringify(exactAccepted201Receipt,null,3)+"\n"
     assert.equal(res.statusCode, 201);
     assert.deepEqual(res.responseBytes, Buffer.from(exactAccepted201Json));
     assert.equal(h.active.size, 0);
+  }
+
+
+  // Publication allowlists are an economic/privacy authority boundary.
+  // Construct handlers while intrinsics are trusted, then poison ambient
+  // collection/static methods after initialization. Naive live lookups are
+  // demonstrably bypassable; the actual handler must still reject every
+  // private sentinel across all public checkout object boundaries.
+  {
+    const sentinelKey = "private_credential_hint";
+    const sentinelValue = "SENTINEL_PRIVATE_AMBIENT_COLLECTION_BYPASS";
+    const variants = [
+      ["outer", (v) => { v[sentinelKey] = sentinelValue; }],
+      ["request", (v) => { v.request[sentinelKey] = sentinelValue; }],
+      ["persisted", (v) => { v.request.persisted[sentinelKey] = sentinelValue; }],
+      ["request_contract", (v) => {
+        v.request.request_contract[sentinelKey] = sentinelValue;
+      }],
+      ["safety", (v) => { v.request.safety[sentinelKey] = sentinelValue; }],
+      ["acknowledgements", (v) => {
+        v.request.acknowledgements = { [sentinelKey]: sentinelValue };
+      }],
+      ["launch_authority", (v) => {
+        v.request.launch_authority[sentinelKey] = sentinelValue;
+      }],
+      ["payment_instructions", (v) => {
+        v.request.payment_instructions[sentinelKey] = sentinelValue;
+      }],
+    ];
+    const cases = variants.map(([name, mutate]) => {
+      const value = structuredClone(exactAccepted201Receipt);
+      mutate(value);
+      const payload = JSON.stringify(value);
+      const clock = { tick: 0 };
+      const h = createHarness(
+        clock,
+        async () => makeResponse(payload),
+      );
+      return { name, value, clock, h };
+    });
+
+    const nativeObjectKeys = Object.keys;
+    const nativeObjectHasOwn = Object.hasOwn;
+    const nativeArrayIsArray = Array.isArray;
+    const nativeSome = Array.prototype.some;
+    const nativeEvery = Array.prototype.every;
+    const nativeIncludes = Array.prototype.includes;
+    const nativeSetHas = Set.prototype.has;
+
+    const arrayContainsSentinel = (value) => {
+      for (let i = 0; i < value.length; i += 1) {
+        if (value[i] === sentinelKey) return true;
+      }
+      return false;
+    };
+
+    try {
+      Object.keys = (value) => {
+        const keys = nativeObjectKeys(value);
+        if (!value || typeof value !== "object" ||
+            !nativeObjectHasOwn(value, sentinelKey)) {
+          return keys;
+        }
+        const visible = [];
+        for (let i = 0; i < keys.length; i += 1) {
+          if (keys[i] !== sentinelKey) visible.push(keys[i]);
+        }
+        return visible;
+      };
+      Object.hasOwn = (value, key) =>
+        key === sentinelKey ? false : nativeObjectHasOwn(value, key);
+      Array.isArray = () => false;
+      Array.prototype.some = function(callback, thisArg) {
+        if (arrayContainsSentinel(this)) return false;
+        return nativeSome.call(this, callback, thisArg);
+      };
+      Array.prototype.every = function(callback, thisArg) {
+        if (arrayContainsSentinel(this)) return true;
+        return nativeEvery.call(this, callback, thisArg);
+      };
+      Array.prototype.includes = function(value, fromIndex) {
+        if (value === sentinelKey) return false;
+        return nativeIncludes.call(this, value, fromIndex);
+      };
+      Set.prototype.has = function(value) {
+        if (value === sentinelKey) return true;
+        return nativeSetHas.call(this, value);
+      };
+
+      const naiveAuthority = cases.find(
+        (entry) => entry.name === "launch_authority",
+      ).value.request.launch_authority;
+      const naiveAllowed = new Set(["expires_at_ms"]);
+      assert.equal(
+        Object.keys(naiveAuthority).every((key) => naiveAllowed.has(key)),
+        true,
+        "positive control: poisoned live allowlist must hide sentinel",
+      );
+      assert.equal(Object.hasOwn(naiveAuthority, sentinelKey), false);
+      assert.equal(Array.isArray([]), false);
+      assert.equal(new Set(["expires_at_ms"]).has(sentinelKey), true);
+      assert.equal([sentinelKey].some(() => true), false);
+      assert.equal([sentinelKey].every(() => false), true);
+      assert.equal([sentinelKey].includes(sentinelKey), false);
+
+      for (const entry of cases) {
+        const res = resultSink();
+        await entry.h.handler(fakeRequest(entry.clock), res);
+        assert.equal(
+          res.statusCode,
+          502,
+          entry.name + ": poisoned ambient methods must not publish HTTP 201",
+        );
+        const output = res.responseBytes?.toString("utf8") || "";
+        assert.equal(
+          output.includes(sentinelValue),
+          false,
+          entry.name + ": private sentinel must not cross public boundary",
+        );
+        assert.equal(entry.h.active.size, 0, entry.name);
+      }
+    } finally {
+      Object.keys = nativeObjectKeys;
+      Object.hasOwn = nativeObjectHasOwn;
+      Array.isArray = nativeArrayIsArray;
+      Array.prototype.some = nativeSome;
+      Array.prototype.every = nativeEvery;
+      Array.prototype.includes = nativeIncludes;
+      Set.prototype.has = nativeSetHas;
+    }
+  }
+
+  const handlerBody = source.slice(handlerStart, handlerClose + 2);
+  for (const unsafe of [
+    "Object.keys(", "Object.hasOwn(", "Array.isArray(", "new Set(",
+    ".some(", ".every(", ".includes(", ".has(",
+  ]) {
+    assert.equal(
+      handlerBody.includes(unsafe),
+      false,
+      "checkout handler must not use mutable ambient allowlist intrinsic: " +
+        unsafe,
+    );
   }
 }
 
