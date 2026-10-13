@@ -49,8 +49,8 @@ const payload={
   request:{
     sha256:"22".repeat(32),
     bytes:4041,
-    canonical_main:"33".repeat(32),
-    canonical_tree:"44".repeat(32),
+    canonical_main:"33".repeat(20),
+    canonical_tree:"44".repeat(20),
   },
   corpus:{
     sha256:"55".repeat(32),
