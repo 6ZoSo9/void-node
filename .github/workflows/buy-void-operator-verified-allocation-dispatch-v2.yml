@@ -6,6 +6,10 @@ on:
       - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_current_v4.mjs"
+      - "docs/architecture/void-public-checkpoint-seal-first-startup-current-v4.md"
       - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v1.md"
       - "docs/architecture/buy-void-operator-verified-allocation-dispatch-v2.md"
       - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v1.yml"
@@ -55,16 +59,29 @@ jobs:
       - name: Authenticate exact current and frozen source tuple
         run: |
           set -euo pipefail
-          test "$(git hash-object src/index.ts)" = "1fde828c97175560f98ab070af33eefc595f8002"
+          test "$(git hash-object src/index.ts)" = "40239e0f76aa1edce43523d18c1b57691e41e8cf"
           test "$(git hash-object src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts)" = "eb4fb37c6073415228b312663c45a99d5015c727"
           test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "d2410a871c0318502654acd2428b2a4366d27185"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)" = "e58bf39fadc25123771481608fad2a61a8f3133f"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts)" = "5050498f600efd7d5c83af214f75663a66685d6e"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "794b3bb8e2c386be7fad607a3adf79aadff5332d"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts)" = "752deafb5a8ff884cfcfc0ff7ef8fded2a92287b"
+          test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_current_v4.mjs)" = "29f92c44eb43d11fe617f33e16a15619325fcdc1"
           test "$(git hash-object scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs)" = "033018d6caee821b370001d558fcfb81edda48f1"
-      - name: Reprove exact seal-first router ancestry
-        run: node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs
-      - name: Preserve frozen V1 and V2 refusal of current source
+      - name: Preserve frozen checkpoint refusal and prove current V4
+        run: |
+          set -euo pipefail
+          if node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs > "$RUNNER_TEMP/checkpoint-v1-hold.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_CHECKPOINT_V1_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq 'candidate source identity' "$RUNNER_TEMP/checkpoint-v1-hold.txt"
+          node scripts/prove_void_public_checkpoint_seal_first_startup_current_v4.mjs \
+            | tee "$RUNNER_TEMP/checkpoint-v4.txt"
+          grep -Fx 'VOID_PUBLIC_CHECKPOINT_SEAL_FIRST_STARTUP_CURRENT_V4_PROOF_GREEN' "$RUNNER_TEMP/checkpoint-v4.txt"
+          grep -Fx 'reviewed_checkpoint_v2_predecessor_blob_unchanged=true' "$RUNNER_TEMP/checkpoint-v4.txt"
+          grep -Fx 'failed_inherited_node_admission_schedules_no_repair=true' "$RUNNER_TEMP/checkpoint-v4.txt"
+      - name: Preserve frozen V1 V2 and V3 refusal of current source
         run: |
           set -euo pipefail
           for version in 1 2; do
@@ -79,18 +96,28 @@ jobs:
             grep -Fq 'eb4fb37c6073415228b312663c45a99d5015c727' "$log"
           done
           echo frozen_dispatcher_v1_v2_source_refusal_verified=true
-      - name: Prove current dispatcher V3 and mounted HOLD
+          log="$RUNNER_TEMP/dispatch-frozen-v3.txt"
+          if node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts > "$log" 2>&1; then
+            echo "UNEXPECTED_FROZEN_DISPATCH_SOURCE_ACCEPTANCE_V3" >&2
+            exit 1
+          fi
+          grep -Fq 'current mounted router generation drift' "$log"
+          grep -Fq '1fde828c97175560f98ab070af33eefc595f8002' "$log"
+          grep -Fq '40239e0f76aa1edce43523d18c1b57691e41e8cf' "$log"
+          echo frozen_dispatcher_v3_source_refusal_verified=true
+      - name: Prove current dispatcher V4 and mounted HOLD
         run: |
           set -euo pipefail
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts \
-            | tee "dispatch-v3-node-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts \
+            | tee "dispatch-v4-node-${{ matrix.node }}.txt"
           for marker in \
-            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V3_GREEN' \
+            'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V4_GREEN' \
             'frozen_dispatcher_v2_proof_unchanged=true' \
+            'frozen_dispatcher_v3_proof_unchanged=true' \
             'verified_payment_plan_selects_allocation_handoff=true' \
             'nonpayment_plan_preserves_status_writer=true' \
             'frozen_dispatcher_v1_proof_unchanged=true' \
-            'reviewed_router_source_blob=1fde828c97175560f98ab070af33eefc595f8002' \
+            'reviewed_router_source_blob=40239e0f76aa1edce43523d18c1b57691e41e8cf' \
             'outer_input_proxy_rejected_without_traps=true' \
             'outer_input_getter_rejected_without_invocation=true' \
             'outer_input_root_getter_rejected_without_invocation=true' \
@@ -102,13 +129,13 @@ jobs:
             'presale_activation=false' \
             'funds_moved=false'
           do
-            grep -Fx "$marker" "dispatch-v3-node-${{ matrix.node }}.txt"
+            grep -Fx "$marker" "dispatch-v4-node-${{ matrix.node }}.txt"
           done
       - name: Upload exact-head source-only proof
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-verified-allocation-dispatch-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: dispatch-v3-node-${{ matrix.node }}.txt
+          name: buy-void-verified-allocation-dispatch-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: dispatch-v4-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff whitespace hygiene
@@ -125,16 +152,16 @@ jobs:
       - name: Download three exact-head V2 outputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-verified-allocation-dispatch-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-verified-allocation-dispatch-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./evidence
-      - name: Require current V3 exact Node 22 24 26 byte equality
+      - name: Require current V4 exact Node 22 24 26 byte equality
         run: |
           set -euo pipefail
-          for v in 22 24 26; do test -s "evidence/dispatch-v3-node-$v.txt"; done
-          cmp evidence/dispatch-v3-node-22.txt evidence/dispatch-v3-node-24.txt
-          cmp evidence/dispatch-v3-node-22.txt evidence/dispatch-v3-node-26.txt
-          echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V3_CROSS_NODE_GREEN"
+          for v in 22 24 26; do test -s "evidence/dispatch-v4-node-$v.txt"; done
+          cmp evidence/dispatch-v4-node-22.txt evidence/dispatch-v4-node-24.txt
+          cmp evidence/dispatch-v4-node-22.txt evidence/dispatch-v4-node-26.txt
+          echo "VOID_BUY_VOID_VERIFIED_ALLOCATION_DISPATCH_V4_CROSS_NODE_GREEN"
           echo "frozen_dispatcher_v1_proof_unchanged=true"
           echo "mounted_operator_route_verified=false"
           echo "production_gate_ready=false"

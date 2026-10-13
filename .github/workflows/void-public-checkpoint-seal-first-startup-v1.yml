@@ -5,6 +5,8 @@ on:
     paths:
       - "src/index.ts"
       - "scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs"
+      - "scripts/prove_void_public_checkpoint_seal_first_startup_current_v4.mjs"
+      - "docs/architecture/void-public-checkpoint-seal-first-startup-current-v4.md"
       - "docs/architecture/void-public-checkpoint-seal-first-startup-v1.md"
       - ".github/workflows/void-public-checkpoint-seal-first-startup-v1.yml"
   workflow_dispatch:
@@ -44,11 +46,20 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Install locked dependencies without scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Prove seal-first real-source startup order and failure isolation
+      - name: Preserve frozen V1 refusal and prove current V4 startup
         run: |
           set -euo pipefail
-          node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs \
+          if node scripts/prove_void_public_checkpoint_seal_first_startup_v1.mjs > "$RUNNER_TEMP/frozen-v1.txt" 2>&1; then
+            echo "UNEXPECTED_FROZEN_CHECKPOINT_V1_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq "candidate source identity" "$RUNNER_TEMP/frozen-v1.txt"
+          node scripts/prove_void_public_checkpoint_seal_first_startup_current_v4.mjs \
             | tee checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          grep -Fx "VOID_PUBLIC_CHECKPOINT_SEAL_FIRST_STARTUP_CURRENT_V4_PROOF_GREEN" \
+            checkpoint-seal-startup-node-${{ matrix.node }}.txt
+          grep -Fx "reviewed_checkpoint_v2_predecessor_blob_unchanged=true" \
+            checkpoint-seal-startup-node-${{ matrix.node }}.txt
           grep -Fx "failed_inherited_node_admission_schedules_no_repair=true" \
             checkpoint-seal-startup-node-${{ matrix.node }}.txt
           grep -Fx "normal_repair_runs_only_after_node_constructor=true" \
@@ -64,7 +75,7 @@ jobs:
       - name: Upload no-funds synthetic startup receipt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: void-seal-startup-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: void-seal-startup-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: checkpoint-seal-startup-node-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 2
@@ -88,7 +99,7 @@ jobs:
       - name: Download all exact-head receipts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: void-seal-startup-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: void-seal-startup-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./receipts
       - name: Require byte-identical Node 22 24 26 proof receipts
@@ -100,5 +111,5 @@ jobs:
           cmp receipts/checkpoint-seal-startup-node-22.txt receipts/checkpoint-seal-startup-node-24.txt
           cmp receipts/checkpoint-seal-startup-node-22.txt receipts/checkpoint-seal-startup-node-26.txt
           grep -Fx "outside_machine_acceptance_proven=false" receipts/checkpoint-seal-startup-node-22.txt
-          echo "VOID_CHECKPOINT_SEAL_FIRST_STARTUP_THREE_NODE_BYTES_GREEN"
+          echo "VOID_CHECKPOINT_SEAL_FIRST_STARTUP_CURRENT_V4_THREE_NODE_BYTES_GREEN"
           echo "real_host_or_checkpoint_mutation=false"
