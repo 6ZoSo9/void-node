@@ -56,8 +56,10 @@ V83 uses no-follow metadata reads and requires simple POSIX ACLs for reviewed
 directories and the socket. Named/default ACL entries are rejected rather than
 silently ignored.
 
-It observes the custody state root, `consumed/`, retained ancestor chain to `/`,
-socket parent, and advertised AF_UNIX socket.
+It observes the custody state root, `consumed/`, state-root retained ancestor
+chain to `/`, socket parent, socket-parent retained ancestor chain to `/`, and
+the advertised AF_UNIX socket. Both state and socket parent objects must be
+denied training-UID rename/unlink authority through their parent directories.
 
 Training write/traverse/connect decisions are derived from observed UID/GID,
 supplementary groups, owner/group/other mode bits, and the simple-ACL rule.
