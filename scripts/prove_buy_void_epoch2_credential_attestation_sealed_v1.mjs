@@ -297,6 +297,33 @@ assert.throws(
       () => redactedLoadCredentialBindingFromShow(redactedShow, proofUid),
       /epoch2_sealed_redacted_dropin_semantics_invalid/u,
     );
+
+    const realParent = path.join(root, "real-parent");
+    const linkedParent = path.join(root, "linked-parent");
+    fs.mkdirSync(realParent, { mode: 0o700 });
+    const realDropIn = path.join(
+      realParent,
+      "97-buy-void-epoch2-fulfiller-credential-v1.conf",
+    );
+    fs.writeFileSync(
+      realDropIn,
+      "[Service]\n" +
+        "LoadCredential=buy-void-epoch2-fulfiller-v1:" +
+        "/private/e2-fulfiller.key\n",
+      { encoding: "utf8", mode: 0o600 },
+    );
+    fs.symlinkSync(realParent, linkedParent, "dir");
+    const symlinkShow = redactedShow.replace(
+      dropIn,
+      path.join(
+        linkedParent,
+        "97-buy-void-epoch2-fulfiller-credential-v1.conf",
+      ),
+    );
+    assert.throws(
+      () => redactedLoadCredentialBindingFromShow(symlinkShow, proofUid),
+      /epoch2_sealed_redacted_dropin_namespace_untrusted/u,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
