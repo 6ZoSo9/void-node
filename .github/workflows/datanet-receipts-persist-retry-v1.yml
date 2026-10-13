@@ -35,12 +35,13 @@ jobs:
           set -euo pipefail
           node --check src/diag/datanet_receipts_persist_v1.cjs
           node --check scripts/prove_datanet_receipts_persist_retry_v1.cjs
-          node scripts/prove_datanet_receipts_persist_retry_v1.cjs | tee proof.txt
-          grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" proof.txt
-          grep -Fx "failed_read_rollback=true" proof.txt
-          grep -Fx "short_read_rollback=true" proof.txt
-          grep -Fx "concurrent_scan_coalesced=true" proof.txt
-          grep -Fx "same_bytes_counted_once=true" proof.txt
+          proof_file="$RUNNER_TEMP/datanet-receipts-persist-retry-v1.txt"
+          node scripts/prove_datanet_receipts_persist_retry_v1.cjs | tee "$proof_file"
+          grep -Fx "VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN" "$proof_file"
+          grep -Fx "failed_read_rollback=true" "$proof_file"
+          grep -Fx "short_read_rollback=true" "$proof_file"
+          grep -Fx "concurrent_scan_coalesced=true" "$proof_file"
+          grep -Fx "same_bytes_counted_once=true" "$proof_file"
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
