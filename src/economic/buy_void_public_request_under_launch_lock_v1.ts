@@ -647,10 +647,46 @@ export async function persistBuyVoidPublicRequestUnderLaunchLockV1(
   const reqObj = detachCanonicalRequestDataV1(inputRequest);
   const dir = String(process.env.VOID_BUY_REQUEST_DIR ||
     ".runtime/public-buy-void-requests-v1");
-  const [
-    withLaunchMutation, readRequests, readEvents, applyEvents,
-    isTerminal, launchMatches,
-  ] = callbacks;
+  // The callback tuple carries launch-lock and history authority. Never
+  // unpack it through Array.prototype[Symbol.iterator]: same-process ambient
+  // prototype tampering could shift readRequests into the lock position and
+  // make an unpersisted request look successful. Capture exactly six own data
+  // function properties by numeric descriptor instead.
+  if (!REQUEST_HISTORY_IS_ARRAY_V1(callbacks)) {
+    holdHistoryV1("callback_tuple_not_array");
+  }
+  const callbackPrototype = REQUEST_HISTORY_GET_PROTO_V1(callbacks);
+  const callbackNames = REQUEST_HISTORY_OWN_NAMES_V1(callbacks);
+  const callbackKeys = REQUEST_HISTORY_KEYS_V1(callbacks);
+  const callbackLength =
+    REQUEST_HISTORY_OWN_DESCRIPTOR_V1(callbacks, "length");
+  if ((callbackPrototype !== Array.prototype && callbackPrototype !== null) ||
+      !callbackLength ||
+      !REQUEST_HISTORY_HAS_OWN_V1(callbackLength, "value") ||
+      callbackLength.value !== 6 ||
+      callbackNames.length !== 7 ||
+      callbackKeys.length !== 6 ||
+      REQUEST_HISTORY_OWN_SYMBOLS_V1(callbacks).length !== 0) {
+    holdHistoryV1("callback_tuple_shape_invalid");
+  }
+  const capturedCallbacks: any = REQUEST_HISTORY_CREATE_V1(null);
+  for (let i = 0; i < 6; i += 1) {
+    const descriptor =
+      REQUEST_HISTORY_OWN_DESCRIPTOR_V1(callbacks, String(i));
+    if (!descriptor ||
+        !REQUEST_HISTORY_HAS_OWN_V1(descriptor, "value") ||
+        typeof descriptor.value !== "function" ||
+        descriptor.enumerable !== true) {
+      holdHistoryV1("callback_tuple_entry_invalid");
+    }
+    capturedCallbacks[i] = descriptor.value;
+  }
+  const withLaunchMutation = capturedCallbacks[0];
+  const readRequests = capturedCallbacks[1];
+  const readEvents = capturedCallbacks[2];
+  const applyEvents = capturedCallbacks[3];
+  const isTerminal = capturedCallbacks[4];
+  const launchMatches = capturedCallbacks[5];
   if (typeof dir !== "string" || !dir || dir.includes("\0")) {
     throw new Error("buy_void_request_directory_not_configured");
   }
