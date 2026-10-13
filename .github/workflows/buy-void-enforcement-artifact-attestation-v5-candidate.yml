@@ -77,7 +77,9 @@ jobs:
           lock_blob="$(git hash-object package-lock.json)"
           case "$package_blob:$lock_blob" in
             14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
-              node scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs > enforcement-v5-candidate-${{ matrix.node }}.json
+              audited_refusal="$RUNNER_TEMP/enforcement-v5-audited-refusal-${{ matrix.node }}.json"
+              node scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs > "$audited_refusal"
+              cp "$audited_refusal" enforcement-v5-candidate-${{ matrix.node }}.json
               touch "$RUNNER_TEMP/legacy-v5-rejection-proven"
               echo 'HISTORICAL_V5_REFUSED_ON_AUDITED_PACKAGE_GENERATION=true'
               ;;
