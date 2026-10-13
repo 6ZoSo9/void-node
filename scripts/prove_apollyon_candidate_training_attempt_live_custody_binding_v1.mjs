@@ -1,13 +1,27 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TOOL=path.join(ROOT,"tools/apollyon-candidate-training-attempt-live-custody-binding-v1.mjs");
 const LAUNCHER=path.join(ROOT,"tools/apollyon-authorization-custody-launcher-v1.mjs");
+const V84=path.join(ROOT,"tools/apollyon-designated-host-custody-live-qualification-v1.mjs");
+const V85=path.join(ROOT,"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs");
+const V81=path.join(ROOT,"tools/apollyon-authorization-custody-client-v1.mjs");
 const source=fs.readFileSync(TOOL,"utf8");
 const launcherSource=fs.readFileSync(LAUNCHER,"utf8");
+function gitBlobSha1(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`,"ascii"))
+    .update(bytes)
+    .digest("hex");
+}
+assert.equal(gitBlobSha1(fs.readFileSync(V84)),"3dae4db82a9316eaa88f475cec41ddc05a441536");
+assert.equal(gitBlobSha1(fs.readFileSync(V85)),"f97fafb0148527ae3a954e2752faef8c7fc9e88e");
+assert.equal(gitBlobSha1(fs.readFileSync(V81)),"fb31dbbda76c94f0ad08e38094c151a24a78b486");
+assert.equal(gitBlobSha1(Buffer.from(launcherSource,"utf8")),"64a8eab0af1dd38e650ce77c5f88590ba19bb9bf");
 for(const required of [
   'V84_BLOB_SHA1="3dae4db82a9316eaa88f475cec41ddc05a441536"',
   'V85_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e"',
