@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           npm ci --ignore-scripts --no-audit --no-fund
           npm run typecheck
-          npm run build
+          node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
 
       - name: Require V3 and V4 historical refusal classification
         run: |

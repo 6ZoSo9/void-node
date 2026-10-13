@@ -577,7 +577,7 @@ def write_new(path: Path, raw: bytes) -> None:
         os.fsync(fd)
         final = os.fstat(fd)
         if (
-            not same_file(created_identity, final)
+            not same_identity(created_identity, final)
             or final.st_size != len(raw)
         ):
             hold("output_file_changed")
@@ -591,7 +591,7 @@ def write_new(path: Path, raw: bytes) -> None:
     if (
         not same_identity(parent_identity, parent_after)
         or created_identity is None
-        or not same_file(created_identity, file_after)
+        or not same_identity(created_identity, file_after)
         or file_after.st_size != len(raw)
     ):
         hold("output_visible_identity_changed")

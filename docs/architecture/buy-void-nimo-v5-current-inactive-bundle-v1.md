@@ -64,11 +64,13 @@ V5 binds the exact current Git blobs for:
   `df15064519fcc9be75be8014c292ccc83eac6544`.
 
 The workflow also requires the exact source parent above to be an ancestor of
-the tested head.
+the tested head. V5 intentionally does **not** execute the repository-wide `npm run build`
+post-build helpers; the candidate needs only TypeScript compilation for its reviewed
+eight-member runtime closure, so unrelated helper mutations cannot rewrite V5 outputs.
 
 ## Eight runtime members
 
-After the exact locked build, V5 derives these runtime bytes:
+After the exact locked compiler-only build (`node ./node_modules/typescript/bin/tsc -p tsconfig.build.json`), V5 derives these runtime bytes:
 
 1. `tools/void-buy-allocation-custody-witness-forced-command-v2.mjs`
 2. `dist/economic/buy_void_allocation_custody_external_witness_v1.js`
