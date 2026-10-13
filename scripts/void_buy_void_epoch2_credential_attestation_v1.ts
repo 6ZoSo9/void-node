@@ -45,9 +45,9 @@ function help(): string {
       ATTESTATION_CONFIRMATION,
     "",
     "Default mode is disabled and performs no systemd, /proc, credential, or signing access.",
-    "The explicit probe observes the live user service, reads only its systemd-managed",
-    "buy-void-epoch2-fulfiller-v1 credential, signs one non-broadcast capability",
-    "probe, verifies it locally, discards the raw transaction, and emits public evidence.",
+    "This historical TypeScript CLI refuses every explicit --probe.",
+    "Live capability evidence must use the reviewed sealed Git-object probe on stdin;",
+    "this CLI cannot read the installed credential or perform live signing.",
   ].join("\n");
 }
 
