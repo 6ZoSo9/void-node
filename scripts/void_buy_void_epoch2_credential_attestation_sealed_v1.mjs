@@ -90,10 +90,6 @@ function trustedExecutable(candidate, leaf) {
 
 const GIT = trustedExecutable("/usr/bin/git", "git");
 const SYSTEMCTL = trustedExecutable("/usr/bin/systemctl", "systemctl");
-const NODE = trustedExecutable(
-  process.execPath,
-  path.basename(fs.realpathSync(process.execPath)),
-);
 
 function git(root, args) {
   return execFileSync(GIT, [
@@ -739,13 +735,6 @@ async function main() {
       throw new Error("epoch2_sealed_unknown_argument");
     }
   }
-  if (process.execPath !== NODE ||
-      process.execArgv.length !== 1 ||
-      process.execArgv[0] !== "--input-type=module" ||
-      String(process.env.NODE_OPTIONS || "") !== "" ||
-      String(process.env.NODE_PATH || "") !== "") {
-    throw new Error("epoch2_sealed_node_execution_context_invalid");
-  }
   if (!probe) {
     console.log(JSON.stringify({
       marker: MARKER,
@@ -772,6 +761,17 @@ async function main() {
   assertCryptoSelfTest();
   const root = path.resolve(process.cwd());
   const source = assertReviewedSource(root);
+  const trustedNode = trustedExecutable(
+    process.execPath,
+    path.basename(fs.realpathSync(process.execPath)),
+  );
+  if (process.execPath !== trustedNode ||
+      process.execArgv.length !== 1 ||
+      process.execArgv[0] !== "--input-type=module" ||
+      String(process.env.NODE_OPTIONS || "") !== "" ||
+      String(process.env.NODE_PATH || "") !== "") {
+    throw new Error("epoch2_sealed_node_execution_context_invalid");
+  }
   const before = observeLiveSystemd();
   if (before.process_source_commit !== source.head ||
       before.process_source_tree !== source.tree ||
