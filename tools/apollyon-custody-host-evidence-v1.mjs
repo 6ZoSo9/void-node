@@ -8,10 +8,10 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import {
-  VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
-  VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V1,
-  qualifyApollyonCustodyHostPolicyV1,
-} from "./apollyon-custody-host-policy-qualification-v1.mjs";
+  VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2,
+  VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V2,
+  qualifyApollyonCustodyHostPolicyV2,
+} from "./apollyon-custody-host-policy-qualification-v2.mjs";
 
 export const VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_V1 =
   "VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_V1";
@@ -26,7 +26,9 @@ export const VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1 =
     acl_metadata_read:true,
     systemd_metadata_read:true,
     polkit_authorization_query:true,
-    exact_v82_classifier_reused:true,
+    exact_v82_classifier_reused:false,
+    v82_v1_classifier_preserved:true,
+    v83_policy_v2_classifier_required:true,
     synthetic_snapshot_authority:false,
     trusted_collector_proven:false,
     verification_clock_authority_proven:false,
@@ -489,8 +491,8 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
     custody.groups.filter((gid)=>gid!==custody.gid).sort((a,b)=>a-b);
 
   return Object.freeze({
-    marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
-    version:1,
+    marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2,
+    version:2,
     target_host:"Xiphos",
     verification_now_ms:observation.verification_now_ms,
     evidence_snapshot:Object.freeze({
@@ -499,7 +501,7 @@ export function buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observat
       evidence_generation:observation.evidence_generation,
       boot_id_sha256:observation.boot_id_sha256,
     }),
-    source_binding:VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V1,
+    source_binding:VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V2,
     identities:Object.freeze({
       training_uid:training.uid,
       training_gid:training.gid,
@@ -704,7 +706,7 @@ export function collectApollyonCustodyHostEvidenceV1(rawOptions){
 
   const classifierInput=
     buildApollyonCustodyHostPolicyEvidenceFromObservationV1(observation);
-  const decision=qualifyApollyonCustodyHostPolicyV1(classifierInput);
+  const decision=qualifyApollyonCustodyHostPolicyV2(classifierInput);
 
   return Object.freeze({
     ok:true,

@@ -13,8 +13,8 @@ import {
   VOID_APOLLYON_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
 } from "../tools/apollyon-custody-host-evidence-v1.mjs";
 import {
-  qualifyApollyonCustodyHostPolicyV1,
-} from "../tools/apollyon-custody-host-policy-qualification-v1.mjs";
+  qualifyApollyonCustodyHostPolicyV2,
+} from "../tools/apollyon-custody-host-policy-qualification-v2.mjs";
 
 const TOOL=fileURLToPath(
   new URL("../tools/apollyon-custody-host-evidence-v1.mjs",import.meta.url),
@@ -162,7 +162,7 @@ assert.throws(
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(
     observation(),
   );
-  const decision=qualifyApollyonCustodyHostPolicyV1(evidence);
+  const decision=qualifyApollyonCustodyHostPolicyV2(evidence);
   assert.equal(decision.ok,true);
   assert.equal(decision.status,"source_policy_qualified");
   assert.equal(decision.live_host_qualification_performed,false);
@@ -174,7 +174,7 @@ assert.throws(
   bad.verification_now_ms=bad.expires_at_ms;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
-    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    ()=>qualifyApollyonCustodyHostPolicyV2(evidence),
     /evidence_freshness_invalid/u,
   );
 }
@@ -184,7 +184,7 @@ assert.throws(
   bad.socket_parent.training_rename_unlink=true;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
-    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    ()=>qualifyApollyonCustodyHostPolicyV2(evidence),
     /socket_parent_invalid/u,
   );
 }
@@ -194,7 +194,7 @@ assert.throws(
   bad.socket_ancestors[1].group_other_writable=true;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
-    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    ()=>qualifyApollyonCustodyHostPolicyV2(evidence),
     /socket_parent_invalid/u,
   );
 }
@@ -204,7 +204,7 @@ assert.throws(
   bad.runtime_control_denied=false;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
-    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    ()=>qualifyApollyonCustodyHostPolicyV2(evidence),
     /service_invalid/u,
   );
 }
@@ -214,7 +214,7 @@ assert.throws(
   bad.custody_process_count=2;
   const evidence=buildApollyonCustodyHostPolicyEvidenceFromObservationV1(bad);
   assert.throws(
-    ()=>qualifyApollyonCustodyHostPolicyV1(evidence),
+    ()=>qualifyApollyonCustodyHostPolicyV2(evidence),
     /service_invalid/u,
   );
 }
@@ -237,7 +237,9 @@ for(const [key,expected] of Object.entries({
   acl_metadata_read:true,
   systemd_metadata_read:true,
   polkit_authorization_query:true,
-  exact_v82_classifier_reused:true,
+  exact_v82_classifier_reused:false,
+  v82_v1_classifier_preserved:true,
+  v83_policy_v2_classifier_required:true,
   synthetic_snapshot_authority:false,
   trusted_collector_proven:false,
   verification_clock_authority_proven:false,
@@ -269,6 +271,17 @@ for(const [key,expected] of Object.entries({
 }
 
 const source=fs.readFileSync(TOOL,"utf8");
+
+assert.equal(
+  source.includes('from "./apollyon-custody-host-policy-qualification-v1.mjs"'),
+  false,
+  "V83 collector must not execute the frozen V82 V1 classifier",
+);
+assert.equal(
+  source.includes('from "./apollyon-custody-host-policy-qualification-v2.mjs"'),
+  true,
+  "V83 collector must execute the versioned V2 classifier",
+);
 for(const forbidden of [
   "writeFileSync",
   "appendFileSync",

@@ -66,12 +66,9 @@ The socket parent must be:
 - dedicated IPC GID;
 - mode `0750`;
 - direct and non-symlink;
-- at least two retained ancestors;
-- retained ancestors root-owned, direct, symlink-free, and not group/other-writable;
 - writable by custody;
-- traversable by the training identity;
-- not writable by the training identity; and
-- not renameable/unlinkable by the training identity through its parent.
+- traversable by the training identity; and
+- not writable by the training identity.
 
 The advertised socket must be custody-UID / IPC-group owned, mode `0660`, and
 identified as an AF_UNIX socket. Both runtime and custody identities must be

@@ -6,6 +6,12 @@ on:
       - "tools/apollyon-custody-host-evidence-v1.mjs"
       - "scripts/prove_apollyon_custody_host_evidence_v1.mjs"
       - "docs/security/apollyon-custody-host-evidence-v1.md"
+      - "tools/apollyon-custody-host-policy-qualification-v1.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v1.md"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v2.md"
       - ".github/workflows/apollyon-custody-host-evidence-v1.yml"
   push:
     branches:
@@ -14,6 +20,12 @@ on:
       - "tools/apollyon-custody-host-evidence-v1.mjs"
       - "scripts/prove_apollyon_custody_host_evidence_v1.mjs"
       - "docs/security/apollyon-custody-host-evidence-v1.md"
+      - "tools/apollyon-custody-host-policy-qualification-v1.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v1.md"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+      - "scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs"
+      - "docs/security/apollyon-custody-host-policy-qualification-v2.md"
       - ".github/workflows/apollyon-custody-host-evidence-v1.yml"
 
 permissions:
@@ -37,10 +49,22 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - name: Syntax
+      - name: Preserve frozen V82 V1 and syntax-check V83 V2
         run: |
+          set -euo pipefail
+          test "$(git hash-object tools/apollyon-custody-host-policy-qualification-v1.mjs)" = "6f34e79d94c502e31ca4923fd78922d4875550a5"
+          test "$(git hash-object scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs)" = "977f1ee63e9998da619df1bc0318ad3ccc6f0938"
+          test "$(git hash-object docs/security/apollyon-custody-host-policy-qualification-v1.md)" = "6b3619725ae8d95d5361f5e20f4d1372333266a8"
+          node --check tools/apollyon-custody-host-policy-qualification-v1.mjs
+          node --check scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs
+          node --check tools/apollyon-custody-host-policy-qualification-v2.mjs
+          node --check scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs
           node --check tools/apollyon-custody-host-evidence-v1.mjs
           node --check scripts/prove_apollyon_custody_host_evidence_v1.mjs
+      - name: Prove frozen V82 and versioned V83 policy
+        run: |
+          node scripts/prove_apollyon_custody_host_policy_qualification_v1.mjs
+          node scripts/prove_apollyon_custody_host_policy_qualification_v2.mjs
       - name: Prove read-only collector source
         run: node scripts/prove_apollyon_custody_host_evidence_v1.mjs
       - name: Diff hygiene

@@ -6,8 +6,9 @@ Status: **designated-host read-only collector source**.
 
 ## Purpose
 
-V83 derives the V82 host-policy evidence from live Xiphos state instead of
-accepting caller assertions.
+V83 derives versioned host-policy V2 evidence from live Xiphos state instead of
+accepting caller assertions. The merged V82 V1 classifier remains frozen as
+historical evidence and is not rewritten by this collector.
 
 The collector is read-only. It does not install or start V81, create users or
 groups, change permissions/ownership, edit systemd, write custody state, access
@@ -33,6 +34,12 @@ The live collector receives only four selectors:
 
 It derives UIDs, GIDs, group memberships, process IDs, permission decisions,
 systemd hardening, and runtime service-control denial from the host.
+
+The collector emits `VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2` with
+`version=2`, then classifies it through the versioned V2 policy. Its authority
+receipt states `exact_v82_classifier_reused=false`,
+`v82_v1_classifier_preserved=true`, and
+`v83_policy_v2_classifier_required=true`.
 
 ## Host binding
 
@@ -124,7 +131,7 @@ node --check scripts/prove_apollyon_custody_host_evidence_v1.mjs
 node scripts/prove_apollyon_custody_host_evidence_v1.mjs
 ```
 
-The source proof validates proc/systemd/ACL parsers, positive V82 composition,
+The source proof validates proc/systemd/ACL parsers, positive V2 composition,
 negative runtime-control and process-inventory cases, wrong-host rejection, and
 absence of filesystem/service mutation primitives.
 
