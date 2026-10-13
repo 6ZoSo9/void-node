@@ -418,11 +418,11 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
  checks=[pkcheck_denial('org.freedesktop.systemd1.manage-units',process_subject)]
  for verb in SYSTEMD_MANAGE_UNIT_VERBS:
   checks.append(pkcheck_denial(
-   'org.freedesktop.systemd1.manage-units',process['subject'],
+   'org.freedesktop.systemd1.manage-units',process_subject,
    (('unit',unit),('verb',verb)),
   ))
  for action in SYSTEMD_GLOBAL_CONTROL_ACTIONS:
-  checks.append(pkcheck_denial(action,process['subject']))
+  checks.append(pkcheck_denial(action,process_subject))
  return {
   'all_systemd_control_actions_explicitly_denied':True,
   'all_training_uid_processes_capability_free':
@@ -432,7 +432,7 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
   'checked_actions':checks,
   'installed_systemd_package_version':versions['installed_systemd_package_version'],
   'observed_systemd_version_line':versions['observed_systemd_version_line'],
-  'pkcheck_subject':process['subject'],
+  'pkcheck_subject':process_subject,
   'polkit_deny_rule':deny_rule,
   'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,
   'reviewed_systemd_package_version':versions['reviewed_systemd_package_version'],
