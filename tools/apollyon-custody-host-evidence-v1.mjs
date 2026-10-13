@@ -191,8 +191,8 @@ export function parseApollyonProcStatusV1(text){
   if(
     uids.length!==4||
     gids.length!==4||
-    uids.some((v)=>!Number.isSafeInteger(v)||v<1||v>MAX_UID_GID)||
-    gids.some((v)=>!Number.isSafeInteger(v)||v<1||v>MAX_UID_GID)||
+    uids.some((v)=>!Number.isSafeInteger(v)||v<0||v>MAX_UID_GID)||
+    gids.some((v)=>!Number.isSafeInteger(v)||v<0||v>MAX_UID_GID)||
     new Set(uids).size!==1||
     new Set(gids).size!==1||
     groups.some((v)=>!Number.isSafeInteger(v)||v<0||v>MAX_UID_GID)
