@@ -834,7 +834,17 @@ function buildChallenge(source, observation) {
       "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
       source.head,
       source.tree,
+      source.branch,
+      observation.service,
+      String(observation.main_pid),
       observation.invocation_id,
+      observation.credential_id,
+      observation.loadcredential_binding_sha256,
+      observation.credentials_directory_sha256,
+      observation.main_pid_cgroup_sha256,
+      observation.process_source_commit,
+      observation.process_source_tree,
+      observation.process_source_branch,
       nonceHex,
     ].join("\0");
     const message = Buffer.from(text, "utf8");
@@ -986,6 +996,8 @@ async function main() {
           after.loadcredential_binding_sha256,
         credentials_directory_sha256:
           after.credentials_directory_sha256,
+        main_pid_cgroup_sha256:
+          after.main_pid_cgroup_sha256,
         process_source_commit: after.process_source_commit,
         process_source_tree: after.process_source_tree,
         process_source_branch: after.process_source_branch,
@@ -1049,6 +1061,7 @@ export {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  buildChallenge,
   assertReviewedSource,
   parseSystemdObservation,
   serviceCgroupBound,

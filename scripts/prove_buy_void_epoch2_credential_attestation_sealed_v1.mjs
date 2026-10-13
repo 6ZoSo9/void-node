@@ -13,6 +13,7 @@ import {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  buildChallenge,
   parseSystemdObservation,
   serviceCgroupBound,
   canonicalUserBusPaths,
@@ -213,6 +214,44 @@ assert.throws(
   ),
   /epoch2_sealed_process_invocation_mismatch/u,
 );
+
+const syntheticSource = Object.freeze({
+  head: processCommit,
+  tree: processTree,
+  branch: "main",
+});
+const signedChallenge = buildChallenge(syntheticSource, systemdObserved);
+try {
+  assert.match(signedChallenge.nonce_hex, /^[0-9a-f]{64}$/u);
+  const expectedChallenge = Buffer.from([
+    "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
+    processCommit,
+    processTree,
+    "main",
+    "void-node-live.service",
+    "4242",
+    invocation,
+    "buy-void-epoch2-fulfiller-v1",
+    systemdObserved.loadcredential_binding_sha256,
+    systemdObserved.credentials_directory_sha256,
+    systemdObserved.main_pid_cgroup_sha256,
+    processCommit,
+    processTree,
+    "main",
+    signedChallenge.nonce_hex,
+  ].join("\0"), "utf8");
+  try {
+    assert.deepEqual(signedChallenge.message, expectedChallenge);
+    assert.equal(
+      crypto.createHash("sha256").update(expectedChallenge).digest("hex"),
+      signedChallenge.challenge_sha256,
+    );
+  } finally {
+    expectedChallenge.fill(0);
+  }
+} finally {
+  signedChallenge.message.fill(0);
+}
 
 // Independent crypto vectors: the sealed probe does not rely on ethers or tsx.
 assert.equal(
@@ -415,6 +454,11 @@ console.log("ambient_dbus_session_address_ignored=true");
 console.log("canonical_user_bus_path_bound=true");
 console.log("main_pid_systemd_cgroup_bound=true");
 console.log("process_invocation_id_bound=true");
+console.log("signed_challenge_binds_full_systemd_observation=true");
+console.log("signed_challenge_binds_loadcredential_hash=true");
+console.log("signed_challenge_binds_credentials_directory_hash=true");
+console.log("signed_challenge_binds_service_cgroup_hash=true");
+console.log("signed_challenge_binds_runtime_source=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
