@@ -335,7 +335,7 @@ for (const forbidden of [
   "broadcast_signed_transaction",
   "writeFileSync(",
   "appendFileSync(",
-  "import {\\n  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1",
+  "import {\n  VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1",
 ]) {
   assert.equal(cli.includes(forbidden), false, "CLI contains " + forbidden);
 }
