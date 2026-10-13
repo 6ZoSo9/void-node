@@ -20,7 +20,7 @@ candidate-training attempt-claim executor.
 V84 live qualification tool 3dae4db82a9316eaa88f475cec41ddc05a441536
 V85 claim contract          f97fafb0148527ae3a954e2752faef8c7fc9e88e
 V81 custody client          fb31dbbda76c94f0ad08e38094c151a24a78b486
-custody launcher            5004d8c6ff15be9dbc234ce71dc7a83d8e601052
+custody launcher            64a8eab0af1dd38e650ce77c5f88590ba19bb9bf
 ```
 
 The tool recomputes all four Git blob identities before live use.
