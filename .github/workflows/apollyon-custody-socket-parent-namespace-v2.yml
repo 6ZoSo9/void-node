@@ -41,6 +41,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Prove versioned classifier and read-only collector
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/apollyon-v2-pycache
         run: |
           set -euo pipefail
           node --check tools/apollyon-custody-host-policy-qualification-v2.mjs
@@ -49,6 +51,7 @@ jobs:
           python3 -m py_compile ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py
           python3 -m py_compile scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py
           python3 scripts/prove_apollyon_designated_host_custody_evidence_readonly_v2.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
