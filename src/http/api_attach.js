@@ -3,6 +3,8 @@
 // Copyright (c) 2025 6ZoSo9
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ATTACH_BLOCK_RANGE_MAX_SPAN = void 0;
+exports.parseAttachBlockRange = parseAttachBlockRange;
 exports.startAttachServer = startAttachServer;
 // src/http/api_attach.ts
 /**
@@ -18,6 +20,25 @@ var path = require("node:path");
 var seg_store_js_1 = require("../chain/seg_store.js");
 var PORT = Number(process.env.ATTACH_PORT || 4310);
 var DATA_DIR = process.env.DATA_DIR || "data";
+exports.ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
+function parseAttachBlockRange(fromRaw, toRaw, head) {
+    var from = Number(fromRaw !== null && fromRaw !== void 0 ? fromRaw : 0);
+    var to = Number(toRaw !== null && toRaw !== void 0 ? toRaw : head);
+    if (!Number.isSafeInteger(head) ||
+        head < -1 ||
+        !Number.isSafeInteger(from) ||
+        !Number.isSafeInteger(to) ||
+        from < 0 ||
+        to < from) {
+        return null;
+    }
+    var boundedTo = Math.min(to, head);
+    if (boundedTo >= from &&
+        boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN) {
+        return null;
+    }
+    return { from: from, to: boundedTo };
+}
 function startAttachServer(opts) {
     var _a, _b;
     var port = Number((_a = opts === null || opts === void 0 ? void 0 : opts.port) !== null && _a !== void 0 ? _a : PORT);
@@ -32,14 +53,12 @@ function startAttachServer(opts) {
         res.json({ ok: true, head: store.loadHeadNumber() });
     });
     app.get("/blocks/range", function (req, res) {
-        var _a, _b;
-        var from = Number((_a = req.query.from) !== null && _a !== void 0 ? _a : 0);
-        var to = Number((_b = req.query.to) !== null && _b !== void 0 ? _b : store.loadHeadNumber());
-        if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < from) {
+        var range = parseAttachBlockRange(req.query.from, req.query.to, store.loadHeadNumber());
+        if (!range) {
             return res.status(400).json({ ok: false, error: "bad range" });
         }
         var out = [];
-        for (var n = from; n <= to; n++) {
+        for (var n = range.from; n <= range.to; n++) {
             var b = store.loadBlock(n);
             if (b)
                 out.push(b);
