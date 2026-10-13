@@ -71,7 +71,7 @@ const SOURCE_BLOBS=Object.freeze({
   // Reviewed public Buy VOID operator ingress deny successor (#2631).
   // The e97ce051405d5b19a363eaf0834838a0ecef3a10 predecessor is historical.
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "974a1b0d825ec921a26aaca61c5560d5e29fba5f",
+    "b086b612fe5ee1dc1d5bcc4838d926af890d1435",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":

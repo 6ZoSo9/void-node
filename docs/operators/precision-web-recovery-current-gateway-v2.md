@@ -13,7 +13,7 @@ This additive **V2** source-generation candidate is stacked on
 at exact inspected parent commit
 `2f5a8d98ab3cefafe04286b271552b501dd96704`.
 It binds the newer checked gateway Git blob
-`974a1b0d825ec921a26aaca61c5560d5e29fba5f`.
+`b086b612fe5ee1dc1d5bcc4838d926af890d1435`.
 The remaining seven reviewed public seed, runner, systemd, frontdoor and
 HTML source blobs are kept as in V1. The immutable plan still requires a
 clean checkout, a bounded reviewed absolute Git executable with hostile

@@ -48,7 +48,7 @@ jobs:
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "974a1b0d825ec921a26aaca61c5560d5e29fba5f"
+          test "$(git hash-object ops/public/void-public-app-composition-gateway-v1.mjs)" = "b086b612fe5ee1dc1d5bcc4838d926af890d1435"
           test "$(git hash-object tools/void-precision-web-recovery-evidence-v1.mjs)" = "fca92451258bfd5446cb675530dbdb70b6ecf5df"
           test "$(git hash-object scripts/prove_void_precision_web_recovery_evidence_v1.mjs)" = "c6554e860ead91042170df22d4aae49ceb2eabc0"
       - name: Install supported Node
