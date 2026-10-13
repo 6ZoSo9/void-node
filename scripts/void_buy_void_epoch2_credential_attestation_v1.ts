@@ -411,12 +411,8 @@ async function main(): Promise<void> {
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
-  if (!("signer" in signer)) {
-    throw new Error(
-      "reason" in signer
-        ? signer.reason
-        : "epoch2_attestation_credential_signer_unavailable",
-    );
+  if (!signer.ok) {
+    throw new Error(signer.reason);
   }
   const credentialSigner = signer.signer;
   const publicAddress = (await credentialSigner.get_address()).toLowerCase();
