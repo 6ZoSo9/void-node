@@ -307,7 +307,7 @@ function parseSystemdShowProperties(show) {
   return props;
 }
 
-export function redactedLoadCredentialBindingFromShow(
+function redactedLoadCredentialBindingFromShow(
   show,
   uid = process.getuid(),
 ) {
