@@ -14,8 +14,11 @@ import {
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_AUTHORITY_V1,
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CONFIRMATION_V1,
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1,
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1,
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1,
   buildBuyVoidEpoch2CredentialCapabilityProbeV1,
   buyVoidEpoch2CredentialProbeSemanticsExactV1,
+  buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1,
   buildBuyVoidEpoch2CredentialAttestationEvidenceV1,
   buyVoidEpoch2SystemdCredentialObservationStableV1,
   observeBuyVoidEpoch2SystemdCredentialBindingV1,
@@ -96,6 +99,19 @@ assert.equal(
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1,
 );
 assert.equal(probe.nonce, Number.MAX_SAFE_INTEGER);
+assert.equal(
+  probe.gasLimit,
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_GAS_LIMIT_V1,
+);
+assert.equal(probe.gasLimit, 1n);
+assert.equal(
+  VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_MIN_EVM_INTRINSIC_GAS_V1,
+  21_000n,
+);
+assert.equal(
+  buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1(probe),
+  true,
+);
 assert.equal(probe.maxFeePerGas, 0n);
 assert.equal(probe.maxPriorityFeePerGas, 0n);
 assert.equal(probe.value, 0n);
@@ -110,6 +126,15 @@ assert.equal(
 const unsafeFeeProbe = { ...probe, maxFeePerGas: 1n };
 assert.equal(
   buyVoidEpoch2CredentialProbeSemanticsExactV1(unsafeFeeProbe),
+  false,
+);
+const unsafeGasProbe = { ...probe, gasLimit: 21_000n };
+assert.equal(
+  buyVoidEpoch2CredentialProbeSemanticsExactV1(unsafeGasProbe),
+  false,
+);
+assert.equal(
+  buyVoidEpoch2CredentialProbeIntrinsicallyNonExecutableV1(unsafeGasProbe),
   false,
 );
 const unsafeAmountProbe = {
@@ -133,6 +158,16 @@ if (!verified.ok) throw new Error(verified.reason);
 assert.equal(verified.signer, dummy.address.toLowerCase());
 assert.match(verified.transaction_hash, /^0x[0-9a-f]{64}$/u);
 assert.match(verified.raw_signed_transaction_sha256, /^[0-9a-f]{64}$/u);
+
+const unsafeGasRaw = await dummy.signTransaction({ ...unsafeGasProbe });
+assert.deepEqual(
+  verifyBuyVoidEpoch2CredentialSignedProbeV1({
+    raw_signed_transaction: unsafeGasRaw,
+    expected_signer: dummy.address,
+    probe: unsafeGasProbe,
+  }),
+  { ok: false, reason: "epoch2_probe_expected_envelope_invalid" },
+);
 
 const unsafeNonceRaw = await dummy.signTransaction({ ...unsafeNonceProbe });
 assert.deepEqual(
@@ -394,6 +429,9 @@ console.log("worktree_blob_substitution_held=true");
 console.log("git_environment_sanitized=true");
 console.log("authority_modules_imported_after_source_preflight=true");
 console.log("canonical_probe_semantics_bound=true");
+console.log("probe_intrinsically_non_executable=true");
+console.log("probe_gas_limit=1");
+console.log("minimum_evm_intrinsic_gas=21000");
 console.log("caller_selected_executable_probe_rejected=true");
 console.log("probe_nonce_number_max_safe_integer=true");
 console.log("probe_zero_fee=true");
