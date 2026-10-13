@@ -159,6 +159,9 @@ for (const required of [
   "request.schema !== 'void_public_buy_void_checkout_request_v1'",
   "body.one_active_request_cap_enforced !== true",
   "body.marker !== BUY_MARKER",
+  "attemptedResultReadinessSerial",
+  "readinessSerialAtSubmit",
+  "attemptedResultReadinessSerial === requestSerial",
   "attemptedResultExpiresAtMs",
   "REQUEST INSTRUCTIONS EXPIRED",
   "armReceiptExpiryTimer",
@@ -320,6 +323,7 @@ const instrumentedClient = client + `
     attemptedIntentKeys.clear();
     attemptedIntentKey = null;
     attemptedResultText = null;
+    attemptedResultReadinessSerial = null;
     attemptedResultExpiresAtMs = null;
     attemptedResultMonoDeadlineMs = null;
     attemptedResultAcceptedMonoMs = null;
@@ -991,15 +995,17 @@ assert.equal(fetchCalls[0][0], "/__void/buy-void/request");
 assert.equal(fetchCalls[0][1]?.method, "POST");
 assert.equal(JSON.parse(fetchCalls[0][1]?.body || "{}").source_chain, "ethereum");
 // Successfully returned request instructions must not permit a second
-// identical submission and must survive OPEN readiness refresh.
+// identical submission. A same-readiness-generation re-render may retain
+// them; only a real readiness GET advances the authority generation.
 assert.equal(submitButton.disabled, true, "same receipt intent must stay disabled");
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 await buyTest.submitBuy({ preventDefault() {} });
 assert.equal(fetchCalls.length, 1, "same-intent success retry must not POST");
 buyTest.renderSnapshot(ethereumSnapshot);
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
-assert.equal(submitButton.disabled, true, "refresh must retain successful intent lock");
-// A verified OPEN refresh before expiry retains this server-bound receipt.
+assert.equal(submitButton.disabled, true, "same-generation render retains successful intent lock");
+// Re-rendering the same already-validated snapshot does not create a new
+// readiness generation.
 buyTest.updateSubmit();
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 
@@ -1046,6 +1052,45 @@ for (const closedSnapshot of [heldSnapshot, soldOutSnapshot]) {
     "a re-opened view must restore its exact previous confirmed request");
   assert.equal(submitButton.disabled, true, "reopened confirmed request stays guarded");
 }
+
+// A real readiness GET in the SAME Buy DOM advances requestSerial. The public
+// edge deliberately withholds internal launch-generation identities, so even
+// a byte-equivalent OPEN refresh cannot re-authorize old payment instructions.
+// The original intent remains blocked as potentially committed.
+const postReceiptReadinessPaths = [];
+const postReceiptReadiness = new Map([
+  ["/__void/buy-void/config.json",
+    { ...validConfig, ethereum_requests_enabled: true }],
+  ["/__void/buy-void/status.json", structuredClone(validStatus)],
+  ["/__void/buy-void/sale-state.json", structuredClone(validSale)],
+]);
+sandbox.fetch = async (url) => {
+  postReceiptReadinessPaths.push(String(url));
+  assert.ok(postReceiptReadiness.has(String(url)),
+    "post-receipt refresh uses only fixed readiness endpoints");
+  return new Response(JSON.stringify(postReceiptReadiness.get(String(url))), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+};
+await buyTest.loadBuy();
+assert.equal(postReceiptReadinessPaths.length, 3,
+  "same-view refresh must acquire all three fresh readiness documents");
+assert.equal(submitButton.disabled, true,
+  "refresh never unlocks the already-attempted intent");
+assert.match(buyResultNode.textContent, /PRIOR REQUEST MAY EXIST/u,
+  "new readiness generation retires old actionable receipt");
+assert.doesNotMatch(buyResultNode.textContent,
+  /buyvoid_ethereum_open_v1|Send exactly:/u,
+  "old payment instructions cannot survive a newer readiness GET");
+// Even restoring the old synthetic snapshot object cannot move the monotonic
+// readiness serial backward or revive those instructions.
+buyTest.setState(ethereumSnapshot, false, false);
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.match(buyResultNode.textContent, /PRIOR REQUEST MAY EXIST/u);
+assert.doesNotMatch(buyResultNode.textContent,
+  /buyvoid_ethereum_open_v1|Send exactly:/u);
+
 // Compare exact six-decimal USDC atoms rather than input formatting.
 amountInput.value = "10.000000";
 buyTest.updateSubmit();
@@ -2149,8 +2194,11 @@ console.log("prior_receipt_not_misbound_to_different_intent=1");
 console.log("equivalent_usdc_atoms_retry_blocked=1");
 console.log("ambiguous_server_commit_not_declared_not_created=1");
 console.log("request_outcome_survives_readiness_refresh=1");
+console.log("confirmed_receipt_bound_to_readiness_serial=1");
+console.log("open_to_open_readiness_refresh_retires_payment_instructions=1");
+console.log("uncertain_outcome_warning_survives_without_payment_authority=1");
 console.log("ethereum_rail_hold_hides_settled_and_late_receipts=1");
-console.log("ethereum_receipt_restored_only_after_rail_reopen=1");
+console.log("same_readiness_generation_receipt_may_restore_after_rail_reopen=1");
 console.log("exchange_custody_loss_warning=1");
 console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");

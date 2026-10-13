@@ -28,6 +28,12 @@ let attemptedIntentKey = null;
 const MAX_BUY_ATTEMPTS_PER_VIEW = 32;
 const attemptedIntentKeys = new Set();
 let attemptedResultText = null;
+// Confirmed payment instructions are authority-bearing only for the exact
+// readiness GET generation under which their POST began. The public edge
+// intentionally exposes only bounded lease expiry, not internal launch
+// generation IDs, so any later readiness GET permanently retires actionable
+// instructions while preserving the no-retry intent fence.
+let attemptedResultReadinessSerial = null;
 let attemptedResultExpiresAtMs = null;
 let attemptedResultMonoDeadlineMs = null;
 let attemptedResultAcceptedMonoMs = null;
@@ -112,6 +118,7 @@ const beginBuyViewInstance = (view) => {
   // payment directions can be revived by navigating away and back.
   attemptedIntentKey = null;
   attemptedResultText = null;
+  attemptedResultReadinessSerial = null;
   attemptedResultExpiresAtMs = null;
   attemptedResultMonoDeadlineMs = null;
   attemptedResultAcceptedMonoMs = null;
@@ -486,12 +493,19 @@ function updateSubmit() {
     // this same selected rail has independently returned to OPEN.
     const matchingRailOpen = selectedRail() !== null;
     const sameIntent = intentKey === attemptedIntentKey;
+    // Uncertain outcomes have no actionable receipt serial and remain useful
+    // warnings after refresh. Confirmed payment instructions must never be
+    // resurrected after a newer readiness GET, even if it is also OPEN.
+    const sameReadinessGeneration =
+      attemptedResultReadinessSerial === null ||
+      attemptedResultReadinessSerial === requestSerial;
     const instructionExpired = sameIntent &&
       attemptedResultExpiresAtMs !== null &&
       receiptExpiredOrUntrusted();
     setText('[data-buy-result]', instructionExpired
       ? 'REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS. Verify the original request with the operator before any further action.'
-      : matchingRailOpen && sameIntent && attemptedResultText
+      : matchingRailOpen && sameIntent && sameReadinessGeneration &&
+          attemptedResultText
         ? attemptedResultText
         : 'PRIOR REQUEST MAY EXIST — DO NOT SEND FUNDS. Reverify prior requests with the operator before another attempt.');
   }
@@ -633,6 +647,7 @@ async function submitBuy(event) {
   // Keep the qualified price and pool snapshot from this original POST.
   // An asynchronous readiness refresh must not silently rebind its quote.
   const checkoutPolicyAtSubmit = currentSnapshot;
+  const readinessSerialAtSubmit = requestSerial;
   const acks = acknowledgements();
   const intentKey = buyIntentKey();
   if (intentKey === null || attemptedIntentKeys.has(intentKey) ||
@@ -658,6 +673,7 @@ async function submitBuy(event) {
   attemptedIntentKeys.add(intentKey);
   attemptedIntentKey = intentKey;
   attemptedResultText = null;
+  attemptedResultReadinessSerial = null;
   attemptedResultExpiresAtMs = null;
   attemptedResultMonoDeadlineMs = null;
   attemptedResultAcceptedMonoMs = null;
@@ -821,6 +837,7 @@ async function submitBuy(event) {
     attemptedResultAcceptedMonoMs = receiptMonoMs;
     attemptedResultAcceptedWallMs = receiptWallMs;
     attemptedResultExpired = false;
+    attemptedResultReadinessSerial = readinessSerialAtSubmit;
     attemptedResultText = [
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
