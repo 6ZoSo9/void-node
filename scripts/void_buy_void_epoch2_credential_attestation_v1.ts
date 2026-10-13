@@ -29,7 +29,7 @@ const EXPECTED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "08526c6c279739fdddda1456ffa906d6ef707187",
+    "a97141a8c9cd8ac3fe97d65b5633b7703ce20cec",
   "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts":
     "158cbf14fa2b566632c096a22e484b651cd44f6d",
   "src/economic/buy_void_epoch2_credential_source_binding_v1.ts":
@@ -439,6 +439,7 @@ async function main(): Promise<void> {
       full_runtime_source_blob: source.full_runtime_blob,
       attestation_source_blob: source.attestation_blob,
       expected_signer: VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
+      challenge_hex: challenge,
       probe: envelope,
       raw_signed_transaction: raw,
       systemd_observation: systemdAfter,
