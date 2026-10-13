@@ -8,6 +8,25 @@ const MARKER = "VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1";
 const repo = process.cwd();
 const source = path.join(repo,"runtime/canonical-producer-source-custody-v1.cjs");
 const launcher = fs.readFileSync("ops/run-void-node-live-v1.sh","utf8");
+const promWrapperPath = "ops/prom-textfile-snap-age.sh";
+const promInstaller = fs.readFileSync("ops/install-prom-textfile.sh","utf8");
+const promWrapperStat = fs.lstatSync(promWrapperPath);
+assert.ok(
+  promWrapperStat.isFile() && !promWrapperStat.isSymbolicLink(),
+  "repository Prometheus helper must be a regular file, never an external symlink",
+);
+const promWrapper = fs.readFileSync(promWrapperPath,"utf8");
+assert.match(promWrapper,/^#!\/usr\/bin\/env bash\n/);
+assert.ok(promWrapper.includes('TARGET="/usr/local/bin/prom-textfile-snap-age.sh"'));
+assert.ok(promWrapper.includes('exec "$TARGET" "$@"'));
+assert.ok(
+  !promInstaller.includes('ln -sf "$DST"'),
+  "Prometheus installer must not recreate the external repository symlink",
+);
+assert.ok(
+  promInstaller.includes("tracked repository wrapper must remain a regular executable"),
+  "Prometheus installer must preserve the tracked regular wrapper boundary",
+);
 assert.ok(launcher.includes(
   '"$NODE_BINARY" "$ROOT/runtime/canonical-producer-source-custody-v1.cjs" "$ROOT"'),
   "canonical launcher must require source-custody before exec/tsx");
@@ -109,6 +128,7 @@ try {
   console.log("untrusted_owner_and_external_symlink_hold=true");
   console.log("internal_protected_symlink_accepted=true");
   console.log("writable_runtime_state_inside_source_tree_holds=true");
+  console.log("external_repository_symlink_retired=true");
   console.log("production_source_tree_or_service_changed=false");
 } finally {
   // CI-only uniquely named root-owned fixture under /var/lib; never a real
