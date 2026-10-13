@@ -48,6 +48,20 @@ const INVENTORY_SOURCE =
   "0x3333333333333333333333333333333333333333";
 const OPENING_ATOMS = 10000000000000000000000000n;
 const HEAD_HASH = "0x" + "a".repeat(64);
+const REVIEWED_RUNTIME_PROFILE_ID_V1 =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PROFILE_ID_V2 =
+  "voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451";
+const REVIEWED_RUNTIME_PROFILE_V2 = JSON.parse(
+  fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "ops/security/reviewed-node-package-runtime-ethers-v2.json",
+    ),
+    "utf8",
+  ),
+);
+assert.equal(REVIEWED_RUNTIME_PROFILE_V2.profile_id, REVIEWED_RUNTIME_PROFILE_ID_V2);
 
 function gitEnv() {
   return {
@@ -215,8 +229,7 @@ function qualificationFixture(override = {}) {
         VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
           "ops/security/reviewed-node-package-runtime-ethers-v2.json"
         ],
-      profile_id:
-        "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77",
+      profile_id: REVIEWED_RUNTIME_PROFILE_V2.profile_id,
       packages_aggregate_sha256:
         "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
       root_packages: ["ethers"],
@@ -478,6 +491,30 @@ async function withFixture(options, callback) {
     await f.close();
   }
 }
+
+await withFixture({}, async (f) => {
+  const current = qualificationFixture();
+  const historicalProfile = qualificationFixture({
+    reviewed_package_runtime: {
+      ...current.reviewed_package_runtime,
+      profile_id: REVIEWED_RUNTIME_PROFILE_ID_V1,
+    },
+  });
+  const result =
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(historicalProfile, f.rpc_url),
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "live_deployment_preflight_reviewed_runtime_binding_invalid",
+  );
+  assert.equal(
+    f.calls.length,
+    0,
+    "historical V1 runtime profile ID must HOLD before any RPC observation",
+  );
+});
 
 await withFixture({}, async (f) => {
   const q = qualificationFixture();
