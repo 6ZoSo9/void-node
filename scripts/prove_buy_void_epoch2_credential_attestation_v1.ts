@@ -12,11 +12,13 @@ import {
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_PROBE_NONCE_V1,
   buildBuyVoidEpoch2CredentialCapabilityProbeV1,
   buildBuyVoidEpoch2CredentialAttestationEvidenceV1,
+  buyVoidEpoch2SystemdCredentialObservationStableV1,
   observeBuyVoidEpoch2SystemdCredentialBindingV1,
   verifyBuyVoidEpoch2CredentialSignedProbeV1,
 } from "../src/economic/buy_void_epoch2_credential_attestation_v1.js";
 
 const HEAD = "a".repeat(40);
+const TREE = "d".repeat(40);
 const CHALLENGE = "b".repeat(64);
 const probe = buildBuyVoidEpoch2CredentialCapabilityProbeV1({
   source_head: HEAD,
@@ -82,6 +84,9 @@ const systemdShow = [
 const environ = Buffer.from([
   "PATH=/usr/bin",
   "CREDENTIALS_DIRECTORY=/run/user/1000/credentials/void-node-live.service",
+  "VOID_PROCESS_SOURCE_COMMIT=" + HEAD,
+  "VOID_PROCESS_SOURCE_TREE=" + TREE,
+  "VOID_PROCESS_SOURCE_BRANCH=main",
   "HOME=/home/zoso",
   "",
 ].join("\0"), "utf8");
@@ -95,6 +100,27 @@ assert.equal(observed.invocation_id, "c".repeat(32));
 assert.equal(observed.credential_id, "buy-void-epoch2-fulfiller-v1");
 assert.match(observed.loadcredential_binding_sha256, /^[0-9a-f]{64}$/u);
 assert.match(observed.credentials_directory_sha256, /^[0-9a-f]{64}$/u);
+assert.equal(observed.process_source_commit, HEAD);
+assert.equal(observed.process_source_tree, TREE);
+assert.equal(observed.process_source_branch, "main");
+assert.equal(
+  buyVoidEpoch2SystemdCredentialObservationStableV1(observed, observed),
+  true,
+);
+assert.equal(
+  buyVoidEpoch2SystemdCredentialObservationStableV1(
+    observed,
+    { ...observed, invocation_id: "e".repeat(32) },
+  ),
+  false,
+);
+assert.equal(
+  buyVoidEpoch2SystemdCredentialObservationStableV1(
+    observed,
+    { ...observed, main_pid: observed.main_pid + 1 },
+  ),
+  false,
+);
 
 assert.throws(
   () => observeBuyVoidEpoch2SystemdCredentialBindingV1({
@@ -134,12 +160,39 @@ assert.throws(
   }),
   /epoch2_credentials_directory_env_cardinality_invalid/u,
 );
+assert.throws(
+  () => observeBuyVoidEpoch2SystemdCredentialBindingV1({
+    systemctl_show: systemdShow,
+    process_environ: Buffer.from([
+      "CREDENTIALS_DIRECTORY=/run/user/1000/credentials/void-node-live.service",
+      "VOID_PROCESS_SOURCE_TREE=" + TREE,
+      "VOID_PROCESS_SOURCE_BRANCH=main",
+      "",
+    ].join("\0"), "utf8"),
+  }),
+  /epoch2_process_source_commit_env_cardinality_invalid/u,
+);
+assert.throws(
+  () => observeBuyVoidEpoch2SystemdCredentialBindingV1({
+    systemctl_show: systemdShow,
+    process_environ: Buffer.from([
+      "CREDENTIALS_DIRECTORY=/run/user/1000/credentials/void-node-live.service",
+      "VOID_PROCESS_SOURCE_COMMIT=" + HEAD,
+      "VOID_PROCESS_SOURCE_TREE=" + TREE,
+      "VOID_PROCESS_SOURCE_BRANCH=other",
+      "",
+    ].join("\0"), "utf8"),
+  }),
+  /epoch2_process_source_branch_invalid/u,
+);
 
 // No dummy or caller-selected signer can ever produce a GREEN production
 // evidence record, even though the generic signed-envelope parser is tested.
 assert.throws(
   () => buildBuyVoidEpoch2CredentialAttestationEvidenceV1({
     source_head: HEAD,
+    source_tree: TREE,
+    source_branch: "main",
     source_qualifier_blob: "1".repeat(40),
     signer_source_blob: "2".repeat(40),
     full_runtime_source_blob: "3".repeat(40),
@@ -193,6 +246,10 @@ for (const required of [
   "createBuyVoidEpoch2FulfillerCredentialSignerV1",
   "VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1",
   "VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1",
+  "VOID_PROCESS_SOURCE_COMMIT",
+  "VOID_PROCESS_SOURCE_TREE",
+  "VOID_PROCESS_SOURCE_BRANCH",
+  "buyVoidEpoch2SystemdCredentialObservationStableV1",
   "raw = \"\"",
 ]) {
   assert.equal(cli.includes(required), true, "CLI missing " + required);
@@ -223,6 +280,8 @@ console.log("VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_V1_PROOF_GREEN");
 console.log("distinct_epoch2_systemd_credential_required=true");
 console.log("live_user_service_binding_parser_proven=true");
 console.log("systemd_managed_credentials_directory_required=true");
+console.log("live_process_source_commit_tree_branch_bound=true");
+console.log("systemd_invocation_stable_across_signing_required=true");
 console.log("probe_nonce_number_max_safe_integer=true");
 console.log("probe_zero_fee=true");
 console.log("probe_amount_atoms=1");

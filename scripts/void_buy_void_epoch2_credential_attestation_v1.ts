@@ -18,6 +18,7 @@ import {
   VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_CONFIRMATION_V1,
   buildBuyVoidEpoch2CredentialCapabilityProbeV1,
   buildBuyVoidEpoch2CredentialAttestationEvidenceV1,
+  buyVoidEpoch2SystemdCredentialObservationStableV1,
   observeBuyVoidEpoch2SystemdCredentialBindingV1,
 } from "../src/economic/buy_void_epoch2_credential_attestation_v1.js";
 
@@ -31,7 +32,7 @@ const EXPECTED_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
     "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_epoch2_credential_attestation_v1.ts":
-    "c5bd449827e6c98c1339565164010460b4a015b4",
+    "6660ca6e4188d49c7fbbf69cec03a2f4c7be2227",
 });
 const SERVICE = "void-node-live.service";
 
@@ -68,13 +69,18 @@ function safeReason(error: unknown): string {
 
 function assertSourceGeneration(): {
   head: string;
+  tree: string;
+  branch: "main";
   qualifier_blob: string;
   signer_blob: string;
   full_runtime_blob: string;
   attestation_blob: string;
 } {
   const head = git(["rev-parse", "--verify", "HEAD"]).toLowerCase();
-  if (!/^[0-9a-f]{40}$/u.test(head)) {
+  const tree = git(["rev-parse", "--verify", "HEAD^{tree}"]).toLowerCase();
+  const branch = git(["symbolic-ref", "--short", "-q", "HEAD"]);
+  if (!/^[0-9a-f]{40}$/u.test(head) || !/^[0-9a-f]{40}$/u.test(tree) ||
+      branch !== "main") {
     throw new Error("epoch2_attestation_head_invalid");
   }
   for (const [relative, expected] of Object.entries(EXPECTED_BLOBS)) {
@@ -98,6 +104,8 @@ function assertSourceGeneration(): {
   }
   return {
     head,
+    tree,
+    branch: "main",
     qualifier_blob: EXPECTED_BLOBS[SOURCE_QUALIFIER],
     signer_blob:
       EXPECTED_BLOBS[
@@ -183,6 +191,11 @@ async function main(): Promise<void> {
 
   const source = assertSourceGeneration();
   const systemd = observeLiveSystemdCredential();
+  if (systemd.process_source_commit !== source.head ||
+      systemd.process_source_tree !== source.tree ||
+      systemd.process_source_branch !== source.branch) {
+    throw new Error("epoch2_attestation_live_process_source_mismatch");
+  }
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
@@ -199,8 +212,15 @@ async function main(): Promise<void> {
   });
   let raw = await signer.signer.sign_transaction(envelope);
   try {
+    const systemdAfter = observeLiveSystemdCredential();
+    if (!buyVoidEpoch2SystemdCredentialObservationStableV1(
+        systemd, systemdAfter)) {
+      throw new Error("epoch2_attestation_systemd_invocation_changed_during_probe");
+    }
     const evidence = buildBuyVoidEpoch2CredentialAttestationEvidenceV1({
       source_head: source.head,
+      source_tree: source.tree,
+      source_branch: source.branch,
       source_qualifier_blob: source.qualifier_blob,
       signer_source_blob: source.signer_blob,
       full_runtime_source_blob: source.full_runtime_blob,
@@ -208,7 +228,7 @@ async function main(): Promise<void> {
       expected_signer: VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1,
       probe: envelope,
       raw_signed_transaction: raw,
-      systemd_observation: systemd,
+      systemd_observation: systemdAfter,
     });
     if ((evidence as any).source_identity?.credential_source_binding_id !==
         VOID_BUY_VOID_EPOCH2_CREDENTIAL_SOURCE_BINDING_ID_V1) {

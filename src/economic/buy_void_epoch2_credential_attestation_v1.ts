@@ -63,6 +63,9 @@ export type BuyVoidEpoch2SystemdCredentialObservationV1 = {
   credentials_directory: string;
   loadcredential_binding_sha256: string;
   credentials_directory_sha256: string;
+  process_source_commit: string;
+  process_source_tree: string;
+  process_source_branch: "main";
 };
 
 export function observeBuyVoidEpoch2SystemdCredentialBindingV1(input: {
@@ -113,13 +116,19 @@ export function observeBuyVoidEpoch2SystemdCredentialBindingV1(input: {
   }
 
   const envText = input.process_environ.toString("utf8");
-  const values = envText.split("\0").filter(Boolean)
-    .filter((row) => row.startsWith("CREDENTIALS_DIRECTORY="))
-    .map((row) => row.slice("CREDENTIALS_DIRECTORY=".length));
-  if (values.length !== 1) {
-    throw new Error("epoch2_credentials_directory_env_cardinality_invalid");
-  }
-  const credentialsDirectory = values[0];
+  const envRows = envText.split("\0").filter(Boolean);
+  const exactEnv = (name: string, cardinalityReason: string): string => {
+    const prefix = name + "=";
+    const values = envRows
+      .filter((row) => row.startsWith(prefix))
+      .map((row) => row.slice(prefix.length));
+    if (values.length !== 1) throw new Error(cardinalityReason);
+    return values[0];
+  };
+  const credentialsDirectory = exactEnv(
+    "CREDENTIALS_DIRECTORY",
+    "epoch2_credentials_directory_env_cardinality_invalid",
+  );
   if (!path.isAbsolute(credentialsDirectory) ||
       path.normalize(credentialsDirectory) !== credentialsDirectory ||
       !(
@@ -129,6 +138,27 @@ export function observeBuyVoidEpoch2SystemdCredentialBindingV1(input: {
           .test(credentialsDirectory)
       )) {
     throw new Error("epoch2_credentials_directory_not_systemd_managed");
+  }
+  const processSourceCommit = exactEnv(
+    "VOID_PROCESS_SOURCE_COMMIT",
+    "epoch2_process_source_commit_env_cardinality_invalid",
+  ).toLowerCase();
+  const processSourceTree = exactEnv(
+    "VOID_PROCESS_SOURCE_TREE",
+    "epoch2_process_source_tree_env_cardinality_invalid",
+  ).toLowerCase();
+  const processSourceBranch = exactEnv(
+    "VOID_PROCESS_SOURCE_BRANCH",
+    "epoch2_process_source_branch_env_cardinality_invalid",
+  );
+  if (!SHA40.test(processSourceCommit)) {
+    throw new Error("epoch2_process_source_commit_invalid");
+  }
+  if (!SHA40.test(processSourceTree)) {
+    throw new Error("epoch2_process_source_tree_invalid");
+  }
+  if (processSourceBranch !== "main") {
+    throw new Error("epoch2_process_source_branch_invalid");
   }
   return Object.freeze({
     service: VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SERVICE_V1,
@@ -142,7 +172,28 @@ export function observeBuyVoidEpoch2SystemdCredentialBindingV1(input: {
     credentials_directory_sha256:
       crypto.createHash("sha256")
         .update(credentialsDirectory, "utf8").digest("hex"),
+    process_source_commit: processSourceCommit,
+    process_source_tree: processSourceTree,
+    process_source_branch: processSourceBranch,
   });
+}
+
+export function buyVoidEpoch2SystemdCredentialObservationStableV1(
+  before: BuyVoidEpoch2SystemdCredentialObservationV1,
+  after: BuyVoidEpoch2SystemdCredentialObservationV1,
+): boolean {
+  return before.service === after.service &&
+    before.main_pid === after.main_pid &&
+    before.invocation_id === after.invocation_id &&
+    before.credential_id === after.credential_id &&
+    before.credentials_directory === after.credentials_directory &&
+    before.loadcredential_binding_sha256 ===
+      after.loadcredential_binding_sha256 &&
+    before.credentials_directory_sha256 ===
+      after.credentials_directory_sha256 &&
+    before.process_source_commit === after.process_source_commit &&
+    before.process_source_tree === after.process_source_tree &&
+    before.process_source_branch === after.process_source_branch;
 }
 
 function sha256(value: string): string {
@@ -279,6 +330,8 @@ export function verifyBuyVoidEpoch2CredentialSignedProbeV1(input: {
 
 export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
   source_head: string;
+  source_tree: string;
+  source_branch: "main";
   source_qualifier_blob: string;
   signer_source_blob: string;
   full_runtime_source_blob: string;
@@ -289,13 +342,17 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
   systemd_observation: BuyVoidEpoch2SystemdCredentialObservationV1;
 }): Record<string, unknown> {
   const sourceHead = String(input?.source_head || "").toLowerCase();
+  const sourceTree = String(input?.source_tree || "").toLowerCase();
+  const sourceBranch = String(input?.source_branch || "");
   const blobs = [
     input?.source_qualifier_blob,
     input?.signer_source_blob,
     input?.full_runtime_source_blob,
     input?.attestation_source_blob,
   ].map((value) => String(value || "").toLowerCase());
-  if (!SHA40.test(sourceHead) || blobs.some((value) => !SHA40.test(value))) {
+  if (!SHA40.test(sourceHead) || !SHA40.test(sourceTree) ||
+      sourceBranch !== "main" ||
+      blobs.some((value) => !SHA40.test(value))) {
     throw new Error("epoch2_attestation_source_identity_invalid");
   }
   const expectedSigner = normalizedAddress(input.expected_signer);
@@ -312,9 +369,17 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     !Number.isSafeInteger(systemd.main_pid) || systemd.main_pid <= 1 ||
     !HEX32.test(systemd.invocation_id) ||
     !HEX64.test(systemd.loadcredential_binding_sha256) ||
-    !HEX64.test(systemd.credentials_directory_sha256)
+    !HEX64.test(systemd.credentials_directory_sha256) ||
+    !SHA40.test(systemd.process_source_commit) ||
+    !SHA40.test(systemd.process_source_tree) ||
+    systemd.process_source_branch !== "main"
   ) {
     throw new Error("epoch2_attestation_systemd_observation_invalid");
+  }
+  if (systemd.process_source_commit !== sourceHead ||
+      systemd.process_source_tree !== sourceTree ||
+      systemd.process_source_branch !== sourceBranch) {
+    throw new Error("epoch2_attestation_process_source_identity_mismatch");
   }
 
   const verified = verifyBuyVoidEpoch2CredentialSignedProbeV1({
@@ -332,6 +397,8 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     execution_epoch: 2,
     source_head: sourceHead,
     source_identity: {
+      source_tree: sourceTree,
+      source_branch: sourceBranch,
       epoch2_source_qualifier_git_blob: blobs[0],
       epoch2_credential_signer_git_blob: blobs[1],
       epoch2_full_runtime_git_blob: blobs[2],
@@ -349,6 +416,9 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
         systemd.loadcredential_binding_sha256,
       credentials_directory_sha256:
         systemd.credentials_directory_sha256,
+      process_source_commit: systemd.process_source_commit,
+      process_source_tree: systemd.process_source_tree,
+      process_source_branch: systemd.process_source_branch,
       raw_loadcredential_source_path_output: false,
       raw_credentials_directory_output: false,
     },
