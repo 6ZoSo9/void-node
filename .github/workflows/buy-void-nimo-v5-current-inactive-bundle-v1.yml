@@ -1,0 +1,225 @@
+name: VOID Nimo V5 current inactive bundle v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-current-inactive-bundle-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-current-inactive-bundle-v1.yml"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-current-inactive-bundle-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-current-inactive-bundle-v1.yml"
+      - "scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs"
+      - "scripts/prove_buy_void_nimo_v4_inactive_bundle_v1.py"
+      - "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source ancestry
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git merge-base --is-ancestor c5c656c3cbfe8195858998f56e278610d1878029 HEAD
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install and build exact audited source
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+      - name: Require V3 and V4 historical refusal classification
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_nimo_v3_historical_v4_current_v1.mjs             > "v3-v4-classifier-${{ matrix.node }}.json"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            assert.equal(j.schema,"void_buy_void_nimo_v3_historical_v4_current_v1");
+            assert.equal(j.mode,"audited_current_successor_required");
+            assert.equal(j.historical_v3_refused_current_ledger,true);
+            assert.equal(j.historical_v4_refused_current_bakery,true);
+            assert.equal(j.current_nimo_bundle_generation_qualified,false);
+            assert.equal(j.current_nimo_bundle_successor_required,true);
+            assert.equal(j.live_nimo_installed,false);
+            assert.equal(j.production_gate_ready,false);
+            assert.equal(j.presale_activation,false);
+            assert.equal(j.funds_moved,false);
+          ' "v3-v4-classifier-${{ matrix.node }}.json"
+
+      - name: Syntax-check V5 builder
+        run: python3 -m py_compile scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py
+
+      - name: Derive package and inspect exact V5 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          private="$(mktemp -d)"
+          chmod 0700 "$private"
+          trap 'rm -rf -- "$private"' EXIT
+
+          python3 -I -B scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py             --plan > "evidence/v5-plan-${{ matrix.node }}.json"
+
+          python3 -I -B scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py             --package "$private/void-nimo-v5-inactive.tar"             > "evidence/v5-package-${{ matrix.node }}.json"
+
+          python3 -I -B scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py             --inspect-archive "$private/void-nimo-v5-inactive.tar"             > "evidence/v5-inspect-${{ matrix.node }}.json"
+
+          cp "$private/void-nimo-v5-inactive.tar"             "evidence/void-nimo-v5-inactive-node-${{ matrix.node }}.tar"
+          cp "v3-v4-classifier-${{ matrix.node }}.json" evidence/
+
+          node --input-type=module - <<'NODE'             "evidence/v5-plan-${{ matrix.node }}.json"             "evidence/v5-package-${{ matrix.node }}.json"             "evidence/v5-inspect-${{ matrix.node }}.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const [planPath,packagePath,inspectPath]=process.argv.slice(2);
+          const plan=JSON.parse(fs.readFileSync(planPath,"utf8"));
+          const packaged=JSON.parse(fs.readFileSync(packagePath,"utf8"));
+          const inspected=JSON.parse(fs.readFileSync(inspectPath,"utf8"));
+          for(const [value,mode] of [[plan,"plan"],[packaged,"package"],[inspected,"inspect"]]){
+            assert.equal(value.marker,"VOID_NIMO_V5_CURRENT_INACTIVE_BUNDLE_V1");
+            assert.equal(value.mode,mode);
+            assert.match(value.candidate_manifest_id,/^voidwfb5_[0-9a-f]{64}$/u);
+            assert.equal(value.runtime_files_exact,8);
+            assert.equal(value.source_generation_qualified,true);
+            assert.equal(value.inactive_archive_derived,true);
+            assert.equal(value.private_stage_qualified,false);
+            assert.equal(value.live_nimo_installed,false);
+            assert.equal(value.verified_payment_to_allocation_mounted,false);
+            assert.equal(value.production_gate_ready,false);
+            assert.equal(value.presale_activation,false);
+            assert.equal(value.funds_moved,false);
+          }
+          for(const key of [
+            "candidate_manifest_id","archive_bytes","archive_sha256",
+            "runtime_manifest_sha256","bakery_bytes","bakery_sha256"
+          ]){
+            assert.equal(packaged[key],plan[key],key+" plan/package");
+            assert.equal(inspected[key],plan[key],key+" plan/inspect");
+          }
+          NODE
+
+          cp "$private/void-nimo-v5-inactive.tar" "$private/tampered.tar"
+          printf 'UNREVIEWED_TAIL' >> "$private/tampered.tar"
+          if python3 -I -B scripts/prove_buy_void_nimo_v5_current_inactive_bundle_v1.py               --inspect-archive "$private/tampered.tar" > "$private/tamper.txt" 2>&1; then
+            echo "UNEXPECTED_V5_TAMPER_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -Fq 'archive_noncanonical_wire_bytes' "$private/tamper.txt"
+
+          echo "VOID_NIMO_V5_CURRENT_INACTIVE_BUNDLE_NODE_GREEN"
+          cat "evidence/v5-plan-${{ matrix.node }}.json"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload V5 inactive evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-v5-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Download all Node-major V5 artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: nimo-v5-inactive-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+
+      - name: Require exact Node 22 24 26 candidate identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            for kind in plan package inspect; do
+              test -s "evidence/v5-$kind-$node.json"
+            done
+            test -s "evidence/v3-v4-classifier-$node.json"
+            test -s "evidence/void-nimo-v5-inactive-node-$node.tar"
+          done
+
+          for kind in plan package inspect; do
+            cmp "evidence/v5-$kind-22.json" "evidence/v5-$kind-24.json"
+            cmp "evidence/v5-$kind-22.json" "evidence/v5-$kind-26.json"
+          done
+          cmp evidence/v3-v4-classifier-22.json evidence/v3-v4-classifier-24.json
+          cmp evidence/v3-v4-classifier-22.json evidence/v3-v4-classifier-26.json
+          cmp evidence/void-nimo-v5-inactive-node-22.tar evidence/void-nimo-v5-inactive-node-24.tar
+          cmp evidence/void-nimo-v5-inactive-node-22.tar evidence/void-nimo-v5-inactive-node-26.tar
+
+          echo "VOID_NIMO_V5_CURRENT_INACTIVE_BUNDLE_CROSS_NODE_GREEN"
+          cat evidence/v5-plan-22.json
+          echo "private_stage_qualified=false"
+          echo "live_nimo_installed=false"
+          echo "production_gate_ready=false"
+          echo "presale_activation=false"
+          echo "funds_moved=false"
