@@ -411,8 +411,15 @@ async function main(): Promise<void> {
   const signer = createBuyVoidEpoch2FulfillerCredentialSignerV1({
     credentials_directory: systemd.credentials_directory,
   });
-  if (signer.ok === false) throw new Error(signer.reason);
-  const publicAddress = (await signer.signer.get_address()).toLowerCase();
+  if (!("signer" in signer)) {
+    throw new Error(
+      "reason" in signer
+        ? signer.reason
+        : "epoch2_attestation_credential_signer_unavailable",
+    );
+  }
+  const credentialSigner = signer.signer;
+  const publicAddress = (await credentialSigner.get_address()).toLowerCase();
   if (publicAddress !== VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
     throw new Error("epoch2_attestation_immutable_fulfiller_mismatch");
   }
@@ -422,7 +429,7 @@ async function main(): Promise<void> {
     source_head: source.head,
     challenge_hex: challenge,
   });
-  let raw = await signer.signer.sign_transaction(envelope);
+  let raw = await credentialSigner.sign_transaction(envelope);
   try {
     const systemdAfter = observeLiveSystemdCredential(
       observeBuyVoidEpoch2SystemdCredentialBindingV1,
