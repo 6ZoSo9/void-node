@@ -75,6 +75,9 @@ assert.equal(/eth_sendRawTransaction/u.test(sealedSource), false);
 assert.equal(/fulfill\s*\(/u.test(sealedSource), false);
 assert.match(sealedSource, /transaction_constructed: false/u);
 assert.match(sealedSource, /GIT_NO_REPLACE_OBJECTS/u);
+assert.match(sealedSource, /epoch2_sealed_node_execution_context_invalid/u);
+assert.match(sealedSource, /root_owned_node_binary_verified: true/u);
+assert.match(sealedSource, /node_loader_environment_empty: true/u);
 assert.match(sealedSource, /process[.]argv\[1\] !== "-"/u);
 
 // Independent crypto vectors: the sealed probe does not rely on ethers or tsx.
@@ -230,6 +233,8 @@ console.log("ethereum_private_key_one_address_vector_green=true");
 console.log("domain_separated_nontransaction_signature_green=true");
 console.log("private_key_string_materialization=false");
 console.log("sec1_der_buffer_zeroed=true");
+console.log("trusted_node_binary_required=true");
+console.log("node_loader_environment_empty=true");
 console.log("transaction_constructed=false");
 console.log("rpc_call=false");
 console.log("transaction_broadcast=false");
