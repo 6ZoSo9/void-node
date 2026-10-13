@@ -1528,6 +1528,84 @@ for (const existing of [false, true]) {
 }
 console.log("authority_callback_tuple_iterator_poison_isolated=true");
 
+// Array.prototype.find/some are ambient mutable functions too. A malicious
+// replacement must not hide an already-durable request ID or steer which
+// canonical row authorizes reuse/revision.
+{
+  const root=temp(),saved=process.env.VOID_BUY_REQUEST_DIR;
+  const readers=factory(oldPersist,root);
+  const existing=request(
+    "buyvoid_array_lookup_guard_existing_aaaaaaaa","3","base","5");
+  const createCallbacks=[
+    readers.withLock,readers.readRequests,readers.readEvents,
+    readers.applyEvents,readers.terminalStatus,()=>true,
+  ];
+  const oldFind=Object.getOwnPropertyDescriptor(Array.prototype,"find");
+  const oldSome=Object.getOwnPropertyDescriptor(Array.prototype,"some");
+  assert.equal(typeof oldFind?.value,"function");
+  assert.equal(typeof oldSome?.value,"function");
+  let findCalls=0,someCalls=0;
+  try {
+    process.env.VOID_BUY_REQUEST_DIR=root;
+    const created=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      existing,createCallbacks);
+    assert.equal(created.reused_request,null);
+    Object.defineProperty(Array.prototype,"find",{
+      configurable:true,writable:true,value:function(){
+        findCalls++;
+        throw new Error("INJECT_ARRAY_FIND_AUTHORITY_FAILURE");
+      },
+    });
+    Object.defineProperty(Array.prototype,"some",{
+      configurable:true,writable:true,value:function(){
+        someCalls++;
+        throw new Error("INJECT_ARRAY_SOME_AUTHORITY_FAILURE");
+      },
+    });
+    let findPositive=false,somePositive=false;
+    try { [1].find(()=>true); }
+    catch(error) {
+      findPositive=String(error?.message||error).includes(
+        "INJECT_ARRAY_FIND_AUTHORITY_FAILURE");
+    }
+    try { [1].some(()=>true); }
+    catch(error) {
+      somePositive=String(error?.message||error).includes(
+        "INJECT_ARRAY_SOME_AUTHORITY_FAILURE");
+    }
+    assert.equal(findPositive,true);
+    assert.equal(somePositive,true);
+    findCalls=0;
+    someCalls=0;
+    const guardedCallbacks=[
+      readers.withLock,
+      async()=>lines(root),
+      async()=>[],
+      requests=>requests,
+      ()=>false,
+      ()=>true,
+    ];
+    const retry=request(
+      "buyvoid_array_lookup_guard_retry_bbbbbbbb","3","base","5");
+    const reused=await persistBuyVoidPublicRequestUnderLaunchLockV1(
+      retry,guardedCallbacks);
+    assert.equal(reused.reused_request?.request_id,existing.request_id);
+    assert.equal(findCalls,0,
+      "request authority must not call ambient Array.prototype.find");
+    assert.equal(someCalls,0,
+      "request authority must not call ambient Array.prototype.some");
+    assert.equal(lines(root).length,1,
+      "poisoned lookup methods must not create a second durable obligation");
+  } finally {
+    Object.defineProperty(Array.prototype,"find",oldFind);
+    Object.defineProperty(Array.prototype,"some",oldSome);
+    if(saved===undefined)delete process.env.VOID_BUY_REQUEST_DIR;
+    else process.env.VOID_BUY_REQUEST_DIR=saved;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+console.log("ambient_array_find_some_request_authority=false");
+
 // An ambient Array.prototype iterator can omit an own property name
 // from an Object.keys() array even though keys.length remains unchanged.
 // Demonstrate that a naive for..of copier drops payment_instructions,
