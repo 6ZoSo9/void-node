@@ -122,3 +122,37 @@ inventory/treasury/liquidity action or funds movement is authorized or
 performed.
 
 This child must not merge independently of #2865.
+
+
+## Historical V3 installation-evidence boundary
+
+The frozen V3 installation-evidence proof also belongs to the historical runtime
+bundle generation. On the audited current build it must **refuse** the changed
+runtime closure rather than silently accepting new compiled bytes. In
+particular, its frozen allocation-ledger runtime SHA-256 is:
+
+```text
+sha256:97a1cb675fec65558aa823b94f049815345fbaed4ac69c9dfae4e1416950cec0
+```
+
+while the audited current build produces:
+
+```text
+sha256:51de81388631ecef2a8c3feea68960040ccbda75fd29ada171cb9c9c7b53188a
+```
+
+The additive current-generation proof binds the existing V3 proof bytes, runs
+that proof as an expected negative, inventories all eight current compiled
+runtime candidates, and requires byte-identical normalized receipts on Node 22,
+24 and 26. It does **not** create a current installation-evidence authority.
+The result remains:
+
+```text
+current_nimo_installation_evidence_generation_qualified=false
+current_nimo_installation_successor_required=true
+live_nimo_installed=false
+production_gate_ready=false
+```
+
+A later reviewed current Nimo bundle and installation-evidence generation must
+be created explicitly before any host installation or production claim.
