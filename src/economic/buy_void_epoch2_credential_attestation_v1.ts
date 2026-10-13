@@ -299,7 +299,10 @@ export function buildBuyVoidEpoch2CredentialAttestationEvidenceV1(input: {
     throw new Error("epoch2_attestation_source_identity_invalid");
   }
   const expectedSigner = normalizedAddress(input.expected_signer);
-  if (!expectedSigner) throw new Error("epoch2_attestation_signer_invalid");
+  if (!expectedSigner ||
+      expectedSigner !== VOID_BUY_VOID_EPOCH2_FULFILLER_ADDRESS_V1) {
+    throw new Error("epoch2_attestation_signer_invalid");
+  }
   const systemd = input.systemd_observation;
   if (
     !systemd ||
