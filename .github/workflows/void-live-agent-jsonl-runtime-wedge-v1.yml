@@ -31,12 +31,15 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "runtime/canonical-producer-self-http-guard-v2.cjs"
       - "runtime/canonical-producer-self-http-guard-v3.cjs"
+      - "runtime/canonical-producer-self-http-guard-v4.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v2.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v2.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v3.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
       - "scripts/prove_header3_exporter_storage_gate_503_runtime_visibility_v1.ts"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -76,12 +79,15 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "runtime/canonical-producer-self-http-guard-v2.cjs"
       - "runtime/canonical-producer-self-http-guard-v3.cjs"
+      - "runtime/canonical-producer-self-http-guard-v4.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v2.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v2.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v3.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
       - "scripts/prove_header3_exporter_storage_gate_503_runtime_visibility_v1.ts"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -116,7 +122,7 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: ./node_modules/.bin/tsx scripts/prove_header3_exporter_storage_gate_503_runtime_visibility_v1.ts
-      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs
+      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs
 
   node24:
     runs-on: ubuntu-latest
@@ -196,7 +202,7 @@ jobs:
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: ./node_modules/.bin/tsx scripts/prove_header3_exporter_storage_gate_503_runtime_visibility_v1.ts
-      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs
+      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Diff hygiene
@@ -232,4 +238,4 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_jobs_submit_jobsv1_single_writer_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: ./node_modules/.bin/tsx scripts/prove_header3_exporter_storage_gate_503_runtime_visibility_v1.ts
-      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs
+      - run: node scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs
