@@ -12,7 +12,7 @@ output="${5:-}"
 
 repo="${VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1:-/home/zoso/dev/void-node}"
 [[ "$repo" == /* ]] || {
-  printf '%s_HOLD\n' "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_LAUNCH_V1" >&2
+  printf '%s_HOLD\n' "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_LAUNCH_V2" >&2
   printf '%s\n' "repo_root_must_be_absolute" >&2
   exit 2
 }

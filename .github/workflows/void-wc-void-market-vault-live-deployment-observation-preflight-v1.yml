@@ -6,14 +6,18 @@ on:
       - ".github/workflows/void-wc-void-market-vault-live-deployment-observation-preflight-v1.yml"
       - "docs/operators/wc-void-market-vault-live-deployment-observation-preflight-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v2.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
+      - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v2.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
+      - "tools/void-wc-void-market-vault-role-deployment-qualification-v2.mjs"
       - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "ops/mainnet0/production-epoch2-rpc-target-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
   push:
@@ -23,14 +27,18 @@ on:
       - ".github/workflows/void-wc-void-market-vault-live-deployment-observation-preflight-v1.yml"
       - "docs/operators/wc-void-market-vault-live-deployment-observation-preflight-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v2.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
+      - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v2.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
+      - "tools/void-wc-void-market-vault-role-deployment-qualification-v2.mjs"
       - "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs"
       - "ops/mainnet0/production-epoch2-rpc-target-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
 
@@ -57,8 +65,34 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs
+          node --check tools/void-wc-void-market-vault-live-deployment-observation-preflight-v2.mjs
           node --check scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs
-      - name: Prove read-only live deployment observation preflight
-        run: node scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs
+          node --check scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v2.mjs
+      - name: Prove read-only live deployment observation preflight generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs
+              echo "market_vault_live_preflight_source_generation=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/market-vault-live-preflight-v1-hold.txt"
+              if node scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 live-preflight acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'green_fixture_hold:live_deployment_preflight_historical_dependency_drift:package-lock.json' "$hold"
+              node scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v2.mjs
+              echo "market_vault_live_preflight_source_generation=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD

@@ -6,7 +6,9 @@ on:
       - ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml"
       - "docs/operators/wc-void-market-vault-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_canonical_application_v2.mjs"
       - "tools/void-wc-void-market-vault-canonical-application-v1.mjs"
+      - "tools/void-wc-void-market-vault-canonical-application-v2.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
       - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
@@ -29,15 +31,19 @@ on:
       - "package-lock.json"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
   push:
     branches: [main]
     paths:
       - ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml"
       - "docs/operators/wc-void-market-vault-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_canonical_application_v2.mjs"
       - "tools/void-wc-void-market-vault-canonical-application-v1.mjs"
+      - "tools/void-wc-void-market-vault-canonical-application-v2.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
       - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
@@ -60,8 +66,10 @@ on:
       - "package-lock.json"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
 
 permissions:
   contents: read
@@ -89,13 +97,54 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-market-vault-canonical-application-v1.mjs
+          node --check tools/void-wc-void-market-vault-canonical-application-v2.mjs
           node --check tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs
           node --check scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
-      - name: Prove market-vault canonical application
-        run: node scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
-      - name: Upstream regressions
+          node --check scripts/prove_void_wc_void_market_vault_canonical_application_v2.mjs
+      - name: Prove market-vault canonical application generation
+        shell: bash
         run: |
-          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
+              echo "market_vault_canonical_application_mode=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/market-vault-canonical-v1-hold.txt"
+              if node scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'MARKET_VAULT_REVIEWED_SOURCE_BLOB_MISMATCH:package.json' "$hold"
+              node scripts/prove_void_wc_void_market_vault_canonical_application_v2.mjs
+              echo "market_vault_canonical_application_mode=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
+      - name: Upstream regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              node scripts/prove_void_reviewed_node_package_runtime_v2.mjs
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
           node scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs
           node scripts/prove_void_wc_void_production_readiness_v1.mjs
       - name: Diff hygiene
