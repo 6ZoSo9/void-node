@@ -29,7 +29,7 @@ const COUPLED =
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const REVIEWED_BRIDGE =
-  "tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs";
+  "tools/void-wc-void-bounded-canary-reviewed-execution-v2.mjs";
 const HIDDEN_AUTHORITY_SOURCE =
   "tools/void-participant-postpurchase-finality-v1.mjs";
 const REVIEWED_RUNTIME_PROFILE = JSON.parse(
