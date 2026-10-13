@@ -8,6 +8,7 @@ on:
       - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
       - "ops/run-void-node-live-v1.sh"
       - "scripts/prove_canonical_producer_source_custody_v1.mjs"
+      - "scripts/prove_canonical_producer_root_owned_git_identity_v1.mjs"
       - ".github/workflows/canonical-producer-source-custody-v1.yml"
       - "docs/operations/canonical-producer-source-custody-v1.md"
   workflow_dispatch:
@@ -36,11 +37,13 @@ jobs:
         run: |
           node --check runtime/canonical-producer-source-custody-v1.cjs
           node --check scripts/prove_canonical_producer_source_custody_v1.mjs
+          node --check scripts/prove_canonical_producer_root_owned_git_identity_v1.mjs
           bash -n ops/run-void-node-live-v1.sh
       - name: Kernel root-owned source fixture and negative mutation tests
         run: |
           set -euo pipefail
           node scripts/prove_canonical_producer_source_custody_v1.mjs
+          node scripts/prove_canonical_producer_root_owned_git_identity_v1.mjs
       - name: Source whitespace hygiene
         run: |
           set -euo pipefail
