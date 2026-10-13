@@ -64,6 +64,7 @@ assert source.count("def training_process_thread_inventory") == 1
 assert source.count("def zero_capability_credentials") == 1
 assert source.count("def parse_systemd_bus_owner_pid") == 1
 assert source.count("def service_control_evidence") == 1
+assert "process['subject']" not in source
 assert source.count("def collect(a)") == 1
 assert source.count("if __name__=='__main__':raise SystemExit(main())") == 1
 assert source.rstrip().endswith("if __name__=='__main__':raise SystemExit(main())")
@@ -116,6 +117,66 @@ except mod.Hold:
  pass
 else:
  raise AssertionError('mixed-UID synthetic thread unexpectedly admitted')
+calls=[]
+zero_caps={
+ 'ambient':'0','effective':'0','inheritable':'0',
+ 'no_new_privileges':True,'permitted':'0',
+}
+fake_inventory={
+ 'all_training_uid_processes_capability_free':True,
+ 'all_training_uid_threads_capability_free':True,
+ 'training_uid_process_count':1,
+ 'training_uid_process_set_stable':True,
+ 'training_uid_processes':[{
+  'all_threads_capability_free':True,
+  'pid':4242,'start_time_ticks':'123456','uid':1000,
+  'uid_slots':[1000,1000,1000,1000],
+  'capabilities':zero_caps,
+  'thread_count':1,
+  'thread_inventory_sha256':'88'*32,
+  'thread_set_stable':True,
+ }],
+ 'training_uid_thread_count':1,
+ 'training_uid_thread_sets_stable':True,
+}
+fake_versions={
+ 'installed_systemd_package_version':'255.4-1ubuntu8.11',
+ 'observed_systemd_version_line':'systemd 255 (255.4-1ubuntu8.11)',
+ 'reviewed_systemd_package_version':'255.4-1ubuntu8.11',
+ 'running_installed_systemd_version_match':True,
+ 'running_systemd_manager_major':255,
+ 'running_systemd_manager_version':'255.4-1ubuntu8.11',
+ 'systemd_bus_owner_pid':1,
+ 'systemd_bus_owner_pid_is_pid1':True,
+}
+originals={
+ 'systemd_version_evidence':mod.systemd_version_evidence,
+ 'training_uid_process_inventory':mod.training_uid_process_inventory,
+ 'polkit_deny_rule_evidence':mod.polkit_deny_rule_evidence,
+ 'pkcheck_denial':mod.pkcheck_denial,
+}
+def fake_pkcheck(action_id,subject,details=()):
+ calls.append((action_id,subject,details))
+ return {
+  'action_id':action_id,
+  'details':[{'key':k,'value':v} for k,v in details],
+  'exit_status':1,
+  'result':'explicitly_denied',
+ }
+try:
+ mod.systemd_version_evidence=lambda:fake_versions
+ mod.training_uid_process_inventory=lambda training,pid:fake_inventory
+ mod.polkit_deny_rule_evidence=lambda training:{'fixture':True}
+ mod.pkcheck_denial=fake_pkcheck
+ control=mod.service_control_evidence(Training(),4242,'void-apollyon-test.service')
+finally:
+ for name,value in originals.items():
+  setattr(mod,name,value)
+assert control['pkcheck_subject']=='4242,123456,1000'
+assert len(calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
+assert all(subject=='4242,123456,1000' for _,subject,_ in calls)
+assert any(details and details[0][0]=='unit' for _,_,details in calls)
+assert any(action=='org.freedesktop.systemd1.reload-daemon' for action,_,_ in calls)
 assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',)
 try:
  mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.12)')
@@ -163,6 +224,7 @@ print('all_training_uid_processes_capability_free_required=true')
 print('all_training_uid_threads_capability_free_required=true')
 print('training_uid_thread_inventory_double_snapshot=true')
 print('training_uid_thread_inventory_digest_bound=true')
+print('service_control_bound_subject_execution_test=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
