@@ -250,7 +250,7 @@ def execute_live(argv:list[str])->int:
         )
         return completed.returncode
     finally:
-        shutil.rmtree(private_root,ignore_errors=True)
+        shutil.rmtree(private_root)
 
 
 def self_test()->None:
@@ -323,7 +323,7 @@ def self_test()->None:
             if marker2.exists():
                 raise AssertionError("post-prepare source replacement executed")
         finally:
-            shutil.rmtree(prepared,ignore_errors=True)
+            shutil.rmtree(prepared)
 
     print(MARKER+"_SELF_TEST=GREEN")
     print("modified_runner_rejected_before_node=true")
