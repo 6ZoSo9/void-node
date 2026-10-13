@@ -5,7 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const TOOL=path.join(ROOT,"tools/apollyon-candidate-training-attempt-live-custody-binding-v1.mjs");
+const LAUNCHER=path.join(ROOT,"tools/apollyon-authorization-custody-launcher-v1.mjs");
 const source=fs.readFileSync(TOOL,"utf8");
+const launcherSource=fs.readFileSync(LAUNCHER,"utf8");
 for(const required of [
   'V84_BLOB_SHA1="3dae4db82a9316eaa88f475cec41ddc05a441536"',
   'V85_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e"',
@@ -30,8 +32,8 @@ for(const required of [
   'retained_consumed_descriptor:true',
   'createApollyonAuthorizationCustodyClientV1',
   'client.assertConsumed(config.authorization_id',
-  'serviceProcessIdentity(config.service_unit)',
-  'assertServiceStable(config.service_unit,serviceBefore)',
+  'serviceProcessIdentity(config.service_unit,config)',
+  'assertServiceStable(config.service_unit,config,serviceBefore)',
   'readCustodyRecord(consumed,config.authorization_id)',
   'sameIdentity(st,before)',
   'sameIdentity(after,visibleAfter)',
@@ -48,9 +50,38 @@ for(const forbidden of [
   'createPrivateKey', 'crypto.sign(', 'signTransaction(', 'eth_sendRawTransaction',
   'attempt_claimed:true', 'training_execution_performed:true',
 ]) assert.equal(source.includes(forbidden),false,forbidden);
+
+for(const required of [
+  'SERVICE_BLOB_SHA1="8961572ba5834371b1229f790a1960940fc74935"',
+  'CORE_BLOB_SHA1="f9f18db5bbfeea466202ef0d7babe08c3c401d66"',
+  'VERIFIER_BLOB_SHA1="c224ebc4fcb332b70e83900a8e086e0257f31670"',
+  'exact_dependency_blob_verification_before_import:true',
+  'root_owned_immutable_release_required:true',
+  'apollyon_custody_launcher_refuses_root_runtime',
+  'apollyon_custody_launcher_loader_environment_forbidden',
+  'assertRootOwnedImmutableFile(SERVICE,SERVICE_BLOB_SHA1',
+  'assertRootOwnedImmutableFile(CORE,CORE_BLOB_SHA1',
+  'assertRootOwnedImmutableFile(VERIFIER,VERIFIER_BLOB_SHA1',
+  'await import(pathToFileURL(SERVICE).href)',
+  'attempt_claim:false',
+  'training_execution:false',
+]) assert.equal(launcherSource.includes(required),true,"launcher:"+required);
+for(const forbidden of [
+  'createPrivateKey',
+  'crypto.sign(',
+  'signTransaction(',
+  'eth_sendRawTransaction',
+  'fetch(',
+  'node:child_process',
+  'attempt_claimed:true',
+  'training_execution_performed:true',
+]) assert.equal(launcherSource.includes(forbidden),false,"launcher:"+forbidden);
+const launcherVerifyIndex=launcherSource.indexOf('assertRootOwnedImmutableFile(SERVICE,SERVICE_BLOB_SHA1');
+const launcherImportIndex=launcherSource.indexOf('await import(pathToFileURL(SERVICE).href)');
+assert.ok(launcherVerifyIndex>=0&&launcherImportIndex>launcherVerifyIndex,"launcher_dependency_verification_precedes_import");
 const order=[
   source.indexOf('const socketBefore=socketIdentity(socketPath)'),
-  source.indexOf('const serviceBefore=serviceProcessIdentity(config.service_unit)'),
+  source.indexOf('const serviceBefore=serviceProcessIdentity(config.service_unit,config)'),
   source.indexOf('const live=runV84(config)'),
   source.indexOf('const assertion=await client.assertConsumed'),
   source.indexOf('const record=readCustodyRecord'),
@@ -64,6 +95,7 @@ console.log("VOID_APOLLYON_CANDIDATE_TRAINING_ATTEMPT_LIVE_CUSTODY_BINDING_V1_PR
 console.log("exact_v84_required=true");
 console.log("exact_v85_required=true");
 console.log("exact_v81_client_required=true");
+console.log("exact_custody_launcher_required=true");
 console.log("retained_state_root_descriptor=true");
 console.log("retained_consumed_descriptor=true");
 console.log("stable_socket_identity_required=true");
