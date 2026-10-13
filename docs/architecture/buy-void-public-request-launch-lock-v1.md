@@ -1,5 +1,39 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
+## October 12 callback and comparison authority isolation — source-only
+
+The request helper treats same-process ambient prototype mutation as an
+integrity threat because request admission decides whether a new paid
+obligation may be persisted. The current source closes three remaining
+ambient-method seams without changing the live launch authority itself:
+
+- the six launch/history callbacks are captured from exact own numeric data
+  descriptors rather than through `Array.prototype[Symbol.iterator]`;
+- canonical request-ID lookup walks dense own indices and does not call
+  ambient `Array.prototype.find` or `.some`;
+- destination and transaction-hash normalization uses module-load-captured
+  `String.prototype.trim` / `toLowerCase`, with captured numeric
+  conversion and finite checks for the matching amount comparison.
+
+The focused proof contains positive-control hostile replacements for all
+three classes, demonstrates that naive code is affected, and requires the
+actual helper to invoke none of those poisoned functions while preserving
+exactly one durable synthetic obligation. Required markers are
+`authority_callback_tuple_iterator_poison_isolated=true`,
+`ambient_array_find_some_request_authority=false`, and
+`ambient_string_request_authority_intrinsics=false`.
+
+Current exact evidence identities are helper Git blob
+`684a952a191749dad106f5de8079d2dd72851898`, proof Git blob
+`42fd74b99beba467d3d67245976e39c0d2d967c0`, and request-lock workflow Git blob
+`77385e8d49764274cf85c27c47f9f6987f353d9f`. The current
+`src/index.ts` generation remains
+`40239e0f76aa1edce43523d18c1b57691e41e8cf`.
+
+This is source/proof/CI hardening only. It is not deployment, buyer
+authorization, payment verification, signer or wallet use, presale/WC
+activation, or funds authority.
+
 ## October 12 operator immutable-payment comparison — source-only
 
 An operator's first same-ID payment transaction-hash revision must preserve
@@ -21,8 +55,8 @@ and separately (b) inherited toJSON, demonstrates naive comparison would
 hide the change, and requires that the actual request intake HOLD **before**
 any new journal append or sidecar overwrite.
 
-Reviewed candidate identities: helper `eded467ff7b6116694b7f6a9f5897862f93ef98f`, focused proof
-`da4f8e217da7eb79fdfb52ed39571520fd6efa01`. The existing Node22/24/26 workflow pins these exact Git
+Reviewed candidate identities: helper `684a952a191749dad106f5de8079d2dd72851898`, focused proof
+`42fd74b99beba467d3d67245976e39c0d2d967c0`. The existing Node22/24/26 workflow pins these exact Git
 blobs and requires independent adversarial markers. This is protection
 against conditional same-process prototype interference, **not** evidence
 of remote exploitation or a production signer/buyer launch gate. Main and
@@ -58,8 +92,8 @@ the real persistor retains that field and both expected byte strings. Further
 test cases reject own `toJSON`, getter fields, nonfinite numbers and nonplain
 request data before any journal mutation.
 
-**Current source blob:** `eded467ff7b6116694b7f6a9f5897862f93ef98f`; **exact proof blob:**
-`da4f8e217da7eb79fdfb52ed39571520fd6efa01`. The focused Node 22/24/26 workflow pins both and requires
+**Current source blob:** `684a952a191749dad106f5de8079d2dd72851898`; **exact proof blob:**
+`42fd74b99beba467d3d67245976e39c0d2d967c0`. The focused Node 22/24/26 workflow pins both and requires
 the new adversarial markers. This protects an in-process integrity seam,
 **not** runtime module/source-custody trust, deployed buyer authorization,
 payment verification, crash atomicity, or full presale/WC readiness.
@@ -79,7 +113,7 @@ request ID, path, note, payment details or the original buyer's terms.
 
 Current index source identity: `40239e0f76aa1edce43523d18c1b57691e41e8cf`.
 The source-extracted request proof identity is
-`da4f8e217da7eb79fdfb52ed39571520fd6efa01`. In addition to redaction, the proof executes both
+`42fd74b99beba467d3d67245976e39c0d2d967c0`. In addition to redaction, the proof executes both
 actual mounted response branches and requires exactly equal JSON payloads,
 key order and HTTP 409 for matching versus changed anonymous payment
 terms. The dedicated Node 22/24/26 workflow is pinned to those Git
@@ -422,8 +456,8 @@ history, or stable directory/journal identity through the subsequent pathname
 append. Separate P1 privacy, tx-hash update and crash/recovery obligations
 remain outstanding.
 
-Current source Git blob: `eded467ff7b6116694b7f6a9f5897862f93ef98f`. Actual source-only
-regression Git blob: `da4f8e217da7eb79fdfb52ed39571520fd6efa01`. Fresh exact-head Node 22/24/26 and full
+Current source Git blob: `684a952a191749dad106f5de8079d2dd72851898`. Actual source-only
+regression Git blob: `42fd74b99beba467d3d67245976e39c0d2d967c0`. Fresh exact-head Node 22/24/26 and full
 repository CI are mandatory; older results and the prior seven failing
 workflows are historical evidence only. No public intake, payment, custody,
 wallet, presale, WC, service, or funds authority follows.
@@ -447,7 +481,7 @@ This correction keeps a short `src/index.ts` bridge (exact Git blob
 `40239e0f76aa1edce43523d18c1b57691e41e8cf`) **within its hard size
 ceiling** and puts the recheck into compiled
 `src/economic/buy_void_public_request_under_launch_lock_v1.ts`
-(Git blob `eded467ff7b6116694b7f6a9f5897862f93ef98f`). The existing
+(Git blob `684a952a191749dad106f5de8079d2dd72851898`). The existing
 `__voidPersistBuyVoidRequestV1` delegates to that server-owned helper,
 which re-reads request and operator-event history **inside the previously
 used cross-process launch-authority mutation lock**, before either request
