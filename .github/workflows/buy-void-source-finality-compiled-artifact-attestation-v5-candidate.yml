@@ -15,6 +15,10 @@ on:
       - "scripts/copy_void_runtime_js_v1.mjs"
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-v5-candidate.md"
       - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v5-candidate.yml"
@@ -59,6 +63,26 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Classify historical versus audited dependency generation
+        id: package-generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          historical_package="f28c3e9446c7623ef203da36a9642d046e5f34ee"
+          historical_lock="b2671f0149f522b2489247016df0a5ec4bb72b8b"
+          audited_package="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"
+          audited_lock="15b5c82ea36f13079a2f9e8863722f654eb3f201"
+          if [[ "$package_blob" == "$historical_package" && "$lock_blob" == "$historical_lock" ]]; then
+            echo "mode=historical" >> "$GITHUB_OUTPUT"
+          elif [[ "$package_blob" == "$audited_package" && "$lock_blob" == "$audited_lock" ]]; then
+            echo "mode=audited" >> "$GITHUB_OUTPUT"
+          else
+            echo "unsupported V5 dependency generation: package=$package_blob lock=$lock_blob" >&2
+            exit 1
+          fi
+
       - name: Preserve immutable V4 predecessor
         run: node scripts/prove_buy_void_historical_compiled_v4_preservation_v1.mjs
 
@@ -66,9 +90,12 @@ jobs:
         run: npm run build
 
       - name: Prove V5 descriptor boundary
-        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --self-test
+        run: |
+          node --check scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --self-test
 
       - name: Derive unaccepted V5 candidate
+        if: steps.package-generation.outputs.mode == 'historical'
         run: |
           set -euo pipefail
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --derive             > "v5-candidate-${{ matrix.node }}.json"
@@ -100,6 +127,25 @@ jobs:
           assert.equal(j.runtime_mount_authority,false);
           assert.equal(j.production_source_finality_authority_ready,false);
           console.log("V5_CANDIDATE_NODE_SHAPE_AND_HOLD_GREEN");
+          NODE
+
+      - name: Require frozen V5 refusal on audited dependency generation
+        if: steps.package-generation.outputs.mode == 'audited'
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs > "v5-candidate-${{ matrix.node }}.json"
+          node --input-type=module - <<'NODE' "v5-candidate-${{ matrix.node }}.json"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v2");
+          assert.equal(j.frozen_v5_refuses_audited_package_generation,true);
+          assert.equal(j.current_positive_build_equivalence_prerequisite_present,true);
+          assert.equal(j.compiled_artifact_generation_verified,false);
+          assert.equal(j.deployed_artifact_generation_verified,false);
+          assert.equal(j.runtime_mount_authority,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          console.log("V5_HISTORICAL_REFUSAL_ON_AUDITED_GENERATION_GREEN");
           NODE
 
       - name: Verify candidate cannot claim locked acceptance
@@ -144,7 +190,7 @@ jobs:
           merge-multiple: true
           path: ./v5-candidates
 
-      - name: Require byte-identical Node 22 24 26 candidate
+      - name: Require byte-identical Node 22 24 26 candidate or refusal receipt
         run: |
           set -euo pipefail
           for v in 22 24 26; do
@@ -153,18 +199,30 @@ jobs:
           cmp v5-candidates/v5-candidate-22.json v5-candidates/v5-candidate-24.json
           cmp v5-candidates/v5-candidate-22.json v5-candidates/v5-candidate-26.json
           node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
           import crypto from "node:crypto";
           import fs from "node:fs";
           const bytes=fs.readFileSync("v5-candidates/v5-candidate-22.json");
           const j=JSON.parse(bytes);
-          if (j.compiled_artifact_generation_verified !== false ||
-              j.deployed_artifact_generation_verified !== false ||
-              j.runtime_mount_authority !== false ||
-              j.production_source_finality_authority_ready !== false) process.exit(1);
-          console.log("V5_CANDIDATE_CROSS_NODE_EXACT_BYTES_GREEN");
-          console.log("v5_candidate_sha256="+
+          if (j.schema === "void_buy_void_source_finality_compiled_artifact_attestation_v5") {
+            assert.equal(j.compiled_artifact_generation_verified,false);
+            assert.equal(j.deployed_artifact_generation_verified,false);
+            assert.equal(j.runtime_mount_authority,false);
+            assert.equal(j.production_source_finality_authority_ready,false);
+            console.log("V5_CANDIDATE_CROSS_NODE_EXACT_BYTES_GREEN");
+            console.log("v5_candidate_generation="+j.compiled_artifact_generation_sha256);
+          } else {
+            assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v2");
+            assert.equal(j.frozen_v5_refuses_audited_package_generation,true);
+            assert.equal(j.current_positive_build_equivalence_prerequisite_present,true);
+            assert.equal(j.compiled_artifact_generation_verified,false);
+            assert.equal(j.deployed_artifact_generation_verified,false);
+            assert.equal(j.runtime_mount_authority,false);
+            assert.equal(j.production_source_finality_authority_ready,false);
+            console.log("V5_HISTORICAL_REFUSAL_CROSS_NODE_EXACT_BYTES_GREEN");
+          }
+          console.log("v5_evidence_sha256="+
             crypto.createHash("sha256").update(bytes).digest("hex"));
-          console.log("v5_candidate_generation="+j.compiled_artifact_generation_sha256);
           console.log("v5_candidate_acceptance=false");
           console.log("funds_moved=false");
           NODE
