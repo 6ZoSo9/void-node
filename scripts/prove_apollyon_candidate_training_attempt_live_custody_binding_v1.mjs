@@ -10,6 +10,17 @@ for(const required of [
   'V84_BLOB_SHA1="3dae4db82a9316eaa88f475cec41ddc05a441536"',
   'V85_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e"',
   'V81_BLOB_SHA1="fb31dbbda76c94f0ad08e38094c151a24a78b486"',
+  'LAUNCHER_BLOB_SHA1="5004d8c6ff15be9dbc234ce71dc7a83d8e601052"',
+  'live_service_source_identity_required:true',
+  'live_service_source_identity_proven:true',
+  'live_service_source_identity_proven_by_import:false',
+  'loader_environment_clean_required:true',
+  'rootOwnedPinnedBlob(config.service_entrypoint',
+  'publicKeyRawFingerprint(config.operator_public_key_file)',
+  'fs.realpathSync.native(\`/proc/\${pid}/exe\`)',
+  'fs.readFileSync(\`/proc/\${pid}/cmdline\`)',
+  'assertLoaderEnvironment(pid)',
+  'apollyon_live_binding_custody_record_operator_fingerprint_mismatch',
   'same_live_custody_session_binding_required:true',
   'same_live_custody_session_binding_proof_capability:true',
   'same_live_custody_session_binding_proven_by_import:false',
@@ -57,6 +68,8 @@ console.log("retained_state_root_descriptor=true");
 console.log("retained_consumed_descriptor=true");
 console.log("stable_socket_identity_required=true");
 console.log("stable_service_process_identity_required=true");
+console.log("live_service_source_identity_proven=true");
+console.log("loader_environment_clean=true");
 console.log("same_live_custody_session_binding_proven=true");
 console.log("attempt_claimed=false");
 console.log("training_execution=false");
