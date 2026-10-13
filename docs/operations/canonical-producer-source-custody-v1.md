@@ -1,5 +1,30 @@
 # Canonical producer source custody — read-only at-use preflight v1
 
+## Current V4 source generation — October 13, 2026
+
+The current source-only successor is bound to exact `src/index.ts` Git blob
+`123ec1792a027f93d4c9030749a0e7e136a75a44`. The source change is the
+bounded public `/blocks/range` parser reuse; it does not weaken source custody
+or grant runtime/deployment authority.
+
+Historical V1/V2/V3 self-HTTP guards and proofs remain immutable. Current V4 is
+represented by:
+
+- `runtime/canonical-producer-self-http-guard-v4.cjs`;
+- `scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs`;
+- `scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs`.
+
+V4 is behavior-equivalent to reviewed V3 except for its marker, exact current
+source blob, and self-stack filename. The launcher selects V4 only for the exact
+`123ec179...` blob and still requires the independent root-owned source-custody
+preflight before canonical Node/TSX execution. The V3 sections below are
+historical records, not the current source identity.
+
+No service installation, restart, source deployment, credential/key access,
+signing, transaction, presale/WC activation, or funds movement is authorized by
+this source qualification.
+
+
 ## Current-main requalification — October 12, 2026
 
 This candidate is a **source-only re-stage**, not a deployment: #2833's

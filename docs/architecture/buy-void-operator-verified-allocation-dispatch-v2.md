@@ -1,5 +1,24 @@
 # Buy VOID operator verified-allocation dispatch V2
 
+## October 13, 2026 — current router V5
+
+V1/V2/V3/V4 remain immutable historical dispatcher generations. The bounded
+public-range source successor changes `src/index.ts` outside the mounted
+operator writer slice and produces exact router Git blob
+`123ec1792a027f93d4c9030749a0e7e136a75a44`.
+
+Dispatcher V5 reruns the complete V4 adversarial planner and mounted-route
+checks against that exact router, while pinning frozen V4 proof blob
+`752deafb5a8ff884cfcfc0ff7ef8fded2a92287b`. The V5 proof Git blob is
+`870754b9888b535a16629b8b181e55c3182c328a`.
+
+Current workflows require frozen V4 to refuse the V5 router generation before
+V5 is accepted. The dispatcher is still not mounted into the live operator
+route: `mounted_verified_allocation_dispatch=false` remains required. No
+service, credential, customer-ledger, wallet, signer, payment, allocation,
+presale, or funds mutation is authorized.
+
+
 ## Current router generation
 
 This source-only successor preserves dispatcher proof V1 byte-for-byte at
