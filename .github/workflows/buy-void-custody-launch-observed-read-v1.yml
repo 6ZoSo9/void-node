@@ -5,6 +5,8 @@ on:
     paths:
       - "src/economic/buy_void_custody_launch_observed_read_v1.mjs"
       - "scripts/prove_buy_void_custody_launch_observed_read_v1.mjs"
+      - "scripts/prove_buy_void_custody_launch_observed_read_v2.mjs"
+      - "docs/architecture/buy-void-custody-launch-observed-read-v2.md"
       - ".github/workflows/buy-void-custody-launch-observed-read-v1.yml"
       - "docs/architecture/buy-void-custody-launch-observed-read-v1.md"
       - "src/economic/buy_void_custody_launch_authority_v2.mjs"
@@ -53,14 +55,24 @@ jobs:
           set -euo pipefail
           node --check src/economic/buy_void_custody_launch_observed_read_v1.mjs
           node --check scripts/prove_buy_void_custody_launch_observed_read_v1.mjs
+          node --check scripts/prove_buy_void_custody_launch_observed_read_v2.mjs
 
-      - name: Exercise disposable Linux directory-FD and custody boundaries
+      - name: Preserve historical V1 gate pin
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_custody_launch_observed_read_v1.mjs \
+          grep -F 'e0402744ae51bb7bda2dc1e2038aae217d868ed9' \
+            scripts/prove_buy_void_custody_launch_observed_read_v1.mjs
+          test "$(git hash-object src/economic/buy_void_coupled_launch_gate_v1.mjs)" != \
+            'e0402744ae51bb7bda2dc1e2038aae217d868ed9'
+          echo 'historical_v1_gate_pin_preserved=true'
+
+      - name: Exercise current V2 disposable Linux directory-FD and custody boundaries
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_custody_launch_observed_read_v2.mjs \
             | tee custody-read-node-${{ matrix.node }}.txt
           for invariant in \
-            'VOID_BUY_VOID_CUSTODY_LAUNCH_READ_ONLY_EVIDENCE_V1_PROOF_GREEN' \
+            'VOID_BUY_VOID_CUSTODY_LAUNCH_READ_ONLY_EVIDENCE_V2_PROOF_GREEN' \
             'exact_source_git_blob_verified=true' \
             'three_source_files_bound_by_retained_directory_descriptors=true' \
             'custody_high_water_absent_holds=true' \

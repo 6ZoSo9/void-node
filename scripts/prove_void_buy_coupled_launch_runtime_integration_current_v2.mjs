@@ -576,6 +576,14 @@ assert.ok(gateSource.includes("verifyTypedData"));
 assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
 assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
 assert.ok(gateSource.includes("buyLaunchRequestAuthorityMatchesV1"));
+assert.match(
+  gateSource,
+  /const assertCurrentAuthority = \(\) => \{[\s\S]*const mutationAdmissionNowMs = now\(\);[\s\S]*const currentGate = readBuyLaunchGateV1\(\s*env,\s*mutationAdmissionNowMs,\s*\);/u,
+);
+assert.doesNotMatch(
+  gateSource,
+  /const currentGate = readBuyLaunchGateV1\(\s*env,\s*gateReadStartedAtMs,\s*\);[\s\S]{0,500}const assertCurrentAuthority/u,
+);
 assert.equal(
   index.split('=== "1"&&__bld().ready').length - 1,
   2,
@@ -685,7 +693,8 @@ console.log("request_flag_alone_can_open_intake=false");
 console.log("current_canonical_gate_ready=false");
 console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
-console.log("request_launch_authority_snapshot_bound=true");
+console.log("request_launch_authority_initial_snapshot_not_reused=true");
+console.log("request_launch_authority_fresh_live_gate_reread=true");
 console.log("request_launch_authority_revalidated_before_persist=true");
 console.log("checkout_persistence_lease_conflict_response_409=true");
 console.log("untyped_launch_authority_throw=false");
