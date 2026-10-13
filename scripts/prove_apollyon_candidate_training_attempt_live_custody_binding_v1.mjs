@@ -12,7 +12,7 @@ for(const required of [
   'V84_BLOB_SHA1="3dae4db82a9316eaa88f475cec41ddc05a441536"',
   'V85_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e"',
   'V81_BLOB_SHA1="fb31dbbda76c94f0ad08e38094c151a24a78b486"',
-  'LAUNCHER_BLOB_SHA1="5004d8c6ff15be9dbc234ce71dc7a83d8e601052"',
+  'LAUNCHER_BLOB_SHA1="64a8eab0af1dd38e650ce77c5f88590ba19bb9bf"',
   'live_service_source_identity_required:true',
   'live_service_source_identity_proven:true',
   'live_service_source_identity_proven_by_import:false',
