@@ -72,6 +72,7 @@ function serviceControlFixture(){
   return {
     all_systemd_control_actions_explicitly_denied:true,
     checked_actions:checks,
+    installed_systemd_package_version:"255.4-1ubuntu8.11",
     observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
     pkcheck_subject:"4242,123456,1000",
     polkit_deny_rule:{
@@ -96,6 +97,9 @@ function serviceControlFixture(){
       symlink:false,
     },
     reviewed_systemd_major:255,
+    running_installed_systemd_version_match:true,
+    running_systemd_manager_major:255,
+    running_systemd_manager_version:"255.4-1ubuntu8.11",
     runtime_can_control_service:false,
     service_unit:serviceUnit,
     training_pid:4242,
@@ -194,6 +198,16 @@ for(const mutate of [
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
+  const bad=v2Fixture();
+  bad.service_control.running_systemd_manager_version="255.3-1ubuntu8.10";
+  bad.service_control.running_installed_systemd_version_match=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.running_systemd_manager_major=254;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
   const bad=v2Fixture();bad.service.runtime_can_control_service=true;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
 }
@@ -207,6 +221,8 @@ for(const [key,expected] of Object.entries({
   explicit_training_pid_service_control_denial_required:true,
   exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
   reviewed_systemd_major_pinned:true,
+  running_systemd_manager_version_bound:true,
+  running_installed_systemd_version_match_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -223,6 +239,8 @@ console.log("explicit_training_pid_service_control_denial_required=true");
 console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
 console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
+console.log("running_systemd_manager_version_bound=true");
+console.log("running_installed_systemd_version_match_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
