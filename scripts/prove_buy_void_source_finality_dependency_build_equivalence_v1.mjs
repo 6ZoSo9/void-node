@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const BASELINE_COMMIT="68d9122fa557718882e36858906b960efa0acf3a";
@@ -16,6 +17,7 @@ const V2_PROFILE_BLOB="a09f47596fdf66afef64e82200f23966664a7d2c";
 const V2_PROFILE_ID="voidrnpr1_7cfd6b67e6c2bde498196fa8bc880031ea24f95942c194ee7e6f553054c08451";
 const PACKAGES_AGGREGATE="5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const MAX_BYTES=16*1024*1024;
+const GIT="/usr/bin/git";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const WORKFLOW_REL=".github/workflows/buy-void-source-finality-dependency-build-equivalence-v1.yml";
 
@@ -69,6 +71,69 @@ function read(root,relative,maxBytes=MAX_BYTES){
   return bytes;
 }
 function blob(root,relative){ return gitBlob(read(root,relative)); }
+
+function git(root,args,label){
+  const result=spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-c","core.hooksPath=/dev/null",
+      "-c","core.attributesFile=/dev/null",
+      "-c","core.fsmonitor=false",
+      "-c","core.untrackedCache=false",
+      "-c","core.preloadIndex=false",
+      "-c","submodule.recurse=false",
+      ...args,
+    ],
+    {
+      cwd:root,
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      timeout:20_000,
+      maxBuffer:16*1024*1024,
+      env:{
+        PATH:"/usr/bin:/bin",
+        LANG:"C",
+        LC_ALL:"C",
+        HOME:"/nonexistent",
+        GIT_NO_REPLACE_OBJECTS:"1",
+        GIT_CONFIG_NOSYSTEM:"1",
+        GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",
+        GIT_TERMINAL_PROMPT:"0",
+      },
+    },
+  );
+  if(result.error||result.status!==0){
+    fail(label+"_git_failed");
+  }
+  return String(result.stdout||"").trim();
+}
+
+function assertCleanGitHead(root,expectedHead,label){
+  let realRoot;
+  try{ realRoot=fs.realpathSync.native(root); }
+  catch{ fail(label+"_root_unavailable"); }
+  if(realRoot!==path.resolve(root)) fail(label+"_root_not_canonical");
+
+  const top=git(realRoot,["rev-parse","--show-toplevel"],label);
+  let realTop;
+  try{ realTop=fs.realpathSync.native(top); }
+  catch{ fail(label+"_git_root_unavailable"); }
+  if(realTop!==realRoot) fail(label+"_git_root_mismatch");
+
+  const head=git(realRoot,["rev-parse","HEAD"],label);
+  if(head!==expectedHead) fail(label+"_git_head_mismatch");
+
+  const status=git(
+    realRoot,
+    ["status","--porcelain=v1","--untracked-files=all"],
+    label,
+  );
+  if(status!=="") fail(label+"_git_worktree_dirty");
+  return head;
+}
+
 function arg(name){
   const i=process.argv.indexOf(name);
   if(i<0||!process.argv[i+1]) fail("missing_argument:"+name);
@@ -78,6 +143,11 @@ function arg(name){
 const baseline=arg("--baseline");
 const current=arg("--current");
 const baselineCandidatePath=arg("--baseline-v5-candidate");
+
+assert.equal(
+  assertCleanGitHead(baseline,BASELINE_COMMIT,"baseline"),
+  BASELINE_COMMIT,
+);
 
 const workflowText=fs.readFileSync(path.join(ROOT,...WORKFLOW_REL.split("/")),"utf8");
 assert.equal(workflowText.includes("workflow_dispatch:"),false,"unsupported manual dispatch trigger present");
