@@ -61,15 +61,18 @@ async function listen(server){
   assert.ok(a&&typeof a!=="string");
   return a.port;
 }
-async function sendRaw(port,bytes){
+async function sendRawChunks(port,writes){
   const socket=net.createConnection({host:"127.0.0.1",port});
+  socket.setNoDelay(true);
   const chunks=[];
   socket.on("data",chunk=>chunks.push(Buffer.from(chunk)));
   await once(socket,"connect");
-  // Send the complete HTTP request without half-closing the TCP write side.
-  // Normal HTTP clients keep the connection open for the asynchronous response;
-  // socket.end(bytes) would trigger allowHalfOpen=false shutdown first.
-  socket.write(bytes);
+  for(const [index,bytes] of writes.entries()){
+    socket.write(bytes);
+    if(index+1<writes.length){
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
+  }
   await once(socket,"close");
   const response=Buffer.concat(chunks).toString("utf8");
   const split=response.indexOf("\r\n\r\n");
@@ -79,6 +82,32 @@ async function sendRaw(port,bytes){
   const match=/^HTTP\/1\.1 (\d{3}) /u.exec(head);
   assert(match,response);
   return {status:Number(match[1]),head,body};
+}
+async function sendRaw(port,bytes){
+  return sendRawChunks(port,[[bytes]]);
+}
+function maxHeaderRequestParts(proxy,body){
+  const digest=crypto.createHash("sha256").update(body).digest("hex");
+  const lines=[
+    "POST "+ROUTE+" HTTP/1.1",
+    "Host: public.example",
+    "Content-Type: application/json",
+    "Content-Length: "+body.length,
+    "X-Void-Payload-Sha256: "+digest,
+    "Connection: close",
+    "X-Pad: ",
+  ];
+  const prefix=Buffer.from(lines.join("\r\n"),"ascii");
+  const fillerBytes=32*1024-prefix.length;
+  assert(fillerBytes>=0);
+  const header=Buffer.concat([prefix,Buffer.alloc(fillerBytes,0x61)]);
+  assert.equal(header.length,32*1024);
+  const terminator=Buffer.from("\r\n\r\n","ascii");
+  return Object.freeze({
+    beforeTerminator:Buffer.concat([proxy,header]),
+    firstTerminatorByte:terminator.subarray(0,1),
+    restAndBody:Buffer.concat([terminator.subarray(1),body]),
+  });
 }
 function startAdapter({port,gatewayPort,stateFile,maxRequests=1}){
   const logs=[];
@@ -171,16 +200,25 @@ try{
 
   const b1=await sendRaw(info.port,requestBytes(proxy4(203,0,113,11),body));
   assert.equal(b1.status,202);
-  assert.equal(gatewayCalls.length,2);
+  assert.equal(gatewayCalls.length,3);
+
+  const boundaryParts=maxHeaderRequestParts(proxy4(203,0,113,13),body);
+  const boundary=await sendRawChunks(info.port,[
+    [boundaryParts.beforeTerminator],
+    [boundaryParts.firstTerminatorByte],
+    [boundaryParts.restAndBody],
+  ]);
+  assert.equal(boundary.status,202);
+  assert.equal(gatewayCalls.length,3);
 
   const badHash=await sendRaw(info.port,requestBytes(proxy4(203,0,113,12),body,{hash:"0".repeat(64)}));
   assert.equal(badHash.status,400);
   const state=JSON.parse(fs.readFileSync(stateFile,"utf8"));
-  assert.equal(state.events.length,2,"invalid request must not debit durable source rate state");
+  assert.equal(state.events.length,3,"invalid request must not debit durable source rate state");
 
   const direct=await sendRaw(info.port,requestBytes(Buffer.alloc(0),body));
   assert.equal(direct.status,400);
-  assert.equal(gatewayCalls.length,2);
+  assert.equal(gatewayCalls.length,3);
 
   const oversizedProxy=Buffer.alloc(16);
   SIGNATURE.copy(oversizedProxy,0);
@@ -192,7 +230,7 @@ try{
     requestBytes(oversizedProxy,body),
   );
   assert.equal(oversized.status,413);
-  assert.equal(gatewayCalls.length,2);
+  assert.equal(gatewayCalls.length,3);
 
   await stop(runtime);
   runtime=startAdapter({port:0,gatewayPort,stateFile,maxRequests:1});
@@ -217,6 +255,7 @@ try{
 
   console.log("VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_RUNTIME_V1_GREEN");
   console.log("proxy_v2_stream_bound=true");
+  console.log("max_http_header_split_terminator_accepted=true");
   console.log("exact_credential_post_only=true");
   console.log("durable_rate_debit_before_forward=true");
   console.log("same_source_ephemeral_port_rotation_isolated=false");

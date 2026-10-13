@@ -164,7 +164,12 @@ function tryDecode(buffer){
   }
   const headerEnd=buffer.indexOf("\r\n\r\n",proxyBytes,"ascii");
   if(headerEnd<0){
-    if(buffer.length-proxyBytes>MAX_HTTP_HEADER_BYTES)fail("edge_http_headers_too_large");
+    const incompleteHeaderBytes=buffer.length-proxyBytes;
+    const maxIncompleteHeaderBytes=
+      MAX_HTTP_HEADER_BYTES+HTTP_HEADER_TERMINATOR_BYTES-1;
+    if(incompleteHeaderBytes>maxIncompleteHeaderBytes){
+      fail("edge_http_headers_too_large");
+    }
     return null;
   }
   const headerBytes=buffer.subarray(proxyBytes,headerEnd);
