@@ -786,8 +786,25 @@ function keyMaterial(privateKey) {
   }
   const publicObject = crypto.createPublicKey(privateObject);
   const publicFingerprint = sha256Bytes(publicKey);
+  const publicSpkiDer = publicObject.export({
+    format: "der",
+    type: "spki",
+  });
+  if (!Buffer.isBuffer(publicSpkiDer) ||
+      publicSpkiDer.length < 32 || publicSpkiDer.length > 1024) {
+    publicKey.fill(0);
+    throw new Error("epoch2_sealed_public_spki_invalid");
+  }
+  const publicSpkiDerHex = publicSpkiDer.toString("hex");
+  publicSpkiDer.fill(0);
   publicKey.fill(0);
-  return { address, privateObject, publicObject, publicFingerprint };
+  return {
+    address,
+    privateObject,
+    publicObject,
+    publicFingerprint,
+    publicSpkiDerHex,
+  };
 }
 
 function assertCryptoSelfTest() {
@@ -812,16 +829,19 @@ function assertCryptoSelfTest() {
 function buildChallenge(source, observation) {
   const random = crypto.randomBytes(32);
   try {
+    const nonceHex = random.toString("hex");
     const text = [
       "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
       source.head,
       source.tree,
       observation.invocation_id,
-      random.toString("hex"),
+      nonceHex,
     ].join("\0");
+    const message = Buffer.from(text, "utf8");
     return {
-      message: Buffer.from(text, "utf8"),
-      challenge_sha256: sha256Bytes(Buffer.from(text, "utf8")),
+      message,
+      nonce_hex: nonceHex,
+      challenge_sha256: sha256Bytes(message),
     };
   } finally {
     random.fill(0);
@@ -975,10 +995,15 @@ async function main() {
       challenge: {
         domain:
           "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
+        nonce_hex: challenge.nonce_hex,
         challenge_sha256: challenge.challenge_sha256,
         signature_sha256: sha256Bytes(signature),
+        public_signature_p1363_hex: signature.toString("hex"),
+        public_key_spki_der_hex: material.publicSpkiDerHex,
+        public_key_uncompressed_sha256: material.publicFingerprint,
         raw_challenge_output: false,
-        raw_signature_output: false,
+        public_signature_output: true,
+        public_key_output: true,
         transaction_constructed: false,
       },
       credential_content_read: true,
