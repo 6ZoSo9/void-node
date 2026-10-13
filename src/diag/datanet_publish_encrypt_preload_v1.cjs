@@ -296,6 +296,10 @@ try {
     const RECEIPTS_FILE = defaultFile;
 
     const middleware = (req, res, next) => {
+      // Registration can retain the middleware before app.use() throws.
+      // While mount outcome is indeterminate, never log receipts or wrap responses.
+      if (G.__void_datanet_nonenc_receipts_v1_mount_state !== "mounted" ||
+          G.__void_datanet_nonenc_receipts_v1_installed !== true) return next();
       try {
         const url = (req && req.originalUrl) ? String(req.originalUrl) : "";
         // only these endpoints
