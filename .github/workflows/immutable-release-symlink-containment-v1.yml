@@ -1,0 +1,31 @@
+name: Immutable release symlink containment v1
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  symlink-containment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install exact dependency tree
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Prove no broken or escaping release symlinks
+        run: node scripts/prove_immutable_release_symlink_containment_v1.mjs
