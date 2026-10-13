@@ -20,8 +20,8 @@ policy evaluation or collector execution**:
 
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
-V2 policy    83afde66ad89c29ec7b40932b2ebd7e0b2ce7bc7
-V2 collector 25c553567172c1372a29f5e81bc45422022d7f4f
+V2 policy    9c14868ab7c3106fd0782f0d184600acbe602e2d
+V2 collector 550f2b29a176f8ae2a288d9bdadaea46ef4a23f9
 custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
 service      8961572ba5834371b1229f790a1960940fc74935
 client       fb31dbbda76c94f0ad08e38094c151a24a78b486
@@ -56,6 +56,12 @@ be root-owned, direct, symlink-free, non-group/world-writable, and to deny the
 training UID rename/unlink authority through the socket parent's immediate
 parent.
 
+The corrected V2 evidence also binds the live training PID/start-time/UID and
+requires the exact lexically-first action-ID-only Polkit deny rule plus explicit
+non-interactive denial checks. The private execution closure therefore includes
+the corrected V2 collector and policy bytes, not the earlier overclaiming
+generation.
+
 ## Deliberate boundary
 
 A successful V2 live observation may report:
@@ -88,6 +94,7 @@ bytes before any claim path can proceed.
 ```bash
 sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs \
   --training-user <training-user> \
+  --training-pid <live-training-pid> \
   --custody-user <custody-user> \
   --ipc-group <ipc-group> \
   --state-root /absolute/custody/state/root \
