@@ -40,7 +40,9 @@ After exact operator confirmation, the probe:
    manager equivalent);
 6. invokes the existing reviewed Epoch-2 credential signer, which reads the
    fixed credential leaf and requires it to derive the immutable fulfiller;
-7. signs exactly one local capability-probe transaction with:
+7. creates a fresh 32-byte challenge and derives the probe payment-delivery ID
+   from the exact source head plus that challenge, then signs exactly one local
+   capability-probe transaction with:
    - Chain ID 2050;
    - the exact Epoch-2 presale target;
    - the reviewed Epoch-2 access-list marker;
@@ -53,9 +55,11 @@ After exact operator confirmation, the probe:
    the canonical non-executable probe envelope: MAX_SAFE_INTEGER nonce, gas
    limit `1` (below EVM intrinsic gas), zero fees/value, exact presale target/access list, and exact
    `fulfill(..., immutable fulfiller, 1)` calldata;
-9. rejects caller-selected executable nonce/fee/calldata variants even if they
-   carry a valid signature from the expected key;
-10. discards the raw signed transaction and emits only public identities and
+9. rejects caller-selected nonce/fee/calldata variants and rejects a probe
+   whose payment-delivery ID does not derive from the exact source head plus
+   this invocation's fresh challenge, even if the expected key signed it;
+10. binds only the challenge SHA-256 (not secret material) into the evidence;
+11. discards the raw signed transaction and emits only public identities and
    hashes.
 
 The probe is non-executable by construction because its gas limit is `1`, below the
