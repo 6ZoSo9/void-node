@@ -786,8 +786,25 @@ function keyMaterial(privateKey) {
   }
   const publicObject = crypto.createPublicKey(privateObject);
   const publicFingerprint = sha256Bytes(publicKey);
+  const publicSpkiDer = publicObject.export({
+    format: "der",
+    type: "spki",
+  });
+  if (!Buffer.isBuffer(publicSpkiDer) ||
+      publicSpkiDer.length < 32 || publicSpkiDer.length > 1024) {
+    publicKey.fill(0);
+    throw new Error("epoch2_sealed_public_spki_invalid");
+  }
+  const publicSpkiDerHex = publicSpkiDer.toString("hex");
+  publicSpkiDer.fill(0);
   publicKey.fill(0);
-  return { address, privateObject, publicObject, publicFingerprint };
+  return {
+    address,
+    privateObject,
+    publicObject,
+    publicFingerprint,
+    publicSpkiDerHex,
+  };
 }
 
 function assertCryptoSelfTest() {
@@ -812,16 +829,29 @@ function assertCryptoSelfTest() {
 function buildChallenge(source, observation) {
   const random = crypto.randomBytes(32);
   try {
+    const nonceHex = random.toString("hex");
     const text = [
       "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
       source.head,
       source.tree,
+      source.branch,
+      observation.service,
+      String(observation.main_pid),
       observation.invocation_id,
-      random.toString("hex"),
+      observation.credential_id,
+      observation.loadcredential_binding_sha256,
+      observation.credentials_directory_sha256,
+      observation.main_pid_cgroup_sha256,
+      observation.process_source_commit,
+      observation.process_source_tree,
+      observation.process_source_branch,
+      nonceHex,
     ].join("\0");
+    const message = Buffer.from(text, "utf8");
     return {
-      message: Buffer.from(text, "utf8"),
-      challenge_sha256: sha256Bytes(Buffer.from(text, "utf8")),
+      message,
+      nonce_hex: nonceHex,
+      challenge_sha256: sha256Bytes(message),
     };
   } finally {
     random.fill(0);
@@ -966,6 +996,8 @@ async function main() {
           after.loadcredential_binding_sha256,
         credentials_directory_sha256:
           after.credentials_directory_sha256,
+        main_pid_cgroup_sha256:
+          after.main_pid_cgroup_sha256,
         process_source_commit: after.process_source_commit,
         process_source_tree: after.process_source_tree,
         process_source_branch: after.process_source_branch,
@@ -975,10 +1007,15 @@ async function main() {
       challenge: {
         domain:
           "VOID_BUY_VOID_EPOCH2_CREDENTIAL_CHALLENGE_SEALED_V1",
+        nonce_hex: challenge.nonce_hex,
         challenge_sha256: challenge.challenge_sha256,
         signature_sha256: sha256Bytes(signature),
+        public_signature_p1363_hex: signature.toString("hex"),
+        public_key_spki_der_hex: material.publicSpkiDerHex,
+        public_key_uncompressed_sha256: material.publicFingerprint,
         raw_challenge_output: false,
-        raw_signature_output: false,
+        public_signature_output: true,
+        public_key_output: true,
         transaction_constructed: false,
       },
       credential_content_read: true,
@@ -1024,6 +1061,7 @@ export {
   keccak256,
   keyMaterial,
   privateKeyFromCredential,
+  buildChallenge,
   assertReviewedSource,
   parseSystemdObservation,
   serviceCgroupBound,
