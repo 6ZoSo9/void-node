@@ -108,7 +108,60 @@ function outsideRepo(raw,label){
   if(rel===""||(rel!==".."&&!rel.startsWith(`..${path.sep}`)&&!path.isAbsolute(rel))) fail(`${label} must resolve outside repository`);
   return canonicalTarget;
 }
-function writeExclusive(file,bytes){fs.writeFileSync(file,bytes,{flag:"wx",mode:0o600});fs.chmodSync(file,0o600);}
+function ownedIdentity(file,st){
+  return Object.freeze({file,dev:st.dev,ino:st.ino});
+}
+function sameOwnedIdentity(st,owned){
+  return !st.isSymbolicLink()&&st.dev===owned.dev&&st.ino===owned.ino;
+}
+export function removeOwnedOutputV1(owned,fsImpl=fs){
+  if(!owned) return false;
+  let visible;
+  try{visible=fsImpl.lstatSync(owned.file);}catch(error){
+    if(error?.code==="ENOENT") return false;
+    throw error;
+  }
+  if(!sameOwnedIdentity(visible,owned)) return false;
+  fsImpl.rmSync(owned.file,{force:false});
+  return true;
+}
+export function writeExclusiveOwnedV1(file,bytes,fsImpl=fs){
+  let fd=null,owned=null;
+  try{
+    fd=fsImpl.openSync(
+      file,
+      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    owned=ownedIdentity(file,fsImpl.fstatSync(fd));
+    fsImpl.fchmodSync(fd,0o600);
+    fsImpl.writeFileSync(fd,bytes);
+    fsImpl.fsyncSync(fd);
+    fsImpl.closeSync(fd);
+    fd=null;
+    const visible=fsImpl.lstatSync(file);
+    if(!sameOwnedIdentity(visible,owned)) fail("candidate output identity drift");
+    return owned;
+  }catch(error){
+    if(fd!==null){try{fsImpl.closeSync(fd);}catch{}}
+    if(owned){try{removeOwnedOutputV1(owned,fsImpl);}catch{}}
+    throw error;
+  }
+}
+export function writeCandidateOutputsV1({manifestFile,manifestBytes,payloadFile,payloadBytes,fsImpl=fs}={}){
+  if(manifestFile===payloadFile) fail("candidate output collides");
+  const owned=[];
+  try{
+    owned.push(writeExclusiveOwnedV1(manifestFile,manifestBytes,fsImpl));
+    owned.push(writeExclusiveOwnedV1(payloadFile,payloadBytes,fsImpl));
+    return Object.freeze({manifest:owned[0],payload:owned[1]});
+  }catch(error){
+    for(let i=owned.length-1;i>=0;i-=1){
+      try{removeOwnedOutputV1(owned[i],fsImpl);}catch{}
+    }
+    throw error;
+  }
+}
 function args(argv){const out={validityMinutes:90};for(let i=0;i<argv.length;i+=2){const key=argv[i],value=argv[i+1];if(!key?.startsWith("--")||value===undefined)fail("invalid arguments");out[key.slice(2).replace(/-([a-z])/gu,(_m,c)=>c.toUpperCase())]=value;}return out;}
 
 async function main(){
@@ -118,9 +171,12 @@ async function main(){
   const predecessor=classifyTorBootstrapSignedManifestLifecycle(readJson(PREDECESSOR_FILE,"predecessor"),root);
   const built=buildTorBootstrapManifestCandidateV1({receipt:readJson(o.receipt,"qualification"),expectedSourceSha:o.expectedSourceSha,validatedRoot:root,predecessor,validityMinutes:Number(o.validityMinutes)});
   const manifestFile=outsideRepo(o.manifestOutput,"manifest output"),payloadFile=outsideRepo(o.payloadOutput,"payload output");
-  if(manifestFile===payloadFile||fs.existsSync(manifestFile)||fs.existsSync(payloadFile)) fail("candidate output already exists or collides");
-  let first=false;
-  try{writeExclusive(manifestFile,Buffer.from(`${JSON.stringify(built.manifest,null,2)}\n`));first=true;writeExclusive(payloadFile,built.payload);}catch(error){if(first)fs.rmSync(manifestFile,{force:true});fs.rmSync(payloadFile,{force:true});throw error;}
+  writeCandidateOutputsV1({
+    manifestFile,
+    manifestBytes:Buffer.from(`${JSON.stringify(built.manifest,null,2)}\n`),
+    payloadFile,
+    payloadBytes:built.payload,
+  });
   console.log(`${VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1}_GREEN`);
   console.log(`manifest_id=${built.manifestId}`);console.log(`release_root_id=${built.rootId}`);console.log(`qualification_id=${built.qualificationId}`);console.log(`signing_payload_sha256=${built.payloadSha256}`);
   console.log("signing_performed=false");console.log("private_key_access=false");console.log("repository_publication=false");

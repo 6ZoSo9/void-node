@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildTorBootstrapManifestCandidateV1,validateTorQualificationReceiptForManifestV1 } from "./build_void_tor_bootstrap_manifest_candidate_v1.mjs";
+import { buildTorBootstrapManifestCandidateV1,validateTorQualificationReceiptForManifestV1,writeCandidateOutputsV1,writeExclusiveOwnedV1 } from "./build_void_tor_bootstrap_manifest_candidate_v1.mjs";
 import { buildTorQualificationReceiptV1 } from "./qualify_void_public_seed_tor_v1.mjs";
 import { loadTorBootstrapReleaseRootFile,loadTorBootstrapSignedManifestLifecycleFile } from "./lib/void_tor_bootstrap_release_root_v1.mjs";
 
@@ -31,6 +31,31 @@ assert.throws(()=>buildTorBootstrapManifestCandidateV1({receipt:receiptAt(NOW,ON
 const tampered=structuredClone(receipt);tampered.authority.wallet_authority=true;assert.throws(()=>validateTorQualificationReceiptForManifestV1(tampered,{expectedSourceSha:SOURCE,nowMs:NOW}),/wallet_authority must be false/u);
 assert.throws(()=>buildTorBootstrapManifestCandidateV1({receipt,expectedSourceSha:SOURCE,validatedRoot:root,predecessor,nowMs:NOW,validityMinutes:91}),/60 through 90/u);
 
+const ownershipTemp=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-candidate-ownership-v1-"));
+try{
+ const manifestRace=path.join(ownershipTemp,"manifest-race.json"),payloadRace=path.join(ownershipTemp,"payload-race.bin");
+ fs.writeFileSync(payloadRace,Buffer.from("foreign-payload","utf8"),{mode:0o600});
+ assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestRace,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadRace,payloadBytes:Buffer.from("owned-payload","utf8")}),/EEXIST/u);
+ assert.equal(fs.existsSync(manifestRace),false);
+ assert.equal(fs.readFileSync(payloadRace,"utf8"),"foreign-payload");
+
+ const manifestForeign=path.join(ownershipTemp,"manifest-foreign.json"),payloadAfter=path.join(ownershipTemp,"payload-after.bin");
+ fs.writeFileSync(manifestForeign,Buffer.from("foreign-manifest","utf8"),{mode:0o600});
+ assert.throws(()=>writeCandidateOutputsV1({manifestFile:manifestForeign,manifestBytes:Buffer.from("owned-manifest","utf8"),payloadFile:payloadAfter,payloadBytes:Buffer.from("owned-payload","utf8")}),/EEXIST/u);
+ assert.equal(fs.readFileSync(manifestForeign,"utf8"),"foreign-manifest");
+ assert.equal(fs.existsSync(payloadAfter),false);
+
+ const chmodFail=path.join(ownershipTemp,"chmod-fail.bin");
+ const realFchmod=fs.fchmodSync;
+ let injectedChmod=false;
+ try{
+  fs.fchmodSync=(fd,mode)=>{void fd;void mode;injectedChmod=true;throw Object.assign(new Error("synthetic_chmod_failure"),{code:"EACCES"});};
+  assert.throws(()=>writeExclusiveOwnedV1(chmodFail,Buffer.from("owned","utf8")),/synthetic_chmod_failure/u);
+ }finally{fs.fchmodSync=realFchmod;}
+ assert.equal(injectedChmod,true);
+ assert.equal(fs.existsSync(chmodFail),false);
+}finally{fs.rmSync(ownershipTemp,{recursive:true,force:true});}
+
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-tor-candidate-v1-"));
 try{
  const now=Date.now(),live=receiptAt(now),q=path.join(temp,"q.json"),m=path.join(temp,"manifest.json"),p=path.join(temp,"payload.bin");fs.writeFileSync(q,`${JSON.stringify(live,null,2)}\n`,{mode:0o600});
@@ -45,4 +70,7 @@ try{
  assert.equal(fs.existsSync(repoEscapeManifest),false);assert.equal(fs.existsSync(repoEscapePayload),false);
 }finally{fs.rmSync(temp,{recursive:true,force:true});}
 console.log("VOID_TOR_BOOTSTRAP_MANIFEST_CANDIDATE_V1_PROOF_GREEN");
+console.log("foreign_output_eexist_preserved=true");
+console.log("post_create_chmod_failure_cleaned=true");
+console.log("transaction_cleanup_owned_outputs_only=true");
 console.log("symlinked_output_parent_rejected=true");console.log("authenticated_stale_predecessor_required=true");console.log("canonical_onion_identity_preserved=true");console.log("qualification_freshness_bounded=true");console.log("offline_signing_payload_only=true");console.log("production_private_key_access=false");console.log("repository_publication=false");console.log("wallet_signer_payment_funds_authority=0");
