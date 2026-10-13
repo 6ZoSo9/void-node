@@ -117,14 +117,14 @@ function observation(){
 }
 
 {
-  const root=parseApollyonProcStatusV1(
-    "Uid:\t0\t0\t0\t0\n"+
-    "Gid:\t0\t0\t0\t0\n"+
-    "Groups:\t0\n",
+  assert.throws(
+    ()=>parseApollyonProcStatusV1(
+      "Uid:\t0\t0\t0\t0\n"+
+      "Gid:\t0\t0\t0\t0\n"+
+      "Groups:\t0\n",
+    ),
+    /proc_status_invalid/u,
   );
-  assert.equal(root.uid,0);
-  assert.equal(root.gid,0);
-  assert.deepEqual(root.groups,[0]);
 }
 
 assert.equal(
