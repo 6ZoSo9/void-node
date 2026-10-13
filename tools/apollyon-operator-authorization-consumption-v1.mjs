@@ -390,7 +390,8 @@ function consumeInternal(
     return held(
       "authorization_consumption_store_identity_failed",
       {
-        ...storeContext,
+        authorization_id:verified.authorization_id,
+        state_store_realpath_sha256:root.realpath_sha256,
         detail:{error_class:safeErrorClass(error)},
       },
     );
