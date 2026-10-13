@@ -45,7 +45,7 @@ function git(args){
 }
 function blob(bytes){
   return crypto.createHash("sha1")
-    .update(Buffer.from("blob "+bytes.length+"\\0","utf8"))
+    .update(Buffer.from("blob "+bytes.length+"\0","utf8"))
     .update(bytes).digest("hex");
 }
 function worktreeBlob(rel){
