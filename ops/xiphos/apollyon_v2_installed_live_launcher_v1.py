@@ -290,7 +290,17 @@ def sanitized_environment()->dict[str,str]:
     }
 
 
-def execute_live(argv:list[str])->int:
+def classify_runtime_exception(error:BaseException)->str|None:
+    if isinstance(error,subprocess.TimeoutExpired):
+        return "apollyon_v2_installed_launcher_runtime_timeout"
+    if isinstance(error,OSError):
+        return "apollyon_v2_installed_launcher_runtime_os_error"
+    if isinstance(error,subprocess.SubprocessError):
+        return "apollyon_v2_installed_launcher_runtime_subprocess_error"
+    return None
+
+
+def execute_live_impl(argv:list[str])->int:
     if os.geteuid()!=0:
         hold("apollyon_v2_installed_launcher_root_required")
     if os.environ.get("VOID_APOLLYON_V2_NATIVE_PREENTRY")!=NATIVE_PREENTRY_MARKER:
@@ -320,6 +330,17 @@ def execute_live(argv:list[str])->int:
         os.close(node_fd)
 
 
+def execute_live(argv:list[str])->int:
+    try:
+        return execute_live_impl(argv)
+    except Hold:
+        raise
+    except BaseException as error:
+        reason=classify_runtime_exception(error)
+        if reason is None:
+            raise
+        raise Hold(reason) from error
+
 def self_test()->None:
     repo_root=Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(
@@ -332,6 +353,23 @@ def self_test()->None:
             target=source/relative
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_bytes((repo_root/relative).read_bytes())
+
+        if classify_runtime_exception(
+            subprocess.TimeoutExpired(["node"],60)
+        )!="apollyon_v2_installed_launcher_runtime_timeout":
+            raise AssertionError("timeout classification mismatch")
+        if classify_runtime_exception(
+            OSError("fixture")
+        )!="apollyon_v2_installed_launcher_runtime_os_error":
+            raise AssertionError("OS error classification mismatch")
+        if classify_runtime_exception(
+            subprocess.SubprocessError("fixture")
+        )!="apollyon_v2_installed_launcher_runtime_subprocess_error":
+            raise AssertionError("subprocess error classification mismatch")
+        if classify_runtime_exception(
+            RuntimeError("fixture")
+        ) is not None:
+            raise AssertionError("unexpected exception was classified")
 
         # Executable custody rejects group/world-writable binaries and
         # returns one retained descriptor suitable for /proc/self/fd execution.
@@ -476,6 +514,7 @@ def self_test()->None:
 
     print(MARKER+"_SELF_TEST=GREEN")
     print("native_preentry_required_for_live=true")
+    print("runtime_exceptions_classified_to_hold=true")
     print("trusted_node_descriptor_execution=true")
     print("writable_node_rejected=true")
     print("materialization_failure_cleanup=true")
