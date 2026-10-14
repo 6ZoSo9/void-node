@@ -15,7 +15,7 @@ content-addressed local Tor manifest
   -> existing follower HTTP contract
 ```
 
-The result is a synchronization path whose runtime operation does not require a registrar, DNS provider, certificate authority, Cloudflare, public IP address, router port forwarding, Tailnet admission, or GitHub-hosted manifest retrieval.
+The result is a synchronization path whose runtime operation does not require a registrar, DNS provider, certificate authority, Cloudflare, public IP address, router port forwarding, Tailnet admission, or GitHub-hosted manifest retrieval. Qualification freshness is an issuance-time provenance condition; an unexpired manifest may outlive the original two-hour qualification age only because the resolver separately requires a current exact-green live readiness response before returning the endpoint.
 
 ## Trust-root boundary
 
@@ -32,8 +32,8 @@ The manifest contract is closed and requires:
 - network `VOID Network` and chain ID `2050`;
 - status `stable_tor_seed`;
 - zero clearnet `sync_endpoints`;
-- one through eight qualified `tor_v3_http` onion endpoints;
-- a bounded one-hour through seven-day validity interval;
+- one through eight `tor_v3_http` onion endpoints whose qualification was fresh at manifest issuance;
+- a bounded one-hour through seven-day signed validity interval;
 - no private Tailnet publication; and
 - every private and economic authority flag set to `false`.
 
@@ -113,6 +113,7 @@ The proofs build a fresh content-addressed Tor manifest, start in-process SOCKS5
 - private and polluted routes rejected before connection;
 - SOCKS domain-name routing to the onion address on virtual port 80;
 - exact-green readiness;
+- an issuance-fresh qualification older than two hours at runtime still requires and passes a fresh live probe;
 - a contiguous three-block range;
 - private-route rejection;
 - mutation-method rejection;
