@@ -444,6 +444,11 @@ export async function derivePrivilegedLauncherPackageRuntimeV2(){
     'TSX_LOADER="$ROOT/node_modules/tsx/dist/loader.mjs"',
     '"$NODE" --import "file://$TSX_LOADER" "$tool_absolute"',
     'native_preentry_verified=true',
+    'VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1',
+    'VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$head_before"',
+    'VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$tree_before"',
+    'VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH="$tool_path"',
+    'VOID_BUY_VOID_V7_PROTECTED_TOOL_GIT_BLOB_SHA1="$tracked_blob"',
   ]) assert.ok(launcherText.includes(required),"launcher_required:"+required);
   assert.ok(
     launcherText.indexOf("native_preentry_required")<

@@ -46,6 +46,14 @@ for(const required of [
   'privileged_launcher_package_runtime_verified=true',
   'private_temporary_filesystem_write=true',
   'persistent_host_mutation=false',
+  'VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1',
+  'VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID="$"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT="$ROOT"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$head_before"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$tree_before"',
+  'VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH="$tool_path"',
+  'VOID_BUY_VOID_V7_PROTECTED_TOOL_GIT_BLOB_SHA1="$tracked_blob"',
+  'protected_dispatch_context_handoff=true',
   'funds_movement_by_launcher=false',
 ]) assert.equal(launcher.includes(required),true,required);
 
@@ -82,7 +90,7 @@ for(const required of [
   '"--noprofile"',
   '"--norc"',
   'PREENTRY_ENV',
-  '#define FIXED_LAUNCHER_BYTES 11442U',
+  '#define FIXED_LAUNCHER_BYTES 11979U',
   'FIXED_LAUNCHER_SHA256',
   'sha256_fd_matches(launcher_fd)',
   'native_preentry_launcher_digest_mismatch',
@@ -356,6 +364,7 @@ assert.equal(proofCompleted,true,"proof body did not complete");
   console.log("private_temporary_filesystem_write=true");
   console.log("persistent_host_mutation=false");
   console.log("privileged_tool_execution_performed=false");
+  console.log("protected_dispatch_context_handoff=true");
   console.log("service_mutation=false");
   console.log("credential_wallet_signer_transaction_authority=false");
   console.log("presale_activation=false");

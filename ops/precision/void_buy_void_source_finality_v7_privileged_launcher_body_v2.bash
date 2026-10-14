@@ -268,6 +268,18 @@ printf 'tool_git_blob_sha1=%s\n' "$tracked_blob"
 printf 'tool_execution=true\n'
 printf 'tsx_execution_mode=node_import_hook\n'
 
-exec "$ENV" -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC \
+printf 'protected_dispatch_context_handoff=true\n'
+exec "$ENV" -i \
+  PATH=/usr/bin:/bin \
+  HOME=/root \
+  LANG=C LC_ALL=C TZ=UTC \
+  VOID_BUY_VOID_V7_NATIVE_PREENTRY="$NATIVE_PREENTRY_MARKER" \
+  VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1 \
+  VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID="$$" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT="$ROOT" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$head_before" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$tree_before" \
+  VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH="$tool_path" \
+  VOID_BUY_VOID_V7_PROTECTED_TOOL_GIT_BLOB_SHA1="$tracked_blob" \
   TSX_TSCONFIG_PATH="$TSX_TSCONFIG" \
   "$NODE" --import "file://$TSX_LOADER" "$tool_absolute" "${tool_args[@]}"

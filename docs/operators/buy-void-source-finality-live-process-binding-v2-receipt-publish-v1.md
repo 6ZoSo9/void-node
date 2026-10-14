@@ -66,6 +66,16 @@ runtime on Node 22/24/26.
 
 Direct privileged checkout execution remains unsupported.
 
+Persistent mutation is additionally admitted only through the native-first
+protected launcher. After the launcher authenticates the fixed root-owned source
+tree, exact commit/tree, selected tool blob, and reviewed TSX runtime, it passes
+a narrow clean-environment dispatch context binding the source root, commit,
+tree, tool path, tool blob, and same process identity. Each privileged tool
+revalidates that context against its own exact protected HEAD before any
+persistent mutation. The context is an admission handoff, not a secret and not
+a defense against arbitrary malicious root; direct root CLI apply without the
+authenticated handoff fails closed.
+
 It performs:
 - V2 native selector execution through the locked collection-plan module;
 - read-only live process/source inspection;
