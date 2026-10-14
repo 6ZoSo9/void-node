@@ -7,8 +7,8 @@ NODE="/usr/bin/node"
 SETPRIV="/usr/bin/setpriv"
 PACKAGE_RUNTIME_LOCK_REL="ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
 PACKAGE_RUNTIME_LOCK_BLOB="b26ce09f1726d3f6fed94cea7d58f1cb68d3cb65"
-PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
-PACKAGE_RUNTIME_PROOF_BLOB="f6159c424c7771a4909af0a015ddba648f309ab0"
+PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs"
+PACKAGE_RUNTIME_PROOF_BLOB="1d5c89400faa6390031fbeab8e85ba6bd0f6f16c"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
@@ -145,7 +145,7 @@ package_runtime_out="$(
     PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C TZ=UTC \
     GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     GIT_NO_REPLACE_OBJECTS=1 GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 \
-    "$NODE" "$ROOT/$PACKAGE_RUNTIME_PROOF_REL" 2>&1
+    "$NODE" "$ROOT/$PACKAGE_RUNTIME_PROOF_REL" --report 2>&1
 )"
 package_runtime_rc=$?
 set -e
@@ -154,7 +154,7 @@ if [ "$package_runtime_rc" -ne 0 ]; then
   hold privileged_launcher_package_runtime_verification_failed
 fi
 printf '%s\n' "$package_runtime_out" |
-  grep -Fx 'VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V1_LOCK_GREEN' >/dev/null ||
+  grep -Fx 'VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_PRESERVATION_V1_GREEN' >/dev/null ||
   hold privileged_launcher_package_runtime_marker_missing
 printf '%s\n' "$package_runtime_out" |
   grep -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
@@ -162,6 +162,9 @@ printf '%s\n' "$package_runtime_out" |
 printf '%s\n' "$package_runtime_out" |
   grep -Fx 'privileged_receipt_execution_authorized=false' >/dev/null ||
   hold privileged_launcher_package_runtime_authority_overclaim
+printf '%s\n' "$package_runtime_out" |
+  grep -Fx 'package_runtime_identity_preserved=true' >/dev/null ||
+  hold privileged_launcher_package_runtime_identity_not_preserved
 
 printf '%s\n' "$MARKER"
 printf 'source_root=%s\n' "$ROOT"

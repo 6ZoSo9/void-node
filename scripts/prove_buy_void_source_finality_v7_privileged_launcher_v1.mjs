@@ -30,7 +30,7 @@ for(const required of [
   "ambient_node_environment_inherited=false",
   "funds_movement_by_launcher=false",
   "buy-void-v7-privileged-launcher-package-runtime-v1.json",
-  "prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs",
+  "prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs",
   "privileged_launcher_package_runtime_verified=true",
 ]) assert.equal(launcher.includes(required),true,required);
 

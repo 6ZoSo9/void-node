@@ -10,10 +10,12 @@ inside a root-owned tree. Before either qualification success or receipt-tool
 dispatch it now requires:
 
 - exact reviewed #2954 lock-manifest Git blob;
-- exact reviewed #2954 lock-proof Git blob;
+- exact reviewed package-preservation proof Git blob;
 - protected source custody under the unprivileged runtime UID/GID;
 - stable commit/tree/branch/clean-state census; and
-- successful execution of the lock proof inside that same protected tree.
+- successful independent re-inventory of the accepted package identity inside that same protected tree.
+
+The historical #2952 candidate and #2954 lock proof remain immutable and intentionally refuse the tightened launcher rather than being repinned. The preservation proof rederives the accepted ethers+express profile and exact TSX Linux-x64 package bytes, then verifies the current launcher still puts package authentication before TSX.
 
 Only after those checks may the launcher reach the allowlisted TSX receipt tool.
 
