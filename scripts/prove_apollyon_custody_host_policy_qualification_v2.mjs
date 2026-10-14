@@ -74,6 +74,29 @@ function serviceControlFixture(){
     ambient:"0",effective:"0",inheritable:"0",
     no_new_privileges:true,permitted:"0",
   });
+  const deniedActions=[
+    "org.freedesktop.systemd1.manage-units",
+    ...globalControlActions,
+  ];
+  const actionExpression=deniedActions
+    .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+    .join(" ||\n");
+  const expectedPolkitRule=
+    "polkit.addRule(function(action, subject) {\n"+
+    "  if (\n"+
+    "    subject.user === "+JSON.stringify("zoso")+" &&\n"+
+    "    (\n"+
+    actionExpression+"\n"+
+    "    )\n"+
+    "  ) {\n"+
+    "    return polkit.Result.NO;\n"+
+    "  }\n"+
+    "  return polkit.Result.NOT_HANDLED;\n"+
+    "});\n";
+  const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+  const expectedPolkitRuleSha256=crypto.createHash("sha256")
+    .update(expectedPolkitRuleBytes)
+    .digest("hex");
   const busDigest=crypto.createHash("sha256")
     .update(canonicalApollyonCustodyHostPolicyJsonV1(checks))
     .digest("hex");
@@ -102,11 +125,8 @@ function serviceControlFixture(){
     pkcheck_subject:"4242,123456,1000",
     polkit_deny_rule:{
       action_id_only:true,
-      bytes:512,
-      denied_action_ids:[
-        "org.freedesktop.systemd1.manage-units",
-        ...globalControlActions,
-      ],
+      bytes:expectedPolkitRuleBytes.length,
+      denied_action_ids:deniedActions,
       details_can_change_result:false,
       group_other_writable:false,
       lexically_first:true,
@@ -117,7 +137,7 @@ function serviceControlFixture(){
       retained_ancestors_group_other_writable:false,
       retained_ancestors_root_owned:true,
       runtime_user:"zoso",
-      sha256:"77".repeat(32),
+      sha256:expectedPolkitRuleSha256,
       single_link:true,
       symlink:false,
     },
@@ -236,6 +256,16 @@ for(const mutate of [
 }
 {
   const bad=v2Fixture();bad.service_control.polkit_deny_rule.lexically_first=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.bytes+=1;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.sha256="77".repeat(32);
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
