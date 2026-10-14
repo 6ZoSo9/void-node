@@ -11,13 +11,18 @@ import {
   type BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3,
   type BuyVoidSourceFinalityAuthenticatedReadyV3,
 } from "./buy_void_source_finality_authenticated_composition_v3.js";
+import {
+  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+  verifyBuyVoidSourceFinalityLiveProcessBindingV1,
+  type BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
+} from "./buy_void_source_finality_live_process_binding_v1.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 =
   "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7";
 export const VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1";
 export const VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 =
-  "ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb";
+  "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
   Object.freeze({
@@ -26,6 +31,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
     runtime_source_filesystem_write: false,
     caller_generation_assertion_accepted: false,
     operator_deployment_receipt_required: true,
+    same_live_process_binding_required: true,
     immutable_process_source_identity_required: true,
     reviewed_source_files_verified_on_success: true,
     source_generation_verified_on_success: true,
@@ -37,6 +43,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
     observation_generated_in_composition: true,
     ancestry_verified_by_two_provider_finality_agreement: true,
     provider_quorum_verified: true,
+    same_live_process_binding_verified_on_success: true,
     production_source_finality_authority_ready_on_success: true,
     rpc_read: true,
     rpc_write: false,
@@ -65,6 +72,7 @@ const RECEIPT_ID = /^voidbsfdep1_[0-9a-f]{64}$/u;
 const REVIEWED_SOURCE_PATHS_V7 = Object.freeze([
   "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
   "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
+  "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
   "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
   "src/economic/buy_void_source_finality_authority_v2.ts",
   "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
@@ -83,6 +91,7 @@ export type BuyVoidSourceFinalityGenerationPolicyV7 = {
   readonly primary: BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3;
   readonly secondary: BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3;
   readonly deployment_receipt_path: string;
+  readonly live_process_binding_receipt_path: string;
   readonly process_source_identity: ProcessSourceIdentityV7;
   readonly total_timeout_ms: string;
 };
@@ -94,7 +103,7 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
       readonly deployment_receipt_id: string;
       readonly accepted_enforcement_set_sha256: string;
       readonly reviewed_source_files_sha256: string;
-      readonly reviewed_source_file_count: "7";
+      readonly reviewed_source_file_count: "8";
       readonly source_generation_verified: true;
       readonly deployed_artifact_generation_verified: true;
     }
@@ -107,6 +116,7 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
     };
 
 const VERIFIED_DEPLOYMENT_DECISIONS_V7 = new WeakSet<object>();
+const VERIFIED_LIVE_PROCESS_BINDINGS_V7 = new WeakSet<object>();
 
 function custodyVerifiedDeploymentV7(
   decision: BuyVoidSourceFinalityDeploymentDecisionV7,
@@ -122,6 +132,22 @@ function isCustodyVerifiedDeploymentV7(
 ): boolean {
   return decision.ok === true &&
     VERIFIED_DEPLOYMENT_DECISIONS_V7.has(decision as object);
+}
+
+function custodyVerifiedLiveProcessBindingV7(
+  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
+): BuyVoidSourceFinalityLiveProcessBindingDecisionV1 {
+  if (decision.ok === false) return decision;
+  const verified = Object.freeze({ ...decision });
+  VERIFIED_LIVE_PROCESS_BINDINGS_V7.add(verified);
+  return verified;
+}
+
+function isCustodyVerifiedLiveProcessBindingV7(
+  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
+): boolean {
+  return decision.ok === true &&
+    VERIFIED_LIVE_PROCESS_BINDINGS_V7.has(decision as object);
 }
 
 export type BuyVoidSourceFinalityGenerationHeldV7 = {
@@ -154,9 +180,11 @@ export type BuyVoidSourceFinalityGenerationReadyV7 =
     readonly rpc_url_fingerprint_sha256: string;
     readonly reviewed_source_files_verified: true;
     readonly reviewed_source_files_sha256: string;
-    readonly verified_source_file_count: "7";
+    readonly verified_source_file_count: "8";
     readonly source_file_verification_mode: "operator_deployment_receipt_bound_v1";
     readonly deployment_receipt_id: string;
+    readonly live_process_binding_receipt_id: string;
+    readonly same_live_process_binding_proven: true;
     readonly accepted_enforcement_set_sha256: string;
     readonly source_generation_verified: true;
     readonly deployed_artifact_generation_verified: true;
@@ -321,7 +349,7 @@ function readStableRegularFile(absolute: string, maxBytes: number): Buffer {
 
 export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "7";
+  reviewed_source_file_count: "8";
   files: readonly Readonly<{ path: string; git_blob_sha1: string }>[];
 }> {
   const files = REVIEWED_SOURCE_PATHS_V7.map((relative) => {
@@ -340,7 +368,7 @@ export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
       repository: "6ZoSo9/void-node",
       files,
     }),
-    reviewed_source_file_count: "7",
+    reviewed_source_file_count: "8",
     files: Object.freeze(files),
   });
 }
@@ -369,7 +397,7 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
   receipt: unknown;
   process_source_identity: ProcessSourceIdentityV7;
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "7";
+  reviewed_source_file_count: "8";
 }): BuyVoidSourceFinalityDeploymentDecisionV7 {
   const bad = (reason: string): BuyVoidSourceFinalityDeploymentDecisionV7 => ({
     ok: false,
@@ -658,6 +686,7 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   primary: unknown;
   secondary: unknown;
   deployment: BuyVoidSourceFinalityDeploymentDecisionV7;
+  live_process_binding: BuyVoidSourceFinalityLiveProcessBindingDecisionV1;
 }): BuyVoidSourceFinalityGenerationDecisionV7 {
   const primaryEndpoint = providerEndpoint(input.primary_policy);
   const secondaryEndpoint = providerEndpoint(input.secondary_policy);
@@ -672,6 +701,25 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   if (input.deployment.ok === false) return held(input.deployment.reason);
   if (!isCustodyVerifiedDeploymentV7(input.deployment)) {
     return held("source_finality_deployment_not_custody_verified");
+  }
+  if (
+    input.live_process_binding?.ok !== true ||
+    input.live_process_binding.same_live_process_binding_proven !== true
+  ) {
+    return held(
+      input.live_process_binding?.ok === false
+        ? "source_finality_live_process_" + input.live_process_binding.reason
+        : "source_finality_live_process_binding_not_verified",
+    );
+  }
+  if (!isCustodyVerifiedLiveProcessBindingV7(input.live_process_binding)) {
+    return held("source_finality_live_process_binding_not_custody_verified");
+  }
+  if (
+    input.live_process_binding.deployment_receipt_id !==
+    input.deployment.deployment_receipt_id
+  ) {
+    return held("source_finality_live_process_deployment_receipt_mismatch");
   }
   const primary = input.primary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   const secondary = input.secondary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
@@ -750,6 +798,7 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
     }),
     accepted_enforcement_set_sha256: input.deployment.accepted_enforcement_set_sha256,
     deployment_receipt_id: input.deployment.deployment_receipt_id,
+    live_process_binding_receipt_id: input.live_process_binding.receipt_id,
   });
   return {
     ...(primary as BuyVoidSourceFinalityAuthenticatedReadyV3),
@@ -764,6 +813,8 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
     verified_source_file_count: input.deployment.reviewed_source_file_count,
     source_file_verification_mode: "operator_deployment_receipt_bound_v1",
     deployment_receipt_id: input.deployment.deployment_receipt_id,
+    live_process_binding_receipt_id: input.live_process_binding.receipt_id,
+    same_live_process_binding_proven: true,
     accepted_enforcement_set_sha256: input.deployment.accepted_enforcement_set_sha256,
     source_generation_verified: true,
     deployed_artifact_generation_verified: true,
@@ -799,6 +850,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
   }
   if (!exactKeys(input.policy, [
     "deployment_receipt_path",
+    "live_process_binding_receipt_path",
     "primary",
     "process_source_identity",
     "secondary",
@@ -813,6 +865,21 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
     process_source_identity: input.policy.process_source_identity,
   });
   if (deployment.ok === false) return held(deployment.reason);
+  if (
+    input.policy.live_process_binding_receipt_path !==
+    VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1
+  ) {
+    return held("source_finality_live_process_binding_path_invalid");
+  }
+  const liveProcessBinding = custodyVerifiedLiveProcessBindingV7(
+    verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+      receipt_path: input.policy.live_process_binding_receipt_path,
+      deployment_receipt_id: deployment.deployment_receipt_id,
+    }),
+  );
+  if (liveProcessBinding.ok === false) {
+    return held("source_finality_live_process_" + liveProcessBinding.reason);
+  }
 
   const primaryEndpoint = providerEndpoint(input.policy.primary);
   const secondaryEndpoint = providerEndpoint(input.policy.secondary);
@@ -855,5 +922,6 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
     primary,
     secondary,
     deployment,
+    live_process_binding: liveProcessBinding,
   });
 }
