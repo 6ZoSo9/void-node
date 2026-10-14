@@ -36,6 +36,10 @@ for value in [
  "actual_system_bus_sender_set_stable","denial_transcript_sha256",
  "system_bus_credentials_lookup_failed",
  "training_uid_process_identity_stable_across_authorization",
+ "absolute_runtime_service_control_denial_proven",
+ "inherited_system_bus_descriptor_absence_required",
+ "inherited_system_bus_descriptor_absence_proven",
+ "'runtime_can_control_service':None",
  "MAX_SYSTEM_BUS_UNIQUE_NAMES=256","system_bus_list_oversize",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
@@ -258,6 +262,10 @@ finally:
   setattr(mod,name,value)
 assert control['pkcheck_subject']=='4242,123456,1000'
 assert control['actual_system_bus_sender_count']==1
+assert control['runtime_can_control_service'] is None
+assert control['absolute_runtime_service_control_denial_proven'] is False
+assert control['inherited_system_bus_descriptor_absence_required'] is True
+assert control['inherited_system_bus_descriptor_absence_proven'] is False
 assert control['training_uid_process_identity_stable_across_authorization'] is True
 assert control['actual_system_bus_senders'][0]['bus_name']==':1.42'
 assert len(calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
@@ -347,6 +355,10 @@ print('service_control_bound_subject_execution_test=true')
 print('training_uid_discovery_scans_every_thread=true')
 print('actual_system_bus_sender_subject_test=true')
 print('actual_system_bus_sender_set_stability_required=true')
+print('inherited_system_bus_descriptor_absence_required=true')
+print('inherited_system_bus_descriptor_absence_proven=false')
+print('absolute_runtime_service_control_denial_proven=false')
+print('runtime_can_control_service=unknown')
 print('system_bus_unique_name_census_bounded=true')
 print('training_uid_process_full_identity_double_snapshot=true')
 print('system_bus_credential_lookup_fail_closed=true')
