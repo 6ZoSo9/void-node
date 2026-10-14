@@ -103,6 +103,12 @@ release the paired socket. The focused proof checks descriptor cleanup and
 subsequent healthy routing. This is an idle timeout, **not** an absolute maximum
 connection lifetime; periodic traffic can keep a connection active.
 
+Early classification rejections flush the bounded error response and then
+explicitly destroy the socket, because an HTTP-rejected peer that deliberately
+withholds TCP FIN would otherwise retain a live readable half even after
+`socket.end()`. The proof includes a rejected half-open peer using
+`allowHalfOpen: true` and requires it to close.
+
 The runtime does not authorize any concrete production port values.
 
 ## Focused proof

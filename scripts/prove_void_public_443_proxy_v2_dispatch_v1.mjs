@@ -398,6 +398,41 @@ async function abruptResetAfterDispatch(port, bytes, backend) {
   await closed;
 }
 
+async function proveRejectedHalfOpenCleanup(port, bytes) {
+  const socket = net.createConnection({
+    host: "127.0.0.1",
+    port,
+    allowHalfOpen: true,
+  });
+  socket.setNoDelay(true);
+  socket.on("error", () => {});
+  const chunks = [];
+  socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+  const closed = new Promise((resolve) => socket.once("close", resolve));
+  await once(socket, "connect");
+  // The client deliberately withholds FIN even after receiving the 400.
+  socket.write(bytes);
+  let deadline;
+  try {
+    await Promise.race([
+      closed,
+      new Promise((_, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("rejected half-open socket remained open")),
+          3500,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+    socket.destroy();
+  }
+  assert.match(
+    Buffer.concat(chunks).toString("utf8"),
+    /^HTTP\/1\.1 400 Bad Request/u,
+  );
+}
+
 async function proveRelayIdleCleanup(port, bytes, backend) {
   const expectedAccepted = backend.state.accepted + 1;
   const socket = net.createConnection({ host: "127.0.0.1", port });
@@ -560,6 +595,14 @@ try {
     assert.match(response, /^HTTP\/1\.1 400 Bad Request/u);
   }
 
+  await proveRejectedHalfOpenCleanup(
+    info.listen_port,
+    request({
+      method: "GET",
+      target: VOID_PUBLIC_EARN_CLAIM_PATH_V1,
+    }).all,
+  );
+
   assert.equal(
     credentialBackend.calls.length,
     beforeRejects.credential,
@@ -582,6 +625,7 @@ try {
   console.log("client_reset_after_classification_process_survives=true");
   console.log("relay_idle_socket_pair_closed=true");
   console.log("relay_idle_cleanup_dispatcher_survives=true");
+  console.log("rejected_half_open_socket_closed=true");
   console.log("sensitive_aliases_fail_closed=true");
   console.log("generic_sensitive_mutation_route_authorized=false");
   console.log("source_port_in_dispatch_identity=false");

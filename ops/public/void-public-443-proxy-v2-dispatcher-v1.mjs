@@ -90,6 +90,11 @@ function sendError(socket, reason) {
       ),
       body,
     ]),
+    () => {
+      // allowHalfOpen=true: a rejected peer can withhold its FIN forever.
+      // End the response before releasing the readable half of the socket.
+      if (!socket.destroyed) socket.destroy();
+    },
   );
 }
 

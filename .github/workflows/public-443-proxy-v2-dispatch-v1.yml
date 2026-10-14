@@ -74,6 +74,7 @@ jobs:
           grep -Fx 'client_reset_after_classification_process_survives=true' "$proof"
           grep -Fx 'relay_idle_socket_pair_closed=true' "$proof"
           grep -Fx 'relay_idle_cleanup_dispatcher_survives=true' "$proof"
+          grep -Fx 'rejected_half_open_socket_closed=true' "$proof"
           grep -Fx 'sensitive_aliases_fail_closed=true' "$proof"
           grep -Fx 'generic_sensitive_mutation_route_authorized=false' "$proof"
           grep -Fx 'source_identity_forwarded_as_http_header=false' "$proof"
