@@ -210,7 +210,7 @@ def open_private_parent(parent: str) -> tuple[int, os.stat_result]:
         not stat.S_ISDIR(visible.st_mode)
         or stat.S_ISLNK(visible.st_mode)
         or visible.st_uid != os.getuid()
-        or (visible.st_mode & 0o077)
+        or (visible.st_mode & 0o022)
     ):
         hold("parent_owner_or_mode_invalid")
     fd = os.open(parent, RD)
@@ -484,6 +484,18 @@ def report(mode: str, count: int = 0) -> None:
 
 
 def self_test(payload: dict[str, bytes]) -> None:
+    # A user's home may be 0750/0755. Parent traversal/read bits are harmless
+    # because the published stage itself is exact 0700; parent write authority
+    # is the relevant rename/rebind boundary.
+    with tempfile.TemporaryDirectory(prefix="void-nimo-v5-stage-parent-mode-") as temp:
+        os.chmod(temp, 0o755)
+        stage_into(payload, temp)
+        stage_stat = os.lstat(Path(temp, STAGE_NAME))
+        if (stage_stat.st_mode & 0o7777) != 0o700:
+            hold("selftest_stage_not_private_under_traversable_parent")
+        if inspect_stage(temp) != len(RUNTIME):
+            hold("selftest_traversable_parent_stage_missing")
+
     with tempfile.TemporaryDirectory(prefix="void-nimo-v5-stage-test-") as temp:
         os.chmod(temp, 0o700)
         stage_into(payload, temp)
