@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   buyVoidSourceFinalityDeploymentReceiptIdV7,
+  buyVoidSourceFinalityEnforcementLockIdV7,
   inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
 } from "../../src/economic/buy_void_source_finality_generation_provenance_v7.js";
 
@@ -18,6 +19,8 @@ export const DEFAULT_RECEIPT_PATH =
   "/var/lib/void-source-finality-v7/deployment-receipt.json";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SHA40=/^[0-9a-f]{40}$/u;
+const SHA256=/^[0-9a-f]{64}$/u;
+const SAFE_LOCK_PATH=/^ops\/security\/[A-Za-z0-9._\/-]+\.json$/u;
 
 function git(repositoryRoot:string,args:string[]):string{
   const root=path.resolve(repositoryRoot);
@@ -30,6 +33,7 @@ function git(repositoryRoot:string,args:string[]):string{
     "-c","core.untrackedCache=false",
     "-c","core.preloadIndex=false",
     "-c","submodule.recurse=false",
+    "-c","safe.directory="+root,
     "-C",root,
     ...args,
   ],{
@@ -65,18 +69,126 @@ export function inspectRepositoryIdentityV1(repositoryRoot:string=ROOT){
   return Object.freeze({commit,tree,branch:"main" as const});
 }
 
+const sha256=(bytes:Buffer)=>crypto.createHash("sha256").update(bytes).digest("hex");
+const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
+  .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
+  .update(bytes).digest("hex");
+
+function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1024){
+  assert.match(relative,SAFE_LOCK_PATH,"accepted_enforcement_lock_path_invalid");
+  assert.equal(path.posix.normalize(relative),relative,
+    "accepted_enforcement_lock_path_not_normalized");
+  assert.equal(relative.split("/").includes(".."),false,
+    "accepted_enforcement_lock_path_escape");
+  const absolute=path.join(repositoryRoot,...relative.split("/"));
+  const before=fs.lstatSync(absolute);
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=maxBytes,
+    "accepted_enforcement_file_shape_invalid:"+relative);
+  const bytes=fs.readFileSync(absolute);
+  const after=fs.lstatSync(absolute);
+  assert.equal(after.dev,before.dev,"accepted_enforcement_file_device_drift");
+  assert.equal(after.ino,before.ino,"accepted_enforcement_file_inode_drift");
+  assert.equal(after.size,before.size,"accepted_enforcement_file_size_drift");
+  assert.equal(after.mtimeMs,before.mtimeMs,"accepted_enforcement_file_mtime_drift");
+  assert.equal(after.ctimeMs,before.ctimeMs,"accepted_enforcement_file_ctime_drift");
+  const blob=gitBlobSha1(bytes);
+  assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
+    "accepted_enforcement_file_not_exact_head");
+  return Object.freeze({bytes,git_blob_sha1:blob,sha256:sha256(bytes)});
+}
+
+export function inspectAcceptedEnforcementLockV1(
+  relativePath:string,
+  repositoryRoot:string=ROOT,
+){
+  const lockFile=readTrackedFileV1(repositoryRoot,relativePath,256*1024);
+  const lock=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(lockFile.bytes));
+  assert.equal(lock?.repository,"6ZoSo9/void-node","accepted_enforcement_lock_repository_invalid");
+  assert.match(String(lock?.candidate_head||""),SHA40,
+    "accepted_enforcement_lock_candidate_head_invalid");
+  assert.equal(lock?.complete_executable_closure_verified,true,
+    "accepted_enforcement_lock_closure_not_verified");
+  assert.equal(lock?.candidate_enforcement_identity_accepted,true,
+    "accepted_enforcement_lock_not_accepted");
+  for(const key of [
+    "deployed_artifact_generation_verified","runtime_mount_authority",
+    "production_source_finality_authority_ready","public_presale_activation",
+    "funds_movement",
+  ])assert.equal(lock?.[key],false,"accepted_enforcement_lock_authority_overclaim:"+key);
+
+  const evidence=lock?.candidate_evidence;
+  assert.ok(evidence&&typeof evidence==="object"&&!Array.isArray(evidence),
+    "accepted_enforcement_candidate_evidence_missing");
+  const set=String(evidence.candidate_enforcement_set_sha256||"").toLowerCase();
+  assert.match(set,SHA256,"accepted_enforcement_set_invalid");
+  const candidatePath=String(evidence.path||"");
+  const candidateFile=readTrackedFileV1(repositoryRoot,candidatePath,1024*1024);
+  assert.equal(candidateFile.bytes.length,evidence.bytes,
+    "accepted_enforcement_candidate_bytes_mismatch");
+  assert.equal(candidateFile.sha256,evidence.sha256,
+    "accepted_enforcement_candidate_sha256_mismatch");
+  assert.equal(candidateFile.git_blob_sha1,evidence.git_blob_sha1,
+    "accepted_enforcement_candidate_git_blob_mismatch");
+  const candidate=JSON.parse(
+    new TextDecoder("utf-8",{fatal:true}).decode(candidateFile.bytes),
+  );
+  assert.equal(candidate?.candidate_enforcement_set_sha256,set,
+    "accepted_enforcement_candidate_set_mismatch");
+  assert.equal(candidate?.complete_executable_closure_verified,true,
+    "accepted_enforcement_candidate_closure_not_verified");
+  assert.equal(candidate?.candidate_enforcement_identity_accepted,false,
+    "accepted_enforcement_candidate_must_be_unaccepted");
+
+  const accepted_enforcement_lock_id=buyVoidSourceFinalityEnforcementLockIdV7({
+    accepted_enforcement_set_sha256:set,
+    accepted_enforcement_lock_git_blob_sha1:lockFile.git_blob_sha1,
+    accepted_enforcement_lock_sha256:lockFile.sha256,
+  });
+  return Object.freeze({
+    path:relativePath,
+    accepted_enforcement_set_sha256:set,
+    accepted_enforcement_lock_git_blob_sha1:lockFile.git_blob_sha1,
+    accepted_enforcement_lock_sha256:lockFile.sha256,
+    accepted_enforcement_lock_id,
+  });
+}
+
 export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
   process_source_commit:string;
   process_source_tree:string;
+  accepted_enforcement_lock:Readonly<{
+    accepted_enforcement_set_sha256:string;
+    accepted_enforcement_lock_git_blob_sha1:string;
+    accepted_enforcement_lock_sha256:string;
+    accepted_enforcement_lock_id:string;
+  }>;
 }){
   const commit=String(input.process_source_commit||"").trim().toLowerCase();
   const tree=String(input.process_source_tree||"").trim().toLowerCase();
   assert.match(commit,SHA40,"process_source_commit_invalid");
   assert.match(tree,SHA40,"process_source_tree_invalid");
   const sources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
+  const lock=input.accepted_enforcement_lock;
+  assert.match(lock.accepted_enforcement_set_sha256,SHA256,
+    "accepted_enforcement_set_invalid");
+  assert.match(lock.accepted_enforcement_lock_git_blob_sha1,SHA40,
+    "accepted_enforcement_lock_git_blob_invalid");
+  assert.match(lock.accepted_enforcement_lock_sha256,SHA256,
+    "accepted_enforcement_lock_sha256_invalid");
+  assert.equal(
+    lock.accepted_enforcement_lock_id,
+    buyVoidSourceFinalityEnforcementLockIdV7(lock),
+    "accepted_enforcement_lock_id_invalid",
+  );
   const body={
-    accepted_enforcement_set_sha256:
-      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+    accepted_enforcement_lock_git_blob_sha1:
+      lock.accepted_enforcement_lock_git_blob_sha1,
+    accepted_enforcement_lock_id:lock.accepted_enforcement_lock_id,
+    accepted_enforcement_lock_sha256:lock.accepted_enforcement_lock_sha256,
+    accepted_enforcement_set_sha256:lock.accepted_enforcement_set_sha256,
+    candidate_enforcement_identity_accepted:true,
+    complete_executable_closure_verified:true,
     marker:VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
     process_source_branch:"main",
     process_source_commit:commit,
@@ -197,6 +309,7 @@ function parseArgs(argv:string[]){
     expected_commit:"",
     expected_tree:"",
     receipt_path:DEFAULT_RECEIPT_PATH,
+    accepted_enforcement_lock_path:"",
     confirm:false,
   };
   for(let i=0;i<argv.length;i+=1){
@@ -205,12 +318,16 @@ function parseArgs(argv:string[]){
     else if(a==="--expected-commit")out.expected_commit=String(argv[++i]||"");
     else if(a==="--expected-tree")out.expected_tree=String(argv[++i]||"");
     else if(a==="--receipt-path")out.receipt_path=String(argv[++i]||"");
+    else if(a==="--accepted-enforcement-lock-path")
+      out.accepted_enforcement_lock_path=String(argv[++i]||"");
     else if(a==="--confirm-create-v7-deployment-receipt")out.confirm=true;
     else throw Error("unknown_argument:"+a);
   }
   assert.ok(out.mode,"mode_required");
   assert.match(out.expected_commit,SHA40,"expected_commit_required");
   assert.match(out.expected_tree,SHA40,"expected_tree_required");
+  assert.match(out.accepted_enforcement_lock_path,SAFE_LOCK_PATH,
+    "accepted_enforcement_lock_path_required");
   return out;
 }
 
@@ -219,9 +336,13 @@ function main(){
   const repo=inspectRepositoryIdentityV1();
   assert.equal(repo.commit,args.expected_commit,"expected_commit_mismatch");
   assert.equal(repo.tree,args.expected_tree,"expected_tree_mismatch");
+  const acceptedLock=inspectAcceptedEnforcementLockV1(
+    args.accepted_enforcement_lock_path,
+  );
   const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
     process_source_commit:repo.commit,
     process_source_tree:repo.tree,
+    accepted_enforcement_lock:acceptedLock,
   });
 
   console.log("marker="+MARKER);
@@ -239,8 +360,15 @@ function main(){
   console.log("process_source_tree="+repo.tree);
   console.log("reviewed_source_file_count="+built.reviewed_source_file_count);
   console.log("reviewed_source_files_sha256="+built.reviewed_source_files_sha256);
+  console.log("accepted_enforcement_lock_path="+acceptedLock.path);
+  console.log("accepted_enforcement_lock_id="+
+    acceptedLock.accepted_enforcement_lock_id);
+  console.log("accepted_enforcement_lock_git_blob_sha1="+
+    acceptedLock.accepted_enforcement_lock_git_blob_sha1);
+  console.log("accepted_enforcement_lock_sha256="+
+    acceptedLock.accepted_enforcement_lock_sha256);
   console.log("accepted_enforcement_set_sha256="+
-    VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7);
+    acceptedLock.accepted_enforcement_set_sha256);
   console.log("receipt_id="+built.receipt_id);
   console.log("receipt_path="+args.receipt_path);
 

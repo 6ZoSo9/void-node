@@ -9,6 +9,7 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
   buyVoidSourceFinalityDeploymentReceiptIdV7,
+  buyVoidSourceFinalityEnforcementLockIdV7,
   classifyBuyVoidSourceFinalityDeploymentReceiptV7,
   classifyBuyVoidSourceFinalityProviderQuorumV7,
   inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
@@ -276,6 +277,15 @@ const sourceInventory = inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
 assert.equal(sourceInventory.reviewed_source_file_count, "8");
 assert.match(sourceInventory.reviewed_source_files_sha256, /^[0-9a-f]{64}$/u);
 
+const externalAcceptedEnforcementSet = "a".repeat(64);
+const externalEnforcementLockGitBlob = "b".repeat(40);
+const externalEnforcementLockSha256 = "c".repeat(64);
+const externalEnforcementLockId = buyVoidSourceFinalityEnforcementLockIdV7({
+  accepted_enforcement_set_sha256: externalAcceptedEnforcementSet,
+  accepted_enforcement_lock_git_blob_sha1: externalEnforcementLockGitBlob,
+  accepted_enforcement_lock_sha256: externalEnforcementLockSha256,
+});
+
 const receiptBody = {
   marker: VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   version: 1,
@@ -284,8 +294,12 @@ const receiptBody = {
   process_source_commit: processIdentity.commit,
   process_source_tree: processIdentity.tree,
   process_source_branch: processIdentity.branch,
-  accepted_enforcement_set_sha256:
-    VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+  accepted_enforcement_lock_git_blob_sha1: externalEnforcementLockGitBlob,
+  accepted_enforcement_lock_id: externalEnforcementLockId,
+  accepted_enforcement_lock_sha256: externalEnforcementLockSha256,
+  accepted_enforcement_set_sha256: externalAcceptedEnforcementSet,
+  candidate_enforcement_identity_accepted: true,
+  complete_executable_closure_verified: true,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
   reviewed_source_file_count: "8",
 };
@@ -300,6 +314,17 @@ const receiptDecision = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   reviewed_source_file_count: "8",
 });
 assert.equal(receiptDecision.ok, true);
+if (receiptDecision.ok) {
+  assert.equal(
+    receiptDecision.accepted_enforcement_set_sha256,
+    externalAcceptedEnforcementSet,
+  );
+  assert.notEqual(
+    receiptDecision.accepted_enforcement_set_sha256,
+    VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+    "runtime deployment authority must not be hard-coded to predecessor set",
+  );
+}
 
 const unbrandedReceiptAuthority = classifyProvider({
   primary_policy: primaryPolicy,

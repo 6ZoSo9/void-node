@@ -56,7 +56,7 @@ assert.equal(parsed.ld_library_path_absent,true);
 
 for(const forbidden of ["NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
   const attack=Buffer.concat([
-    envBytes.subarray(0,envBytes.length-1),
+    envBytes,
     Buffer.from(forbidden+"=/tmp/hostile\0","utf8"),
   ]);
   assert.throws(
@@ -65,7 +65,7 @@ for(const forbidden of ["NODE_PATH","LD_PRELOAD","LD_LIBRARY_PATH"]){
   );
 }
 const duplicate=Buffer.concat([
-  envBytes.subarray(0,envBytes.length-1),
+  envBytes,
   Buffer.from("NODE_OPTIONS=--require /tmp/other.cjs\0","utf8"),
 ]);
 assert.throws(

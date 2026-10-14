@@ -703,7 +703,7 @@ for (const mutation of [
   { same_provider_consistency_verified: false },
   { provider_consistency_verified: false },
   { source_file_verification_mode: "caller_asserted" },
-  { accepted_enforcement_set_sha256: "0".repeat(64) },
+  { accepted_enforcement_set_sha256: "0".repeat(63) },
   { independent_remote_provider_transport_verified: false },
   { source_generation_verified: false },
   { deployed_artifact_generation_verified: false },
@@ -747,6 +747,13 @@ const source = fs.readFileSync(
 assert.match(
   source,
   /runBuyVoidSourceFinalityExecutionPreflightV1\(\{/u,
+);
+assert.equal(
+  source.includes(
+    "VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7",
+  ),
+  false,
+  "checkout runtime must not hard-code an accepted enforcement generation",
 );
 assert.match(
   source,

@@ -9,6 +9,7 @@ import {
   DEFAULT_RECEIPT_PATH,
   MARKER,
   buildBuyVoidSourceFinalityV7DeploymentReceiptV1,
+  inspectAcceptedEnforcementLockV1,
   inspectRepositoryIdentityV1,
   installRootCustodiedReceiptV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
@@ -27,9 +28,16 @@ const processIdentity={
   commit,tree,branch:"main" as const,
 };
 const sources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
+const acceptedLock=inspectAcceptedEnforcementLockV1(
+  "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+);
+assert.match(acceptedLock.accepted_enforcement_lock_id,
+  /^voidbenfl1_[0-9a-f]{64}$/u);
+assert.match(acceptedLock.accepted_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
 const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
   process_source_commit:commit,
   process_source_tree:tree,
+  accepted_enforcement_lock:acceptedLock,
 });
 assert.equal(built.reviewed_source_file_count,"8");
 assert.equal(built.reviewed_source_files_sha256,
@@ -48,6 +56,11 @@ assert.equal(classified.ok,true);
 for(const mutate of [
   (x:any)=>{x.process_source_tree="3".repeat(40);},
   (x:any)=>{x.accepted_enforcement_set_sha256="4".repeat(64);},
+  (x:any)=>{x.accepted_enforcement_lock_id="voidbenfl1_"+"4".repeat(64);},
+  (x:any)=>{x.accepted_enforcement_lock_sha256="4".repeat(64);},
+  (x:any)=>{x.accepted_enforcement_lock_git_blob_sha1="4".repeat(40);},
+  (x:any)=>{x.complete_executable_closure_verified=false;},
+  (x:any)=>{x.candidate_enforcement_identity_accepted=false;},
   (x:any)=>{x.reviewed_source_files_sha256="5".repeat(64);},
   (x:any)=>{x.receipt_id="voidbsfdep1_"+"6".repeat(64);},
 ]){
@@ -151,6 +164,8 @@ if(rootCapable){
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("v7_receipt_uses_module_content_address=true");
+console.log("external_accepted_enforcement_lock_verified=true");
+console.log("deployment_receipt_enforcement_set_not_source_hardcoded=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
 console.log("repository_local_fsmonitor_ignored=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
