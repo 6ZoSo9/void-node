@@ -506,10 +506,10 @@ def self_test()->None:
     forged["binary"]["sha256"]=(
         ("0" if original_sha[0]!="0" else "1")+original_sha[1:]
     )
-    forged["candidate_id"]=
-        "apollyon_candidate_training_entrypoint_binary_candidate_v1:"+sha256(
-            canonical(candidate_material(forged)).encode("utf-8")
-        )
+    forged["candidate_id"]=(
+        "apollyon_candidate_training_entrypoint_binary_candidate_v1:"+
+        sha256(canonical(candidate_material(forged)).encode("utf-8"))
+    )
     validate_report(forged)
     with tempfile.TemporaryDirectory(
         prefix="void-apollyon-training-entrypoint-forged-report-test-"
