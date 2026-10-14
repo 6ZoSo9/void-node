@@ -32,6 +32,10 @@ for required in [
     "hostname_matches_precision",
     "ordinary_user_observer",
     "effective_user_is_zoso",
+    "process_environment_access",
+    "loopback_status_get_only",
+    "read_gateway_status_4122",
+    "classify_gateway_status_payload",
     "live_cutover_authorized",
 ]:
     assert required in source, required
@@ -44,6 +48,9 @@ for forbidden in [
     "systemctl --user disable",
     "cloudflared tunnel route",
     "credentials-file=",
+    "/environ",
+    "VOID_ADAPTER_PORT",
+    "VOID_EARN_MUTATION_DOWNSTREAM_PORT",
 ]:
     assert forbidden not in source, forbidden
 
@@ -51,5 +58,7 @@ print("VOID_PUBLIC_EARN_LEGACY_CUTOVER_CENSUS_V1_PROOF_GREEN")
 print("legacy_gateway_and_tunnel_read_only=true")
 print("process_generation_stability_required=true")
 print("tunnel_credential_path_output=false")
+print("process_environment_access=false")
 print("process_environment_output=false")
+print("loopback_status_get_only=true")
 print("live_cutover_authorized=false")
