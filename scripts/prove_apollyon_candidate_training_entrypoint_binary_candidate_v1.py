@@ -341,7 +341,7 @@ def validate_report(report:dict)->None:
     )
     binary=report["binary"]
     if (
-        not isinstance(binary["bytes"],int) or
+        type(binary["bytes"]) is not int or
         binary["bytes"]<MIN_BINARY_BYTES or
         binary["bytes"]>MAX_BINARY_BYTES or
         not isinstance(binary["sha256"],str) or
@@ -455,11 +455,28 @@ def compare_dir(directory:Path)->None:
     validate_report(report)
     if canonical(report)+"\n"!=payloads[0].decode("utf-8"):
         raise AssertionError("candidate report is not canonical")
+
+    # Three equal reports are only claims until the compare job independently
+    # re-derives the ELF from the exact checked-out source/compiler recipe.
+    local=derive()
+    local_binary=local["binary"]
+    hosted_binary=report["binary"]
+    if (
+        hosted_binary["bytes"]!=local_binary["bytes"] or
+        hosted_binary["sha256"]!=local_binary["sha256"]
+    ):
+        raise AssertionError(
+            "hosted candidate binary does not match locally rederived ELF"
+        )
+
     print(MARKER+"_THREE_RUN_GREEN")
     print("candidate_id="+report["candidate_id"])
     print("binary_sha256="+report["binary"]["sha256"])
     print("binary_max_bytes="+str(MAX_BINARY_BYTES))
     print("three_run_report_bytes_identical=true")
+    print("comparison_rederived_elf=true")
+    print("comparison_binary_bytes_match=true")
+    print("comparison_binary_sha256_match=true")
     print("candidate_binary_identity_accepted=false")
     print("installed_training_entrypoint_identity_proven=false")
     print("training_execution=false")
@@ -483,6 +500,35 @@ def self_test()->None:
                 raise
         else:
             raise AssertionError("non-integer candidate version unexpectedly admitted")
+
+    forged=json.loads(canonical(valid))
+    original_sha=forged["binary"]["sha256"]
+    forged["binary"]["sha256"]=(
+        ("0" if original_sha[0]!="0" else "1")+original_sha[1:]
+    )
+    forged["candidate_id"]=
+        "apollyon_candidate_training_entrypoint_binary_candidate_v1:"+sha256(
+            canonical(candidate_material(forged)).encode("utf-8")
+        )
+    validate_report(forged)
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-training-entrypoint-forged-report-test-"
+    ) as td:
+        root=Path(td)
+        payload=(canonical(forged)+"\n").encode("utf-8")
+        for lane in ("a","b","c"):
+            lane_dir=root/("lane-"+lane)
+            lane_dir.mkdir()
+            (lane_dir/"candidate.json").write_bytes(payload)
+        try:
+            compare_dir(root)
+        except AssertionError as exc:
+            if "locally rederived ELF" not in str(exc):
+                raise
+        else:
+            raise AssertionError(
+                "three consistently forged candidate reports unexpectedly admitted"
+            )
 
     tampered=json.loads(canonical(valid))
     tampered["candidate_id"]="apollyon_candidate_training_entrypoint_binary_candidate_v1:"+("0"*64)
@@ -547,7 +593,10 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST=GREEN")
     print("closed_report_schema=true")
     print("candidate_id_recomputed=true")
+    print("comparison_rederives_exact_elf=true")
+    print("three_consistently_forged_reports_rejected=true")
     print("explicit_integer_version_required=true")
+    print("explicit_integer_binary_size_required=true")
     print("extra_authority_claim_rejected=true")
     print("missing_compiler_block_rejected=true")
     print("binary_max_bytes="+str(MAX_BINARY_BYTES))
