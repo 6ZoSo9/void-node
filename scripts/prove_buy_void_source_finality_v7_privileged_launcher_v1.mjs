@@ -38,6 +38,16 @@ for(const required of [
   'provider-pair)',
   'live-process-v2)',
   'void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts',
+  'VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1',
+  'VOID_BUY_VOID_V7_PROTECTED_NATIVE_PREENTRY="$NATIVE_PREENTRY_MARKER"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT="$ROOT"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$dispatch_head"',
+  'VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$dispatch_tree"',
+  'VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH="$tool_path"',
+  'VOID_BUY_VOID_V7_PROTECTED_TOOL_BLOB_SHA1="$tracked_blob"',
+  'protected_dispatch_head_changed',
+  'protected_dispatch_tree_changed',
+  'protected_dispatch_tree_dirty',
   'native_preentry_verified=true',
   'launcher_descriptor_execution=true',
   'tsx_private_materialization_verified=true',
@@ -82,7 +92,7 @@ for(const required of [
   '"--noprofile"',
   '"--norc"',
   'PREENTRY_ENV',
-  '#define FIXED_LAUNCHER_BYTES 11442U',
+  '#define FIXED_LAUNCHER_BYTES 12644U',
   'FIXED_LAUNCHER_SHA256',
   'sha256_fd_matches(launcher_fd)',
   'native_preentry_launcher_digest_mismatch',
@@ -338,6 +348,7 @@ assert.equal(proofCompleted,true,"proof body did not complete");
   console.log("native_bash_descriptor_execution=true");
   console.log("native_launcher_descriptor_execution=true");
   console.log("native_launcher_exact_sha256_bound=true");
+  console.log("protected_tool_dispatch_context_bound=true");
   console.log("same_size_root_owned_launcher_substitution_rejected=true");
   console.log("direct_shell_privileged_invocation_supported=false");
   console.log("legacy_sh_path_fail_only=true");
