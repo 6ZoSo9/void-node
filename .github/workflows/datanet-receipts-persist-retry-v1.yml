@@ -67,4 +67,11 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -z "${BASE:-}" ]; then
+            BASE="$(git rev-parse "$HEAD^1")"
+            echo "diff_scope=manual_exact_first_parent"
+          else
+            git merge-base --is-ancestor "$BASE" "$HEAD"
+            echo "diff_scope=reviewed_pull_request_base"
+          fi
           git diff --check "$BASE" "$HEAD"
