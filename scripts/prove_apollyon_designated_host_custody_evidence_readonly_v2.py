@@ -34,6 +34,8 @@ for value in [
  "'--system-bus-name'","parse_busctl_unique_names","system_bus_sender_snapshot",
  "system_bus_sender_evidence","actual_system_bus_sender_checks_required",
  "actual_system_bus_sender_set_stable","denial_transcript_sha256",
+ "system_bus_credentials_lookup_failed",
+ "training_process_identity_stable_across_authorization",
  "MAX_SYSTEM_BUS_UNIQUE_NAMES=256","system_bus_list_oversize",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
@@ -43,7 +45,7 @@ for value in [
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
- "process_has_training_uid_thread","/task/","training_uid_process_inventory",
+ "process_has_training_uid_thread","/task/","collect_training_uid_processes","training_uid_process_inventory",
  "all_training_uid_processes_capability_free",
  "training_thread_subject","training_process_thread_inventory",
  "all_training_uid_threads_capability_free","training_uid_thread_count",
@@ -64,6 +66,7 @@ assert source.count("def parse_installed_systemd_version_line") == 1
 assert source.count("def parse_running_systemd_manager_version") == 1
 assert source.count("def training_process_subject") == 1
 assert source.count("def process_has_training_uid_thread") == 1
+assert source.count("def collect_training_uid_processes") == 1
 assert source.count("def training_uid_process_inventory") == 1
 assert source.count("def system_bus_sender_snapshot") == 1
 assert source.count("def system_bus_sender_evidence") == 1
@@ -104,6 +107,21 @@ except mod.Hold:
  pass
 else:
  raise AssertionError('oversize system-bus census unexpectedly admitted')
+class FailedBusCall:
+ returncode=1
+ stdout=''
+ stderr='name vanished'
+original_run_status=mod.run_status
+try:
+ mod.run_status=lambda args:FailedBusCall()
+ try:
+  mod.dbus_connection_uint32('GetConnectionUnixProcessID',':1.42')
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('failed bus credential lookup unexpectedly ignored')
+finally:
+ mod.run_status=original_run_status
 synthetic_status='''Name:\tfixture
 Uid:\t1000\t1000\t1000\t1000
 CapInh:\t0000000000000000
@@ -138,6 +156,36 @@ except mod.Hold:
  pass
 else:
  raise AssertionError('mixed-UID synthetic thread unexpectedly admitted')
+inventory_calls=0
+original_collect_processes=mod.collect_training_uid_processes
+def drifting_process_snapshot(training):
+ global inventory_calls
+ inventory_calls+=1
+ start='123456' if inventory_calls==1 else '123457'
+ return {
+  'processes':[{
+   'all_threads_capability_free':True,
+   'pid':4242,'start_time_ticks':start,'uid':1000,
+   'uid_slots':[1000,1000,1000,1000],
+   'capabilities':{
+    'ambient':'0','effective':'0','inheritable':'0',
+    'no_new_privileges':True,'permitted':'0',
+   },
+   'thread_count':1,'thread_inventory_sha256':'88'*32,
+   'thread_set_stable':True,
+  }],
+  'thread_count':1,
+ }
+try:
+ mod.collect_training_uid_processes=drifting_process_snapshot
+ try:
+  mod.training_uid_process_inventory(Training(),4242)
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('PID-reuse/full-identity drift unexpectedly admitted')
+finally:
+ mod.collect_training_uid_processes=original_collect_processes
 calls=[]
 zero_caps={
  'ambient':'0','effective':'0','inheritable':'0',
@@ -147,6 +195,7 @@ fake_inventory={
  'all_training_uid_processes_capability_free':True,
  'all_training_uid_threads_capability_free':True,
  'training_uid_process_count':1,
+ 'training_uid_process_identity_stable_across_authorization':True,
  'training_uid_process_set_stable':True,
  'training_uid_processes':[{
   'all_threads_capability_free':True,
@@ -209,6 +258,7 @@ finally:
   setattr(mod,name,value)
 assert control['pkcheck_subject']=='4242,123456,1000'
 assert control['actual_system_bus_sender_count']==1
+assert control['training_uid_process_identity_stable_across_authorization'] is True
 assert control['actual_system_bus_senders'][0]['bus_name']==':1.42'
 assert len(calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
 assert all(subject=='4242,123456,1000' for _,subject,_ in calls)
@@ -298,6 +348,8 @@ print('training_uid_discovery_scans_every_thread=true')
 print('actual_system_bus_sender_subject_test=true')
 print('actual_system_bus_sender_set_stability_required=true')
 print('system_bus_unique_name_census_bounded=true')
+print('training_uid_process_full_identity_double_snapshot=true')
+print('system_bus_credential_lookup_fail_closed=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
