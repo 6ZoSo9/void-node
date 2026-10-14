@@ -52,6 +52,8 @@ jobs:
           grep -Fx 'exact_one_manager_parent_node_candidate=true' "$RUNNER_TEMP/live-process-v2.log"
           grep -Fx 'v1_receipt_production_authority_rejected=true' "$RUNNER_TEMP/live-process-v2.log"
           grep -Fx 'manager_pidfd_required_at_collection=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'runtime_service_reparent_during_verification_rejected=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'runtime_service_generation_change_during_verification_rejected=true' "$RUNNER_TEMP/live-process-v2.log"
           grep -Fx 'systemctl_user_selector_authority=false' "$RUNNER_TEMP/live-process-v2.log"
           grep -Fx 'production_source_finality_authority_ready=false' "$RUNNER_TEMP/live-process-v2.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/live-process-v2.log"
