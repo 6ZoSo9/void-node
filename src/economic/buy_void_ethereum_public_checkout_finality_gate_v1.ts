@@ -23,10 +23,11 @@ import {
   type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6,
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
-  observeBuyVoidSourceFinalityGenerationProvenanceV6,
-} from "./buy_void_source_finality_generation_provenance_v6.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7,
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
+  observeBuyVoidSourceFinalityGenerationProvenanceV7,
+} from "./buy_void_source_finality_generation_provenance_v7.js";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1";
@@ -41,7 +42,7 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
   Object.freeze({
     server_controlled_policy_required: true,
     immutable_process_source_identity_required: true,
-    pre_attempt_request_level_v6_bridge: true,
+    pre_attempt_request_level_v7_bridge: true,
     pre_attempt_verified_payment_rebuilt_internally: true,
     caller_supplied_verified_payment_event_authority: false,
     canonical_source_finality_preflight_required: true,
@@ -185,7 +186,7 @@ export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
   canonical_verified_payment_event: BuyVoidVerifiedPaymentEventV2;
   caller_supplied_verified_payment_event_authority: false;
   source_finality_marker:
-    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6;
+    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7;
   process_source_identity_verified: true;
   reviewed_source_files_verified: true;
   authenticated_transport_identity_verified: true;
@@ -195,7 +196,8 @@ export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
   total_operation_deadline_verified: true;
   source_generation_verified: true;
   deployed_artifact_generation_verified: true;
-  remote_provider_identity_verified: true;
+  independent_remote_provider_transport_verified: true;
+  remote_provider_identity_verified: false;
   ancestry_verified: true;
   provider_quorum_verified: true;
   production_source_finality_authority_ready: true;
@@ -247,20 +249,23 @@ function productionSourceFinalityCapabilityReadyV1(
       : null;
   return Boolean(
     value &&
+    value.source_only_candidate === true &&
     value.runtime_source_filesystem_read === true &&
     value.runtime_source_filesystem_write === false &&
     value.caller_generation_assertion_accepted === false &&
-    value.reviewed_source_files_verification_required === true &&
+    value.operator_deployment_receipt_required === true &&
+    value.immutable_process_source_identity_required === true &&
     value.reviewed_source_files_verified_on_success === true &&
     value.source_generation_verified_on_success === true &&
-    value.deployed_artifact_generation_verified === true &&
+    value.deployed_artifact_generation_verified_on_success === true &&
     value.authenticated_transport_identity_verified === true &&
-    value.remote_provider_identity_verified === true &&
+    value.independent_remote_provider_transport_required === true &&
+    value.remote_provider_legal_identity_verified === false &&
     value.total_operation_deadline_verified === true &&
     value.observation_generated_in_composition === true &&
-    value.ancestry_verified === true &&
+    value.ancestry_verified_by_two_provider_finality_agreement === true &&
     value.provider_quorum_verified === true &&
-    value.production_source_finality_authority_ready === true &&
+    value.production_source_finality_authority_ready_on_success === true &&
     value.rpc_read === true &&
     value.rpc_write === false &&
     value.wallet_access === false &&
@@ -315,20 +320,36 @@ function preAttemptHeld(
   };
 }
 
+function processSourceIdentityV1(env: NodeJS.ProcessEnv):
+  | {
+      marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
+      commit: string;
+      tree: string;
+      branch: "main";
+    }
+  | null {
+  const marker = String(env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "").trim();
+  const commit = String(env.VOID_PROCESS_SOURCE_COMMIT || "").trim().toLowerCase();
+  const tree = String(env.VOID_PROCESS_SOURCE_TREE || "").trim().toLowerCase();
+  const branch = String(env.VOID_PROCESS_SOURCE_BRANCH || "").trim();
+  if (
+    marker !== PROCESS_SOURCE_MARKER ||
+    !SHA40.test(commit) ||
+    !SHA40.test(tree) ||
+    branch !== "main"
+  ) return null;
+  return {
+    marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+    commit,
+    tree,
+    branch: "main",
+  };
+}
+
 function processSourceIdentityVerifiedV1(
   env: NodeJS.ProcessEnv,
 ): boolean {
-  return (
-    String(env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "").trim() ===
-      PROCESS_SOURCE_MARKER &&
-    SHA40.test(
-      String(env.VOID_PROCESS_SOURCE_COMMIT || "").trim().toLowerCase(),
-    ) &&
-    SHA40.test(
-      String(env.VOID_PROCESS_SOURCE_TREE || "").trim().toLowerCase(),
-    ) &&
-    String(env.VOID_PROCESS_SOURCE_BRANCH || "").trim() === "main"
-  );
+  return processSourceIdentityV1(env) !== null;
 }
 
 function positiveUintV1(value: unknown): bigint | null {
@@ -538,7 +559,7 @@ function classifyEthereumPreAttemptObservationV1(input: {
     !observation ||
     observation.ok !== true ||
     observation.marker !==
-      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6 ||
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 ||
     observation.source_chain !== "ethereum" ||
     observation.evm_chain_id !== "1" ||
     String(observation.transaction_hash || "").toLowerCase() !==
@@ -546,14 +567,22 @@ function classifyEthereumPreAttemptObservationV1(input: {
     observation.canonical_payment_identity !==
       input.canonical_payment_identity ||
     observation.reviewed_source_files_verified !== true ||
+    observation.source_file_verification_mode !==
+      "operator_deployment_receipt_bound_v1" ||
+    observation.accepted_enforcement_set_sha256 !==
+      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 ||
+    !/^voidbsfdep1_[0-9a-f]{64}$/u.test(
+      String(observation.deployment_receipt_id || ""),
+    ) ||
     observation.authenticated_transport_identity_verified !== true ||
+    observation.independent_remote_provider_transport_verified !== true ||
     observation.observation_generated_in_composition !== true ||
     observation.same_provider_consistency_verified !== true ||
     observation.provider_consistency_verified !== true ||
     observation.total_operation_deadline_verified !== true ||
     observation.source_generation_verified !== true ||
     observation.deployed_artifact_generation_verified !== true ||
-    observation.remote_provider_identity_verified !== true ||
+    observation.remote_provider_identity_verified !== false ||
     observation.ancestry_verified !== true ||
     observation.provider_quorum_verified !== true ||
     observation.production_source_finality_authority_ready !== true ||
@@ -753,7 +782,7 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
   }
 
   const capability =
-    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6;
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7;
   if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return readinessHeld(
       "ethereum_source_finality_capability_not_ready",
@@ -895,7 +924,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
 ): Promise<BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1> {
   const env = input.env || process.env;
   const operationStartedAtMonotonicMs = performance.now();
-  const processIdentity = processSourceIdentityVerifiedV1(env);
+  const processIdentity = processSourceIdentityV1(env);
   if (!processIdentity) {
     return preAttemptHeld(
       "ethereum_pre_attempt_process_source_identity_unavailable",
@@ -913,7 +942,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   }
 
   const capability =
-    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V6;
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7;
   if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return preAttemptHeld(
       "ethereum_pre_attempt_source_finality_capability_not_ready",
@@ -935,6 +964,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     operationStartedAtMonotonicMs + totalTimeoutMs;
 
   const rail = policy.policy.ethereum;
+  const secondaryRail = policy.policy.ethereum_secondary;
   const latestBudget = preAttemptDeadlineBudgetV1({
     deadline_at_monotonic_ms: deadlineAtMonotonicMs,
     request_timeout_ms: rail.timeout_ms,
@@ -1036,27 +1066,42 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     );
   }
 
+  const sourceFinalityPolicy = (
+    selected: BuyVoidSourceFinalityExecutionRailV1,
+  ) => ({
+    enabled: true as const,
+    source_chain: "ethereum" as const,
+    chain_id: selected.evm_chain_id,
+    rpc_url: selected.rpc_url,
+    rpc_url_fingerprint_sha256:
+      selected.rpc_url_fingerprint_sha256,
+    rpc_identity: selected.rpc_identity,
+    finality_adapter_id: selected.finality_adapter_id,
+    min_confirmations: selected.min_confirmations,
+    usdc_contract: selected.usdc_contract,
+    receive_address: selected.receive_address,
+    timeout_ms: selected.timeout_ms,
+    max_response_bytes: selected.max_response_bytes,
+  });
+
   const observation =
-    await observeBuyVoidSourceFinalityGenerationProvenanceV6({
+    await observeBuyVoidSourceFinalityGenerationProvenanceV7({
       request: input.request,
       policy: {
-        source_finality_policy: {
-          enabled: true,
-          source_chain: "ethereum",
-          chain_id: rail.evm_chain_id,
-          rpc_url: rail.rpc_url,
-          rpc_url_fingerprint_sha256:
-            rail.rpc_url_fingerprint_sha256,
-          rpc_identity: rail.rpc_identity,
-          finality_adapter_id: rail.finality_adapter_id,
-          min_confirmations: rail.min_confirmations,
-          usdc_contract: rail.usdc_contract,
-          receive_address: rail.receive_address,
-          timeout_ms: rail.timeout_ms,
-          max_response_bytes: rail.max_response_bytes,
+        primary: {
+          source_finality_policy: sourceFinalityPolicy(rail),
+          authority_policy_generation:
+            policy.policy.authority_policy_generation,
+          total_timeout_ms: String(finalityBudget.remaining_ms),
         },
-        authority_policy_generation:
-          policy.policy.authority_policy_generation,
+        secondary: {
+          source_finality_policy: sourceFinalityPolicy(secondaryRail),
+          authority_policy_generation:
+            policy.policy.authority_policy_generation,
+          total_timeout_ms: String(finalityBudget.remaining_ms),
+        },
+        deployment_receipt_path: policy.policy.deployment_receipt_path,
+        process_source_identity: processIdentity,
         total_timeout_ms: String(finalityBudget.remaining_ms),
       },
     });
@@ -1116,7 +1161,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     canonical_verified_payment_event: canonicalVerifiedPaymentEvent,
     caller_supplied_verified_payment_event_authority: false,
     source_finality_marker:
-      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
     process_source_identity_verified: true,
     reviewed_source_files_verified: true,
     authenticated_transport_identity_verified: true,
@@ -1126,7 +1171,8 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     total_operation_deadline_verified: true,
     source_generation_verified: true,
     deployed_artifact_generation_verified: true,
-    remote_provider_identity_verified: true,
+    independent_remote_provider_transport_verified: true,
+    remote_provider_identity_verified: false,
     ancestry_verified: true,
     provider_quorum_verified: true,
     production_source_finality_authority_ready: true,

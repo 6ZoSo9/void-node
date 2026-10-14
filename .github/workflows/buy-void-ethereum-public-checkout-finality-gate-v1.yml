@@ -9,6 +9,7 @@ on:
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
       - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
@@ -18,6 +19,7 @@ on:
       - "src/economic/buy_void_fulfillment_journal_v1.ts"
       - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "scripts/prove_buy_void_ethereum_public_checkout_finality_gate_v1.ts"
+      - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
       - "docs/architecture/buy-void-ethereum-public-checkout-finality-gate-v1.md"
       - "package.json"
       - "package-lock.json"
@@ -75,8 +77,11 @@ jobs:
       - name: Prove Ethereum checkout finality gate
         run: npx tsx scripts/prove_buy_void_ethereum_public_checkout_finality_gate_v1.ts
 
-      - name: Preserve canonical source-finality preflight
+      - name: Preserve canonical V7 source-finality preflight
         run: npx tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
+
+      - name: Preserve V7 quorum authority primitive
+        run: npx tsx scripts/prove_buy_void_source_finality_generation_provenance_v7.ts
 
       - name: Verify source tree cleanliness
         run: test -z "$(git status --porcelain=v1)"

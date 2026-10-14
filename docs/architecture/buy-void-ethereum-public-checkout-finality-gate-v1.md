@@ -2,6 +2,37 @@
 
 Marker: `VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1`
 
+## V7 checkout bridge successor — 2026-10-13
+
+This revision switches the Ethereum checkout's direct source-finality authority
+bridge from historical V6 to V7. It is stacked on the V7 execution-preflight
+integration and reuses that exact server-controlled policy surface: existing
+primary Ethereum RPC fields, a required independent secondary Ethereum RPC
+URL/identity, an absolute canonical deployment-receipt path, immutable process
+commit/tree identity, and the existing canonical dual-rail USDC/receiver policy.
+
+Payment-instruction readiness now recognizes only the V7 capability contract:
+operator deployment receipt required, immutable process identity required,
+reviewed source/deployed generation on success, two independent provider
+transports, two-provider ancestry/quorum, and production authority on success.
+V7 deliberately reports remote legal-provider identity as false; the checkout
+therefore requires independent transport verification rather than relabeling
+transport diversity as legal identity.
+
+The pre-attempt bridge rebuilds the latest-head V2 payment event exactly as
+before, then calls V7 with primary + secondary finalized observers, the retained
+root-custodied deployment receipt, and the same remaining end-to-end deadline.
+A finality observation is transition-ready only with the exact V7 marker,
+receipt-bound source verification mode, accepted enforcement identity
+`ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb`,
+content-addressed deployment receipt ID, independent-provider transport fact,
+source/deployed generation, ancestry and quorum.
+
+This source change does not enable intake. The currently deployed environment
+still lacks the new V7 runtime configuration/receipt, and the separate coupled
+launch gate remains required. Sections below describing V6 as the active bridge
+are retained as historical rationale; this section controls where they conflict.
+
 ## Outcome
 
 Provide one fail-closed prerequisite for the Ethereum public Buy VOID checkout
