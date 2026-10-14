@@ -186,6 +186,24 @@ held(
 );
 held(
   (input) => {
+    input.dispatcher.service_unit = "wrong-dispatcher.service";
+  },
+  "public_earn_isolation_dispatcher_service_invalid",
+);
+held(
+  (input) => {
+    input.earn_edge.service_unit = "wrong-edge.service";
+  },
+  "public_earn_isolation_edge_service_invalid",
+);
+held(
+  (input) => {
+    input.gateway.service_unit = "wrong-gateway.service";
+  },
+  "public_earn_isolation_gateway_service_invalid",
+);
+held(
+  (input) => {
     input.earn_edge.listen_host = "::1";
   },
   "public_earn_isolation_edge_identity_invalid",
