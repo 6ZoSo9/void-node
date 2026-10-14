@@ -1,0 +1,120 @@
+name: VOID Nimo V5 live private-stage evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/void_nimo_v5_live_private_stage_evidence_v1.py"
+      - "scripts/void_nimo_v5_private_stage_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-live-private-stage-evidence-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-live-private-stage-evidence-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/void_nimo_v5_live_private_stage_evidence_v1.py"
+      - "scripts/void_nimo_v5_private_stage_v1.py"
+      - "docs/architecture/buy-void-nimo-v5-live-private-stage-evidence-v1.md"
+      - ".github/workflows/buy-void-nimo-v5-live-private-stage-evidence-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact candidate revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile reviewed Python sources outside checkout
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/void-nimo-v5-live-stage-pycache
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/void_nimo_v5_private_stage_v1.py
+          python3 -m py_compile scripts/void_nimo_v5_live_private_stage_evidence_v1.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove source-only live-stage evidence contract
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/nimo-v5-live-stage-self-test.txt"
+          python3 -I -B scripts/void_nimo_v5_live_private_stage_evidence_v1.py --self-test             | tee "$proof"
+          grep -Fx 'VOID_NIMO_V5_LIVE_PRIVATE_STAGE_EVIDENCE_V1_SELF_TEST_GREEN' "$proof"
+          grep -Fx 'reviewed_private_stage_inspector_exact=true' "$proof"
+          grep -Fx 'reviewed_nimo_machine_id_required=true' "$proof"
+          grep -Fx 'reviewed_nimo_ed25519_hostkey_required=true' "$proof"
+          grep -Fx 'live_host_collection_performed=false' "$proof"
+          grep -Fx 'live_nimo_installed=false' "$proof"
+          grep -Fx 'production_gate_ready=false' "$proof"
+          grep -Fx 'public_presale_activation=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Preserve read-only capability boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("scripts/void_nimo_v5_live_private_stage_evidence_v1.py").read_text()
+          forbidden = [
+              "subprocess.",
+              "socket.create_connection",
+              "socket.socket(",
+              "paramiko",
+              "systemctl",
+              "ssh ",
+              "os.chmod(",
+              "os.chown(",
+              "os.unlink(",
+              "os.rename(",
+              "os.replace(",
+              "os.mkdir(",
+              "os.write(",
+          ]
+          for token in forbidden:
+              if token in source:
+                  raise SystemExit("forbidden live-stage capability: " + token)
+          required = [
+              'MACHINE_ID_PATH = "/etc/machine-id"',
+              'HOSTKEY_PATH = "/etc/ssh/ssh_host_ed25519_key.pub"',
+              'EXPECTED_HOSTNAME = "Nimo"',
+              'EXPECTED_MACHINE_ID_SHA256 = "48a3554126d621d6460385ebacf3d41b454157337271cb7405af012158f203d4"',
+              'EXPECTED_HOSTKEY_FINGERPRINT = "SHA256:3c9mfrwEQ9RKbVwL8pw/kvbCFt5imaj3QCK79yynkvk"',
+              '"live_nimo_installed": False',
+              '"root_disk_continuity_reverified": False',
+              '"public_presale_activation": False',
+              '"funds_movement": False',
+          ]
+          for token in required:
+              if token not in source:
+                  raise SystemExit("required live-stage boundary missing: " + token)
+          print("VOID_NIMO_V5_LIVE_PRIVATE_STAGE_CAPABILITY_BOUNDARY_GREEN")
+          PY
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then
+            BASE="$HEAD^"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
