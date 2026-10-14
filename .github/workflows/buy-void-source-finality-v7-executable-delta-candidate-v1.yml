@@ -12,6 +12,8 @@ on:
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v2.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "package.json"
@@ -30,6 +32,8 @@ on:
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v2.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "package.json"
@@ -285,4 +289,124 @@ jobs:
           console.log("census_id="+c.census_id);
           console.log("artifact_inventory_sha256="+crypto.createHash("sha256").update(Buffer.from(JSON.stringify(c.artifacts))).digest("hex"));
           console.log("source_inventory_sha256="+crypto.createHash("sha256").update(Buffer.from(JSON.stringify(c.sources))).digest("hex"));
+          NODE
+
+  final-v7-v2-enforcement-candidate:
+    needs: [final-v7-enforcement-census-v2-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact V2 candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build exact candidate generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Derive fresh unaccepted 28-member enforcement candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs
+          node scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs --self-test
+          out="$RUNNER_TEMP/final-v7-v2-candidate-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs --derive > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.schema,"void_buy_void_enforcement_final_v7_v2_candidate_v1");
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_CANDIDATE_V1");
+          assert.equal(c.version,1);
+          assert.equal(c.source_parent,"82aee920f26b45c7e43bcc9f9e1023a175e2783a");
+          assert.equal(c.hosted_census_evidence.census_id,
+            "voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a");
+          assert.equal(c.hosted_census_evidence.artifact_count,28);
+          assert.equal(c.hosted_census_evidence.source_file_count,28);
+          assert.equal(c.v7_executable_delta.module_count,6);
+          assert.equal(c.v7_executable_delta.candidate_generation_sha256,
+            "cfac0b510932203623a4b9a0c09ad9c6639efdb04b0e5f1ff9feba15175f9311");
+          assert.equal(c.live_process_v2_static_execution_closure_verified,true);
+          assert.equal(c.live_process_v2_static_edge.dynamic_import_count,0);
+          assert.equal(c.live_process_v2_static_edge.function_constructor_count,0);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.deployed_artifact_generation_verified,false);
+          assert.equal(c.runtime_mount_authority,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
+          console.log("VOID_BUY_VOID_FINAL_V7_V2_ENFORCEMENT_CANDIDATE_NODE_GREEN");
+          NODE
+      - name: Upload V2 candidate evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-final-v7-v2-enforcement-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/final-v7-v2-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+  final-v7-v2-enforcement-candidate-cross-node:
+    needs: [final-v7-v2-enforcement-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-v7-v2-enforcement-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate
+      - name: Require exact Node 22 24 26 candidate equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "candidate/final-v7-v2-candidate-$node.json"; done
+          cmp candidate/final-v7-v2-candidate-22.json candidate/final-v7-v2-candidate-24.json
+          cmp candidate/final-v7-v2-candidate-22.json candidate/final-v7-v2-candidate-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("candidate/final-v7-v2-candidate-22.json");
+          const c=JSON.parse(bytes);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.live_process_v2_static_execution_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_FINAL_V7_V2_ENFORCEMENT_CANDIDATE_CROSS_NODE_GREEN");
+          console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           NODE
