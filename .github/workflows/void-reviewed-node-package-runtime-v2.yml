@@ -1,0 +1,63 @@
+name: VOID reviewed Node package runtime v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-reviewed-node-package-runtime-v2.yml"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: reviewed package successor / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install exact locked dependencies without package scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove frozen V1 refusal and current V2 reviewed runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/void-reviewed-node-package-runtime-v1.mjs
+          node --check scripts/prove_void_reviewed_node_package_runtime_v2.mjs
+          receipt="$RUNNER_TEMP/reviewed-node-package-runtime-v2.txt"
+          node scripts/prove_void_reviewed_node_package_runtime_v2.mjs | tee "$receipt"
+          grep -Fx "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V2_ENFORCEMENT_GREEN" "$receipt"
+          grep -Fx "frozen_v1_profile_unchanged=true" "$receipt"
+          grep -Fx "frozen_v1_refuses_current_package_generation=true" "$receipt"
+          grep -Fx "v2_profile_cross_node_derived=true" "$receipt"
+          grep -Fx "private_ethers_import_green=true" "$receipt"
+          grep -Fx "runtime_chain_wallet_transaction_funds_authority=0" "$receipt"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"

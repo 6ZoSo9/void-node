@@ -6,7 +6,9 @@ on:
       - ".github/workflows/void-wc-void-opening-durable-evidence-canonical-application-v1.yml"
       - "docs/operators/wc-void-opening-durable-evidence-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v2.mjs"
       - "tools/void-wc-void-opening-durable-evidence-canonical-application-v1.mjs"
+      - "tools/void-wc-void-opening-durable-evidence-canonical-application-v2.mjs"
       - "tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
       - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
@@ -31,6 +33,7 @@ on:
       - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
       - ".gitignore"
@@ -43,7 +46,9 @@ on:
       - ".github/workflows/void-wc-void-opening-durable-evidence-canonical-application-v1.yml"
       - "docs/operators/wc-void-opening-durable-evidence-canonical-application-v1.md"
       - "scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs"
+      - "scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v2.mjs"
       - "tools/void-wc-void-opening-durable-evidence-canonical-application-v1.mjs"
+      - "tools/void-wc-void-opening-durable-evidence-canonical-application-v2.mjs"
       - "tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
       - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
@@ -68,6 +73,7 @@ on:
       - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
       - ".gitignore"
@@ -100,9 +106,35 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-opening-durable-evidence-canonical-application-v1.mjs
+          node --check tools/void-wc-void-opening-durable-evidence-canonical-application-v2.mjs
           node --check scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs
-      - name: Prove durable opening canonical application
-        run: node scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs
+          node --check scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v2.mjs
+      - name: Prove durable opening canonical application generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs
+              echo "opening_durable_canonical_application_mode=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/opening-durable-canonical-v1-hold.txt"
+              if node scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'OPENING_DURABLE_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED' "$hold"
+              node scripts/prove_void_wc_void_opening_durable_evidence_canonical_application_v2.mjs
+              echo "opening_durable_canonical_application_mode=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
       - name: Upstream durable-opening and classifier regressions
         run: |
           node scripts/prove_void_wc_void_opening_durable_evidence_candidate_promotion_v1.mjs

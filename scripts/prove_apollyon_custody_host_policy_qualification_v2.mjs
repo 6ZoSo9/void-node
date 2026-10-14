@@ -7,6 +7,7 @@ import {fileURLToPath} from "node:url";
 import {
   VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
   VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V1,
+  canonicalApollyonCustodyHostPolicyJsonV1,
   qualifyApollyonCustodyHostPolicyV1,
 } from "../tools/apollyon-custody-host-policy-qualification-v1.mjs";
 import {
@@ -46,6 +47,140 @@ for(const relative of [
   assert.equal(workflow.includes('"' + relative + '"'),true,"workflow trigger missing "+relative);
 }
 const now=1_800_000_000_000;
+const serviceUnit="void-apollyon-authorization-custody-v1.service";
+const manageUnitVerbs=[
+  "start","verify-active","stop","reload","reload-or-start","restart","try-restart",
+  "try-reload","nop","reload-or-restart","reload-or-try-restart","kill","clean",
+  "set-property","reset-failed","ref","bind-mount","mount-image",
+];
+const globalControlActions=[
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+  "org.freedesktop.systemd1.set-environment",
+];
+function serviceControlFixture(){
+  const checks=[
+    {action_id:"org.freedesktop.systemd1.manage-units",details:[],exit_status:1,result:"explicitly_denied"},
+    ...manageUnitVerbs.map((verb)=>({
+      action_id:"org.freedesktop.systemd1.manage-units",
+      details:[{key:"unit",value:serviceUnit},{key:"verb",value:verb}],
+      exit_status:1,result:"explicitly_denied",
+    })),
+    ...globalControlActions.map((action_id)=>({
+      action_id,details:[],exit_status:1,result:"explicitly_denied",
+    })),
+  ];
+  const zeroCaps=()=>({
+    ambient:"0",effective:"0",inheritable:"0",
+    no_new_privileges:true,permitted:"0",
+  });
+  const deniedActions=[
+    "org.freedesktop.systemd1.manage-units",
+    ...globalControlActions,
+  ];
+  const actionExpression=deniedActions
+    .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+    .join(" ||\n");
+  const expectedPolkitRule=
+    "polkit.addRule(function(action, subject) {\n"+
+    "  if (\n"+
+    "    subject.user === "+JSON.stringify("zoso")+" &&\n"+
+    "    (\n"+
+    actionExpression+"\n"+
+    "    )\n"+
+    "  ) {\n"+
+    "    return polkit.Result.NO;\n"+
+    "  }\n"+
+    "  return polkit.Result.NOT_HANDLED;\n"+
+    "});\n";
+  const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+  const expectedPolkitRuleSha256=crypto.createHash("sha256")
+    .update(expectedPolkitRuleBytes)
+    .digest("hex");
+  const busDigest=crypto.createHash("sha256")
+    .update(canonicalApollyonCustodyHostPolicyJsonV1(checks))
+    .digest("hex");
+  return {
+    absolute_runtime_service_control_denial_proven:true,
+    actual_system_bus_sender_checks_required:true,
+    actual_system_bus_sender_count:1,
+    actual_system_bus_sender_set_stable:true,
+    actual_system_bus_senders:[{
+      all_systemd_control_actions_explicitly_denied:true,
+      bus_name:":1.42",
+      checked_action_count:checks.length,
+      denial_transcript_sha256:busDigest,
+      pid:4242,
+      subject_type:"system-bus-name",
+      uid:1000,
+    }],
+    all_systemd_control_actions_explicitly_denied:true,
+    all_training_uid_processes_capability_free:true,
+    all_training_uid_threads_capability_free:true,
+    checked_actions:checks,
+    inherited_system_bus_descriptor_absence_proven:true,
+    inherited_system_bus_descriptor_absence_required:true,
+    installed_systemd_package_version:"255.4-1ubuntu8.11",
+    observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
+    pkcheck_subject:"4242,123456,1000",
+    polkit_deny_rule:{
+      action_id_only:true,
+      bytes:expectedPolkitRuleBytes.length,
+      denied_action_ids:deniedActions,
+      details_can_change_result:false,
+      group_other_writable:false,
+      lexically_first:true,
+      mode:"0644",
+      owner_gid:0,
+      owner_uid:0,
+      path:"/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules",
+      retained_ancestors_group_other_writable:false,
+      retained_ancestors_root_owned:true,
+      runtime_user:"zoso",
+      sha256:expectedPolkitRuleSha256,
+      single_link:true,
+      symlink:false,
+    },
+    reviewed_systemd_major:255,
+    reviewed_systemd_package_version:"255.4-1ubuntu8.11",
+    running_installed_systemd_version_match:true,
+    running_systemd_manager_major:255,
+    running_systemd_manager_version:"255.4-1ubuntu8.11",
+    runtime_can_control_service:false,
+    service_unit:serviceUnit,
+    systemd_bus_owner_pid:1,
+    systemd_bus_owner_pid_is_pid1:true,
+    training_pid:4242,
+    training_process_capabilities:zeroCaps(),
+    training_process_start_time_ticks:"123456",
+    training_uid:1000,
+    training_uid_process_count:2,
+    training_uid_process_identity_stable_across_authorization:true,
+    training_uid_process_set_stable:true,
+    training_uid_processes:[
+      {
+        all_threads_capability_free:true,
+        pid:4242,start_time_ticks:"123456",uid:1000,
+        uid_slots:[1000,1000,1000,1000],
+        capabilities:zeroCaps(),
+        thread_count:2,
+        thread_inventory_sha256:"88".repeat(32),
+        thread_set_stable:true,
+      },
+      {
+        all_threads_capability_free:true,
+        pid:4243,start_time_ticks:"123457",uid:1000,
+        uid_slots:[1000,1000,1000,1000],
+        capabilities:zeroCaps(),
+        thread_count:1,
+        thread_inventory_sha256:"99".repeat(32),
+        thread_set_stable:true,
+      },
+    ],
+    training_uid_thread_count:3,
+    training_uid_thread_sets_stable:true,
+  };
+}
 function v1Fixture(){
   return {
     marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,version:1,
@@ -63,12 +198,14 @@ function v1Fixture(){
 function v2Fixture(){
   const x=structuredClone(v1Fixture());
   x.marker=VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2;x.version=2;
+  x.identities.training_user="zoso";
   Object.assign(x.socket_parent,{
     retained_ancestor_count:3,retained_ancestors_root_owned:true,
     retained_ancestors_direct:true,retained_ancestors_symlink_free:true,
     retained_ancestors_group_other_writable:false,
     training_uid_rename_unlink_denied:true,
   });
+  x.service_control=serviceControlFixture();
   return x;
 }
 const old=qualifyApollyonCustodyHostPolicyV1(v1Fixture());
@@ -80,6 +217,7 @@ assert.equal(current.historical_v1_qualification_id,old.qualification_id);
 assert.match(current.qualification_id,/^apollyon_custody_policy_v2:[0-9a-f]{64}$/u);
 assert.equal(current.socket_parent_retained_ancestor_policy_qualified,true);
 assert.equal(current.socket_parent_training_rename_unlink_policy_qualified,true);
+assert.equal(current.service_control_policy_qualified,true);
 assert.equal(current.live_host_qualification_performed,false);
 assert.equal(current.production_gate_ready,false);
 assert.throws(()=>qualifyApollyonCustodyHostPolicyV1(v2Fixture()),/input_invalid/u);
@@ -102,6 +240,148 @@ for(const mutate of [
   const bad=v2Fixture();bad.service.custody_uid_only_reviewed_service=false;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_invalid/u);
 }
+{
+  const bad=v2Fixture();
+  bad.service_control.checked_actions[1].exit_status=0;
+  bad.service_control.checked_actions[1].result="authorized";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.training_uid=1001;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.polkit_deny_rule.action_id_only=false;
+  bad.service_control.polkit_deny_rule.details_can_change_result=true;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.polkit_deny_rule.lexically_first=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.identities.training_user="otheruser";
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV2(bad),
+    /service_control_invalid/u,
+  );
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.bytes+=1;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.sha256="77".repeat(32);
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.denied_action_ids=
+    ["org.freedesktop.systemd1.manage-units"];
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.reviewed_systemd_major=256;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.running_systemd_manager_version="255.3-1ubuntu8.10";
+  bad.service_control.running_installed_systemd_version_match=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service_control.running_systemd_manager_major=254;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.systemd_bus_owner_pid=2;
+  bad.service_control.systemd_bus_owner_pid_is_pid1=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.reviewed_systemd_package_version="255.4-1ubuntu8.12";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[1].capabilities.effective="1";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.all_training_uid_threads_capability_free=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].all_threads_capability_free=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].uid_slots[2]=0;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_thread_count=4;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_processes[0].thread_inventory_sha256="not-a-hash";
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_process_set_stable=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.training_uid_process_identity_stable_across_authorization=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].uid=0;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].pid=9999;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].denial_transcript_sha256="aa".repeat(32);
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_sender_set_stable=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.inherited_system_bus_descriptor_absence_proven=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.absolute_runtime_service_control_denial_proven=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();bad.service.runtime_can_control_service=true;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
+}
 for(const [key,expected] of Object.entries({
   source_only_classifier:true,host_io:false,filesystem_read:false,filesystem_write:false,
   process_execution:false,network_access:false,operator_private_key_access:false,
@@ -109,6 +389,21 @@ for(const [key,expected] of Object.entries({
   transaction_signing:false,transaction_broadcast:false,funds_movement:false,
   historical_v1_classifier_reused:true,socket_parent_retained_ancestor_binding:true,
   socket_parent_training_rename_unlink_denied_required:true,
+  explicit_training_pid_service_control_denial_required:true,
+  exact_lexically_first_action_id_only_polkit_deny_rule_required:true,
+  reviewed_systemd_major_pinned:true,
+  running_systemd_manager_version_bound:true,
+  running_installed_systemd_version_match_required:true,
+  reviewed_systemd_package_version_pinned:true,
+  systemd_bus_owner_pid1_required:true,
+  all_training_uid_processes_capability_free_required:true,
+  all_training_uid_threads_capability_free_required:true,
+  training_uid_thread_stability_required:true,
+  training_uid_process_identity_stability_required:true,
+  training_uid_thread_discovery_required:true,
+  actual_system_bus_sender_denial_required:true,
+  inherited_system_bus_descriptor_absence_required:true,
+  absolute_runtime_service_control_denial_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -121,6 +416,24 @@ console.log("historical_v1_classifier_bytes_unchanged=true");
 console.log("historical_v83_collector_bytes_unchanged=true");
 console.log("socket_parent_retained_ancestor_binding=true");
 console.log("socket_parent_training_rename_unlink_denied_required=true");
+console.log("explicit_training_pid_service_control_denial_required=true");
+console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
+console.log("canonical_polkit_rule_bytes_and_sha256_required=true");
+console.log("polkit_runtime_user_bound_to_training_identity=true");
+console.log("polkit_details_can_change_result=false");
+console.log("reviewed_systemd_major=255");
+console.log("running_systemd_manager_version_bound=true");
+console.log("running_installed_systemd_version_match_required=true");
+console.log("reviewed_systemd_package_version=255.4-1ubuntu8.11");
+console.log("systemd_bus_owner_pid_is_pid1=true");
+console.log("all_training_uid_processes_capability_free_required=true");
+console.log("all_training_uid_threads_capability_free_required=true");
+console.log("training_uid_thread_stability_required=true");
+console.log("training_uid_process_identity_stability_required=true");
+console.log("training_uid_thread_discovery_required=true");
+console.log("actual_system_bus_sender_denial_required=true");
+console.log("inherited_system_bus_descriptor_absence_required=true");
+console.log("absolute_runtime_service_control_denial_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
