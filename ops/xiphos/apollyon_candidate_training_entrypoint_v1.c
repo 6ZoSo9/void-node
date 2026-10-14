@@ -131,12 +131,15 @@ static void prepare_process_io_safety(void) {
     _exit(2);
   }
 
+  int stderr_flags = fcntl(STDERR_FILENO, F_GETFL);
+  if (stderr_flags < 0 ||
+      fcntl(STDERR_FILENO, F_SETFL, stderr_flags | O_NONBLOCK) != 0) {
+    _exit(2);
+  }
+
   require_nonblocking_fd(
       STDOUT_FILENO,
       "apollyon_candidate_training_entrypoint_stdout_nonblocking_failed");
-  require_nonblocking_fd(
-      STDERR_FILENO,
-      "apollyon_candidate_training_entrypoint_stderr_nonblocking_failed");
 }
 
 static void emit_ready(void) {
