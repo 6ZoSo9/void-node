@@ -111,6 +111,7 @@ async function signedFixture() {
       authenticated_transport_identity_verified: true, total_operation_deadline_verified: true,
       source_generation_verified: true, deployed_artifact_generation_verified: true,
       ancestry_verified: true, provider_quorum_verified: true,
+      same_live_process_binding_proven: true,
       production_source_finality_authority_ready: true,
       wallet_access_performed: false, signing_performed: false,
       transaction_broadcast_performed: false, money_movement_performed: false,

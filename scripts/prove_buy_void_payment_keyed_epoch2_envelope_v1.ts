@@ -112,6 +112,7 @@ const fulfillmentCall = buildBuyVoidPaymentKeyedFulfillmentCallV1({
     deployed_artifact_generation_verified: true,
     ancestry_verified: true,
     provider_quorum_verified: true,
+    same_live_process_binding_proven: true,
     production_source_finality_authority_ready: true,
     wallet_access_performed: false,
     signing_performed: false,
