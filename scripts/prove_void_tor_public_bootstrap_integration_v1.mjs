@@ -22,6 +22,10 @@ const stringChainManifestPath = path.join(
   temporary,
   "bootstrap-string-chain-id.json",
 );
+const postIssuanceManifestPath = path.join(
+  temporary,
+  "bootstrap-post-issuance-qualification.json",
+);
 const requested = [];
 
 function listen(server) {
@@ -167,6 +171,29 @@ try {
     { mode: 0o600 },
   );
 
+  const postIssuanceBody = {
+    ...manifestBody,
+    onion_endpoints: [{
+      ...manifestBody.onion_endpoints[0],
+      qualified_at: new Date(
+        Date.parse(manifestBody.generated_at) + 1,
+      ).toISOString(),
+    }],
+  };
+  const postIssuanceManifest = {
+    ...postIssuanceBody,
+    manifest_id: contentId(
+      "voidpbm1_",
+      postIssuanceBody,
+      "manifest_id",
+    ),
+  };
+  fs.writeFileSync(
+    postIssuanceManifestPath,
+    `${JSON.stringify(postIssuanceManifest, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+
   const stringChain = await runResolver(
     [
       "--manifest-file",
@@ -185,6 +212,29 @@ try {
   assert.equal(requested.length, 0);
   console.log(
     "[PASS] direct resolver rejects string Tor manifest chain IDs before SOCKS access",
+  );
+
+  const postIssuance = await runResolver(
+    [
+      "--manifest-file",
+      postIssuanceManifestPath,
+      "--expected-manifest-id",
+      postIssuanceManifest.manifest_id,
+    ],
+    {
+      VOID_TOR_SOCKS_HOST: "192.0.2.1",
+      VOID_TOR_SOCKS_PORT: "19051",
+      VOID_TOR_BOOTSTRAP_TIMEOUT_MS: "1000",
+    },
+  );
+  assert.equal(postIssuance.code, 1);
+  assert.match(
+    postIssuance.stderr,
+    /qualification must not postdate manifest issuance/,
+  );
+  assert.equal(requested.length, 0);
+  console.log(
+    "[PASS] post-issuance qualification rejected before SOCKS access",
   );
 
   const socksPort = await listen(socks);
@@ -278,6 +328,7 @@ try {
   console.log("local_status_query_rejected=true");
   console.log("resolver_adapter_composed=true");
   console.log("qualification_fresh_at_manifest_issuance=true");
+  console.log("qualification_postdating_manifest_rejected_before_socks=true");
   console.log("runtime_qualification_age_gt_two_hours_proven=true");
   console.log("runtime_live_health_probe_required=true");
   console.log("block_range_contiguous=true");
