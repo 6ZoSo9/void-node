@@ -24,6 +24,10 @@ on:
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-enforcement-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_candidate_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "package.json"
       - "package-lock.json"
 
@@ -245,3 +249,29 @@ jobs:
           cmp lock-receipts/enforcement-profile-lock-22.txt lock-receipts/enforcement-profile-lock-26.txt
           grep -Fx 'profile_id=voidrnpr1_c15b7f3cb00d85f378a69cfc536c3845e29f9be7047e3af0f9fbd646eb2f5860' lock-receipts/enforcement-profile-lock-22.txt
           echo "VOID_ENFORCEMENT_PACKAGE_PROFILE_LOCK_CROSS_NODE_GREEN"
+
+  enforce-enforcement-profile-lock-main:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Enforce combined package runtime identity
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1)"
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs

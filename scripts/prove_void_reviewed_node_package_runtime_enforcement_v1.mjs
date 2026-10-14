@@ -15,6 +15,9 @@ import {
   verifyMaterializedReviewedNodePackageRuntimeV1,
   verifyReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
+import {
+  runReviewedGitV1,
+} from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MANIFEST_PATH="ops/security/reviewed-node-package-runtime-enforcement-v1.json";
@@ -23,6 +26,10 @@ const CANDIDATE_SCRIPT=
 const CANDIDATE_SCRIPT_BLOB="2c60865ed19148e5c95beaef53eb03528f10b3da";
 const EXPECTED_CANDIDATE_SOURCE_PARENT=
   "21773007311f63c7a2e5d288e8bfa1e2243d49b6";
+const REVIEWED_GIT_HELPER=
+  "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs";
+const REVIEWED_GIT_HELPER_BLOB=
+  "2df64e31debd4884f2d859d55a87e4ef15925d3d";
 const EXPECTED={
   marker:"VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_V1",
   version:1,
@@ -111,6 +118,13 @@ function main(){
   const committed=JSON.parse(fs.readFileSync(MANIFEST_PATH,"utf8"));
   assert.equal(canonicalJson(committed),canonicalJson(EXPECTED),
     "enforcement_profile_identity_manifest_drift");
+  const gitHelperBytes=fs.readFileSync(REVIEWED_GIT_HELPER);
+  assert.equal(gitBlob(gitHelperBytes),REVIEWED_GIT_HELPER_BLOB,
+    "reviewed_git_helper_blob_drift");
+  runReviewedGitV1(
+    ["merge-base","--is-ancestor",EXPECTED.candidate_parent,"HEAD"],
+    ROOT,
+  );
 
   const candidate=rederiveCandidate();
   const profile=collectReviewedNodePackageRuntimeV1({
