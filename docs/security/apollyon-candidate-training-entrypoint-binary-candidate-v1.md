@@ -20,7 +20,7 @@ source so the installed-isolation lane can eventually bind the fixed target to
 reviewed bytes without introducing training authority.
 
 This PR is stacked on exact #2937 source head
-`70a46a271a6aea7d82d70e159bfbb3c477ae5410` and must not land independently.
+`0a37ee7611500b6ffdcd09c2fa51c56700f5b431` and must not land independently.
 
 ## Exact source
 
@@ -29,7 +29,7 @@ path
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
 
 Git blob
-db8cbcd5032800a6a38ba23433175824247bc57d
+caac8932ac8fd6f2f9339404b5703bda969b96a6
 ```
 
 The deterministic compile recipe is:
@@ -64,7 +64,7 @@ Each hosted derivation:
 6. emits one canonical JSON candidate report bounded to 65,536 bytes; and
 7. grants no binary acceptance or runtime authority.
 
-The exact self-test commits to the qualification-only boundary, including:
+The repaired parent also uses an absolute CLOCK_MONOTONIC/TIMER_ABSTIME 300-second observation deadline. The exact self-test commits to the qualification-only boundary, including:
 
 ```text
 durable_attempt_claim_proven=false
