@@ -64,6 +64,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1 =
     immutable_process_source_identity_required: true,
     v7_runtime_source_file_verification_required: true,
     operator_deployment_receipt_required: true,
+    operator_approved_provider_pair_binding_required: true,
     same_live_process_binding_required: true,
     independent_remote_provider_transport_required: true,
     authenticated_source_rpc_transport_reused: true,
@@ -92,6 +93,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const PAYMENT_ID =
   /^voidpay1:(base|ethereum):(0x[0-9a-f]{64}):(0|[1-9][0-9]*)$/;
 const UINT = /^(0|[1-9][0-9]*)$/;
+const PROVIDER_PAIR_RECEIPT_ID = /^voidbsfpp1_[0-9a-f]{64}$/;
 const MAX_TOTAL_TIMEOUT_MS = 120_000;
 const MAX_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
@@ -153,6 +155,8 @@ export type BuyVoidSourceFinalityExecutionPreflightReadyV1 = {
   deployed_artifact_generation_verified: true;
   ancestry_verified: true;
   provider_quorum_verified: true;
+  provider_pair_binding_receipt_id: string;
+  operator_approved_provider_pair_binding_verified: true;
   same_live_process_binding_proven: true;
   production_source_finality_authority_ready: true;
   wallet_access_performed: false;
@@ -177,6 +181,7 @@ export type BuyVoidSourceFinalityExecutionPreflightHeldV1 = {
   deployed_artifact_generation_verified: boolean;
   ancestry_verified: boolean;
   provider_quorum_verified: boolean;
+  operator_approved_provider_pair_binding_verified: boolean;
   same_live_process_binding_proven: boolean;
   production_source_finality_authority_ready: false;
   wallet_access_performed: false;
@@ -384,6 +389,8 @@ function held(
       options.deployed_artifact_generation_verified === true,
     ancestry_verified: options.ancestry_verified === true,
     provider_quorum_verified: options.provider_quorum_verified === true,
+    operator_approved_provider_pair_binding_verified:
+      options.operator_approved_provider_pair_binding_verified === true,
     same_live_process_binding_proven:
       options.same_live_process_binding_proven === true,
     production_source_finality_authority_ready: false,
@@ -667,6 +674,10 @@ function readyObservation(value: unknown): value is Record<string, any> {
     result.remote_provider_identity_verified === false &&
     result.ancestry_verified === true &&
     result.provider_quorum_verified === true &&
+    PROVIDER_PAIR_RECEIPT_ID.test(
+      String(result.provider_pair_binding_receipt_id ?? ""),
+    ) &&
+    result.operator_approved_provider_pair_binding_verified === true &&
     result.same_live_process_binding_proven === true &&
     result.production_source_finality_authority_ready === true
   );
@@ -816,6 +827,8 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
       record.deployed_artifact_generation_verified === true,
     ancestry_verified: record.ancestry_verified === true,
     provider_quorum_verified: record.provider_quorum_verified === true,
+    operator_approved_provider_pair_binding_verified:
+      record.operator_approved_provider_pair_binding_verified === true,
     same_live_process_binding_proven:
       record.same_live_process_binding_proven === true,
   } as const;
@@ -857,6 +870,9 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
     deployed_artifact_generation_verified: true,
     ancestry_verified: true,
     provider_quorum_verified: true,
+    provider_pair_binding_receipt_id:
+      String(record.provider_pair_binding_receipt_id),
+    operator_approved_provider_pair_binding_verified: true,
     same_live_process_binding_proven: true,
     production_source_finality_authority_ready: true,
     wallet_access_performed: false,

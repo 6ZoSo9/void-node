@@ -141,7 +141,7 @@ const forgedDeployment = {
   accepted_enforcement_set_sha256:
     VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   reviewed_source_files_sha256: "e".repeat(64),
-  reviewed_source_file_count: "8",
+  reviewed_source_file_count: "9",
   source_generation_verified: true,
   deployed_artifact_generation_verified: true,
 } as const;
@@ -163,6 +163,7 @@ const classifyProvider = (input: any) =>
   classifyBuyVoidSourceFinalityProviderQuorumV7({
     ...input,
     live_process_binding: unverifiedLiveProcessBinding,
+    provider_pair_binding: {},
   });
 
 const secondary = observation(secondaryPolicy, {
@@ -274,7 +275,15 @@ const processIdentity = {
   branch: "main",
 } as const;
 const sourceInventory = inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
-assert.equal(sourceInventory.reviewed_source_file_count, "8");
+assert.equal(sourceInventory.reviewed_source_file_count, "9");
+assert.equal(
+  sourceInventory.files.some(
+    (row) =>
+      row.path ===
+      "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
+  ),
+  true,
+);
 assert.match(sourceInventory.reviewed_source_files_sha256, /^[0-9a-f]{64}$/u);
 
 const externalAcceptedEnforcementSet = "a".repeat(64);
@@ -301,7 +310,7 @@ const receiptBody = {
   candidate_enforcement_identity_accepted: true,
   complete_executable_closure_verified: true,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "8",
+  reviewed_source_file_count: "9",
 };
 const receipt = {
   ...receiptBody,
@@ -311,7 +320,7 @@ const receiptDecision = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   receipt,
   process_source_identity: processIdentity,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "8",
+  reviewed_source_file_count: "9",
 });
 assert.equal(receiptDecision.ok, true);
 if (receiptDecision.ok) {
@@ -355,7 +364,7 @@ const wrongEnforcement = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   receipt: wrongEnforcementReceipt,
   process_source_identity: processIdentity,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "8",
+  reviewed_source_file_count: "9",
 });
 assert.equal(wrongEnforcement.ok, false);
 
@@ -523,7 +532,30 @@ console.log("deployment_classifier_gate_shadowed_by_unbranded_observation=" +
   String(deploymentClassifierGateShadowedByUnbrandedObservation));
 console.log("writable_parent_rejected=" + String(writableParentRejected));
 console.log("root_custody_positive_exercised=" + String(rootCustodyPositiveExercised));
+const v7SourceText=fs.readFileSync(
+  "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
+  "utf8",
+);
+const observeStart=v7SourceText.indexOf(
+  "export async function observeBuyVoidSourceFinalityGenerationProvenanceV7",
+);
+const pairVerifyIndex=v7SourceText.indexOf(
+  "verifyBuyVoidSourceFinalityProviderPairBindingV1({",
+  observeStart,
+);
+const primaryRpcIndex=v7SourceText.indexOf(
+  "await observeBuyVoidSourceFinalityAuthenticatedCompositionV3({",
+  observeStart,
+);
+assert.ok(observeStart>=0&&pairVerifyIndex>observeStart);
+assert.ok(
+  primaryRpcIndex>pairVerifyIndex,
+  "provider-pair verification must precede first RPC observation",
+);
+
 console.log("rpc_url_fingerprint_rederived_from_normalized_https_url=true");
+console.log("provider_pair_source_in_reviewed_inventory=true");
+console.log("provider_pair_verified_before_first_rpc=true");
 console.log("remote_provider_legal_identity_claimed=false");
 console.log("wallet_access=false");
 console.log("signing=false");

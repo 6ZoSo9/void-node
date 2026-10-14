@@ -16,6 +16,10 @@ import {
   verifyBuyVoidSourceFinalityLiveProcessBindingV1,
   type BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
 } from "./buy_void_source_finality_live_process_binding_v1.js";
+import {
+  assertBuyVoidSourceFinalityProviderPairVerifiedV1,
+  verifyBuyVoidSourceFinalityProviderPairBindingV1,
+} from "./buy_void_source_finality_provider_pair_binding_v1.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 =
   "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7";
@@ -33,6 +37,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
     runtime_source_filesystem_write: false,
     caller_generation_assertion_accepted: false,
     operator_deployment_receipt_required: true,
+    operator_approved_provider_pair_binding_required: true,
     same_live_process_binding_required: true,
     immutable_process_source_identity_required: true,
     reviewed_source_files_verified_on_success: true,
@@ -45,6 +50,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
     observation_generated_in_composition: true,
     ancestry_verified_by_two_provider_finality_agreement: true,
     provider_quorum_verified: true,
+    operator_approved_provider_pair_binding_verified_on_success: true,
     same_live_process_binding_verified_on_success: true,
     production_source_finality_authority_ready_on_success: true,
     rpc_read: true,
@@ -76,6 +82,7 @@ const REVIEWED_SOURCE_PATHS_V7 = Object.freeze([
   "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
   "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
   "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
+  "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
   "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
   "src/economic/buy_void_source_finality_authority_v2.ts",
   "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
@@ -106,7 +113,7 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
       readonly deployment_receipt_id: string;
       readonly accepted_enforcement_set_sha256: string;
       readonly reviewed_source_files_sha256: string;
-      readonly reviewed_source_file_count: "8";
+      readonly reviewed_source_file_count: "9";
       readonly source_generation_verified: true;
       readonly deployed_artifact_generation_verified: true;
     }
@@ -202,10 +209,12 @@ export type BuyVoidSourceFinalityGenerationReadyV7 =
     readonly rpc_url_fingerprint_sha256: string;
     readonly reviewed_source_files_verified: true;
     readonly reviewed_source_files_sha256: string;
-    readonly verified_source_file_count: "8";
+    readonly verified_source_file_count: "9";
     readonly source_file_verification_mode: "operator_deployment_receipt_bound_v1";
     readonly deployment_receipt_id: string;
     readonly live_process_binding_receipt_id: string;
+    readonly provider_pair_binding_receipt_id: string;
+    readonly operator_approved_provider_pair_binding_verified: true;
     readonly same_live_process_binding_proven: true;
     readonly accepted_enforcement_set_sha256: string;
     readonly source_generation_verified: true;
@@ -386,7 +395,7 @@ function readStableRegularFile(absolute: string, maxBytes: number): Buffer {
 
 export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "8";
+  reviewed_source_file_count: "9";
   files: readonly Readonly<{ path: string; git_blob_sha1: string }>[];
 }> {
   const files = REVIEWED_SOURCE_PATHS_V7.map((relative) => {
@@ -405,7 +414,7 @@ export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
       repository: "6ZoSo9/void-node",
       files,
     }),
-    reviewed_source_file_count: "8",
+    reviewed_source_file_count: "9",
     files: Object.freeze(files),
   });
 }
@@ -439,7 +448,7 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
   receipt: unknown;
   process_source_identity: ProcessSourceIdentityV7;
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "8";
+  reviewed_source_file_count: "9";
 }): BuyVoidSourceFinalityDeploymentDecisionV7 {
   const bad = (reason: string): BuyVoidSourceFinalityDeploymentDecisionV7 => ({
     ok: false,
@@ -710,13 +719,23 @@ export function verifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
 }
 
 function providerEndpoint(policy: BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3):
-  | Readonly<{ rpc_identity: string; rpc_url_fingerprint_sha256: string; hostname: string }>
+  | Readonly<{
+      source_chain: "base" | "ethereum";
+      rpc_identity: string;
+      rpc_url_fingerprint_sha256: string;
+      hostname: string;
+    }>
   | null {
   const rail = policy.source_finality_policy as unknown as Record<string, unknown>;
+  const sourceChain = String(rail.source_chain ?? "").trim().toLowerCase();
   const rpcUrl = String(rail.rpc_url ?? "").trim();
   const rpcIdentity = String(rail.rpc_identity ?? "").trim();
   const fingerprint = String(rail.rpc_url_fingerprint_sha256 ?? "").trim().toLowerCase();
-  if (!SAFE_ID.test(rpcIdentity) || !SHA256.test(fingerprint)) return null;
+  if (
+    (sourceChain !== "base" && sourceChain !== "ethereum") ||
+    !SAFE_ID.test(rpcIdentity) ||
+    !SHA256.test(fingerprint)
+  ) return null;
   try {
     const parsed = new URL(rpcUrl);
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash) {
@@ -729,6 +748,7 @@ function providerEndpoint(policy: BuyVoidSourceFinalityAuthenticatedCompositionP
       .digest("hex");
     if (fingerprint !== expectedFingerprint) return null;
     return Object.freeze({
+      source_chain: sourceChain as "base" | "ethereum",
       rpc_identity: rpcIdentity,
       rpc_url_fingerprint_sha256: fingerprint,
       hostname: parsed.hostname.toLowerCase(),
@@ -745,11 +765,13 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   secondary: unknown;
   deployment: BuyVoidSourceFinalityDeploymentDecisionV7;
   live_process_binding: BuyVoidSourceFinalityLiveProcessBindingDecisionV1;
+  provider_pair_binding: unknown;
 }): BuyVoidSourceFinalityGenerationDecisionV7 {
   const primaryEndpoint = providerEndpoint(input.primary_policy);
   const secondaryEndpoint = providerEndpoint(input.secondary_policy);
   if (
     !primaryEndpoint || !secondaryEndpoint ||
+    primaryEndpoint.source_chain !== secondaryEndpoint.source_chain ||
     primaryEndpoint.rpc_identity === secondaryEndpoint.rpc_identity ||
     primaryEndpoint.rpc_url_fingerprint_sha256 === secondaryEndpoint.rpc_url_fingerprint_sha256 ||
     primaryEndpoint.hostname === secondaryEndpoint.hostname
@@ -838,6 +860,30 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   ) {
     return held("source_finality_live_process_deployment_receipt_mismatch");
   }
+  try {
+    assertBuyVoidSourceFinalityProviderPairVerifiedV1(
+      input.provider_pair_binding,
+    );
+  } catch {
+    return held("source_finality_provider_pair_binding_not_verified");
+  }
+  if (
+    input.provider_pair_binding.deployment_receipt_id !==
+      input.deployment.deployment_receipt_id ||
+    input.provider_pair_binding.accepted_enforcement_set_sha256 !==
+      input.deployment.accepted_enforcement_set_sha256 ||
+    input.provider_pair_binding.source_chain !== primaryEndpoint.source_chain ||
+    input.provider_pair_binding.primary_rpc_identity !==
+      primaryEndpoint.rpc_identity ||
+    input.provider_pair_binding.primary_rpc_url_fingerprint_sha256 !==
+      primaryEndpoint.rpc_url_fingerprint_sha256 ||
+    input.provider_pair_binding.secondary_rpc_identity !==
+      secondaryEndpoint.rpc_identity ||
+    input.provider_pair_binding.secondary_rpc_url_fingerprint_sha256 !==
+      secondaryEndpoint.rpc_url_fingerprint_sha256
+  ) {
+    return held("source_finality_provider_pair_binding_mismatch");
+  }
 
   const quorum = Object.freeze({
     source_chain: primary.source_chain,
@@ -864,6 +910,7 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
     accepted_enforcement_set_sha256: input.deployment.accepted_enforcement_set_sha256,
     deployment_receipt_id: input.deployment.deployment_receipt_id,
     live_process_binding_receipt_id: input.live_process_binding.receipt_id,
+    provider_pair_binding_receipt_id: input.provider_pair_binding.receipt_id,
   });
   return {
     ...(primary as BuyVoidSourceFinalityAuthenticatedReadyV3),
@@ -879,6 +926,8 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
     source_file_verification_mode: "operator_deployment_receipt_bound_v1",
     deployment_receipt_id: input.deployment.deployment_receipt_id,
     live_process_binding_receipt_id: input.live_process_binding.receipt_id,
+    provider_pair_binding_receipt_id: input.provider_pair_binding.receipt_id,
+    operator_approved_provider_pair_binding_verified: true,
     same_live_process_binding_proven: true,
     accepted_enforcement_set_sha256: input.deployment.accepted_enforcement_set_sha256,
     source_generation_verified: true,
@@ -950,11 +999,36 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
   const secondaryEndpoint = providerEndpoint(input.policy.secondary);
   if (
     !primaryEndpoint || !secondaryEndpoint ||
+    primaryEndpoint.source_chain !== secondaryEndpoint.source_chain ||
     primaryEndpoint.rpc_identity === secondaryEndpoint.rpc_identity ||
     primaryEndpoint.rpc_url_fingerprint_sha256 === secondaryEndpoint.rpc_url_fingerprint_sha256 ||
     primaryEndpoint.hostname === secondaryEndpoint.hostname
   ) {
     return held("source_finality_provider_independence_invalid");
+  }
+
+  const providerPairBinding =
+    verifyBuyVoidSourceFinalityProviderPairBindingV1({
+      deployment_receipt_id: deployment.deployment_receipt_id,
+      accepted_enforcement_set_sha256:
+        deployment.accepted_enforcement_set_sha256,
+      source_chain: primaryEndpoint.source_chain,
+      primary_rpc_identity: primaryEndpoint.rpc_identity,
+      primary_rpc_url_fingerprint_sha256:
+        primaryEndpoint.rpc_url_fingerprint_sha256,
+      secondary_rpc_identity: secondaryEndpoint.rpc_identity,
+      secondary_rpc_url_fingerprint_sha256:
+        secondaryEndpoint.rpc_url_fingerprint_sha256,
+    });
+  if (providerPairBinding.ok === false) {
+    return held(
+      "source_finality_provider_pair_" + providerPairBinding.reason,
+    );
+  }
+  try {
+    assertBuyVoidSourceFinalityProviderPairVerifiedV1(providerPairBinding);
+  } catch {
+    return held("source_finality_provider_pair_binding_not_verified");
   }
 
   const deadline = performance.now() + totalTimeout;
@@ -996,5 +1070,6 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
     secondary,
     deployment,
     live_process_binding: liveProcessBinding,
+    provider_pair_binding: providerPairBinding,
   });
 }

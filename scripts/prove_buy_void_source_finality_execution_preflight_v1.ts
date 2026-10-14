@@ -438,6 +438,7 @@ for (const requiredReadyFlag of [
   "remote_provider_identity_verified === false",
   "ancestry_verified === true",
   "provider_quorum_verified === true",
+  "operator_approved_provider_pair_binding_verified === true",
   "same_live_process_binding_proven === true",
   "production_source_finality_authority_ready === true",
 ]) {
@@ -460,8 +461,10 @@ assert.equal(
 
 for (const requiredV7Authority of [
   "operator_deployment_receipt_required: true",
+  "operator_approved_provider_pair_binding_required: true",
   "same_live_process_binding_required: true",
   "independent_remote_provider_transport_required: true",
+  "operator_approved_provider_pair_binding_verified_on_success: true",
   "same_live_process_binding_verified_on_success: true",
   "production_source_finality_authority_ready_on_success: true",
   "public_presale_activation: false",
@@ -491,6 +494,8 @@ const futureReadyV7Observation = {
   remote_provider_identity_verified: false,
   ancestry_verified: true,
   provider_quorum_verified: true,
+  provider_pair_binding_receipt_id: "voidbsfpp1_" + "c".repeat(64),
+  operator_approved_provider_pair_binding_verified: true,
   same_live_process_binding_proven: true,
   production_source_finality_authority_ready: true,
 };
@@ -513,6 +518,8 @@ for (const mutation of [
   { remote_provider_identity_verified: true },
   { source_generation_verified: false },
   { deployed_artifact_generation_verified: false },
+  { provider_pair_binding_receipt_id: "voidbsfpp1_" + "0".repeat(63) },
+  { operator_approved_provider_pair_binding_verified: false },
   { same_live_process_binding_proven: false },
   { production_source_finality_authority_ready: false },
 ]) {
