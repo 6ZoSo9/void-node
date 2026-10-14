@@ -1,0 +1,67 @@
+name: VOID Tor bootstrap manifest candidate v1
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/build_void_tor_bootstrap_manifest_candidate_v1.mjs'
+      - 'scripts/prove_void_tor_bootstrap_manifest_candidate_v1.mjs'
+      - 'scripts/qualify_void_public_seed_tor_v1.mjs'
+      - 'scripts/lib/void_tor_native_bootstrap_transport_v1.mjs'
+      - 'scripts/lib/void_tor_bootstrap_release_root_v1.mjs'
+      - 'config/void-tor-bootstrap-release-root-v1.json'
+      - 'public/bootstrap/tor-signed-v1.json'
+      - 'docs/operations/void-tor-bootstrap-manifest-candidate-v1.md'
+      - '.github/workflows/void-tor-bootstrap-manifest-candidate-v1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_void_tor_bootstrap_manifest_candidate_v1.mjs'
+      - 'scripts/prove_void_tor_bootstrap_manifest_candidate_v1.mjs'
+      - 'scripts/qualify_void_public_seed_tor_v1.mjs'
+      - 'scripts/lib/void_tor_native_bootstrap_transport_v1.mjs'
+      - 'scripts/lib/void_tor_bootstrap_release_root_v1.mjs'
+      - 'config/void-tor-bootstrap-release-root-v1.json'
+      - 'public/bootstrap/tor-signed-v1.json'
+      - 'docs/operations/void-tor-bootstrap-manifest-candidate-v1.md'
+      - '.github/workflows/void-tor-bootstrap-manifest-candidate-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: candidate proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove qualification-to-offline-signing boundary
+        run: |
+          set -euo pipefail
+          node --check scripts/build_void_tor_bootstrap_manifest_candidate_v1.mjs
+          node --check scripts/prove_void_tor_bootstrap_manifest_candidate_v1.mjs
+          node scripts/prove_void_tor_bootstrap_manifest_candidate_v1.mjs
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -n "$BASE"
+          git cat-file -e "$BASE^{commit}"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

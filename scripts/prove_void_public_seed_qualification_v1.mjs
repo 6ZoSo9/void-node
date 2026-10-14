@@ -413,7 +413,11 @@ try {
   assert(manifest.sync_endpoints[0].temporary === false, "manifest published temporary endpoint");
   assert(manifest.sync_endpoints[0].qualification_id === stableReceipt.qualification_id, "manifest receipt binding mismatch");
   assert(manifest.private_tailnet_endpoints_published === false, "manifest published Tailnet endpoints");
-  pass("fresh stable qualification builds bounded manifest");
+  assert(
+    Date.parse(manifest.expires_at) - Date.parse(manifest.generated_at) === 7 * 24 * 60 * 60 * 1000,
+    "default manifest validity is not seven days",
+  );
+  pass("fresh stable qualification builds bounded seven-day manifest");
 
   const ipLiteralSamples = samples.map((sample) => ({
     ...sample,
@@ -601,6 +605,7 @@ try {
 
 console.log(`${MARKER}_GREEN`);
 console.log("stable_seed_published=false");
+console.log("default_manifest_validity_hours=168");
 console.log("temporary_seed_accepted=false");
 console.log("private_tailnet_endpoint_accepted=false");
 console.log("ip_literal_https_accepted=true");

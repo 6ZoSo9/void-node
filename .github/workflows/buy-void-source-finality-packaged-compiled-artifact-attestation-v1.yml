@@ -14,7 +14,10 @@ on:
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4.json"
       - "scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+      - "scripts/prove_buy_void_composed_stopped_saga_package_v2.mjs"
       - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+      - "scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v2.mjs"
+      - "docs/architecture/buy-void-composed-stopped-saga-package-v2.md"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v4-candidate.md"
       - ".github/workflows/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
@@ -101,14 +104,48 @@ jobs:
 
       - name: Reprove source-only package and inert loader boundaries
         run: |
+          set -euo pipefail
           npm run build
-          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs --self-test
-          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --self-test
-          node scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs --derive             > "$RUNNER_TEMP/inert-loader.json"
-          node --input-type=module - <<'NODE' "$RUNNER_TEMP/inert-loader.json"
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          historical_package="f28c3e9446c7623ef203da36a9642d046e5f34ee"
+          historical_lock="b2671f0149f522b2489247016df0a5ec4bb72b8b"
+          audited_package="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"
+          audited_lock="15b5c82ea36f13079a2f9e8863722f654eb3f201"
+          if [[ "$package_blob" == "$historical_package" && "$lock_blob" == "$historical_lock" ]]; then
+            package_proof="scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+            loader_proof="scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v1.mjs"
+            generation="historical_v1"
+          elif [[ "$package_blob" == "$audited_package" && "$lock_blob" == "$audited_lock" ]]; then
+            package_proof="scripts/prove_buy_void_composed_stopped_saga_package_v2.mjs"
+            loader_proof="scripts/prove_buy_void_compiled_saga_loader_inert_resolution_v2.mjs"
+            generation="audited_v2"
+          else
+            echo "unsupported stopped-package dependency generation: package=$package_blob lock=$lock_blob" >&2
+            exit 1
+          fi
+          node --check "$package_proof"
+          node --check "$loader_proof"
+          node "$package_proof" --self-test
+          node "$loader_proof" --self-test
+          node "$loader_proof" --derive > "$RUNNER_TEMP/inert-loader.json"
+          node --input-type=module - <<'NODE' "$RUNNER_TEMP/inert-loader.json" "$generation"
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          const generation=process.argv[3];
+          assert.ok([
+            "void_buy_void_compiled_saga_loader_inert_resolution_v1",
+            "void_buy_void_compiled_saga_loader_inert_resolution_v2",
+          ].includes(j.schema));
+          if(generation==="audited_v2"){
+            assert.equal(j.schema,"void_buy_void_compiled_saga_loader_inert_resolution_v2");
+            assert.equal(j.frozen_v1_refuses_audited_dependency_generation,true);
+            assert.equal(j.dependency_package_git_blob_sha1,"14fbdf5717b07fd4c734f5da7a8e84ed59bee93f");
+            assert.equal(j.dependency_lock_git_blob_sha1,"15b5c82ea36f13079a2f9e8863722f654eb3f201");
+          }else{
+            assert.equal(j.schema,"void_buy_void_compiled_saga_loader_inert_resolution_v1");
+          }
           assert.equal(j.exact_compiled_factory_executed_with_inert_tool,true);
           assert.equal(j.real_saga_module_imported,false);
           assert.equal(j.real_saga_module_executed,false);
@@ -142,7 +179,17 @@ jobs:
           mkdir -p "$ROOT/dist/economic"
           docker cp "$CID:/app/dist/economic/buy_void_erc20_execution_composition_v1.js"             "$ROOT/dist/economic/"
           docker cp "$CID:/app/tools" "$ROOT/tools"
-          node scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs             --stopped-root "$ROOT" > "$RUNNER_TEMP/stopped-package.json"
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          if [[ "$package_blob" == "f28c3e9446c7623ef203da36a9642d046e5f34ee" && "$lock_blob" == "b2671f0149f522b2489247016df0a5ec4bb72b8b" ]]; then
+            package_proof="scripts/prove_buy_void_composed_stopped_saga_package_v1.mjs"
+          elif [[ "$package_blob" == "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f" && "$lock_blob" == "15b5c82ea36f13079a2f9e8863722f654eb3f201" ]]; then
+            package_proof="scripts/prove_buy_void_composed_stopped_saga_package_v2.mjs"
+          else
+            echo "unsupported stopped-image dependency generation: package=$package_blob lock=$lock_blob" >&2
+            exit 1
+          fi
+          node "$package_proof" --stopped-root "$ROOT" > "$RUNNER_TEMP/stopped-package.json"
           node --input-type=module - <<'NODE' "$RUNNER_TEMP/stopped-package.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";

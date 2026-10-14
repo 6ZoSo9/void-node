@@ -416,8 +416,7 @@ try {
     { nowMs: lifecycleNow },
   );
   assert.equal(expiredLifecycle.lifecycle, "authenticated_stale");
-  assert(expiredLifecycle.staleReasons.includes("manifest_expired"));
-  assert(expiredLifecycle.staleReasons.includes("qualification_stale"));
+  assert.deepEqual(expiredLifecycle.staleReasons, ["manifest_expired"]);
 
   const staleQualificationBase = createManifest(
     lifecycleNow - 130 * 60 * 1000,
@@ -446,13 +445,56 @@ try {
       validatedRoot,
       { nowMs: lifecycleNow },
     );
-  assert.equal(
-    staleQualificationLifecycle.lifecycle,
-    "authenticated_stale",
+  assert.equal(staleQualificationLifecycle.lifecycle, "active");
+  assert.deepEqual(staleQualificationLifecycle.staleReasons, []);
+
+  const staleAtIssuanceManifest = structuredClone(staleQualificationManifest);
+  const issuedAt = Date.parse(staleAtIssuanceManifest.generated_at);
+  staleAtIssuanceManifest.onion_endpoints[0].qualified_at =
+    new Date(issuedAt - 2 * 60 * 60 * 1000 - 1).toISOString();
+  staleAtIssuanceManifest.manifest_id = contentId(
+    "voidpbm1_",
+    staleAtIssuanceManifest,
+    "manifest_id",
   );
-  assert.deepEqual(
-    staleQualificationLifecycle.staleReasons,
-    ["qualification_stale"],
+  const staleAtIssuanceEnvelope = createEnvelope(
+    root,
+    staleAtIssuanceManifest,
+    [keyPair],
+  );
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(
+      staleAtIssuanceEnvelope,
+      validatedRoot,
+      { nowMs: lifecycleNow },
+    ),
+    /qualification is stale/,
+  );
+
+  const postIssuanceQualificationManifest =
+    structuredClone(staleQualificationManifest);
+  const postIssuanceGeneratedAt = Date.parse(
+    postIssuanceQualificationManifest.generated_at,
+  );
+  postIssuanceQualificationManifest.onion_endpoints[0].qualified_at =
+    new Date(postIssuanceGeneratedAt + 1).toISOString();
+  postIssuanceQualificationManifest.manifest_id = contentId(
+    "voidpbm1_",
+    postIssuanceQualificationManifest,
+    "manifest_id",
+  );
+  const postIssuanceQualificationEnvelope = createEnvelope(
+    root,
+    postIssuanceQualificationManifest,
+    [keyPair],
+  );
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(
+      postIssuanceQualificationEnvelope,
+      validatedRoot,
+      { nowMs: lifecycleNow },
+    ),
+    /qualification must not postdate manifest issuance/,
   );
 
   const tamperedExpired = structuredClone(expiredLifecycleEnvelope);
@@ -467,11 +509,14 @@ try {
     ),
     /signature verification failed/,
   );
-  console.log("[PASS] authenticated stale lifecycle retires only genuinely signed material");
+  console.log("[PASS] signed expiry retires only genuinely signed material; issuance-stale qualification is rejected");
 
   const expiredManifest = structuredClone(manifest);
   expiredManifest.generated_at = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
   expiredManifest.expires_at = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  expiredManifest.onion_endpoints[0].qualified_at = new Date(
+    Date.parse(expiredManifest.generated_at) - 60_000,
+  ).toISOString();
   expiredManifest.manifest_id = contentId(
     "voidpbm1_",
     expiredManifest,
@@ -661,6 +706,10 @@ try {
   console.log("root_substitution_rejected=true");
   console.log("signature_replay_across_roots_rejected=true");
   console.log("strict_manifest_contract_verified=true");
+  console.log("qualification_fresh_at_manifest_issuance_required=true");
+  console.log("qualification_postdating_manifest_rejected=true");
+  console.log("unexpired_old_qualification_remains_signed_identity_evidence=true");
+  console.log("runtime_health_requires_live_probe=true");
   console.log("authenticated_stale_default_classification_verified=true");
   console.log("tampered_stale_material_rejected=true");
   console.log("embedded_release_root_override_rejected=true");
