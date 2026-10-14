@@ -10,6 +10,8 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V1,
   buyVoidSourceFinalityLiveProcessBindingReceiptIdV1,
   classifyBuyVoidSourceFinalityLiveProcessBindingV1,
+  readBuyVoidSourceFinalitySelfProcessIdentityV1,
+  verifyBuyVoidSourceFinalityLiveProcessBindingV1,
 } from "../dist/economic/buy_void_source_finality_live_process_binding_v1.js";
 
 const SOURCE=fileURLToPath(
@@ -201,6 +203,302 @@ for(const [key,value] of [
   assert.notEqual(result.reason,"accessor_executed");
 }
 
+
+function syntheticProcStat(startTicks) {
+  const fields=["S",...Array(18).fill("0"),String(startTicks)];
+  return String(process.pid)+" (void-node) "+fields.join(" ")+"\n";
+}
+
+function syntheticProcStatus() {
+  return [
+    "CapInh:\t0000000000000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t1",
+    "",
+  ].join("\n");
+}
+
+function syntheticProcEnvironment() {
+  return Buffer.from([
+    "VOID_PROCESS_SOURCE_IDENTITY_MARKER=VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+    "VOID_PROCESS_SOURCE_COMMIT="+"b".repeat(40),
+    "VOID_PROCESS_SOURCE_TREE="+"c".repeat(40),
+    "VOID_PROCESS_SOURCE_BRANCH=main",
+    "INVOCATION_ID="+"d".repeat(32),
+    "VOID_CANONICAL_PRODUCER_ROLE=1",
+    "NODE_OPTIONS=--enable-source-maps",
+    "",
+  ].join("\0"),"utf8");
+}
+
+function syntheticRegularStat({ino=41,size=0,symlink=false}={}) {
+  return {
+    dev:7,
+    ino,
+    uid:0,
+    gid:0,
+    mode:0o100444,
+    nlink:1,
+    size,
+    mtimeMs:1000,
+    ctimeMs:1000,
+    isFile(){return !symlink;},
+    isDirectory(){return false;},
+    isSymbolicLink(){return symlink;},
+  };
+}
+
+function syntheticDirectoryStat() {
+  return {
+    dev:7,
+    ino:1,
+    uid:0,
+    gid:0,
+    mode:0o40755,
+    nlink:2,
+    size:0,
+    mtimeMs:1000,
+    ctimeMs:1000,
+    isFile(){return false;},
+    isDirectory(){return true;},
+    isSymbolicLink(){return false;},
+  };
+}
+
+function withExecutableFsFixture(options, callback) {
+  const original={
+    readFileSync:fs.readFileSync,
+    lstatSync:fs.lstatSync,
+    openSync:fs.openSync,
+    fstatSync:fs.fstatSync,
+    closeSync:fs.closeSync,
+    realpathSync:fs.realpathSync,
+  };
+  const originalRealpathNative=fs.realpathSync.native;
+  const receiptPath=VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1;
+  const receiptBytes=options.receiptBytes||Buffer.from("{}\n","utf8");
+  const fakeFd=987654;
+  let statReads=0;
+  let receiptLstats=0;
+  let receiptOpenFlags=0;
+  const fakeRealpath=(target,...args)=>{
+    if(target===receiptPath)return receiptPath;
+    return original.realpathSync(target,...args);
+  };
+  fakeRealpath.native=(target,...args)=>{
+    if(target===receiptPath)return receiptPath;
+    return originalRealpathNative(target,...args);
+  };
+
+  try {
+    fs.readFileSync=(target,...args)=>{
+      if(typeof target==="number") {
+        assert.equal(target,fakeFd);
+        return Buffer.from(receiptBytes);
+      }
+      if(target==="/proc/self/stat") {
+        const sequence=options.statSequence||["123456789"];
+        const value=sequence[Math.min(statReads,sequence.length-1)];
+        statReads+=1;
+        return syntheticProcStat(value);
+      }
+      if(target==="/proc/self/status")return syntheticProcStatus();
+      if(target==="/proc/self/cmdline") {
+        return Buffer.from(
+          "/usr/bin/node\0/opt/void-node-live-v1/src/index.ts\0",
+          "utf8",
+        );
+      }
+      if(target==="/proc/self/environ") {
+        return options.environBytes||syntheticProcEnvironment();
+      }
+      if(target==="/proc/self/cgroup") {
+        return options.cgroupText||
+          "0::/user.slice/user-"+String(process.getuid())+
+          ".slice/user@"+String(process.getuid())+
+          ".service/app.slice/void-node-live.service\n";
+      }
+      return original.readFileSync(target,...args);
+    };
+
+    fs.lstatSync=(target,...args)=>{
+      if(target===receiptPath) {
+        receiptLstats+=1;
+        if(options.receiptSymlink===true) {
+          return syntheticRegularStat({
+            ino:41,
+            size:receiptBytes.length,
+            symlink:true,
+          });
+        }
+        const ino=
+          options.replaceReceiptAfterRead===true && receiptLstats>1 ? 42 : 41;
+        return syntheticRegularStat({ino,size:receiptBytes.length});
+      }
+      if(
+        target==="/"||
+        target==="/var"||
+        target==="/var/lib"||
+        target==="/var/lib/void-source-finality-v7"
+      ) return syntheticDirectoryStat();
+      return original.lstatSync(target,...args);
+    };
+
+    fs.openSync=(target,flags,...args)=>{
+      if(target===receiptPath) {
+        receiptOpenFlags=Number(flags);
+        return fakeFd;
+      }
+      return original.openSync(target,flags,...args);
+    };
+
+    fs.fstatSync=(fd,...args)=>{
+      if(fd===fakeFd) {
+        return syntheticRegularStat({ino:41,size:receiptBytes.length});
+      }
+      return original.fstatSync(fd,...args);
+    };
+
+    fs.closeSync=(fd,...args)=>{
+      if(fd===fakeFd)return undefined;
+      return original.closeSync(fd,...args);
+    };
+
+    fs.realpathSync=fakeRealpath;
+    return Object.freeze({
+      result:callback(),
+      receiptOpenFlags,
+    });
+  } finally {
+    fs.readFileSync=original.readFileSync;
+    fs.lstatSync=original.lstatSync;
+    fs.openSync=original.openSync;
+    fs.fstatSync=original.fstatSync;
+    fs.closeSync=original.closeSync;
+    fs.realpathSync=original.realpathSync;
+  }
+}
+
+const executableIdentity=withExecutableFsFixture(
+  {},
+  ()=>readBuyVoidSourceFinalitySelfProcessIdentityV1(),
+).result;
+assert.equal(executableIdentity.main_pid,process.pid);
+assert.equal(executableIdentity.process_start_time_ticks,"123456789");
+assert.equal(executableIdentity.systemd_invocation_id,"d".repeat(32));
+assert.equal(executableIdentity.service_unit,"void-node-live.service");
+assert.equal(executableIdentity.capabilities_zero,true);
+assert.equal(executableIdentity.no_new_privileges,true);
+
+assert.throws(
+  ()=>withExecutableFsFixture(
+    {statSequence:["0"]},
+    ()=>readBuyVoidSourceFinalitySelfProcessIdentityV1(),
+  ),
+  /self_proc_start_time_invalid/u,
+);
+
+assert.throws(
+  ()=>withExecutableFsFixture(
+    {
+      environBytes:Buffer.concat([
+        syntheticProcEnvironment(),
+        Buffer.from("INVOCATION_ID="+"1".repeat(32)+"\0","utf8"),
+      ]),
+    },
+    ()=>readBuyVoidSourceFinalitySelfProcessIdentityV1(),
+  ),
+  /self_proc_environ_duplicate_key/u,
+);
+
+assert.throws(
+  ()=>withExecutableFsFixture(
+    {cgroupText:"0::/user.slice/other.service\n"},
+    ()=>readBuyVoidSourceFinalitySelfProcessIdentityV1(),
+  ),
+  /self_cgroup_service_unit_mismatch/u,
+);
+
+const executableMaterial={
+  marker:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_RECEIPT_V1,
+  version:1,
+  deployment_receipt_id:deploymentReceiptId,
+  ...executableIdentity,
+  source_custody_proven:true,
+  reviewed_service_contract_proven:true,
+  reviewed_launcher_contract_proven:true,
+};
+const executableReceipt={
+  ...executableMaterial,
+  receipt_id:
+    buyVoidSourceFinalityLiveProcessBindingReceiptIdV1(executableMaterial),
+};
+const executableReceiptBytes=Buffer.from(
+  JSON.stringify(executableReceipt,null,2)+"\n",
+  "utf8",
+);
+
+const verifiedExecutable=withExecutableFsFixture(
+  {receiptBytes:executableReceiptBytes},
+  ()=>verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+    receipt_path:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+    deployment_receipt_id:deploymentReceiptId,
+  }),
+);
+assert.equal(verifiedExecutable.result.ok,true);
+assert.ok(
+  (verifiedExecutable.receiptOpenFlags&
+    Number(fs.constants.O_NOFOLLOW||0))!==0,
+  "production receipt verifier must retain O_NOFOLLOW",
+);
+
+const symlinkReceipt=withExecutableFsFixture(
+  {receiptBytes:executableReceiptBytes,receiptSymlink:true},
+  ()=>verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+    receipt_path:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+    deployment_receipt_id:deploymentReceiptId,
+  }),
+).result;
+assert.equal(symlinkReceipt.ok,false);
+assert.equal(
+  symlinkReceipt.reason,
+  "live_process_binding_receipt_custody_invalid",
+);
+
+const replacedReceipt=withExecutableFsFixture(
+  {
+    receiptBytes:executableReceiptBytes,
+    replaceReceiptAfterRead:true,
+  },
+  ()=>verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+    receipt_path:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+    deployment_receipt_id:deploymentReceiptId,
+  }),
+).result;
+assert.equal(replacedReceipt.ok,false);
+assert.equal(
+  replacedReceipt.reason,
+  "live_process_binding_receipt_changed_during_read",
+);
+
+const driftedSelf=withExecutableFsFixture(
+  {
+    receiptBytes:executableReceiptBytes,
+    statSequence:["123456789","123456790"],
+  },
+  ()=>verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+    receipt_path:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+    deployment_receipt_id:deploymentReceiptId,
+  }),
+).result;
+assert.equal(driftedSelf.ok,false);
+assert.equal(
+  driftedSelf.reason,
+  "self_process_identity_changed_during_verification",
+);
+
 assert.equal(
   VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
   "/var/lib/void-source-finality-v7/live-process-binding-v1.json",
@@ -277,6 +575,14 @@ console.log(
   "VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V1_PROOF_GREEN",
 );
 console.log("deployment_receipt_binding=true");
+console.log("production_reader_executed=true");
+console.log("production_verifier_executed=true");
+console.log("malformed_proc_stat_rejected=true");
+console.log("duplicate_proc_environment_rejected=true");
+console.log("wrong_service_cgroup_rejected=true");
+console.log("symlink_receipt_rejected=true");
+console.log("replaced_receipt_rejected=true");
+console.log("before_after_self_identity_drift_rejected=true");
 console.log("self_pid_start_time_binding=true");
 console.log("systemd_invocation_binding=true");
 console.log("service_cgroup_binding=true");
