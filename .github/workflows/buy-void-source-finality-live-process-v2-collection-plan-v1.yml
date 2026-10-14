@@ -49,6 +49,8 @@ jobs:
           grep -Fx 'selector_elf_lock_bound=true' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'selector_pidfd_handshake_required=true' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'selector_spawn_error_machine_readable_hold=true' "$RUNNER_TEMP/v2-collection-plan.log"
+          grep -Fx 'reviewed_node_options_exact=true' "$RUNNER_TEMP/v2-collection-plan.log"
+          grep -Fx 'malicious_node_options_preload_rejected=true' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'receipt_publication_authorized=false' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-collection-plan.log"
       - name: Diff hygiene
