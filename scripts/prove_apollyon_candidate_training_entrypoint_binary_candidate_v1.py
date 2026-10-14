@@ -15,7 +15,7 @@ MARKER="VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_BINARY_CANDIDATE_V1"
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 SOURCE_REL="ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
-EXPECTED_SOURCE_GIT_BLOB_SHA1="caac8932ac8fd6f2f9339404b5703bda969b96a6"
+EXPECTED_SOURCE_GIT_BLOB_SHA1="73c6f623200b493dce3e1f138df1a1ade81e5350"
 CC=Path("/usr/bin/cc")
 MIN_BINARY_BYTES=4096
 MAX_BINARY_BYTES=1024*1024
@@ -277,7 +277,11 @@ def validate_report(report:dict)->None:
         ),
         "candidate report",
     )
-    if report["marker"]!=MARKER or report["version"]!=1:
+    if (
+        report["marker"]!=MARKER or
+        type(report["version"]) is not int or
+        report["version"]!=1
+    ):
         raise AssertionError("candidate marker/version invalid")
     if report["status"]!="candidate_only_unaccepted":
         raise AssertionError("candidate status invalid")
@@ -465,6 +469,21 @@ def self_test()->None:
     valid=derive()
     validate_report(valid)
 
+    for malformed_version in (True,1.0):
+        bad=json.loads(canonical(valid))
+        bad["version"]=malformed_version
+        material=candidate_material(bad)
+        bad["candidate_id"]="apollyon_candidate_training_entrypoint_binary_candidate_v1:"+sha256(
+            canonical(material).encode("utf-8")
+        )
+        try:
+            validate_report(bad)
+        except AssertionError as exc:
+            if "marker/version invalid" not in str(exc):
+                raise
+        else:
+            raise AssertionError("non-integer candidate version unexpectedly admitted")
+
     tampered=json.loads(canonical(valid))
     tampered["candidate_id"]="apollyon_candidate_training_entrypoint_binary_candidate_v1:"+("0"*64)
     try:
@@ -528,6 +547,7 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST=GREEN")
     print("closed_report_schema=true")
     print("candidate_id_recomputed=true")
+    print("explicit_integer_version_required=true")
     print("extra_authority_claim_rejected=true")
     print("missing_compiler_block_rejected=true")
     print("binary_max_bytes="+str(MAX_BINARY_BYTES))
