@@ -83,6 +83,8 @@ for(const required of [
   "fs.linkSync",
   "fs.fsyncSync",
   "rollbackNewBuyVoidV2LiveProcessReceiptV1",
+  "publisher_existing_receipt_invalid",
+  "retired_stale",
   "post_publication_generation_recheck=true",
 ]) assert.equal(source.includes(required),true,required);
 for(const forbidden of [
@@ -111,14 +113,57 @@ if(rootFixture){
     const first=installBuyVoidV2LiveProcessReceiptCreateOnceV1({target_path:target,receipt});
     assert.equal(first.created,true);
     assert.equal(first.already_matching,false);
+    assert.equal(first.retired_stale,false);
     const again=installBuyVoidV2LiveProcessReceiptCreateOnceV1({target_path:target,receipt});
     assert.equal(again.created,false);
     assert.equal(again.already_matching,true);
-    assert.throws(
-      ()=>installBuyVoidV2LiveProcessReceiptCreateOnceV1({target_path:target,receipt:changed}),
-      /publisher_receipt_bytes_mismatch/u,
+    assert.equal(again.retired_stale,false);
+
+    const rotated=installBuyVoidV2LiveProcessReceiptCreateOnceV1({
+      target_path:target,
+      receipt:changed,
+    });
+    assert.equal(rotated.created,true);
+    assert.equal(rotated.already_matching,false);
+    assert.equal(rotated.retired_stale,true);
+    assert.equal(
+      JSON.parse(fs.readFileSync(target,"utf8")).receipt_id,
+      changed.receipt_id,
     );
-    rollbackNewBuyVoidV2LiveProcessReceiptV1({target_path:target,receipt,created:true});
+    rollbackNewBuyVoidV2LiveProcessReceiptV1({
+      target_path:target,
+      receipt:changed,
+      created:rotated.created,
+    });
+    assert.equal(fs.existsSync(target),false);
+    console.log("root_stale_receipt_rotation=true");
+    console.log("rotation_rollback_leaves_missing_fail_closed=true");
+
+    fs.writeFileSync(target,"{}\\n",{mode:0o444});
+    fs.chownSync(target,0,0);
+    fs.chmodSync(target,0o444);
+    const malformedBefore=fs.readFileSync(target);
+    assert.throws(
+      ()=>installBuyVoidV2LiveProcessReceiptCreateOnceV1({
+        target_path:target,
+        receipt,
+      }),
+      /publisher_existing_receipt_invalid/u,
+    );
+    assert.ok(fs.readFileSync(target).equals(malformedBefore));
+    fs.unlinkSync(target);
+    console.log("malformed_existing_receipt_preserved=true");
+
+    const finalCreate=installBuyVoidV2LiveProcessReceiptCreateOnceV1({
+      target_path:target,
+      receipt,
+    });
+    assert.equal(finalCreate.created,true);
+    rollbackNewBuyVoidV2LiveProcessReceiptV1({
+      target_path:target,
+      receipt,
+      created:finalCreate.created,
+    });
     assert.equal(fs.existsSync(target),false);
     console.log("root_create_once_and_exact_rollback=true");
   }finally{
@@ -138,6 +183,8 @@ console.log("collection_plan_bound=true");
 console.log("v2_deployment_receipt_required=true");
 console.log("v2_receipt_content_addressed=true");
 console.log("create_once_publication=true");
+console.log("canonical_stale_receipt_rotation_supported=true");
+console.log("malformed_existing_receipt_retirement_forbidden=true");
 console.log("generation_recheck_before_and_after_publication=true");
 console.log("stale_new_receipt_exact_rollback=true");
 console.log("systemctl_user_selector_authority=false");
