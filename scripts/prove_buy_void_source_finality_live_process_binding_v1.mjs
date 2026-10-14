@@ -10,7 +10,7 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V1,
   buyVoidSourceFinalityLiveProcessBindingReceiptIdV1,
   classifyBuyVoidSourceFinalityLiveProcessBindingV1,
-} from "../src/economic/buy_void_source_finality_live_process_binding_v1.js";
+} from "../dist/economic/buy_void_source_finality_live_process_binding_v1.js";
 
 const SOURCE=fileURLToPath(
   new URL(
