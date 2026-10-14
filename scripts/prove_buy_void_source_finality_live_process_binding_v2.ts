@@ -14,7 +14,7 @@ import {
   selectBuyVoidSourceFinalityServiceProcessV2,
 } from "../src/economic/buy_void_source_finality_live_process_binding_v2.js";
 
-const sha=value=>crypto.createHash("sha256").update(value).digest("hex");
+const sha=(value:string|Buffer)=>crypto.createHash("sha256").update(value).digest("hex");
 const uid=1000,gid=1000;
 const managerScope="/user.slice/user-1000.slice/user@1000.service/init.scope";
 const serviceCgroup="/user.slice/user-1000.slice/user@1000.service/app.slice/void-node-live.service";
