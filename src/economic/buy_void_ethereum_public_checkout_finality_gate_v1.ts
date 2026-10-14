@@ -595,7 +595,7 @@ function classifyEthereumPreAttemptObservationV1(input: {
     observation.ancestry_verified !== true ||
     observation.provider_quorum_verified !== true ||
     observation.same_live_process_binding_proven !== true ||
-    !/^voidbsflp1_[0-9a-f]{64}$/u.test(
+    !/^voidbsflp2_[0-9a-f]{64}$/u.test(
       String(observation.live_process_binding_receipt_id || ""),
     ) ||
     observation.production_source_finality_authority_ready !== true ||
