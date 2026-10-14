@@ -7,6 +7,7 @@ import {fileURLToPath} from "node:url";
 import {
   VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
   VOID_APOLLYON_CUSTODY_REVIEWED_SOURCE_V1,
+  canonicalApollyonCustodyHostPolicyJsonV1,
   qualifyApollyonCustodyHostPolicyV1,
 } from "../tools/apollyon-custody-host-policy-qualification-v1.mjs";
 import {
@@ -73,7 +74,22 @@ function serviceControlFixture(){
     ambient:"0",effective:"0",inheritable:"0",
     no_new_privileges:true,permitted:"0",
   });
+  const busDigest=crypto.createHash("sha256")
+    .update(canonicalApollyonCustodyHostPolicyJsonV1(checks))
+    .digest("hex");
   return {
+    actual_system_bus_sender_checks_required:true,
+    actual_system_bus_sender_count:1,
+    actual_system_bus_sender_set_stable:true,
+    actual_system_bus_senders:[{
+      all_systemd_control_actions_explicitly_denied:true,
+      bus_name:":1.42",
+      checked_action_count:checks.length,
+      denial_transcript_sha256:busDigest,
+      pid:4242,
+      subject_type:"system-bus-name",
+      uid:1000,
+    }],
     all_systemd_control_actions_explicitly_denied:true,
     all_training_uid_processes_capability_free:true,
     all_training_uid_threads_capability_free:true,
@@ -285,6 +301,26 @@ for(const mutate of [
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].uid=0;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].pid=9999;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_senders[0].denial_transcript_sha256="aa".repeat(32);
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.actual_system_bus_sender_set_stable=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
   const bad=v2Fixture();bad.service.runtime_can_control_service=true;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
 }
@@ -305,6 +341,8 @@ for(const [key,expected] of Object.entries({
   all_training_uid_processes_capability_free_required:true,
   all_training_uid_threads_capability_free_required:true,
   training_uid_thread_stability_required:true,
+  training_uid_thread_discovery_required:true,
+  actual_system_bus_sender_denial_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -328,6 +366,8 @@ console.log("systemd_bus_owner_pid_is_pid1=true");
 console.log("all_training_uid_processes_capability_free_required=true");
 console.log("all_training_uid_threads_capability_free_required=true");
 console.log("training_uid_thread_stability_required=true");
+console.log("training_uid_thread_discovery_required=true");
+console.log("actual_system_bus_sender_denial_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
