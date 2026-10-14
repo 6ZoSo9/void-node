@@ -1,0 +1,105 @@
+name: Apollyon training pre-entry binary candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "scripts/prove_apollyon_training_bus_isolation_v1.py"
+      - "scripts/prove_apollyon_training_preentry_binary_candidate_v1.py"
+      - "docs/security/apollyon-training-preentry-binary-candidate-v1.md"
+      - ".github/workflows/apollyon-training-preentry-binary-candidate-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "scripts/prove_apollyon_training_bus_isolation_v1.py"
+      - "scripts/prove_apollyon_training_preentry_binary_candidate_v1.py"
+      - "docs/security/apollyon-training-preentry-binary-candidate-v1.md"
+      - ".github/workflows/apollyon-training-preentry-binary-candidate-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: derive candidate / ${{ matrix.lane }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Derive candidate report
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_apollyon_training_preentry_binary_candidate_v1.py \
+            --derive "$RUNNER_TEMP/candidate.json"
+          cat "$RUNNER_TEMP/candidate.json"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Upload candidate report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-preentry-candidate-${{ matrix.lane }}
+          path: ${{ runner.temp }}/candidate.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: compare three candidate reports
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Download candidate reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: apollyon-preentry-candidate-*
+          path: ${{ runner.temp }}/candidates
+          merge-multiple: false
+      - name: Require byte-identical hosted candidates
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_apollyon_training_preentry_binary_candidate_v1.py \
+            --self-test
+          python3 -I -B scripts/prove_apollyon_training_preentry_binary_candidate_v1.py \
+            --compare-dir "$RUNNER_TEMP/candidates"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
