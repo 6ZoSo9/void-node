@@ -57,6 +57,8 @@ jobs:
           grep -Fx 'reviewed_private_stage_inspector_exact=true' "$proof"
           grep -Fx 'reviewed_nimo_machine_id_required=true' "$proof"
           grep -Fx 'reviewed_nimo_ed25519_hostkey_required=true' "$proof"
+          grep -Fx 'reviewed_nimo_root_disk_required=true' "$proof"
+          grep -Fx 'root_disk_continuity_reverified=true' "$proof"
           grep -Fx 'live_host_collection_performed=false' "$proof"
           grep -Fx 'live_nimo_installed=false' "$proof"
           grep -Fx 'production_gate_ready=false' "$proof"
@@ -71,7 +73,8 @@ jobs:
           from pathlib import Path
           source = Path("scripts/void_nimo_v5_live_private_stage_evidence_v1.py").read_text()
           forbidden = [
-              "subprocess.",
+              "subprocess.Popen",
+              "shell=True",
               "socket.create_connection",
               "socket.socket(",
               "paramiko",
@@ -94,8 +97,12 @@ jobs:
               'EXPECTED_HOSTNAME = "Nimo"',
               'EXPECTED_MACHINE_ID_SHA256 = "48a3554126d621d6460385ebacf3d41b454157337271cb7405af012158f203d4"',
               'EXPECTED_HOSTKEY_FINGERPRINT = "SHA256:3c9mfrwEQ9RKbVwL8pw/kvbCFt5imaj3QCK79yynkvk"',
+              'EXPECTED_ROOT_DISK_SERIAL = "50026B76873B25AB"',
+              'EXPECTED_ROOT_DISK_WWN = "eui.00000000000000000026b76873b25ab5"',
+              '"/usr/bin/findmnt"',
+              '"/usr/bin/lsblk"',
               '"live_nimo_installed": False',
-              '"root_disk_continuity_reverified": False',
+              '"root_disk_continuity_reverified": True',
               '"public_presale_activation": False',
               '"funds_movement": False',
           ]
