@@ -303,6 +303,10 @@ assert.equal(
   configuredDualPolicy.policy.deployment_receipt_path,
   "/var/lib/void-source-finality-v7/deployment-receipt.json",
 );
+assert.equal(
+  configuredDualPolicy.policy.live_process_binding_receipt_path,
+  "/var/lib/void-source-finality-v7/live-process-binding-v1.json",
+);
 assert.deepEqual(
   configuredDualPolicy.policy.authority_policy_generation.rail_order,
   ["base", "ethereum"],
@@ -434,6 +438,7 @@ for (const requiredReadyFlag of [
   "remote_provider_identity_verified === false",
   "ancestry_verified === true",
   "provider_quorum_verified === true",
+  "same_live_process_binding_proven === true",
   "production_source_finality_authority_ready === true",
 ]) {
   assert.ok(
@@ -448,7 +453,9 @@ assert.match(
 
 for (const requiredV7Authority of [
   "operator_deployment_receipt_required: true",
+  "same_live_process_binding_required: true",
   "independent_remote_provider_transport_required: true",
+  "same_live_process_binding_verified_on_success: true",
   "production_source_finality_authority_ready_on_success: true",
   "public_presale_activation: false",
   "money_movement: false",
@@ -465,7 +472,7 @@ const futureReadyV7Observation = {
   reviewed_source_files_verified: true,
   source_file_verification_mode: "operator_deployment_receipt_bound_v1",
   accepted_enforcement_set_sha256:
-    "ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb",
+    "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b",
   authenticated_transport_identity_verified: true,
   independent_remote_provider_transport_verified: true,
   observation_generated_in_composition: true,
@@ -477,6 +484,7 @@ const futureReadyV7Observation = {
   remote_provider_identity_verified: false,
   ancestry_verified: true,
   provider_quorum_verified: true,
+  same_live_process_binding_proven: true,
   production_source_finality_authority_ready: true,
 };
 const futureReadyClassification =
@@ -498,6 +506,7 @@ for (const mutation of [
   { remote_provider_identity_verified: true },
   { source_generation_verified: false },
   { deployed_artifact_generation_verified: false },
+  { same_live_process_binding_proven: false },
   { production_source_finality_authority_ready: false },
 ]) {
   const classified =
