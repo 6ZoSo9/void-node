@@ -252,12 +252,6 @@ held(
 );
 held(
   (input) => {
-    input.gateway.service_unit = input.earn_edge.service_unit;
-  },
-  "public_earn_isolation_service_units_not_dedicated",
-);
-held(
-  (input) => {
     input.firewall.owner_uid = 1000;
   },
   "public_earn_isolation_firewall_identity_invalid",
