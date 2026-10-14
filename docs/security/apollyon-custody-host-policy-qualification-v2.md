@@ -55,10 +55,18 @@ authenticated Unix PID belongs to the admitted training-process set must match
 authenticated UID, or training UID but unadmitted PID, HOLDS. Each admitted
 sender is then probed through `pkcheck --system-bus-name` over the same exact
 reviewed systemd control surface. The sender set is collected again afterward
-and must remain stable. V2 requires a bounded list of those sender identities,
-the exact denial-check count, and the SHA-256 of the canonical all-denied
-transcript for each sender. The earlier PID/start/UID process probes remain
-defense-in-depth; they are no longer the sole Polkit subject evidence.
+and must remain stable. Any unique name listed by the bus whose authenticated
+PID or UID cannot be resolved HOLDS the census; a disappearing sender is never
+silently dropped. V2 requires a bounded list of those sender identities, the
+exact denial-check count, and the SHA-256 of the canonical all-denied transcript
+for each sender.
+
+After the bus-denial phase, the complete training-process evidence is collected
+again and compared by full start-time-bound process identity plus per-process
+thread inventory digest, not only by integer PID. PID reuse or thread-credential
+drift across the authorization window therefore HOLDS. The earlier
+PID/start/UID process probes remain defense-in-depth; they are no longer the sole
+Polkit subject evidence.
 
 The V1 classifier remains byte-for-byte unchanged; V2 strips
 the successor-only service-control block before delegating to V1.
