@@ -29,6 +29,8 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   training_uid_process_identity_stability_required:true,
   training_uid_thread_discovery_required:true,
   actual_system_bus_sender_denial_required:true,
+  inherited_system_bus_descriptor_absence_required:true,
+  absolute_runtime_service_control_denial_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
@@ -76,6 +78,7 @@ function normalizeSocketParentV2(value){
 function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
+    "absolute_runtime_service_control_denial_proven",
     "actual_system_bus_sender_checks_required",
     "actual_system_bus_sender_count",
     "actual_system_bus_sender_set_stable",
@@ -83,7 +86,9 @@ function normalizeServiceControl(value,identities){
     "all_systemd_control_actions_explicitly_denied",
     "all_training_uid_processes_capability_free",
     "all_training_uid_threads_capability_free",
-    "checked_actions","installed_systemd_package_version",
+    "checked_actions","inherited_system_bus_descriptor_absence_proven",
+    "inherited_system_bus_descriptor_absence_required",
+    "installed_systemd_package_version",
     "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule",
     "reviewed_systemd_major","reviewed_systemd_package_version",
     "running_installed_systemd_version_match",
@@ -115,6 +120,9 @@ function normalizeServiceControl(value,identities){
     value.pkcheck_subject!==String(value.training_pid)+","+
       value.training_process_start_time_ticks+","+String(value.training_uid)||
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
+    value.absolute_runtime_service_control_denial_proven!==true||
+    value.inherited_system_bus_descriptor_absence_required!==true||
+    value.inherited_system_bus_descriptor_absence_proven!==true||
     value.actual_system_bus_sender_checks_required!==true||
     value.actual_system_bus_sender_set_stable!==true||
     !Number.isSafeInteger(value.actual_system_bus_sender_count)||
