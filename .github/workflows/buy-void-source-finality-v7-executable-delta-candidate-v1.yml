@@ -21,6 +21,9 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -40,6 +43,9 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -503,3 +509,74 @@ jobs:
           cmp lock-v2/lock-v2-22.txt lock-v2/lock-v2-26.txt
           sha256sum lock-v2/lock-v2-22.json
           echo "VOID_BUY_VOID_ENFORCEMENT_POST2933_LOCK_V2_CROSS_NODE_GREEN"
+
+  provider-pair-current-enforcement:
+    needs: [enforcement-lock-v2-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact provider-installer head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove current-enforcement binding
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts             | tee "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'historical_enforcement_constant_dependency=false'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'current_deployment_receipt_schema_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'accepted_enforcement_lock_identity_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'public_presale_activation=false'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false'             "provider-pair-current-${{ matrix.node }}.log"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+  provider-pair-current-enforcement-root:
+    needs: [provider-pair-current-enforcement]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact provider-installer head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Use reviewed Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise disposable root-custody fixture only
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts             | tee "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'fresh_enforcement_set=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
