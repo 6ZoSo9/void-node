@@ -49,13 +49,19 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-After identity/descriptor checks and signal setup, the target ignores
-`SIGPIPE`, marks both stdout and stderr `O_NONBLOCK`, then captures one
-absolute `CLOCK_BOOTTIME` deadline **before publishing readiness**. The
+The first operation in `main()` establishes process-output safety before any
+argument, identity, no-new-privileges, descriptor, or self-test path can reach a
+HOLD. SIGPIPE is ignored first. Stderr is then marked `O_NONBLOCK` using a
+no-HOLD bootstrap path; only after the diagnostic channel is nonblocking may
+ordinary fail-closed helpers run while stdout is made nonblocking. Early
+refusals therefore cannot be terminated by SIGPIPE or block indefinitely on a
+full diagnostic sink, including a failure while preparing stdout itself.
+
+After identity/descriptor checks and TERM/INT signal setup, the target captures
+one absolute `CLOCK_BOOTTIME` deadline **before publishing readiness**. The
 readiness record is emitted as one bounded `write(2)` payload rather than
 buffered stdio. A full sink returns EAGAIN/EWOULDBLOCK and HOLDS immediately;
-a disconnected reader returns EPIPE and is converted to a distinct HOLD rather
-than terminating the process by SIGPIPE.
+a disconnected reader returns EPIPE and is converted to a distinct HOLD.
 
 The deadline is exactly 300 seconds after the admission point. The hold then
 uses `clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host
@@ -93,7 +99,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob 13c2de00cc870ec7ecda4bde016307cb95b3e033
+Git blob 613f0ece15696db57b81e41b9e8aa5638f8f29c7
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -109,8 +115,15 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
-- requires stdout/stderr to become nonblocking before the suspend-aware
-  absolute CLOCK_BOOTTIME 300-second deadline is armed;
+- proves SIGPIPE ignore is established first and stderr becomes nonblocking
+  before any setup path is permitted to call HOLD;
+- proves the full process-output safety call is the first operation in
+  `main()`, before the first ordinary HOLD path;
+- closes stderr and separately fills stderr to capacity on an early
+  no-new-privileges refusal, requiring prompt exit status 2 rather than signal
+  termination or blocking;
+- requires the suspend-aware absolute CLOCK_BOOTTIME 300-second deadline after
+  those process-I/O safeguards;
 - fills a pipe to capacity and proves readiness fails closed promptly rather
   than blocking beyond the observation window;
 - closes the readiness pipe reader and proves SIGPIPE/EPIPE becomes a
