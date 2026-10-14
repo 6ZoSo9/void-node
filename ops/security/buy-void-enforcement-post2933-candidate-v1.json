@@ -1,0 +1,95 @@
+{
+  "schema": "void_buy_void_enforcement_post2933_candidate_v1",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "source_parent": "c8ce2b67b72cd59111a62d9638035a46c6120afa",
+  "hosted_census_evidence": {
+    "workflow_run": 38561882760,
+    "node22_artifact_id": 11893332050,
+    "artifact_json_bytes": 13651,
+    "artifact_json_sha256": "bf8e33935d2d5b6604679bf64bd4dc6763fb9cf8cb3ff5b287e89325e773ddc0",
+    "artifact_json_git_blob_sha1": "6d7243a2dd4e44ea126908d4d92071e7848340a7",
+    "census_id": "voidbe2933c1_bf0fae6a02a69c2fe17c2fd6a4a552db4f30dfdee16a8b4429865e3de389d888",
+    "artifact_inventory_sha256": "07ccac7dd9b02c4067739686e8020e589af9134886da62a9ad807ac54c4fbe5a",
+    "source_inventory_sha256": "828f4e6e3391c7f5b3d0e8e5ef131dd9ebb5325b0dd7f88b692b8e283bd74964",
+    "artifact_count": 27,
+    "source_file_count": 27,
+    "cross_node_byte_identity_verified": true
+  },
+  "predecessor_enforcement": {
+    "path": "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+    "git_blob_sha1": "37210b74fa0de86250af84ec088c2d74e9e90499",
+    "candidate_enforcement_set_sha256": "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b",
+    "complete_executable_closure_verified": true,
+    "candidate_enforcement_identity_accepted": true,
+    "historical_identity_preserved": true
+  },
+  "audited_package_runtime": {
+    "manifest_path": "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json",
+    "manifest_git_blob_sha1": "445bcfbf5feae928e0d9cc06d4d31c1ee186fe39",
+    "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+    "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+    "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+    "root_packages": [
+      "ethers",
+      "express"
+    ],
+    "profile_identity_accepted": true
+  },
+  "dependency_provider": {
+    "lock_proof_path": "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs",
+    "lock_proof_git_blob_sha1": "39f660e23f5baa3f0a4f1e5b8b40c756c31da4cb",
+    "candidate_json_sha256": "6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b",
+    "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+    "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+    "provider_closure_identity_accepted": true,
+    "current_descendant_semantics_requalified": true
+  },
+  "v7_executable_delta": {
+    "proof_path": "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
+    "proof_git_blob_sha1": "fd6c6ee367a79128259d643c0c04ca83de48653e",
+    "module_count": 5,
+    "candidate_generation_sha256": "2316526ff2366b785972f4fd11f49440a859704f57fcdc047f3edab623d39e4b",
+    "artifact_inventory_sha256": "d70b35d87ec85adbe6f98b60e28304bf38fdb29b8b78ba4ff14b56eabdc722e9",
+    "cross_node_byte_identity_verified": true
+  },
+  "closure_transition": {
+    "predecessor_artifact_count": 23,
+    "current_artifact_count": 27,
+    "unchanged_predecessor_artifact_count": 22,
+    "changed_artifact_paths": [
+      "dist/economic/buy_void_source_finality_execution_preflight_v1.js"
+    ],
+    "added_artifact_paths": [
+      "dist/economic/buy_void_source_finality_generation_provenance_v7.js",
+      "dist/economic/buy_void_source_finality_live_process_binding_v1.js",
+      "dist/economic/buy_void_source_finality_provider_pair_binding_v1.js",
+      "dist/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js"
+    ],
+    "removed_artifact_paths": [],
+    "transition_exact": true
+  },
+  "dynamic_saga_edge": {
+    "importer_artifact": "dist/economic/buy_void_erc20_execution_composition_v1.js",
+    "importer_artifact_sha256": "b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1",
+    "tool_specifier": "../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+    "saga_source_git_blob_sha1": "d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",
+    "saga_source_sha256": "e94b2c5c2da0a4849acab936d0d7f8710f2d2229909d73bc679a83c63f777e01",
+    "saga_behavior_proof_git_blob_sha1": "d33206063799aaddf64ce178a618e174e0ddf628",
+    "dynamic_tool_execution_identity_verified": true,
+    "dynamic_tool_transitive_closure_verified": true
+  },
+  "package_runtime_identity_accepted": true,
+  "provider_closure_composed": true,
+  "delivery_route_closure_composed": true,
+  "third_party_package_runtime_closure_verified": true,
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "candidate_enforcement_set_sha256": "839840e9480abdda2afe2daa3e948e7f1508ffe3a5e1c8316e4fc32b22ccebbc"
+}
