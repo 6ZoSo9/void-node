@@ -67,7 +67,7 @@ repository evidence.
 The lock ID is:
 
 ```text
-apollyon_training_preentry_binary_candidate_lock_v1:f13fb7c9737defa61e8f883426e5c53dafbc8d5ec70616b86b2b09fdb790c622
+apollyon_training_preentry_binary_candidate_lock_v1:d5acb7184059f2690120374f990968f0a041872e8119c555d3da21671c6d49a5
 ```
 
 It is SHA-256 over canonical lock material excluding only the `lock_id`
@@ -114,12 +114,14 @@ installation claim.
 
 ## Next gate
 
-`apollyon_training_preentry_installed_binary_custody_v1`
+`installed_apollyon_training_bus_isolation_qualification_v1`
 
-That later gate must observe actual installed bytes and prove at-use identity,
-root ownership, mode/link/ancestry custody, executable/interpreter/library
-closure, and the reviewed systemd execution boundary before any live
-`installed_preentry_binary_identity_proven=true` claim is allowed.
+That canonical #2918 successor must observe the installed service unit and
+native pre-entry together. It must bind the exact locked 17,352-byte ELF
+identity, root ownership/mode/link/ancestry custody, PID-1 systemd generation,
+the dedicated training account/cgroup, and descriptor-isolation enforcement
+before any live `installed_preentry_binary_identity_proven=true` or
+`inherited_system_bus_descriptor_absence_proven=true` claim is allowed.
 
 This PR performs no deployment, Xiphos mutation, service action, key access,
 signing, transaction, attempt claim, training execution, activation, or funds
