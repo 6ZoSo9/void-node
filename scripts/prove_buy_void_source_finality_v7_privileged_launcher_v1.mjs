@@ -66,6 +66,30 @@ const fixture="/var/lib/void-v7-protected-launcher-proof-"+
   String(process.pid)+"-"+String(process.getuid());
 const runtimeUid=String(process.getuid());
 const runtimeGid=String(process.getgid());
+const systemNode="/usr/bin/node";
+let installedSystemNodeFixture=false;
+
+function ensureSystemNodeFixture(){
+  if(fs.existsSync(systemNode)) return;
+  const source=fs.realpathSync.native(process.execPath);
+  const sourceStat=fs.statSync(source);
+  assert.equal(sourceStat.isFile(),true,"setup-node executable must be a regular file");
+  assert.notEqual(sourceStat.mode&0o111,0,"setup-node executable must be executable");
+  sudo([
+    "/usr/bin/install",
+    "-o","root",
+    "-g","root",
+    "-m","0755",
+    "--",
+    source,
+    systemNode,
+  ]);
+  installedSystemNodeFixture=true;
+  const installed=fs.statSync(systemNode);
+  assert.equal(installed.uid,0,"CI /usr/bin/node fixture must be root-owned");
+  assert.equal(installed.gid,0,"CI /usr/bin/node fixture must be root-group");
+  assert.equal(installed.mode&0o022,0,"CI /usr/bin/node fixture must not be group/world writable");
+}
 
 const dirs=[
   "src","ops","ops/precision","runtime","node_modules","node_modules/tsx",
@@ -97,6 +121,12 @@ function launcherArgs(commit,tree){
   ];
 }
 try{
+  // GitHub's setup-node installs Node under the hosted toolcache, while the
+  // production launcher intentionally requires the fixed /usr/bin/node path.
+  // Materialize only an ephemeral root-owned CI copy; never relax launcher path
+  // authority to ambient PATH or a caller-selected executable.
+  ensureSystemNodeFixture();
+
   git(tmp,"init","-b","main");
   git(tmp,"config","user.name","VOID Launcher Proof");
   git(tmp,"config","user.email","void-launcher-proof@example.invalid");
@@ -179,5 +209,8 @@ try{
   console.log("funds_movement=false");
 } finally {
   sudo(["rm","-rf","--",fixture],{allow:true});
+  if(installedSystemNodeFixture){
+    sudo(["rm","-f","--",systemNode],{allow:true});
+  }
   fs.rmSync(tmp,{recursive:true,force:true});
 }
