@@ -258,9 +258,22 @@ function readOneRequest(socket){
     socket.setTimeout(VOID_AGENT_CREDENTIAL_REQUEST_TIMEOUT_MS_V1);
   });
 }
-function forwardToGateway(request){
+function forwardToGateway(request,clientSocket){
   return new Promise((resolve,reject)=>{
-    const upstream=http.request({
+    let settled=false;
+    let upstream;
+    const onClientClose=()=>{
+      if(settled)return;
+      upstream?.destroy(new Error("edge_client_disconnected"));
+    };
+    const finish=(fn,value)=>{
+      if(settled)return;
+      settled=true;
+      clientSocket.off("close",onClientClose);
+      fn(value);
+    };
+
+    upstream=http.request({
       protocol:"http:",
       hostname:"127.0.0.1",
       port:gateway.port,
@@ -283,7 +296,7 @@ function forwardToGateway(request){
         if(done)return;
         done=true;
         response.destroy();
-        reject(error);
+        finish(reject,error);
       };
       response.on("data",chunk=>{
         if(done)return;
@@ -300,17 +313,22 @@ function forwardToGateway(request){
         done=true;
         const status=Number(response.statusCode);
         if(!Number.isSafeInteger(status)||status<100||status>599){
-          reject(new Error("edge_gateway_status_invalid"));
+          finish(reject,new Error("edge_gateway_status_invalid"));
           return;
         }
-        resolve(Object.freeze({
+        finish(resolve,Object.freeze({
           status,
           body:Buffer.concat(chunks),
         }));
       });
     });
+    clientSocket.once("close",onClientClose);
+    if(clientSocket.destroyed){
+      onClientClose();
+      return;
+    }
     upstream.once("timeout",()=>upstream.destroy(new Error("edge_gateway_timeout")));
-    upstream.once("error",reject);
+    upstream.once("error",error=>finish(reject,error));
     upstream.end(request.body);
   });
 }
@@ -324,6 +342,13 @@ function classifyClientError(error){
 }
 
 const server=net.createServer(socket=>{
+  let clientError=null;
+  const onClientError=(error)=>{
+    clientError=error;
+  };
+  socket.on("error",onClientError);
+  socket.once("close",()=>socket.off("error",onClientError));
+
   void (async()=>{
     let request;
     try{request=await readOneRequest(socket);}
@@ -332,6 +357,8 @@ const server=net.createServer(socket=>{
       send(socket,status,{ok:false,error:code});
       return;
     }
+    if(clientError!==null||socket.destroyed)return;
+
     let admitted;
     try{admitted=await rateState.admit(request.parsedSource,Date.now());}
     catch(error){
@@ -339,6 +366,8 @@ const server=net.createServer(socket=>{
       send(socket,503,{ok:false,error:"credential_source_rate_state_unavailable"});
       return;
     }
+    if(clientError!==null||socket.destroyed)return;
+
     if(admitted.ok!==true){
       if(admitted.status==="RATE_LIMITED"){
         send(socket,429,{
@@ -352,9 +381,11 @@ const server=net.createServer(socket=>{
       return;
     }
     try{
-      const response=await forwardToGateway(request);
+      const response=await forwardToGateway(request,socket);
+      if(clientError!==null||socket.destroyed)return;
       send(socket,response.status,response.body);
     }catch(error){
+      if(clientError!==null||socket.destroyed)return;
       process.stderr.write(MARKER+" gateway_error="+String(error)+"\n");
       send(socket,502,{ok:false,error:"credential_request_gateway_failed"});
     }
