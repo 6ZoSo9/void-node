@@ -65,7 +65,9 @@ When that value is present:
 - a second HTTP listener binds only to `127.0.0.1:<operator-port>`;
 - the existing shared gateway listener returns a bounded 404 for claim and
   submit POSTs and never contacts the coordinator for those requests;
-- the dedicated listener accepts only the exact claim and submit paths;
+- the dedicated listener accepts only the exact raw claim and submit targets;
+- query, trailing-slash, dot-segment, percent-encoded and unrelated aliases are
+  rejected before mutation handling;
 - non-POST sensitive requests are rejected and unrelated paths return 404;
 - the existing claim/submit validation, body limits, capability checks,
   header stripping, rate walls, upstream deadlines, and response filtering
