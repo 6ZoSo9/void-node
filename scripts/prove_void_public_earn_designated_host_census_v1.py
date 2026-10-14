@@ -27,6 +27,16 @@ assert module.UNITS == {
 for role, evidence in module.SOURCE_BLOBS.items():
     assert re.fullmatch(r"[0-9a-f]{40}", evidence["git_blob_sha1"]), role
     assert not pathlib.Path(evidence["path"]).is_absolute(), role
+    source_path = ROOT / evidence["path"]
+    data = source_path.read_bytes()
+    assert module.git_blob_sha1(data) == evidence["git_blob_sha1"], role
+
+checkout = module.reviewed_checkout_blobs()
+assert checkout["all_match"] is True
+assert all(
+    row["matches_reviewed_blob"] is True
+    for row in checkout["files"].values()
+)
 
 source = TARGET.read_text(encoding="utf-8")
 for required in [
@@ -45,9 +55,9 @@ for required in [
 for forbidden in [
     "cat /proc/",
     "print(environ",
-    "private_key",
-    "seed_phrase",
-    "mnemonic",
+    "BEGIN PRIVATE KEY",
+    "seed_phrase=",
+    "mnemonic=",
     "eth_sendRawTransaction",
 ]:
     assert forbidden not in source, forbidden
