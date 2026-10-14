@@ -12,6 +12,7 @@ import {
   buyVoidSourceFinalityLiveProcessBindingReceiptIdV2,
   classifyBuyVoidSourceFinalityLiveProcessBindingV2,
   selectBuyVoidSourceFinalityServiceProcessV2,
+  testOnlyClassifyBuyVoidLiveProcessKernelGenerationRecheckV2,
 } from "../src/economic/buy_void_source_finality_live_process_binding_v2.js";
 
 const sha=(value:string|Buffer)=>crypto.createHash("sha256").update(value).digest("hex");
@@ -182,6 +183,60 @@ for(const attack of [
   assert.equal(result.ok,false,attack.label);
 }
 
+const stableKernelGeneration={
+  manager_pid:manager.pid,
+  manager_before:{ppid:1,start_time_ticks:manager.start_time_ticks},
+  manager_after:{ppid:1,start_time_ticks:manager.start_time_ticks},
+  self_before:{ppid:manager.pid,start_time_ticks:service.start_time_ticks},
+  self_after:{ppid:manager.pid,start_time_ticks:service.start_time_ticks},
+} as const;
+assert.deepEqual(
+  testOnlyClassifyBuyVoidLiveProcessKernelGenerationRecheckV2(
+    stableKernelGeneration,
+  ),
+  {ok:true,reason:null},
+);
+for(const attack of [
+  {
+    label:"service-reparented",
+    input:{
+      ...stableKernelGeneration,
+      self_after:{...stableKernelGeneration.self_after,ppid:1},
+    },
+    reason:"live_process_v2_self_parent_changed_during_verification",
+  },
+  {
+    label:"service-generation-changed",
+    input:{
+      ...stableKernelGeneration,
+      self_after:{...stableKernelGeneration.self_after,start_time_ticks:"5139459"},
+    },
+    reason:"live_process_v2_self_generation_changed_during_verification",
+  },
+  {
+    label:"manager-restarted",
+    input:{
+      ...stableKernelGeneration,
+      manager_after:{...stableKernelGeneration.manager_after,start_time_ticks:"1410"},
+    },
+    reason:"live_process_v2_manager_identity_changed_during_verification",
+  },
+  {
+    label:"manager-reparented",
+    input:{
+      ...stableKernelGeneration,
+      manager_after:{...stableKernelGeneration.manager_after,ppid:77},
+    },
+    reason:"live_process_v2_manager_not_pid1_child",
+  },
+]){
+  const result=testOnlyClassifyBuyVoidLiveProcessKernelGenerationRecheckV2(
+    attack.input,
+  );
+  assert.equal(result.ok,false,attack.label);
+  assert.equal(result.reason,attack.reason,attack.label);
+}
+
 assert.equal(
   VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
   "/var/lib/void-source-finality-v7/live-process-binding-v2.json",
@@ -220,6 +275,8 @@ console.log("esbuild_children_not_service_candidate=true");
 console.log("selector_contract_content_addressed=true");
 console.log("v1_receipt_production_authority_rejected=true");
 console.log("manager_restart_rejected=true");
+console.log("runtime_service_reparent_during_verification_rejected=true");
+console.log("runtime_service_generation_change_during_verification_rejected=true");
 console.log("direct_parent_change_rejected=true");
 console.log("manager_pidfd_required_at_collection=true");
 console.log("service_pidfd_required_at_collection=true");
