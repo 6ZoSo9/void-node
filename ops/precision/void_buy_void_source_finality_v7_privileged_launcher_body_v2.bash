@@ -12,7 +12,7 @@ STAT="/usr/bin/stat"
 ENV="/usr/bin/env"
 GREP="/usr/bin/grep"
 PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
-PACKAGE_RUNTIME_PROOF_BLOB="875959118a3647f64e3260c6a548b42332b060a5"
+PACKAGE_RUNTIME_PROOF_BLOB="c4c95142b617ca4a4279e31ff11e7f9953ba2409"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2

@@ -92,11 +92,12 @@ That proof independently re-inventories:
 - the exact Linux-x64 esbuild platform package,
 
 from the audited package/lock bytes in the same protected tree. It also derives
-an exact reviewed `tsx` package profile, materializes that profile outside the
-repository, makes only the reviewed Linux-x64 esbuild binary executable without
-making it writable, and runs an inert TypeScript-only probe through the exact
-TSX CLI under Node filesystem permissions. The proof then re-verifies the
-materialized package bytes and requires no probe or package mutation. It also
+the exact three-package `tsx + esbuild + @esbuild/linux-x64` byte closure into
+a purpose-built private materialization outside the repository, makes only the
+reviewed Linux-x64 esbuild binary executable without making it writable, and
+runs an inert TypeScript-only probe through the exact TSX CLI under Node
+filesystem permissions. The proof then re-inventories the private package bytes
+and requires no probe or package mutation. It also
 checks the current launcher/native gate contracts and requires all
 production/economic authority flags to remain false.
 

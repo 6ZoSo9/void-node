@@ -10,8 +10,6 @@ import { fileURLToPath } from "node:url";
 import {
   canonicalJson,
   collectReviewedNodePackageRuntimeV1,
-  materializeReviewedNodePackageRuntimeV1,
-  verifyMaterializedReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
 import { runReviewedGitV1 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
@@ -174,38 +172,124 @@ function makeWritableForCleanup(root){
   }
 }
 
-function assertExpectedTsxReviewedProfile(profile){
-  assert.deepEqual(profile.root_packages,["tsx"]);
-  assert.equal(profile.package_count,3);
-  assert.equal(profile.total_file_count,40);
-  assert.equal(profile.total_bytes,11972707);
-  for(const expected of EXPECTED_TSX_PACKAGES){
-    const actual=profile.packages.find(row=>row.lock_key===expected.lock_key);
-    assert.ok(actual,"tsx_profile_package_missing:"+expected.name);
-    for(const key of [
-      "name","lock_key","version","integrity","package_json_sha256",
-      "file_count","bytes","aggregate_sha256",
-    ]){
-      assert.equal(actual[key],expected[key],"tsx_profile_"+key+":"+expected.name);
+function copyPrivatePackage(sourceRoot,destinationRoot,row){
+  const sourceBase=path.join(sourceRoot,...row.lock_key.split("/"));
+  const destinationBase=path.join(destinationRoot,...row.lock_key.split("/"));
+  fs.mkdirSync(destinationBase,{recursive:true,mode:0o700});
+  function walk(source,destination,depth){
+    assert.ok(depth<=48,"private_copy_depth:"+row.name);
+    for(const entry of fs.readdirSync(source,{withFileTypes:true})
+      .sort((a,b)=>a.name.localeCompare(b.name,"en"))){
+      if(entry.name==="node_modules"&&entry.isDirectory()) continue;
+      const sourcePath=path.join(source,entry.name);
+      const destinationPath=path.join(destination,entry.name);
+      const stat=fs.lstatSync(sourcePath);
+      assert.equal(stat.isSymbolicLink(),false,"private_copy_symlink:"+row.name);
+      if(stat.isDirectory()){
+        fs.mkdirSync(destinationPath,{mode:0o700});
+        walk(sourcePath,destinationPath,depth+1);
+        continue;
+      }
+      assert.ok(stat.isFile()&&stat.nlink===1,"private_copy_member:"+row.name);
+      const bytes=stableBytes(
+        sourcePath,
+        "private_copy_source_"+row.name.replaceAll("/","_")+"_"+entry.name,
+      );
+      const fd=fs.openSync(
+        destinationPath,
+        fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
+          Number(fs.constants.O_NOFOLLOW||0),
+        0o400,
+      );
+      try{
+        fs.writeFileSync(fd,bytes);
+        fs.fsyncSync(fd);
+        fs.fchmodSync(fd,0o400);
+      }finally{fs.closeSync(fd);}
     }
   }
+  walk(sourceBase,destinationBase,0);
 }
 
-function provePrivateTsxExecution(tsxProfile){
-  assertExpectedTsxReviewedProfile(tsxProfile);
+function privatePackageRecord(root,row){
+  const base=path.join(root,...row.lock_key.split("/"));
+  const top=fs.lstatSync(base);
+  assert.ok(top.isDirectory()&&!top.isSymbolicLink(),"private_package_dir:"+row.name);
+  const pj=stableBytes(
+    path.join(base,"package.json"),
+    "private_package_json_"+row.name.replaceAll("/","_"),
+    1024*1024,
+  );
+  const parsed=JSON.parse(pj.toString("utf8"));
+  assert.equal(parsed.name,row.name,"private_installed_name:"+row.name);
+  assert.equal(parsed.version,row.version,"private_installed_version:"+row.name);
+  const members=[]; let bytes=0;
+  const walk=(dir,relative,depth)=>{
+    assert.ok(depth<=48,"private_package_depth:"+row.name);
+    for(const ent of fs.readdirSync(dir,{withFileTypes:true})
+      .sort((a,b)=>a.name.localeCompare(b.name,"en"))){
+      const rel=relative?relative+"/"+ent.name:ent.name;
+      const loc=path.join(dir,ent.name),st=fs.lstatSync(loc);
+      assert.equal(st.isSymbolicLink(),false,"private_package_symlink:"+row.name+":"+rel);
+      if(st.isDirectory()){ walk(loc,rel,depth+1); continue; }
+      assert.ok(st.isFile()&&st.nlink===1,"private_package_member:"+row.name+":"+rel);
+      const raw=stableBytes(
+        loc,
+        "private_package_member_"+row.name.replaceAll("/","_")+"_"+rel.replaceAll("/","_"),
+      );
+      bytes+=raw.length;
+      members.push({path:rel,bytes:raw.length,sha256:sha256(raw)});
+    }
+  };
+  walk(base,"",0);
+  return Object.freeze({
+    name:row.name,
+    lock_key:row.lock_key,
+    version:row.version,
+    integrity:row.integrity,
+    package_json_sha256:sha256(pj),
+    file_count:members.length,
+    bytes,
+    aggregate_sha256:sha256(Buffer.from(canonicalJson(members),"utf8")),
+  });
+}
+
+function makePrivateDirectoriesReadOnly(root){
+  const dirs=[];
+  const walk=dir=>{
+    dirs.push(dir);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      if(entry.isDirectory()) walk(path.join(dir,entry.name));
+    }
+  };
+  walk(root);
+  dirs.sort((a,b)=>b.length-a.length);
+  for(const dir of dirs) fs.chmodSync(dir,0o500);
+}
+
+function provePrivateTsxExecution(lock,packages){
   const parent=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-tsx-runtime-"));
   const destination=path.join(parent,"private-runtime");
+  fs.mkdirSync(destination,{mode:0o700});
   try{
-    const materialized=materializeReviewedNodePackageRuntimeV1({
-      profile:tsxProfile,
-      destinationRoot:destination,
-    });
-    assert.equal(materialized.ok,true);
+    for(const row of packages) copyPrivatePackage(ROOT,destination,row);
+    const copied=packages.map(row=>privatePackageRecord(destination,row))
+      .sort((a,b)=>a.lock_key.localeCompare(b.lock_key,"en"));
+    assert.deepEqual(copied,packages,"private_tsx_package_identity");
+
+    const privateAggregate=sha256(Buffer.from(canonicalJson(copied),"utf8"));
+    assert.equal(privateAggregate,TSX_AGGREGATE);
+    const material={
+      marker:"VOID_BUY_VOID_V7_PRIVILEGED_TSX_RUNTIME_V1",version:1,
+      platform:"linux",arch:"x64",root_package:"tsx",root_version:"4.23.15",
+      esbuild_version:"0.28.2",installed_optional_platform_packages:["@esbuild/linux-x64"],
+      optional_absent:[...OPTIONAL_ABSENT].sort(),package_count:3,total_file_count:40,
+      total_bytes:11972707,packages:copied,packages_aggregate_sha256:privateAggregate,
+    };
     assert.equal(
-      materialized.status,
-      "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED",
+      "voidtsxpr1_"+sha256(Buffer.from(canonicalJson(material),"utf8")),
+      TSX_RUNTIME_ID,
     );
-    assert.equal(materialized.profile_id,tsxProfile.profile_id);
 
     const esbuildBinary=path.join(
       destination,
@@ -214,9 +298,10 @@ function provePrivateTsxExecution(tsxProfile){
     const esbuildStat=fs.lstatSync(esbuildBinary);
     assert.ok(
       esbuildStat.isFile()&&!esbuildStat.isSymbolicLink()&&esbuildStat.nlink===1,
-      "materialized_esbuild_binary_invalid",
+      "private_esbuild_binary_invalid",
     );
     fs.chmodSync(esbuildBinary,0o500);
+    makePrivateDirectoriesReadOnly(path.join(destination,"node_modules"));
 
     const tsconfig=path.join(destination,"tsconfig.json");
     const probe=path.join(destination,"probe.ts");
@@ -273,17 +358,13 @@ function provePrivateTsxExecution(tsxProfile){
       ["node_modules","probe.ts","tsconfig.json"],
       "tsx_private_runtime_root_mutated",
     );
-
-    const after=verifyMaterializedReviewedNodePackageRuntimeV1({
-      profile:tsxProfile,
-      destinationRoot:destination,
-    });
-    assert.equal(after.ok,true);
-    assert.equal(after.profile_id,tsxProfile.profile_id);
+    const after=packages.map(row=>privatePackageRecord(destination,row))
+      .sort((a,b)=>a.lock_key.localeCompare(b.lock_key,"en"));
+    assert.deepEqual(after,packages,"private_tsx_package_mutated_after_execution");
     assert.equal(fs.statSync(esbuildBinary).mode&0o222,0);
 
     return Object.freeze({
-      tsx_reviewed_profile_id:tsxProfile.profile_id,
+      tsx_private_runtime_id:TSX_RUNTIME_ID,
       tsx_private_materialization_verified:true,
       tsx_inert_transform_execution_verified:true,
       esbuild_runtime_execution_verified:true,
@@ -363,9 +444,7 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
   }
   assert.deepEqual(fs.readdirSync(path.join(ROOT,"node_modules/@esbuild")).sort(),["linux-x64"]);
 
-  const tsxProfile=collectReviewedNodePackageRuntimeV1({rootPackages:["tsx"]});
-  assertExpectedTsxReviewedProfile(tsxProfile);
-  const execution=provePrivateTsxExecution(tsxProfile);
+  const execution=provePrivateTsxExecution(lock,packages);
 
   const material={
     marker:"VOID_BUY_VOID_V7_PRIVILEGED_TSX_RUNTIME_V1",version:1,
@@ -393,7 +472,7 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     tsx_package_count:3,
     tsx_total_file_count:40,
     tsx_total_bytes:11972707,
-    tsx_reviewed_profile_id:execution.tsx_reviewed_profile_id,
+    tsx_private_runtime_id:execution.tsx_private_runtime_id,
     tsx_private_materialization_verified:execution.tsx_private_materialization_verified,
     tsx_inert_transform_execution_verified:execution.tsx_inert_transform_execution_verified,
     esbuild_runtime_execution_verified:execution.esbuild_runtime_execution_verified,
