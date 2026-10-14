@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
   DEFAULT_RECEIPT_PATH,
   MARKER,
   buildBuyVoidSourceFinalityV7DeploymentReceiptV1,
+  inspectRepositoryIdentityV1,
   installRootCustodiedReceiptV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
 import {
@@ -59,6 +62,51 @@ for(const mutate of [
   assert.equal(out.ok,false);
 }
 
+function proveRepositoryLocalFsmonitorIgnoredV1(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-git-fence-"));
+  const repoRoot=path.join(temp,"repo");
+  const hook=path.join(temp,"hostile-fsmonitor.sh");
+  const sentinel=path.join(temp,"fsmonitor-executed");
+  try{
+    fs.mkdirSync(repoRoot,{mode:0o700});
+    execFileSync("/usr/bin/git",["init","-b","main",repoRoot],{
+      stdio:"ignore",
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+    });
+    fs.writeFileSync(path.join(repoRoot,"tracked.txt"),"reviewed\n",{mode:0o600});
+    execFileSync("/usr/bin/git",["-C",repoRoot,"add","tracked.txt"],{stdio:"ignore"});
+    execFileSync("/usr/bin/git",[
+      "-C",repoRoot,
+      "-c","user.name=VOID Proof",
+      "-c","user.email=void-proof.invalid@example.invalid",
+      "commit","-m","fixture",
+    ],{stdio:"ignore"});
+    fs.writeFileSync(
+      hook,
+      "#!/bin/sh\nprintf touched > "+JSON.stringify(sentinel)+"\nexit 1\n",
+      {mode:0o700},
+    );
+    fs.chmodSync(hook,0o700);
+    execFileSync("/usr/bin/git",[
+      "-C",repoRoot,"config","--local","core.fsmonitor",hook,
+    ],{stdio:"ignore"});
+    const configured=execFileSync("/usr/bin/git",[
+      "-C",repoRoot,"config","--local","--get","core.fsmonitor",
+    ],{encoding:"utf8"}).trim();
+    assert.equal(configured,hook);
+    const identity=inspectRepositoryIdentityV1(repoRoot);
+    assert.match(identity.commit,/^[0-9a-f]{40}$/u);
+    assert.match(identity.tree,/^[0-9a-f]{40}$/u);
+    assert.equal(identity.branch,"main");
+    assert.equal(fs.existsSync(sentinel),false,
+      "reviewed Git invocation executed repository-local fsmonitor");
+  }finally{
+    fs.rmSync(temp,{recursive:true,force:true});
+  }
+}
+
+proveRepositoryLocalFsmonitorIgnoredV1();
+
 const rootCapable=
   typeof process.getuid==="function" && process.getuid()===0;
 
@@ -104,6 +152,7 @@ if(rootCapable){
 console.log(MARKER+"_PROOF_GREEN");
 console.log("v7_receipt_uses_module_content_address=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
+console.log("repository_local_fsmonitor_ignored=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));

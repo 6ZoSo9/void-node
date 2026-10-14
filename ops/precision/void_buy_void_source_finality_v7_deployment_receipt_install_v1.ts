@@ -19,8 +19,20 @@ export const DEFAULT_RECEIPT_PATH =
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SHA40=/^[0-9a-f]{40}$/u;
 
-function git(args:string[]):string{
-  return execFileSync("/usr/bin/git",["-C",ROOT,...args],{
+function git(repositoryRoot:string,args:string[]):string{
+  const root=path.resolve(repositoryRoot);
+  assert.equal(root,repositoryRoot,"repository_root_not_canonical");
+  return execFileSync("/usr/bin/git",[
+    "--no-replace-objects",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.attributesFile=/dev/null",
+    "-c","core.fsmonitor=false",
+    "-c","core.untrackedCache=false",
+    "-c","core.preloadIndex=false",
+    "-c","submodule.recurse=false",
+    "-C",root,
+    ...args,
+  ],{
     encoding:"utf8",
     timeout:15_000,
     maxBuffer:1024*1024,
@@ -36,15 +48,16 @@ function git(args:string[]):string{
       GIT_CONFIG_SYSTEM:"/dev/null",
       GIT_OPTIONAL_LOCKS:"0",
       GIT_NO_REPLACE_OBJECTS:"1",
+      GIT_TERMINAL_PROMPT:"0",
     },
   }).trim();
 }
 
-export function inspectRepositoryIdentityV1(){
-  const commit=git(["rev-parse","--verify","HEAD^{commit}"]).toLowerCase();
-  const tree=git(["rev-parse","--verify","HEAD^{tree}"]).toLowerCase();
-  const branch=git(["symbolic-ref","--short","-q","HEAD"]);
-  const status=git(["status","--porcelain=v1"]);
+export function inspectRepositoryIdentityV1(repositoryRoot:string=ROOT){
+  const commit=git(repositoryRoot,["rev-parse","--verify","HEAD^{commit}"]).toLowerCase();
+  const tree=git(repositoryRoot,["rev-parse","--verify","HEAD^{tree}"]).toLowerCase();
+  const branch=git(repositoryRoot,["symbolic-ref","--short","-q","HEAD"]);
+  const status=git(repositoryRoot,["status","--porcelain=v1"]);
   assert.match(commit,SHA40,"repository_commit_invalid");
   assert.match(tree,SHA40,"repository_tree_invalid");
   assert.equal(branch,"main","repository_branch_not_main");

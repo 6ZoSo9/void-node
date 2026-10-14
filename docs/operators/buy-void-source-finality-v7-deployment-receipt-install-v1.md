@@ -17,7 +17,11 @@ The receipt binds:
 - content-addressed `voidbsfdep1_<sha256>` receipt identity.
 
 `--plan` is read-only and requires the repository to be clean `main` at the
-exact operator-supplied commit/tree.
+exact operator-supplied commit/tree. Authority-bearing Git reads use the
+reviewed absolute Git binary with replacement objects disabled, global/system
+config suppressed, and repository-local execution surfaces such as fsmonitor,
+hooks, attributes, preload/untracked-cache, and recursive submodules explicitly
+disabled.
 
 `--apply` additionally requires root and the explicit
 `--confirm-create-v7-deployment-receipt` token. Production application is

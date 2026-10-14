@@ -105,6 +105,7 @@ jobs:
             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             | tee "$install_log"
           grep -Fx 'root_custodied_create_once_positive=true' "$install_log"
+          grep -Fx 'repository_local_fsmonitor_ignored=true' "$install_log"
           grep -Fx 'matching_reapply_idempotent=true' "$install_log"
           grep -Fx 'mismatched_existing_receipt_rejected=true' "$install_log"
           grep -Fx 'funds_movement=false' "$install_log"
