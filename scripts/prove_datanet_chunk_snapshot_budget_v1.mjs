@@ -23,6 +23,24 @@ assert.equal(
 );
 assert.equal(DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1, 8);
 
+const productionShape = new DataNetChunkSnapshotBudgetV1({
+  maxAggregateBytes: DATANET_PUBLIC_CHUNK_SNAPSHOT_AGGREGATE_BYTES_V1,
+  maxReservationBytes: 64 * 1024 * 1024,
+  maxReservations: DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1,
+});
+const productionA = productionShape.tryReserve(64 * 1024 * 1024);
+const productionB = productionShape.tryReserve(64 * 1024 * 1024);
+assert.ok(productionA);
+assert.ok(productionB);
+assert.equal(productionShape.snapshot().in_flight_bytes, 128 * 1024 * 1024);
+assert.equal(productionShape.tryReserve(1), null);
+assert.equal(productionA.release(), true);
+const productionC = productionShape.tryReserve(64 * 1024 * 1024);
+assert.ok(productionC);
+assert.equal(productionB.release(), true);
+assert.equal(productionC.release(), true);
+assert.equal(productionShape.snapshot().in_flight_bytes, 0);
+
 const aggregate = new DataNetChunkSnapshotBudgetV1({
   maxAggregateBytes: 16,
   maxReservationBytes: 8,
@@ -341,6 +359,7 @@ console.log("reservation_before_allocation=true");
 console.log("overload_no_snapshot_allocation=true");
 console.log("concurrent_snapshot_recovery_proven=true");
 console.log("aggregate_byte_ceiling_proven=true");
+console.log("max_chunk_budget_shape_proven=true");
 console.log("concurrency_count_ceiling_proven=true");
 console.log("request_owned_release_token=true");
 console.log("double_release_idempotent=true");
