@@ -46,9 +46,15 @@ config suppressed, and repository-local execution surfaces such as fsmonitor,
 hooks, attributes, preload/untracked-cache, and recursive submodules explicitly
 disabled.
 
-`--apply` additionally requires root and the explicit
-`--confirm-create-v7-deployment-receipt` token. Production application is
-restricted to:
+`--apply` additionally requires root, the explicit
+`--confirm-create-v7-deployment-receipt` token, **and protected-dispatch
+admission from the fixed native-first launcher**. Direct root Node/TSX apply
+from a checkout is unsupported and fails before receipt publication. The tool
+independently rechecks the fixed protected root, exact commit/tree/main/clean
+state, its own HEAD/visible Git blob, and the launcher-bound selected tool
+identity before mutation.
+
+Production application is restricted to:
 
 `/var/lib/void-source-finality-v7/deployment-receipt.json`
 
