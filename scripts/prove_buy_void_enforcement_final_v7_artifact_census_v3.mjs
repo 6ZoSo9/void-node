@@ -8,6 +8,22 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const CENSUS_WORKFLOW=".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml";
+const CENSUS_PROTECTED_TRIGGER_PATTERNS=Object.freeze([
+  "ops/precision/**",
+  "ops/security/**",
+  "ops/run-void-node-live-v1.sh",
+  "runtime/**",
+  "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
+  "src/economic/**",
+  "src/index.ts",
+  "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+  "tools/void-reviewed-node-package-runtime-v1.mjs",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+]);
 const SOURCE_PARENT="a2f304fa3ae494cdd4fa71f65aa6f689a1313948";
 const DEPLOYMENT_INSTALLER="ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 const DEPLOYMENT_INSTALLER_BLOB="3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0";
@@ -152,6 +168,30 @@ function extractProtectedPaths(){
   assert.equal(new Set(found).size,49,"tracked_source_inventory_duplicate");
   return Object.freeze(found);
 }
+function censusTriggerPatternCovers(pattern,relative){
+  if(pattern.endsWith("/**"))return relative.startsWith(pattern.slice(0,-3));
+  return pattern===relative;
+}
+function assertCensusWorkflowTriggerCoverage(protectedPaths){
+  const workflow=readExact(CENSUS_WORKFLOW,128*1024).toString("utf8");
+  for(const pattern of CENSUS_PROTECTED_TRIGGER_PATTERNS){
+    const exact='      - "'+pattern+'"';
+    assert.equal(
+      workflow.split(exact).length-1,
+      2,
+      "census_workflow_trigger_pattern_count:"+pattern,
+    );
+  }
+  for(const relative of protectedPaths){
+    assert.equal(
+      CENSUS_PROTECTED_TRIGGER_PATTERNS.some(
+        pattern=>censusTriggerPatternCovers(pattern,relative),
+      ),
+      true,
+      "census_protected_path_trigger_missing:"+relative,
+    );
+  }
+}
 function protectedRow(relative){
   const b=readExact(relative,4*1024*1024),blob=gitBlob(b);
   assert.equal(git(["rev-parse","--verify","HEAD:"+relative]),blob,"protected_head_blob_mismatch:"+relative);
@@ -191,6 +231,7 @@ assert.equal(hostedSourceSha,PRIOR_CENSUS.hosted_source_inventory_sha256,
   "economic_source_inventory_changed");
 
 const protectedPaths=extractProtectedPaths();
+assertCensusWorkflowTriggerCoverage(protectedPaths);
 const protectedInventory=protectedPaths.map(protectedRow);
 const protectedCanonicalSha=sha256(Buffer.from(canonical(protectedInventory),"utf8"));
 const protectedHostedSha=sha256(Buffer.from(JSON.stringify(protectedInventory),"utf8"));
