@@ -152,7 +152,20 @@ function validateManifest(rawManifest, expectedManifestId, nowMs = Date.now()) {
   if (manifest.manifest_id !== expectedManifestId) {
     throw new Error("Tor bootstrap manifest does not match the expected trust-root ID");
   }
-  const endpoints = validateTorNativeEndpoints(manifest.onion_endpoints, nowMs);
+  // The signed/content-addressed manifest proves that the endpoint was freshly
+  // qualified when issued. Current health is proven below by requestOnionJson().
+  const endpoints = validateTorNativeEndpoints(
+    manifest.onion_endpoints,
+    generatedAt,
+  );
+  for (const endpoint of endpoints) {
+    const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));
+    if (!Number.isFinite(qualifiedAt) || qualifiedAt > generatedAt) {
+      throw new Error(
+        "Tor bootstrap qualification must not postdate manifest issuance",
+      );
+    }
+  }
   return Object.freeze({ manifest, endpoints });
 }
 

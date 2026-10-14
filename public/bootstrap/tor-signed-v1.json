@@ -6,8 +6,8 @@
     "network": "VOID Network",
     "chain_id": 2050,
     "status": "stable_tor_seed",
-    "generated_at": "2026-10-14T15:25:19.120Z",
-    "expires_at": "2026-10-14T16:55:19.120Z",
+    "generated_at": "2026-10-14T17:29:51.499Z",
+    "expires_at": "2026-10-21T17:29:51.499Z",
     "sync_endpoints": [],
     "onion_endpoints": [
       {
@@ -16,8 +16,8 @@
         "priority": 0,
         "enabled": true,
         "temporary": false,
-        "qualification_id": "voidptq1_66cf4f1a94136f3c8d37838f9e0a073974fca7d796a9ec06b81e84fb4f3de4fc",
-        "qualified_at": "2026-10-14T15:25:15.388Z",
+        "qualification_id": "voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe",
+        "qualified_at": "2026-10-14T17:29:51.380Z",
         "qualified_head": 1951058
       }
     ],
@@ -31,13 +31,13 @@
       "work_credit_authority": false,
       "money_movement_authority": false
     },
-    "notes": "Issue #2854 Tor renewal candidate; source_sha=06b34efb8e6cd01046e541c02cc2f341ab3b3e1b; qualification_id=voidptq1_66cf4f1a94136f3c8d37838f9e0a073974fca7d796a9ec06b81e84fb4f3de4fc; predecessor_manifest_id=voidpbm1_7a11e3a88fb36929379bfa2fe4bd4f235fe52f105ce5de6f6782e0c791e72ff7; signing_performed=false",
-    "manifest_id": "voidpbm1_f216f54d3022a02df1f56f8547f0db0d5093ff696a09220fe9877c85094f2c11"
+    "notes": "Issue #2854 Tor renewal candidate; source_sha=06b34efb8e6cd01046e541c02cc2f341ab3b3e1b; qualification_id=voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe; predecessor_manifest_id=voidpbm1_f216f54d3022a02df1f56f8547f0db0d5093ff696a09220fe9877c85094f2c11; signing_performed=false",
+    "manifest_id": "voidpbm1_c76f442a285e2ad7a8dc30caa9ade6dc525ad1905220ea42425af51e99ffffaa"
   },
   "signatures": [
     {
       "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
-      "signature_base64": "4ljUzdIyRolwjByH6HBK9GtUTV3WjHG06pTt0v0WsKdO61NT96Qd3gp9Dav5//SguKSKq0RHqfXD/pd90gBRCg=="
+      "signature_base64": "I33Pajtb9oVIYFDiMLn47cs0qkOfRWY4IaHwIq3TeuP9Yw70Je8zaYhBDdWHfQ2/vdiNOftMYytP632rCIhGBg=="
     }
   ]
 }
