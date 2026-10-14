@@ -1,0 +1,129 @@
+name: VOID Buy VOID source-finality provider-pair binding v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-provider-pair-binding-v1.md"
+      - ".github/workflows/buy-void-source-finality-provider-pair-binding-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_v1.mjs"
+      - "docs/architecture/buy-void-source-finality-provider-pair-binding-v1.md"
+      - ".github/workflows/buy-void-source-finality-provider-pair-binding-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install audited dependency generation
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and compile exact source
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
+          node --check dist/economic/buy_void_source_finality_provider_pair_binding_v1.js
+          node --check scripts/prove_buy_void_source_finality_provider_pair_binding_v1.mjs
+
+      - name: Prove root provider-pair binding
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/provider-pair-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_source_finality_provider_pair_binding_v1.mjs | tee "$receipt"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_V1_PROOF_GREEN' "$receipt"
+          grep -Fx 'root_custodied_receipt_required=true' "$receipt"
+          grep -Fx 'deployment_receipt_binding_required=true' "$receipt"
+          grep -Fx 'accepted_enforcement_set_binding_required=true' "$receipt"
+          grep -Fx 'same_chain_distinct_provider_identities_required=true' "$receipt"
+          grep -Fx 'same_chain_distinct_rpc_fingerprints_required=true' "$receipt"
+          grep -Fx 'verified_result_module_brand_required=true' "$receipt"
+          grep -Fx 'cloned_verified_result_rejected=true' "$receipt"
+          grep -Fx 'synthetic_verified_result_rejected=true' "$receipt"
+          grep -Fx 'symlink_receipt_rejected=true' "$receipt"
+          grep -Fx 'writable_ancestor_rejected=true' "$receipt"
+          grep -Fx 'replaced_receipt_rejected=true' "$receipt"
+          grep -Fx 'legal_provider_identity_verified=false' "$receipt"
+          grep -Fx 'rpc_contact=false' "$receipt"
+          grep -Fx 'production_source_finality_authority_ready=false' "$receipt"
+          grep -Fx 'public_presale_activation=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload proof receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-finality-provider-pair-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/provider-pair-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: source-finality-provider-pair-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - name: Require exact Node-major proof identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "receipts/provider-pair-$node.txt"
+          done
+          cmp receipts/provider-pair-22.txt receipts/provider-pair-24.txt
+          cmp receipts/provider-pair-22.txt receipts/provider-pair-26.txt
+          echo VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_CROSS_NODE_GREEN
+          cat receipts/provider-pair-22.txt
