@@ -75,6 +75,22 @@ function normalizeSocketParentV2(value){
   }
   return Object.freeze({...value});
 }
+function normalizeIdentitiesV2(value){
+  const code="apollyon_custody_policy_v2_identities_invalid";
+  exactKeys(value,[
+    "custody_gid","custody_supplementary_gids","custody_uid","ipc_gid",
+    "training_gid","training_supplementary_gids","training_uid","training_user",
+  ],code);
+  if(
+    typeof value.training_user!=="string"||
+    !SAFE_RUNTIME_USER.test(value.training_user)
+  )fail(code);
+  return Object.freeze({
+    ...value,
+    custody_supplementary_gids:Object.freeze([...value.custody_supplementary_gids]),
+    training_supplementary_gids:Object.freeze([...value.training_supplementary_gids]),
+  });
+}
 function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
@@ -188,6 +204,7 @@ function normalizeServiceControl(value,identities){
     value.polkit_deny_rule.retained_ancestors_group_other_writable!==false||
     typeof value.polkit_deny_rule.runtime_user!=="string"||
     !SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    value.polkit_deny_rule.runtime_user!==identities.training_user||
     value.polkit_deny_rule.path!==
       "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
     value.polkit_deny_rule.bytes!==expectedPolkitRuleBytes.length||
@@ -324,7 +341,15 @@ function historicalV1Input(input,sp){
   return Object.freeze({
     consumed_directory:input.consumed_directory,
     evidence_snapshot:input.evidence_snapshot,
-    identities:input.identities,
+    identities:Object.freeze({
+      custody_gid:input.identities.custody_gid,
+      custody_supplementary_gids:input.identities.custody_supplementary_gids,
+      custody_uid:input.identities.custody_uid,
+      ipc_gid:input.identities.ipc_gid,
+      training_gid:input.identities.training_gid,
+      training_supplementary_gids:input.identities.training_supplementary_gids,
+      training_uid:input.identities.training_uid,
+    }),
     marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
     service:input.service,
     socket:input.socket,
@@ -352,8 +377,9 @@ export function qualifyApollyonCustodyHostPolicyV2(input){
      input.version!==2||input.target_host!=="Xiphos"){
     fail("apollyon_custody_policy_v2_input_invalid");
   }
+  const identities=normalizeIdentitiesV2(input.identities);
   const socketParent=normalizeSocketParentV2(input.socket_parent);
-  const serviceControl=normalizeServiceControl(input.service_control,input.identities);
+  const serviceControl=normalizeServiceControl(input.service_control,identities);
   if(input.service?.runtime_can_control_service!==serviceControl.runtime_can_control_service){
     fail("apollyon_custody_policy_v2_service_control_mismatch");
   }
@@ -361,7 +387,9 @@ export function qualifyApollyonCustodyHostPolicyV2(input){
   if(v1.ok!==true||v1.status!=="source_policy_qualified"){
     fail("apollyon_custody_policy_v2_historical_v1_reuse_failed");
   }
-  const normalized=Object.freeze({...input,socket_parent:socketParent,service_control:serviceControl});
+  const normalized=Object.freeze({
+    ...input,identities,socket_parent:socketParent,service_control:serviceControl,
+  });
   const qualificationId="apollyon_custody_policy_v2:"+
     crypto.createHash("sha256")
       .update(canonicalApollyonCustodyHostPolicyJsonV1(normalized)).digest("hex");
