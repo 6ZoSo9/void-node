@@ -50,6 +50,7 @@ AUTHORITY = {
     "stage_host_authenticated": True,
     "live_nimo_private_stage_verified": True,
     "root_disk_continuity_reverified": True,
+    "live_evidence_origin_proven": False,
     "external_transport_authenticated": False,
     "live_nimo_installed": False,
     "installation_qualification_composed": False,
@@ -351,6 +352,39 @@ def qualify_host_identity(
     }
 
 
+def read_collector_source() -> dict:
+    path = Path(__file__).resolve()
+    visible = path.lstat()
+    if (
+        not stat.S_ISREG(visible.st_mode)
+        or stat.S_ISLNK(visible.st_mode)
+        or visible.st_nlink != 1
+        or visible.st_size < 1
+        or visible.st_size > 1024 * 1024
+    ):
+        hold("collector_source_metadata_invalid")
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(fd)
+        if not same_file(visible, opened):
+            hold("collector_source_open_identity_mismatch")
+        raw = os.pread(fd, opened.st_size + 1, 0)
+        after = os.fstat(fd)
+        visible_after = path.lstat()
+        if (
+            len(raw) != opened.st_size
+            or not same_file(opened, after)
+            or not same_file(after, visible_after)
+        ):
+            hold("collector_source_changed_during_read")
+    finally:
+        os.close(fd)
+    return {
+        "collector_source_git_blob_sha1": git_blob(raw),
+        "collector_source_sha256": sha256(raw),
+    }
+
+
 def read_stage_source(root: Path) -> bytes:
     path = root / STAGE_SOURCE
     visible = path.lstat()
@@ -407,7 +441,12 @@ def evidence_id(body: dict) -> str:
     return "voidnv5stage1_" + sha256(canonical(body))
 
 
-def build_receipt(host: dict, count: int, observed_at_utc: str) -> dict:
+def build_receipt(
+    host: dict,
+    count: int,
+    observed_at_utc: str,
+    collector_source: dict,
+) -> dict:
     if count != 8:
         hold("stage_file_count_invalid")
     body = {
@@ -419,6 +458,10 @@ def build_receipt(host: dict, count: int, observed_at_utc: str) -> dict:
         "inactive_archive_sha256": ARCHIVE_SHA256,
         "private_stage_name": STAGE_NAME,
         "private_stage_inspector_git_blob_sha1": STAGE_SOURCE_GIT_BLOB_SHA1,
+        "collector_source_git_blob_sha1": collector_source[
+            "collector_source_git_blob_sha1"
+        ],
+        "collector_source_sha256": collector_source["collector_source_sha256"],
         "runtime_files_exact": 8,
         "staged_files_verified": count,
         "host_identity": host,
@@ -453,7 +496,7 @@ def collect_live() -> dict:
         .isoformat()
         .replace("+00:00", "Z")
     )
-    return build_receipt(host, count, observed_at)
+    return build_receipt(host, count, observed_at, read_collector_source())
 
 
 def synthetic_public_key_line() -> tuple[bytes, str]:
@@ -524,12 +567,31 @@ def self_test() -> None:
         else:
             hold("selftest_" + reason + "_mismatch_accepted")
 
-    receipt = build_receipt(host, 8, "2030-01-01T00:00:00Z")
+    collector_source = read_collector_source()
+    if (
+        not re.fullmatch(
+            r"[0-9a-f]{40}",
+            collector_source["collector_source_git_blob_sha1"],
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            collector_source["collector_source_sha256"],
+        )
+    ):
+        hold("selftest_collector_source_identity_invalid")
+
+    receipt = build_receipt(
+        host,
+        8,
+        "2030-01-01T00:00:00Z",
+        collector_source,
+    )
     if (
         not re.fullmatch(r"voidnv5stage1_[0-9a-f]{64}", receipt["evidence_id"])
         or receipt["authority"]["stage_host_authenticated"] is not True
         or receipt["authority"]["live_nimo_private_stage_verified"] is not True
         or receipt["authority"]["root_disk_continuity_reverified"] is not True
+        or receipt["authority"]["live_evidence_origin_proven"] is not False
         or receipt["authority"]["live_nimo_installed"] is not False
         or receipt["authority"]["production_gate_ready"] is not False
         or receipt["authority"]["public_presale_activation"] is not False
@@ -543,6 +605,8 @@ def self_test() -> None:
     print("reviewed_nimo_ed25519_hostkey_required=true")
     print("reviewed_nimo_root_disk_required=true")
     print("root_disk_continuity_reverified=true")
+    print("collector_source_identity_reported=true")
+    print("live_evidence_origin_proven=false")
     print("live_host_collection_performed=false")
     print("live_nimo_installed=false")
     print("production_gate_ready=false")
