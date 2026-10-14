@@ -68,7 +68,7 @@ The envelope contains:
 
 The signature payload is domain separated and binds both the release-root ID and canonical manifest bytes. Every supplied signature must verify, and the configured unique-key threshold must be met.
 
-Signature acceptance also runs the complete Tor bootstrap manifest contract before network access: exact keys, network and chain binding, `stable_tor_seed`, zero clearnet endpoints, no Tailnet publication, all authority flags false, bounded timestamps, content-derived manifest ID, checksum-valid onion identities, and fresh qualifications. A correctly signed but malformed, expired, authority-bearing, or resealed unknown-field manifest is rejected.
+Signature acceptance also runs the complete Tor bootstrap manifest contract before network access: exact keys, network and chain binding, `stable_tor_seed`, zero clearnet endpoints, no Tailnet publication, all authority flags false, bounded timestamps, content-derived manifest ID, checksum-valid onion identities, and a qualification that was fresh when the manifest was issued. A correctly signed but malformed, expired, authority-bearing, issuance-stale, or resealed unknown-field manifest is rejected. Current endpoint health is not inferred from the issuance receipt; the Tor resolver performs a fresh exact-green live readiness probe before returning an endpoint.
 
 Root substitution, manifest substitution, duplicate signatures, unknown keys, malformed base64, forged prevalidated-root objects, and cross-root replay fail closed.
 
@@ -148,15 +148,18 @@ wallet_signer_validator_wc_money_authority=0
 
 ## Signed-manifest lifecycle
 
-A production signed Tor manifest is deliberately short-lived. The release-root
-verifier therefore distinguishes **active** material from
-**authenticated-stale** material without weakening cryptographic trust.
+A production signed Tor manifest remains bounded by the existing one-hour
+through seven-day validity contract. The release-root verifier distinguishes
+**active** material from **authenticated-stale** material without weakening
+cryptographic trust.
 
-Authenticated-stale classification first proves the exact envelope was validly
-signed by the active release root and satisfied the full closed manifest
-contract at issuance time. Only then may expiry or the bounded Tor qualification
-age classify it as stale. Signature, root, schema, authority, content-ID, and
-future-time failures remain fatal.
+The qualification is an issuance-time provenance claim: it must be fresh when
+the signed manifest is created. While the signed manifest remains unexpired,
+current endpoint health is established by the live Tor readiness probe instead
+of repeatedly requiring the original qualification timestamp to remain younger
+than two hours. Authenticated-stale classification therefore begins only after
+signed expiry. Signature, root, schema, authority, content-ID, future-time, and
+qualification-stale-at-issuance failures remain fatal.
 
 The launcher may use this classification only for its built-in default
 `public/bootstrap/tor-signed-v1.json`. Explicit operator-supplied signed
