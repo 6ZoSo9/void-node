@@ -10,6 +10,7 @@ import {
   VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,
   buildBuyVoidV2LiveProcessCollectionPlanV1,
   parseBuyVoidV2SelectorLineV1,
+  testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1,
 } from "../ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTOR_CONTRACT_ID_V2,
@@ -61,6 +62,42 @@ assert.notEqual(changed.plan_id,plan.plan_id);
 assert.equal(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,
   "/opt/void-buy-void-v7-selector-v1/void_buy_void_source_finality_live_process_v2_selector_guard_v1");
 
+const releaseRoot="/opt/void-node-live/releases/"+"3".repeat(40);
+const reviewedNodeOptions="--require "+
+  releaseRoot+"/runtime/canonical-producer-self-http-guard-v4.cjs";
+assert.deepEqual(
+  testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1({
+    cwd:releaseRoot,
+    index_git_blob_sha1:"123ec1792a027f93d4c9030749a0e7e136a75a44",
+    node_options:reviewedNodeOptions,
+  }),
+  {
+    ok:true,
+    reason:null,
+    guard_relative_path:"runtime/canonical-producer-self-http-guard-v4.cjs",
+  },
+);
+const maliciousNodeOptions=testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1({
+  cwd:releaseRoot,
+  index_git_blob_sha1:"123ec1792a027f93d4c9030749a0e7e136a75a44",
+  node_options:reviewedNodeOptions+" --require /tmp/evil.cjs",
+});
+assert.equal(maliciousNodeOptions.ok,false);
+assert.equal(
+  maliciousNodeOptions.reason,
+  "reviewed_node_options_exact_value_mismatch",
+);
+const unknownGeneration=testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1({
+  cwd:releaseRoot,
+  index_git_blob_sha1:"f".repeat(40),
+  node_options:reviewedNodeOptions,
+});
+assert.equal(unknownGeneration.ok,false);
+assert.equal(
+  unknownGeneration.reason,
+  "reviewed_node_options_index_generation_unknown",
+);
+
 const source=fs.readFileSync("ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts","utf8");
 for(const required of [
   "VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1",
@@ -71,6 +108,9 @@ for(const required of [
   "selector_ready_green_generation_mismatch",
   "source_generation_verified:true",
   "reviewed_launcher_shape_verified:true",
+  "REVIEWED_SELF_HTTP_GUARD_BY_INDEX_BLOB",
+  "reviewed_node_options_exact_value_mismatch",
+  "canonical-producer-self-http-guard-v4.cjs",
   "service_release_path_invalid",
   "service_launcher_shape_invalid",
   "process_environment_read_performed:true",
@@ -128,6 +168,8 @@ console.log("selector_spawn_error_machine_readable_hold=true");
 console.log("selector_ready_green_same_generation_required=true");
 console.log("process_source_generation_verified=true");
 console.log("reviewed_launcher_shape_verified=true");
+console.log("reviewed_node_options_exact=true");
+console.log("malicious_node_options_preload_rejected=true");
 console.log("source_custody_overclaim=false");
 console.log("process_environment_read_performed=true");
 console.log("selector_process_execution_performed=true");
