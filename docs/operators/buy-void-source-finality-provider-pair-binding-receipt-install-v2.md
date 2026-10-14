@@ -31,6 +31,18 @@ The deployment receipt must prove:
 The provider-pair receipt then carries the enforcement set from that verified
 deployment receipt. It does not compare it to the historical V7 constant.
 
+## Operation-bound apply
+
+Plan mode prints the exact content-addressed `provider_pair_receipt_id`. Apply
+must supply that value again as
+`--expected-provider-pair-receipt-id <voidbsfpp1_...>` in addition to the
+fixed confirmation token. Immediately before publication, apply re-reads and
+reverifies the deployment receipt, rebuilds the provider-pair receipt from the
+current deployment binding and provider inputs, and requires both the expected
+receipt ID and canonical bytes to match the reviewed invocation. Any provider
+identity/fingerprint drift or deployment/enforcement drift HOLDS before the
+create-once filesystem mutation.
+
 ## Fresh regression
 
 The focused proof uses the current recursion-free V7 candidate set:

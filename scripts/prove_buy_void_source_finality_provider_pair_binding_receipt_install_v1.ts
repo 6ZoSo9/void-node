@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  assertProviderPairApplyBindingV1,
   buildProviderPairReceiptV1,
   installProviderPairReceiptCreateOnceV1,
   readDeploymentBindingV1,
@@ -95,6 +96,34 @@ assert.equal(receipt_id,buyVoidSourceFinalityProviderPairBindingReceiptIdV1(mate
 assert.equal(built.bytes.toString("utf8"),canonical(built.receipt)+"\n");
 assert.equal(built.receipt.deployment_receipt_id,deployment.deployment_receipt_id);
 assert.equal(built.receipt.accepted_enforcement_set_sha256,FRESH_SET);
+
+assert.doesNotThrow(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:built.receipt_id,
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}));
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:"",
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}),/expected_provider_pair_receipt_id_required/u);
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:"voidbsfpp1_"+"0".repeat(64),
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:deployment,
+}),/provider_pair_expected_receipt_id_mismatch/u);
+assert.throws(()=>assertProviderPairApplyBindingV1({
+  expected_receipt_id:built.receipt_id,
+  built_receipt_id:built.receipt_id,
+  initial_deployment:deployment,
+  current_deployment:Object.freeze({
+    ...deployment,
+    accepted_enforcement_set_sha256:"f".repeat(64),
+  }),
+}),/deployment_receipt_changed_before_apply/u);
 assert.notEqual(FRESH_SET,
   "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b");
 
@@ -188,6 +217,8 @@ console.log("fresh_enforcement_set="+FRESH_SET);
 console.log("historical_enforcement_constant_dependency=false");
 console.log("current_deployment_receipt_schema_bound=true");
 console.log("accepted_enforcement_lock_identity_bound=true");
+console.log("apply_expected_receipt_id_required=true");
+console.log("deployment_receipt_reverified_before_apply=true");
 console.log("current_reviewed_source_digest_crossbinding=true");
 console.log("provider_pair_dynamic_enforcement_crossbinding=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));

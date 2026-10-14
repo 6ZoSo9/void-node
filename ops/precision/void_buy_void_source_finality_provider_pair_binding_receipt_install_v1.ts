@@ -46,6 +46,29 @@ type DeploymentBinding = Readonly<{
   accepted_enforcement_set_sha256:string;
 }>;
 
+export function assertProviderPairApplyBindingV1(input:{
+  expected_receipt_id:string;
+  built_receipt_id:string;
+  initial_deployment:DeploymentBinding;
+  current_deployment:DeploymentBinding;
+}):void{
+  assert.match(
+    input.expected_receipt_id,
+    /^voidbsfpp1_[0-9a-f]{64}$/u,
+    "expected_provider_pair_receipt_id_required",
+  );
+  assert.equal(
+    input.built_receipt_id,
+    input.expected_receipt_id,
+    "provider_pair_expected_receipt_id_mismatch",
+  );
+  assert.deepEqual(
+    input.current_deployment,
+    input.initial_deployment,
+    "deployment_receipt_changed_before_apply",
+  );
+}
+
 function plain(value:unknown):value is Record<string,unknown>{
   if(value===null||typeof value!=="object"||Array.isArray(value))return false;
   const proto=Object.getPrototypeOf(value);
@@ -297,13 +320,15 @@ function value(argv:string[],i:number,label:string):string{
   return v;
 }
 function parseArgs(argv:string[]){
-  let mode:"plan"|"apply"="plan",confirm="";
+  let mode:"plan"|"apply"="plan",confirm="",expectedReceiptId="";
   const pair:Record<string,string>={};
   for(let i=0;i<argv.length;i+=1){
     const arg=argv[i];
     if(arg==="--plan")mode="plan";
     else if(arg==="--apply")mode="apply";
     else if(arg==="--confirm")confirm=value(argv,i++,arg);
+    else if(arg==="--expected-provider-pair-receipt-id")
+      expectedReceiptId=value(argv,i++,arg);
     else if([
       "--base-primary-id","--base-primary-url-fingerprint-sha256",
       "--base-secondary-id","--base-secondary-url-fingerprint-sha256",
@@ -313,7 +338,7 @@ function parseArgs(argv:string[]){
     else throw Error("unknown_argument:"+arg);
   }
   return Object.freeze({
-    mode,confirm,
+    mode,confirm,expectedReceiptId,
     input:{
       base_primary_identity:pair["--base-primary-id"]||"",
       base_primary_fingerprint_sha256:pair["--base-primary-url-fingerprint-sha256"]||"",
@@ -356,9 +381,21 @@ function main():void{
     return;
   }
   if(args.confirm!==APPLY_CONFIRMATION)throw Error("apply_confirmation_required");
+  const currentDeployment=readDeploymentBindingV1(DEPLOYMENT_RECEIPT_PATH);
+  const currentBuilt=buildProviderPairReceiptV1(currentDeployment,args.input);
+  assertProviderPairApplyBindingV1({
+    expected_receipt_id:args.expectedReceiptId,
+    built_receipt_id:currentBuilt.receipt_id,
+    initial_deployment:deployment,
+    current_deployment:currentDeployment,
+  });
+  assert.ok(
+    currentBuilt.bytes.equals(built.bytes),
+    "provider_pair_receipt_changed_before_apply",
+  );
   const result=installProviderPairReceiptCreateOnceV1({
     absolute_path:VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_PATH_V1,
-    bytes:built.bytes,
+    bytes:currentBuilt.bytes,
   });
   console.log("host_mutation=true");
   console.log("receipt_install_created="+String(result.created));
