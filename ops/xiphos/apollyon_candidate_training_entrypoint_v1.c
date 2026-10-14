@@ -94,13 +94,6 @@ static void install_signal_handlers(void) {
       sigaction(SIGINT, &action, NULL) != 0) {
     hold("apollyon_candidate_training_entrypoint_signal_setup_failed");
   }
-
-  memset(&action, 0, sizeof(action));
-  action.sa_handler = SIG_IGN;
-  if (sigemptyset(&action.sa_mask) != 0 ||
-      sigaction(SIGPIPE, &action, NULL) != 0) {
-    hold("apollyon_candidate_training_entrypoint_sigpipe_setup_failed");
-  }
 }
 
 static int run_self_test(void) {
@@ -129,7 +122,15 @@ static void require_nonblocking_fd(int fd, const char *reason) {
   }
 }
 
-static void prepare_observation_io(void) {
+static void prepare_process_io_safety(void) {
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = SIG_IGN;
+  if (sigemptyset(&action.sa_mask) != 0 ||
+      sigaction(SIGPIPE, &action, NULL) != 0) {
+    _exit(2);
+  }
+
   require_nonblocking_fd(
       STDOUT_FILENO,
       "apollyon_candidate_training_entrypoint_stdout_nonblocking_failed");
@@ -199,6 +200,8 @@ static void qualification_hold(const struct timespec *deadline) {
 }
 
 int main(int argc, char **argv) {
+  prepare_process_io_safety();
+
   if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
     return run_self_test();
   }
@@ -210,7 +213,6 @@ int main(int argc, char **argv) {
   assert_no_new_privileges();
   assert_no_inherited_fds();
   install_signal_handlers();
-  prepare_observation_io();
   struct timespec qualification_deadline = arm_qualification_deadline();
   emit_ready();
   qualification_hold(&qualification_deadline);
