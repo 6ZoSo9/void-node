@@ -15,12 +15,17 @@ It observes:
 - `void-public-seed-named-tunnel-v1.service` in the user manager;
 - current listener ownership on loopback port 4122;
 - whether the running gateway uses the Ready #2993 source blob;
-- whether dedicated mutation mode is already configured;
+- whether the gateway's bounded local status JSON exposes the reviewed
+  `mutation_ingress` contract and reports dedicated vs shared legacy mode;
 - whether the active cloudflared config still sends Public Earn status and/or
   claim/submit directly to `127.0.0.1:4122`.
 
-The collector never emits the cloudflared config path, tunnel ID,
-credentials-file path, full process command line, or process environment.
+The collector never reads `/proc/<pid>/environ` and never emits the
+cloudflared config path, tunnel ID, credentials-file path, full process command
+line, or process environment. Mutation-ingress mode is observed only through a
+bounded GET to `127.0.0.1:4122/__void/public-earn-gateway-v1/status.json`.
+An older gateway with no `mutation_ingress` field reports that contract as
+unobserved rather than inferring a configuration state.
 
 ## Process-generation binding
 
