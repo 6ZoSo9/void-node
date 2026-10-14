@@ -129,11 +129,18 @@ async function waitForPath(location,child,label){
   throw new Error(label+"_timeout");
 }
 
+function reportBestEffortFailure(label,error){
+  process.stderr.write(
+    "provider_pair_pre_rpc_best_effort_failure="+label+":"+
+    String(error?.message||error)+"\n",
+  );
+}
+
 async function waitForExit(child,stdoutRef,stderrRef){
   if(child.exitCode!==null)return child.exitCode;
   return await new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{
-      try{child.kill("SIGKILL");}catch{}
+      try{child.kill("SIGKILL");}catch(error){reportBestEffortFailure("child_kill",error);}
       reject(new Error("provider_pair_pre_rpc_child_timeout"));
     },WAIT_MS);
     child.once("error",error=>{
@@ -513,18 +520,18 @@ async function runCase(kind,expectedReason,helpers){
     return observed;
   }finally{
     if(child.exitCode===null){
-      try{child.kill("SIGKILL");}catch{}
+      try{child.kill("SIGKILL");}catch(error){reportBestEffortFailure("child_kill",error);}
     }
-    try{fs.chmodSync(LIVE_RECEIPT,0o600);}catch{}
-    try{fs.chmodSync(PAIR_RECEIPT,0o600);}catch{}
-    try{fs.rmSync(FIXED_ROOT,{recursive:true,force:true});}catch{}
-    try{fs.chmodSync(depDir,0o700);}catch{}
-    try{fs.rmSync(depDir,{recursive:true,force:true});}catch{}
+    try{fs.chmodSync(LIVE_RECEIPT,0o600);}catch(error){reportBestEffortFailure("live_receipt_chmod",error);}
+    try{fs.chmodSync(PAIR_RECEIPT,0o600);}catch(error){reportBestEffortFailure("pair_receipt_chmod",error);}
+    try{fs.rmSync(FIXED_ROOT,{recursive:true,force:true});}catch(error){reportBestEffortFailure("fixed_root_remove",error);}
+    try{fs.chmodSync(depDir,0o700);}catch(error){reportBestEffortFailure("dependency_dir_chmod",error);}
+    try{fs.rmSync(depDir,{recursive:true,force:true});}catch(error){reportBestEffortFailure("dependency_dir_remove",error);}
     try{
       fs.chownSync(ipcDir,0,0);
       fs.chmodSync(ipcDir,0o700);
       fs.rmSync(ipcDir,{recursive:true,force:true});
-    }catch{}
+    }catch(error){reportBestEffortFailure("ipc_dir_cleanup",error);}
   }
 }
 
