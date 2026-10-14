@@ -208,6 +208,16 @@ try {
     new URL("../src/http/datanet_routes.ts", import.meta.url),
     "utf8",
   );
+  assert.match(
+    source,
+    /const DATANET_CHUNK_MAX_BYTES = 64 \* 1024 \* 1024;/u,
+  );
+  assert.match(
+    source,
+    /express\.raw\(\{ type: "\*\/\*", limit: DATANET_CHUNK_MAX_BYTES \}\)/u,
+  );
+  assert.doesNotMatch(source, /MAX_PACK_CHUNK_BYTES/u);
+
   const getStart = source.indexOf('router.get("/chunks/:leaf"');
   const putStart = source.indexOf('router.put("/chunks/:leaf"');
   const proofStart = source.indexOf('router.get("/proof/:root/:index"');
@@ -229,6 +239,7 @@ try {
   console.log("foreign_final_not_published=true");
   console.log("symlink_put_target_unchanged=true");
   console.log("existing_valid_chunk_idempotent=true");
+  console.log("chunk_route_bound_self_contained=true");
   console.log("wallet_signer_validator_wc_money_authority=0");
 } finally {
   await new Promise((resolve) => server.close(() => resolve()));

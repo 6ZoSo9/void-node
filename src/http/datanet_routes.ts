@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
-import { MAX_PACK_CHUNK_BYTES, packFile } from "../datanet/pack.js";
+import { packFile } from "../datanet/pack.js";
 
 function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -210,6 +210,7 @@ function sha256Hex(buf: Buffer) {
 }
 
 const DATANET_CHUNK_HASH_READ_BYTES = 64 * 1024;
+const DATANET_CHUNK_MAX_BYTES = 64 * 1024 * 1024;
 
 type OpenedDataNetChunkV1 = Readonly<{
   fd: number;
@@ -248,7 +249,7 @@ function openVerifiedDataNetChunkV1(
     if (
       !before.isFile() ||
       before.size <= 0 ||
-      before.size > MAX_PACK_CHUNK_BYTES ||
+      before.size > DATANET_CHUNK_MAX_BYTES ||
       (before.mode & 0o022) !== 0
     ) {
       throw new Error("datanet_chunk_metadata_invalid");
@@ -289,7 +290,7 @@ function publishDataNetChunkCreateOnlyV1(
   expectedLeaf: string,
   body: Buffer,
 ): Readonly<{ reused: boolean }> {
-  if (body.length <= 0 || body.length > MAX_PACK_CHUNK_BYTES) {
+  if (body.length <= 0 || body.length > DATANET_CHUNK_MAX_BYTES) {
     throw new Error("datanet_chunk_body_size_invalid");
   }
 
@@ -639,7 +640,7 @@ const router = express.Router();
     stream.pipe(res);
   });
 
-  router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: "64mb" }), (req, res) => {
+  router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: DATANET_CHUNK_MAX_BYTES }), (req, res) => {
     const leaf = String(req.params.leaf || "").toLowerCase().replace(/^0x/, "");
     if (!isHex64(leaf)) return res.status(400).json({ ok: false, err: "bad_leaf" });
     const body = req.body as Buffer;
