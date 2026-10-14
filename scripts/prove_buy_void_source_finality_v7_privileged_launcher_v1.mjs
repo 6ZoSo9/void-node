@@ -39,11 +39,14 @@ for(const required of [
   'live-process)',
   'native_preentry_verified=true',
   'launcher_descriptor_execution=true',
+  'tsx_private_materialization_verified=true',
+  'tsx_inert_transform_execution_verified=true',
+  'esbuild_runtime_execution_verified=true',
   'privileged_launcher_package_runtime_verified=true',
   'funds_movement_by_launcher=false',
 ]) assert.equal(launcher.includes(required),true,required);
 
-assert.equal(launcher.startsWith("#!/usr/bin/bash\n"),true);
+assert.equal(launcher.startsWith("#!"),false,"launcher body must be shebang-free");
 assert.equal(fs.statSync(LAUNCHER).mode&0o111,0,"launcher body must not be executable");
 assert.ok(
   launcher.indexOf("native_preentry_required") < launcher.indexOf('"$ID" -u'),
@@ -170,6 +173,9 @@ try{
     "native_preentry_verified=true",
     "launcher_descriptor_execution=true",
     "source_custody_green=true",
+    "tsx_private_materialization_verified=true",
+    "tsx_inert_transform_execution_verified=true",
+    "esbuild_runtime_execution_verified=true",
     "privileged_launcher_package_runtime_verified=true",
     "tool_execution=false",
     "host_mutation=false",
@@ -267,6 +273,9 @@ try{
   console.log("ambient_path_git_shim_blocked=true");
   console.log("tool_allowlist_exact=true");
   console.log("full_protected_repo_replica_used=true");
+  console.log("tsx_private_materialization_verified=true");
+  console.log("tsx_inert_transform_execution_verified=true");
+  console.log("esbuild_runtime_execution_verified=true");
   console.log("privileged_launcher_package_runtime_verified=true");
   console.log("privileged_tool_execution_performed=false");
   console.log("service_mutation=false");

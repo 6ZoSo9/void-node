@@ -11,7 +11,9 @@ The supported source design now has three separate boundaries:
 2. the shell launcher body is a non-executable reviewed file reached only
    through a retained descriptor from that native pre-entry; and
 3. the audited Node/TSX package bytes are re-inventoried from the exact protected
-   source tree before any allowlisted receipt tool can run.
+   source tree, then the exact TSX/esbuild runtime is independently materialized
+   and exercised with an inert TypeScript transform before any allowlisted receipt
+   tool can run.
 
 The #2954 V1 package lock remains historical evidence for its exact launcher
 generation. This successor does not edit or reinterpret that frozen lock.
@@ -89,9 +91,14 @@ That proof independently re-inventories:
 - `esbuild@0.28.2`; and
 - the exact Linux-x64 esbuild platform package,
 
-from the audited package/lock bytes in the same protected tree. It also checks
-the current launcher/native gate contracts and requires all production/economic
-authority flags to remain false.
+from the audited package/lock bytes in the same protected tree. It also derives
+an exact reviewed `tsx` package profile, materializes that profile outside the
+repository, makes only the reviewed Linux-x64 esbuild binary executable without
+making it writable, and runs an inert TypeScript-only probe through the exact
+TSX CLI under Node filesystem permissions. The proof then re-verifies the
+materialized package bytes and requires no probe or package mutation. It also
+checks the current launcher/native gate contracts and requires all
+production/economic authority flags to remain false.
 
 Node 22, 24 and 26 must derive byte-identical V2 package-runtime evidence.
 
@@ -121,6 +128,9 @@ native_bash_descriptor_execution=true
 native_launcher_descriptor_execution=true
 direct_shell_privileged_invocation_supported=false
 protected_root_owned_source_positive=true
+tsx_private_materialization_verified=true
+tsx_inert_transform_execution_verified=true
+esbuild_runtime_execution_verified=true
 privileged_launcher_package_runtime_verified=true
 privileged_tool_execution_performed=false
 funds_movement=false

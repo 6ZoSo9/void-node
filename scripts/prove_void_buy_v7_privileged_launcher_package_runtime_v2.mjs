@@ -2,12 +2,16 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
   canonicalJson,
   collectReviewedNodePackageRuntimeV1,
+  materializeReviewedNodePackageRuntimeV1,
+  verifyMaterializedReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
 import { runReviewedGitV1 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
@@ -156,6 +160,143 @@ function packageRecord(lock,row){
   return actual;
 }
 
+
+function makeWritableForCleanup(root){
+  if(!fs.existsSync(root)) return;
+  const st=fs.lstatSync(root);
+  if(st.isDirectory()){
+    fs.chmodSync(root,0o700);
+    for(const name of fs.readdirSync(root)){
+      makeWritableForCleanup(path.join(root,name));
+    }
+  }else{
+    fs.chmodSync(root,0o600);
+  }
+}
+
+function assertExpectedTsxReviewedProfile(profile){
+  assert.deepEqual(profile.root_packages,["tsx"]);
+  assert.equal(profile.package_count,3);
+  assert.equal(profile.total_file_count,40);
+  assert.equal(profile.total_bytes,11972707);
+  for(const expected of EXPECTED_TSX_PACKAGES){
+    const actual=profile.packages.find(row=>row.lock_key===expected.lock_key);
+    assert.ok(actual,"tsx_profile_package_missing:"+expected.name);
+    for(const key of [
+      "name","lock_key","version","integrity","package_json_sha256",
+      "file_count","bytes","aggregate_sha256",
+    ]){
+      assert.equal(actual[key],expected[key],"tsx_profile_"+key+":"+expected.name);
+    }
+  }
+}
+
+function provePrivateTsxExecution(tsxProfile){
+  assertExpectedTsxReviewedProfile(tsxProfile);
+  const parent=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-tsx-runtime-"));
+  const destination=path.join(parent,"private-runtime");
+  try{
+    const materialized=materializeReviewedNodePackageRuntimeV1({
+      profile:tsxProfile,
+      destinationRoot:destination,
+    });
+    assert.equal(materialized.ok,true);
+    assert.equal(
+      materialized.status,
+      "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED",
+    );
+    assert.equal(materialized.profile_id,tsxProfile.profile_id);
+
+    const esbuildBinary=path.join(
+      destination,
+      "node_modules/@esbuild/linux-x64/bin/esbuild",
+    );
+    const esbuildStat=fs.lstatSync(esbuildBinary);
+    assert.ok(
+      esbuildStat.isFile()&&!esbuildStat.isSymbolicLink()&&esbuildStat.nlink===1,
+      "materialized_esbuild_binary_invalid",
+    );
+    fs.chmodSync(esbuildBinary,0o500);
+
+    const tsconfig=path.join(destination,"tsconfig.json");
+    const probe=path.join(destination,"probe.ts");
+    fs.writeFileSync(
+      tsconfig,
+      '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler"}}\n',
+      {mode:0o400,flag:"wx"},
+    );
+    fs.writeFileSync(
+      probe,
+      'const value: number = 40 + 2;\nconsole.log("VOID_V7_TSX_INERT_TRANSFORM_GREEN="+value);\n',
+      {mode:0o400,flag:"wx"},
+    );
+    const probeBefore=sha256(fs.readFileSync(probe));
+    const cli=path.join(destination,"node_modules/tsx/dist/cli.mjs");
+    const cliStat=fs.lstatSync(cli);
+    assert.ok(cliStat.isFile()&&!cliStat.isSymbolicLink()&&cliStat.nlink===1);
+
+    const result=spawnSync(
+      process.execPath,
+      [
+        "--permission",
+        "--allow-fs-read="+destination,
+        "--allow-child-process",
+        cli,
+        probe,
+      ],
+      {
+        cwd:destination,
+        encoding:"utf8",
+        stdio:["ignore","pipe","pipe"],
+        timeout:20_000,
+        maxBuffer:4*1024*1024,
+        env:{
+          PATH:"/usr/bin:/bin",
+          HOME:"/nonexistent",
+          LANG:"C",
+          LC_ALL:"C",
+          TZ:"UTC",
+        },
+      },
+    );
+    assert.equal(result.error,undefined,String(result.error||""));
+    assert.equal(result.signal,null,"tsx_inert_transform_signal");
+    assert.equal(result.status,0,String(result.stderr||result.stdout||""));
+    assert.equal(
+      String(result.stdout||"").trim(),
+      "VOID_V7_TSX_INERT_TRANSFORM_GREEN=42",
+      "tsx_inert_transform_output",
+    );
+    assert.equal(sha256(fs.readFileSync(probe)),probeBefore,"tsx_probe_mutated");
+    assert.deepEqual(
+      fs.readdirSync(destination).sort(),
+      ["node_modules","probe.ts","tsconfig.json"],
+      "tsx_private_runtime_root_mutated",
+    );
+
+    const after=verifyMaterializedReviewedNodePackageRuntimeV1({
+      profile:tsxProfile,
+      destinationRoot:destination,
+    });
+    assert.equal(after.ok,true);
+    assert.equal(after.profile_id,tsxProfile.profile_id);
+    assert.equal(fs.statSync(esbuildBinary).mode&0o222,0);
+
+    return Object.freeze({
+      tsx_reviewed_profile_id:tsxProfile.profile_id,
+      tsx_private_materialization_verified:true,
+      tsx_inert_transform_execution_verified:true,
+      esbuild_runtime_execution_verified:true,
+      ancestor_package_resolution_blocked_by_fs_permission:true,
+      ambient_node_resolution_overrides_inherited:false,
+      execution_probe_mutated:false,
+    });
+  }finally{
+    makeWritableForCleanup(parent);
+    fs.rmSync(parent,{recursive:true,force:true});
+  }
+}
+
 export function derivePrivilegedLauncherPackageRuntimeV2(){
   assert.equal(process.platform,"linux");
   assert.equal(process.arch,"x64");
@@ -222,6 +363,10 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
   }
   assert.deepEqual(fs.readdirSync(path.join(ROOT,"node_modules/@esbuild")).sort(),["linux-x64"]);
 
+  const tsxProfile=collectReviewedNodePackageRuntimeV1({rootPackages:["tsx"]});
+  assertExpectedTsxReviewedProfile(tsxProfile);
+  const execution=provePrivateTsxExecution(tsxProfile);
+
   const material={
     marker:"VOID_BUY_VOID_V7_PRIVILEGED_TSX_RUNTIME_V1",version:1,
     platform:"linux",arch:"x64",root_package:"tsx",root_version:"4.23.15",
@@ -248,6 +393,13 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     tsx_package_count:3,
     tsx_total_file_count:40,
     tsx_total_bytes:11972707,
+    tsx_reviewed_profile_id:execution.tsx_reviewed_profile_id,
+    tsx_private_materialization_verified:execution.tsx_private_materialization_verified,
+    tsx_inert_transform_execution_verified:execution.tsx_inert_transform_execution_verified,
+    esbuild_runtime_execution_verified:execution.esbuild_runtime_execution_verified,
+    ancestor_package_resolution_blocked_by_fs_permission:execution.ancestor_package_resolution_blocked_by_fs_permission,
+    ambient_node_resolution_overrides_inherited:execution.ambient_node_resolution_overrides_inherited,
+    execution_probe_mutated:execution.execution_probe_mutated,
     native_preentry_contract_verified:true,
     launcher_gate_contract_verified:true,
     package_runtime_identity_rederived:true,
@@ -270,6 +422,9 @@ function report(j){
   console.log("native_preentry_contract_verified=true");
   console.log("launcher_gate_contract_verified=true");
   console.log("package_runtime_identity_rederived=true");
+  console.log("tsx_private_materialization_verified=true");
+  console.log("tsx_inert_transform_execution_verified=true");
+  console.log("esbuild_runtime_execution_verified=true");
   console.log("privileged_launcher_package_runtime_verified=true");
   console.log("protected_source_install_authorized=false");
   console.log("privileged_receipt_execution_authorized=false");
