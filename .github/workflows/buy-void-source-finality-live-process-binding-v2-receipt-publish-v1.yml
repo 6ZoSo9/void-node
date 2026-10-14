@@ -138,7 +138,7 @@ jobs:
             tee "$RUNNER_TEMP/v7-deployment-receipt.log"
           grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_PROOF_GREEN' "$RUNNER_TEMP/v7-deployment-receipt.log"
           grep -Fx 'current_enforcement_tracked_source_inventory_verified=true' "$RUNNER_TEMP/v7-deployment-receipt.log"
-          grep -Fx 'current_enforcement_tracked_source_file_count=49' "$RUNNER_TEMP/v7-deployment-receipt.log"
+          grep -Fx 'current_enforcement_tracked_source_inventory_count=49' "$RUNNER_TEMP/v7-deployment-receipt.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v7-deployment-receipt.log"
 
       - name: Reject direct root mutation CLI bypass

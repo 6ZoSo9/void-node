@@ -47,7 +47,7 @@ for(const required of [
   'private_temporary_filesystem_write=true',
   'persistent_host_mutation=false',
   'VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1',
-  'VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID="$"',
+  'VOID_BUY_VOID_V7_PROTECTED_DISPATCH_PID="$$"',
   'VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT="$ROOT"',
   'VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$head_before"',
   'VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$tree_before"',
