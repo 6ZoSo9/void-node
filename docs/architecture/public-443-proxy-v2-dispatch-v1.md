@@ -72,9 +72,16 @@ preface and forwards the original HTTP bytes beginning at the request line.
 It does not add `Forwarded`, `X-Forwarded-For`, `X-Real-IP`, or another
 source identity header.
 
-This is intentional: the existing public frontdoor must continue to receive the
-same HTTP protocol shape it receives today, while source identity remains a
-special property of the reviewed sensitive edges.
+The ordinary frontdoor also has a second, per-request deny wall for the exact
+credential and Earn sensitive paths, including normalized/query/trailing aliases.
+That wall is required because HTTP/1.1 keep-alive or pipelining can carry a
+second request after the connection-level dispatcher has already selected the
+frontdoor. A sensitive request reaching the frontdoor is answered 404 with
+`Connection: close` and is never proxied to the composition gateway.
+
+This is intentional: normal public traffic keeps the existing frontdoor HTTP
+shape and proxy behavior, while sensitive request handling remains exclusive to
+the reviewed PROXY-v2 edges.
 
 ## Runtime source
 
@@ -98,6 +105,8 @@ The proof uses three disposable loopback TCP backends and proves:
 - sensitive backends receive the original PROXY-v2 + HTTP byte stream;
 - ordinary GET and existing POST shapes reach only the frontdoor;
 - frontdoor receives exact HTTP bytes with the PROXY-v2 preface removed;
+- the real frontdoor preserves root/proxy/POST behavior while rejecting
+  sensitive direct and pipelined bypass attempts before its upstream;
 - same source with a changed ephemeral port derives the same source key;
 - query, dot-segment, trailing-slash, wrong-method, wrong-destination-port and
   direct-non-PROXY sensitive requests fail before any backend;
