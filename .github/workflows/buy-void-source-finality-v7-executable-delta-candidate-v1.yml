@@ -671,4 +671,3 @@ jobs:
           grep -Fx 'apply_phase_git_or_candidate_derivation=false'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'foreign_temp_inode_preserved=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-current-root.log"
-
