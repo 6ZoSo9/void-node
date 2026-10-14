@@ -112,7 +112,7 @@ The builder accepts only untampered receipts with at least three samples, at lea
 ```bash
 node scripts/build_void_public_bootstrap_manifest_v1.mjs \
   --receipt /tmp/void-public-seed-qualification-v1.json \
-  --validity-hours 72 \
+  --validity-hours 168 \
   --output /tmp/void-public-bootstrap-v1.json
 ```
 
@@ -122,7 +122,7 @@ The candidate manifest:
 - contains only qualified HTTPS seeds;
 - marks every endpoint `temporary=false`;
 - includes each qualification ID and qualified head;
-- expires after a bounded one-hour to seven-day validity window; and
+- expires after the full reviewed seven-day validity window by default (the contract remains bounded from one hour through seven days); and
 - is content-addressed as `voidpbm1_<sha256>`.
 
 Building a file under `/tmp` is not publication. Committing or replacing `public/bootstrap/v1.json`, deploying ingress, changing DNS, starting a persistent service, or closing issue #1005 remains a separate reviewed action.
