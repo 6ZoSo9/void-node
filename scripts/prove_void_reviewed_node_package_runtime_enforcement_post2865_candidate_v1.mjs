@@ -178,7 +178,7 @@ function derive(){
   const ethersProofOutput=runCurrentEthersProof();
   assert.match(
     ethersProofOutput,
-    /VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V2_PROOF_GREEN/u,
+    /VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V2_ENFORCEMENT_GREEN/u,
     "current ethers V2 proof marker missing",
   );
 
