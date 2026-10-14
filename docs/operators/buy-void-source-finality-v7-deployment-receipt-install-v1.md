@@ -38,11 +38,20 @@ restricted to:
 
 `/var/lib/void-source-finality-v7/deployment-receipt.json`
 
-The parent directory is root-owned mode 0755. The final receipt is root-owned,
-single-link, mode 0444. Publication uses an exclusive temporary file followed
-by an atomic hard-link no-clobber publication and directory fsync. An existing
-byte-identical receipt is accepted idempotently; an existing different receipt
-HOLDs and is never overwritten.
+The destination parent is opened and retained with `O_DIRECTORY|O_NOFOLLOW`.
+All existing ancestors must already be direct, root-owned, and not group/world
+writable. If the final destination parent is absent, it is created only
+descriptor-relative beneath its retained trusted grandparent and normalized to
+root-owned mode 0755 through the newly created directory descriptor. A
+pre-existing parent is never chmod/chowned; a more restrictive safe mode such
+as 0700 is preserved.
+
+The final receipt is root-owned, single-link, mode 0444. Temporary creation,
+hard-link no-clobber publication, cleanup, verification, and directory fsync
+operate through the retained parent descriptor. A symlinked/rebound parent
+HOLDs without collateral target metadata mutation. An existing byte-identical
+receipt is accepted idempotently; an existing different receipt HOLDs and is
+never overwritten.
 
 This PR only creates the tool/proof. It does not run `--apply` on Precision,
 change systemd, configure source RPCs, contact a provider, access credentials,
