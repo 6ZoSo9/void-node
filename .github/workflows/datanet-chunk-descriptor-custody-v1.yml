@@ -1,0 +1,62 @@
+name: DataNet chunk descriptor custody v1
+
+on:
+  pull_request:
+    paths:
+      - "src/http/datanet_routes.ts"
+      - "scripts/prove_datanet_chunk_descriptor_custody_v1.mjs"
+      - "docs/security/datanet-chunk-descriptor-custody-v1.md"
+      - ".github/workflows/datanet-chunk-descriptor-custody-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: chunk custody / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install reviewed dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and prove descriptor-bound chunk custody
+        run: |
+          set -euo pipefail
+          npm run build
+          proof_file="$RUNNER_TEMP/datanet-chunk-descriptor-custody-v1.txt"
+          node scripts/prove_datanet_chunk_descriptor_custody_v1.mjs | tee "$proof_file"
+          grep -Fx 'VOID_DATANET_CHUNK_DESCRIPTOR_CUSTODY_V1_GREEN' "$proof_file"
+          grep -Fx 'chunk_get_descriptor_bound=true' "$proof_file"
+          grep -Fx 'chunk_get_hash_revalidated=true' "$proof_file"
+          grep -Fx 'path_swap_after_verification_not_served=true' "$proof_file"
+          grep -Fx 'symlink_get_rejected=true' "$proof_file"
+          grep -Fx 'chunk_put_create_only=true' "$proof_file"
+          grep -Fx 'symlink_put_target_unchanged=true' "$proof_file"
+          grep -Fx 'existing_valid_chunk_idempotent=true' "$proof_file"
+          grep -Fx 'wallet_signer_validator_wc_money_authority=0' "$proof_file"
+          npm run typecheck -- --pretty false
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"

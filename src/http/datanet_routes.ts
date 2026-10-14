@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
-import { packFile } from "../datanet/pack.js";
+import { MAX_PACK_CHUNK_BYTES, packFile } from "../datanet/pack.js";
 
 function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -207,6 +207,176 @@ function validateManifestRoot(man: any, claimedRoot: string): Readonly<{
 
 function sha256Hex(buf: Buffer) {
   return createHash("sha256").update(buf).digest("hex");
+}
+
+const DATANET_CHUNK_HASH_READ_BYTES = 64 * 1024;
+
+type OpenedDataNetChunkV1 = Readonly<{
+  fd: number;
+  size: number;
+}>;
+
+function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs
+  );
+}
+
+function openVerifiedDataNetChunkV1(
+  file: string,
+  expectedLeaf: string,
+): OpenedDataNetChunkV1 {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    throw new Error("datanet_chunk_nofollow_unavailable");
+  }
+
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      noFollow |
+      Number(fs.constants.O_NONBLOCK || 0),
+  );
+  let accepted = false;
+  try {
+    const before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.size <= 0 ||
+      before.size > MAX_PACK_CHUNK_BYTES ||
+      (before.mode & 0o022) !== 0
+    ) {
+      throw new Error("datanet_chunk_metadata_invalid");
+    }
+
+    const digest = createHash("sha256");
+    const buffer = Buffer.allocUnsafe(
+      Math.min(DATANET_CHUNK_HASH_READ_BYTES, before.size),
+    );
+    let position = 0;
+    while (position < before.size) {
+      const want = Math.min(buffer.length, before.size - position);
+      const got = fs.readSync(fd, buffer, 0, want, position);
+      if (got !== want) {
+        throw new Error("datanet_chunk_short_read");
+      }
+      digest.update(buffer.subarray(0, got));
+      position += got;
+    }
+
+    const after = fs.fstatSync(fd);
+    if (!sameDataNetChunkIdentityV1(before, after)) {
+      throw new Error("datanet_chunk_identity_changed");
+    }
+    if (digest.digest("hex") !== expectedLeaf) {
+      throw new Error("datanet_chunk_hash_mismatch");
+    }
+
+    accepted = true;
+    return Object.freeze({ fd, size: before.size });
+  } finally {
+    if (!accepted) fs.closeSync(fd);
+  }
+}
+
+function publishDataNetChunkCreateOnlyV1(
+  file: string,
+  expectedLeaf: string,
+  body: Buffer,
+): Readonly<{ reused: boolean }> {
+  if (body.length <= 0 || body.length > MAX_PACK_CHUNK_BYTES) {
+    throw new Error("datanet_chunk_body_size_invalid");
+  }
+
+  if (fs.existsSync(file)) {
+    const visible = fs.lstatSync(file);
+    if (!visible.isFile() || visible.isSymbolicLink()) {
+      throw new Error("datanet_chunk_existing_path_invalid");
+    }
+    const opened = openVerifiedDataNetChunkV1(file, expectedLeaf);
+    try {
+      if (opened.size !== body.length) {
+        throw new Error("datanet_chunk_existing_size_mismatch");
+      }
+      return Object.freeze({ reused: true });
+    } finally {
+      fs.closeSync(opened.fd);
+    }
+  }
+
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow <= 0) {
+    throw new Error("datanet_chunk_nofollow_unavailable");
+  }
+
+  const directory = path.dirname(file);
+  const temporary = path.join(
+    directory,
+    "." +
+      path.basename(file) +
+      ".tmp-" +
+      String(process.pid) +
+      "-" +
+      crypto.randomBytes(12).toString("hex"),
+  );
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(
+      temporary,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        noFollow,
+      0o600,
+    );
+    let position = 0;
+    while (position < body.length) {
+      const written = fs.writeSync(
+        fd,
+        body,
+        position,
+        body.length - position,
+        position,
+      );
+      if (written <= 0) {
+        throw new Error("datanet_chunk_short_write");
+      }
+      position += written;
+    }
+    fs.fsyncSync(fd);
+    const staged = fs.fstatSync(fd);
+    if (
+      !staged.isFile() ||
+      staged.size !== body.length ||
+      (staged.mode & 0o077) !== 0
+    ) {
+      throw new Error("datanet_chunk_staging_metadata_invalid");
+    }
+    fs.closeSync(fd);
+    fd = null;
+
+    // link() publishes create-only: an existing regular file or symlink is
+    // never replaced. A concurrent EEXIST fails closed and can be retried.
+    fs.linkSync(temporary, file);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+
+  const opened = openVerifiedDataNetChunkV1(file, expectedLeaf);
+  try {
+    if (opened.size !== body.length) {
+      throw new Error("datanet_chunk_published_size_mismatch");
+    }
+  } finally {
+    fs.closeSync(opened.fd);
+  }
+  return Object.freeze({ reused: false });
 }
 
 
@@ -436,8 +606,28 @@ const router = express.Router();
     if (!isHex64(leaf)) return res.status(400).json({ ok: false, err: "bad_leaf" });
     const p = path.join(chunksDir, `${leaf}.bin`);
     if (!fs.existsSync(p)) return res.status(404).json({ ok: false, err: "not_found" });
+    const visible = fs.lstatSync(p);
+    if (!visible.isFile() || visible.isSymbolicLink()) {
+      return res.status(409).json({ ok: false, err: "stored_chunk_invalid" });
+    }
+
+    const opened = openVerifiedDataNetChunkV1(p, leaf);
     res.setHeader("content-type", "application/octet-stream");
-    fs.createReadStream(p).pipe(res);
+    res.setHeader("content-length", String(opened.size));
+    const stream = fs.createReadStream(p, {
+      fd: opened.fd,
+      autoClose: true,
+      start: 0,
+      end: opened.size - 1,
+    });
+    stream.once("error", (error) => {
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, err: "chunk_stream_failed" });
+        return;
+      }
+      res.destroy(error);
+    });
+    stream.pipe(res);
   });
 
   router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: "64mb" }), (req, res) => {
@@ -451,8 +641,22 @@ const router = express.Router();
     if (got !== leaf) return res.status(400).json({ ok: false, err: "leaf_hash_mismatch", want: leaf, got });
 
     const p = path.join(chunksDir, `${leaf}.bin`);
-    fs.writeFileSync(p, body);
-    res.json({ ok: true, leaf, bytes: body.length });
+    if (fs.existsSync(p)) {
+      const visible = fs.lstatSync(p);
+      if (!visible.isFile() || visible.isSymbolicLink()) {
+        return res.status(409).json({
+          ok: false,
+          err: "chunk_storage_conflict",
+        });
+      }
+    }
+    const published = publishDataNetChunkCreateOnlyV1(p, leaf, body);
+    res.json({
+      ok: true,
+      leaf,
+      bytes: body.length,
+      reused: published.reused,
+    });
   });
 
   router.get("/proof/:root/:index", (req, res) => {
