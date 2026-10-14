@@ -56,9 +56,9 @@ pattern directly. The protected launcher now has an explicit `live-process-v2`
 allowlist entry for this publisher, while the historical V1 `live-process`
 receipt installer is not reachable from that launcher.
 
-The retained non-executable launcher body is exactly **11,442 bytes** with
+The retained non-executable launcher body is exactly **11,979 bytes** with
 SHA-256
-`fe3767e9d82239f33e3d15e011d5afe5300ded00e8dc16479b6e7e97ebed9a98`.
+`f2f864fc6e4f95c2cc7b258d68ecbeb95e7c006ead3951cbca39e0b3bbe37346`.
 The native pre-entry embeds that exact size/digest and authenticates the retained
 launcher descriptor before Bash evaluation. The package/runtime proof remains
 the byte-identical accepted V2 proof and rederives the audited TSX/esbuild
