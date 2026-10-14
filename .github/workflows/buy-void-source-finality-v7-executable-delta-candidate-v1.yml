@@ -12,6 +12,8 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2933_artifact_census_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-post2933-candidate-v2.md"
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
@@ -311,4 +313,117 @@ jobs:
           console.log("census_id="+c.census_id);
           console.log("artifact_inventory_sha256="+hash(c.artifacts));
           console.log("source_inventory_sha256="+hash(c.sources));
+          NODE
+
+enforcement-candidate-v2:
+    needs: [enforcement-census-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate-v2 head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build exact current generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Derive fresh unaccepted enforcement candidate v2
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs
+          node scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs --self-test
+          out="$RUNNER_TEMP/enforcement-post2933-v2-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs --derive > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.schema,"void_buy_void_enforcement_post2933_candidate_v2");
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_V2");
+          assert.equal(c.version,2);
+          assert.equal(c.source_parent,"ccb4546cf841ce1a43a13339272e4d07c90f7cc0");
+          assert.equal(c.hosted_census_evidence.census_id,
+            "voidbe2933c1_b37b0e86035a3dd1ccf09821445069ea0de1626be4763c9d19d2975645a93539");
+          assert.equal(c.v7_executable_delta.candidate_generation_sha256,
+            "17e70d5f6fe47f7eda87aabfa79ead574ecadeec4eb44470b774f020c997006e");
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.deployed_artifact_generation_verified,false);
+          assert.equal(c.runtime_mount_authority,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_V2_NODE_GREEN");
+          NODE
+      - name: Upload candidate-v2 evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-enforcement-post2933-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/enforcement-post2933-v2-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+  enforcement-candidate-v2-cross-node:
+    needs: [enforcement-candidate-v2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidate-v2 evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-post2933-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate-v2
+      - name: Require exact Node 22 24 26 candidate equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "candidate-v2/enforcement-post2933-v2-$node.json"; done
+          cmp candidate-v2/enforcement-post2933-v2-22.json candidate-v2/enforcement-post2933-v2-24.json
+          cmp candidate-v2/enforcement-post2933-v2-22.json candidate-v2/enforcement-post2933-v2-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("candidate-v2/enforcement-post2933-v2-22.json");
+          const c=JSON.parse(bytes);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_V2_CROSS_NODE_GREEN");
+          console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           NODE
