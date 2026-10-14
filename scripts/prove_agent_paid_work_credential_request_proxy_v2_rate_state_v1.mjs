@@ -42,6 +42,12 @@ try{
     window_ms:60_000,
     max_requests_per_source:2,
   });
+  const originalOpenForAdmission=fs.openSync;
+  let canonicalParentOpenCount=0;
+  fs.openSync=function(file,...args){
+    if(file===root) canonicalParentOpenCount+=1;
+    return originalOpenForAdmission.call(fs,file,...args);
+  };
   const [a1,a2]=await Promise.all([
     store.admit(sourceA,1_000),
     store.admit(sourceA,1_000),
@@ -52,6 +58,12 @@ try{
   assert.equal(a2.source_request_count_after,2);
   assert.equal(a1.admitted_event_persisted_before_return,true);
   assert.equal(a2.admitted_event_persisted_before_return,true);
+  fs.openSync=originalOpenForAdmission;
+  assert.equal(
+    canonicalParentOpenCount,
+    2,
+    "each serialized admission must retain exactly one parent FD across read-plan-write",
+  );
 
   const a3=await store.admit(sourceA,1_000);
   assert.equal(a3.ok,false);
@@ -244,6 +256,7 @@ try{
   console.log("expired_events_compacted_on_next_admission=true");
   console.log("private_descriptor_checked_state=true");
   console.log("retained_parent_descriptor_bound=true");
+  console.log("single_parent_binding_spans_read_plan_write=true");
   console.log("parent_namespace_substitution_rejected=true");
   console.log("foreign_temp_inode_not_unlinked=true");
   console.log("multi_process_lock_proven=false");

@@ -219,8 +219,7 @@ function encodeState(events){
   if(bytes.length>MAX_STATE_BYTES) fail("rate_state_bytes_exceeded");
   return bytes;
 }
-function writeStateAtomic(stateFile,events){
-  const binding=openPrivateParent(stateFile);
+function writeBoundStateAtomic(binding,events){
   const bytes=encodeState(events);
   tempSequence+=1;
   const tempName="."+binding.leaf+".tmp."+String(process.pid)+"."+
@@ -292,8 +291,6 @@ function writeStateAtomic(stateFile,events){
       );
     }
     throw error;
-  }finally{
-    closePrivateParent(binding);
   }
 }
 function integer(value,min,max,code){
@@ -314,38 +311,44 @@ export function createVoidAgentCredentialRequestProxyV2RateStateV1({
 
   const admitUnlocked=async(parsedSource,nowMs)=>{
     integer(nowMs,0,Number.MAX_SAFE_INTEGER,"rate_state_now_invalid");
-    const prior=readVoidAgentCredentialRequestProxyV2RateStateV1(state_file);
-    const planned=planVoidAgentCredentialRequestProxyV2RateLimitV1({
-      parsed_source:parsedSource,
-      now_ms:nowMs,
-      window_ms,
-      max_requests_per_source,
-      prior_events:prior,
-    });
-    if(planned.ok!==true){
-      if(planned.status==="RATE_LIMITED"){
-        return Object.freeze({
-          ...planned,
-          rate_state_durable:true,
-          state_file:state_file,
-          state_event_count:prior.length,
-          forwarded:false,
-        });
+    const binding=openPrivateParent(state_file);
+    try{
+      const prior=readBoundRateState(binding);
+      const planned=planVoidAgentCredentialRequestProxyV2RateLimitV1({
+        parsed_source:parsedSource,
+        now_ms:nowMs,
+        window_ms,
+        max_requests_per_source,
+        prior_events:prior,
+      });
+      if(planned.ok!==true){
+        if(planned.status==="RATE_LIMITED"){
+          assertPrivateParentStable(binding);
+          return Object.freeze({
+            ...planned,
+            rate_state_durable:true,
+            state_file:state_file,
+            state_event_count:prior.length,
+            forwarded:false,
+          });
+        }
+        fail("rate_state_planner_hold:"+String(planned.reason||"unknown"));
       }
-      fail("rate_state_planner_hold:"+String(planned.reason||"unknown"));
+      writeBoundStateAtomic(binding,planned.next_events);
+      return Object.freeze({
+        ...planned,
+        rate_state_durable:true,
+        admitted_event_persisted_before_return:true,
+        state_file:state_file,
+        state_event_count:planned.next_events.length,
+        forwarded:false,
+        local_transport_trust_proven:false,
+        runtime_integration:false,
+        authority:VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_RATE_STATE_AUTHORITY_V1,
+      });
+    }finally{
+      closePrivateParent(binding);
     }
-    writeStateAtomic(state_file,planned.next_events);
-    return Object.freeze({
-      ...planned,
-      rate_state_durable:true,
-      admitted_event_persisted_before_return:true,
-      state_file:state_file,
-      state_event_count:planned.next_events.length,
-      forwarded:false,
-      local_transport_trust_proven:false,
-      runtime_integration:false,
-      authority:VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_RATE_STATE_AUTHORITY_V1,
-    });
   };
 
   return Object.freeze({
