@@ -104,6 +104,9 @@ assert mod.parse_busctl_unique_names(
  ':1.42 4242 python zoso :1.42 user@1000.service - - fixture\n'
  ':1.7  7 dbus root :1.7 dbus.service - - fixture\n'
 )==[':1.42',':1.7']
+class CandidateTraining:
+ pw_name='zoso'
+ pw_uid=1000
 rows=mod.parse_busctl_unique_rows(
  ':1.99 999 busctl root :1.99 session.scope - - collector\n'
  ':1.42 4242 python zoso :1.42 user@1000.service - - training\n'
@@ -126,7 +129,7 @@ def fake_bus_credentials(method,name):
 try:
  mod.run=fake_bus_list
  mod.dbus_connection_uint32=fake_bus_credentials
- observed=mod.system_bus_sender_snapshot(Training(),{4242})
+ observed=mod.system_bus_sender_snapshot(CandidateTraining(),{4242})
 finally:
  mod.run=original_run
  mod.dbus_connection_uint32=original_dbus_uint32
