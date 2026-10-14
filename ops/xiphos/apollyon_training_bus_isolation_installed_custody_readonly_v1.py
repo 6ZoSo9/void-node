@@ -306,8 +306,15 @@ def qualify_materials(
         hold("apollyon_training_installed_custody_observation_scope_invalid")
     if require_xiphos!=(observation_scope=="live_installed"):
         hold("apollyon_training_installed_custody_observation_scope_mismatch")
-    if require_xiphos and socket.gethostname().casefold()!=TARGET_HOST.casefold():
-        hold("apollyon_training_installed_custody_wrong_host")
+    if require_xiphos:
+        try:
+            hostname=socket.gethostname()
+        except OSError as exc:
+            raise Hold(
+                "apollyon_training_installed_custody_hostname_lookup_failed"
+            ) from exc
+        if hostname.casefold()!=TARGET_HOST.casefold():
+            hold("apollyon_training_installed_custody_wrong_host")
 
     unit_fd=None
     preentry_fd=None
