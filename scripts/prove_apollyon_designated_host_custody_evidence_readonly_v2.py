@@ -35,7 +35,7 @@ for value in [
  "system_bus_sender_evidence","actual_system_bus_sender_checks_required",
  "actual_system_bus_sender_set_stable","denial_transcript_sha256",
  "system_bus_credentials_lookup_failed",
- "training_process_identity_stable_across_authorization",
+ "training_uid_process_identity_stable_across_authorization",
  "MAX_SYSTEM_BUS_UNIQUE_NAMES=256","system_bus_list_oversize",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
