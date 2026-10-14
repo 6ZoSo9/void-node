@@ -1,0 +1,195 @@
+name: VOID Buy VOID final V7 V2 current enforcement candidate
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_current_candidate_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-current-candidate-v1.md"
+      - ".github/workflows/buy-void-enforcement-final-v7-v2-current-candidate-v1.yml"
+      - "ops/precision/**"
+      - "ops/security/**"
+      - "ops/run-void-node-live-v1.sh"
+      - "runtime/**"
+      - "src/economic/**"
+      - "src/index.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_current_candidate_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-current-candidate-v1.md"
+      - ".github/workflows/buy-void-enforcement-final-v7-v2-current-candidate-v1.yml"
+      - "ops/precision/**"
+      - "ops/security/**"
+      - "ops/run-void-node-live-v1.sh"
+      - "runtime/**"
+      - "src/economic/**"
+      - "src/index.ts"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: derive / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build exact generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Derive fresh unaccepted current-enforcement candidate
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_enforcement_final_v7_v2_current_candidate_v1.mjs"
+          npx tsx "$proof" --self-test
+          out="$RUNNER_TEMP/final-v7-v2-current-candidate-${{ matrix.node }}.json"
+          npx tsx "$proof" --derive > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(
+            c.schema,
+            "void_buy_void_enforcement_final_v7_v2_current_candidate_v1",
+          );
+          assert.equal(
+            c.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_CURRENT_CANDIDATE_V1",
+          );
+          assert.equal(c.version,1);
+          assert.equal(
+            c.runtime_source_parent,
+            "82aee920f26b45c7e43bcc9f9e1023a175e2783a",
+          );
+          assert.equal(
+            c.current_enforcement_parent,
+            "a2f304fa3ae494cdd4fa71f65aa6f689a1313948",
+          );
+          assert.equal(c.hosted_census_evidence.artifact_count,28);
+          assert.equal(c.hosted_census_evidence.source_file_count,28);
+          assert.equal(c.v7_executable_delta.module_count,6);
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.current_enforcement_tracked_source_inventory_v1.length,49);
+          assert.equal(c.current_enforcement_tracked_source_inventory_verified,true);
+          assert.equal(c.current_enforcement_parent_path_identity_preserved,true);
+          for(const row of c.current_enforcement_tracked_source_inventory_v1){
+            assert.deepEqual(Object.keys(row).sort(),[
+              "git_blob_sha1","git_mode","path",
+            ]);
+            assert.match(row.git_blob_sha1,/^[0-9a-f]{40}$/u);
+            assert.ok(row.git_mode==="100644"||row.git_mode==="100755");
+          }
+          assert.match(
+            c.current_enforcement_tracked_source_inventory_sha256,
+            /^[0-9a-f]{64}$/u,
+          );
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.deployed_artifact_generation_verified,false);
+          assert.equal(c.runtime_mount_authority,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
+          console.log("VOID_BUY_VOID_FINAL_V7_V2_CURRENT_CANDIDATE_NODE_GREEN");
+          NODE
+
+      - name: Upload candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-final-v7-v2-current-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/final-v7-v2-current-candidate-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git diff --check "$merge_base" "$HEAD"
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-v7-v2-current-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate
+
+      - name: Require exact Node 22 24 26 candidate equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "candidate/final-v7-v2-current-candidate-$node.json"
+          done
+          cmp candidate/final-v7-v2-current-candidate-22.json candidate/final-v7-v2-current-candidate-24.json
+          cmp candidate/final-v7-v2-current-candidate-22.json candidate/final-v7-v2-current-candidate-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("candidate/final-v7-v2-current-candidate-22.json");
+          const c=JSON.parse(bytes);
+          assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(c.current_enforcement_tracked_source_inventory_verified,true);
+          assert.equal(c.complete_executable_closure_verified,true);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_FINAL_V7_V2_CURRENT_CANDIDATE_CROSS_NODE_GREEN");
+          console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
+          console.log("current_enforcement_tracked_source_inventory_sha256="+c.current_enforcement_tracked_source_inventory_sha256);
+          NODE
