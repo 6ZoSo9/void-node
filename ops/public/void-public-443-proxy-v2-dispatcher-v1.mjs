@@ -15,6 +15,8 @@ const MAX_UNCLASSIFIED_PREFIX_BYTES = 512 + 8 * 1024 + 2;
 const CONNECT_TIMEOUT_MS = 5000;
 const proofMode =
   process.env.VOID_PUBLIC_443_PROXY_V2_DISPATCH_PROOF_MODE === "1";
+// Production idle policy is fixed; only disposable loopback proofs use a short interval.
+const RELAY_IDLE_TIMEOUT_MS = proofMode ? 1500 : 60_000;
 
 function fail(code) {
   throw new Error(code);
@@ -200,27 +202,56 @@ function connectDownstream(socket, dispatch) {
       fn(value);
     };
 
-    // readDispatchPrefix() removes its temporary error listener after
-    // classification. Keep relay-phase client errors connection-scoped and
-    // tear down only the paired downstream socket.
+    // Release the paired descriptor when the caller disconnects, including
+    // resets during the classification -> connect handoff.
+    socket.once("close", () => {
+      if (!downstream.destroyed) downstream.destroy();
+      if (!settled) {
+        finish(
+          reject,
+          new Error("public_443_dispatch_client_closed_before_relay"),
+        );
+      }
+    });
     socket.once("error", (error) => {
       if (!downstream.destroyed) downstream.destroy();
       if (!socket.destroyed) socket.destroy();
       finish(reject, error);
     });
 
-    downstream.setTimeout(CONNECT_TIMEOUT_MS);
-    downstream.once("timeout", () => {
+    // Connecting has its own short timeout. Once connected, replace it with
+    // a real relay-phase idle handler on BOTH halves of the socket pair.
+    const onConnectTimeout = () => {
       downstream.destroy(
         new Error("public_443_dispatch_downstream_timeout"),
       );
-    });
+    };
+    downstream.setTimeout(CONNECT_TIMEOUT_MS);
+    downstream.once("timeout", onConnectTimeout);
     downstream.once("error", (error) => {
+      if (settled && !socket.destroyed) socket.destroy();
       finish(reject, error);
+    });
+    downstream.once("close", () => {
+      if (!socket.destroyed && !socket.writableEnded) socket.end();
+      if (!settled) {
+        finish(
+          reject,
+          new Error("public_443_dispatch_downstream_closed_before_relay"),
+        );
+      }
     });
     downstream.once("connect", () => {
       try {
-        downstream.setTimeout(0);
+        downstream.off("timeout", onConnectTimeout);
+        downstream.setTimeout(RELAY_IDLE_TIMEOUT_MS);
+        socket.setTimeout(RELAY_IDLE_TIMEOUT_MS);
+        const onRelayIdle = () => {
+          if (!downstream.destroyed) downstream.destroy();
+          if (!socket.destroyed) socket.destroy();
+        };
+        downstream.once("timeout", onRelayIdle);
+        socket.once("timeout", onRelayIdle);
         downstream.setNoDelay(true);
         const initial =
           dispatch.classified.preserve_proxy_preface === true
@@ -331,6 +362,8 @@ server.listen(
         listen_host: address.address,
         listen_port: address.port,
         public_tls_port: 443,
+        relay_idle_timeout_ms: RELAY_IDLE_TIMEOUT_MS,
+        relay_idle_cleanup_enabled: true,
         credential_edge_host: HOST,
         credential_edge_port: credentialPort,
         earn_edge_host: HOST,
