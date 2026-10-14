@@ -240,6 +240,12 @@ function providerReceiptMaterial(deploymentId,kind){
 
 async function childMain(ipcDir){
   const originalReadFileSync=fs.readFileSync.bind(fs);
+  const originalRealpathNative=
+    fs.realpathSync.native.bind(fs.realpathSync);
+  fs.realpathSync.native=function(location,...args){
+    if(String(location)==="/proc/self/exe")return "/usr/bin/node";
+    return originalRealpathNative(location,...args);
+  };
   const runtimeUid=process.getuid();
   const managerPid=process.ppid;
   const serviceCgroup=
@@ -630,6 +636,7 @@ async function parentMain(){
   console.log("invalid_provider_pair_https_request_count=0");
   console.log("valid_provider_pair_reaches_https_request_sentinel=true");
   console.log("real_v7_observer_invoked=true");
+  console.log("proof_only_service_executable_identity_virtualized=true");
   console.log("production_dependency_injection_seam_added=false");
   console.log("real_network_contact=false");
   console.log("credential_access=false");

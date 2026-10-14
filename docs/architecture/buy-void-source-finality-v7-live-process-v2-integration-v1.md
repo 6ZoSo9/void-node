@@ -51,3 +51,12 @@ The V7 executable-delta candidate advances from five to six modules by adding
 remains in the delta because V2 depends on its self-process identity reader.
 Node 22/24/26 must derive the six-module candidate byte-identically before any
 fresh whole-enforcement census/acceptance successor is attempted.
+
+## Hosted executable-path fixture
+
+GitHub `setup-node` executes from its tool cache, while the production V2
+receipt contract correctly requires `/usr/bin/node`. The focused provider-pair
+ordering proof therefore virtualizes only `/proc/self/exe` inside its
+disposable non-production child to the fixed production path. This does not
+relax V2 source validation or production receipt verification; the separate
+native selector lane proves the actual Precision executable/cgroup topology.
