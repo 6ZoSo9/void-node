@@ -161,6 +161,14 @@ jobs:
           assert.equal(j.dynamic_tool_execution_identity_verified,true);
           assert.equal(j.dynamic_tool_transitive_closure_verified,true);
           assert.equal(j.no_dynamic_unknown_imports,true);
+          assert.equal(j.runtime_server_integration_artifact.path,
+            "dist/economic/buy_void_runtime_integration_v1.js");
+          assert.equal(j.dependency_provider_entry_artifact,
+            "dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js");
+          assert.equal(j.dependency_provider_global_writer_verified,true);
+          assert.equal(j.dependency_provider_transitive_closure_verified,true);
+          assert.ok(j.dependency_provider_runtime_artifacts.length>=9);
+          assert.deepEqual(j.dependency_provider_third_party_package_imports,["ethers"]);
           assert.deepEqual(j.third_party_package_imports,["ethers","express"]);
           assert.equal(j.package_runtime_evidence.ethers_package_runtime_verified,true);
           assert.equal(j.package_runtime_evidence.express_package_runtime_verified,false);
@@ -224,6 +232,8 @@ jobs:
           const j=JSON.parse(b);
           assert.equal(j.dynamic_tool_execution_identity_verified,true);
           assert.equal(j.dynamic_tool_transitive_closure_verified,true);
+          assert.equal(j.dependency_provider_global_writer_verified,true);
+          assert.equal(j.dependency_provider_transitive_closure_verified,true);
           assert.equal(j.complete_executable_closure_verified,false);
           assert.equal(j.package_runtime_evidence.express_package_runtime_verified,false);
           assert.equal(j.candidate_identity_accepted,false);

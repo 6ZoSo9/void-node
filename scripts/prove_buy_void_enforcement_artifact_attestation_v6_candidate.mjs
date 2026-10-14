@@ -25,6 +25,20 @@ const LOCKED_V5_MANIFEST_BLOB = "44dc5c187adeb35b6a41038a044165f1c6799c74";
 const LOCKED_V5_GENERATION = "18758f6563f9a96aea0d55e293a4c10da8de349ba12ecc90fdebd82f486b944c";
 const EXPECTED_PACKAGE_LOCK_BLOB = "b2671f0149f522b2489247016df0a5ec4bb72b8b";
 const ENTRY = "dist/economic/buy_void_delivery_runtime_integration_v1.js";
+const SERVER_ENTRY = "dist/economic/buy_void_runtime_integration_v1.js";
+const PROVIDER_ENTRY =
+  "dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js";
+const PROVIDER_REQUIRED = Object.freeze([
+  PROVIDER_ENTRY,
+  "dist/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.js",
+  "dist/economic/buy_void_erc20_production_credential_binding_evidence_v1.js",
+  "dist/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js",
+  "dist/economic/buy_void_epoch2_fulfillment_access_list_v1.js",
+  "dist/economic/buy_void_delivery_submission_guard_v1.js",
+  "dist/economic/buy_void_erc20_chain2050_broadcaster_v1.js",
+  "dist/economic/buy_void_native_chain2050_broadcaster_v1.js",
+  "dist/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.js",
+]);
 const PREFLIGHT = "dist/economic/buy_void_source_finality_execution_preflight_v1.js";
 const V6 = "dist/economic/buy_void_source_finality_generation_provenance_v6.js";
 const OLD_V4 = "dist/economic/buy_void_source_finality_generation_provenance_v4.js";
@@ -99,10 +113,13 @@ function scan(p,bytes) {
   function dynamicGlobal(node) {
     return ts.isIdentifier(node)&&dynamicGlobalNames.has(node.text);
   }
+  function rootUsesGlobalState() {
+    return p===ENTRY||p===SERVER_ENTRY||p===PROVIDER_ENTRY;
+  }
   function allowedRootGlobalReference(node) {
-    if(p!==ENTRY||!ts.isIdentifier(node)||node.text!=="globalThis") return false;
+    if(!ts.isIdentifier(node)||node.text!=="globalThis"||!rootUsesGlobalState()) return false;
     const parent=node.parent;
-    if(ts.isElementAccessExpression(parent)&&parent.expression===node&&
+    if(p===ENTRY&&ts.isElementAccessExpression(parent)&&parent.expression===node&&
        ts.isIdentifier(parent.argumentExpression)&&
        parent.argumentExpression.text==="GLOBAL_DEPENDENCIES") return true;
     if(ts.isVariableDeclaration(parent)&&parent.initializer===node&&
@@ -110,19 +127,26 @@ function scan(p,bytes) {
     return false;
   }
   function allowedRootGlobalStateReference(node) {
-    if(p!==ENTRY||!ts.isIdentifier(node)||node.text!=="globalState") return false;
+    if(!ts.isIdentifier(node)||node.text!=="globalState"||!rootUsesGlobalState()) return false;
     const parent=node.parent;
     if(ts.isVariableDeclaration(parent)&&parent.name===node&&
        parent.initializer&&dynamicGlobal(parent.initializer)) return true;
-    return ts.isPropertyAccessExpression(parent)&&parent.expression===node&&
-      (parent.name.text==="__void_http_app"||parent.name.text==="app");
+    if((p===ENTRY||p===SERVER_ENTRY)&&
+       ts.isPropertyAccessExpression(parent)&&parent.expression===node&&
+       (parent.name.text==="__void_http_app"||parent.name.text==="app")) return true;
+    if(p===PROVIDER_ENTRY&&
+       ts.isElementAccessExpression(parent)&&parent.expression===node&&
+       ts.isIdentifier(parent.argumentExpression)&&
+       (parent.argumentExpression.text==="GLOBAL_DEPENDENCIES"||
+        parent.argumentExpression.text==="GLOBAL_STATUS")) return true;
+    return false;
   }
   function forbiddenLoaderReference(node) {
     if(ts.isIdentifier(node)) return forbiddenLoaderNames.has(node.text);
     if(ts.isPropertyAccessExpression(node)) {
       if(dynamicGlobal(node.expression)) return true;
-      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&p===ENTRY) {
-        return node.name.text!=="__void_http_app"&&node.name.text!=="app";
+      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&rootUsesGlobalState()) {
+        return !allowedRootGlobalStateReference(node.expression);
       }
     }
     if(ts.isElementAccessExpression(node)) {
@@ -130,8 +154,8 @@ function scan(p,bytes) {
         return !(p===ENTRY&&ts.isIdentifier(node.argumentExpression)&&
           node.argumentExpression.text==="GLOBAL_DEPENDENCIES");
       }
-      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&p===ENTRY) {
-        return true;
+      if(ts.isIdentifier(node.expression)&&node.expression.text==="globalState"&&rootUsesGlobalState()) {
+        return !allowedRootGlobalStateReference(node.expression);
       }
     }
     return false;
@@ -152,7 +176,7 @@ function scan(p,bytes) {
       assert.equal(allowedRootGlobalReference(node),true,
         "unreviewed dynamic global reference:"+p);
     }
-    if(ts.isIdentifier(node)&&node.text==="globalState"&&p===ENTRY) {
+    if(ts.isIdentifier(node)&&node.text==="globalState"&&rootUsesGlobalState()) {
       assert.equal(allowedRootGlobalStateReference(node),true,
         "unreviewed runtime globalState reference:"+p);
     }
@@ -174,7 +198,7 @@ function scan(p,bytes) {
     }
     if(ts.isVariableDeclaration(node)&&node.initializer&&dynamicGlobal(node.initializer)) {
       const reviewedGlobalState =
-        p===ENTRY&&ts.isIdentifier(node.name)&&node.name.text==="globalState";
+        rootUsesGlobalState()&&ts.isIdentifier(node.name)&&node.name.text==="globalState";
       assert.equal(reviewedGlobalState,true,"unreviewed dynamic global alias:"+p);
     }
     if(ts.isVariableDeclaration(node)&&node.initializer&&
@@ -262,6 +286,40 @@ function closedArtifacts() {
   assert.ok(found.has("dist/economic/buy_void_verified_payment_v2.js"),"canonical V2 verifier missing");
   return [...found.values()].sort((a,b)=>a.path.localeCompare(b.path,"en"));
 }
+function closedProviderArtifacts() {
+  const pending=[PROVIDER_ENTRY],found=new Map();
+  while(pending.length) {
+    const p=pending.pop();
+    if(found.has(p)) continue;
+    assert.ok(found.size<64,"provider closure exceeds bound");
+    assert.match(p,/^dist\/economic\/[a-z0-9_]+\.js$/u,
+      "unexpected provider closure path");
+    const bytes=readPinned(ROOT,p),graph=scan(p,bytes);
+    assert.equal(graph.dynamic_function_importer_present,false,
+      "dynamic importer forbidden in provider closure:"+p);
+    assert.deepEqual(graph.dynamic_tool_import_specifiers,[],
+      "dynamic tool forbidden in provider closure:"+p);
+    found.set(p,{path:p,bytes:bytes.length,sha256:sha256(bytes),...graph});
+    pending.push(...graph.imports);
+  }
+  for(const required of PROVIDER_REQUIRED) {
+    assert.ok(found.has(required),"required provider module missing:"+required);
+  }
+  return [...found.values()].sort((a,b)=>a.path.localeCompare(b.path,"en"));
+}
+function serverCompositionArtifact() {
+  const bytes=readPinned(ROOT,SERVER_ENTRY);
+  const graph=scan(SERVER_ENTRY,bytes);
+  assert.ok(graph.imports.includes(ENTRY),
+    "runtime server does not import delivery consumer");
+  assert.ok(graph.imports.includes(PROVIDER_ENTRY),
+    "runtime server does not import dependency provider");
+  assert.equal(graph.dynamic_function_importer_present,false,
+    "runtime server dynamic importer not reviewed");
+  assert.deepEqual(graph.dynamic_tool_import_specifiers,[],
+    "runtime server dynamic tool not reviewed");
+  return {path:SERVER_ENTRY,bytes:bytes.length,sha256:sha256(bytes),...graph};
+}
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
@@ -285,6 +343,18 @@ function runSelfTest() {
     'const app=globalState.__void_http_app||globalState.app;\n'
   ));
   assert.deepEqual(reviewedGlobals.imports,[]);
+  const reviewedProviderGlobals=scan(PROVIDER_ENTRY,Buffer.from(
+    'const GLOBAL_DEPENDENCIES="__void_buy_void_delivery_runtime_dependencies_v1";\n'+
+    'const GLOBAL_STATUS="__void_buy_void_erc20_delivery_dependency_injection_status_v1";\n'+
+    'const globalState=globalThis;\n'+
+    'if(globalState[GLOBAL_DEPENDENCIES]!==undefined) throw new Error("hold");\n'+
+    'globalState[GLOBAL_DEPENDENCIES]={};\n'+
+    'if(globalState[GLOBAL_STATUS]===undefined) globalState[GLOBAL_STATUS]={};\n'
+  ));
+  assert.deepEqual(reviewedProviderGlobals.imports,[]);
+  assert.throws(()=>scan(PROVIDER_ENTRY,Buffer.from(
+    'const globalState=globalThis; globalState[UNREVIEWED_GLOBAL]={};'
+  )),undefined,"provider global writer must be exact");
   for(const bad of [
     'const g=globalThis; const runner=g.eval; runner("2+2");',
     'const globalState=globalThis; const runner=globalState.eval; runner("2+2");',
@@ -330,6 +400,7 @@ function runSelfTest() {
   console.log("reviewed_node_util_builtin_only=true");
   console.log("unreviewed_node_child_process_builtin_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
+  console.log("dependency_provider_global_writer_shape_bound=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
   console.log("computed_global_dynamic_loader_aliases_rejected=true");
   console.log("assigned_dynamic_loader_aliases_rejected=true");
@@ -461,10 +532,15 @@ export function deriveBuyVoidEnforcementArtifactAttestationV6Candidate(input) {
   assert.equal(compiledV5.production_source_finality_authority_ready,false);
   runReviewedGitV1(["merge-base","--is-ancestor",SOURCE_HEAD,"HEAD"],ROOT);
   const artifacts=closedArtifacts();
+  const providerArtifacts=closedProviderArtifacts();
+  const serverIntegrationArtifact=serverCompositionArtifact();
   const sourceRuntimeInputs=[
     ...new Set([
       ...artifacts.map(a=>
         a.path.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts")),
+      ...providerArtifacts.map(a=>
+        a.path.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts")),
+      SERVER_ENTRY.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts"),
       ...INPUTS,
     ]),
   ].sort();
@@ -504,8 +580,15 @@ export function deriveBuyVoidEnforcementArtifactAttestationV6Candidate(input) {
     evidence_contract:"VOID_BUY_VOID_STOPPED_REAL_SAGA_LOADER_V1",
     target_git_blob_sha1:SAGA_SOURCE_BLOB,
   }));
+  const providerThirdPartyPackages=[...new Set(
+    providerArtifacts.flatMap(row=>row.externals)
+      .filter(specifier=>!specifier.startsWith("node:"))
+  )].sort();
+  assert.deepEqual(providerThirdPartyPackages,["ethers"],
+    "provider third-party package boundary changed");
   const thirdPartyPackages=[...new Set(
-    artifacts.flatMap(row=>row.externals)
+    [...artifacts,...providerArtifacts,serverIntegrationArtifact]
+      .flatMap(row=>row.externals)
       .filter(specifier=>!specifier.startsWith("node:"))
   )].sort();
   assert.deepEqual(thirdPartyPackages,["ethers","express"],
@@ -546,7 +629,15 @@ export function deriveBuyVoidEnforcementArtifactAttestationV6Candidate(input) {
     },
     closed_entry_artifact:ENTRY,
     closed_runtime_artifacts:artifacts,
-    // The above is only the fully enumerated STATIC relative-import graph.
+    runtime_server_integration_artifact:serverIntegrationArtifact,
+    dependency_provider_entry_artifact:PROVIDER_ENTRY,
+    dependency_provider_runtime_artifacts:providerArtifacts,
+    dependency_provider_static_relative_import_graph_bound:true,
+    dependency_provider_global_writer_verified:true,
+    dependency_provider_transitive_closure_verified:true,
+    dependency_provider_third_party_package_imports:providerThirdPartyPackages,
+    // The consumer + provider graphs above are fully enumerated STATIC
+    // relative-import graphs.
     // The Function-created dynamic tool edges below are an UNQUALIFIED
     // executable extension, not a fully closed/approved runtime boundary.
     static_relative_import_graph_bound:true,

@@ -100,3 +100,35 @@ The next source gate after a GREEN candidate is the missing reviewed
 profile), followed by a separately reviewed locked enforcement successor.
 
 **PROTECT THE CORE.**
+
+
+## Provider implementation closure
+
+Independent review found that the delivery consumer reads
+`__void_buy_void_delivery_runtime_dependencies_v1` from `globalThis`.
+The consumer-relative graph alone therefore cannot prove executable provenance
+for the signer/broadcaster implementation.
+
+This candidate now binds three related surfaces:
+
+1. the existing delivery/preflight consumer closure rooted at
+   `buy_void_delivery_runtime_integration_v1.js`;
+2. the actual server integration `buy_void_runtime_integration_v1.js`, which
+   must statically import both the delivery consumer and the exact dependency
+   injector; and
+3. a separately enumerated provider closure rooted at
+   `buy_void_erc20_delivery_dependency_injection_v1.js`.
+
+The provider closure must contain the bootstrap, production credential-binding
+evidence, native credential signer, Epoch-2 access-list identity, durable
+submission guard, Chain-2050 broadcaster/native broadcaster, and bounded HTTP
+transport. Its root is restricted to the exact reviewed dependency/status
+global writes and no dynamic importer is allowed anywhere in the provider
+graph.
+
+This can establish
+`dependency_provider_global_writer_verified=true` and
+`dependency_provider_transitive_closure_verified=true` while this candidate
+still keeps `complete_executable_closure_verified=false`: reviewed installed
+package-runtime acceptance remains a separate successor gate. No signer,
+credential, RPC, broadcast, payment or funds action is executed by this proof.
