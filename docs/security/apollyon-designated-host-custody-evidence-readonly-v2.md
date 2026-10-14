@@ -50,9 +50,15 @@ authenticated Unix UID equals the training UID or whose authenticated Unix PID
 belongs to the admitted training-process set, both PID and UID must match the
 admitted training identity exactly. Each such connection is probed using
 `pkcheck --system-bus-name` across the full reviewed control surface, then the
-relevant bus-sender set is collected again and must be unchanged. Evidence
-contains a bounded sender list with identity, action count, and the SHA-256 of
-its canonical all-denied transcript.
+relevant bus-sender set is collected again and must be unchanged. A unique name
+that disappears or fails either authenticated PID/UID lookup causes HOLD rather
+than being omitted from the census. Evidence contains a bounded sender list with
+identity, action count, and the SHA-256 of its canonical all-denied transcript.
+
+The complete training-process inventory is then collected again after the bus
+checks and compared using PID + process start time + thread inventory digest.
+That closes PID-reuse ambiguity across the authorization window and is surfaced
+as `training_uid_process_identity_stable_across_authorization=true`.
 
 Only exit status 1 is accepted as explicit denial. RefuseManualStart/Stop remain
 defense-in-depth unit facts; they no longer independently justify
