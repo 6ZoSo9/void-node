@@ -32,7 +32,7 @@ The manifest contract is closed and requires:
 - network `VOID Network` and chain ID `2050`;
 - status `stable_tor_seed`;
 - zero clearnet `sync_endpoints`;
-- one through eight `tor_v3_http` onion endpoints whose qualification was fresh at manifest issuance;
+- one through eight `tor_v3_http` onion endpoints whose qualification was fresh and no later than manifest generation at issuance;
 - a bounded one-hour through seven-day signed validity interval;
 - no private Tailnet publication; and
 - every private and economic authority flag set to `false`.
