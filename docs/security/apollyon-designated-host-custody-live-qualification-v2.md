@@ -61,7 +61,7 @@ is:
 Reviewed Python-launcher source blob:
 
 ```text
-d80f848d3412729d0299ccd65fd6845fc1405c21
+431b91aafcb36b4aa2d77ec05061dc98cf7ec668
 ```
 
 That launcher then authenticates the separately installed reviewed source root:
@@ -95,13 +95,20 @@ inherited `/proc/self/fd/4`. The collector remains separately inherited on
 descriptor 3. A later Python pathname or symlink replacement therefore cannot
 redirect the privileged collector execution.
 
-After those interpreter checks, the live runner binds a complete reviewed
-execution closure **before first policy evaluation or collector execution**:
+After those interpreter checks, the live runner itself is pinned by the
+installed launcher to Git blob:
+
+```text
+32447680186fb7a231f8e16bea2c220eb7f08fa7
+```
+
+The runner then binds a complete reviewed execution closure **before first
+policy evaluation or collector execution**:
 
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
-V2 policy    623cc8fd8b0726d96e3773d1f7c5e97b15d99a74
-V2 collector 06e110108c74c450074ed6500ac7f7458f49b5aa
+V2 policy    db5493a513a42780865e7194580eec3b770dc8e1
+V2 collector cc194b7f239eea049c6ca7e5a536487634d800ab
 custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
 service      8961572ba5834371b1229f790a1960940fc74935
 client       fb31dbbda76c94f0ad08e38094c151a24a78b486
@@ -144,7 +151,26 @@ generation.
 
 ## Deliberate boundary
 
-A successful V2 live observation may report:
+The current exact V2 collector is intentionally fail-closed on absolute service
+control. Endpoint/Polkit observations cannot prove that the training process did
+not inherit or receive a pre-authenticated system-bus descriptor, so real
+collector output retains:
+
+```text
+runtime_can_control_service=null
+inherited_system_bus_descriptor_absence_required=true
+inherited_system_bus_descriptor_absence_proven=false
+absolute_runtime_service_control_denial_proven=false
+```
+
+The pure policy therefore rejects current live collector evidence before this
+runner can emit a successful live qualification. The positive path exercised by
+the source self-test is synthetic contract evidence only; it is not live Xiphos
+authority.
+
+After the separately reviewed training bus-isolation lane (#2918) is installed
+and independently attested, a later composition gate may supply the missing
+descriptor-absence proof. Only then may a policy-qualified V2 observation report:
 
 ```text
 live_host_qualification_performed=true
@@ -153,7 +179,8 @@ verification_clock_authority_proven=true
 evidence_generation_monotonicity_proven=true
 ```
 
-It deliberately does **not** report production custody ready:
+Even that future qualified observation deliberately does **not** report
+production custody ready:
 
 ```text
 live_service_source_identity_required=true
@@ -211,9 +238,20 @@ It never converts a cleanup error into a false
 access, signing, attempt claim, training execution, wallet/transaction
 operation or funds movement is granted by this source lane.
 
-## Next gate
+## Next gates
+
+Current prerequisite:
+
+`installed_apollyon_training_bus_isolation_qualification_v1`
+
+That separately authorized lane must install/attest the #2918 service + native
+pre-entry and prove the missing inherited-system-bus descriptor boundary.
+
+Only after that proof is composed into current V2 evidence does this runner's
+qualified output advance to:
 
 `live_custody_service_source_identity_binding_v2`
 
-That gate must bind the stable live MainPID and AF_UNIX session to exact reviewed
-launcher/source bytes before any candidate-training claim contract is considered.
+That later gate must bind the stable live MainPID and AF_UNIX session to exact
+reviewed launcher/source bytes before any candidate-training claim contract is
+considered.
