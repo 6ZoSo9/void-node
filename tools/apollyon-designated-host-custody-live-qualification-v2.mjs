@@ -58,9 +58,9 @@ const COLLECTOR_REL=
   "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py";
 const POLICY_V1_REL="tools/apollyon-custody-host-policy-qualification-v1.mjs";
 const POLICY_V2_REL="tools/apollyon-custody-host-policy-qualification-v2.mjs";
-const COLLECTOR_BLOB_SHA1="06e110108c74c450074ed6500ac7f7458f49b5aa";
+const COLLECTOR_BLOB_SHA1="cc194b7f239eea049c6ca7e5a536487634d800ab";
 const POLICY_V1_BLOB_SHA1="6f34e79d94c502e31ca4923fd78922d4875550a5";
-const POLICY_BLOB_SHA1="623cc8fd8b0726d96e3773d1f7c5e97b15d99a74";
+const POLICY_BLOB_SHA1="db5493a513a42780865e7194580eec3b770dc8e1";
 const REVIEWED_EXECUTION_FILES=Object.freeze({
   [COLLECTOR_REL]:COLLECTOR_BLOB_SHA1,
   [POLICY_V1_REL]:POLICY_V1_BLOB_SHA1,
@@ -462,7 +462,8 @@ function fixture(generation,observed,verification,boot="aa".repeat(32)){
     },
     identities:{
       custody_gid:981,custody_supplementary_gids:[980],custody_uid:994,
-      ipc_gid:980,training_gid:1000,training_supplementary_gids:[980],training_uid:1000,
+      ipc_gid:980,training_gid:1000,training_supplementary_gids:[980],
+      training_uid:1000,training_user:"zoso",
     },
     marker:"VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2",
     service:{
@@ -487,41 +488,126 @@ function fixture(generation,observed,verification,boot="aa".repeat(32)){
         "org.freedesktop.systemd1.reload-daemon",
         "org.freedesktop.systemd1.set-environment",
       ];
+      const checks=[
+        {action_id:"org.freedesktop.systemd1.manage-units",details:[],exit_status:1,result:"explicitly_denied"},
+        ...verbs.map((verb)=>({
+          action_id:"org.freedesktop.systemd1.manage-units",
+          details:[{key:"unit",value:unit},{key:"verb",value:verb}],
+          exit_status:1,result:"explicitly_denied",
+        })),
+        ...globals.map((action_id)=>({
+          action_id,details:[],exit_status:1,result:"explicitly_denied",
+        })),
+      ];
+      const zeroCaps=()=>({
+        ambient:"0",effective:"0",inheritable:"0",
+        no_new_privileges:true,permitted:"0",
+      });
+      const deniedActions=[
+        "org.freedesktop.systemd1.manage-units",
+        ...globals,
+      ];
+      const actionExpression=deniedActions
+        .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+        .join(" ||\n");
+      const expectedPolkitRule=
+        "polkit.addRule(function(action, subject) {\n"+
+        "  if (\n"+
+        "    subject.user === "+JSON.stringify("zoso")+" &&\n"+
+        "    (\n"+
+        actionExpression+"\n"+
+        "    )\n"+
+        "  ) {\n"+
+        "    return polkit.Result.NO;\n"+
+        "  }\n"+
+        "  return polkit.Result.NOT_HANDLED;\n"+
+        "});\n";
+      const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+      const expectedPolkitRuleSha256=crypto.createHash("sha256")
+        .update(expectedPolkitRuleBytes)
+        .digest("hex");
+      const busDigest=crypto.createHash("sha256")
+        .update(Buffer.from(canonical(checks),"utf8"))
+        .digest("hex");
       return {
+        absolute_runtime_service_control_denial_proven:true,
+        actual_system_bus_sender_checks_required:true,
+        actual_system_bus_sender_count:1,
+        actual_system_bus_sender_set_stable:true,
+        actual_system_bus_senders:[{
+          all_systemd_control_actions_explicitly_denied:true,
+          bus_name:":1.42",
+          checked_action_count:checks.length,
+          denial_transcript_sha256:busDigest,
+          pid:4242,
+          subject_type:"system-bus-name",
+          uid:1000,
+        }],
         all_systemd_control_actions_explicitly_denied:true,
-        checked_actions:[
-          {action_id:"org.freedesktop.systemd1.manage-units",details:[],exit_status:1,result:"explicitly_denied"},
-          ...verbs.map((verb)=>({
-            action_id:"org.freedesktop.systemd1.manage-units",
-            details:[{key:"unit",value:unit},{key:"verb",value:verb}],
-            exit_status:1,result:"explicitly_denied",
-          })),
-          ...globals.map((action_id)=>({
-            action_id,details:[],exit_status:1,result:"explicitly_denied",
-          })),
-        ],
+        all_training_uid_processes_capability_free:true,
+        all_training_uid_threads_capability_free:true,
+        checked_actions:checks,
+        inherited_system_bus_descriptor_absence_proven:true,
+        inherited_system_bus_descriptor_absence_required:true,
         installed_systemd_package_version:"255.4-1ubuntu8.11",
         observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
         pkcheck_subject:"4242,123456,1000",
+        polkit_deny_rule:{
+          action_id_only:true,
+          bytes:expectedPolkitRuleBytes.length,
+          denied_action_ids:deniedActions,
+          details_can_change_result:false,
+          group_other_writable:false,
+          lexically_first:true,
+          mode:"0644",
+          owner_gid:0,
+          owner_uid:0,
+          path:"/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules",
+          retained_ancestors_group_other_writable:false,
+          retained_ancestors_root_owned:true,
+          runtime_user:"zoso",
+          sha256:expectedPolkitRuleSha256,
+          single_link:true,
+          symlink:false,
+        },
+        reviewed_systemd_major:255,
+        reviewed_systemd_package_version:"255.4-1ubuntu8.11",
         running_installed_systemd_version_match:true,
         running_systemd_manager_major:255,
         running_systemd_manager_version:"255.4-1ubuntu8.11",
-        polkit_deny_rule:{
-          action_id_only:true,bytes:512,
-          denied_action_ids:["org.freedesktop.systemd1.manage-units",...globals],
-          details_can_change_result:false,group_other_writable:false,
-          lexically_first:true,mode:"0644",owner_gid:0,owner_uid:0,
-          path:"/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules",
-          retained_ancestors_group_other_writable:false,
-          retained_ancestors_root_owned:true,runtime_user:"zoso",
-          sha256:"77".repeat(32),single_link:true,symlink:false,
-        },
-        reviewed_systemd_major:255,runtime_can_control_service:false,
-        service_unit:unit,training_pid:4242,
-        training_process_capabilities:{
-          ambient:"0",effective:"0",inheritable:"0",no_new_privileges:true,permitted:"0",
-        },
-        training_process_start_time_ticks:"123456",training_uid:1000,
+        runtime_can_control_service:false,
+        service_unit:unit,
+        systemd_bus_owner_pid:1,
+        systemd_bus_owner_pid_is_pid1:true,
+        training_pid:4242,
+        training_process_capabilities:zeroCaps(),
+        training_process_start_time_ticks:"123456",
+        training_uid:1000,
+        training_uid_process_count:2,
+        training_uid_process_identity_stable_across_authorization:true,
+        training_uid_process_set_stable:true,
+        training_uid_processes:[
+          {
+            all_threads_capability_free:true,
+            pid:4242,start_time_ticks:"123456",uid:1000,
+            uid_slots:[1000,1000,1000,1000],
+            capabilities:zeroCaps(),
+            thread_count:2,
+            thread_inventory_sha256:"88".repeat(32),
+            thread_set_stable:true,
+          },
+          {
+            all_threads_capability_free:true,
+            pid:4243,start_time_ticks:"123457",uid:1000,
+            uid_slots:[1000,1000,1000,1000],
+            capabilities:zeroCaps(),
+            thread_count:1,
+            thread_inventory_sha256:"99".repeat(32),
+            thread_set_stable:true,
+          },
+        ],
+        training_uid_thread_count:3,
+        training_uid_thread_sets_stable:true,
       };
     })(),
     socket:{
