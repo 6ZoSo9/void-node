@@ -4,6 +4,8 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import re
+import stat
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/public/void_public_earn_designated_host_census_v1.py"
@@ -37,6 +39,19 @@ assert all(
     row["matches_reviewed_blob"] is True
     for row in checkout["files"].values()
 )
+
+with tempfile.TemporaryDirectory(prefix="void-public-earn-census-proof-") as tmp:
+    target = pathlib.Path(tmp) / "evidence.json"
+    payload = b"{\"ok\":true}\n"
+    module.write_create_only(target, payload)
+    assert target.read_bytes() == payload
+    assert stat.S_IMODE(target.stat().st_mode) & 0o077 == 0
+    try:
+        module.write_create_only(target, payload)
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("create-only evidence writer overwrote an existing file")
 
 sample_time = module.datetime.now(module.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", sample_time)
