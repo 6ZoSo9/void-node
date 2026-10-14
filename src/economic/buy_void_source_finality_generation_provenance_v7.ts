@@ -21,6 +21,8 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 =
   "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7";
 export const VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1";
+// Historical predecessor identity retained for source/test compatibility only.
+ // Runtime authority MUST NOT compare deployment evidence to this value.
 export const VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 =
   "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b";
 
@@ -68,6 +70,7 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const HASH32 = /^0x[0-9a-f]{64}$/u;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 const RECEIPT_ID = /^voidbsfdep1_[0-9a-f]{64}$/u;
+const ENFORCEMENT_LOCK_ID = /^voidbenfl1_[0-9a-f]{64}$/u;
 
 const REVIEWED_SOURCE_PATHS_V7 = Object.freeze([
   "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
@@ -278,6 +281,21 @@ function sha256Canonical(value: unknown): string {
   return crypto.createHash("sha256").update(canonical(value), "utf8").digest("hex");
 }
 
+export function buyVoidSourceFinalityEnforcementLockIdV7(input: {
+  accepted_enforcement_set_sha256: string;
+  accepted_enforcement_lock_git_blob_sha1: string;
+  accepted_enforcement_lock_sha256: string;
+}): string {
+  return "voidbenfl1_" + sha256Canonical({
+    accepted_enforcement_lock_git_blob_sha1:
+      input.accepted_enforcement_lock_git_blob_sha1,
+    accepted_enforcement_lock_sha256:
+      input.accepted_enforcement_lock_sha256,
+    accepted_enforcement_set_sha256:
+      input.accepted_enforcement_set_sha256,
+  });
+}
+
 function gitBlobSha1(bytes: Buffer): string {
   return crypto.createHash("sha1")
     .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
@@ -393,7 +411,12 @@ export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
 }
 
 const DEPLOYMENT_RECEIPT_KEYS = Object.freeze([
+  "accepted_enforcement_lock_git_blob_sha1",
+  "accepted_enforcement_lock_id",
+  "accepted_enforcement_lock_sha256",
   "accepted_enforcement_set_sha256",
+  "candidate_enforcement_identity_accepted",
+  "complete_executable_closure_verified",
   "marker",
   "process_source_branch",
   "process_source_commit",
@@ -442,13 +465,29 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
     !SHA40.test(String(receipt.process_source_commit ?? "")) ||
     !SHA40.test(String(receipt.process_source_tree ?? "")) ||
     !SHA256.test(String(receipt.accepted_enforcement_set_sha256 ?? "")) ||
-    receipt.accepted_enforcement_set_sha256 !==
-      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 ||
+    !SHA40.test(String(receipt.accepted_enforcement_lock_git_blob_sha1 ?? "")) ||
+    !SHA256.test(String(receipt.accepted_enforcement_lock_sha256 ?? "")) ||
+    !ENFORCEMENT_LOCK_ID.test(String(receipt.accepted_enforcement_lock_id ?? "")) ||
+    receipt.complete_executable_closure_verified !== true ||
+    receipt.candidate_enforcement_identity_accepted !== true ||
     receipt.reviewed_source_files_sha256 !== input.reviewed_source_files_sha256 ||
     receipt.reviewed_source_file_count !== input.reviewed_source_file_count ||
     !RECEIPT_ID.test(String(receipt.receipt_id ?? ""))
   ) {
     return bad("deployment_receipt_identity_mismatch");
+  }
+  if (
+    receipt.accepted_enforcement_lock_id !==
+      buyVoidSourceFinalityEnforcementLockIdV7({
+        accepted_enforcement_set_sha256:
+          String(receipt.accepted_enforcement_set_sha256),
+        accepted_enforcement_lock_git_blob_sha1:
+          String(receipt.accepted_enforcement_lock_git_blob_sha1),
+        accepted_enforcement_lock_sha256:
+          String(receipt.accepted_enforcement_lock_sha256),
+      })
+  ) {
+    return bad("deployment_receipt_enforcement_lock_identity_mismatch");
   }
   const withoutId = Object.fromEntries(
     Object.entries(receipt).filter(([key]) => key !== "receipt_id"),

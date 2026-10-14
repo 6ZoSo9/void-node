@@ -426,7 +426,7 @@ assert.match(
 for (const requiredReadyFlag of [
   "reviewed_source_files_verified === true",
   'source_file_verification_mode ===\n      "operator_deployment_receipt_bound_v1"',
-  "accepted_enforcement_set_sha256 ===",
+  "SHA256.test(String(result.accepted_enforcement_set_sha256 ?? \"\"))",
   "authenticated_transport_identity_verified === true",
   "independent_remote_provider_transport_verified === true",
   "observation_generated_in_composition === true",
@@ -449,6 +449,13 @@ for (const requiredReadyFlag of [
 assert.match(
   preflightSource,
   /observeBuyVoidSourceFinalityGenerationProvenanceV7\(value\)/,
+);
+assert.equal(
+  preflightSource.includes(
+    "VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7",
+  ),
+  false,
+  "execution preflight must not hard-code an accepted enforcement generation",
 );
 
 for (const requiredV7Authority of [
@@ -498,7 +505,7 @@ assert.equal(futureReadyClassification.transaction_broadcast_authorized, false);
 for (const mutation of [
   { marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6" },
   { source_file_verification_mode: "caller_asserted" },
-  { accepted_enforcement_set_sha256: "0".repeat(64) },
+  { accepted_enforcement_set_sha256: "0".repeat(63) },
   { independent_remote_provider_transport_verified: false },
   { observation_generated_in_composition: false },
   { same_provider_consistency_verified: false },
