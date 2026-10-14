@@ -5,6 +5,10 @@ MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1"
 GIT="/usr/bin/git"
 NODE="/usr/bin/node"
 SETPRIV="/usr/bin/setpriv"
+PACKAGE_RUNTIME_LOCK_REL="ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
+PACKAGE_RUNTIME_LOCK_BLOB="b26ce09f1726d3f6fed94cea7d58f1cb68d3cb65"
+PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
+PACKAGE_RUNTIME_PROOF_BLOB="f6159c424c7771a4909af0a015ddba648f309ab0"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
@@ -104,6 +108,20 @@ printf '%s\n' "$custody_out" |
   grep -Eq '^VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN source_nodes_checked=[0-9]+$' ||
   hold protected_source_custody_marker_missing
 
+verify_reviewed_blob() {
+  local relative="$1"
+  local expected="$2"
+  local absolute="$ROOT/$relative"
+  test -f "$absolute" || hold reviewed_package_runtime_file_missing
+  local tracked visible
+  tracked="$(git_reviewed rev-parse --verify "HEAD:$relative")" ||
+    hold reviewed_package_runtime_file_not_tracked
+  visible="$(git_reviewed hash-object -- "$absolute")" ||
+    hold reviewed_package_runtime_file_hash_unavailable
+  test "$tracked" = "$expected" || hold reviewed_package_runtime_tracked_blob_mismatch
+  test "$visible" = "$expected" || hold reviewed_package_runtime_visible_blob_mismatch
+}
+
 head_after="$(git_reviewed rev-parse --verify 'HEAD^{commit}')" ||
   hold git_head_recheck_unavailable
 tree_after="$(git_reviewed rev-parse --verify 'HEAD^{tree}')" ||
@@ -118,6 +136,33 @@ test "$tree_after" = "$tree_before" || hold source_tree_changed_during_qualifica
 test "$branch_after" = "$branch_before" || hold source_branch_changed_during_qualification
 test "$status_after" = "$status_before" || hold source_status_changed_during_qualification
 
+verify_reviewed_blob "$PACKAGE_RUNTIME_LOCK_REL" "$PACKAGE_RUNTIME_LOCK_BLOB"
+verify_reviewed_blob "$PACKAGE_RUNTIME_PROOF_REL" "$PACKAGE_RUNTIME_PROOF_BLOB"
+
+set +e
+package_runtime_out="$(
+  env -i \
+    PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C TZ=UTC \
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_NO_REPLACE_OBJECTS=1 GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 \
+    "$NODE" "$ROOT/$PACKAGE_RUNTIME_PROOF_REL" 2>&1
+)"
+package_runtime_rc=$?
+set -e
+if [ "$package_runtime_rc" -ne 0 ]; then
+  printf '%s\n' "$package_runtime_out" >&2
+  hold privileged_launcher_package_runtime_verification_failed
+fi
+printf '%s\n' "$package_runtime_out" |
+  grep -Fx 'VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V1_LOCK_GREEN' >/dev/null ||
+  hold privileged_launcher_package_runtime_marker_missing
+printf '%s\n' "$package_runtime_out" |
+  grep -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
+  hold privileged_launcher_package_runtime_not_verified
+printf '%s\n' "$package_runtime_out" |
+  grep -Fx 'privileged_receipt_execution_authorized=false' >/dev/null ||
+  hold privileged_launcher_package_runtime_authority_overclaim
+
 printf '%s\n' "$MARKER"
 printf 'source_root=%s\n' "$ROOT"
 printf 'source_commit=%s\n' "$head_before"
@@ -127,6 +172,9 @@ printf 'runtime_uid=%s\n' "$runtime_uid"
 printf 'runtime_gid=%s\n' "$runtime_gid"
 printf 'root_owned_protected_source=true\n'
 printf 'source_custody_green=true\n'
+printf 'package_runtime_lock_git_blob_sha1=%s\n' "$PACKAGE_RUNTIME_LOCK_BLOB"
+printf 'package_runtime_proof_git_blob_sha1=%s\n' "$PACKAGE_RUNTIME_PROOF_BLOB"
+printf 'privileged_launcher_package_runtime_verified=true\n'
 printf 'ambient_git_environment_inherited=false\n'
 printf 'ambient_node_environment_inherited=false\n'
 printf 'credential_access_by_launcher=false\n'
