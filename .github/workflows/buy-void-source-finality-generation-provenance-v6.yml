@@ -14,6 +14,7 @@ on:
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
+      - "scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
@@ -141,6 +142,21 @@ jobs:
 
       - name: Repository build
         run: npm run build
+
+      - name: Prove executable provider-pair gate precedes RPC
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs
+          proof_log="$RUNNER_TEMP/source-finality-v7-provider-pair-pre-rpc.txt"
+          sudo env "PATH=$PATH" node scripts/prove_buy_void_source_finality_v7_provider_pair_pre_rpc_v1.mjs | tee "$proof_log"
+          grep -Fx 'invalid_provider_pair_http_request_count=0' "$proof_log"
+          grep -Fx 'invalid_provider_pair_https_request_count=0' "$proof_log"
+          grep -Fx 'valid_provider_pair_reaches_https_request_sentinel=true' "$proof_log"
+          grep -Fx 'real_v7_observer_invoked=true' "$proof_log"
+          grep -Fx 'production_dependency_injection_seam_added=false' "$proof_log"
+          grep -Fx 'real_network_contact=false' "$proof_log"
+          grep -Fx 'public_presale_activation=false' "$proof_log"
+          grep -Fx 'funds_movement=false' "$proof_log"
 
       - name: Prove same-live-process binding contract
         run: |
