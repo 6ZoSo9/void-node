@@ -20,7 +20,7 @@ async function main(){
  const parityWorkflow=readFileSync(resolve(root,".github/workflows/void-tor-agent-discovery-parity-v1.yml"),"utf8");
  const surveyWorkflow=readFileSync(resolve(root,".github/workflows/void-tor-agent-discovery-activation-survey-v1.yml"),"utf8");
  for(const boundPath of Object.keys(profile.source_bindings)){
-   for(const [label,workflow] of [["parity workflow",parityWorkflow],["activation survey workflow",surveyWorkflow]){
+   for(const [label,workflow] of [["parity workflow",parityWorkflow],["activation survey workflow",surveyWorkflow]]){
      eq(workflow.split(`      - "${boundPath}"`).length-1,2,`${label} source-binding trigger ${boundPath}`);
    }
  }
