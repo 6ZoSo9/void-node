@@ -27,13 +27,13 @@ The first reviewed live entrypoint is a small native executable installed at:
 Reviewed native pre-entry source blob:
 
 ```text
-a167b1a46a213644b7bf52f54706c170b491bb8e
+7863007de9d55614305be4d01083c3f8e8bd7453
 ```
 
 The native source has no setuid transition, shell, package, service, network,
 key, claim, training, transaction, or funds capability. Live mode requires
 effective UID 0 supplied by the operator's separately controlled privilege
-boundary; the installed binary itself must not be setuid.
+boundary; the installed binary itself must have neither setuid nor setgid mode bits. The native runtime custody check rejects both.
 
 Before Python evaluates any launcher source, the native pre-entry:
 
