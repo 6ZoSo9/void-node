@@ -24,7 +24,7 @@ const HISTORICAL_RUNTIME_BLOB =
 const CURRENT_RUNTIME =
   "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs";
 const CURRENT_RUNTIME_BLOB =
-  "1a6316f3ab6f90c649b5a267b27d823513c90d97";
+  "ca94f28d9b91d3c1bc3928dda558bea1b62913f3";
 
 function gitBlobSha1(bytes) {
   return crypto
@@ -67,6 +67,7 @@ for (const marker of [
   "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_CURRENT_V2_GREEN",
   "generation_transition_publication_uses_same_lock=true",
   "historical_enforcement_v5_epoch2_source_hold=true",
+  "historical_enforcement_v5_audited_package_hold=true",
   "current_epoch2_source_tuple_qualified=true",
   "current_enforcement_v5_candidate_acceptance=false",
   "funds_movement=false",
@@ -81,6 +82,7 @@ console.log("historical_dispatch_v1_preserved=true");
 console.log("historical_runtime_v1_preserved=true");
 console.log("current_epoch2_runtime_v2_exact_blob_bound=true");
 console.log("historical_enforcement_v5_expected_hold=true");
+console.log("historical_enforcement_v5_audited_package_hold=true");
 console.log("current_epoch2_source_tuple_qualified=true");
 console.log("current_enforcement_v5_candidate_acceptance=false");
 console.log("runtime_mutation=false");
