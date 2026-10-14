@@ -42,6 +42,7 @@ POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1
 RULE_RE=re.compile(r'^[A-Za-z0-9_.-]{1,200}\.rules$')
 UNIT_RE=re.compile(r'^[A-Za-z0-9_.@-]+\.service$')
 MAX_TTL_MS=300_000
+MAX_SYSTEM_BUS_UNIQUE_NAMES=256
 MAX_TRAINING_SYSTEM_BUS_SENDERS=32
 SYSTEM_BUS_UNIQUE_NAME_RE=re.compile(r'^:[0-9]+\\.[0-9]+class Hold(RuntimeError): pass
 def hold(code:str)->None: raise Hold(code)
@@ -442,6 +443,8 @@ def parse_busctl_unique_names(raw:str)->list[str]:
   names.append(name)
  if len(names)!=len(set(names)):
   hold('apollyon_custody_collector_system_bus_list_duplicate')
+ if len(names)>MAX_SYSTEM_BUS_UNIQUE_NAMES:
+  hold('apollyon_custody_collector_system_bus_list_oversize')
  names.sort()
  return names
 def dbus_connection_uint32(method:str,name:str)->int|None:
