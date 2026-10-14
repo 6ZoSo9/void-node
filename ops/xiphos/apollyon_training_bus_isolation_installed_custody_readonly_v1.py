@@ -82,7 +82,7 @@ def assert_ancestor_custody(
     owner_uid:int,
     owner_gid:int,
     trusted_root:Path,
-)->None:
+)->list[tuple[Path,os.stat_result]]:
     absolute=Path(os.path.abspath(os.fspath(pathname)))
     root=Path(os.path.abspath(os.fspath(trusted_root)))
     if (
@@ -101,6 +101,7 @@ def assert_ancestor_custody(
     for part in relative_parent.parts:
         current=current/part
         ancestors.append(current)
+    snapshot=[]
     for ancestor in ancestors:
         try:
             metadata=os.lstat(ancestor)
@@ -116,6 +117,8 @@ def assert_ancestor_custody(
             stat.S_IMODE(metadata.st_mode)&0o022
         ):
             hold("apollyon_training_installed_custody_ancestor_untrusted")
+        snapshot.append((ancestor,metadata))
+    return snapshot
 
 
 def read_stable_regular_file(
@@ -128,7 +131,7 @@ def read_stable_regular_file(
     exact_bytes:int|None=None,
     trusted_root:Path=Path("/"),
 )->tuple[bytes,os.stat_result]:
-    assert_ancestor_custody(
+    ancestor_before=assert_ancestor_custody(
         pathname,
         owner_uid=owner_uid,
         owner_gid=owner_gid,
@@ -151,7 +154,10 @@ def read_stable_regular_file(
     ):
         hold("apollyon_training_installed_custody_file_metadata_invalid")
 
-    fd=os.open(pathname,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0))
+    try:
+        fd=os.open(pathname,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0))
+    except OSError as exc:
+        raise Hold("apollyon_training_installed_custody_file_open_failed") from exc
     try:
         opened=os.fstat(fd)
         if not same_identity(before,opened):
@@ -180,6 +186,27 @@ def read_stable_regular_file(
         not same_identity(after_fd,after_path)
     ):
         hold("apollyon_training_installed_custody_read_identity_drift")
+    ancestor_after=assert_ancestor_custody(
+        pathname,
+        owner_uid=owner_uid,
+        owner_gid=owner_gid,
+        trusted_root=trusted_root,
+    )
+    if len(ancestor_before)!=len(ancestor_after):
+        hold("apollyon_training_installed_custody_ancestor_identity_drift")
+    for (before_path,before_meta),(after_name,after_meta) in zip(
+        ancestor_before,ancestor_after,
+    ):
+        if (
+            before_path!=after_name or
+            before_meta.st_dev!=after_meta.st_dev or
+            before_meta.st_ino!=after_meta.st_ino or
+            before_meta.st_uid!=after_meta.st_uid or
+            before_meta.st_gid!=after_meta.st_gid or
+            before_meta.st_mode!=after_meta.st_mode or
+            before_meta.st_nlink!=after_meta.st_nlink
+        ):
+            hold("apollyon_training_installed_custody_ancestor_identity_drift")
     data=b"".join(chunks)
     if len(data)!=before.st_size:
         hold("apollyon_training_installed_custody_read_size_mismatch")
@@ -193,8 +220,13 @@ def qualify_materials(
     owner_uid:int,
     owner_gid:int,
     require_xiphos:bool,
+    observation_scope:str,
     trusted_root:Path=Path("/"),
 )->dict[str,Any]:
+    if observation_scope not in {"live_installed","synthetic_fixture"}:
+        hold("apollyon_training_installed_custody_observation_scope_invalid")
+    if require_xiphos!=(observation_scope=="live_installed"):
+        hold("apollyon_training_installed_custody_observation_scope_mismatch")
     if require_xiphos and socket.gethostname().casefold()!=TARGET_HOST.casefold():
         hold("apollyon_training_installed_custody_wrong_host")
 
@@ -226,7 +258,12 @@ def qualify_materials(
     material={
         "marker":MARKER,
         "version":1,
-        "status":"installed_material_custody_observed_live_enforcement_unproven",
+        "status":(
+            "installed_material_custody_observed_live_enforcement_unproven"
+            if observation_scope=="live_installed"
+            else "synthetic_material_custody_fixture_qualified"
+        ),
+        "observation_scope":observation_scope,
         "target_host":TARGET_HOST,
         "candidate_id":EXPECTED_CANDIDATE_ID,
         "candidate_lock_id":EXPECTED_LOCK_ID,
@@ -255,8 +292,14 @@ def qualify_materials(
             "stable_read_identity":True,
             "trusted_ancestry":True,
         },
-        "installed_unit_identity_observed":True,
-        "installed_preentry_binary_identity_observed":True,
+        "synthetic_fixture_unit_identity_observed":
+            observation_scope=="synthetic_fixture",
+        "synthetic_fixture_preentry_binary_identity_observed":
+            observation_scope=="synthetic_fixture",
+        "installed_unit_identity_observed":
+            observation_scope=="live_installed",
+        "installed_preentry_binary_identity_observed":
+            observation_scope=="live_installed",
         "installed_unit_identity_proven":False,
         "installed_preentry_binary_identity_proven":False,
         "trusted_observer_proven":False,
@@ -298,6 +341,7 @@ def live_observe()->dict[str,Any]:
         owner_uid=0,
         owner_gid=0,
         require_xiphos=True,
+        observation_scope="live_installed",
     )
 
 
