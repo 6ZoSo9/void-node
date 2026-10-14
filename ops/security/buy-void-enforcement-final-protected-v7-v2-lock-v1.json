@@ -1,0 +1,29 @@
+{
+  "schema": "void_buy_void_enforcement_final_protected_v7_v2_lock_v1",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "9982e7899a52402ad010fb9066ad78db8c9d49cc",
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json",
+    "bytes": 16342,
+    "sha256": "481603ad75f871aef503686548cc1e4b8b54d556f83dca55136813d33d6d991c",
+    "git_blob_sha1": "6b2958bdb4dbb38354d5a4b41e5b4d1e919b6794",
+    "candidate_enforcement_set_sha256": "152dc7a45f4d596513cfd7dc44277ece1aea3d64e30e616089162760ec245a9e"
+  },
+  "runtime_source_parent": "82aee920f26b45c7e43bcc9f9e1023a175e2783a",
+  "protected_census_parent": "873e4fa7cdc1cdb5e6d39c721759c7bebc8dff86",
+  "current_enforcement_parent": "a2f304fa3ae494cdd4fa71f65aa6f689a1313948",
+  "protected_census_id": "voidbefv7c3_6ecf0dda04818faca50159763d330c6c95baa52148dcdbb3d5eaa36f0d649c70",
+  "protected_census_json_sha256": "c6d2d3707c0e79701579dd2d3f75def150aa2b37b594cdb631f780f0922e01ee",
+  "protected_tracked_source_inventory_canonical_sha256": "36c18eb2bd7ac1ab02b8a1463e7e9afc82423192eedcdf7e9190f6aaba53bee5",
+  "current_enforcement_tracked_source_inventory_count": 49,
+  "current_enforcement_tracked_source_inventory_verified": true,
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}

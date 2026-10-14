@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v1.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v1.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
       - "ops/precision/**"
       - "ops/security/**"
@@ -27,12 +29,14 @@ on:
     branches: [main]
     paths:
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v1.md"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v1.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
       - "ops/precision/**"
       - "ops/security/**"
@@ -173,4 +177,91 @@ jobs:
           console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
           console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           console.log("protected_census_id="+c.protected_census_evidence.census_id);
+          NODE
+
+
+  lock:
+    needs: [cross-node]
+    name: lock / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build exact protected candidate generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Rederive candidate and verify exact hosted evidence
+        run: |
+          set -euo pipefail
+          npx tsx scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs --derive > "$RUNNER_TEMP/candidate.json"
+          cmp "$RUNNER_TEMP/candidate.json" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json
+      - name: Verify and derive acceptance lock
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs"
+          node --check "$proof"
+          node "$proof" --self-test
+          node "$proof" --derive > "final-protected-v7-v2-lock-${{ matrix.node }}.json"
+          cmp "final-protected-v7-v2-lock-${{ matrix.node }}.json" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v1.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-final-protected-v7-v2-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: final-protected-v7-v2-lock-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  lock-cross-node:
+    needs: [lock]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-protected-v7-v2-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: lock
+      - name: Require exact Node 22 24 26 lock equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "lock/final-protected-v7-v2-lock-$node.json"; done
+          cmp lock/final-protected-v7-v2-lock-22.json lock/final-protected-v7-v2-lock-24.json
+          cmp lock/final-protected-v7-v2-lock-22.json lock/final-protected-v7-v2-lock-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("lock/final-protected-v7-v2-lock-22.json");
+          const l=JSON.parse(bytes);
+          assert.equal(l.current_enforcement_tracked_source_inventory_count,49);
+          assert.equal(l.current_enforcement_tracked_source_inventory_verified,true);
+          assert.equal(l.complete_executable_closure_verified,true);
+          assert.equal(l.candidate_enforcement_identity_accepted,true);
+          assert.equal(l.deployed_artifact_generation_verified,false);
+          assert.equal(l.production_source_finality_authority_ready,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_FINAL_PROTECTED_V7_V2_LOCK_CROSS_NODE_GREEN");
+          console.log("lock_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("candidate_enforcement_set_sha256="+l.candidate_evidence.candidate_enforcement_set_sha256);
           NODE
