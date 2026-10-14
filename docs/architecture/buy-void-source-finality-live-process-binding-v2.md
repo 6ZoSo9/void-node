@@ -46,8 +46,8 @@ V2 content-addresses the selector contract itself as
 
 - manager cgroup:
   `/user.slice/user-<uid>.slice/user@<uid>.service/init.scope`;
-- exactly one manager candidate after exact UID, cgroup, systemd executable and
-  argv filtering;
+- exactly one manager candidate after exact UID, PPid=1, cgroup, systemd
+  executable and argv filtering;
 - service cgroup:
   `/user.slice/user-<uid>.slice/user@<uid>.service/app.slice/void-node-live.service`;
 - exactly one reviewed Node service candidate whose PPid equals the selected
