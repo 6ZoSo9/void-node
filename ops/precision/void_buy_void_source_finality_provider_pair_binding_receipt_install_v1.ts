@@ -9,6 +9,7 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   buyVoidSourceFinalityDeploymentReceiptIdV7,
+  inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
 } from "../../src/economic/buy_void_source_finality_generation_provenance_v7.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_PATH_V1,
@@ -132,8 +133,15 @@ export function readDeploymentBindingV1(absolutePath:string):DeploymentBinding{
   assert.equal(parsed.process_source_branch,"main");
   assert.match(String(parsed.process_source_commit||""),SHA40);
   assert.match(String(parsed.process_source_tree||""),SHA40);
-  assert.equal(parsed.reviewed_source_file_count,"8");
+  assert.match(String(parsed.reviewed_source_file_count||""),/^[1-9][0-9]*$/u);
   assert.match(String(parsed.reviewed_source_files_sha256||""),SHA256);
+  const reviewedSources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
+  assert.equal(parsed.reviewed_source_file_count,
+    reviewedSources.reviewed_source_file_count,
+    "deployment_receipt_reviewed_source_count_mismatch");
+  assert.equal(parsed.reviewed_source_files_sha256,
+    reviewedSources.reviewed_source_files_sha256,
+    "deployment_receipt_reviewed_source_digest_mismatch");
   assert.equal(parsed.accepted_enforcement_set_sha256,
     VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7);
   assert.match(String(parsed.receipt_id||""),DEPLOYMENT_ID);

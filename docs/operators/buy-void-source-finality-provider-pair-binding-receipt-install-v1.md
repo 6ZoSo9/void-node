@@ -20,7 +20,8 @@ V7 deployment receipt and requires:
 - root-owned, non-writable ancestors;
 - root:root mode-0444 single-link receipt custody;
 - stable O_NOFOLLOW descriptor identity;
-- exact deployment receipt schema/content address; and
+- exact deployment receipt schema/content address;
+- the current reviewed V7 source-file count and digest; and
 - the current audited accepted enforcement set.
 
 The resulting receipt is content-addressed by the canonical provider-pair

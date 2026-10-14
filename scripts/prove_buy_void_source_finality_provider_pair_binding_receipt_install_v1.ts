@@ -14,6 +14,7 @@ import {
   VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   buyVoidSourceFinalityDeploymentReceiptIdV7,
+  inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
 } from "../src/economic/buy_void_source_finality_generation_provenance_v7.js";
 import {
   buyVoidSourceFinalityProviderPairBindingReceiptIdV1,
@@ -28,6 +29,7 @@ function canonical(value:any):string{
   return "{"+Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+canonical(value[k])).join(",")+"}";
 }
 
+const reviewedSources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
 const deploymentBody={
   accepted_enforcement_set_sha256:VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   marker:VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
@@ -35,8 +37,8 @@ const deploymentBody={
   process_source_commit:"1".repeat(40),
   process_source_marker:"VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
   process_source_tree:"2".repeat(40),
-  reviewed_source_file_count:"8",
-  reviewed_source_files_sha256:"3".repeat(64),
+  reviewed_source_file_count:reviewedSources.reviewed_source_file_count,
+  reviewed_source_files_sha256:reviewedSources.reviewed_source_files_sha256,
   status:"DEPLOYED_SOURCE_FINALITY_GENERATION_ACCEPTED",
   version:1,
 };
@@ -82,6 +84,18 @@ if(rootCapable){
     fs.mkdirSync(root,{recursive:true,mode:0o755});
     fs.writeFileSync(deploymentPath,JSON.stringify(deploymentReceipt,null,2)+"\n",{mode:0o444});
     fs.chownSync(deploymentPath,0,0);
+    fs.chmodSync(deploymentPath,0o444);
+    const stale=structuredClone(deploymentReceipt) as any;
+    stale.reviewed_source_files_sha256="3".repeat(64);
+    const {receipt_id:_staleId,...staleBody}=stale;
+    stale.receipt_id=buyVoidSourceFinalityDeploymentReceiptIdV7(staleBody);
+    fs.chmodSync(deploymentPath,0o600);
+    fs.writeFileSync(deploymentPath,JSON.stringify(stale,null,2)+"\n");
+    fs.chmodSync(deploymentPath,0o444);
+    assert.throws(()=>readDeploymentBindingV1(deploymentPath),
+      /deployment_receipt_reviewed_source_digest_mismatch/u);
+    fs.chmodSync(deploymentPath,0o600);
+    fs.writeFileSync(deploymentPath,JSON.stringify(deploymentReceipt,null,2)+"\n");
     fs.chmodSync(deploymentPath,0o444);
     const observed=readDeploymentBindingV1(deploymentPath);
     assert.deepEqual(observed,deployment);
@@ -130,6 +144,7 @@ console.log(MARKER+"_PROOF_GREEN");
 console.log("raw_rpc_url_input=false");
 console.log("deployment_receipt_crossbinding=true");
 console.log("accepted_enforcement_set_crossbinding=true");
+console.log("current_reviewed_source_digest_crossbinding=true");
 console.log("same_chain_distinct_provider_identities_required=true");
 console.log("same_chain_distinct_rpc_fingerprints_required=true");
 console.log("content_addressed_provider_pair_receipt=true");
