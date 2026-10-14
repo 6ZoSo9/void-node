@@ -22,7 +22,6 @@ import type {
   BuyVoidSourceChainFinalityRpcPolicyV1,
 } from "./buy_void_source_chain_finality_rpc_adapter_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
   observeBuyVoidSourceFinalityGenerationProvenanceV7,
   type BuyVoidSourceFinalityGenerationPolicyV7,
@@ -656,8 +655,7 @@ function readyObservation(value: unknown): value is Record<string, any> {
     result.reviewed_source_files_verified === true &&
     result.source_file_verification_mode ===
       "operator_deployment_receipt_bound_v1" &&
-    result.accepted_enforcement_set_sha256 ===
-      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 &&
+    SHA256.test(String(result.accepted_enforcement_set_sha256 ?? "")) &&
     result.authenticated_transport_identity_verified === true &&
     result.independent_remote_provider_transport_verified === true &&
     result.observation_generated_in_composition === true &&

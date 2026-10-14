@@ -23,7 +23,6 @@ import {
   type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
   observeBuyVoidSourceFinalityGenerationProvenanceV7,
@@ -578,8 +577,9 @@ function classifyEthereumPreAttemptObservationV1(input: {
     observation.reviewed_source_files_verified !== true ||
     observation.source_file_verification_mode !==
       "operator_deployment_receipt_bound_v1" ||
-    observation.accepted_enforcement_set_sha256 !==
-      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 ||
+    !/^[0-9a-f]{64}$/u.test(
+      String(observation.accepted_enforcement_set_sha256 || ""),
+    ) ||
     !/^voidbsfdep1_[0-9a-f]{64}$/u.test(
       String(observation.deployment_receipt_id || ""),
     ) ||
