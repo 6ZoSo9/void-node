@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="9982e7899a52402ad010fb9066ad78db8c9d49cc";
@@ -114,7 +114,8 @@ function validateCandidate(c){
   return c;
 }
 function candidateBytes(){
-  const result=run(process.execPath,[path.join(ROOT,CANDIDATE_PROOF),"--derive"],{timeout:300000});
+  const tsxLoader=pathToFileURL(path.join(ROOT,"node_modules/tsx/dist/loader.mjs")).href;
+  const result=run(process.execPath,["--import",tsxLoader,path.join(ROOT,CANDIDATE_PROOF),"--derive"],{timeout:300000});
   const bytes=Buffer.from(result.stdout||Buffer.alloc(0));
   assert.equal(bytes.length,CANDIDATE_BYTES,"candidate_bytes");
   assert.equal(sha256(bytes),CANDIDATE_SHA256,"candidate_sha256");
