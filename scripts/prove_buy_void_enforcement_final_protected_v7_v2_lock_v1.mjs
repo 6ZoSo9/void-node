@@ -8,6 +8,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE_HEAD="9982e7899a52402ad010fb9066ad78db8c9d49cc";
+const INTEGRATION_MERGE_PARENT="ab639827a145a4a8c6ccb65781f8b2e62689a944";
+const INTEGRATION_MAIN_PARENT="4bac39df1ff0010ccc01a808f23a256efc369939";
+const INTEGRATION_STACK_PARENT="9fe442254d5787cddbc1d26e787eb9db1cde5364";
+const INTEGRATION_MERGE_TREE="923c50616012c2d77f4c4e56c667421c1c486683";
 const CANDIDATE_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs";
 const CANDIDATE_PROOF_BLOB="d1cb550cf8f05692ca83114281cc35b2a6fe0cf1";
 const CANDIDATE_FILE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json";
@@ -63,9 +67,35 @@ function run(command,args,{timeout=180000}={}){
 function git(args){return String(run("/usr/bin/git",["--no-replace-objects","-C",ROOT,...args],{timeout:30000}).stdout||"").trim();}
 function verifyBranchDelta(){
   git(["merge-base","--is-ancestor",CANDIDATE_HEAD,"HEAD"]);
-  assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_PROOF]),CANDIDATE_PROOF_BLOB,"candidate_proof_blob_drift");
-  const changed=git(["diff","--name-only",CANDIDATE_HEAD,"HEAD","--"]).split("\n").filter(Boolean).sort();
-  assert.deepEqual(changed,EXPECTED_DELTA,"lock_branch_scope_drift");
+  git(["merge-base","--is-ancestor",INTEGRATION_MERGE_PARENT,"HEAD"]);
+  assert.equal(git(["rev-parse",INTEGRATION_MERGE_PARENT+"^1"]),INTEGRATION_MAIN_PARENT,
+    "integration_main_parent_drift");
+  assert.equal(git(["rev-parse",INTEGRATION_MERGE_PARENT+"^2"]),INTEGRATION_STACK_PARENT,
+    "integration_stack_parent_drift");
+  assert.equal(git(["rev-parse",INTEGRATION_MERGE_PARENT+"^{tree}"]),INTEGRATION_MERGE_TREE,
+    "integration_merge_tree_drift");
+  assert.equal(git(["rev-parse","HEAD:"+CANDIDATE_PROOF]),CANDIDATE_PROOF_BLOB,
+    "candidate_proof_blob_drift");
+
+  const integrationDelta=git([
+    "diff","--name-only",INTEGRATION_MERGE_PARENT,"HEAD","--",
+  ]).split("\n").filter(Boolean).sort();
+  assert.deepEqual(integrationDelta,[SELF],"integration_proof_scope_drift");
+
+  const sensitive=spawnSync("/usr/bin/git",[
+    "--no-replace-objects","-C",ROOT,
+    "diff","--quiet","--no-ext-diff","--no-textconv",
+    INTEGRATION_STACK_PARENT,INTEGRATION_MERGE_PARENT,"--",
+    "src/economic","package.json","package-lock.json",
+    "tsconfig.json","tsconfig.build.json",
+  ],{
+    encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,
+    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+      GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",GIT_CONFIG_SYSTEM:"/dev/null",
+      GIT_NO_REPLACE_OBJECTS:"1",GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0"},
+  });
+  assert.equal(sensitive.error,undefined,String(sensitive.error||""));
+  assert.equal(sensitive.status,0,"integration_main_changed_economic_or_build_inputs");
 }
 function verifyWorkflowTriggers(){
   const source=readExact(WORKFLOW,256*1024).toString("utf8");
