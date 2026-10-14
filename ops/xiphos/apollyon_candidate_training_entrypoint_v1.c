@@ -136,20 +136,26 @@ static void emit_ready(void) {
 }
 
 static void qualification_hold(void) {
-  const struct timespec one_second = {.tv_sec = 1, .tv_nsec = 0};
-  for (unsigned int elapsed = 0;
-       elapsed < QUALIFICATION_WINDOW_SECONDS && !stop_requested;
-       ++elapsed) {
-    struct timespec remaining = one_second;
-    while (nanosleep(&remaining, &remaining) != 0) {
-      if (errno == EINTR) {
-        if (stop_requested) {
-          break;
-        }
-        continue;
-      }
-      hold("apollyon_candidate_training_entrypoint_sleep_failed");
+  struct timespec deadline;
+  if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+    hold("apollyon_candidate_training_entrypoint_clock_unavailable");
+  }
+  if (deadline.tv_sec > (time_t)(LONG_MAX - QUALIFICATION_WINDOW_SECONDS)) {
+    hold("apollyon_candidate_training_entrypoint_deadline_overflow");
+  }
+  deadline.tv_sec += (time_t)QUALIFICATION_WINDOW_SECONDS;
+
+  while (!stop_requested) {
+    int rc = clock_nanosleep(
+        CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
+    if (rc == 0) {
+      break;
     }
+    if (rc == EINTR) {
+      continue;
+    }
+    errno = rc;
+    hold("apollyon_candidate_training_entrypoint_sleep_failed");
   }
 }
 
