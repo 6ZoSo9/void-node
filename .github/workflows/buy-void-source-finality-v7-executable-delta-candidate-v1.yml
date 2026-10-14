@@ -23,6 +23,13 @@ on:
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
       - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-package-bound-v2.md"
       - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-v1.md"
       - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
@@ -52,6 +59,13 @@ on:
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
       - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-package-bound-v2.md"
       - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-v1.md"
       - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
@@ -677,6 +691,12 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Install exact audited dependencies for protected replica
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove root-owned protected launcher boundary
         run: |
           set -euo pipefail
@@ -687,6 +707,8 @@ jobs:
           grep -Fx 'writable_checkout_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'dirty_protected_tree_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'ambient_path_git_shim_blocked=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'privileged_launcher_package_runtime_verified=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'full_protected_repo_replica_used=true'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'privileged_tool_execution_performed=false'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-launcher.log"
       - name: Diff hygiene
