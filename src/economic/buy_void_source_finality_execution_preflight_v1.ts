@@ -232,7 +232,7 @@ function normalizeChain(value: unknown): "base" | "ethereum" | "" {
   return raw === "base" || raw === "ethereum" ? raw : "";
 }
 
-function normalizeRpcUrl(value: unknown): string {
+function normalizeProductionSourceRpcUrl(value: unknown): string {
   let url: URL;
   try {
     url = new URL(text(value));
@@ -240,12 +240,7 @@ function normalizeRpcUrl(value: unknown): string {
     return "";
   }
   if (url.username || url.password || url.hash) return "";
-  const loopback = ["127.0.0.1", "::1", "localhost"].includes(
-    url.hostname.toLowerCase(),
-  );
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    return "";
-  }
+  if (url.protocol !== "https:") return "";
   return url.toString();
 }
 
@@ -507,10 +502,10 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
   const maxResponseBytes = text(env[names.max_response_bytes])
     ? positiveBounded(env[names.max_response_bytes], MAX_RESPONSE_BYTES)
     : "262144";
-  const baseUrl = normalizeRpcUrl(env[names.base_rpc_url]);
-  const baseSecondaryUrl = normalizeRpcUrl(env[names.base_secondary_rpc_url]);
-  const ethereumUrl = normalizeRpcUrl(env[names.ethereum_rpc_url]);
-  const ethereumSecondaryUrl = normalizeRpcUrl(
+  const baseUrl = normalizeProductionSourceRpcUrl(env[names.base_rpc_url]);
+  const baseSecondaryUrl = normalizeProductionSourceRpcUrl(env[names.base_secondary_rpc_url]);
+  const ethereumUrl = normalizeProductionSourceRpcUrl(env[names.ethereum_rpc_url]);
+  const ethereumSecondaryUrl = normalizeProductionSourceRpcUrl(
     env[names.ethereum_secondary_rpc_url],
   );
   const baseIdentity = text(env[names.base_rpc_identity]);

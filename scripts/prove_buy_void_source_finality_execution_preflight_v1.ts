@@ -243,11 +243,11 @@ const sagaNames =
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1;
 const dualNames = VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1;
 const dualPolicyEnv: NodeJS.ProcessEnv = {
-  [sourceFinalityNames.base_rpc_url]: "http://127.0.0.1:18545/",
+  [sourceFinalityNames.base_rpc_url]: "https://base-primary.example/",
   [sourceFinalityNames.base_rpc_identity]: "base-production-rpc-v1",
   [sourceFinalityNames.base_secondary_rpc_url]: "https://base-secondary.example/",
   [sourceFinalityNames.base_secondary_rpc_identity]: "base-secondary-rpc-v1",
-  [sourceFinalityNames.ethereum_rpc_url]: "http://127.0.0.1:19545/",
+  [sourceFinalityNames.ethereum_rpc_url]: "https://ethereum-primary.example/",
   [sourceFinalityNames.ethereum_rpc_identity]: "ethereum-production-rpc-v1",
   [sourceFinalityNames.ethereum_secondary_rpc_url]: "https://ethereum-secondary.example/",
   [sourceFinalityNames.ethereum_secondary_rpc_identity]:
@@ -317,6 +317,44 @@ assert.deepEqual(
   ),
   ["base", "ethereum"],
 );
+
+const productionSourceFinalityLoopbackCases = [
+  [sourceFinalityNames.base_rpc_url, "http://127.0.0.1:18545/"],
+  [sourceFinalityNames.base_secondary_rpc_url, "http://localhost:18546/"],
+  [sourceFinalityNames.ethereum_rpc_url, "http://[::1]:19545/"],
+  [sourceFinalityNames.ethereum_secondary_rpc_url, "http://127.0.0.1:19546/"],
+] as const;
+
+for (const [envName, forbiddenUrl] of productionSourceFinalityLoopbackCases) {
+  const callsBefore = observerCalls;
+  const result = await runBuyVoidSourceFinalityExecutionPreflightV1(
+    {
+      root_dir: "/tmp/void-source-finality-preflight-proof-does-not-exist",
+      attempt_id: validAttemptId,
+      env: {
+        ...dualPolicyEnv,
+        ...processIdentityEnv,
+        [envName]: forbiddenUrl,
+      },
+    },
+    { observe_source_finality: observer },
+  );
+  assert.equal(result.ok, false);
+  if (result.ok === false) {
+    assert.equal(result.reason, "source_finality_execution_policy_invalid");
+    assert.equal(result.process_source_identity_verified, true);
+    assert.equal(result.wallet_access_performed, false);
+    assert.equal(result.signing_performed, false);
+    assert.equal(result.transaction_broadcast_performed, false);
+    assert.equal(result.money_movement_performed, false);
+  }
+  assert.equal(
+    observerCalls,
+    callsBefore,
+    "production source-finality loopback URL reached observer: " + envName,
+  );
+}
+console.log("source_finality_production_https_only_loopback_roles_rejected=true");
 
 const missingSecondaryEnv = { ...dualPolicyEnv };
 delete missingSecondaryEnv[sourceFinalityNames.base_secondary_rpc_url];
