@@ -61,7 +61,7 @@ is:
 Reviewed Python-launcher source blob:
 
 ```text
-e6a8cb82323df130f72de4f937db13b97460f47a
+61aa52d8c91387fa0fa9de914f2625661f49ecb3
 ```
 
 That launcher then authenticates the separately installed reviewed source root:
@@ -73,8 +73,10 @@ That launcher then authenticates the separately installed reviewed source root:
 before starting Node. It materializes exact reviewed bytes into a private
 temporary execution tree. The live Node executable is independently admitted as
 a direct root-owned, single-link, executable, non-group/world-writable file
-beneath trusted root-owned/non-group/world-writable ancestry, retained with
-`O_NOFOLLOW`, and executed through inherited `/proc/self/fd/<fd>`.
+without setuid or setgid mode bits, beneath trusted root-owned/non-group/world-
+writable ancestry. It is retained with `O_NOFOLLOW` and executed through
+inherited `/proc/self/fd/<fd>`, so the training user cannot gain root by
+invoking an accidentally set-id general-purpose Node interpreter.
 
 Installing the native executable, Python launcher, or reviewed `/opt` source
 tree is a **separate privileged mutation gate** and is not performed by this PR
@@ -246,8 +248,11 @@ Node deadline expiry, OS/path/exec failures, and other subprocess-layer failures
 are converted to bounded `HOLD=apollyon_v2_installed_launcher_runtime_*`
 reasons after cleanup semantics run. The timeout case is cleanup-safe because
 the runner's `TMPDIR` is inside the launcher's retained outer private root.
-Existing `Hold` results are preserved. Unexpected programming exceptions are
-deliberately not relabeled as normal runtime HOLDs.
+Signal termination is also classified explicitly from a negative child
+returncode as `HOLD=apollyon_v2_installed_launcher_runtime_signaled:<signal>`
+after the same parent cleanup. Existing `Hold` results are preserved.
+Unexpected programming exceptions are deliberately not relabeled as normal
+runtime HOLDs.
 
 No service mutation, private-key access, signing, attempt claim, training
 execution, wallet/transaction operation or funds movement is granted by this
