@@ -213,6 +213,27 @@ function expectHold(
   assert.equal("production_source_finality_authority_ready" in out, false, label);
 }
 
+const auditedEnforcementLock = JSON.parse(
+  fs.readFileSync(
+    "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+    "utf8",
+  ),
+);
+assert.equal(
+  auditedEnforcementLock.marker,
+  "VOID_BUY_VOID_ENFORCEMENT_POST2865_LOCK_V1",
+);
+assert.equal(auditedEnforcementLock.complete_executable_closure_verified, true);
+assert.equal(auditedEnforcementLock.candidate_enforcement_identity_accepted, true);
+assert.equal(auditedEnforcementLock.deployed_artifact_generation_verified, false);
+assert.equal(auditedEnforcementLock.production_source_finality_authority_ready, false);
+assert.equal(auditedEnforcementLock.public_presale_activation, false);
+assert.equal(auditedEnforcementLock.funds_movement, false);
+assert.equal(
+  auditedEnforcementLock.candidate_evidence.candidate_enforcement_set_sha256,
+  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+);
+
 const processIdentity = {
   marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
   commit: "1".repeat(40),
@@ -424,6 +445,7 @@ console.log("two_distinct_https_provider_transports_required=true");
 console.log("same_provider_alias_rejected=true");
 console.log("receipt_block_hash_quorum_required=true");
 console.log("independent_finality_thresholds_required=true");
+console.log("audited_post2865_enforcement_lock_bound=true");
 console.log("operator_deployment_receipt_required=true");
 console.log("same_live_process_binding_gate_required=true");
 console.log("unverified_live_process_binding_rejected=true");
