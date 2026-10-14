@@ -147,6 +147,20 @@ function packageBase(lockKey){
   return base;
 }
 
+function optionalPackageDirectoryState(location,label){
+  try{
+    const stat=fs.lstatSync(location);
+    assert.equal(stat.isSymbolicLink(),false,label+"_symlink");
+    assert.ok(stat.isDirectory(),label+"_not_directory");
+    return Object.freeze({present:true});
+  }catch(error){
+    if(error&&error.code==="ENOENT"){
+      return Object.freeze({present:false});
+    }
+    throw error;
+  }
+}
+
 function packageInventory(lock,key,expectedName,expectedVersion){
   const entry=lockEntry(lock,key);
   assert.equal(entry.version,expectedVersion,"lock_version_mismatch:"+key);
@@ -252,20 +266,27 @@ function deriveTsxLinuxX64Runtime(lock){
     const key="node_modules/"+name;
     const location=path.join(ROOT,...key.split("/"));
     if(name==="@esbuild/linux-x64"){
-      assert.ok(fs.existsSync(location),"linux_x64_esbuild_optional_missing");
       installedOptional.push(name);
-    }else{
-      assert.equal(
-        fs.existsSync(location),
-        false,
-        "foreign_esbuild_platform_package_installed:"+name,
-      );
-      optionalAbsent.push(name);
+      continue;
     }
+    const state=optionalPackageDirectoryState(
+      location,
+      "foreign_esbuild_platform_package:"+name,
+    );
+    assert.equal(
+      state.present,
+      false,
+      "foreign_esbuild_platform_package_installed:"+name,
+    );
+    optionalAbsent.push(name);
   }
 
+  const fseventsState=optionalPackageDirectoryState(
+    path.join(ROOT,"node_modules/fsevents"),
+    "fsevents",
+  );
   assert.equal(
-    fs.existsSync(path.join(ROOT,"node_modules/fsevents")),
+    fseventsState.present,
     false,
     "fsevents_must_be_absent_on_linux_x64",
   );
