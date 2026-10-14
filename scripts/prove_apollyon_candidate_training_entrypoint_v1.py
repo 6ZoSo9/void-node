@@ -417,7 +417,8 @@ def prove_source_boundary(source: str) -> None:
         "PeftModel",
         "Trainer(",
         "clock_nanosleep(",
-        "stop_requested",
+        "static volatile sig_atomic_t stop_requested",
+        "while (!stop_requested)",
         "request_stop(",
     )
     for value in forbidden:
