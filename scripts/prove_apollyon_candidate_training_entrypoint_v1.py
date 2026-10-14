@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "613f0ece15696db57b81e41b9e8aa5638f8f29c7"
+EXPECTED_SOURCE_BLOB = "bfeff81f3eab98988a9be9600a05c696674c49d6"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -314,7 +314,8 @@ def prove_source_boundary(source: str) -> None:
         "CLOCK_BOOTTIME",
         "TIMER_ABSTIME",
         "O_NONBLOCK",
-        "prepare_process_io_safety();",
+        "prepare_process_safety();",
+        "sigprocmask(SIG_BLOCK, &qualification_wait_set, NULL)",
         "sigaction(SIGPIPE",
         "int stderr_flags = fcntl(STDERR_FILENO, F_GETFL);",
         "fcntl(STDERR_FILENO, F_SETFL, stderr_flags | O_NONBLOCK)",
@@ -323,9 +324,12 @@ def prove_source_boundary(source: str) -> None:
         "SIGPIPE",
         "SIG_IGN",
         "apollyon_candidate_training_entrypoint_stdout_reader_closed",
-        "clock_nanosleep(",
-        "arm_qualification_deadline()",
-        "qualification_hold(&qualification_deadline)",
+        "timer_create(CLOCK_BOOTTIME",
+        "timer_settime(timer_id, TIMER_ABSTIME",
+        "sigtimedwait(",
+        "sigwaitinfo(",
+        "reject_pending_signal_before_ready(qualification_timer);",
+        "qualification_hold(qualification_timer);",
         "PR_GET_NO_NEW_PRIVS",
         'opendir("/proc/self/fd")',
         "apollyon_candidate_training_entrypoint_inherited_fd_present",
@@ -343,7 +347,11 @@ def prove_source_boundary(source: str) -> None:
         if value not in source:
             raise AssertionError("source missing: " + value)
 
-    safety_function_index = source.index("static void prepare_process_io_safety(void)")
+    safety_function_index = source.index("static void prepare_process_safety(void)")
+    safety_mask_index = source.index(
+        "sigprocmask(SIG_BLOCK, &qualification_wait_set, NULL)",
+        safety_function_index,
+    )
     safety_sigpipe_index = source.index("sigaction(SIGPIPE", safety_function_index)
     safety_stderr_index = source.index(
         "int stderr_flags = fcntl(STDERR_FILENO, F_GETFL);",
@@ -354,30 +362,33 @@ def prove_source_boundary(source: str) -> None:
         safety_function_index,
     )
     if not (
-        safety_function_index < safety_sigpipe_index <
+        safety_function_index < safety_mask_index < safety_sigpipe_index <
         safety_stderr_index < safety_stdout_index
     ):
         raise AssertionError(
-            "stderr is not secured before any setup path can call HOLD"
+            "termination mask and diagnostic I/O are not secured before HOLD"
         )
 
     main_index = source.index("int main(int argc, char **argv)")
-    io_index = source.index("prepare_process_io_safety();", main_index)
+    safety_index = source.index("prepare_process_safety();", main_index)
     self_test_index = source.index(
         'if (argc == 2 && strcmp(argv[1], "--self-test") == 0)', main_index
     )
     argument_hold_index = source.index("if (argc != 1)", main_index)
-    deadline_index = source.index(
-        "struct timespec qualification_deadline = arm_qualification_deadline();"
+    timer_index = source.index(
+        "timer_t qualification_timer = arm_qualification_timer();", main_index
     )
-    ready_index = source.index("emit_ready();")
-    hold_index = source.index("qualification_hold(&qualification_deadline);")
+    pending_index = source.index(
+        "reject_pending_signal_before_ready(qualification_timer);", main_index
+    )
+    ready_index = source.index("emit_ready();", main_index)
+    hold_index = source.index("qualification_hold(qualification_timer);", main_index)
     if not (
-        main_index < io_index < self_test_index < argument_hold_index <
-        deadline_index < ready_index < hold_index
+        main_index < safety_index < self_test_index < argument_hold_index <
+        timer_index < pending_index < ready_index < hold_index
     ):
         raise AssertionError(
-            "SIGPIPE/nonblocking safety is not established before every HOLD path"
+            "atomic signal/timer gate is not established before readiness"
         )
     if "fflush(stdout)" in source:
         raise AssertionError("qualification readiness regained blocking stdio flush")
@@ -405,6 +416,9 @@ def prove_source_boundary(source: str) -> None:
         "unsloth",
         "PeftModel",
         "Trainer(",
+        "clock_nanosleep(",
+        "stop_requested",
+        "request_stop(",
     )
     for value in forbidden:
         if value in source:
@@ -447,6 +461,11 @@ def main() -> None:
     print("blocked_readiness_sink_fails_closed=true")
     print("closed_readiness_reader_fails_closed=true")
     print("sigpipe_converted_to_hold=true")
+    print("termination_signals_blocked_before_hold_paths=true")
+    print("absolute_boottime_posix_timer=true")
+    print("pending_stop_rejected_before_readiness=true")
+    print("atomic_sigwaitinfo_hold=true")
+    print("check_then_sleep_race_removed=true")
     print("durable_attempt_claim_required=true")
     print("durable_attempt_claim_proven=false")
     print("training_execution=false")
