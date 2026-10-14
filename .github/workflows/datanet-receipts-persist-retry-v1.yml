@@ -44,6 +44,9 @@ jobs:
           grep -Fx "close_after_end_preserved=true" "$proof_file"
           grep -Fx "concurrent_scan_coalesced=true" "$proof_file"
           grep -Fx "same_bytes_counted_once=true" "$proof_file"
+          grep -Fx "descriptor_generation_bound=true" "$proof_file"
+          grep -Fx "path_replacement_next_scan_resets=true" "$proof_file"
+          grep -Fx "descriptor_close_verified=true" "$proof_file"
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha }}

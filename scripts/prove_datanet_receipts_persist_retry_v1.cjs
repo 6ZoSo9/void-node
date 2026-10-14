@@ -15,14 +15,50 @@ const receiptBytes = Buffer.from(
   ].join("\n") + "\n",
 );
 
+const replacementBytes = Buffer.from(
+  JSON.stringify({ ts_ms: 300, ok: true, bytes: 7, wc: 1 }) + "\n",
+);
+const generationA = { dev: 1, ino: 7, bytes: receiptBytes };
+const generationB = { dev: 1, ino: 8, bytes: replacementBytes };
+let visibleGeneration = generationA;
 let streamCalls = 0;
+let openCalls = 0;
+let nextFd = 100;
+const descriptors = new Map();
 const mockFs = {
-  statSync() {
-    return { ino: 7, size: receiptBytes.length };
+  constants: {
+    O_RDONLY: 0,
+    O_NOFOLLOW: 0x20000,
+    O_NONBLOCK: 0x800,
+  },
+  openSync(file, flags) {
+    assert.equal(file, "/synthetic/receipts.jsonl");
+    assert.notEqual(flags & mockFs.constants.O_NOFOLLOW, 0);
+    assert.notEqual(flags & mockFs.constants.O_NONBLOCK, 0);
+    const fd = nextFd++;
+    openCalls += 1;
+    descriptors.set(fd, visibleGeneration);
+    return fd;
+  },
+  fstatSync(fd) {
+    const generation = descriptors.get(fd);
+    assert.ok(generation, "fstat requires an open descriptor");
+    return {
+      dev: generation.dev,
+      ino: generation.ino,
+      size: generation.bytes.length,
+      isFile() { return true; },
+    };
+  },
+  closeSync(fd) {
+    assert.equal(descriptors.delete(fd), true, "descriptor closed exactly once");
   },
   createReadStream(_file, options) {
     streamCalls += 1;
     const call = streamCalls;
+    assert.equal(options.autoClose, false);
+    const generation = descriptors.get(options.fd);
+    assert.ok(generation, "stream must use retained open descriptor");
     const stream = new EventEmitter();
     stream.bytesRead = 0;
     const emitData = (bytes) => {
@@ -30,25 +66,29 @@ const mockFs = {
       stream.emit("data", bytes.toString("utf8"));
     };
     setImmediate(() => {
-      const firstLineEnd = receiptBytes.indexOf(0x0a) + 1;
+      const firstLineEnd = generation.bytes.indexOf(0x0a) + 1;
       if (call === 1) {
-        emitData(receiptBytes.subarray(0, firstLineEnd));
+        emitData(generation.bytes.subarray(0, firstLineEnd));
         stream.emit("error", new Error("synthetic_read_failure"));
         stream.emit("data", "late-data-must-be-ignored\n");
         stream.emit("end");
         return;
       }
       if (call === 2) {
-        emitData(receiptBytes.subarray(0, firstLineEnd));
+        emitData(generation.bytes.subarray(0, firstLineEnd));
         stream.emit("end");
         return;
       }
       if (call === 3) {
-        emitData(receiptBytes.subarray(0, firstLineEnd));
+        emitData(generation.bytes.subarray(0, firstLineEnd));
         stream.emit("close");
         return;
       }
-      const chunk = receiptBytes.subarray(options.start, options.end + 1);
+      if (call === 4) {
+        // Replace the visible path after the descriptor generation is fixed.
+        visibleGeneration = generationB;
+      }
+      const chunk = generation.bytes.subarray(options.start, options.end + 1);
       emitData(chunk);
       stream.emit("end");
       stream.emit("close");
@@ -144,9 +184,24 @@ function metric(body, name) {
     assert.equal(metric(body, "void_datanet_receipts_persist_wc_total"), 5);
   }
 
+  const replacement = await invokeRoute();
+  assert.equal(streamCalls, 5, "replacement generation must be scanned once");
+  assert.equal(metric(replacement, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(metric(replacement, "void_datanet_receipts_persist_ok_total"), 1);
+  assert.equal(metric(replacement, "void_datanet_receipts_persist_bad_total"), 0);
+  assert.equal(metric(replacement, "void_datanet_receipts_persist_bytes_total"), 7);
+  assert.equal(metric(replacement, "void_datanet_receipts_persist_wc_total"), 1);
+
   const stable = await invokeRoute();
-  assert.equal(streamCalls, 4, "unchanged file must not be rescanned");
-  assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 2);
+  assert.equal(streamCalls, 5, "unchanged replacement must not be rescanned");
+  assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(descriptors.size, 0, "every scanner descriptor must be closed");
+  assert.ok(openCalls >= 6, "every route scan must bind a descriptor generation");
+
+  assert.doesNotMatch(source, /fs\.statSync\(file\)/u);
+  assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
+  assert.match(source, /fs\.constants\.O_NONBLOCK/u);
+  assert.match(source, /autoClose:\s*false/u);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("failed_read_rollback=true");
@@ -155,6 +210,9 @@ function metric(body, name) {
   console.log("close_after_end_preserved=true");
   console.log("concurrent_scan_coalesced=true");
   console.log("same_bytes_counted_once=true");
+  console.log("descriptor_generation_bound=true");
+  console.log("path_replacement_next_scan_resets=true");
+  console.log("descriptor_close_verified=true");
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

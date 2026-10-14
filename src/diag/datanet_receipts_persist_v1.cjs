@@ -33,6 +33,7 @@ G.__void_datanet_receipts_persist_v1 = true;
 // incremental state
 let st = {
   file: "",
+  dev: 0,
   ino: 0,
   pos: 0,
   buf: "",
@@ -49,8 +50,9 @@ let st = {
   last_scan_ms: 0,
 };
 
-function resetFor(file, ino) {
+function resetFor(file, dev, ino) {
   st.file = file;
+  st.dev = dev;
   st.ino = ino;
   st.pos = 0;
   st.buf = "";
@@ -83,6 +85,7 @@ function absorbLine(line) {
 function snapshotState() {
   return {
     file: st.file,
+    dev: st.dev,
     ino: st.ino,
     pos: st.pos,
     buf: st.buf,
@@ -93,21 +96,50 @@ function snapshotState() {
 
 async function scanOnceUnlocked() {
   const file = receiptsFile();
-  let s;
-  try { s = fs.statSync(file); } catch {
-    // missing file: keep state but mark last_scan
-    st.last_scan_ms = nowMs();
-    st.file = file;
-    return { file, missing: true };
+  const openFlags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0) |
+    Number(fs.constants.O_NONBLOCK || 0);
+  let fd;
+  try {
+    fd = fs.openSync(file, openFlags);
+  } catch (error) {
+    if (error && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+      // Missing path: retain counters, but force generation revalidation if it returns.
+      st.last_scan_ms = nowMs();
+      st.file = file;
+      st.dev = 0;
+      st.ino = 0;
+      return { file, missing: true };
+    }
+    throw error;
   }
+
+  let descriptorOpen = true;
+  const closeDescriptor = () => {
+    if (!descriptorOpen) return;
+    descriptorOpen = false;
+    fs.closeSync(fd);
+  };
 
   const beforeScan = snapshotState();
   try {
-    if (!st.file || st.file !== file || st.ino !== (s.ino || 0) || s.size < st.pos) {
-      resetFor(file, s.ino || 0);
+    const s = fs.fstatSync(fd);
+    if (!s.isFile()) throw new Error("receipts_file_not_regular");
+    const dev = Number(s.dev || 0);
+    const ino = Number(s.ino || 0);
+    if (
+      !st.file ||
+      st.file !== file ||
+      st.dev !== dev ||
+      st.ino !== ino ||
+      s.size < st.pos
+    ) {
+      resetFor(file, dev, ino);
     }
 
     if (s.size === st.pos) {
+      closeDescriptor();
       st.last_scan_ms = nowMs();
       return { file, missing: false };
     }
@@ -116,7 +148,13 @@ async function scanOnceUnlocked() {
     const end = s.size - 1;
     const expectedBytes = end - start + 1;
     await new Promise((resolve, reject) => {
-      const rs = fs.createReadStream(file, { start, end, encoding: "utf8" });
+      const rs = fs.createReadStream(file, {
+        fd,
+        autoClose: false,
+        start,
+        end,
+        encoding: "utf8",
+      });
       let settled = false;
       const settle = (done, value) => {
         if (settled) return;
@@ -147,13 +185,20 @@ async function scanOnceUnlocked() {
       });
     });
 
+    closeDescriptor();
     st.pos = s.size;
     st.last_scan_ms = nowMs();
     return { file, missing: false };
   } catch (error) {
+    let terminalError = error;
+    try {
+      closeDescriptor();
+    } catch (closeError) {
+      terminalError = closeError;
+    }
     st = beforeScan;
     st.last_scan_ms = nowMs();
-    throw error;
+    throw terminalError;
   }
 }
 
