@@ -53,8 +53,11 @@ directory is newly created, both that directory and its retained grandparent
 are fsynced before the directory entry is treated as durable. The temporary
 file's device/inode is captured immediately after exclusive creation so a
 failure during ownership, write, fsync, or chmod removes only the inode created
-by that invocation; a substituted foreign inode is never deleted. A
-symlinked/rebound parent HOLDs without collateral target metadata mutation. An existing byte-identical
+by that invocation; a substituted foreign inode is never deleted. Non-ENOENT
+cleanup failures are never discarded: the installer preserves the primary
+failure and reports cleanup/close/fsync failures together as
+`deployment_receipt_cleanup_failed`. A symlinked/rebound parent HOLDs without
+collateral target metadata mutation. An existing byte-identical
 receipt is accepted idempotently; an existing different receipt HOLDs and is
 never overwritten.
 

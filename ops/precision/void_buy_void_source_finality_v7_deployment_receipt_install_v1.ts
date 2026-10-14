@@ -421,6 +421,7 @@ export function installRootCustodiedReceiptV1(input:{
   let tempCreatedIdentity:Readonly<{dev:number;ino:number}>|undefined;
   let tempIdentity:fs.Stats|undefined;
   let tempVia="";
+  let primaryError:unknown;
   try{
     binding=bindReceiptParentV1(absolute);
     assertReceiptParentStableV1(binding);
@@ -499,8 +500,15 @@ export function installRootCustodiedReceiptV1(input:{
     fs.fsyncSync(binding.parent_fd);
     verifyFinalBoundV1(binding,leaf,input.bytes);
     return Object.freeze({created:true,already_matching:false});
+  }catch(error:unknown){
+    primaryError=error;
+    throw error;
   }finally{
-    if(tempFd>=0)fs.closeSync(tempFd);
+    const cleanupErrors:unknown[]=[];
+    if(tempFd>=0){
+      try{fs.closeSync(tempFd);}
+      catch(error:unknown){cleanupErrors.push(error);}
+    }
     if(binding&&tempCreatedIdentity&&tempVia){
       try{
         const visible=fs.lstatSync(tempVia);
@@ -508,14 +516,25 @@ export function installRootCustodiedReceiptV1(input:{
           visible.dev===tempCreatedIdentity.dev&&
           visible.ino===tempCreatedIdentity.ino
         ){
-          fs.unlinkSync(tempVia);
-          fs.fsyncSync(binding.parent_fd);
+          try{fs.unlinkSync(tempVia);}
+          catch(error:any){
+            if(error?.code!=="ENOENT")cleanupErrors.push(error);
+          }
+          try{fs.fsyncSync(binding.parent_fd);}
+          catch(error:unknown){cleanupErrors.push(error);}
         }
       }catch(error:any){
-        if(error?.code!=="ENOENT"){void error;}
+        if(error?.code!=="ENOENT")cleanupErrors.push(error);
       }
     }
-    closeReceiptParentV1(binding);
+    try{closeReceiptParentV1(binding);}
+    catch(error:unknown){cleanupErrors.push(error);}
+    if(cleanupErrors.length>0){
+      throw new AggregateError(
+        primaryError===undefined?cleanupErrors:[primaryError,...cleanupErrors],
+        "deployment_receipt_cleanup_failed",
+      );
+    }
   }
 }
 

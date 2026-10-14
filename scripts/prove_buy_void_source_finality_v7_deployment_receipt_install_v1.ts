@@ -231,6 +231,99 @@ if(rootCapable){
   proveTempFailureCleanup("fsync","fsyncSync");
   proveTempFailureCleanup("fchmod","fchmodSync");
 
+  const proveCleanupFailureObservable=(
+    label:"unlink"|"parent-fsync",
+  )=>{
+    const receipt=path.join(root,"cleanup-"+label,"deployment-receipt.json");
+    const originalOpen=(fs as any).openSync;
+    const originalFchown=(fs as any).fchownSync;
+    const originalUnlink=(fs as any).unlinkSync;
+    const originalFsync=(fs as any).fsyncSync;
+    let tempFd=-1;
+    let injectedPrimary=false;
+    let injectedCleanup=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
+        return fd;
+      };
+      (fs as any).fchownSync=function(fd:number,...args:any[]){
+        if(!injectedPrimary&&tempFd>=0&&fd===tempFd){
+          injectedPrimary=true;
+          throw Object.assign(
+            new Error("synthetic_cleanup_primary_"+label),
+            {code:"EIO"},
+          );
+        }
+        return originalFchown.call(fs,fd,...args);
+      };
+      if(label==="unlink"){
+        (fs as any).unlinkSync=function(target:string,...args:any[]){
+          if(!injectedCleanup&&String(target).includes(tempPrefix(receipt))){
+            injectedCleanup=true;
+            throw Object.assign(
+              new Error("synthetic_cleanup_unlink_failure"),
+              {code:"EIO"},
+            );
+          }
+          return originalUnlink.call(fs,target,...args);
+        };
+      }else{
+        (fs as any).fsyncSync=function(fd:number){
+          if(!injectedCleanup&&tempFd>=0&&fd!==tempFd){
+            injectedCleanup=true;
+            throw Object.assign(
+              new Error("synthetic_cleanup_parent_fsync_failure"),
+              {code:"EIO"},
+            );
+          }
+          return originalFsync.call(fs,fd);
+        };
+      }
+      assert.throws(
+        ()=>installRootCustodiedReceiptV1({
+          absolute_path:receipt,bytes:built.bytes,
+        }),
+        (error:any)=>{
+          assert.ok(error instanceof AggregateError,"cleanup_failure_not_aggregate");
+          assert.equal(error.message,"deployment_receipt_cleanup_failed");
+          const messages=Array.from(
+            error.errors||[],
+            (entry:any)=>String(entry?.message||entry),
+          );
+          assert.ok(
+            messages.includes("synthetic_cleanup_primary_"+label),
+            "primary_error_not_preserved:"+label,
+          );
+          assert.ok(
+            messages.includes(
+              label==="unlink"
+                ?"synthetic_cleanup_unlink_failure"
+                :"synthetic_cleanup_parent_fsync_failure",
+            ),
+            "cleanup_error_not_observable:"+label,
+          );
+          return true;
+        },
+      );
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fchownSync=originalFchown;
+      (fs as any).unlinkSync=originalUnlink;
+      (fs as any).fsyncSync=originalFsync;
+      for(const name of tempEntries(receipt)){
+        fs.unlinkSync(path.join(path.dirname(receipt),name));
+      }
+    }
+    assert.equal(injectedPrimary,true,label+"_primary_failure_not_injected");
+    assert.equal(injectedCleanup,true,label+"_cleanup_failure_not_injected");
+    assert.equal(fs.existsSync(receipt),false,label+"_published_receipt");
+  };
+
+  proveCleanupFailureObservable("unlink");
+  proveCleanupFailureObservable("parent-fsync");
+
   // A path substitution after exclusive temp creation must never be cleaned up
   // as though the replacement were the inode created by this installer.
   {
@@ -343,6 +436,8 @@ console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
 console.log("post_create_temp_failure_cleanup_exact="+String(rootCapable));
+console.log("cleanup_failure_observable="+String(rootCapable));
+console.log("cleanup_primary_error_preserved="+String(rootCapable));
 console.log("foreign_temp_inode_preserved="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
