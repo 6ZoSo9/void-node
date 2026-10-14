@@ -8,6 +8,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const WORKFLOW=
+  ".github/workflows/buy-void-private-service-loader-initialization-v2.yml";
 const SOURCE_FLOOR="e4665edd13c5fdeb40ff59bc1ff4e09fd7def3e2";
 const PACKAGE_BLOB="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";
 const LOCK_BLOB="15b5c82ea36f13079a2f9e8863722f654eb3f201";
@@ -117,7 +119,25 @@ function git(args){
     },
   );
 }
+function assertWorkflowTriggerContract(){
+  const workflow=fs.readFileSync(path.join(ROOT,WORKFLOW),"utf8");
+  assert.match(
+    workflow,
+    /push:\n\s+branches:\n\s+- "main"\n\s+- "ren\/buy-void-private-service-loader-v2-20261013"/u,
+    "focused workflow must validate durable inputs on main",
+  );
+  assert.match(
+    workflow,
+    /pull_request:\n\s+paths:/u,
+    "focused workflow must retain pull-request path validation",
+  );
+  assert.ok(
+    workflow.includes('      - ".github/workflows/buy-void-private-service-loader-initialization-v2.yml"'),
+    "focused workflow must trigger on its own edits",
+  );
+}
 function sourceBoundary(){
+  assertWorkflowTriggerContract();
   assert.equal(process.platform,"linux");
   assert.ok([22,24,26].includes(Number(process.versions.node.split(".")[0])));
   git(["merge-base","--is-ancestor",SOURCE_FLOOR,"HEAD"]);
@@ -353,6 +373,7 @@ async function derive(){
   };
 }
 function selfTest(){
+  assertWorkflowTriggerContract();
   const source='async function defaultServiceModule() {\n const dynamicImport = new Function("specifier", "return import(specifier)");\n return dynamicImport("../../tools/x.mjs");\n}';
   const match=source.match(LOADER_RE);
   assert.ok(match);

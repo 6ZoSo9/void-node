@@ -48,6 +48,11 @@ The V2 proof binds exact Git blobs for:
 - the reviewed Node package-runtime tool;
 - the canonical ethers-V2 profile and its V2 proof.
 
+The focused workflow runs on matching pull requests and on `main` pushes for
+the complete durable input path set. The proof also asserts that the workflow
+retains the `main` push trigger and self-path trigger, so a future workflow edit
+cannot silently remove accepted-tree revalidation.
+
 The workflow installs the exact lock with lifecycle scripts disabled and invokes
 the locked TypeScript compiler. Each compiled `defaultServiceModule()` body
 must remain the exact reviewed dynamic-import form with the literal expected

@@ -3,6 +3,7 @@ name: VOID Buy VOID private service loader initialization v2
 on:
   push:
     branches:
+      - "main"
       - "ren/buy-void-private-service-loader-v2-20261013"
     paths:
       - "package.json"
