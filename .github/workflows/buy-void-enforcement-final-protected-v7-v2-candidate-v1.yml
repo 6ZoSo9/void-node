@@ -147,6 +147,8 @@ jobs:
         run: |
           set -euo pipefail
           head="$(git rev-parse HEAD)"
+          git switch -C main "$head"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
           tree="$(git rev-parse 'HEAD^{tree}')"
           npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             --plan \
