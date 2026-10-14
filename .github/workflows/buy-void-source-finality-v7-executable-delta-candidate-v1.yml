@@ -251,7 +251,7 @@ jobs:
           set -euo pipefail
           node --check scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs
           node scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs --self-test
-          out="enforcement-post2933-candidate-${{ matrix.node }}.json"
+          out="$RUNNER_TEMP/enforcement-post2933-candidate-${{ matrix.node }}.json"
           node scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs --derive > "$out"
           cmp "$out" ops/security/buy-void-enforcement-post2933-candidate-v1.json
           node --input-type=module - "$out" <<'NODE'
@@ -272,7 +272,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-enforcement-post2933-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: enforcement-post2933-candidate-${{ matrix.node }}.json
+          path: ${{ runner.temp }}/enforcement-post2933-candidate-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
