@@ -78,7 +78,7 @@ for(const required of [
   '"--noprofile"',
   '"--norc"',
   'PREENTRY_ENV',
-  '#define FIXED_LAUNCHER_BYTES 10813U',
+  '#define FIXED_LAUNCHER_BYTES 11436U',
   'FIXED_LAUNCHER_SHA256',
   'sha256_fd_matches(launcher_fd)',
   'native_preentry_launcher_digest_mismatch',

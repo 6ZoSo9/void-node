@@ -57,7 +57,7 @@ Before any shell source is evaluated, the native pre-entry:
   root-owned, single-link, non-group/world-writable and **non-executable**,
   then retains that exact descriptor across exec;
 - requires that retained body to be exactly 10,813 bytes with SHA-256
-  `565ec5f55a32c429e150294a71835482c52c9fbc3fde4a22fdbc1f0c475eb81a`
+  `603b39ee8ec1245fc4ffab0647ef1a8da4594a49b5a9efefa6fb8f5a97cd3359`
   using the native pre-entry's internal SHA-256 before Bash evaluates it;
 - invokes bash with `fexecve()`, `--noprofile --norc`, and the launcher
   pathname supplied as `/proc/self/fd/<retained-fd>`; and
