@@ -48,6 +48,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1_PROOF_GREEN' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'selector_elf_lock_bound=true' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'selector_pidfd_handshake_required=true' "$RUNNER_TEMP/v2-collection-plan.log"
+          grep -Fx 'selector_spawn_error_machine_readable_hold=true' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'receipt_publication_authorized=false' "$RUNNER_TEMP/v2-collection-plan.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v2-collection-plan.log"
       - name: Diff hygiene
