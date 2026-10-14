@@ -552,6 +552,8 @@ jobs:
           grep -Fx 'accepted_enforcement_lock_identity_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'apply_expected_receipt_id_required=true'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'deployment_receipt_reverified_before_apply=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'descriptor_relative_provider_publication=true'             "provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'provider_final_read_descriptor_bound=true'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'public_presale_activation=false'             "provider-pair-current-${{ matrix.node }}.log"
           grep -Fx 'funds_movement=false'             "provider-pair-current-${{ matrix.node }}.log"
       - name: Diff hygiene
@@ -586,5 +588,8 @@ jobs:
           set -euo pipefail
           sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts             | tee "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_temp_identity_cleanup_exact=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_cleanup_failure_observable=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_foreign_temp_preserved=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'fresh_enforcement_set=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
