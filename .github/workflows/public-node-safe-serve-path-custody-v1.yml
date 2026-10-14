@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/public-node-safe-serve-v1.mjs"
       - "tools/check_public_node_safe_serve_v1.sh"
+      - "package.json"
       - ".github/workflows/public-node-safe-serve-path-custody-v1.yml"
 
 permissions:
