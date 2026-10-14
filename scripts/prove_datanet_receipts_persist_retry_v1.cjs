@@ -389,4 +389,3 @@ function metric(body, name) {
   console.error(error);
   process.exitCode = 1;
 });
-

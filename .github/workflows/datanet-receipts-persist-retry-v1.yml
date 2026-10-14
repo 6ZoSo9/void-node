@@ -68,4 +68,3 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           git diff --check "$BASE" "$HEAD"
-
