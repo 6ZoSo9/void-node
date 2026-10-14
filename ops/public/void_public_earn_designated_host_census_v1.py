@@ -730,7 +730,16 @@ def write_create_only(path: pathlib.Path, payload: bytes) -> None:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     fd = os.open(path, flags, 0o600)
     try:
-        os.write(fd, payload)
+        view = memoryview(payload)
+        written = 0
+        while written < len(view):
+            count = os.write(fd, view[written:])
+            if count <= 0:
+                raise CensusError("evidence_output_short_write")
+            written += count
+        info = os.fstat(fd)
+        if info.st_size != len(payload) or (stat.S_IMODE(info.st_mode) & 0o077) != 0:
+            raise CensusError("evidence_output_metadata_invalid")
         os.fsync(fd)
     finally:
         os.close(fd)
