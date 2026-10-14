@@ -32,9 +32,20 @@ post-link recheck window.
 
 ## Trust boundary
 
-The publisher must be invoked only through the protected native-first-entry
-launcher generation. Direct privileged checkout execution is not a production
-path.
+This source generation composes the previously accepted protected native-first-entry
+pattern directly. The protected launcher now has an explicit `live-process-v2`
+allowlist entry for this publisher, while the historical V1 `live-process`
+receipt installer is not reachable from that launcher.
+
+The retained non-executable launcher body is exactly **11,442 bytes** with
+SHA-256
+`fe3767e9d82239f33e3d15e011d5afe5300ded00e8dc16479b6e7e97ebed9a98`.
+The native pre-entry embeds that exact size/digest and authenticates the retained
+launcher descriptor before Bash evaluation. The package/runtime proof remains
+the byte-identical accepted V2 proof and rederives the audited TSX/esbuild
+runtime on Node 22/24/26.
+
+Direct privileged checkout execution remains unsupported.
 
 It performs:
 - V2 native selector execution through the locked collection-plan module;
@@ -46,5 +57,7 @@ It does not restart/mutate a service, contact RPC, access credentials, wallets,
 signers or private keys, construct/broadcast transactions, activate presale/WC,
 or move funds.
 
-A later final whole-enforcement candidate/lock must include this publisher and
-protected launcher generation before any Precision apply.
+No Precision installation or apply is authorized by this PR. A later fresh
+whole-enforcement census/candidate/acceptance lock must include this exact
+publisher + protected launcher/native generation before deployment receipt and
+Precision apply.
