@@ -53,13 +53,14 @@ authority.
 
 Each hosted derivation:
 
-1. verifies the exact source Git blob;
+1. verifies the exact source Git blob and source SHA-256;
 2. compiles the source twice in a fresh temporary directory;
 3. requires the two complete ELF byte strings to be identical;
-4. requires bounded ELF output;
+4. requires a direct single-link ELF with size in the inclusive range
+   4,096..1,048,576 bytes **before reading the ELF into memory**;
 5. runs `--self-test` against the candidate;
 6. requires the exact reviewed self-test transcript; and
-7. emits one canonical JSON candidate report.
+7. emits one canonical JSON candidate report no larger than 65,536 bytes.
 
 No candidate ELF is published as an accepted installation artifact by this
 lane. The report records the binary byte length and SHA-256 only.
@@ -69,8 +70,13 @@ lane. The report records the binary byte length and SHA-256 only.
 The focused workflow launches three independent Ubuntu 24.04 derivation jobs.
 Each uploads only its canonical `candidate.json` report.
 
-A fourth job downloads all three reports and requires the raw JSON bytes to be
-identical before it may emit:
+A fourth job downloads all three reports, rejects any report larger than
+65,536 bytes before reading it, and requires the raw JSON bytes to be identical.
+It then validates a closed report schema, independently recomputes the current
+source digest and compiler identity, and recomputes the candidate ID from the
+canonical report material. Missing blocks, unknown fields, extra authority
+claims, malformed hashes, tampered IDs, and oversized binary claims all HOLD
+before it may emit:
 
 ```text
 VOID_APOLLYON_TRAINING_PREENTRY_BINARY_CANDIDATE_V1_THREE_RUN_GREEN
@@ -88,7 +94,9 @@ The report ID is:
 apollyon_training_preentry_binary_candidate_v1:<sha256>
 ```
 
-over canonical candidate material.
+over the complete canonical candidate material **excluding only the
+`candidate_id` field itself**. Validation requires lowercase hexadecimal and
+recomputes the digest rather than trusting the supplied suffix.
 
 A GREEN report still states:
 
