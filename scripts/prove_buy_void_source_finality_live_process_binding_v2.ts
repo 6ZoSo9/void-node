@@ -24,7 +24,7 @@ const manager={
   executable_realpath:"/usr/lib/systemd/systemd",
   executable_root_owned_nonwritable:true,
   cmdline:["/usr/lib/systemd/systemd","--user"],
-};
+} as const;
 const service={
   pid:1073664,ppid:2693,start_time_ticks:"5139458",uid,gid,
   cgroup_v2_path:serviceCgroup,comm:"node",
@@ -38,17 +38,17 @@ const service={
     "--conditions=void-process-source-branch-main",
     "/opt/void-node-live/releases/"+"1".repeat(40)+"/src/index.ts",
   ],
-};
+} as const;
 const esbuild={
   ...service,pid:1073858,ppid:service.pid,comm:"esbuild",
   executable_realpath:"/opt/void-node-live/releases/x/node_modules/@esbuild/linux-x64/bin/esbuild",
   cmdline:["/opt/void-node-live/releases/x/node_modules/@esbuild/linux-x64/bin/esbuild","--service=0.25.11","--ping"],
-};
+} as const;
 const helper={
   ...manager,pid:2700,ppid:2693,comm:"(sd-pam)",
   executable_realpath:"/usr/lib/systemd/systemd-executor",
   cmdline:["(sd-pam)"],
-};
+} as const;
 
 const selection=selectBuyVoidSourceFinalityServiceProcessV2({
   runtime_uid:uid,runtime_gid:gid,
@@ -109,7 +109,7 @@ const self={
   ld_library_path_absent:true,
   capabilities_zero:true,
   no_new_privileges:true,
-};
+} as const;
 
 const material={
   marker:VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_RECEIPT_V2,
@@ -130,7 +130,7 @@ const material={
   source_custody_proven:true,
   reviewed_service_contract_proven:true,
   reviewed_launcher_contract_proven:true,
-};
+} as const;
 const receipt=buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2(material);
 assert.match(receipt.receipt_id,/^voidbsflp2_[0-9a-f]{64}$/u);
 assert.equal(
