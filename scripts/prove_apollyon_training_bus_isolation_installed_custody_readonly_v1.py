@@ -131,11 +131,13 @@ def main()->int:
             require_xiphos=False,
             trusted_root=trusted,
         )
-        if result["installed_unit_identity_proven"] is not True:
-            raise AssertionError("unit identity not proven")
-        if result["installed_preentry_binary_identity_proven"] is not True:
-            raise AssertionError("pre-entry identity not proven")
+        if result["installed_unit_identity_observed"] is not True:
+            raise AssertionError("unit identity not observed")
+        if result["installed_preentry_binary_identity_observed"] is not True:
+            raise AssertionError("pre-entry identity not observed")
         for key in (
+            "installed_unit_identity_proven",
+            "installed_preentry_binary_identity_proven",
             "trusted_observer_proven",
             "dynamic_runtime_closure_proven",
             "training_entrypoint_identity_proven",
@@ -250,8 +252,10 @@ def main()->int:
     print("binary_tamper_rejected=true")
     print("permission_drift_rejected=true")
     print("symlink_ancestor_rejected=true")
-    print("installed_unit_identity_proven=true")
-    print("installed_preentry_binary_identity_proven=true")
+    print("installed_unit_identity_observed=true")
+    print("installed_preentry_binary_identity_observed=true")
+    print("installed_unit_identity_proven=false")
+    print("installed_preentry_binary_identity_proven=false")
     print("trusted_observer_proven=false")
     print("training_entrypoint_identity_proven=false")
     print("dynamic_runtime_closure_proven=false")
