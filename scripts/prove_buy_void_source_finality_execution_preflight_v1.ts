@@ -305,7 +305,7 @@ assert.equal(
 );
 assert.equal(
   configuredDualPolicy.policy.live_process_binding_receipt_path,
-  "/var/lib/void-source-finality-v7/live-process-binding-v1.json",
+  "/var/lib/void-source-finality-v7/live-process-binding-v2.json",
 );
 assert.deepEqual(
   configuredDualPolicy.policy.authority_policy_generation.rail_order,

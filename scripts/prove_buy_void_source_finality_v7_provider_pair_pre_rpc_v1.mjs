@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const FIXED_ROOT="/var/lib/void-source-finality-v7";
-const LIVE_RECEIPT=path.join(FIXED_ROOT,"live-process-binding-v1.json");
+const LIVE_RECEIPT=path.join(FIXED_ROOT,"live-process-binding-v2.json");
 const PAIR_RECEIPT=path.join(FIXED_ROOT,"provider-pair-binding-v1.json");
 const SETPRIV="/usr/bin/setpriv";
 const RECEIPT_MARKER="VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_RECEIPT_V1";
@@ -240,13 +240,39 @@ function providerReceiptMaterial(deploymentId,kind){
 
 async function childMain(ipcDir){
   const originalReadFileSync=fs.readFileSync.bind(fs);
-  const fakeCgroup=
-    "0::/user.slice/user-"+process.getuid()+
-    ".slice/user@"+process.getuid()+
-    ".service/app.slice/void-node-live.service\n";
+  const runtimeUid=process.getuid();
+  const managerPid=process.ppid;
+  const serviceCgroup=
+    "/user.slice/user-"+runtimeUid+
+    ".slice/user@"+runtimeUid+
+    ".service/app.slice/void-node-live.service";
+  const managerCgroup=
+    "/user.slice/user-"+runtimeUid+
+    ".slice/user@"+runtimeUid+
+    ".service/init.scope";
+  const managerStartTicks="1409";
+  const managerCmdline=Buffer.from(
+    "/usr/lib/systemd/systemd\0--user\0",
+    "utf8",
+  );
+  const managerStatFields=[
+    "S","1",...Array(17).fill("0"),managerStartTicks,
+  ];
+  const managerStat=
+    String(managerPid)+" (systemd) "+managerStatFields.join(" ")+"\n";
   fs.readFileSync=function(location,...args){
-    if(String(location)==="/proc/self/cgroup"){
-      const bytes=Buffer.from(fakeCgroup,"utf8");
+    const target=String(location);
+    let bytes=null;
+    if(target==="/proc/self/cgroup"){
+      bytes=Buffer.from("0::"+serviceCgroup+"\n","utf8");
+    }else if(target==="/proc/"+String(managerPid)+"/stat"){
+      bytes=Buffer.from(managerStat,"utf8");
+    }else if(target==="/proc/"+String(managerPid)+"/cgroup"){
+      bytes=Buffer.from("0::"+managerCgroup+"\n","utf8");
+    }else if(target==="/proc/"+String(managerPid)+"/cmdline"){
+      bytes=managerCmdline;
+    }
+    if(bytes!==null){
       const option=args[0];
       if(typeof option==="string")return bytes.toString(option);
       if(option&&typeof option==="object"&&typeof option.encoding==="string"){
@@ -257,12 +283,12 @@ async function childMain(ipcDir){
     return originalReadFileSync(location,...args);
   };
 
-  const liveModule=await import(
+  const selfModule=await import(
     pathToFileURL(
       path.join(ROOT,"dist/economic/buy_void_source_finality_live_process_binding_v1.js"),
     ).href+"?proof="+Date.now(),
   );
-  const self=liveModule.readBuyVoidSourceFinalitySelfProcessIdentityV1();
+  const self=selfModule.readBuyVoidSourceFinalitySelfProcessIdentityV1();
   fs.writeFileSync(
     path.join(ipcDir,"identity.json"),
     JSON.stringify(self)+"\n",
@@ -410,7 +436,7 @@ async function runCase(kind,expectedReason,helpers){
 
     const sourceInventory=
       helpers.v7.inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
-    assert.equal(sourceInventory.reviewed_source_file_count,"9");
+    assert.equal(sourceInventory.reviewed_source_file_count,"10");
 
     const lockId=helpers.v7.buyVoidSourceFinalityEnforcementLockIdV7({
       accepted_enforcement_set_sha256:EXTERNAL_SET,
@@ -432,7 +458,7 @@ async function runCase(kind,expectedReason,helpers){
       candidate_enforcement_identity_accepted:true,
       complete_executable_closure_verified:true,
       reviewed_source_files_sha256:sourceInventory.reviewed_source_files_sha256,
-      reviewed_source_file_count:"9",
+      reviewed_source_file_count:"10",
     };
     const deployment={
       ...deploymentBody,
@@ -446,22 +472,39 @@ async function runCase(kind,expectedReason,helpers){
       0o444,
     );
 
+    const managerCmdlineBytes=Buffer.from(
+      "/usr/lib/systemd/systemd\0--user\0",
+      "utf8",
+    );
     const liveMaterial={
-      marker:helpers.live.VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_RECEIPT_V1,
-      version:1,
+      marker:
+        helpers.liveV2.VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_RECEIPT_V2,
+      version:2,
       deployment_receipt_id:deployment.receipt_id,
+      service_process_selection_mode:
+        helpers.liveV2.VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTION_MODE_V2,
+      service_process_selector_contract_id:
+        helpers.liveV2.VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTOR_CONTRACT_ID_V2,
+      manager_pid:process.pid,
+      manager_ppid:1,
+      manager_start_time_ticks:"1409",
+      manager_cgroup_v2_path:
+        "/user.slice/user-"+String(targetUid)+
+        ".slice/user@"+String(targetUid)+
+        ".service/init.scope",
+      manager_executable_realpath:"/usr/lib/systemd/systemd",
+      manager_cmdline_sha256:hash(managerCmdlineBytes),
+      manager_pidfd_retained_during_collection:true,
+      service_pidfd_retained_during_collection:true,
       ...self,
       source_custody_proven:true,
       reviewed_service_contract_proven:true,
       reviewed_launcher_contract_proven:true,
     };
-    const liveReceipt={
-      ...liveMaterial,
-      receipt_id:
-        helpers.live.buyVoidSourceFinalityLiveProcessBindingReceiptIdV1(
-          liveMaterial,
-        ),
-    };
+    const liveReceipt=
+      helpers.liveV2.buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2(
+        liveMaterial,
+      );
     writeCreateOnce(
       LIVE_RECEIPT,
       Buffer.from(JSON.stringify(liveReceipt,null,2)+"\n","utf8"),
@@ -542,20 +585,20 @@ async function parentMain(){
   assert.ok(fs.existsSync("/run"),"run_directory_required");
   strictRootExecutable(SETPRIV);
 
-  const [v7,live,pair]=await Promise.all([
+  const [v7,liveV2,pair]=await Promise.all([
     import("../dist/economic/buy_void_source_finality_generation_provenance_v7.js"),
-    import("../dist/economic/buy_void_source_finality_live_process_binding_v1.js"),
+    import("../dist/economic/buy_void_source_finality_live_process_binding_v2.js"),
     import("../dist/economic/buy_void_source_finality_provider_pair_binding_v1.js"),
   ]);
   assert.equal(
-    live.VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+    liveV2.VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
     LIVE_RECEIPT,
   );
   assert.equal(
     pair.VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_BINDING_PATH_V1,
     PAIR_RECEIPT,
   );
-  const helpers={v7,live,pair};
+  const helpers={v7,liveV2,pair};
 
   const invalidCases=[
     [

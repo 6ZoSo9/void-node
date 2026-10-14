@@ -141,7 +141,7 @@ const forgedDeployment = {
   accepted_enforcement_set_sha256:
     VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   reviewed_source_files_sha256: "e".repeat(64),
-  reviewed_source_file_count: "9",
+  reviewed_source_file_count: "10",
   source_generation_verified: true,
   deployed_artifact_generation_verified: true,
 } as const;
@@ -149,9 +149,9 @@ const forgedDeployment = {
 const primary = observation(primaryPolicy);
 const unverifiedLiveProcessBinding = {
   ok: true,
-  marker: "VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V1",
-  status: "SAME_LIVE_PROCESS_BINDING_VERIFIED_PRODUCTION_AUTHORITY_STILL_HOLD",
-  receipt_id: "voidbsflp1_" + "d".repeat(64),
+  marker: "VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V2",
+  status: "SAME_LIVE_PROCESS_BINDING_V2_VERIFIED_PRODUCTION_AUTHORITY_STILL_HOLD",
+  receipt_id: "voidbsflp2_" + "d".repeat(64),
   deployment_receipt_id: "voidbsfdep1_" + "c".repeat(64),
   same_live_process_binding_proven: true,
   production_source_finality_authority_ready: false,
@@ -275,12 +275,28 @@ const processIdentity = {
   branch: "main",
 } as const;
 const sourceInventory = inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
-assert.equal(sourceInventory.reviewed_source_file_count, "9");
+assert.equal(sourceInventory.reviewed_source_file_count, "10");
 assert.equal(
   sourceInventory.files.some(
     (row) =>
       row.path ===
       "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
+  ),
+  true,
+);
+assert.equal(
+  sourceInventory.files.some(
+    (row) =>
+      row.path ===
+      "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
+  ),
+  true,
+);
+assert.equal(
+  sourceInventory.files.some(
+    (row) =>
+      row.path ===
+      "src/economic/buy_void_source_finality_live_process_binding_v2.ts",
   ),
   true,
 );
@@ -310,7 +326,7 @@ const receiptBody = {
   candidate_enforcement_identity_accepted: true,
   complete_executable_closure_verified: true,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "9",
+  reviewed_source_file_count: "10",
 };
 const receipt = {
   ...receiptBody,
@@ -320,7 +336,7 @@ const receiptDecision = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   receipt,
   process_source_identity: processIdentity,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "9",
+  reviewed_source_file_count: "10",
 });
 assert.equal(receiptDecision.ok, true);
 if (receiptDecision.ok) {
@@ -364,7 +380,7 @@ const wrongEnforcement = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
   receipt: wrongEnforcementReceipt,
   process_source_identity: processIdentity,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
-  reviewed_source_file_count: "9",
+  reviewed_source_file_count: "10",
 });
 assert.equal(wrongEnforcement.ok, false);
 
@@ -517,6 +533,8 @@ console.log("independent_finality_thresholds_required=true");
 console.log("audited_post2865_enforcement_lock_bound=true");
 console.log("operator_deployment_receipt_required=true");
 console.log("same_live_process_binding_gate_required=true");
+console.log("live_process_binding_v2_required=true");
+console.log("v1_live_process_receipt_authority_rejected=true");
 console.log("unverified_live_process_binding_not_promoted=true");
 console.log("deployment_receipt_process_commit_tree_bound=true");
 console.log("deployment_receipt_reviewed_source_digest_bound=true");
@@ -535,6 +553,16 @@ console.log("root_custody_positive_exercised=" + String(rootCustodyPositiveExerc
 const v7SourceText=fs.readFileSync(
   "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
   "utf8",
+);
+assert.match(
+  v7SourceText,
+  /verifyBuyVoidSourceFinalityLiveProcessBindingV2/u,
+  "V7 must require the V2 live-process verifier",
+);
+assert.doesNotMatch(
+  v7SourceText,
+  /verifyBuyVoidSourceFinalityLiveProcessBindingV1/u,
+  "V1 live-process verifier must not remain V7 production authority",
 );
 const observeStart=v7SourceText.indexOf(
   "export async function observeBuyVoidSourceFinalityGenerationProvenanceV7",

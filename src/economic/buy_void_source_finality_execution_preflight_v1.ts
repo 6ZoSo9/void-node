@@ -27,8 +27,8 @@ import {
   type BuyVoidSourceFinalityGenerationPolicyV7,
 } from "./buy_void_source_finality_generation_provenance_v7.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
-} from "./buy_void_source_finality_live_process_binding_v1.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
+} from "./buy_void_source_finality_live_process_binding_v2.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1";
@@ -639,7 +639,7 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
       ethereum_secondary: ethereumSecondary,
       deployment_receipt_path: canonicalDeploymentReceiptPath,
       live_process_binding_receipt_path:
-        VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
+        VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
       authority_policy_generation: authorityPolicy,
       total_timeout_ms: totalTimeout,
     },
