@@ -193,6 +193,27 @@ def main()->int:
             if result[key] is not False:
                 raise AssertionError("authority overclaim: "+key)
 
+        original_hostname=module.socket.gethostname
+        def failed_hostname():
+            raise OSError("synthetic hostname lookup failure")
+        module.socket.gethostname=failed_hostname
+        try:
+            expect_hold(
+                module,
+                "apollyon_training_installed_custody_hostname_lookup_failed",
+                lambda: module.qualify_materials(
+                    unit,
+                    preentry,
+                    owner_uid=os.getuid(),
+                    owner_gid=os.getgid(),
+                    require_xiphos=True,
+                    observation_scope="live_installed",
+                    trusted_root=trusted,
+                ),
+            )
+        finally:
+            module.socket.gethostname=original_hostname
+
         original_unit=unit.read_bytes()
         unit.write_bytes(original_unit+b"\n# tamper\n")
         expect_hold(
@@ -267,6 +288,7 @@ def main()->int:
             expect_hold(
                 module,
                 "apollyon_training_installed_custody_descriptor_io_failed",
+        "apollyon_training_installed_custody_hostname_lookup_failed",
                 lambda: module.read_stable_regular_file(
                     preentry,
                     owner_uid=os.getuid(),
@@ -349,6 +371,7 @@ def main()->int:
     print("retained_unit_and_preentry_descriptors=true")
     print("descriptor_io_failures_translate_to_hold=true")
     print("nofollow_open_race_translated_to_hold=true")
+    print("hostname_lookup_failure_translated_to_hold=true")
     print("unit_tamper_rejected=true")
     print("binary_tamper_rejected=true")
     print("permission_drift_rejected=true")
