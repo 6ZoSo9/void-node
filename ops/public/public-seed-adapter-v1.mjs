@@ -15,6 +15,10 @@ const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").rep
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
 const HOST = process.env.VOID_ADAPTER_HOST || "127.0.0.1";
 const PORT = Number(process.env.VOID_ADAPTER_PORT || "4111");
+const EARN_MUTATION_HOST = "127.0.0.1";
+const EARN_MUTATION_PORT = optionalEarnMutationPort(
+  process.env.VOID_EARN_MUTATION_DOWNSTREAM_PORT,
+);
 const EARN_HEALTH_PATH = "/health";
 const EARN_STATUS_PATH = "/wc/public-earning-pilot-v1/status";
 const EARN_BALANCE_PATH = "/wc/redeemable";
@@ -454,6 +458,24 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.floor(parsed)));
 }
 
+function optionalEarnMutationPort(raw) {
+  const text = String(raw ?? "").trim();
+  if (text === "") return null;
+  if (!/^[1-9][0-9]*$/u.test(text)) {
+    throw new Error("invalid_public_earn_mutation_downstream_port");
+  }
+  const port = Number(text);
+  if (
+    !Number.isSafeInteger(port) ||
+    port < 1024 ||
+    port > 65535 ||
+    port === PORT
+  ) {
+    throw new Error("invalid_public_earn_mutation_downstream_port");
+  }
+  return port;
+}
+
 function allowed(pathname, search = "") {
   if (blocked.some((value) => pathname === value || pathname.startsWith(`${value}/`))) {
     return false;
@@ -550,6 +572,10 @@ function publicEarnEnabled() {
   return /^http:\/\/[^\s/]+(?::\d+)?$/.test(EARN_UPSTREAM);
 }
 
+function dedicatedEarnMutationIngressEnabled() {
+  return EARN_MUTATION_PORT !== null;
+}
+
 function gatewayStatus() {
   return {
     ok: true,
@@ -577,6 +603,17 @@ function gatewayStatus() {
       participant_cli: ["GET", "HEAD"],
       claim_cli: ["GET", "HEAD"],
       no_node_client: ["GET", "HEAD"],
+    },
+    mutation_ingress: {
+      mode: dedicatedEarnMutationIngressEnabled()
+        ? "dedicated_loopback"
+        : "shared_legacy_hold",
+      dedicated_loopback_configured:
+        dedicatedEarnMutationIngressEnabled(),
+      shared_listener_mutations_enabled:
+        !dedicatedEarnMutationIngressEnabled(),
+      dedicated_listener_host_public: false,
+      local_transport_trust_proven: false,
     },
     limits: {
       request_body_bytes: EARN_MAX_BODY_BYTES,
@@ -1274,10 +1311,24 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (url.pathname === EARN_SUBMIT_PATH) {
+        if (dedicatedEarnMutationIngressEnabled()) {
+          writeJson(req, res, 404, {
+            ok: false,
+            error: "public_earn_mutation_dedicated_ingress_required",
+          });
+          return;
+        }
         await proxyEarnSubmit(req, res);
         return;
       }
       if (url.pathname === EARN_CLAIM_PATH) {
+        if (dedicatedEarnMutationIngressEnabled()) {
+          writeJson(req, res, 404, {
+            ok: false,
+            error: "public_earn_mutation_dedicated_ingress_required",
+          });
+          return;
+        }
         await proxyEarnClaim(req, res);
         return;
       }
@@ -1403,8 +1454,64 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(
-    `void_public_seed_adapter_v1 host=${HOST} port=${PORT} upstream=${UPSTREAM} public_earn_gateway=${publicEarnEnabled()}`,
+const earnMutationServer = EARN_MUTATION_PORT === null
+  ? null
+  : http.createServer(async (req, res) => {
+      try {
+        const url = new URL(
+          req.url || "/",
+          "http://public-earn-mutation.local",
+        );
+        const sensitive =
+          url.pathname === EARN_CLAIM_PATH ||
+          url.pathname === EARN_SUBMIT_PATH;
+        if (!sensitive) {
+          writeText(req, res, 404, "not_public\n");
+          return;
+        }
+        if (url.search) {
+          writeText(req, res, 400, "post_query_not_allowed\n");
+          return;
+        }
+        if (req.method !== "POST") {
+          writeText(
+            req,
+            res,
+            405,
+            "method_not_allowed\n",
+            { allow: "POST" },
+          );
+          return;
+        }
+        if (url.pathname === EARN_CLAIM_PATH) {
+          await proxyEarnClaim(req, res);
+          return;
+        }
+        await proxyEarnSubmit(req, res);
+      } catch (_error) {
+        writeText(req, res, 502, "adapter_upstream_error\n");
+      }
+    });
+
+function startSharedServer() {
+  server.listen(PORT, HOST, () => {
+    console.log(
+      `void_public_seed_adapter_v1 host=${HOST} port=${PORT} upstream=${UPSTREAM} public_earn_gateway=${publicEarnEnabled()} mutation_ingress=${dedicatedEarnMutationIngressEnabled() ? "dedicated_loopback" : "shared_legacy_hold"}`,
+    );
+  });
+}
+
+if (earnMutationServer) {
+  earnMutationServer.listen(
+    EARN_MUTATION_PORT,
+    EARN_MUTATION_HOST,
+    () => {
+      console.log(
+        "VOID_PUBLIC_EARN_DEDICATED_MUTATION_LISTENER_V1 ready=true",
+      );
+      startSharedServer();
+    },
   );
-});
+} else {
+  startSharedServer();
+}
