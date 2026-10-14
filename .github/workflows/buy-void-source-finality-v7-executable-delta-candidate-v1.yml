@@ -14,6 +14,10 @@ on:
       - "scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_post2933_candidate_v2.mjs"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v2.md"
+      - "ops/security/buy-void-enforcement-post2933-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-post2933-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_post2933_lock_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-post2933-lock-v2.md"
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
@@ -427,3 +431,75 @@ jobs:
           console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
           console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           NODE
+
+enforcement-lock-v2:
+    needs: [enforcement-candidate-v2-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact lock head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Download exact same-run V2 candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-post2933-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate-v2
+      - name: Bind committed evidence and derive exact lock
+        run: |
+          set -euo pipefail
+          cmp "candidate-v2/enforcement-post2933-v2-${{ matrix.node }}.json" "ops/security/buy-void-enforcement-post2933-candidate-v2.json"
+          node --check "scripts/prove_buy_void_enforcement_post2933_lock_v2.mjs"
+          node "scripts/prove_buy_void_enforcement_post2933_lock_v2.mjs" --self-test | tee "lock-v2-${{ matrix.node }}.txt"
+          node "scripts/prove_buy_void_enforcement_post2933_lock_v2.mjs" --derive > "lock-v2-${{ matrix.node }}.json"
+          cmp "lock-v2-${{ matrix.node }}.json" "ops/security/buy-void-enforcement-post2933-lock-v2.json"
+          grep -Fx 'candidate_enforcement_identity_accepted=true' "lock-v2-${{ matrix.node }}.txt"
+          grep -Fx 'production_source_finality_authority_ready=false' "lock-v2-${{ matrix.node }}.txt"
+          grep -Fx 'public_presale_activation=false' "lock-v2-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "lock-v2-${{ matrix.node }}.txt"
+      - name: Upload exact lock evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-enforcement-post2933-lock-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            lock-v2-${{ matrix.node }}.json
+            lock-v2-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  enforcement-lock-v2-cross-node:
+    needs: [enforcement-lock-v2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major lock evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-post2933-lock-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: lock-v2
+      - name: Require exact Node 22 24 26 lock equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "lock-v2/lock-v2-$node.json"
+            test -s "lock-v2/lock-v2-$node.txt"
+          done
+          cmp lock-v2/lock-v2-22.json lock-v2/lock-v2-24.json
+          cmp lock-v2/lock-v2-22.json lock-v2/lock-v2-26.json
+          cmp lock-v2/lock-v2-22.txt lock-v2/lock-v2-24.txt
+          cmp lock-v2/lock-v2-22.txt lock-v2/lock-v2-26.txt
+          sha256sum lock-v2/lock-v2-22.json
+          echo "VOID_BUY_VOID_ENFORCEMENT_POST2933_LOCK_V2_CROSS_NODE_GREEN"

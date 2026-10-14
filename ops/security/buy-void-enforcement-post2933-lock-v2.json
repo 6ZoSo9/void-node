@@ -1,0 +1,31 @@
+{
+  "schema": "void_buy_void_enforcement_post2933_lock_v2",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_POST2933_LOCK_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "1c7f0c84cfb89a159cee4d8ee6bf518926bd4c06",
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-post2933-candidate-v2.json",
+    "bytes": 5004,
+    "sha256": "1472ac34b6bd6b2bcf24ef3934e95121fa95b3b8406e20c7e0160d3faabc0b6f",
+    "git_blob_sha1": "622807eaf246cae558186bbd1922aebda9025f72",
+    "candidate_enforcement_set_sha256": "f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd"
+  },
+  "source_parent": "ccb4546cf841ce1a43a13339272e4d07c90f7cc0",
+  "hosted_census_id": "voidbe2933c1_b37b0e86035a3dd1ccf09821445069ea0de1626be4763c9d19d2975645a93539",
+  "hosted_census_artifact_inventory_sha256": "cf36522638c099f7b8c5036fb32d943d6fe543329a36519e69cf2d9fb0105dd0",
+  "hosted_census_source_inventory_sha256": "4e86bb6f22dbd0e8908697291b78309c295cd316603532a3eb7ccfcc877749d5",
+  "v7_executable_delta_generation_sha256": "17e70d5f6fe47f7eda87aabfa79ead574ecadeec4eb44470b774f020c997006e",
+  "v7_executable_delta_artifact_inventory_sha256": "9ddb6e6b9ed47313bec79b20accc26c36be386ce862db8f2f771d871dd7c6fae",
+  "audited_package_profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+  "audited_package_profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+  "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+  "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
