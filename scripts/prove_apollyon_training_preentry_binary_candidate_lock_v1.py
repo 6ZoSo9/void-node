@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import importlib.util
+import types
 import json
 import os
 from pathlib import Path
@@ -72,14 +72,16 @@ def load_validator():
     source=bounded_bytes(VALIDATOR,256*1024,"candidate validator")
     if git_blob_sha1(source)!=REVIEWED_VALIDATOR_GIT_BLOB_SHA1:
         raise AssertionError("candidate validator Git blob mismatch")
-    spec=importlib.util.spec_from_file_location(
-        "void_apollyon_candidate_validator_v1",
-        VALIDATOR,
+    module=types.ModuleType("void_apollyon_candidate_validator_v1")
+    module.__file__=os.fspath(VALIDATOR)
+    code=compile(
+        source,
+        os.fspath(VALIDATOR),
+        "exec",
+        dont_inherit=True,
+        optimize=0,
     )
-    if spec is None or spec.loader is None:
-        raise AssertionError("candidate validator import unavailable")
-    module=importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    exec(code,module.__dict__)
     if not callable(getattr(module,"validate_report",None)):
         raise AssertionError("candidate validator export missing")
     return module
@@ -284,6 +286,7 @@ def main()->int:
         raise AssertionError("candidate lock fixture is not canonical")
     self_test(value,validator)
     print(MARKER+"_PROOF_GREEN")
+    print("validator_executed_from_verified_bytes=true")
     print("reviewed_candidate_head="+REVIEWED_CANDIDATE_HEAD)
     print("candidate_report_sha256="+EXPECTED_REPORT_SHA256)
     print("candidate_id="+EXPECTED_CANDIDATE_ID)
