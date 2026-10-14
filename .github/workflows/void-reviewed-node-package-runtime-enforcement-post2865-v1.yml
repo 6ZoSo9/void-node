@@ -1,0 +1,127 @@
+name: VOID reviewed Node enforcement package post-2865 lock v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-v1.yml"
+      - "docs/security/reviewed-node-package-runtime-enforcement-post2865-v1.md"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-v1.yml"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact audited lock without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Re-enforce post-2865 package runtime identity
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs
+          receipt="$RUNNER_TEMP/enforcement-post2865-lock-${{ matrix.node }}.txt"
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs | tee "$receipt"
+          grep -Fx 'VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_POST2865_V1_LOCK_GREEN' "$receipt"
+          grep -Fx 'audited_dependency_generation=true' "$receipt"
+          grep -Fx 'private_express_and_ethers_import_green=true' "$receipt"
+          grep -Fx 'profile_identity_accepted=true' "$receipt"
+          grep -Fx 'provider_closure_composed=false' "$receipt"
+          grep -Fx 'complete_executable_closure_verified=false' "$receipt"
+          grep -Fx 'production_source_finality_authority_ready=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload lock receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-enforcement-post2865-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/enforcement-post2865-lock-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [lock]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download exact lock receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-enforcement-post2865-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+
+      - name: Require Node 22 24 26 identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "receipts/enforcement-post2865-lock-$node.txt"
+          done
+          cmp receipts/enforcement-post2865-lock-22.txt receipts/enforcement-post2865-lock-24.txt
+          cmp receipts/enforcement-post2865-lock-22.txt receipts/enforcement-post2865-lock-26.txt
+          grep -Fx 'profile_id=voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac' receipts/enforcement-post2865-lock-22.txt
+          grep -Fx 'packages_aggregate_sha256=77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6' receipts/enforcement-post2865-lock-22.txt
+          echo VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_POST2865_V1_CROSS_NODE_GREEN
+          echo provider_closure_composed=false
+          echo complete_executable_closure_verified=false
+          echo production_source_finality_authority_ready=false
+          echo funds_movement=false
