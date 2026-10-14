@@ -53,21 +53,39 @@ def git_blob_sha1(data: bytes) -> str:
     return h.hexdigest()
 
 
-def parse_unit(text: str) -> dict[str, list[str]]:
+def parse_sections(text: str) -> dict[str, list[tuple[str, str]]]:
     section = None
-    result: dict[str, list[str]] = {}
+    result: dict[str, list[tuple[str, str]]] = {}
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or line.startswith(";"):
             continue
         if line.startswith("[") and line.endswith("]"):
             section = line[1:-1]
+            if section in result:
+                raise AssertionError("duplicate section")
+            result[section] = []
             continue
-        if section != "Service":
-            continue
-        if "=" not in line:
-            raise AssertionError("service directive without equals")
+        if section is None or "=" not in line:
+            raise AssertionError("directive outside section or without equals")
         key, value = line.split("=", 1)
+        result[section].append((key, value))
+    return result
+
+
+def parse_unit(text: str) -> dict[str, list[str]]:
+    sections = parse_sections(text)
+    if set(sections) != {"Unit", "Service"}:
+        raise AssertionError("unit section set mismatch")
+    if sections["Unit"] != [
+        (
+            "Description",
+            "VOID Apollyon candidate training bus-isolation boundary v1",
+        ),
+    ]:
+        raise AssertionError("Unit section mismatch")
+    result: dict[str, list[str]] = {}
+    for key, value in sections["Service"]:
         result.setdefault(key, []).append(value)
     return result
 
@@ -116,6 +134,24 @@ def prove_unit(text: str) -> None:
     for key, expected in expected_single.items():
         if one(values, key) != expected:
             raise AssertionError(f"{key} mismatch")
+
+    expected_keys = set(expected_single) | {
+        "CapabilityBoundingSet",
+        "AmbientCapabilities",
+        "SystemCallFilter",
+        "ReadOnlyPaths",
+        "ReadWritePaths",
+    }
+    if set(values) != expected_keys:
+        raise AssertionError("Service directive key set mismatch")
+    expected_counts = {
+        key: 1 for key in expected_keys
+    }
+    expected_counts["SystemCallFilter"] = 2
+    expected_counts["ReadOnlyPaths"] = 3
+    for key, expected_count in expected_counts.items():
+        if len(values[key]) != expected_count:
+            raise AssertionError(f"{key} occurrence count mismatch")
 
     if one(values, "CapabilityBoundingSet") != "":
         raise AssertionError("capability bounding set must be empty")
@@ -374,6 +410,25 @@ def main() -> None:
     else:
         raise AssertionError("alternate ABI weakening unexpectedly admitted")
 
+    widened = unit_text.replace(
+        "ExecStart="+FIXED_PREENTRY,
+        "ExecStart="+FIXED_PREENTRY+"\nExecStartPre=/bin/true",
+    )
+    try:
+        prove_unit(widened)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unreviewed ExecStartPre unexpectedly admitted")
+
+    widened = unit_text + "\n[Install]\nWantedBy=multi-user.target\n"
+    try:
+        prove_unit(widened)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unreviewed Install section unexpectedly admitted")
+
     compile_and_self_test()
 
     print(MARKER)
@@ -384,6 +439,8 @@ def main() -> None:
     print("attempt_claim=false")
     print("systemd_v255_parser_verified=true")
     print("protect_control_groups_boolean_required=true")
+    print("unit_section_schema_closed=true")
+    print("service_directive_key_set_closed=true")
     print("inherited_fd_close_boundary_source_proven=true")
     print("all_socket_families_denied_by_reviewed_unit_source=true")
     print("socketpair_scm_rights_io_uring_pidfd_acquisition_denied_in_source=true")
