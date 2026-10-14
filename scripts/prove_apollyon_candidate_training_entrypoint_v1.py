@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "13c2de00cc870ec7ecda4bde016307cb95b3e033"
+EXPECTED_SOURCE_BLOB = "7545155df30a02215341a3eab092b7dc05775218"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -82,6 +82,62 @@ def run_self_test(binary: Path) -> None:
             raise AssertionError("self-test missing: " + value)
     if result.stderr != "":
         raise AssertionError("self-test stderr not empty")
+
+
+def prove_early_hold_closed_stderr(binary: Path) -> None:
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    try:
+        started = time.monotonic()
+        result = subprocess.run(
+            [str(binary)],
+            stdout=subprocess.PIPE,
+            stderr=write_fd,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        os.close(write_fd)
+
+    if result.returncode != 2:
+        raise AssertionError(
+            "early HOLD with closed stderr was terminated by signal"
+        )
+    if elapsed >= 3.0:
+        raise AssertionError("early HOLD blocked on closed stderr")
+
+
+def prove_early_hold_full_stderr(binary: Path) -> None:
+    read_fd, write_fd = os.pipe()
+    try:
+        os.set_blocking(write_fd, False)
+        chunk = b"x" * 4096
+        while True:
+            try:
+                os.write(write_fd, chunk)
+            except BlockingIOError:
+                break
+
+        started = time.monotonic()
+        result = subprocess.run(
+            [str(binary)],
+            stdout=subprocess.PIPE,
+            stderr=write_fd,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        os.close(write_fd)
+        os.close(read_fd)
+
+    if result.returncode != 2:
+        raise AssertionError("early HOLD with full stderr did not fail closed")
+    if elapsed >= 3.0:
+        raise AssertionError("early HOLD blocked on full stderr")
 
 
 def prove_no_nnp_refusal(binary: Path) -> None:
@@ -258,7 +314,8 @@ def prove_source_boundary(source: str) -> None:
         "CLOCK_BOOTTIME",
         "TIMER_ABSTIME",
         "O_NONBLOCK",
-        "prepare_observation_io();",
+        "prepare_process_io_safety();",
+        "sigaction(SIGPIPE",
         "write(STDOUT_FILENO, payload, sizeof(payload) - 1U)",
         "apollyon_candidate_training_entrypoint_stdout_not_immediately_writable",
         "SIGPIPE",
@@ -284,15 +341,23 @@ def prove_source_boundary(source: str) -> None:
         if value not in source:
             raise AssertionError("source missing: " + value)
 
-    io_index = source.index("prepare_observation_io();")
+    main_index = source.index("int main(int argc, char **argv)")
+    io_index = source.index("prepare_process_io_safety();", main_index)
+    self_test_index = source.index(
+        'if (argc == 2 && strcmp(argv[1], "--self-test") == 0)', main_index
+    )
+    argument_hold_index = source.index("if (argc != 1)", main_index)
     deadline_index = source.index(
         "struct timespec qualification_deadline = arm_qualification_deadline();"
     )
     ready_index = source.index("emit_ready();")
     hold_index = source.index("qualification_hold(&qualification_deadline);")
-    if not (io_index < deadline_index < ready_index < hold_index):
+    if not (
+        main_index < io_index < self_test_index < argument_hold_index <
+        deadline_index < ready_index < hold_index
+    ):
         raise AssertionError(
-            "nonblocking I/O and absolute deadline are not armed before readiness"
+            "SIGPIPE/nonblocking safety is not established before every HOLD path"
         )
     if "fflush(stdout)" in source:
         raise AssertionError("qualification readiness regained blocking stdio flush")
@@ -339,6 +404,8 @@ def main() -> None:
         binary = Path(td) / "apollyon_candidate_training_entrypoint_v1"
         compile_target(binary)
         run_self_test(binary)
+        prove_early_hold_closed_stderr(binary)
+        prove_early_hold_full_stderr(binary)
         prove_no_nnp_refusal(binary)
         prove_inherited_fd_refusal(binary)
         prove_blocked_readiness_refusal(binary)
@@ -351,6 +418,9 @@ def main() -> None:
     print("qualification_hold_capability=true")
     print("fixed_qualification_window_seconds=300")
     print("no_new_privileges_required=true")
+    print("sigpipe_ignored_before_all_hold_paths=true")
+    print("early_hold_closed_stderr_exit2=true")
+    print("early_hold_full_stderr_nonblocking=true")
     print("no_inherited_fds_ge_3_required=true")
     print("observation_stdout_stderr_nonblocking=true")
     print("blocked_readiness_sink_fails_closed=true")
