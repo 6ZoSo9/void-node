@@ -409,8 +409,8 @@ try {
     assert.equal(wrongProcess.ok, false);
   }
 } finally {
-  try { fs.chmodSync(temp, 0o700); } catch {}
-  try { fs.chmodSync(path.join(temp, "deployment.json"), 0o600); } catch {}
+  try { fs.chmodSync(temp, 0o700); } catch (voidSourceFinalityV7CleanupError) { void voidSourceFinalityV7CleanupError; }
+  try { fs.chmodSync(path.join(temp, "deployment.json"), 0o600); } catch (voidSourceFinalityV7ReceiptCleanupError) { void voidSourceFinalityV7ReceiptCleanupError; }
   fs.rmSync(temp, { recursive: true, force: true });
 }
 
