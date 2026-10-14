@@ -40,9 +40,18 @@ V2 also requires an exact root-owned, non-group/world-writable, single-link
 Polkit deny rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
 The rule must be lexically first and return `NO` for the training user based
-only on the four reviewed systemd action IDs. Because that first rule ignores
-request details, `polkit.message`, `polkit.gettext_domain`, unit and verb
-details cannot turn a denied operation into an allow. Non-interactive
+only on the four reviewed systemd action IDs. V2 identity evidence carries the
+passwd-resolved training username alongside the training UID. Before emitting
+that identity, the collector requires a stable forward/reverse NSS round trip:
+`getpwnam(name)` and `getpwuid(uid)` must return the same requested canonical
+name, UID, and GID, and a repeated forward lookup must remain unchanged. The pure
+classifier then requires the Polkit rule runtime user to equal that independently
+collected training identity. It reconstructs those exact canonical rule bytes from
+the bound username and action IDs and requires the observed byte count and
+SHA-256 to match exactly;
+syntactically valid but unrelated digest evidence HOLDS. Because that first rule
+ignores request details, `polkit.message`, `polkit.gettext_domain`, unit and
+verb details cannot turn a denied operation into an allow. Non-interactive
 `pkcheck` exit status 1 is then required as confirmation for the generic
 `manage-units` action, every reviewed unit-control verb for the protected
 custody unit, `manage-unit-files`, `reload-daemon`, and `set-environment`.

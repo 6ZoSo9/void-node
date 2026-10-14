@@ -74,6 +74,29 @@ function serviceControlFixture(){
     ambient:"0",effective:"0",inheritable:"0",
     no_new_privileges:true,permitted:"0",
   });
+  const deniedActions=[
+    "org.freedesktop.systemd1.manage-units",
+    ...globalControlActions,
+  ];
+  const actionExpression=deniedActions
+    .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+    .join(" ||\n");
+  const expectedPolkitRule=
+    "polkit.addRule(function(action, subject) {\n"+
+    "  if (\n"+
+    "    subject.user === "+JSON.stringify("zoso")+" &&\n"+
+    "    (\n"+
+    actionExpression+"\n"+
+    "    )\n"+
+    "  ) {\n"+
+    "    return polkit.Result.NO;\n"+
+    "  }\n"+
+    "  return polkit.Result.NOT_HANDLED;\n"+
+    "});\n";
+  const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+  const expectedPolkitRuleSha256=crypto.createHash("sha256")
+    .update(expectedPolkitRuleBytes)
+    .digest("hex");
   const busDigest=crypto.createHash("sha256")
     .update(canonicalApollyonCustodyHostPolicyJsonV1(checks))
     .digest("hex");
@@ -102,11 +125,8 @@ function serviceControlFixture(){
     pkcheck_subject:"4242,123456,1000",
     polkit_deny_rule:{
       action_id_only:true,
-      bytes:512,
-      denied_action_ids:[
-        "org.freedesktop.systemd1.manage-units",
-        ...globalControlActions,
-      ],
+      bytes:expectedPolkitRuleBytes.length,
+      denied_action_ids:deniedActions,
       details_can_change_result:false,
       group_other_writable:false,
       lexically_first:true,
@@ -117,7 +137,7 @@ function serviceControlFixture(){
       retained_ancestors_group_other_writable:false,
       retained_ancestors_root_owned:true,
       runtime_user:"zoso",
-      sha256:"77".repeat(32),
+      sha256:expectedPolkitRuleSha256,
       single_link:true,
       symlink:false,
     },
@@ -178,6 +198,7 @@ function v1Fixture(){
 function v2Fixture(){
   const x=structuredClone(v1Fixture());
   x.marker=VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2;x.version=2;
+  x.identities.training_user="zoso";
   Object.assign(x.socket_parent,{
     retained_ancestor_count:3,retained_ancestors_root_owned:true,
     retained_ancestors_direct:true,retained_ancestors_symlink_free:true,
@@ -236,6 +257,24 @@ for(const mutate of [
 }
 {
   const bad=v2Fixture();bad.service_control.polkit_deny_rule.lexically_first=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.identities.training_user="otheruser";
+  assert.throws(
+    ()=>qualifyApollyonCustodyHostPolicyV2(bad),
+    /service_control_invalid/u,
+  );
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.bytes+=1;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.polkit_deny_rule.sha256="77".repeat(32);
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
@@ -379,6 +418,8 @@ console.log("socket_parent_retained_ancestor_binding=true");
 console.log("socket_parent_training_rename_unlink_denied_required=true");
 console.log("explicit_training_pid_service_control_denial_required=true");
 console.log("exact_lexically_first_action_id_only_polkit_deny_rule_required=true");
+console.log("canonical_polkit_rule_bytes_and_sha256_required=true");
+console.log("polkit_runtime_user_bound_to_training_identity=true");
 console.log("polkit_details_can_change_result=false");
 console.log("reviewed_systemd_major=255");
 console.log("running_systemd_manager_version_bound=true");
