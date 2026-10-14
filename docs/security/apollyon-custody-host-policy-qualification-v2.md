@@ -48,18 +48,20 @@ details cannot turn a denied operation into an allow. Non-interactive
 custody unit, `manage-unit-files`, `reload-daemon`, and `set-environment`.
 Any authorized, interactive/challenge, dismissed, or error result HOLDS.
 
-The collector also inventories the live unique names on the **system bus**.
-Any bus sender whose authenticated Unix UID is the training UID or whose
-authenticated Unix PID belongs to the admitted training-process set must match
-**both** dimensions exactly; a sender with a training PID but foreign
-authenticated UID, or training UID but unadmitted PID, HOLDS. Each admitted
-sender is then probed through `pkcheck --system-bus-name` over the same exact
-reviewed systemd control surface. The sender set is collected again afterward
-and must remain stable. Any unique name listed by the bus whose authenticated
-PID or UID cannot be resolved HOLDS the census; a disappearing sender is never
-silently dropped. V2 requires a bounded list of those sender identities, the
-exact denial-check count, and the SHA-256 of the canonical all-denied transcript
-for each sender.
+The collector also inventories live unique names on the **system bus**.
+`busctl list` row PID/user fields are used only to decide which rows could
+belong to the training boundary. Noncandidate rows—including the collector's own
+short-lived root listing connection—are excluded before credential lookup.
+Candidate rows must then resolve authoritative D-Bus Unix PID and UID
+successfully; lookup failure or list/credential PID drift HOLDS. A sender with a
+training PID but foreign authenticated UID, or training UID but unadmitted PID,
+also HOLDS.
+
+Each admitted sender is then probed through `pkcheck --system-bus-name` over
+the same exact reviewed systemd control surface. The relevant sender set is
+collected again afterward and must remain stable. V2 requires a bounded list of
+those sender identities, the exact denial-check count, and the SHA-256 of the
+canonical all-denied transcript for each sender.
 
 After the bus-denial phase, the complete training-process evidence is collected
 again and compared by full start-time-bound process identity plus per-process
