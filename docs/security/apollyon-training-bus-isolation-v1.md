@@ -129,7 +129,12 @@ python3 scripts/prove_apollyon_training_bus_isolation_v1.py
 The proof:
 
 - pins both exact Git blobs;
-- parses and closes the service directive set;
+- closes the unit schema to exactly one `[Unit]` section and one
+  `[Service]` section;
+- requires the exact reviewed `Description`, exact Service directive-key set,
+  and exact occurrence count for every directive;
+- explicitly rejects added lifecycle/command surfaces such as
+  `ExecStartPre=` and any `[Install]` section;
 - requires the hosted parser to be systemd major 255 and runs
   `systemd-analyze verify` on a disposable path-adjusted copy of the exact
   unit;
