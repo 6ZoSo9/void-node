@@ -651,6 +651,18 @@ for (const marker of [
   }
 }
 
+const drawerStyle = componentsCss.match(/\\.drawer\\s*\\{([^}]*)\\}/)?.[1] ?? "";
+for (const marker of [
+  "top: 0;",
+  "bottom: 0;",
+  "overflow-y: auto;",
+  "overscroll-behavior: contain;",
+]) {
+  if (!drawerStyle.includes(marker)) {
+    fail(`Advanced drawer short-viewport scroll boundary missing: ${marker}`);
+  }
+}
+
 const combinedFrontend = `${html}\n${appJs}\n${viewsJs}`;
 
 for (const forbidden of [

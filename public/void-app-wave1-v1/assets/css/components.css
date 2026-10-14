@@ -103,7 +103,7 @@ th { color: var(--void-text-muted); background: rgba(7,9,13,.34); font-size: var
 td { color: var(--void-text-secondary); }
 tr:last-child td { border-bottom: 0; }
 .overlay { position: fixed; inset: 0; z-index: var(--void-z-overlay); background: rgba(0,0,0,.58); backdrop-filter: blur(5px); }
-.drawer { position: fixed; z-index: var(--void-z-drawer); top: 0; bottom: 0; width: min(28rem, calc(100vw - 2rem)); background: var(--void-surface-overlay); border-left: 1px solid var(--void-border-default); box-shadow: var(--void-shadow-2); }
+.drawer { position: fixed; z-index: var(--void-z-drawer); top: 0; bottom: 0; width: min(28rem, calc(100vw - 2rem)); background: var(--void-surface-overlay); border-left: 1px solid var(--void-border-default); box-shadow: var(--void-shadow-2); overflow-y: auto; overscroll-behavior: contain; }
 .drawer--right { right: 0; }
 .drawer-header { min-height: 4.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--void-border-subtle); }
 .drawer-header > div { display: grid; gap: .2rem; }

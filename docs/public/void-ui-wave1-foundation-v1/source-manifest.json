@@ -19,7 +19,7 @@
     "docs/WAVE1_FOUNDATION_SPEC.md": "4776d631d4b04bae3bd8a55f9f2e031f53eba0bde85b7b96b07dae6f9db2eb5f",
     "docs/audit.json": "69e69f30235868107e7f247f93e1667aa0da956b8a22b761a945555f6ebe0241",
     "prototype/assets/css/base.css": "e0b9d3b2789f9944cdcb9f6a7d91f117c5c86da8505269e0c4f4987938f6376e",
-    "prototype/assets/css/components.css": "601c4848a02abe65a784d5e411242f3c0106abcd8a370cb31722173caa4269d0",
+    "prototype/assets/css/components.css": "d6ba61192c8b0db14f3900b8399b670f8dfd05dce55fc45f425a0054474cc036",
     "prototype/assets/css/layout.css": "0357699fdc36ba0fcef183d2892c54ec756559f2bc8dd2450ec96e0f474f37ad",
     "prototype/assets/css/main.css": "e914d3d9200d0301a2824112af6c0bfc86e8d3858ad45c31ec6b30e2dfb66e7a",
     "prototype/assets/css/responsive.css": "61e420cf90f923d73c35e9c19a9ba6ecdceef87e9bb152b6b475dc34be2415cd",
@@ -100,5 +100,15 @@
       "represents_source_before_repair": true,
       "current_acceptance_evidence": false
     }
+  },
+  "advanced_drawer_short_viewport_scroll_repair": {
+    "date": "2026-10-14",
+    "surface": "advanced-drawer",
+    "drawer_scroll_owner": "drawer",
+    "fixed_viewport_bounds": true,
+    "overflow_y_auto": true,
+    "overscroll_contained": true,
+    "body_scroll_lock_safe": true,
+    "authority_added": false
   }
 }
