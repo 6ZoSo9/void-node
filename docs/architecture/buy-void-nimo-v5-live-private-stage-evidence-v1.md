@@ -125,12 +125,25 @@ private_stage_bytes_verified=true
 Those claims mean only that the exact reviewed V5 private stage was observed on
 the reviewed Nimo host identity at collection time.
 
+The receipt also reports the exact Git-blob SHA-1 and SHA-256 of the collector
+file that executed.  That identity is intentionally self-reported; therefore
+the receipt keeps:
+
+```text
+live_evidence_origin_proven=false
+```
+
+A later consumer must independently bind those collector bytes to the reviewed
+source generation before promoting the receipt into installation/runtime
+authority.
+
 ## Authority boundary
 
 Even a GREEN live receipt keeps:
 
 ```text
 root_disk_continuity_reverified=true
+live_evidence_origin_proven=false
 external_transport_authenticated=false
 live_nimo_installed=false
 installation_qualification_composed=false
