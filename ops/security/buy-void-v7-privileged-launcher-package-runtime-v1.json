@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V1",
+  "version": 1,
+  "status": "V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_IDENTITY",
+  "repository": "6ZoSo9/void-node",
+  "candidate_parent": "d333257e15185f89c3d1a389db5239d94be8a773",
+  "candidate_source_parent": "452691b0644c6295a5295636ab1c89158b2dc184",
+  "candidate_script_git_blob_sha1": "8c7bea17b4bfb4a8380c5ddfbb7480123fa7e46c",
+  "candidate_json_sha256": "35b50f34dc2a13b2e91163c540a7bfe84aec1eb4e37787e54a63e4fba66be00e",
+  "candidate_json_git_blob_sha1": "a5a5c2499f7a591df599f1a0af931c461ba447b3",
+  "candidate_json_bytes": 4705,
+  "launcher_git_blob_sha1": "ed37356fbc202fe9159b5d390434880a1f86a60e",
+  "package_json_git_blob_sha1": "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+  "package_lock_git_blob_sha1": "15b5c82ea36f13079a2f9e8863722f654eb3f201",
+  "accepted_enforcement_profile": {
+    "manifest_git_blob_sha1": "445bcfbf5feae928e0d9cc06d4d31c1ee186fe39",
+    "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+    "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+    "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+    "package_count": 82,
+    "total_file_count": 2498,
+    "total_bytes": 21290060,
+    "root_packages": [
+      "ethers",
+      "express"
+    ]
+  },
+  "required_privileged_root_packages": [
+    "ethers",
+    "express",
+    "tsx"
+  ],
+  "root_versions": {
+    "ethers": "6.17.0",
+    "express": "4.22.3",
+    "tsx": "4.23.15"
+  },
+  "tsx_runtime": {
+    "runtime_id": "voidtsxpr1_0f2bf2dba60718942e7db9b83779a2aeb2e9db32e74610a96a8ec978ad35e4d4",
+    "packages_aggregate_sha256": "e16cca109419b3ce7b39970458fd76ba53bdc6399641911dd2016886c624a8ca",
+    "package_count": 3,
+    "total_file_count": 40,
+    "total_bytes": 11972707,
+    "installed_optional_platform_packages": [
+      "@esbuild/linux-x64"
+    ]
+  },
+  "cross_node_candidate_bytes_verified": true,
+  "privileged_launcher_package_runtime_identity_accepted": true,
+  "privileged_launcher_package_runtime_verified": true,
+  "protected_source_install_authorized": false,
+  "privileged_receipt_execution_authorized": false,
+  "runtime_service_mutation": false,
+  "credential_access": false,
+  "wallet_or_signer_access": false,
+  "rpc_call": false,
+  "transaction_broadcast": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
