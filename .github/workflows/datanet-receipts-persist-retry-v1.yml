@@ -47,6 +47,14 @@ jobs:
           grep -Fx "descriptor_generation_bound=true" "$proof_file"
           grep -Fx "path_replacement_next_scan_resets=true" "$proof_file"
           grep -Fx "descriptor_close_verified=true" "$proof_file"
+          grep -Fx "scan_deadline_ms=5000" "$proof_file"
+          grep -Fx "scan_timeout_rollback=true" "$proof_file"
+          grep -Fx "single_flight_released_after_timeout=true" "$proof_file"
+          grep -Fx "timed_out_stream_destroyed=true" "$proof_file"
+          grep -Fx "max_carry_bytes=1048576" "$proof_file"
+          grep -Fx "line_too_large_rollback=true" "$proof_file"
+          grep -Fx "overlimit_stream_destroyed=true" "$proof_file"
+          grep -Fx "valid_generation_recovery_after_line_too_large=true" "$proof_file"
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha }}

@@ -20,9 +20,36 @@ const replacementBytes = Buffer.from(
 );
 const generationA = { dev: 1, ino: 7, bytes: receiptBytes };
 const generationB = { dev: 1, ino: 8, bytes: replacementBytes };
+const generationOversize = {
+  dev: 1,
+  ino: 9,
+  bytes: Buffer.alloc((1024 * 1024) + 1, 0x61),
+};
+const recoveryBytes = Buffer.from(
+  JSON.stringify({ ts_ms: 400, ok: true, bytes: 11, wc: 4 }) + "\n",
+);
+const generationRecovery = { dev: 1, ino: 10, bytes: recoveryBytes };
 let visibleGeneration = generationA;
 let streamCalls = 0;
 let openCalls = 0;
+let destroyCalls = 0;
+let nextTimer = 1;
+const timers = new Map();
+function mockSetTimeout(callback, delay) {
+  assert.equal(delay, 5_000);
+  const id = nextTimer++;
+  timers.set(id, callback);
+  return id;
+}
+function mockClearTimeout(id) {
+  timers.delete(id);
+}
+function fireSingleTimer() {
+  assert.equal(timers.size, 1, "exactly one scan deadline expected");
+  const [[id, callback]] = [...timers.entries()];
+  timers.delete(id);
+  callback();
+}
 let nextFd = 100;
 const descriptors = new Map();
 const mockFs = {
@@ -61,6 +88,11 @@ const mockFs = {
     assert.ok(generation, "stream must use retained open descriptor");
     const stream = new EventEmitter();
     stream.bytesRead = 0;
+    stream.destroy = () => {
+      destroyCalls += 1;
+      stream.emit("close");
+      return stream;
+    };
     const emitData = (bytes) => {
       stream.bytesRead += bytes.length;
       stream.emit("data", bytes.toString("utf8"));
@@ -84,10 +116,8 @@ const mockFs = {
         stream.emit("close");
         return;
       }
-      if (call === 4) {
-        // Replace the visible path after the descriptor generation is fixed.
-        visibleGeneration = generationB;
-      }
+      if (call === 4) return;
+      if (call === 5) visibleGeneration = generationB;
       const chunk = generation.bytes.subarray(options.start, options.end + 1);
       emitData(chunk);
       stream.emit("end");
@@ -123,6 +153,8 @@ const context = vm.createContext({
     return 1;
   },
   clearInterval() {},
+  setTimeout: mockSetTimeout,
+  clearTimeout: mockClearTimeout,
 });
 new vm.Script(source, { filename: target }).runInContext(context);
 
@@ -167,14 +199,23 @@ function metric(body, name) {
 
   const prematureClose = await invokeRoute();
   assert.match(prematureClose, /^# err=1$/m);
-  assert.equal(
-    metric(prematureClose, "void_datanet_receipts_persist_lines_total"),
-    0,
-  );
+  assert.match(prematureClose, /^# err_reason=scan_failed$/m);
+  assert.equal(metric(prematureClose, "void_datanet_receipts_persist_lines_total"), 0);
   assert.equal(streamCalls, 3, "premature close must consume one failed scan");
 
+  const timedOutPromise = invokeRoute();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(streamCalls, 4, "silent stream must start one scan");
+  fireSingleTimer();
+  const timedOut = await timedOutPromise;
+  assert.match(timedOut, /^# err=1$/m);
+  assert.match(timedOut, /^# err_reason=timeout$/m);
+  assert.equal(metric(timedOut, "void_datanet_receipts_persist_lines_total"), 0);
+  assert.equal(destroyCalls, 1, "timed-out stream must be destroyed");
+  assert.equal(timers.size, 0, "timed-out scan timer must be released");
+
   const [retryA, retryB] = await Promise.all([invokeRoute(), invokeRoute()]);
-  assert.equal(streamCalls, 4, "concurrent retry must share one scanner");
+  assert.equal(streamCalls, 5, "concurrent retry must share one scanner");
   for (const body of [retryA, retryB]) {
     assert.doesNotMatch(body, /^# err=1$/m);
     assert.equal(metric(body, "void_datanet_receipts_persist_lines_total"), 2);
@@ -185,7 +226,7 @@ function metric(body, name) {
   }
 
   const replacement = await invokeRoute();
-  assert.equal(streamCalls, 5, "replacement generation must be scanned once");
+  assert.equal(streamCalls, 6, "replacement generation must be scanned once");
   assert.equal(metric(replacement, "void_datanet_receipts_persist_lines_total"), 1);
   assert.equal(metric(replacement, "void_datanet_receipts_persist_ok_total"), 1);
   assert.equal(metric(replacement, "void_datanet_receipts_persist_bad_total"), 0);
@@ -193,15 +234,42 @@ function metric(body, name) {
   assert.equal(metric(replacement, "void_datanet_receipts_persist_wc_total"), 1);
 
   const stable = await invokeRoute();
-  assert.equal(streamCalls, 5, "unchanged replacement must not be rescanned");
+  assert.equal(streamCalls, 6, "unchanged replacement must not be rescanned");
   assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 1);
+
+  visibleGeneration = generationOversize;
+  const oversized = await invokeRoute();
+  assert.equal(streamCalls, 7, "over-limit generation must start one scan");
+  assert.match(oversized, /^# err=1$/m);
+  assert.match(oversized, /^# err_reason=line_too_large$/m);
+  assert.equal(metric(oversized, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(destroyCalls, 2, "over-limit stream must be destroyed");
+  assert.equal(timers.size, 0, "over-limit timer must be released");
+
+  visibleGeneration = generationRecovery;
+  const recovered = await invokeRoute();
+  assert.equal(streamCalls, 8, "valid generation after over-limit must retry");
+  assert.doesNotMatch(recovered, /^# err=1$/m);
+  assert.equal(metric(recovered, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(metric(recovered, "void_datanet_receipts_persist_ok_total"), 1);
+  assert.equal(metric(recovered, "void_datanet_receipts_persist_bad_total"), 0);
+  assert.equal(metric(recovered, "void_datanet_receipts_persist_bytes_total"), 11);
+  assert.equal(metric(recovered, "void_datanet_receipts_persist_wc_total"), 4);
+
+  const recoveryStable = await invokeRoute();
+  assert.equal(streamCalls, 8, "unchanged recovery generation must not be rescanned");
   assert.equal(descriptors.size, 0, "every scanner descriptor must be closed");
-  assert.ok(openCalls >= 6, "every route scan must bind a descriptor generation");
+  assert.ok(openCalls >= 10, "every route scan must bind a descriptor generation");
 
   assert.doesNotMatch(source, /fs\.statSync\(file\)/u);
   assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
   assert.match(source, /fs\.constants\.O_NONBLOCK/u);
   assert.match(source, /autoClose:\s*false/u);
+
+  assert.match(source, /const SCAN_DEADLINE_MS = 5_000;/u);
+  assert.match(source, /const MAX_CARRY_BYTES = 1024 \* 1024;/u);
+  assert.match(source, /rejectAndDestroy\("scan_timeout"\)/u);
+  assert.match(source, /rejectAndDestroy\("line_too_large"\)/u);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("failed_read_rollback=true");
@@ -213,6 +281,14 @@ function metric(body, name) {
   console.log("descriptor_generation_bound=true");
   console.log("path_replacement_next_scan_resets=true");
   console.log("descriptor_close_verified=true");
+  console.log("scan_deadline_ms=5000");
+  console.log("scan_timeout_rollback=true");
+  console.log("single_flight_released_after_timeout=true");
+  console.log("timed_out_stream_destroyed=true");
+  console.log("max_carry_bytes=1048576");
+  console.log("line_too_large_rollback=true");
+  console.log("overlimit_stream_destroyed=true");
+  console.log("valid_generation_recovery_after_line_too_large=true");
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

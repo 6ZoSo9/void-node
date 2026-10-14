@@ -30,6 +30,9 @@ const G = globalThis;
 if (G.__void_datanet_receipts_persist_v1) process.exit(0);
 G.__void_datanet_receipts_persist_v1 = true;
 
+const SCAN_DEADLINE_MS = 5_000;
+const MAX_CARRY_BYTES = 1024 * 1024;
+
 // incremental state
 let st = {
   file: "",
@@ -156,19 +159,52 @@ async function scanOnceUnlocked() {
         encoding: "utf8",
       });
       let settled = false;
+      let deadlineTimer = null;
       const settle = (done, value) => {
         if (settled) return;
         settled = true;
+        if (deadlineTimer !== null) {
+          clearTimeout(deadlineTimer);
+          deadlineTimer = null;
+        }
         done(value);
       };
+      const rejectAndDestroy = (code) => {
+        if (settled) return;
+        settle(reject, new Error(code));
+        try {
+          if (typeof rs.destroy === "function") rs.destroy();
+        } catch {}
+      };
+      deadlineTimer = setTimeout(
+        () => rejectAndDestroy("scan_timeout"),
+        SCAN_DEADLINE_MS,
+      );
       rs.on("data", (chunk) => {
         if (settled) return;
-        st.buf += chunk;
-        let idx;
-        while ((idx = st.buf.indexOf("\n")) >= 0) {
-          const line = st.buf.slice(0, idx).trim();
-          st.buf = st.buf.slice(idx + 1);
+        const text = String(chunk);
+        let cursor = 0;
+        while (cursor <= text.length) {
+          const newline = text.indexOf("\n", cursor);
+          const terminal = newline < 0;
+          const segment = terminal ? text.slice(cursor) : text.slice(cursor, newline);
+          const carryBytes = Buffer.byteLength(st.buf, "utf8");
+          const segmentBytes = Buffer.byteLength(segment, "utf8");
+          if (
+            carryBytes > MAX_CARRY_BYTES ||
+            segmentBytes > MAX_CARRY_BYTES - carryBytes
+          ) {
+            rejectAndDestroy("line_too_large");
+            return;
+          }
+          if (terminal) {
+            st.buf += segment;
+            break;
+          }
+          const line = (st.buf + segment).trim();
+          st.buf = "";
           if (line) absorbLine(line);
+          cursor = newline + 1;
         }
       });
       rs.once("error", (error) => settle(reject, error));
@@ -281,7 +317,16 @@ function mountOnce() {
       const extra = await scanOnce();
       res.status(200).type("text/plain; version=0.0.4").send(renderProm(extra));
     } catch (e) {
-      res.status(200).type("text/plain; version=0.0.4").send(renderProm({ file: receiptsFile(), missing: false }) + "\n# err=1\n");
+      const message = String(e?.message || "");
+      const reason = message === "scan_timeout"
+        ? "timeout"
+        : message === "line_too_large"
+          ? "line_too_large"
+          : "scan_failed";
+      res.status(200).type("text/plain; version=0.0.4").send(
+        renderProm({ file: receiptsFile(), missing: false }) +
+        "\n# err=1\n# err_reason=" + reason + "\n",
+      );
     }
   });
 
