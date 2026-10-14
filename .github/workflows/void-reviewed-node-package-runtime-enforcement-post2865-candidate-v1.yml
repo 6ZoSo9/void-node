@@ -67,9 +67,10 @@ jobs:
           set -euo pipefail
           node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs
           node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs --self-test
+          candidate_file="$RUNNER_TEMP/enforcement-package-post2865-${{ matrix.node }}.json"
           node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs --derive \
-            > "enforcement-package-post2865-${{ matrix.node }}.json"
-          node --input-type=module - "enforcement-package-post2865-${{ matrix.node }}.json" <<'NODE'
+            > "$candidate_file"
+          node --input-type=module - "$candidate_file" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const value=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
