@@ -26,6 +26,7 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   all_training_uid_processes_capability_free_required:true,
   all_training_uid_threads_capability_free_required:true,
   training_uid_thread_stability_required:true,
+  training_uid_process_identity_stability_required:true,
   training_uid_thread_discovery_required:true,
   actual_system_bus_sender_denial_required:true,
 });
@@ -91,6 +92,7 @@ function normalizeServiceControl(value,identities){
     "systemd_bus_owner_pid_is_pid1","training_pid",
     "training_process_capabilities","training_process_start_time_ticks",
     "training_uid","training_uid_process_count",
+    "training_uid_process_identity_stable_across_authorization",
     "training_uid_process_set_stable","training_uid_processes",
     "training_uid_thread_count","training_uid_thread_sets_stable",
   ],code);
@@ -123,6 +125,7 @@ function normalizeServiceControl(value,identities){
     value.all_systemd_control_actions_explicitly_denied!==true||
     value.all_training_uid_processes_capability_free!==true||
     value.all_training_uid_threads_capability_free!==true||
+    value.training_uid_process_identity_stable_across_authorization!==true||
     value.training_uid_process_set_stable!==true||
     value.training_uid_thread_sets_stable!==true||
     !Number.isSafeInteger(value.training_uid_process_count)||
