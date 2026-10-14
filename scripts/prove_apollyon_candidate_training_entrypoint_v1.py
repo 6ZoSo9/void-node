@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "85f496585cc71eb04e7e028b36f767b94f92fb41"
+EXPECTED_SOURCE_BLOB = "13c2de00cc870ec7ecda4bde016307cb95b3e033"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -162,6 +162,37 @@ def prove_blocked_readiness_refusal(binary: Path) -> None:
         raise AssertionError("blocked readiness HOLD lost training boundary")
 
 
+def prove_closed_readiness_refusal(binary: Path) -> None:
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    try:
+        started = time.monotonic()
+        result = subprocess.run(
+            [str(binary)],
+            preexec_fn=set_no_new_privileges,
+            stdout=write_fd,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        os.close(write_fd)
+
+    if result.returncode != 2:
+        raise AssertionError("closed readiness reader did not fail closed")
+    if elapsed >= 3.0:
+        raise AssertionError("closed readiness reader extended observation lifetime")
+    if (
+        "HOLD=apollyon_candidate_training_entrypoint_stdout_reader_closed"
+        not in result.stderr
+    ):
+        raise AssertionError("closed readiness reader produced wrong HOLD")
+    if "training_execution=false" not in result.stderr:
+        raise AssertionError("closed readiness HOLD lost training boundary")
+
+
 def prove_qualification_hold(binary: Path) -> None:
     process = subprocess.Popen(
         [str(binary)],
@@ -230,6 +261,9 @@ def prove_source_boundary(source: str) -> None:
         "prepare_observation_io();",
         "write(STDOUT_FILENO, payload, sizeof(payload) - 1U)",
         "apollyon_candidate_training_entrypoint_stdout_not_immediately_writable",
+        "SIGPIPE",
+        "SIG_IGN",
+        "apollyon_candidate_training_entrypoint_stdout_reader_closed",
         "clock_nanosleep(",
         "arm_qualification_deadline()",
         "qualification_hold(&qualification_deadline)",
@@ -308,6 +342,7 @@ def main() -> None:
         prove_no_nnp_refusal(binary)
         prove_inherited_fd_refusal(binary)
         prove_blocked_readiness_refusal(binary)
+        prove_closed_readiness_refusal(binary)
         prove_qualification_hold(binary)
 
     print(MARKER)
@@ -319,6 +354,8 @@ def main() -> None:
     print("no_inherited_fds_ge_3_required=true")
     print("observation_stdout_stderr_nonblocking=true")
     print("blocked_readiness_sink_fails_closed=true")
+    print("closed_readiness_reader_fails_closed=true")
+    print("sigpipe_converted_to_hold=true")
     print("durable_attempt_claim_required=true")
     print("durable_attempt_claim_proven=false")
     print("training_execution=false")
