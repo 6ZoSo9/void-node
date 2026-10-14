@@ -318,7 +318,7 @@ const missingSecondaryEnv = { ...dualPolicyEnv };
 delete missingSecondaryEnv[sourceFinalityNames.base_secondary_rpc_url];
 const missingSecondaryPolicy =
   readBuyVoidSourceFinalityExecutionPolicyV1(missingSecondaryEnv);
-if (missingSecondaryPolicy.ok) {
+if (missingSecondaryPolicy.ok !== false) {
   throw new Error("missing secondary source-finality policy accepted");
 }
 assert.equal(
