@@ -315,7 +315,7 @@ jobs:
           console.log("source_inventory_sha256="+hash(c.sources));
           NODE
 
-enforcement-candidate-v2:
+  enforcement-candidate-v2:
     needs: [enforcement-census-cross-node]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
