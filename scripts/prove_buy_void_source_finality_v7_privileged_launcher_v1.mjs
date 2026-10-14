@@ -29,6 +29,9 @@ for(const required of [
   "ambient_git_environment_inherited=false",
   "ambient_node_environment_inherited=false",
   "funds_movement_by_launcher=false",
+  "buy-void-v7-privileged-launcher-package-runtime-v1.json",
+  "prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs",
+  "privileged_launcher_package_runtime_verified=true",
 ]) assert.equal(launcher.includes(required),true,required);
 
 for(const forbidden of [
@@ -91,25 +94,6 @@ function ensureSystemNodeFixture(){
   assert.equal(installed.mode&0o022,0,"CI /usr/bin/node fixture must not be group/world writable");
 }
 
-const dirs=[
-  "src","ops","ops/precision","runtime","node_modules","node_modules/tsx",
-  "node_modules/tsx/dist","ops/security",
-];
-const files=[
-  "src/index.ts",
-  "ops/run-void-node-live-v1.sh",
-  "runtime/canonical-producer-self-http-guard-v1.cjs",
-  "runtime/canonical-producer-self-http-guard-v2.cjs",
-  "runtime/canonical-producer-self-http-guard-v3.cjs",
-  "node_modules/tsx/dist/preflight.cjs",
-  "node_modules/tsx/dist/loader.mjs",
-  "node_modules/tsx/dist/cli.mjs",
-  "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
-  "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts",
-  "ops/precision/void_buy_void_source_finality_live_process_binding_receipt_install_v1.ts",
-  "ops/security/buy-void-enforcement-post2933-lock-v2.json",
-];
-
 function launcherArgs(commit,tree){
   return [
     path.join(fixture,LAUNCHER),
@@ -127,25 +111,20 @@ try{
   // authority to ambient PATH or a caller-selected executable.
   ensureSystemNodeFixture();
 
-  git(tmp,"init","-b","main");
-  git(tmp,"config","user.name","VOID Launcher Proof");
-  git(tmp,"config","user.email","void-launcher-proof@example.invalid");
-  for(const d of dirs)fs.mkdirSync(path.join(tmp,d),{recursive:true,mode:0o755});
-  for(const f of files){
-    fs.mkdirSync(path.dirname(path.join(tmp,f)),{recursive:true,mode:0o755});
-    fs.writeFileSync(path.join(tmp,f),"reviewed fixture\n",{mode:0o644});
-  }
-  fs.copyFileSync("runtime/canonical-producer-source-custody-v1.cjs",
-    path.join(tmp,"runtime/canonical-producer-source-custody-v1.cjs"));
-  fs.copyFileSync(LAUNCHER,path.join(tmp,LAUNCHER));
-  fs.chmodSync(path.join(tmp,LAUNCHER),0o755);
-  git(tmp,"add","--",".");
-  git(tmp,"commit","-m","protected launcher fixture");
-  const commit=git(tmp,"rev-parse","HEAD");
-  const tree=git(tmp,"rev-parse","HEAD^{tree}");
+  const replica=path.join(tmp,"repo");
+  run("/usr/bin/cp",["-a","--",ROOT,replica]);
+  git(replica,"checkout","-B","main","HEAD");
+  assert.equal(
+    git(replica,"status","--porcelain=v1","--untracked-files=all"),
+    "",
+    "full protected replica must be clean",
+  );
+  const commit=git(replica,"rev-parse","HEAD");
+  const tree=git(replica,"rev-parse","HEAD^{tree}");
+
 
   sudo(["rm","-rf","--",fixture],{allow:true});
-  sudo(["cp","-a","--",tmp,fixture]);
+  sudo(["cp","-a","--",replica,fixture]);
   sudo(["chown","-R","0:0",fixture]);
 
   const positive=sudo(launcherArgs(commit,tree));
@@ -153,6 +132,7 @@ try{
     new RegExp("^"+MARKER+"$","m"));
   assert.match(positive.stdout,/root_owned_protected_source=true/u);
   assert.match(positive.stdout,/source_custody_green=true/u);
+  assert.match(positive.stdout,/privileged_launcher_package_runtime_verified=true/u);
   assert.match(positive.stdout,/tool_execution=false/u);
   assert.match(positive.stdout,/host_mutation=false/u);
   assert.match(positive.stdout,/status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN/u);
@@ -202,6 +182,8 @@ try{
   console.log("wrong_commit_rejected=true");
   console.log("ambient_path_git_shim_blocked=true");
   console.log("tool_allowlist_exact=true");
+  console.log("full_protected_repo_replica_used=true");
+  console.log("privileged_launcher_package_runtime_verified=true");
   console.log("privileged_tool_execution_performed=false");
   console.log("service_mutation=false");
   console.log("credential_wallet_signer_transaction_authority=false");
