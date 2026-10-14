@@ -26,7 +26,7 @@ const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
   "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
   "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
 ]);
-const RUNTIME_RUNTIME_SOURCE_PARENT="82aee920f26b45c7e43bcc9f9e1023a175e2783a";
+const RUNTIME_SOURCE_PARENT="82aee920f26b45c7e43bcc9f9e1023a175e2783a";
 const CURRENT_ENFORCEMENT_PARENT="a2f304fa3ae494cdd4fa71f65aa6f689a1313948";
 const PREDECESSOR_LOCK="ops/security/buy-void-enforcement-post2865-lock-v1.json";
 const PREDECESSOR_LOCK_BLOB="37210b74fa0de86250af84ec088c2d74e9e90499";
