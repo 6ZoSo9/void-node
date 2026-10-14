@@ -432,7 +432,7 @@ jobs:
           console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           NODE
 
-enforcement-lock-v2:
+  enforcement-lock-v2:
     needs: [enforcement-candidate-v2-cross-node]
     runs-on: ubuntu-24.04
     timeout-minutes: 12
