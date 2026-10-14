@@ -51,8 +51,10 @@ python3 -I -B ops/public/void_public_earn_legacy_cutover_census_v1.py --plan
 python3 -I -B ops/public/void_public_earn_legacy_cutover_census_v1.py --run
 ```
 
-Run this census as the ordinary `zoso` user, not through sudo, so it reads the
-correct user-systemd manager.
+Run this census as the ordinary `zoso` user on
+`zoso-Precision-Tower-7810`, not through sudo, so it reads the correct
+user-systemd manager. The emitted evidence records only booleans for the
+hostname/user identity checks; it does not emit arbitrary caller environment.
 
 ## Authority boundary
 
