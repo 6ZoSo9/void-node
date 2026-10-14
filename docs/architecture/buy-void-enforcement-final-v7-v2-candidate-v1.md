@@ -34,6 +34,12 @@ compiled artifact and must contain no dynamic import and no Function
 constructor. Its static execution edge is therefore explicitly part of the
 current closure rather than silently inherited.
 
+The hosted #2974 inventory digests retain the exact serialization used by the
+cross-node workflow (`JSON.stringify`). The candidate separately records
+sorted-key canonical inventory digests for its own content-addressed body; those
+canonical digests are distinct evidence fields and must never be substituted for
+the hosted census digests.
+
 A green candidate may report:
 
 ```text

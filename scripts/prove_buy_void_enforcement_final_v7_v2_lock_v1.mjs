@@ -8,14 +8,14 @@ import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const CANDIDATE="ops/security/buy-void-enforcement-final-v7-v2-candidate-v1.json";
 const LOCK="ops/security/buy-void-enforcement-final-v7-v2-lock-v1.json";
-const CANDIDATE_BYTES=5651;
-const CANDIDATE_SHA256="929bdd377d64de242387a6db4d37e333333cdaaa4a31cece3126c352e2dcd085";
-const CANDIDATE_BLOB="c331e2dbef9fa4f82f3dfcc205a6564e836ad1df";
-const CANDIDATE_SET="d62a87d8c6adeccc3a25cc8e9fe3d7199dddee3ea8ac9706d15862adfd446697";
-const CANDIDATE_HEAD="d5a8e8914d830ed210cf6483590490632ac76454";
+const CANDIDATE_BYTES=6133;
+const CANDIDATE_SHA256="257ea83b8abbbe7cfd7e486317c55c3522b6e2015b91371aac923bb9db5e1e78";
+const CANDIDATE_BLOB="67d1f64dd569cf081cd947ddc94105f932f4ddab";
+const CANDIDATE_SET="bfb2412a3b349c2d6e83a78c81db98f8fff74b62e2cf9657249bac4e35dc26a4";
+const CANDIDATE_HEAD="fc8fe175852fa57af72617d91347133463c3b88c";
 const LOCK_BYTES=2153;
-const LOCK_SHA256="9ba2de10bc53a3ade7892d874de518a532220dca567ce0215a91eb5b94a67e0f";
-const LOCK_BLOB="7fe92694da6a115d7d2e53c2e39e66eb15799578";
+const LOCK_SHA256="e17278c4fc5bb25a83ee239d7546c0c4f0f03ae0b79e3abb724216a8752c3ff2";
+const LOCK_BLOB="def00bf5d0c5e9bc368264fa8affe082f1288b6a";
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
@@ -55,8 +55,16 @@ function readCandidate(){
   assert.equal(c.hosted_census_evidence?.census_id,
     "voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a");
   assert.equal(c.hosted_census_evidence?.artifact_inventory_sha256,
-    "8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496");
+    "e7fe07c5e9e5386d6dd4e95132b6d2551426d9b62fabd9257f43f2e271cdfd8f");
   assert.equal(c.hosted_census_evidence?.source_inventory_sha256,
+    "ceaaf5cd9faf3b9176cfd02f1fabf455212391f24df1040707ba487a7ebb96a3");
+  assert.equal(c.current_inventory_evidence?.hosted_json_artifact_inventory_sha256,
+    c.hosted_census_evidence.artifact_inventory_sha256);
+  assert.equal(c.current_inventory_evidence?.hosted_json_source_inventory_sha256,
+    c.hosted_census_evidence.source_inventory_sha256);
+  assert.equal(c.current_inventory_evidence?.canonical_artifact_inventory_sha256,
+    "8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496");
+  assert.equal(c.current_inventory_evidence?.canonical_source_inventory_sha256,
     "9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b");
   assert.equal(c.hosted_census_evidence?.artifact_count,28);
   assert.equal(c.hosted_census_evidence?.source_file_count,28);
@@ -103,8 +111,8 @@ function expectedLock(){
     },
     source_parent:"82aee920f26b45c7e43bcc9f9e1023a175e2783a",
     hosted_census_id:"voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a",
-    hosted_census_artifact_inventory_sha256:"8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496",
-    hosted_census_source_inventory_sha256:"9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b",
+    hosted_census_artifact_inventory_sha256:"e7fe07c5e9e5386d6dd4e95132b6d2551426d9b62fabd9257f43f2e271cdfd8f",
+    hosted_census_source_inventory_sha256:"ceaaf5cd9faf3b9176cfd02f1fabf455212391f24df1040707ba487a7ebb96a3",
     v7_executable_delta_generation_sha256:"cfac0b510932203623a4b9a0c09ad9c6639efdb04b0e5f1ff9feba15175f9311",
     v7_executable_delta_source_inventory_sha256:"55b409c31801d743af3e449edce3cdc5408170e16dfc285053a539208c44cacb",
     v7_executable_delta_artifact_inventory_sha256:"45ae15e681a209b0cecef9d581febd98e7cefaf3db72d2c869efedd59e2d5429",
