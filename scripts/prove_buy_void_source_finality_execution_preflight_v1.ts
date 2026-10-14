@@ -27,8 +27,8 @@ const preflightSource = fs.readFileSync(
   path.join(ROOT, "src/economic/buy_void_source_finality_execution_preflight_v1.ts"),
   "utf8",
 );
-const v6Source = fs.readFileSync(
-  path.join(ROOT, "src/economic/buy_void_source_finality_generation_provenance_v6.ts"),
+const v7Source = fs.readFileSync(
+  path.join(ROOT, "src/economic/buy_void_source_finality_generation_provenance_v7.ts"),
   "utf8",
 );
 
@@ -245,8 +245,15 @@ const dualNames = VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1;
 const dualPolicyEnv: NodeJS.ProcessEnv = {
   [sourceFinalityNames.base_rpc_url]: "http://127.0.0.1:18545/",
   [sourceFinalityNames.base_rpc_identity]: "base-production-rpc-v1",
+  [sourceFinalityNames.base_secondary_rpc_url]: "https://base-secondary.example/",
+  [sourceFinalityNames.base_secondary_rpc_identity]: "base-secondary-rpc-v1",
   [sourceFinalityNames.ethereum_rpc_url]: "http://127.0.0.1:19545/",
   [sourceFinalityNames.ethereum_rpc_identity]: "ethereum-production-rpc-v1",
+  [sourceFinalityNames.ethereum_secondary_rpc_url]: "https://ethereum-secondary.example/",
+  [sourceFinalityNames.ethereum_secondary_rpc_identity]:
+    "ethereum-secondary-rpc-v1",
+  [sourceFinalityNames.deployment_receipt_path]:
+    "/var/lib/void-source-finality-v7/deployment-receipt.json",
   [sourceFinalityNames.total_timeout_ms]: "30000",
   [sagaNames.rate_void_units_numerator]: "2",
   [sagaNames.rate_void_units_denominator]: "1",
@@ -284,6 +291,18 @@ assert.equal(
   configuredDualPolicy.policy.ethereum.usdc_contract,
   ("0x" + "4".repeat(40)),
 );
+assert.equal(
+  configuredDualPolicy.policy.base_secondary.rpc_identity,
+  "base-secondary-rpc-v1",
+);
+assert.equal(
+  configuredDualPolicy.policy.ethereum_secondary.rpc_identity,
+  "ethereum-secondary-rpc-v1",
+);
+assert.equal(
+  configuredDualPolicy.policy.deployment_receipt_path,
+  "/var/lib/void-source-finality-v7/deployment-receipt.json",
+);
 assert.deepEqual(
   configuredDualPolicy.policy.authority_policy_generation.rail_order,
   ["base", "ethereum"],
@@ -293,6 +312,23 @@ assert.deepEqual(
     (rail) => rail.source_chain,
   ),
   ["base", "ethereum"],
+);
+
+const missingSecondaryEnv = { ...dualPolicyEnv };
+delete missingSecondaryEnv[sourceFinalityNames.base_secondary_rpc_url];
+const missingSecondaryPolicy =
+  readBuyVoidSourceFinalityExecutionPolicyV1(missingSecondaryEnv);
+if (missingSecondaryPolicy.ok) {
+  throw new Error("missing secondary source-finality policy accepted");
+}
+assert.equal(
+  missingSecondaryPolicy.reason,
+  "source_finality_execution_policy_not_configured",
+);
+assert.ok(
+  missingSecondaryPolicy.missing_envs.includes(
+    sourceFinalityNames.base_secondary_rpc_url,
+  ),
 );
 
 const incompleteDualEnv = { ...dualPolicyEnv };
@@ -385,14 +421,17 @@ assert.match(
 
 for (const requiredReadyFlag of [
   "reviewed_source_files_verified === true",
+  'source_file_verification_mode ===\n      "operator_deployment_receipt_bound_v1"',
+  "accepted_enforcement_set_sha256 ===",
   "authenticated_transport_identity_verified === true",
+  "independent_remote_provider_transport_verified === true",
   "observation_generated_in_composition === true",
   "same_provider_consistency_verified === true",
   "provider_consistency_verified === true",
   "total_operation_deadline_verified === true",
   "source_generation_verified === true",
   "deployed_artifact_generation_verified === true",
-  "remote_provider_identity_verified === true",
+  "remote_provider_identity_verified === false",
   "ancestry_verified === true",
   "provider_quorum_verified === true",
   "production_source_finality_authority_ready === true",
@@ -404,59 +443,66 @@ for (const requiredReadyFlag of [
 }
 assert.match(
   preflightSource,
-  /observeBuyVoidSourceFinalityGenerationProvenanceV6\(value\)/,
+  /observeBuyVoidSourceFinalityGenerationProvenanceV7\(value\)/,
 );
 
-for (const currentV6Hold of [
-  "source_generation_verified: false",
-  "deployed_artifact_generation_verified: false",
-  "ancestry_verified: false",
-  "provider_quorum_verified: false",
-  "production_source_finality_authority_ready: false",
+for (const requiredV7Authority of [
+  "operator_deployment_receipt_required: true",
+  "independent_remote_provider_transport_required: true",
+  "production_source_finality_authority_ready_on_success: true",
+  "public_presale_activation: false",
+  "money_movement: false",
 ]) {
   assert.ok(
-    v6Source.includes(currentV6Hold),
-    `V6 truth boundary unexpectedly moved: ${currentV6Hold}`,
+    v7Source.includes(requiredV7Authority),
+    `V7 authority boundary missing: ${requiredV7Authority}`,
   );
 }
 
-const futureReadyV6Observation = {
+const futureReadyV7Observation = {
   ok: true,
-  marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6",
+  marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7",
   reviewed_source_files_verified: true,
+  source_file_verification_mode: "operator_deployment_receipt_bound_v1",
+  accepted_enforcement_set_sha256:
+    "ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb",
   authenticated_transport_identity_verified: true,
+  independent_remote_provider_transport_verified: true,
   observation_generated_in_composition: true,
   same_provider_consistency_verified: true,
   provider_consistency_verified: true,
   total_operation_deadline_verified: true,
   source_generation_verified: true,
   deployed_artifact_generation_verified: true,
-  remote_provider_identity_verified: true,
+  remote_provider_identity_verified: false,
   ancestry_verified: true,
   provider_quorum_verified: true,
   production_source_finality_authority_ready: true,
 };
 const futureReadyClassification =
   testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1(
-    futureReadyV6Observation,
+    futureReadyV7Observation,
   );
 assert.equal(futureReadyClassification.would_be_ready, true);
 assert.equal(futureReadyClassification.production_transition_authority, false);
 assert.equal(futureReadyClassification.signer_access_authorized, false);
 assert.equal(futureReadyClassification.transaction_broadcast_authorized, false);
 for (const mutation of [
-  { marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5" },
+  { marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6" },
+  { source_file_verification_mode: "caller_asserted" },
+  { accepted_enforcement_set_sha256: "0".repeat(64) },
+  { independent_remote_provider_transport_verified: false },
   { observation_generated_in_composition: false },
   { same_provider_consistency_verified: false },
   { provider_consistency_verified: false },
-  { remote_provider_identity_verified: false },
+  { remote_provider_identity_verified: true },
   { source_generation_verified: false },
   { deployed_artifact_generation_verified: false },
   { production_source_finality_authority_ready: false },
 ]) {
   const classified =
     testOnlyClassifyBuyVoidSourceFinalityExecutionObservationV1({
-      ...futureReadyV6Observation,
+      ...futureReadyV7Observation,
       ...mutation,
     });
   assert.equal(classified.would_be_ready, false, JSON.stringify(mutation));
@@ -547,7 +593,9 @@ console.log("lazy_dependency_gate=true");
 console.log("signer_access_guarded=true");
 console.log("broadcast_call_guarded=true");
 console.log("reconciliation_not_eagerly_gated=true");
-console.log("current_v6_production_authority_ready=false");
+console.log("v7_production_authority_integrated_fail_closed=true");
+console.log("operator_deployment_receipt_required=true");
+console.log("independent_secondary_provider_required=true");
 console.log("canonical_dual_rail_preflight_configurable=true");
 console.log("partial_or_mixed_dual_rail_config_rejected=true");
 console.log("wallet_or_signer_action_performed=false");
