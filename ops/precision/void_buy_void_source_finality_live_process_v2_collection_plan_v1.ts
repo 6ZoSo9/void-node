@@ -79,7 +79,8 @@ export type BuyVoidV2LiveProcessCollectionPlanV1=Readonly<{
   canonical_producer_role:true;
   capabilities_zero:true;
   no_new_privileges:true;
-  source_custody_proven:true;
+  source_generation_verified:true;
+  reviewed_launcher_shape_verified:true;
   selector_ready_and_green_same_generation:true;
   manager_and_service_pidfds_retained_by_selector:true;
   systemctl_user_selector_authority:false;
@@ -144,16 +145,22 @@ export function parseBuyVoidV2SelectorLineV1(
   }
   return Object.freeze({
     manager_pid:positive(map.get("manager_pid"),"selector_manager_pid_invalid"),
-    manager_start_ticks:String(map.get("manager_start_ticks")),
+    manager_start_ticks:(()=>{const v=String(map.get("manager_start_ticks"));if(!UINT.test(v))fail("selector_manager_start_ticks_invalid");return v;})(),
     manager_cmdline_sha256:exactHash(map.get("manager_cmdline_sha256"),"selector_manager_cmdline_sha_invalid"),
     service_pid:positive(map.get("service_pid"),"selector_service_pid_invalid"),
-    service_start_ticks:String(map.get("service_start_ticks")),
+    service_start_ticks:(()=>{const v=String(map.get("service_start_ticks"));if(!UINT.test(v))fail("selector_service_start_ticks_invalid");return v;})(),
     service_cmdline_sha256:exactHash(map.get("service_cmdline_sha256"),"selector_service_cmdline_sha_invalid"),
   });
 }
 
 function assertSelectorBinary():void{
-  const lock=JSON.parse(fs.readFileSync(path.join(ROOT,LOCK_REL),"utf8"));
+  const lockPath=path.join(ROOT,LOCK_REL);
+  const lockStat=fs.lstatSync(lockPath);
+  if(
+    !lockStat.isFile()||lockStat.isSymbolicLink()||
+    lockStat.uid!==0||(lockStat.mode&0o022)!==0
+  )fail("selector_lock_custody_invalid");
+  const lock=JSON.parse(fs.readFileSync(lockPath,"utf8"));
   if(
     lock.marker!=="VOID_BUY_VOID_V2_SELECTOR_ELF_LOCK_V1"||
     lock.lock_id!==VOID_BUY_VOID_V2_SELECTOR_ELF_LOCK_ID_V1||
@@ -274,6 +281,27 @@ function parseEnv(bytes:Buffer):InitialEnv{
     node_options:String(values.get("NODE_OPTIONS")),
   });
 }
+function parseCmdline(bytes:Buffer):string[]{
+  if(bytes.length<2||bytes.length>MAX_PROC)fail("service_cmdline_size_invalid");
+  const parts=bytes.toString("utf8").split("\0");
+  if(parts.at(-1)==="")parts.pop();
+  if(parts.length<1||parts.some(value=>value.length===0))fail("service_cmdline_invalid");
+  return parts;
+}
+function verifyLauncherShape(cwd:string,env:InitialEnv,cmdlineBytes:Buffer):true{
+  const expected=[
+    "/usr/bin/node",
+    "--conditions=void-process-source-identity-v1",
+    "--conditions=void-process-source-commit-"+env.source_commit,
+    "--conditions=void-process-source-tree-"+env.source_tree,
+    "--conditions=void-process-source-branch-main",
+    "--require",path.join(cwd,"node_modules/tsx/dist/preflight.cjs"),
+    "--import","file://"+path.join(cwd,"node_modules/tsx/dist/loader.mjs"),
+    path.join(cwd,"src/index.ts"),
+  ];
+  assert.deepEqual(parseCmdline(cmdlineBytes),expected,"service_launcher_shape_invalid");
+  return true;
+}
 function runGit(cwd:string,args:string[]):string{
   const p=spawnSync("/usr/bin/git",[
     "-c","safe.directory="+cwd,"-c","core.hooksPath=/dev/null",
@@ -289,6 +317,9 @@ function runGit(cwd:string,args:string[]):string{
   return String(p.stdout||"").trim();
 }
 function proveSource(cwd:string,env:InitialEnv):true{
+  if(cwd!=="/opt/void-node-live/releases/"+env.source_commit){
+    fail("service_release_path_invalid");
+  }
   if(
     runGit(cwd,["rev-parse","--verify","HEAD^{commit}"])!==env.source_commit||
     runGit(cwd,["rev-parse","--verify","HEAD^{tree}"])!==env.source_tree||
@@ -353,6 +384,7 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
     const cwd=fs.realpathSync.native(`/proc/${ready.service_pid}/cwd`);
     if(executable!=="/usr/bin/node")fail("service_executable_invalid");
     proveSource(cwd,env);
+    verifyLauncherShape(cwd,env,cmdline);
     const material=Object.freeze({
       schema:"void_buy_void_v2_live_process_collection_plan_v1" as const,
       marker:VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1,
@@ -381,7 +413,8 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
       canonical_producer_role:true as const,
       capabilities_zero:status.capabilities_zero,
       no_new_privileges:status.no_new_privileges,
-      source_custody_proven:true as const,
+      source_generation_verified:true as const,
+      reviewed_launcher_shape_verified:true as const,
       selector_ready_and_green_same_generation:true as const,
       manager_and_service_pidfds_retained_by_selector:true as const,
       systemctl_user_selector_authority:false as const,
@@ -394,11 +427,13 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
     child.stdin.end();
     const green=parseBuyVoidV2SelectorLineV1(await readLine(child.stdout,10_000),GREEN_MARKER);
     if(canonical(green)!==canonical(ready))fail("selector_ready_green_generation_mismatch");
-    const exitCode=await new Promise<number>((resolve,reject)=>{
-      const timer=setTimeout(()=>{child.kill("SIGKILL");reject(new Error("selector_exit_timeout"));},10_000);
-      child.once("error",error=>{clearTimeout(timer);reject(error);});
-      child.once("exit",code=>{clearTimeout(timer);resolve(code??-1);});
-    });
+    const exitCode=child.exitCode!==null
+      ? child.exitCode
+      : await new Promise<number>((resolve,reject)=>{
+          const timer=setTimeout(()=>{child.kill("SIGKILL");reject(new Error("selector_exit_timeout"));},10_000);
+          child.once("error",error=>{clearTimeout(timer);reject(error);});
+          child.once("exit",code=>{clearTimeout(timer);resolve(code??-1);});
+        });
     if(exitCode!==0)fail("selector_process_not_green");
     return buildBuyVoidV2LiveProcessCollectionPlanV1(material);
   }catch(error){
