@@ -10,6 +10,8 @@ on:
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "package.json"
       - "package-lock.json"
@@ -25,6 +27,8 @@ on:
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "package.json"
       - "package-lock.json"
@@ -159,4 +163,119 @@ jobs:
           console.log("VOID_BUY_VOID_V7_EXECUTABLE_DELTA_CANDIDATE_CROSS_NODE_GREEN");
           console.log("candidate_generation_sha256="+value.candidate_generation_sha256);
           console.log("artifact_inventory_sha256="+value.artifact_inventory_sha256);
+          NODE
+  final-v7-enforcement-census:
+    needs: [cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact final-V7 census head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build exact final V7 generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Derive fresh final-V7 whole-enforcement census
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_final_v7_artifact_census_v1.mjs
+          out="$RUNNER_TEMP/final-v7-census-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_v7_artifact_census_v1.mjs > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_ARTIFACT_CENSUS_V1");
+          assert.equal(c.source_parent,"a63856ea5786d25c42ba48458f4938a2ee453dbe");
+          assert.equal(c.repository_head_sha,process.env.EXPECTED_HEAD);
+          assert.equal(c.artifact_count,27);
+          assert.equal(c.source_file_count,27);
+          assert.equal(c.census_only,true);
+          assert.equal(c.complete_executable_closure_verified,false);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.deployed_artifact_generation_verified,false);
+          assert.equal(c.runtime_mount_authority,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          assert.match(c.census_id,/^voidbefv7c1_[0-9a-f]{64}$/u);
+          console.log("VOID_BUY_VOID_FINAL_V7_ENFORCEMENT_CENSUS_NODE_GREEN");
+          NODE
+      - name: Upload fresh final-V7 census
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-final-v7-enforcement-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/final-v7-census-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+  final-v7-enforcement-census-cross-node:
+    needs: [final-v7-enforcement-census]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major final-V7 census evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-v7-enforcement-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: census
+      - name: Require exact Node 22 24 26 census equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "census/final-v7-census-$node.json"; done
+          cmp census/final-v7-census-22.json census/final-v7-census-24.json
+          cmp census/final-v7-census-22.json census/final-v7-census-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const bytes=fs.readFileSync("census/final-v7-census-22.json");
+          const c=JSON.parse(bytes);
+          assert.equal(c.artifact_count,27);
+          assert.equal(c.source_file_count,27);
+          assert.equal(c.complete_executable_closure_verified,false);
+          assert.equal(c.candidate_enforcement_identity_accepted,false);
+          assert.equal(c.production_source_finality_authority_ready,false);
+          assert.equal(c.public_presale_activation,false);
+          assert.equal(c.funds_movement,false);
+          console.log("VOID_BUY_VOID_FINAL_V7_ENFORCEMENT_CENSUS_CROSS_NODE_GREEN");
+          console.log("census_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
+          console.log("census_id="+c.census_id);
+          console.log("artifact_inventory_sha256="+crypto.createHash("sha256").update(Buffer.from(JSON.stringify(c.artifacts))).digest("hex"));
+          console.log("source_inventory_sha256="+crypto.createHash("sha256").update(Buffer.from(JSON.stringify(c.sources))).digest("hex"));
           NODE
