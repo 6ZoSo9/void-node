@@ -9,6 +9,11 @@ on:
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "docs/security/buy-void-v7-privileged-launcher-package-runtime-candidate-v1.md"
       - "package.json"
       - "package-lock.json"
 
@@ -61,3 +66,95 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           git diff --check "$BASE" "$HEAD"
+
+  derive-v7-privileged-launcher-package-candidate:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact head and install audited lock
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Derive privileged launcher package candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs --self-test
+          out="$RUNNER_TEMP/v7-privileged-launcher-package-${{ matrix.node }}.json"
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs --derive > "$out"
+          node --input-type=module - "$out" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.deepEqual(j.required_privileged_root_packages,["ethers","express","tsx"]);
+          assert.equal(j.root_versions.tsx,"4.23.15");
+          assert.equal(j.accepted_enforcement_profile.package_records_preserved_in_candidate,true);
+          assert.equal(j.profile_candidate_accepted,false);
+          assert.equal(j.privileged_launcher_package_runtime_verified,false);
+          assert.equal(j.privileged_receipt_execution_authorized,false);
+          assert.equal(j.public_presale_activation,false);
+          assert.equal(j.funds_movement,false);
+          console.log("VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_CANDIDATE_NODE_GREEN");
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-v7-privileged-launcher-package-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/v7-privileged-launcher-package-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: git diff --check "$BASE" "$HEAD"
+
+  v7-privileged-launcher-package-cross-node:
+    needs: [derive-v7-privileged-launcher-package-candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: void-v7-privileged-launcher-package-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: ./candidate
+      - name: Require exact Node 22 24 26 candidate bytes
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "candidate/v7-privileged-launcher-package-$v.json"; done
+          cmp candidate/v7-privileged-launcher-package-22.json candidate/v7-privileged-launcher-package-24.json
+          cmp candidate/v7-privileged-launcher-package-22.json candidate/v7-privileged-launcher-package-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          const b=fs.readFileSync("candidate/v7-privileged-launcher-package-22.json");
+          const j=JSON.parse(b);
+          assert.equal(j.profile_candidate_accepted,false);
+          assert.equal(j.privileged_receipt_execution_authorized,false);
+          console.log("VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_CROSS_NODE_GREEN");
+          console.log("candidate_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
+          console.log("profile_id="+j.profile.profile_id);
+          console.log("packages_aggregate_sha256="+j.profile.packages_aggregate_sha256);
+          console.log("package_count="+j.profile.package_count);
+          console.log("profile_acceptance=false");
+          NODE
