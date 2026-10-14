@@ -11,6 +11,9 @@ on:
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v2.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v2.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
       - "ops/precision/**"
       - "ops/security/**"
@@ -35,6 +38,9 @@ on:
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v2.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v2.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
       - "ops/precision/**"
       - "ops/security/**"
@@ -127,10 +133,43 @@ jobs:
           assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
           console.log("VOID_BUY_VOID_FINAL_PROTECTED_V7_V2_CANDIDATE_V2_NODE_GREEN");
           NODE
+      - name: Verify exact hosted candidate and acceptance lock
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
+          cmp "$candidate" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json
+          lock="$RUNNER_TEMP/final-protected-v7-v2-lock-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs --self-test
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs --derive > "$lock"
+          cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json
+          test "$(wc -c < "$candidate")" -eq 16342
+          test "$(sha256sum "$candidate" | awk '{print $1}')" = "092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb"
+          test "$(git hash-object "$candidate")" = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
+
+      - name: Prove accepted lock is deployment-planner consumable
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+          npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json \
+            | tee "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'status=PLAN_GREEN' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'accepted_enforcement_set_sha256=05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'filesystem_mutation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'presale_activation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-final-protected-v7-v2-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: ${{ runner.temp }}/final-protected-v7-v2-candidate-${{ matrix.node }}.json
+          path: |
+            ${{ runner.temp }}/final-protected-v7-v2-candidate-${{ matrix.node }}.json
+            ${{ runner.temp }}/final-protected-v7-v2-lock-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
       - name: Diff hygiene
@@ -160,6 +199,9 @@ jobs:
           for node in 22 24 26; do test -s "candidate/final-protected-v7-v2-candidate-$node.json"; done
           cmp candidate/final-protected-v7-v2-candidate-22.json candidate/final-protected-v7-v2-candidate-24.json
           cmp candidate/final-protected-v7-v2-candidate-22.json candidate/final-protected-v7-v2-candidate-26.json
+          for node in 22 24 26; do test -s "candidate/final-protected-v7-v2-lock-$node.json"; done
+          cmp candidate/final-protected-v7-v2-lock-22.json candidate/final-protected-v7-v2-lock-24.json
+          cmp candidate/final-protected-v7-v2-lock-22.json candidate/final-protected-v7-v2-lock-26.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
           import crypto from "node:crypto";
@@ -176,5 +218,19 @@ jobs:
           console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
           console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           console.log("protected_census_id="+c.protected_census_evidence.census_id);
-          console.log("candidate_enforcement_identity_accepted=false");
+          const lockBytes=fs.readFileSync("candidate/final-protected-v7-v2-lock-22.json");
+          const lock=JSON.parse(lockBytes);
+          assert.equal(lock.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V2");
+          assert.equal(lock.candidate_head,"1d138dcb3ac61f156fe8eb0fff27341fe97c04f9");
+          assert.equal(lock.candidate_evidence.sha256,"092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb");
+          assert.equal(lock.candidate_evidence.git_blob_sha1,"4e23ecbb64eb26c14f5ab15af85eb86d59c3a718");
+          assert.equal(lock.candidate_evidence.candidate_enforcement_set_sha256,"05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852");
+          assert.equal(lock.candidate_enforcement_identity_accepted,true);
+          assert.equal(lock.deployed_artifact_generation_verified,false);
+          assert.equal(lock.production_source_finality_authority_ready,false);
+          assert.equal(lock.public_presale_activation,false);
+          assert.equal(lock.funds_movement,false);
+          console.log("lock_json_sha256="+crypto.createHash("sha256").update(lockBytes).digest("hex"));
+          console.log("accepted_enforcement_set_sha256="+lock.candidate_evidence.candidate_enforcement_set_sha256);
+          console.log("candidate_enforcement_identity_accepted=true");
           NODE
