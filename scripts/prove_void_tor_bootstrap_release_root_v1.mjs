@@ -488,6 +488,9 @@ try {
   const expiredManifest = structuredClone(manifest);
   expiredManifest.generated_at = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
   expiredManifest.expires_at = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  expiredManifest.onion_endpoints[0].qualified_at = new Date(
+    Date.parse(expiredManifest.generated_at) - 60_000,
+  ).toISOString();
   expiredManifest.manifest_id = contentId(
     "voidpbm1_",
     expiredManifest,
