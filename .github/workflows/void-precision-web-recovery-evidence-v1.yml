@@ -68,7 +68,7 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-app-composition-gateway-v1.mjs' \
+          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-frontdoor-v1.mjs' \
             "$RUNNER_TEMP/precision-v1.stderr"
           echo "frozen_precision_v1_refusal=GREEN"
       - name: Prove current gateway V2 successor
