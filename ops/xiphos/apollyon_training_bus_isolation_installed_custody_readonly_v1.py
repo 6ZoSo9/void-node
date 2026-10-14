@@ -121,6 +121,73 @@ def assert_ancestor_custody(
     return snapshot
 
 
+def close_descriptor(fd:int)->None:
+    try:
+        os.close(fd)
+    except OSError as exc:
+        raise Hold(
+            "apollyon_training_installed_custody_descriptor_close_failed"
+        ) from exc
+
+
+def best_effort_close(fd:int)->None:
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def revalidate_retained_file(
+    pathname:Path,
+    fd:int,
+    expected:os.stat_result,
+    ancestor_before:list[tuple[Path,os.stat_result]],
+    *,
+    owner_uid:int,
+    owner_gid:int,
+    trusted_root:Path,
+)->None:
+    try:
+        opened=os.fstat(fd)
+    except OSError as exc:
+        raise Hold(
+            "apollyon_training_installed_custody_descriptor_io_failed"
+        ) from exc
+    try:
+        visible=os.lstat(pathname)
+    except OSError as exc:
+        raise Hold(
+            "apollyon_training_installed_custody_file_rebound"
+        ) from exc
+    if (
+        not same_identity(expected,opened) or
+        not same_identity(opened,visible)
+    ):
+        hold("apollyon_training_installed_custody_read_identity_drift")
+
+    ancestor_after=assert_ancestor_custody(
+        pathname,
+        owner_uid=owner_uid,
+        owner_gid=owner_gid,
+        trusted_root=trusted_root,
+    )
+    if len(ancestor_before)!=len(ancestor_after):
+        hold("apollyon_training_installed_custody_ancestor_identity_drift")
+    for (before_path,before_meta),(after_name,after_meta) in zip(
+        ancestor_before,ancestor_after,
+    ):
+        if (
+            before_path!=after_name or
+            before_meta.st_dev!=after_meta.st_dev or
+            before_meta.st_ino!=after_meta.st_ino or
+            before_meta.st_uid!=after_meta.st_uid or
+            before_meta.st_gid!=after_meta.st_gid or
+            before_meta.st_mode!=after_meta.st_mode or
+            before_meta.st_nlink!=after_meta.st_nlink
+        ):
+            hold("apollyon_training_installed_custody_ancestor_identity_drift")
+
+
 def read_stable_regular_file(
     pathname:Path,
     *,
@@ -130,7 +197,7 @@ def read_stable_regular_file(
     maximum_bytes:int,
     exact_bytes:int|None=None,
     trusted_root:Path=Path("/"),
-)->tuple[bytes,os.stat_result]:
+)->tuple[bytes,os.stat_result,int,list[tuple[Path,os.stat_result]]]:
     ancestor_before=assert_ancestor_custody(
         pathname,
         owner_uid=owner_uid,
@@ -158,59 +225,71 @@ def read_stable_regular_file(
         fd=os.open(pathname,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0))
     except OSError as exc:
         raise Hold("apollyon_training_installed_custody_file_open_failed") from exc
+
     try:
-        opened=os.fstat(fd)
+        try:
+            opened=os.fstat(fd)
+        except OSError as exc:
+            raise Hold(
+                "apollyon_training_installed_custody_descriptor_io_failed"
+            ) from exc
         if not same_identity(before,opened):
             hold("apollyon_training_installed_custody_open_identity_drift")
         chunks=[]
         remaining=before.st_size
         while remaining:
-            chunk=os.read(fd,min(remaining,64*1024))
+            try:
+                chunk=os.read(fd,min(remaining,64*1024))
+            except OSError as exc:
+                raise Hold(
+                    "apollyon_training_installed_custody_descriptor_io_failed"
+                ) from exc
             if not chunk:
                 hold("apollyon_training_installed_custody_short_read")
             chunks.append(chunk)
             remaining-=len(chunk)
-        extra=os.read(fd,1)
+        try:
+            extra=os.read(fd,1)
+        except OSError as exc:
+            raise Hold(
+                "apollyon_training_installed_custody_descriptor_io_failed"
+            ) from exc
         if extra:
             hold("apollyon_training_installed_custody_oversize_read")
-        after_fd=os.fstat(fd)
-    finally:
-        os.close(fd)
+        try:
+            after_fd=os.fstat(fd)
+        except OSError as exc:
+            raise Hold(
+                "apollyon_training_installed_custody_descriptor_io_failed"
+            ) from exc
 
-    try:
-        after_path=os.lstat(pathname)
-    except OSError as exc:
-        raise Hold("apollyon_training_installed_custody_file_rebound") from exc
-    if (
-        not same_identity(opened,after_fd) or
-        not same_identity(after_fd,after_path)
-    ):
-        hold("apollyon_training_installed_custody_read_identity_drift")
-    ancestor_after=assert_ancestor_custody(
-        pathname,
-        owner_uid=owner_uid,
-        owner_gid=owner_gid,
-        trusted_root=trusted_root,
-    )
-    if len(ancestor_before)!=len(ancestor_after):
-        hold("apollyon_training_installed_custody_ancestor_identity_drift")
-    for (before_path,before_meta),(after_name,after_meta) in zip(
-        ancestor_before,ancestor_after,
-    ):
+        try:
+            after_path=os.lstat(pathname)
+        except OSError as exc:
+            raise Hold(
+                "apollyon_training_installed_custody_file_rebound"
+            ) from exc
         if (
-            before_path!=after_name or
-            before_meta.st_dev!=after_meta.st_dev or
-            before_meta.st_ino!=after_meta.st_ino or
-            before_meta.st_uid!=after_meta.st_uid or
-            before_meta.st_gid!=after_meta.st_gid or
-            before_meta.st_mode!=after_meta.st_mode or
-            before_meta.st_nlink!=after_meta.st_nlink
+            not same_identity(opened,after_fd) or
+            not same_identity(after_fd,after_path)
         ):
-            hold("apollyon_training_installed_custody_ancestor_identity_drift")
-    data=b"".join(chunks)
-    if len(data)!=before.st_size:
-        hold("apollyon_training_installed_custody_read_size_mismatch")
-    return data,before
+            hold("apollyon_training_installed_custody_read_identity_drift")
+        data=b"".join(chunks)
+        if len(data)!=before.st_size:
+            hold("apollyon_training_installed_custody_read_size_mismatch")
+        revalidate_retained_file(
+            pathname,
+            fd,
+            before,
+            ancestor_before,
+            owner_uid=owner_uid,
+            owner_gid=owner_gid,
+            trusted_root=trusted_root,
+        )
+        return data,before,fd,ancestor_before
+    except BaseException:
+        best_effort_close(fd)
+        raise
 
 
 def qualify_materials(
@@ -230,108 +309,141 @@ def qualify_materials(
     if require_xiphos and socket.gethostname().casefold()!=TARGET_HOST.casefold():
         hold("apollyon_training_installed_custody_wrong_host")
 
-    unit_bytes,unit_stat=read_stable_regular_file(
-        unit_path,
-        owner_uid=owner_uid,
-        owner_gid=owner_gid,
-        mode=EXPECTED_UNIT_MODE,
-        maximum_bytes=MAX_UNIT_BYTES,
-        trusted_root=trusted_root,
-    )
-    if git_blob_sha1(unit_bytes)!=EXPECTED_UNIT_GIT_BLOB_SHA1:
-        hold("apollyon_training_installed_custody_unit_bytes_mismatch")
+    unit_fd=None
+    preentry_fd=None
+    try:
+        unit_bytes,unit_stat,unit_fd,unit_ancestors=read_stable_regular_file(
+            unit_path,
+            owner_uid=owner_uid,
+            owner_gid=owner_gid,
+            mode=EXPECTED_UNIT_MODE,
+            maximum_bytes=MAX_UNIT_BYTES,
+            trusted_root=trusted_root,
+        )
+        if git_blob_sha1(unit_bytes)!=EXPECTED_UNIT_GIT_BLOB_SHA1:
+            hold("apollyon_training_installed_custody_unit_bytes_mismatch")
 
-    preentry_bytes,preentry_stat=read_stable_regular_file(
-        preentry_path,
-        owner_uid=owner_uid,
-        owner_gid=owner_gid,
-        mode=EXPECTED_PREENTRY_MODE,
-        maximum_bytes=MAX_PREENTRY_BYTES,
-        exact_bytes=EXPECTED_PREENTRY_BYTES,
-        trusted_root=trusted_root,
-    )
-    if sha256(preentry_bytes)!=EXPECTED_PREENTRY_SHA256:
-        hold("apollyon_training_installed_custody_preentry_bytes_mismatch")
-    if not preentry_bytes.startswith(b"\x7fELF"):
-        hold("apollyon_training_installed_custody_preentry_not_elf")
+        preentry_bytes,preentry_stat,preentry_fd,preentry_ancestors=(
+            read_stable_regular_file(
+                preentry_path,
+                owner_uid=owner_uid,
+                owner_gid=owner_gid,
+                mode=EXPECTED_PREENTRY_MODE,
+                maximum_bytes=MAX_PREENTRY_BYTES,
+                exact_bytes=EXPECTED_PREENTRY_BYTES,
+                trusted_root=trusted_root,
+            )
+        )
+        if sha256(preentry_bytes)!=EXPECTED_PREENTRY_SHA256:
+            hold("apollyon_training_installed_custody_preentry_bytes_mismatch")
+        if not preentry_bytes.startswith(b"\x7fELF"):
+            hold("apollyon_training_installed_custody_preentry_not_elf")
 
-    material={
-        "marker":MARKER,
-        "version":1,
-        "status":(
-            "installed_material_custody_observed_live_enforcement_unproven"
-            if observation_scope=="live_installed"
-            else "synthetic_material_custody_fixture_qualified"
-        ),
-        "observation_scope":observation_scope,
-        "target_host":TARGET_HOST,
-        "candidate_id":EXPECTED_CANDIDATE_ID,
-        "candidate_lock_id":EXPECTED_LOCK_ID,
-        "unit":{
-            "path":os.fspath(unit_path),
-            "git_blob_sha1":EXPECTED_UNIT_GIT_BLOB_SHA1,
-            "bytes":len(unit_bytes),
-            "owner_uid":unit_stat.st_uid,
-            "owner_gid":unit_stat.st_gid,
-            "mode":f"{stat.S_IMODE(unit_stat.st_mode):04o}",
-            "links":unit_stat.st_nlink,
-            "direct_regular":True,
-            "stable_read_identity":True,
-            "trusted_ancestry":True,
-        },
-        "preentry":{
-            "path":os.fspath(preentry_path),
-            "sha256":EXPECTED_PREENTRY_SHA256,
-            "bytes":len(preentry_bytes),
-            "owner_uid":preentry_stat.st_uid,
-            "owner_gid":preentry_stat.st_gid,
-            "mode":f"{stat.S_IMODE(preentry_stat.st_mode):04o}",
-            "links":preentry_stat.st_nlink,
-            "direct_regular":True,
-            "elf_magic_verified":True,
-            "stable_read_identity":True,
-            "trusted_ancestry":True,
-        },
-        "synthetic_fixture_unit_identity_observed":
-            observation_scope=="synthetic_fixture",
-        "synthetic_fixture_preentry_binary_identity_observed":
-            observation_scope=="synthetic_fixture",
-        "installed_unit_identity_observed":
-            observation_scope=="live_installed",
-        "installed_preentry_binary_identity_observed":
-            observation_scope=="live_installed",
-        "installed_unit_identity_proven":False,
-        "installed_preentry_binary_identity_proven":False,
-        "trusted_observer_proven":False,
-        "dynamic_runtime_closure_proven":False,
-        "training_entrypoint_identity_proven":False,
-        "live_systemd_enforcement_proven":False,
-        "inherited_system_bus_descriptor_absence_proven":False,
-        "absolute_runtime_service_control_denial_proven":False,
-        "canonical_installed_qualification_complete":False,
-        "host_mutation_performed":False,
-        "service_action_performed":False,
-        "training_execution_performed":False,
-        "attempt_claimed":False,
-        "wallet_access_performed":False,
-        "transaction_signing_performed":False,
-        "funds_movement_performed":False,
-        "remaining_requirements":[
-            "trusted_live_observer_execution",
-            "reviewed_training_entrypoint_identity",
-            "dynamic_runtime_closure",
-            "pid1_systemd_generation",
-            "dedicated_training_cgroup_identity",
-            "live_descriptor_isolation_enforcement",
-        ],
-        "next_gate":"installed_apollyon_training_bus_isolation_qualification_v1",
-    }
-    return {
-        **material,
-        "observation_id":
-            "apollyon_training_installed_custody_v1:"+
-            sha256(canonical(material).encode("utf-8")),
-    }
+        material={
+            "marker":MARKER,
+            "version":1,
+            "status":(
+                "installed_material_custody_observed_live_enforcement_unproven"
+                if observation_scope=="live_installed"
+                else "synthetic_material_custody_fixture_qualified"
+            ),
+            "observation_scope":observation_scope,
+            "target_host":TARGET_HOST,
+            "candidate_id":EXPECTED_CANDIDATE_ID,
+            "candidate_lock_id":EXPECTED_LOCK_ID,
+            "joint_material_identity_stable":True,
+            "unit":{
+                "path":os.fspath(unit_path),
+                "git_blob_sha1":EXPECTED_UNIT_GIT_BLOB_SHA1,
+                "bytes":len(unit_bytes),
+                "owner_uid":unit_stat.st_uid,
+                "owner_gid":unit_stat.st_gid,
+                "mode":f"{stat.S_IMODE(unit_stat.st_mode):04o}",
+                "links":unit_stat.st_nlink,
+                "direct_regular":True,
+                "stable_read_identity":True,
+                "trusted_ancestry":True,
+            },
+            "preentry":{
+                "path":os.fspath(preentry_path),
+                "sha256":EXPECTED_PREENTRY_SHA256,
+                "bytes":len(preentry_bytes),
+                "owner_uid":preentry_stat.st_uid,
+                "owner_gid":preentry_stat.st_gid,
+                "mode":f"{stat.S_IMODE(preentry_stat.st_mode):04o}",
+                "links":preentry_stat.st_nlink,
+                "direct_regular":True,
+                "elf_magic_verified":True,
+                "stable_read_identity":True,
+                "trusted_ancestry":True,
+            },
+            "synthetic_fixture_unit_identity_observed":
+                observation_scope=="synthetic_fixture",
+            "synthetic_fixture_preentry_binary_identity_observed":
+                observation_scope=="synthetic_fixture",
+            "installed_unit_identity_observed":
+                observation_scope=="live_installed",
+            "installed_preentry_binary_identity_observed":
+                observation_scope=="live_installed",
+            "installed_unit_identity_proven":False,
+            "installed_preentry_binary_identity_proven":False,
+            "trusted_observer_proven":False,
+            "dynamic_runtime_closure_proven":False,
+            "training_entrypoint_identity_proven":False,
+            "live_systemd_enforcement_proven":False,
+            "inherited_system_bus_descriptor_absence_proven":False,
+            "absolute_runtime_service_control_denial_proven":False,
+            "canonical_installed_qualification_complete":False,
+            "host_mutation_performed":False,
+            "service_action_performed":False,
+            "training_execution_performed":False,
+            "attempt_claimed":False,
+            "wallet_access_performed":False,
+            "transaction_signing_performed":False,
+            "funds_movement_performed":False,
+            "remaining_requirements":[
+                "trusted_live_observer_execution",
+                "reviewed_training_entrypoint_identity",
+                "dynamic_runtime_closure",
+                "pid1_systemd_generation",
+                "dedicated_training_cgroup_identity",
+                "live_descriptor_isolation_enforcement",
+            ],
+            "next_gate":"installed_apollyon_training_bus_isolation_qualification_v1",
+        }
+        result={
+            **material,
+            "observation_id":
+                "apollyon_training_installed_custody_v1:"+
+                sha256(canonical(material).encode("utf-8")),
+        }
+
+        # Both retained descriptors and both visible paths/ancestor chains must
+        # still match the exact bytes whose hashes were admitted above.
+        revalidate_retained_file(
+            unit_path,
+            unit_fd,
+            unit_stat,
+            unit_ancestors,
+            owner_uid=owner_uid,
+            owner_gid=owner_gid,
+            trusted_root=trusted_root,
+        )
+        revalidate_retained_file(
+            preentry_path,
+            preentry_fd,
+            preentry_stat,
+            preentry_ancestors,
+            owner_uid=owner_uid,
+            owner_gid=owner_gid,
+            trusted_root=trusted_root,
+        )
+        return result
+    finally:
+        if preentry_fd is not None:
+            close_descriptor(preentry_fd)
+        if unit_fd is not None:
+            close_descriptor(unit_fd)
 
 
 def live_observe()->dict[str,Any]:
