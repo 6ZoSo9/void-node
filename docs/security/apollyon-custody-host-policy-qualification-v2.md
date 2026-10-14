@@ -41,12 +41,15 @@ Polkit deny rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
 The rule must be lexically first and return `NO` for the training user based
 only on the four reviewed systemd action IDs. V2 identity evidence carries the
-passwd-resolved training username alongside the training UID. Before emitting
-that identity, the collector requires a stable forward/reverse NSS round trip:
-`getpwnam(name)` and `getpwuid(uid)` must return the same requested canonical
-name, UID, and GID, and a repeated forward lookup must remain unchanged. The pure
-classifier then requires the Polkit rule runtime user to equal that independently
-collected training identity. It reconstructs those exact canonical rule bytes from
+passwd-resolved training username alongside the training UID. At admission,
+the collector performs two forward and two reverse NSS resolutions; every result
+must agree on the requested canonical name, UID, and GID. After the Polkit and
+system-bus authorization probes complete, it performs a fresh
+`getpwnam(name)` + `getpwuid(uid)` pair and requires that mapping to remain
+identical before evidence is emitted. Forward-only stability or a single
+UID-to-name observation is therefore insufficient. The pure classifier then
+requires the Polkit rule runtime user to equal that independently collected
+training identity. It reconstructs those exact canonical rule bytes from
 the bound username and action IDs and requires the observed byte count and
 SHA-256 to match exactly;
 syntactically valid but unrelated digest evidence HOLDS. Because that first rule
