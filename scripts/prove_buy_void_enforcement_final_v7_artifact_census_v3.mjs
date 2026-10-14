@@ -133,6 +133,13 @@ function extractProtectedPaths(){
         assert.equal(expr.arguments.length,1,"tracked_source_freeze_arg_count");
         expr=expr.arguments[0];
       }
+      while(
+        ts.isAsExpression(expr)||
+        ts.isTypeAssertionExpression(expr)||
+        ts.isParenthesizedExpression(expr)
+      ){
+        expr=expr.expression;
+      }
       assert.ok(ts.isArrayLiteralExpression(expr),"tracked_source_array_required");
       found=expr.elements.map(el=>{
         assert.ok(ts.isStringLiteral(el),"tracked_source_literal_required");
