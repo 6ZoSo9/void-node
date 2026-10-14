@@ -23,6 +23,8 @@ const CHECKPOINT_MANIFEST_PATH_RE_V1 =
   /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
 const CHECKPOINT_SEGMENT_PATH_RE_V1 =
   /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/segments\/([0-9]{8})\/blocks\.bin$/;
+// Bound manifest allocation independently of its content hash/schema checks.
+const VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1 = 8 * 1024 * 1024;
 const CHECKPOINT_ROOT_RAW_V1 = String(
   process.env.VOID_PUBLIC_SEED_CHECKPOINT_ROOT || "",
 ).trim();
@@ -441,6 +443,7 @@ function loadCheckpointPublicationV1() {
   const manifestEntry = readCheckpointFileV1(
     rootAuthority,
     "checkpoint.json",
+    VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1,
   );
   const manifestBytes = manifestEntry.bytes;
   const manifestSha256 = sha256BytesV1(manifestBytes);
@@ -658,6 +661,7 @@ function checkpointResponseBytesV1(route) {
     const opened = readCheckpointFileV1(
       CHECKPOINT_PUBLICATION_V1.rootAuthority,
       "checkpoint.json",
+      VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1,
     );
     if (
       sha256BytesV1(opened.bytes) !==

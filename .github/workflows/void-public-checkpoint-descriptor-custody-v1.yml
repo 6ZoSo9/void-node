@@ -40,6 +40,8 @@ jobs:
           grep -Fx 'VOID_PUBLIC_CHECKPOINT_DESCRIPTOR_CUSTODY_V1_GREEN' "$proof_file"
           grep -Fx 'checkpoint_root_descriptor_retained=true' "$proof_file"
           grep -Fx 'checkpoint_file_reads_descriptor_bound=true' "$proof_file"
+          grep -Fx 'checkpoint_manifest_bounded_before_allocation=true' "$proof_file"
+          grep -Fx 'oversized_manifest_rejected_before_allocation=true' "$proof_file"
           grep -Fx 'byte_identical_root_replacement_rejected=true' "$proof_file"
           grep -Fx 'manifest_root_generation_replacement_rejected=true' "$proof_file"
           grep -Fx 'segment_root_generation_replacement_rejected=true' "$proof_file"

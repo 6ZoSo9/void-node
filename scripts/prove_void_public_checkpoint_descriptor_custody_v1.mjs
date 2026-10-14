@@ -12,6 +12,7 @@ const ROOT = process.cwd();
 const GATEWAY = path.join(ROOT, "tools", "void-public-seed-gateway-v1.mjs");
 const SOURCE = fs.readFileSync(GATEWAY, "utf8");
 const MARKER = "VOID_PUBLIC_CHECKPOINT_DESCRIPTOR_CUSTODY_V1_GREEN";
+const MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 
 assert.match(SOURCE, /CHECKPOINT_PROC_FD_ROOT_V1\s*=\s*"\/proc\/self\/fd"/u);
 assert.match(SOURCE, /fs\.constants\.O_NOFOLLOW/u);
@@ -19,6 +20,22 @@ assert.match(SOURCE, /fs\.constants\.O_DIRECTORY/u);
 assert.match(SOURCE, /fs\.readSync\(\s*opened\.fd,/u);
 assert.match(SOURCE, /before\.size > maximumBytes/u);
 assert.match(SOURCE, /before\.size !== expectedBytes/u);
+assert.match(
+  SOURCE,
+  /const VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1 = 8 \* 1024 \* 1024;/u,
+);
+assert.equal(
+  (SOURCE.match(
+    /"checkpoint\.json",\s*VOID_PUBLIC_CHECKPOINT_MANIFEST_MAX_BYTES_V1,/gu,
+  ) || []).length,
+  2,
+  "both manifest reads must be bounded before allocation",
+);
+assert.ok(
+  SOURCE.indexOf("before.size > maximumBytes") <
+    SOURCE.indexOf("Buffer.allocUnsafe(before.size)"),
+  "size ceiling must be checked before allocation",
+);
 assert.match(SOURCE, /assertCheckpointRootPathPinnedV1/u);
 assert.match(SOURCE, /openCheckpointDirectoryPathV1/u);
 assert.match(SOURCE, /openCheckpointFileV1/u);
@@ -279,12 +296,22 @@ try {
   const packet = path.join(tempRoot, "packet");
   const replacement = path.join(tempRoot, "replacement");
   const retained = path.join(tempRoot, "retained-original");
+  const oversized = path.join(tempRoot, "oversized");
 
   fs.mkdirSync(packet, { recursive: true, mode: 0o755 });
   fs.mkdirSync(replacement, { recursive: true, mode: 0o755 });
+  fs.mkdirSync(oversized, { recursive: true, mode: 0o755 });
 
   const packetMeta = makePacket(packet);
   const replacementMeta = makePacket(replacement);
+  const oversizedMeta = makePacket(oversized);
+  const oversizedManifestPath = path.join(oversized, "checkpoint.json");
+  fs.truncateSync(oversizedManifestPath, MANIFEST_MAX_BYTES + 1);
+  assert.equal(
+    fs.statSync(oversizedManifestPath).size,
+    MANIFEST_MAX_BYTES + 1,
+    "oversized manifest fixture must exceed the source ceiling",
+  );
 
   assert.deepEqual(
     replacementMeta.manifestBytes,
@@ -308,6 +335,21 @@ try {
     `${packetBefore.dev}:${packetBefore.ino}`,
     `${replacementBefore.dev}:${replacementBefore.ino}`,
     "fixture roots must be distinct filesystem generations",
+  );
+
+  const oversizedPort = await freePort();
+  await assert.rejects(
+    () =>
+      spawnGateway(
+        oversized,
+        {
+          ...oversizedMeta,
+          manifestSha256: "0".repeat(64),
+        },
+        oversizedPort,
+      ),
+    /checkpoint entry size invalid/u,
+    "oversized manifest must HOLD before hash/schema admission",
   );
 
   const port = await freePort();
@@ -388,6 +430,8 @@ try {
   console.log(MARKER);
   console.log("checkpoint_root_descriptor_retained=true");
   console.log("checkpoint_file_reads_descriptor_bound=true");
+  console.log("checkpoint_manifest_bounded_before_allocation=true");
+  console.log("oversized_manifest_rejected_before_allocation=true");
   console.log("byte_identical_root_replacement_rejected=true");
   console.log("manifest_root_generation_replacement_rejected=true");
   console.log("segment_root_generation_replacement_rejected=true");
