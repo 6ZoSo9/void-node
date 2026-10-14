@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import pathlib
@@ -158,24 +159,65 @@ def same_generation(first: dict[str, Any], second: dict[str, Any]) -> bool:
         and first.get("start_ticks") == second.get("start_ticks")
     )
 
-def parse_proc_environment(pid: int, keys: set[str]) -> dict[str, str]:
-    if pid < 1:
-        return {}
+def read_gateway_status_4122() -> dict[str, Any]:
+    result = {
+        "status_observed": False,
+        "marker_matches_public_earn_gateway": False,
+        "mutation_ingress_status_observed": False,
+        "dedicated_mutation_mode_observed": False,
+        "shared_legacy_mode_observed": False,
+    }
+    connection = http.client.HTTPConnection(
+        "127.0.0.1",
+        LEGACY_SHARED_PORT,
+        timeout=3,
+    )
     try:
-        raw = read_bounded(pathlib.Path(f"/proc/{pid}/environ"))
-    except OSError:
-        return {}
-    result: dict[str, str] = {}
-    for item in raw.split(b"\0"):
-        if not item:
-            continue
-        text = item.decode("utf-8", "strict")
-        if "=" not in text:
-            raise CensusError("proc_environment_row_malformed")
-        key, value = text.split("=", 1)
-        if key in keys:
-            result[key] = value
+        connection.request(
+            "GET",
+            "/__void/public-earn-gateway-v1/status.json",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "void-public-earn-legacy-cutover-census-v1",
+                "Connection": "close",
+            },
+        )
+        response = connection.getresponse()
+        if response.status != 200:
+            response.read(256 * 1024 + 1)
+            return result
+        raw = response.read(256 * 1024 + 1)
+        if len(raw) > 256 * 1024:
+            return result
+        parsed = json.loads(raw.decode("utf-8", "strict"))
+        if not isinstance(parsed, dict):
+            return result
+    except (OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError, http.client.HTTPException):
+        return result
+    finally:
+        connection.close()
+
+    result["status_observed"] = True
+    result["marker_matches_public_earn_gateway"] = (
+        parsed.get("marker") == "VOID_PUBLIC_EARN_GATEWAY_V1"
+    )
+    ingress = parsed.get("mutation_ingress")
+    if isinstance(ingress, dict):
+        result["mutation_ingress_status_observed"] = True
+        result["dedicated_mutation_mode_observed"] = (
+            ingress.get("mode") == "dedicated_loopback"
+            and ingress.get("dedicated_loopback_configured") is True
+            and ingress.get("shared_listener_mutations_enabled") is False
+            and ingress.get("dedicated_listener_host_public") is False
+            and ingress.get("local_transport_trust_proven") is False
+        )
+        result["shared_legacy_mode_observed"] = (
+            ingress.get("mode") == "shared_legacy_hold"
+            and ingress.get("dedicated_loopback_configured") is False
+            and ingress.get("shared_listener_mutations_enabled") is True
+        )
     return result
+
 
 def running_source_blob(pid: int) -> str | None:
     if pid < 1:
@@ -309,13 +351,20 @@ def collect() -> dict[str, Any]:
     gateway_before = unit_snapshot(GATEWAY_UNIT)
     tunnel_before = unit_snapshot(TUNNEL_UNIT)
 
-    gateway_env = parse_proc_environment(
-        int(gateway_before.get("main_pid") or 0),
-        {"VOID_ADAPTER_PORT", "VOID_EARN_MUTATION_DOWNSTREAM_PORT"},
-    )
     gateway_blob = running_source_blob(int(gateway_before.get("main_pid") or 0))
     owned_4122, listener_count_4122 = listener_4122_owned(
         int(gateway_before.get("main_pid") or 0)
+    )
+    gateway_status = (
+        read_gateway_status_4122()
+        if gateway_before["active_running"] and owned_4122
+        else {
+            "status_observed": False,
+            "marker_matches_public_earn_gateway": False,
+            "mutation_ingress_status_observed": False,
+            "dedicated_mutation_mode_observed": False,
+            "shared_legacy_mode_observed": False,
+        }
     )
 
     config_path = parse_cloudflared_config_path(int(tunnel_before.get("main_pid") or 0))
@@ -325,11 +374,6 @@ def collect() -> dict[str, Any]:
     tunnel_after = unit_snapshot(TUNNEL_UNIT)
     gateway_stable = same_generation(gateway_before, gateway_after) if gateway_before["active_running"] else not gateway_after["active_running"]
     tunnel_stable = same_generation(tunnel_before, tunnel_after) if tunnel_before["active_running"] else not tunnel_after["active_running"]
-
-    shared_port_4122 = gateway_env.get("VOID_ADAPTER_PORT") == "4122"
-    dedicated_mode_configured = bool(
-        re.fullmatch(r"[1-9][0-9]*", gateway_env.get("VOID_EARN_MUTATION_DOWNSTREAM_PORT", ""))
-    )
 
     tunnel_route_classification_complete = (
         not tunnel_before["active_running"]
@@ -367,8 +411,8 @@ def collect() -> dict[str, Any]:
             "generation_stable": gateway_stable,
             "listener_4122_candidate_count": listener_count_4122,
             "listener_4122_owned": owned_4122,
-            "shared_port_4122_configured": shared_port_4122,
-            "dedicated_mutation_mode_configured": dedicated_mode_configured,
+            "shared_listener_4122_observed": owned_4122,
+            **gateway_status,
             "running_source_git_blob_sha1": gateway_blob,
             "running_source_matches_ready_2993": gateway_blob == EXPECTED_GATEWAY_SOURCE_BLOB,
         },
@@ -425,7 +469,9 @@ ingress:
     assert result["mutation_routes_direct_4122"] is True
     print(f"{MARKER}_SELF_TEST_GREEN")
     print("tunnel_credential_path_output=false")
+    print("process_environment_access=false")
     print("process_environment_output=false")
+    print("loopback_status_get_only=true")
     print("live_cutover_authorized=false")
 
 def plan() -> None:
@@ -440,7 +486,9 @@ def plan() -> None:
         ("network_mutation", "false"),
         ("tunnel_mutation", "false"),
         ("credential_content_access", "false"),
+        ("process_environment_access", "false"),
         ("process_environment_output", "false"),
+        ("loopback_status_get_only", "true"),
         ("tunnel_credential_path_output", "false"),
         ("live_cutover_authorized", "false"),
     ):
