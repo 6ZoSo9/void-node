@@ -273,25 +273,41 @@ assert.equal(receiptDecision.ok, true);
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-sf-v7-receipt-"));
 try {
   const receiptPath = path.join(temp, "deployment.json");
-  fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
-  const verified = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+  fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n", { mode: 0o444 });
+
+  // A receipt created by the unprivileged test/service UID must never become
+  // deployment authority merely because its bytes are valid.
+  const unprivilegedOwner = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
     deployment_receipt_path: receiptPath,
     process_source_identity: processIdentity,
   });
-  assert.equal(verified.ok, true);
-  fs.chmodSync(receiptPath, 0o622);
-  const writable = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
-    deployment_receipt_path: receiptPath,
-    process_source_identity: processIdentity,
-  });
-  assert.equal(writable.ok, false);
-  fs.chmodSync(receiptPath, 0o600);
-  const wrongProcess = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
-    deployment_receipt_path: receiptPath,
-    process_source_identity: { ...processIdentity, commit: "4".repeat(40) },
-  });
-  assert.equal(wrongProcess.ok, false);
+  if (typeof process.geteuid === "function" && process.geteuid() !== 0) {
+    assert.equal(unprivilegedOwner.ok, false);
+  }
+
+  // When this proof is intentionally run as root, exercise the positive
+  // filesystem policy as well: root-owned, exactly mode 0444.
+  if (typeof process.geteuid === "function" && process.geteuid() === 0) {
+    const verified = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+      deployment_receipt_path: receiptPath,
+      process_source_identity: processIdentity,
+    });
+    assert.equal(verified.ok, true);
+    fs.chmodSync(receiptPath, 0o644);
+    const writable = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+      deployment_receipt_path: receiptPath,
+      process_source_identity: processIdentity,
+    });
+    assert.equal(writable.ok, false);
+    fs.chmodSync(receiptPath, 0o444);
+    const wrongProcess = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+      deployment_receipt_path: receiptPath,
+      process_source_identity: { ...processIdentity, commit: "4".repeat(40) },
+    });
+    assert.equal(wrongProcess.ok, false);
+  }
 } finally {
+  try { fs.chmodSync(path.join(temp, "deployment.json"), 0o600); } catch {}
   fs.rmSync(temp, { recursive: true, force: true });
 }
 
@@ -302,7 +318,7 @@ console.log("receipt_block_hash_quorum_required=true");
 console.log("independent_finality_thresholds_required=true");
 console.log("operator_deployment_receipt_required=true");
 console.log("deployment_receipt_process_commit_tree_bound=true");
-console.log("deployment_receipt_reviewed_source_digest_bound=true");
+console.log("deployment_receipt_reviewed_source_digest_bound=true");\nconsole.log("deployment_receipt_root_owned_read_only_required=true");\nconsole.log("rpc_url_fingerprint_rederived_from_normalized_https_url=true");
 console.log("remote_provider_legal_identity_claimed=false");
 console.log("wallet_access=false");
 console.log("signing=false");
