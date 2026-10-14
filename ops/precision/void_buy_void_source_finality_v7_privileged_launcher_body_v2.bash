@@ -180,6 +180,12 @@ printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'tsx_scratch_outside_package_tree=true' >/dev/null ||
   hold privileged_launcher_tsx_scratch_boundary_not_verified
 printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'tsx_node_import_execution_verified=true' >/dev/null ||
+  hold privileged_launcher_tsx_node_import_not_verified
+printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'tsx_cli_ipc_required=false' >/dev/null ||
+  hold privileged_launcher_tsx_cli_ipc_boundary_not_verified
+printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
   hold privileged_launcher_package_runtime_not_verified
 printf '%s\n' "$package_runtime_out" |
@@ -209,6 +215,8 @@ printf 'tsx_inert_transform_execution_verified=true\n'
 printf 'esbuild_runtime_execution_verified=true\n'
 printf 'tsx_scratch_write_scope_private=true\n'
 printf 'tsx_scratch_outside_package_tree=true\n'
+printf 'tsx_node_import_execution_verified=true\n'
+printf 'tsx_cli_ipc_required=false\n'
 printf 'privileged_launcher_package_runtime_verified=true\n'
 printf 'ambient_git_environment_inherited=false\n'
 printf 'ambient_node_environment_inherited=false\n'
@@ -249,12 +257,17 @@ visible_blob="$(git_reviewed hash-object -- "$tool_absolute")" ||
   hold reviewed_tool_hash_unavailable
 test "$tracked_blob" = "$visible_blob" || hold reviewed_tool_worktree_blob_mismatch
 
-TSX_CLI="$ROOT/node_modules/tsx/dist/cli.mjs"
-test -f "$TSX_CLI" || hold protected_tsx_cli_missing
+TSX_LOADER="$ROOT/node_modules/tsx/dist/loader.mjs"
+TSX_TSCONFIG="$ROOT/tsconfig.json"
+test -f "$TSX_LOADER" || hold protected_tsx_loader_missing
+test -f "$TSX_TSCONFIG" || hold protected_tsconfig_missing
 
 printf 'tool=%s\n' "$tool"
 printf 'tool_path=%s\n' "$tool_path"
 printf 'tool_git_blob_sha1=%s\n' "$tracked_blob"
 printf 'tool_execution=true\n'
+printf 'tsx_execution_mode=node_import_hook\n'
 
-exec "$ENV" -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC   "$NODE" "$TSX_CLI" "$tool_absolute" "${tool_args[@]}"
+exec "$ENV" -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC \
+  TSX_TSCONFIG_PATH="$TSX_TSCONFIG" \
+  "$NODE" --import "file://$TSX_LOADER" "$tool_absolute" "${tool_args[@]}"

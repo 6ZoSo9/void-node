@@ -329,18 +329,34 @@ function provePrivateTsxExecution(lock,packages){
       {mode:0o400,flag:"wx"},
     );
     const probeBefore=sha256(fs.readFileSync(probe));
-    const cli=path.join(destination,"node_modules/tsx/dist/cli.mjs");
-    const cliStat=fs.lstatSync(cli);
-    assert.ok(cliStat.isFile()&&!cliStat.isSymbolicLink()&&cliStat.nlink===1);
+    const loader=path.join(destination,"node_modules/tsx/dist/loader.mjs");
+    const loaderStat=fs.lstatSync(loader);
+    assert.ok(loaderStat.isFile()&&!loaderStat.isSymbolicLink()&&loaderStat.nlink===1);
 
+    // TSX checks Linux filesystem case sensitivity by probing the same path
+    // with ASCII letter case inverted. Authorize that one proven-nonexistent
+    // path only; never widen filesystem reads to the parent temp directory.
+    const invertCase=value=>[...value].map(char=>{
+      const upper=char.toUpperCase();
+      return char===upper?char.toLowerCase():upper;
+    }).join("");
+    const caseProbePath=invertCase(destination);
+    assert.notEqual(caseProbePath,destination,"tsx_case_probe_path_must_differ");
+    assert.equal(fs.existsSync(caseProbePath),false,"tsx_case_probe_alias_must_not_exist");
+
+    // Use TSX's supported Node import hook instead of its CLI. The CLI opens
+    // a local IPC socket; the import hook does not require that network/IPC
+    // authority and matches the protected launcher's production path.
     const result=spawnSync(
       process.execPath,
       [
         "--permission",
         "--allow-fs-read="+destination,
+        "--allow-fs-read="+caseProbePath,
         "--allow-fs-write="+scratch,
         "--allow-child-process",
-        cli,
+        "--import",
+        pathToFileURL(loader).href,
         probe,
       ],
       {
@@ -358,6 +374,7 @@ function provePrivateTsxExecution(lock,packages){
           TMPDIR:scratch,
           TMP:scratch,
           TEMP:scratch,
+          TSX_TSCONFIG_PATH:tsconfig,
         },
       },
     );
@@ -388,6 +405,9 @@ function provePrivateTsxExecution(lock,packages){
       esbuild_runtime_execution_verified:true,
       tsx_scratch_write_scope_private:true,
       tsx_scratch_outside_package_tree:true,
+      tsx_node_import_execution_verified:true,
+      tsx_cli_ipc_required:false,
+      case_inversion_probe_permission_bounded:true,
       ancestor_package_resolution_blocked_by_fs_permission:true,
       ambient_node_resolution_overrides_inherited:false,
       execution_probe_mutated:false,
@@ -419,7 +439,8 @@ export async function derivePrivilegedLauncherPackageRuntimeV2(){
     'FIXED_SOURCE_ROOT="/opt/void-buy-void-v7-reviewed-v1"',
     'PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"',
     '"$NODE" "$ROOT/$PACKAGE_RUNTIME_PROOF_REL" --report',
-    '"$NODE" "$TSX_CLI" "$tool_absolute"',
+    'TSX_LOADER="$ROOT/node_modules/tsx/dist/loader.mjs"',
+    '"$NODE" --import "file://$TSX_LOADER" "$tool_absolute"',
     'native_preentry_verified=true',
   ]) assert.ok(launcherText.includes(required),"launcher_required:"+required);
   assert.ok(
@@ -499,6 +520,9 @@ export async function derivePrivilegedLauncherPackageRuntimeV2(){
     esbuild_runtime_execution_verified:execution.esbuild_runtime_execution_verified,
     tsx_scratch_write_scope_private:execution.tsx_scratch_write_scope_private,
     tsx_scratch_outside_package_tree:execution.tsx_scratch_outside_package_tree,
+    tsx_node_import_execution_verified:execution.tsx_node_import_execution_verified,
+    tsx_cli_ipc_required:execution.tsx_cli_ipc_required,
+    case_inversion_probe_permission_bounded:execution.case_inversion_probe_permission_bounded,
     ancestor_package_resolution_blocked_by_fs_permission:execution.ancestor_package_resolution_blocked_by_fs_permission,
     ambient_node_resolution_overrides_inherited:execution.ambient_node_resolution_overrides_inherited,
     execution_probe_mutated:execution.execution_probe_mutated,
@@ -531,6 +555,9 @@ function report(j){
   console.log("esbuild_runtime_execution_verified=true");
   console.log("tsx_scratch_write_scope_private=true");
   console.log("tsx_scratch_outside_package_tree=true");
+  console.log("tsx_node_import_execution_verified=true");
+  console.log("tsx_cli_ipc_required=false");
+  console.log("case_inversion_probe_permission_bounded=true");
   console.log("privileged_launcher_package_runtime_verified=true");
   console.log("private_temporary_filesystem_write=true");
   console.log("persistent_host_mutation=false");
