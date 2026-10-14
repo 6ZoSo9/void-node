@@ -128,6 +128,7 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-native-preentry-proof-")
 const nativeBinary=path.join(tmp,"void-buy-void-v7-native-preentry");
 const systemNode="/usr/bin/node";
 let installedSystemNodeFixture=false;
+let originalOptMode=null;
 
 try{
   if(!fs.existsSync(systemNode)){
@@ -160,6 +161,15 @@ try{
   const tree=git(replica,"rev-parse","HEAD^{tree}");
 
   sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
+  const optBefore=fs.lstatSync("/opt");
+  assert.equal(optBefore.isDirectory(),true,"native /opt fixture ancestor must be a directory");
+  assert.equal(optBefore.isSymbolicLink(),false,"native /opt fixture ancestor must not be a symlink");
+  assert.equal(optBefore.uid,0,"native /opt fixture ancestor must be root-owned");
+  if((optBefore.mode&0o022)!==0){
+    originalOptMode=optBefore.mode&0o7777;
+    const safeOptMode=originalOptMode&~0o022;
+    sudo(["/usr/bin/chmod",safeOptMode.toString(8),"--","/opt"]);
+  }
   sudo(["mkdir","-p","--",FIXED_PREENTRY_DIR]);
   sudo(["chown","0:0","--",FIXED_PREENTRY_DIR]);
   sudo(["chmod","0755","--",FIXED_PREENTRY_DIR]);
@@ -281,6 +291,7 @@ try{
 
   console.log(MARKER+"_PROOF_GREEN");
   console.log("native_preentry_first_instruction=true");
+  console.log("host_opt_fixture_mode_restored=true");
   console.log("native_bash_descriptor_execution=true");
   console.log("native_launcher_descriptor_execution=true");
   console.log("native_launcher_exact_sha256_bound=true");
@@ -308,6 +319,9 @@ try{
   console.log("funds_movement=false");
 }finally{
   sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
+  if(originalOptMode!==null){
+    sudo(["/usr/bin/chmod",originalOptMode.toString(8),"--","/opt"],{allow:true});
+  }
   if(installedSystemNodeFixture) sudo(["rm","-f","--",systemNode],{allow:true});
   fs.rmSync(tmp,{recursive:true,force:true});
 }
