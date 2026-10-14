@@ -75,6 +75,7 @@ for(const attack of [
   {label:"service-child-not-manager",managers:[manager],services:[{...service,ppid:8888}]},
   {label:"two-manager-parent-node-candidates",managers:[manager],services:[service,{...service,pid:1075000}]},
   {label:"wrong-manager-exe",managers:[{...manager,executable_realpath:"/tmp/systemd"}],services:[service]},
+  {label:"manager-not-pid1-child",managers:[{...manager,ppid:7777}],services:[service]},
   {label:"wrong-service-cgroup",managers:[manager],services:[{...service,cgroup_v2_path:managerScope}]},
 ]){
   assert.throws(
@@ -120,6 +121,7 @@ const material={
   service_process_selector_contract_id:
     VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTOR_CONTRACT_ID_V2,
   manager_pid:manager.pid,
+  manager_ppid:1,
   manager_start_time_ticks:manager.start_time_ticks,
   manager_cgroup_v2_path:managerScope,
   manager_executable_realpath:"/usr/lib/systemd/systemd",
@@ -212,6 +214,7 @@ for(const [key,expected] of Object.entries({
 console.log("VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V2_PROOF_GREEN");
 console.log("precision_topology_fixture_manager_scope_pid_count=2");
 console.log("exact_one_manager_shaped_candidate=true");
+console.log("manager_ppid_pid1_required=true");
 console.log("exact_one_manager_parent_node_candidate=true");
 console.log("esbuild_children_not_service_candidate=true");
 console.log("selector_contract_content_addressed=true");
