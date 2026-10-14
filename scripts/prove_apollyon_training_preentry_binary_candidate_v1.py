@@ -282,11 +282,16 @@ def validate_report(report:dict)->None:
         ("git_blob_sha1","path","sha256"),
         "candidate source",
     )
+    current_source=bounded_file_bytes(
+        SOURCE,1024*1024,"pre-entry source"
+    )
     if (
         report["source"]["path"]!=SOURCE_REL or
         report["source"]["git_blob_sha1"]!=EXPECTED_SOURCE_GIT_BLOB_SHA1 or
+        report["source"]["git_blob_sha1"]!=git_blob_sha1(current_source) or
         not isinstance(report["source"]["sha256"],str) or
-        HEX64.fullmatch(report["source"]["sha256"]) is None
+        HEX64.fullmatch(report["source"]["sha256"]) is None or
+        report["source"]["sha256"]!=sha256(current_source)
     ):
         raise AssertionError("candidate source identity invalid")
 
@@ -301,7 +306,8 @@ def validate_report(report:dict)->None:
             isinstance(report["compiler"][key],str) and report["compiler"][key]
             for key in ("dumpmachine","dumpversion","realpath","version_line")
         ) or
-        not os.path.isabs(report["compiler"]["realpath"])
+        not os.path.isabs(report["compiler"]["realpath"]) or
+        report["compiler"]!=compiler_identity()
     ):
         raise AssertionError("candidate compiler identity invalid")
 
