@@ -58,6 +58,7 @@ AUTHORITY = {
     "verified_payment_to_allocation_mounted": False,
     "custody_reserve_or_recover_enabled": False,
     "runtime_integration": False,
+    "production_gate_ready": False,
     "payment_acceptance": False,
     "wallet_or_signer_access": False,
     "private_key_access": False,
