@@ -49,12 +49,13 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-After identity/descriptor checks and signal setup, the target first marks both
-stdout and stderr `O_NONBLOCK`, then captures one absolute
-`CLOCK_BOOTTIME` deadline **before publishing readiness**. The readiness
-record is emitted as one bounded `write(2)` payload rather than buffered
-stdio. If the sink cannot accept that payload immediately, the process HOLDS
-instead of waiting for output capacity.
+After identity/descriptor checks and signal setup, the target ignores
+`SIGPIPE`, marks both stdout and stderr `O_NONBLOCK`, then captures one
+absolute `CLOCK_BOOTTIME` deadline **before publishing readiness**. The
+readiness record is emitted as one bounded `write(2)` payload rather than
+buffered stdio. A full sink returns EAGAIN/EWOULDBLOCK and HOLDS immediately;
+a disconnected reader returns EPIPE and is converted to a distinct HOLD rather
+than terminating the process by SIGPIPE.
 
 The deadline is exactly 300 seconds after the admission point. The hold then
 uses `clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host
@@ -92,7 +93,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob 85f496585cc71eb04e7e028b36f767b94f92fb41
+Git blob 13c2de00cc870ec7ecda4bde016307cb95b3e033
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -112,6 +113,8 @@ by this lane.
   absolute CLOCK_BOOTTIME 300-second deadline is armed;
 - fills a pipe to capacity and proves readiness fails closed promptly rather
   than blocking beyond the observation window;
+- closes the readiness pipe reader and proves SIGPIPE/EPIPE becomes a
+  deterministic HOLD with exit status 2;
 - starts the qualification target with no-new-privileges, proves it stays alive
   for observation, sends SIGTERM, and requires the durable-claim HOLD; and
 - statically rejects network, subprocess/exec, filesystem-mutation and ML
