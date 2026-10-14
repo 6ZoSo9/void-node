@@ -49,27 +49,36 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-The first operation in `main()` establishes process-output safety before any
+The first operation in `main()` establishes process safety before any
 argument, identity, no-new-privileges, descriptor, or self-test path can reach a
-HOLD. SIGPIPE is ignored first. Stderr is then marked `O_NONBLOCK` using a
-no-HOLD bootstrap path; only after the diagnostic channel is nonblocking may
-ordinary fail-closed helpers run while stdout is made nonblocking. Early
-refusals therefore cannot be terminated by SIGPIPE or block indefinitely on a
-full diagnostic sink, including a failure while preparing stdout itself.
+HOLD. It blocks SIGTERM, SIGINT, and the dedicated qualification-timer signal
+with `sigprocmask(SIG_BLOCK,...)`, then ignores SIGPIPE. Stderr is marked
+`O_NONBLOCK` through a no-HOLD bootstrap path; only after the diagnostic
+channel is safe may ordinary fail-closed helpers run while stdout is made
+nonblocking. Early refusals therefore cannot be terminated by SIGPIPE, block on
+a full diagnostic sink, or lose a termination signal in an asynchronous-handler
+race.
 
-After identity/descriptor checks and TERM/INT signal setup, the target captures
-one absolute `CLOCK_BOOTTIME` deadline **before publishing readiness**. The
-readiness record is emitted as one bounded `write(2)` payload rather than
-buffered stdio. A full sink returns EAGAIN/EWOULDBLOCK and HOLDS immediately;
-a disconnected reader returns EPIPE and is converted to a distinct HOLD.
+After identity/descriptor checks, the target creates a POSIX timer on
+`CLOCK_BOOTTIME` and arms it with `timer_settime(..., TIMER_ABSTIME,...)`
+for exactly 300 seconds after admission. Before publishing readiness it performs
+a zero-time `sigtimedwait()`: an already-pending SIGTERM/SIGINT causes a
+fail-closed pre-ready HOLD, and the timer signal is accepted only when its
+`si_code` proves kernel timer origin.
 
-The deadline is exactly 300 seconds after the admission point. The hold then
-uses `clock_nanosleep(..., TIMER_ABSTIME)`; CLOCK_BOOTTIME includes host
-suspend time. CPU descheduling, suspension, or a blocked readiness sink
-therefore cannot extend the admitted observation lifetime. A later, separately
-authorized installed/live qualification can observe the exact systemd cgroup
-and descriptor boundary during that interval. SIGTERM or SIGINT ends the
-observation window early.
+The readiness record is then emitted as one bounded `write(2)` payload rather
+than buffered stdio. A full sink returns EAGAIN/EWOULDBLOCK and HOLDS
+immediately; a disconnected reader returns EPIPE and is converted to a distinct
+HOLD.
+
+During the observation window the process waits synchronously with
+`sigwaitinfo()` for either SIGTERM/SIGINT or the absolute CLOCK_BOOTTIME timer.
+There is no asynchronous stop flag and no check-then-sleep interval: a
+termination signal that becomes pending before the wait is consumed
+immediately, while timer expiry remains suspend-aware because CLOCK_BOOTTIME
+includes host suspend time. The timer is deleted before the final durable-claim
+HOLD. CPU descheduling, suspension, blocked output, or the former
+signal-before-sleep race therefore cannot extend the admitted window.
 
 Every normal exit is fail-closed:
 
@@ -99,7 +108,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob 613f0ece15696db57b81e41b9e8aa5638f8f29c7
+Git blob bfeff81f3eab98988a9be9600a05c696674c49d6
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -115,21 +124,25 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
-- proves SIGPIPE ignore is established first and stderr becomes nonblocking
-  before any setup path is permitted to call HOLD;
-- proves the full process-output safety call is the first operation in
-  `main()`, before the first ordinary HOLD path;
+- proves TERM/INT/timer signals are blocked before ordinary HOLD paths, then
+  SIGPIPE is ignored and stderr becomes nonblocking before stdout setup may
+  call HOLD;
+- proves the full process-safety call is the first operation in `main()`,
+  before the first ordinary HOLD path;
 - closes stderr and separately fills stderr to capacity on an early
   no-new-privileges refusal, requiring prompt exit status 2 rather than signal
   termination or blocking;
-- requires the suspend-aware absolute CLOCK_BOOTTIME 300-second deadline after
-  those process-I/O safeguards;
+- requires an absolute CLOCK_BOOTTIME POSIX timer, pre-ready pending-signal
+  rejection with `sigtimedwait()`, and synchronous `sigwaitinfo()` hold;
+- statically rejects the former `stop_requested` / `clock_nanosleep()`
+  check-then-sleep implementation;
 - fills a pipe to capacity and proves readiness fails closed promptly rather
   than blocking beyond the observation window;
 - closes the readiness pipe reader and proves SIGPIPE/EPIPE becomes a
   deterministic HOLD with exit status 2;
 - starts the qualification target with no-new-privileges, proves it stays alive
-  for observation, sends SIGTERM, and requires the durable-claim HOLD; and
+  for observation, sends SIGTERM into the synchronous wait, and requires the
+  durable-claim HOLD; and
 - statically rejects network, subprocess/exec, filesystem-mutation and ML
   training primitives.
 
