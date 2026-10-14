@@ -28,9 +28,16 @@ export const VOID_BUY_VOID_V2_LIVE_PROCESS_RECEIPT_PUBLISH_CONFIRMATION_V1 =
 export const VOID_BUY_VOID_V7_DEPLOYMENT_RECEIPT_PATH_V1 =
   "/var/lib/void-source-finality-v7/deployment-receipt.json";
 
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SHA40=/^[0-9a-f]{40}$/u;
 const PLAN_ID=/^voidbsv2colplan1_[0-9a-f]{64}$/u;
 const MAX_RECEIPT_BYTES=64*1024;
+export const VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1 =
+  "VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
+const VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1 =
+  "/opt/void-buy-void-v7-reviewed-v1";
+const VOID_BUY_VOID_V7_LIVE_PROCESS_V2_TOOL_REL_V1 =
+  "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts";
 
 function fail(code:string):never{throw new Error(code);}
 function sha256(value:Buffer|string):string{
@@ -83,6 +90,50 @@ function exactTrackedBlob(cwd:string,commit:string,relative:string):void{
   const visible=runGit(cwd,["hash-object","--",relative]);
   const tracked=runGit(cwd,["rev-parse","--verify",commit+":"+relative]);
   if(visible!==tracked)fail("publisher_tracked_blob_mismatch:"+relative);
+}
+
+export function assertBuyVoidV7ProtectedLiveProcessV2DispatchV1(
+  env:NodeJS.ProcessEnv=process.env,
+):void{
+  if(process.geteuid?.()!==0)fail("protected_dispatch_root_required");
+  if(ROOT!==VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1){
+    fail("protected_dispatch_fixed_source_root_required");
+  }
+  if(env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH!==VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1){
+    fail("protected_dispatch_marker_required");
+  }
+  if(env.VOID_BUY_VOID_V7_PROTECTED_NATIVE_PREENTRY!=="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"){
+    fail("protected_dispatch_native_preentry_marker_required");
+  }
+  if(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT!==ROOT){
+    fail("protected_dispatch_source_root_mismatch");
+  }
+  const commit=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT||"");
+  const tree=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE||"");
+  const toolPath=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH||"");
+  const toolBlob=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_BLOB_SHA1||"");
+  if(!SHA40.test(commit))fail("protected_dispatch_commit_invalid");
+  if(!SHA40.test(tree))fail("protected_dispatch_tree_invalid");
+  if(toolPath!==VOID_BUY_VOID_V7_LIVE_PROCESS_V2_TOOL_REL_V1){
+    fail("protected_dispatch_tool_path_mismatch");
+  }
+  if(!SHA40.test(toolBlob))fail("protected_dispatch_tool_blob_invalid");
+  proveRootCustodyPath(ROOT,true);
+  const toolAbsolute=path.join(ROOT,...toolPath.split("/"));
+  if(fileURLToPath(import.meta.url)!==toolAbsolute){
+    fail("protected_dispatch_module_path_mismatch");
+  }
+  proveRootCustodyPath(toolAbsolute,false);
+  if(
+    runGit(ROOT,["rev-parse","--verify","HEAD^{commit}"])!==commit||
+    runGit(ROOT,["rev-parse","--verify","HEAD^{tree}"])!==tree||
+    runGit(ROOT,["symbolic-ref","--short","-q","HEAD"])!=="main"||
+    runGit(ROOT,["status","--porcelain=v1","--untracked-files=all"])!==""
+  )fail("protected_dispatch_repository_generation_mismatch");
+  const tracked=runGit(ROOT,["rev-parse","--verify","HEAD:"+toolPath]);
+  const visible=runGit(ROOT,["hash-object","--",toolAbsolute]);
+  if(tracked!==toolBlob)fail("protected_dispatch_tracked_blob_mismatch");
+  if(visible!==toolBlob)fail("protected_dispatch_visible_blob_mismatch");
 }
 export function requalifyBuyVoidV2LiveSourceCustodyV1(
   plan:BuyVoidV2LiveProcessCollectionPlanV1,
@@ -466,6 +517,9 @@ function parseArgs(argv:string[]){
 
 async function main():Promise<void>{
   const args=parseArgs(process.argv.slice(2));
+  if(args.mode==="apply"){
+    assertBuyVoidV7ProtectedLiveProcessV2DispatchV1();
+  }
   console.log(VOID_BUY_VOID_V2_LIVE_PROCESS_RECEIPT_PUBLISHER_V1);
   console.log("mode="+args.mode);
   console.log("selector_pidfd_collection=true");
