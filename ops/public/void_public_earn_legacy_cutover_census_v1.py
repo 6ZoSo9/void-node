@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pathlib
+import pwd
 import re
 import socket
 import stat
@@ -37,9 +38,13 @@ def git_blob_sha1(data: bytes) -> str:
 
 def safe_user_env() -> dict[str, str]:
     uid = os.geteuid()
+    try:
+        home = pwd.getpwuid(uid).pw_dir
+    except KeyError as exc:
+        raise CensusError("observer_user_identity_unavailable") from exc
     return {
         "PATH": "/usr/bin:/bin",
-        "HOME": os.path.expanduser("~"),
+        "HOME": home,
         "LANG": "C",
         "LC_ALL": "C",
         "SYSTEMD_PAGER": "cat",
@@ -294,6 +299,13 @@ def classify_tunnel_config(path: pathlib.Path | None) -> dict[str, Any]:
     return result
 
 def collect() -> dict[str, Any]:
+    hostname = socket.gethostname()
+    effective_uid = os.geteuid()
+    try:
+        effective_user = pwd.getpwuid(effective_uid).pw_name
+    except KeyError:
+        effective_user = None
+
     gateway_before = unit_snapshot(GATEWAY_UNIT)
     tunnel_before = unit_snapshot(TUNNEL_UNIT)
 
@@ -335,6 +347,11 @@ def collect() -> dict[str, Any]:
         "version": 1,
         "observed_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "read_only": True,
+        "host": {
+            "hostname_matches_precision": hostname == EXPECTED_HOSTNAME,
+            "ordinary_user_observer": effective_uid != 0,
+            "effective_user_is_zoso": effective_user == "zoso",
+        },
         "service_mutation": False,
         "systemd_mutation": False,
         "network_mutation": False,
@@ -407,6 +424,8 @@ def plan() -> None:
     for key, value in (
         ("mode", "--plan"),
         ("read_only", "true"),
+        ("precision_hostname_required", "true"),
+        ("ordinary_zoso_user_manager_required", "true"),
         ("service_mutation", "false"),
         ("systemd_mutation", "false"),
         ("network_mutation", "false"),
