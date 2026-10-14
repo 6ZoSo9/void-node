@@ -31,7 +31,8 @@ for value in [
  "system.posix_acl_access","CLOCK_BOOTTIME","'/usr/bin/systemctl','show'",
  "'/usr/bin/systemctl','--version'","'/usr/bin/busctl','--system','get-property'",
  "'org.freedesktop.systemd1.Manager','Version'","'/usr/bin/pkcheck'","'--process'",
- "'--system-bus-name'","parse_busctl_unique_names","system_bus_sender_snapshot",
+ "'--system-bus-name'","parse_busctl_unique_rows","parse_busctl_unique_names",
+ "system_bus_sender_snapshot","listed_pid","listed_user",
  "system_bus_sender_evidence","actual_system_bus_sender_checks_required",
  "actual_system_bus_sender_set_stable","denial_transcript_sha256",
  "system_bus_credentials_lookup_failed",
@@ -103,6 +104,37 @@ assert mod.parse_busctl_unique_names(
  ':1.42 4242 python zoso :1.42 user@1000.service - - fixture\n'
  ':1.7  7 dbus root :1.7 dbus.service - - fixture\n'
 )==[':1.42',':1.7']
+rows=mod.parse_busctl_unique_rows(
+ ':1.99 999 busctl root :1.99 session.scope - - collector\n'
+ ':1.42 4242 python zoso :1.42 user@1000.service - - training\n'
+)
+assert rows[0]['bus_name']==':1.42'
+assert rows[1]['bus_name']==':1.99'
+original_run=mod.run
+original_dbus_uint32=mod.dbus_connection_uint32
+credential_queries=[]
+def fake_bus_list(args):
+ return (
+  ':1.99 999 busctl root :1.99 session.scope - - collector\n'
+  ':1.42 4242 python zoso :1.42 user@1000.service - - training\n'
+ )
+def fake_bus_credentials(method,name):
+ credential_queries.append((method,name))
+ if name!=':1.42':
+  raise AssertionError('nontraining busctl census client was credential-queried')
+ return 4242 if method=='GetConnectionUnixProcessID' else 1000
+try:
+ mod.run=fake_bus_list
+ mod.dbus_connection_uint32=fake_bus_credentials
+ observed=mod.system_bus_sender_snapshot(Training(),{4242})
+finally:
+ mod.run=original_run
+ mod.dbus_connection_uint32=original_dbus_uint32
+assert observed==[{'bus_name':':1.42','pid':4242,'uid':1000}]
+assert credential_queries==[
+ ('GetConnectionUnixProcessID',':1.42'),
+ ('GetConnectionUnixUser',':1.42'),
+]
 try:
  mod.parse_busctl_unique_names(
   ''.join(f':1.{i} 1 proc user :1.{i} unit - - fixture\n' for i in range(257))
@@ -362,6 +394,8 @@ print('runtime_can_control_service=unknown')
 print('system_bus_unique_name_census_bounded=true')
 print('training_uid_process_full_identity_double_snapshot=true')
 print('system_bus_credential_lookup_fail_closed=true')
+print('nontraining_busctl_census_client_excluded_prelookup=true')
+print('relevant_bus_sender_credentials_still_authoritative=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
