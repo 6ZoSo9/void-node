@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -114,24 +115,49 @@ static int run_self_test(void) {
   return 0;
 }
 
+static void require_nonblocking_fd(int fd, const char *reason) {
+  int flags = fcntl(fd, F_GETFL);
+  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+    hold(reason);
+  }
+}
+
+static void prepare_observation_io(void) {
+  require_nonblocking_fd(
+      STDOUT_FILENO,
+      "apollyon_candidate_training_entrypoint_stdout_nonblocking_failed");
+  require_nonblocking_fd(
+      STDERR_FILENO,
+      "apollyon_candidate_training_entrypoint_stderr_nonblocking_failed");
+}
+
 static void emit_ready(void) {
-  puts(MARKER);
-  puts("status=qualification_hold_active");
-  puts("qualification_only=true");
-  puts("fixed_qualification_window_seconds=300");
-  puts("durable_attempt_claim_required=true");
-  puts("durable_attempt_claim_proven=false");
-  puts("training_execution_authorized=false");
-  puts("training_execution=false");
-  puts("candidate_weight_mutation=false");
-  puts("automatic_retry=false");
-  puts("automatic_promotion=false");
-  puts("deployment=false");
-  puts("network_api_authority=false");
-  puts("wallet_or_funds_action=false");
-  puts("void_chain_mutation=false");
-  if (fflush(stdout) != 0) {
-    hold("apollyon_candidate_training_entrypoint_stdout_flush_failed");
+  static const char payload[] =
+      MARKER "\n"
+      "status=qualification_hold_active\n"
+      "qualification_only=true\n"
+      "fixed_qualification_window_seconds=300\n"
+      "durable_attempt_claim_required=true\n"
+      "durable_attempt_claim_proven=false\n"
+      "training_execution_authorized=false\n"
+      "training_execution=false\n"
+      "candidate_weight_mutation=false\n"
+      "automatic_retry=false\n"
+      "automatic_promotion=false\n"
+      "deployment=false\n"
+      "network_api_authority=false\n"
+      "wallet_or_funds_action=false\n"
+      "void_chain_mutation=false\n";
+
+  ssize_t written = write(STDOUT_FILENO, payload, sizeof(payload) - 1U);
+  if (written < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      hold("apollyon_candidate_training_entrypoint_stdout_not_immediately_writable");
+    }
+    hold("apollyon_candidate_training_entrypoint_stdout_write_failed");
+  }
+  if ((size_t)written != sizeof(payload) - 1U) {
+    hold("apollyon_candidate_training_entrypoint_stdout_short_write");
   }
 }
 
@@ -174,6 +200,7 @@ int main(int argc, char **argv) {
   assert_no_new_privileges();
   assert_no_inherited_fds();
   install_signal_handlers();
+  prepare_observation_io();
   struct timespec qualification_deadline = arm_qualification_deadline();
   emit_ready();
   qualification_hold(&qualification_deadline);
