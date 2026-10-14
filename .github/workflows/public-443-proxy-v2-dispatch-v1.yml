@@ -1,0 +1,96 @@
+name: VOID single public 443 PROXY-v2 dispatch v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-public-443-proxy-v2-dispatch-v1.mjs"
+      - "ops/public/void-public-443-proxy-v2-dispatcher-v1.mjs"
+      - "scripts/prove_void_public_443_proxy_v2_dispatch_v1.mjs"
+      - "docs/architecture/public-443-proxy-v2-dispatch-v1.md"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-source-v1.mjs"
+      - "tools/void-agent-paid-work-credential-request-proxy-v2-edge-composition-v1.mjs"
+      - "tools/void-public-earn-proxy-v2-edge-contract-v1.mjs"
+      - ".github/workflows/public-443-proxy-v2-dispatch-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: single 443 dispatch / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check focused source
+        run: |
+          node --check tools/void-public-443-proxy-v2-dispatch-v1.mjs
+          node --check ops/public/void-public-443-proxy-v2-dispatcher-v1.mjs
+          node --check scripts/prove_void_public_443_proxy_v2_dispatch_v1.mjs
+
+      - name: Prove single public 443 dispatch
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/public-443-proxy-v2-dispatch-v1.txt"
+          node scripts/prove_void_public_443_proxy_v2_dispatch_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_443_PROXY_V2_DISPATCH_V1_GREEN' "$proof"
+          grep -Fx 'one_public_443_owner_source_contract=true' "$proof"
+          grep -Fx 'strict_proxy_v2_required=true' "$proof"
+          grep -Fx 'credential_exact_route_to_credential_edge=true' "$proof"
+          grep -Fx 'earn_exact_routes_to_earn_edge=true' "$proof"
+          grep -Fx 'ordinary_public_routes_to_frontdoor=true' "$proof"
+          grep -Fx 'sensitive_proxy_preface_preserved=true' "$proof"
+          grep -Fx 'frontdoor_proxy_preface_stripped=true' "$proof"
+          grep -Fx 'sensitive_aliases_fail_closed=true' "$proof"
+          grep -Fx 'generic_sensitive_mutation_route_authorized=false' "$proof"
+          grep -Fx 'source_identity_forwarded_as_http_header=false' "$proof"
+          grep -Fx 'connector_process_identity_proven=false' "$proof"
+          grep -Fx 'exclusive_reachability_proven=false' "$proof"
+          grep -Fx 'tailscale_funnel_configuration_verified=false' "$proof"
+          grep -Fx 'runtime_integration=false' "$proof"
+          grep -Fx 'work_credit_write=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repository typecheck
+        run: npm run typecheck -- --pretty false
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
