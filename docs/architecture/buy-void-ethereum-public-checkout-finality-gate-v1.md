@@ -11,10 +11,16 @@ primary Ethereum RPC fields, a required independent secondary Ethereum RPC
 URL/identity, an absolute canonical deployment-receipt path, immutable process
 commit/tree identity, and the existing canonical dual-rail USDC/receiver policy.
 
-Payment-instruction readiness now recognizes only the V7 capability contract:
-operator deployment receipt required, immutable process identity required,
-reviewed source/deployed generation on success, two independent provider
-transports, two-provider ancestry/quorum, and production authority on success.
+Payment-instruction readiness now requires the V7 capability contract as a
+static prerequisite, but that static descriptor is explicitly **not**
+payment-instruction authority. It states what a successful at-use observation
+must prove: operator deployment receipt, immutable process identity, reviewed
+source/deployed generation, two independent provider transports,
+two-provider ancestry/quorum, and production authority. Until a separately
+reviewed freshness-bounded live-admission receipt binds those facts to the
+current process, new Ethereum payment instructions remain HOLD. Existing paid
+attempt reconciliation may still perform the real V7 observation path.
+
 V7 deliberately reports remote legal-provider identity as false; the checkout
 therefore requires independent transport verification rather than relabeling
 transport diversity as legal identity.
@@ -67,8 +73,12 @@ an identity-misconfigured process from accepting a payment that the later
 pre-attempt bridge would necessarily HOLD.
 
 Payment-instruction readiness and the pre-attempt bridge share one strict
-classifier over the canonical V6 finality capability authority. The classifier
-requires the full reviewed-success contract, not a hand-picked subset:
+classifier over the canonical finality capability authority. The classifier
+requires the full reviewed-success contract, not a hand-picked subset, but its
+positive result is **capability/configuration evidence only**. The participant
+instruction path still returns
+`ethereum_payment_instructions_live_admission_required` until a later reviewed
+live-admission receipt is composed. The classifier requires:
 runtime source reads enabled with runtime source writes forbidden, caller
 generation assertions forbidden, reviewed-source verification, authenticated
 transport identity, total deadline, in-composition observation, source/deployed

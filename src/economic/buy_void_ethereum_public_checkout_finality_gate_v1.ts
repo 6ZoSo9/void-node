@@ -48,6 +48,8 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
     canonical_source_finality_preflight_required: true,
     canonical_source_finality_capability_required: true,
     canonical_payment_identity_binding_required: true,
+    static_source_finality_capability_is_not_payment_instruction_authority: true,
+    payment_instruction_live_admission_required: true,
     payment_instructions_fail_closed: true,
     payment_verified_transition_fail_closed: true,
     existing_payment_reconciliation_independent_of_intake_toggle: true,
@@ -790,7 +792,16 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
       true,
     );
   }
-  return prerequisites;
+
+  // Static V7 capability describes what a successful at-use observation must
+  // prove. It is not evidence that this process currently has a verified
+  // deployment receipt + provider quorum. Do not expose payment instructions
+  // until a separately reviewed live-admission receipt is bound here.
+  return readinessHeld(
+    "ethereum_payment_instructions_live_admission_required",
+    [],
+    true,
+  );
 }
 
 function classifyEthereumFinalityDecision(

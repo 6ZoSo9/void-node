@@ -122,6 +122,16 @@ assert.equal(
     .canonical_source_finality_capability_required,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .static_source_finality_capability_is_not_payment_instruction_authority,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .payment_instruction_live_admission_required,
+  true,
+);
 
 const futureReadyCapability = Object.freeze({
   ...VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7,
@@ -336,11 +346,16 @@ assert.equal(configuredButNotProductionReady.ok, false);
 if (configuredButNotProductionReady.ok === false) {
   assert.equal(
     configuredButNotProductionReady.reason,
-    "ethereum_source_finality_capability_not_ready",
+    "ethereum_payment_instructions_live_admission_required",
   );
   assert.equal(
     configuredButNotProductionReady.source_finality_policy_configured,
     true,
+  );
+  assert.equal(
+    futureCapabilityDecision.would_be_production_capability_ready,
+    true,
+    "static V7 capability remains distinct from live payment-instruction authority",
   );
   assert.equal(
     configuredButNotProductionReady.production_source_finality_capability_ready,
