@@ -68,6 +68,26 @@ drift across the authorization window therefore HOLDS. The earlier
 PID/start/UID process probes remain defense-in-depth; they are no longer the sole
 Polkit subject evidence.
 
+That observation still cannot prove that the training execution boundary lacks a
+pre-authenticated system-bus connection inherited or received under different
+credentials. Such a connection can exist without appearing as a current
+PID/UID-matching sender at both endpoint snapshots. V2 therefore requires two
+additional truths before service-control qualification:
+
+```text
+inherited_system_bus_descriptor_absence_required=true
+inherited_system_bus_descriptor_absence_proven=true
+absolute_runtime_service_control_denial_proven=true
+```
+
+The current read-only collector deliberately reports the first as required and
+the latter two as false, with `runtime_can_control_service=null`. As a result,
+today's live collector evidence **cannot** satisfy the V2 policy. A separately
+reviewed training-launch/runtime boundary must prove that inherited/passed
+pre-authenticated system-bus descriptors are absent and remain impossible before
+the policy may emit `source_policy_qualified`. This is an intentional
+fail-closed HOLD, not a missing positive test.
+
 The V1 classifier remains byte-for-byte unchanged; V2 strips
 the successor-only service-control block before delegating to V1.
 
