@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "73c6f623200b493dce3e1f138df1a1ade81e5350"
+EXPECTED_SOURCE_BLOB = "85f496585cc71eb04e7e028b36f767b94f92fb41"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -123,6 +123,45 @@ def prove_inherited_fd_refusal(binary: Path) -> None:
         raise AssertionError("wrong inherited-fd HOLD")
 
 
+def prove_blocked_readiness_refusal(binary: Path) -> None:
+    read_fd, write_fd = os.pipe()
+    try:
+        os.set_blocking(write_fd, False)
+        chunk = b"x" * 4096
+        while True:
+            try:
+                os.write(write_fd, chunk)
+            except BlockingIOError:
+                break
+
+        started = time.monotonic()
+        result = subprocess.run(
+            [str(binary)],
+            preexec_fn=set_no_new_privileges,
+            stdout=write_fd,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        os.close(write_fd)
+        os.close(read_fd)
+
+    if result.returncode != 2:
+        raise AssertionError("blocked readiness sink did not fail closed")
+    if elapsed >= 3.0:
+        raise AssertionError("blocked readiness sink extended observation lifetime")
+    if (
+        "HOLD=apollyon_candidate_training_entrypoint_stdout_not_immediately_writable"
+        not in result.stderr
+    ):
+        raise AssertionError("blocked readiness sink produced wrong HOLD")
+    if "training_execution=false" not in result.stderr:
+        raise AssertionError("blocked readiness HOLD lost training boundary")
+
+
 def prove_qualification_hold(binary: Path) -> None:
     process = subprocess.Popen(
         [str(binary)],
@@ -187,6 +226,10 @@ def prove_source_boundary(source: str) -> None:
         "#define QUALIFICATION_WINDOW_SECONDS 300U",
         "CLOCK_BOOTTIME",
         "TIMER_ABSTIME",
+        "O_NONBLOCK",
+        "prepare_observation_io();",
+        "write(STDOUT_FILENO, payload, sizeof(payload) - 1U)",
+        "apollyon_candidate_training_entrypoint_stdout_not_immediately_writable",
         "clock_nanosleep(",
         "arm_qualification_deadline()",
         "qualification_hold(&qualification_deadline)",
@@ -207,13 +250,18 @@ def prove_source_boundary(source: str) -> None:
         if value not in source:
             raise AssertionError("source missing: " + value)
 
+    io_index = source.index("prepare_observation_io();")
     deadline_index = source.index(
         "struct timespec qualification_deadline = arm_qualification_deadline();"
     )
     ready_index = source.index("emit_ready();")
     hold_index = source.index("qualification_hold(&qualification_deadline);")
-    if not (deadline_index < ready_index < hold_index):
-        raise AssertionError("absolute deadline is not armed before readiness")
+    if not (io_index < deadline_index < ready_index < hold_index):
+        raise AssertionError(
+            "nonblocking I/O and absolute deadline are not armed before readiness"
+        )
+    if "fflush(stdout)" in source:
+        raise AssertionError("qualification readiness regained blocking stdio flush")
 
     forbidden = (
         "socket(",
@@ -259,6 +307,7 @@ def main() -> None:
         run_self_test(binary)
         prove_no_nnp_refusal(binary)
         prove_inherited_fd_refusal(binary)
+        prove_blocked_readiness_refusal(binary)
         prove_qualification_hold(binary)
 
     print(MARKER)
@@ -268,6 +317,8 @@ def main() -> None:
     print("fixed_qualification_window_seconds=300")
     print("no_new_privileges_required=true")
     print("no_inherited_fds_ge_3_required=true")
+    print("observation_stdout_stderr_nonblocking=true")
+    print("blocked_readiness_sink_fails_closed=true")
     print("durable_attempt_claim_required=true")
     print("durable_attempt_claim_proven=false")
     print("training_execution=false")

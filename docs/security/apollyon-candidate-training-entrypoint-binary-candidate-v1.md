@@ -20,7 +20,7 @@ source so the installed-isolation lane can eventually bind the fixed target to
 reviewed bytes without introducing training authority.
 
 This PR is stacked on exact #2937 source head
-`aac65feb61272367e75e8ffad3b8bc0595277eaf` and must not land independently.
+`c65823e3bbdb4ae9f8b431a104fe75cb405888df` and must not land independently.
 
 ## Exact source
 
@@ -29,7 +29,7 @@ path
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
 
 Git blob
-73c6f623200b493dce3e1f138df1a1ade81e5350
+85f496585cc71eb04e7e028b36f767b94f92fb41
 ```
 
 The deterministic compile recipe is:
