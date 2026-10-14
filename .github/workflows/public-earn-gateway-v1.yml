@@ -42,6 +42,7 @@ jobs:
           grep -Fx 'VOID_PUBLIC_EARN_GATEWAY_V1_GREEN' "$proof"
           grep -Fx 'shared_mutation_routes_disabled=true' "$proof"
           grep -Fx 'dedicated_mutation_listener_exact_routes_only=true' "$proof"
+          grep -Fx 'dedicated_mutation_raw_aliases_fail_closed=true' "$proof"
           grep -Fx 'dedicated_mutation_port_publicly_disclosed=false' "$proof"
           grep -Fx 'local_transport_trust_proven=false' "$proof"
       - name: Preserve participant earning contracts
