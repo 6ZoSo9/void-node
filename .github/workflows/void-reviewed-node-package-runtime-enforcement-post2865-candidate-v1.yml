@@ -108,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-enforcement-package-post2865-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: enforcement-package-post2865-${{ matrix.node }}.json
+          path: ${{ runner.temp }}/enforcement-package-post2865-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
