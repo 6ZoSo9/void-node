@@ -1,0 +1,59 @@
+name: Apollyon training bus isolation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "scripts/prove_apollyon_training_bus_isolation_v1.py"
+      - "docs/security/apollyon-training-bus-isolation-v1.md"
+      - ".github/workflows/apollyon-training-bus-isolation-v1.yml"
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "scripts/prove_apollyon_training_bus_isolation_v1.py"
+      - "docs/security/apollyon-training-bus-isolation-v1.md"
+      - ".github/workflows/apollyon-training-bus-isolation-v1.yml"
+      - "ops/xiphos/apollyon_designated_host_custody_evidence_readonly_v2.py"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove source-only isolation boundary
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/prove_apollyon_training_bus_isolation_v1.py
+          python3 scripts/prove_apollyon_training_bus_isolation_v1.py
+      - name: Diff hygiene
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
