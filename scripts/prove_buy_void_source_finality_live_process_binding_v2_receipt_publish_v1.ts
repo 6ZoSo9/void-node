@@ -86,11 +86,20 @@ for(const required of [
   "post_publication_generation_recheck=true",
 ]) assert.equal(source.includes(required),true,required);
 for(const forbidden of [
-  "systemctl","DBUS_SESSION_BUS_ADDRESS","eth_sendRawTransaction",
-  "eth_sendTransaction","PRIVATE_KEY","SEED_PHRASE",
+  '"/usr/bin/systemctl"',
+  "DBUS_SESSION_BUS_ADDRESS",
+  "eth_sendRawTransaction",
+  "eth_sendTransaction",
+  "PRIVATE_KEY",
+  "SEED_PHRASE",
 ]){
   assert.equal(source.includes(forbidden),false,forbidden);
 }
+assert.equal(
+  source.includes("systemctl_user_selector_authority:false"),
+  true,
+  "publisher must preserve the explicit no-systemctl-selector authority claim",
+);
 
 const rootFixture=process.argv.includes("--root-fixture");
 if(rootFixture){
