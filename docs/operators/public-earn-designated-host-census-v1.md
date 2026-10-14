@@ -66,8 +66,8 @@ The collector may read:
 
 - hostname and effective UID;
 - `systemctl show` for the three canonical services;
-- `/proc/<pid>/status`, argv[1], cwd, executable identity and only a strict
-  allowlist of relevant environment keys;
+- `/proc/<pid>/stat` kernel start ticks, `status`, argv[1], cwd,
+  executable identity and only a strict allowlist of relevant environment keys;
 - `ss -H -ltnp` for listener/PID ownership;
 - filesystem **metadata only** for the Earn-edge rate-state parent/file;
 - `nft -j list table inet void_public_earn_edge_v1`;
@@ -106,9 +106,15 @@ The census derives, without inventing values:
   listener surfaces;
 - private same-UID rate-state custody shape.
 
+The collector binds every active service to `MainPID + /proc start ticks`
+before process evidence reads. After listener, state and nftables observations,
+it re-reads systemd MainPID and kernel start ticks. A restart, PID replacement
+or numeric PID reuse makes that service generation unstable and prevents
+`policy_candidate_observed=true`.
+
 A `policy_candidate_observed=true` result is still **not** live acceptance.
-It only means the census found enough matching metadata to justify a later exact
-nftables/publication verifier.
+It only means the census found one stable observed process generation with
+enough matching metadata to justify a later exact nftables/publication verifier.
 
 ## Deliberate nonclaims
 
