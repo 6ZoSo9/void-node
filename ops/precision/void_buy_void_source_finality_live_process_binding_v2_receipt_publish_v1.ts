@@ -201,6 +201,78 @@ function fsyncDirectory(parent:string):void{
   const d=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
   try{fs.fsyncSync(d);}finally{fs.closeSync(d);}
 }
+
+type PublisherLockV1=Readonly<{
+  fd:number;
+  path:string;
+  parent:string;
+  identity:fs.Stats;
+}>;
+
+function samePublisherLockIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+function acquirePublisherLockV1(target:string):PublisherLockV1{
+  const parent=path.dirname(target);
+  proveRootCustodyPath(parent,true);
+  const lockPath=path.join(parent,"."+path.basename(target)+".publish-lock-v1");
+  let fd=-1;
+  try{
+    fd=fs.openSync(
+      lockPath,
+      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
+        Number(fs.constants.O_NOFOLLOW||0),
+      0o400,
+    );
+  }catch(error:any){
+    if(error?.code==="EEXIST")fail("publisher_publication_lock_busy_or_stale");
+    throw error;
+  }
+  try{
+    fs.fchmodSync(fd,0o400);
+    fs.fsyncSync(fd);
+    const identity=fs.fstatSync(fd);
+    if(
+      !identity.isFile()||identity.uid!==0||identity.nlink!==1||
+      (identity.mode&0o077)!==0
+    )fail("publisher_publication_lock_identity_invalid");
+    fsyncDirectory(parent);
+    return Object.freeze({fd,path:lockPath,parent,identity});
+  }catch(error){
+    try{fs.closeSync(fd);}catch{}
+    throw error;
+  }
+}
+function releasePublisherLockV1(lock:PublisherLockV1):void{
+  const descriptor=fs.fstatSync(lock.fd);
+  const visible=fs.lstatSync(lock.path);
+  if(
+    !samePublisherLockIdentityV1(lock.identity,descriptor)||
+    !samePublisherLockIdentityV1(lock.identity,visible)
+  )fail("publisher_publication_lock_identity_changed");
+  fs.unlinkSync(lock.path);
+  fsyncDirectory(lock.parent);
+  fs.closeSync(lock.fd);
+}
+function withPublisherLockV1<T>(target:string,fn:()=>T):T{
+  const lock=acquirePublisherLockV1(target);
+  let result:T|undefined;
+  let primary:unknown=null;
+  try{result=fn();}catch(error){primary=error;}
+  let cleanup:unknown=null;
+  try{releasePublisherLockV1(lock);}catch(error){cleanup=error;}
+  if(primary!==null&&cleanup!==null){
+    throw new AggregateError(
+      [primary,cleanup],
+      "publisher_publication_lock_cleanup_failed",
+    );
+  }
+  if(primary!==null)throw primary;
+  if(cleanup!==null)throw cleanup;
+  return result as T;
+}
 function readInstalledCanonicalReceipt(target:string):Readonly<{
   bytes:Buffer;
   receipt:BuyVoidSourceFinalityLiveProcessBindingReceiptV2;
@@ -266,9 +338,10 @@ export function installBuyVoidV2LiveProcessReceiptCreateOnceV1(input:{
   if(target!==input.target_path||!path.isAbsolute(target))fail("publisher_target_invalid");
   const parent=path.dirname(target);
   proveRootCustodyPath(parent,true);
-  const bytes=receiptBytes(input.receipt);
-  let retiredStale=false;
-  if(fs.existsSync(target)){
+  return withPublisherLockV1(target,()=>{
+    const bytes=receiptBytes(input.receipt);
+    let retiredStale=false;
+    if(fs.existsSync(target)){
     const existing=readInstalledCanonicalReceipt(target);
     if(existing.bytes.equals(bytes)){
       return Object.freeze({
@@ -318,10 +391,11 @@ export function installBuyVoidV2LiveProcessReceiptCreateOnceV1(input:{
       already_matching:false,
       retired_stale:retiredStale,
     });
-  }finally{
-    if(fd>=0)fs.closeSync(fd);
-    if(fs.existsSync(temp))fs.unlinkSync(temp);
-  }
+    }finally{
+      if(fd>=0)fs.closeSync(fd);
+      if(fs.existsSync(temp))fs.unlinkSync(temp);
+    }
+  });
 }
 export function rollbackNewBuyVoidV2LiveProcessReceiptV1(input:{
   target_path:string;
@@ -330,10 +404,12 @@ export function rollbackNewBuyVoidV2LiveProcessReceiptV1(input:{
 }):void{
   if(!input.created)return;
   const target=path.resolve(input.target_path);
-  const bytes=receiptBytes(input.receipt);
-  verifyInstalled(target,bytes);
-  fs.unlinkSync(target);
-  fsyncDirectory(path.dirname(target));
+  withPublisherLockV1(target,()=>{
+    const bytes=receiptBytes(input.receipt);
+    verifyInstalled(target,bytes);
+    fs.unlinkSync(target);
+    fsyncDirectory(path.dirname(target));
+  });
 }
 function samePlan(a:BuyVoidV2LiveProcessCollectionPlanV1,b:BuyVoidV2LiveProcessCollectionPlanV1):void{
   if(a.plan_id!==b.plan_id)fail("publisher_live_generation_changed");

@@ -84,6 +84,8 @@ for(const required of [
   "fs.fsyncSync",
   "rollbackNewBuyVoidV2LiveProcessReceiptV1",
   "publisher_existing_receipt_invalid",
+  "publisher_publication_lock_busy_or_stale",
+  "withPublisherLockV1",
   "retired_stale",
   "post_publication_generation_recheck=true",
 ]) assert.equal(source.includes(required),true,required);
@@ -119,6 +121,26 @@ if(rootFixture){
     assert.equal(again.already_matching,true);
     assert.equal(again.retired_stale,false);
 
+    const publishLock=path.join(
+      parent,
+      "."+path.basename(target)+".publish-lock-v1",
+    );
+    fs.writeFileSync(publishLock,"",{flag:"wx",mode:0o400});
+    fs.chownSync(publishLock,0,0);
+    fs.chmodSync(publishLock,0o400);
+    const beforeBusy=fs.readFileSync(target);
+    assert.throws(
+      ()=>installBuyVoidV2LiveProcessReceiptCreateOnceV1({
+        target_path:target,
+        receipt:changed,
+      }),
+      /publisher_publication_lock_busy_or_stale/u,
+    );
+    assert.ok(fs.readFileSync(target).equals(beforeBusy));
+    fs.unlinkSync(publishLock);
+    console.log("concurrent_rotation_refused=true");
+    console.log("publication_lock_exclusive=true");
+
     const rotated=installBuyVoidV2LiveProcessReceiptCreateOnceV1({
       target_path:target,
       receipt:changed,
@@ -130,6 +152,24 @@ if(rootFixture){
       JSON.parse(fs.readFileSync(target,"utf8")).receipt_id,
       changed.receipt_id,
     );
+    fs.writeFileSync(publishLock,"",{flag:"wx",mode:0o400});
+    fs.chownSync(publishLock,0,0);
+    fs.chmodSync(publishLock,0o400);
+    assert.throws(
+      ()=>rollbackNewBuyVoidV2LiveProcessReceiptV1({
+        target_path:target,
+        receipt:changed,
+        created:rotated.created,
+      }),
+      /publisher_publication_lock_busy_or_stale/u,
+    );
+    assert.equal(
+      JSON.parse(fs.readFileSync(target,"utf8")).receipt_id,
+      changed.receipt_id,
+    );
+    fs.unlinkSync(publishLock);
+    console.log("rollback_publication_lock_required=true");
+
     rollbackNewBuyVoidV2LiveProcessReceiptV1({
       target_path:target,
       receipt:changed,
@@ -184,6 +224,8 @@ console.log("v2_deployment_receipt_required=true");
 console.log("v2_receipt_content_addressed=true");
 console.log("create_once_publication=true");
 console.log("canonical_stale_receipt_rotation_supported=true");
+console.log("publication_lock_serializes_rotation_and_rollback=true");
+console.log("crash_stale_publication_lock_fails_closed=true");
 console.log("malformed_existing_receipt_retirement_forbidden=true");
 console.log("generation_recheck_before_and_after_publication=true");
 console.log("stale_new_receipt_exact_rollback=true");

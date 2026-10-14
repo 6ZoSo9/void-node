@@ -32,6 +32,14 @@ parent before the new create-once publication. A crash in that interval leaves
 the V2 receipt missing, which is fail-closed and rerunnable rather than
 stale-authoritative.
 
+Rotation, publication, and rollback are serialized by a root-owned create-once
+`.<receipt>.publish-lock-v1` in the same root-custodied parent. The lock is
+opened with `O_EXCL|O_NOFOLLOW`, fsynced with the parent, retained through the
+mutation, and identity-rechecked before removal. A concurrent publisher HOLDS
+before it can inspect or retire the receipt. A crash may leave the lock in
+place; later publication then fails closed for operator review instead of
+guessing recovery.
+
 After publication the publisher collects once more. If that post-publication
 generation changed and this invocation created the receipt, the exact new file
 is removed and the parent directory is fsynced before HOLD. A byte-identical
