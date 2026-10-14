@@ -5,6 +5,13 @@ import { createHash } from "node:crypto";
 import { merkleRoot } from "../datanet/merkle.js";
 import * as crypto from "node:crypto";
 import { packFile } from "../datanet/pack.js";
+import {
+  DATANET_PUBLIC_CHUNK_SNAPSHOT_AGGREGATE_BYTES_V1,
+  DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  DataNetChunkSnapshotBudgetV1,
+  DataNetChunkSnapshotCapacityErrorV1,
+  type DataNetChunkSnapshotReservationV1,
+} from "./datanet_chunk_snapshot_budget_v1.js";
 
 function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_http_datanet_routes_ts(scope: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -211,10 +218,19 @@ function sha256Hex(buf: Buffer) {
 
 const DATANET_CHUNK_HASH_READ_BYTES = 64 * 1024;
 const DATANET_CHUNK_MAX_BYTES = 64 * 1024 * 1024;
+const DATANET_PUBLIC_CHUNK_SNAPSHOT_BUDGET_V1 =
+  new DataNetChunkSnapshotBudgetV1({
+    maxAggregateBytes:
+      DATANET_PUBLIC_CHUNK_SNAPSHOT_AGGREGATE_BYTES_V1,
+    maxReservationBytes: DATANET_CHUNK_MAX_BYTES,
+    maxReservations:
+      DATANET_PUBLIC_CHUNK_SNAPSHOT_MAX_IN_FLIGHT_V1,
+  });
 
 type VerifiedDataNetChunkSnapshotV1 = Readonly<{
   bytes: Buffer;
   size: number;
+  reservation: DataNetChunkSnapshotReservationV1 | null;
 }>;
 
 function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
@@ -232,9 +248,10 @@ function sameDataNetChunkInodeV1(a: fs.Stats, b: fs.Stats): boolean {
   return a.dev === b.dev && a.ino === b.ino;
 }
 
-function readVerifiedDataNetChunkSnapshotV1(
+export function readVerifiedDataNetChunkSnapshotV1(
   file: string,
   expectedLeaf: string,
+  budget: DataNetChunkSnapshotBudgetV1 | null = null,
 ): VerifiedDataNetChunkSnapshotV1 {
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number" || noFollow <= 0) {
@@ -247,6 +264,7 @@ function readVerifiedDataNetChunkSnapshotV1(
       noFollow |
       Number(fs.constants.O_NONBLOCK || 0),
   );
+  let reservation: DataNetChunkSnapshotReservationV1 | null = null;
   try {
     const before = fs.fstatSync(fd);
     if (
@@ -258,9 +276,17 @@ function readVerifiedDataNetChunkSnapshotV1(
       throw new Error("datanet_chunk_metadata_invalid");
     }
 
+    if (budget !== null) {
+      reservation = budget.tryReserve(before.size);
+      if (reservation === null) {
+        throw new DataNetChunkSnapshotCapacityErrorV1();
+      }
+    }
+
     // Snapshot the exact bounded bytes that will be served. Hashing a retained
     // descriptor and then streaming the mutable inode later would allow a
-    // same-UID writer to change the response after verification.
+    // same-UID writer to change the response after verification. Public GET
+    // callers reserve aggregate snapshot capacity before this allocation.
     const bytes = Buffer.allocUnsafe(before.size);
     let position = 0;
     while (position < bytes.length) {
@@ -285,10 +311,47 @@ function readVerifiedDataNetChunkSnapshotV1(
       throw new Error("datanet_chunk_hash_mismatch");
     }
 
-    return Object.freeze({ bytes, size: before.size });
+    return Object.freeze({
+      bytes,
+      size: before.size,
+      reservation,
+    });
+  } catch (error) {
+    reservation?.release();
+    throw error;
   } finally {
     fs.closeSync(fd);
   }
+}
+
+export function armDataNetChunkSnapshotReservationV1(
+  req: {
+    once(event: string, listener: (...args: any[]) => void): unknown;
+    readonly aborted?: boolean;
+  },
+  res: {
+    once(event: string, listener: (...args: any[]) => void): unknown;
+    readonly destroyed?: boolean;
+  },
+  reservation: DataNetChunkSnapshotReservationV1,
+): () => void {
+  let released = false;
+  const releaseOnce = (): void => {
+    if (released) return;
+    released = true;
+    reservation.release();
+  };
+
+  req.once("aborted", releaseOnce);
+  res.once("finish", releaseOnce);
+  res.once("close", releaseOnce);
+  res.once("error", releaseOnce);
+
+  if (req.aborted === true || res.destroyed === true) {
+    releaseOnce();
+  }
+
+  return releaseOnce;
 }
 
 function publishDataNetChunkCreateOnlyV1(
@@ -631,10 +694,47 @@ const router = express.Router();
       return res.status(409).json({ ok: false, err: "stored_chunk_invalid" });
     }
 
-    const opened = readVerifiedDataNetChunkSnapshotV1(p, leaf);
-    res.setHeader("content-type", "application/octet-stream");
-    res.setHeader("content-length", String(opened.size));
-    return res.status(200).end(opened.bytes);
+    let opened: VerifiedDataNetChunkSnapshotV1;
+    try {
+      opened = readVerifiedDataNetChunkSnapshotV1(
+        p,
+        leaf,
+        DATANET_PUBLIC_CHUNK_SNAPSHOT_BUDGET_V1,
+      );
+    } catch (error) {
+      if (error instanceof DataNetChunkSnapshotCapacityErrorV1) {
+        res.setHeader("retry-after", "1");
+        return res.status(503).json({
+          ok: false,
+          err: "datanet_chunk_snapshot_capacity_exceeded",
+        });
+      }
+      throw error;
+    }
+
+    if (opened.reservation === null) {
+      throw new Error("datanet_chunk_snapshot_reservation_missing");
+    }
+    const reservation = opened.reservation;
+    const releaseSnapshot = armDataNetChunkSnapshotReservationV1(
+      req,
+      res,
+      reservation,
+    );
+
+    if (req.aborted || res.destroyed) {
+      releaseSnapshot();
+      return;
+    }
+
+    try {
+      res.setHeader("content-type", "application/octet-stream");
+      res.setHeader("content-length", String(opened.size));
+      return res.status(200).end(opened.bytes);
+    } catch (error) {
+      releaseSnapshot();
+      throw error;
+    }
   });
 
   router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: DATANET_CHUNK_MAX_BYTES }), (req, res) => {
