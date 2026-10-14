@@ -106,7 +106,8 @@ def open_trusted_executable(
     mode=stat.S_IMODE(before.st_mode)
     if (
         not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or
-        before.st_nlink!=1 or not (mode&0o111) or mode&0o022
+        before.st_nlink!=1 or not (mode&0o111) or mode&0o022 or
+        mode&(stat.S_ISUID|stat.S_ISGID)
     ):
         hold("apollyon_v2_installed_launcher_node_untrusted")
     if require_root_custody and before.st_uid!=0:
@@ -312,6 +313,17 @@ def classify_runtime_exception(error:BaseException)->str|None:
     return None
 
 
+def classify_runtime_returncode(returncode:int)->str|None:
+    if not isinstance(returncode,int):
+        raise TypeError("runtime returncode must be int")
+    if returncode<0:
+        return (
+            "apollyon_v2_installed_launcher_runtime_signaled:"+
+            str(-returncode)
+        )
+    return None
+
+
 def execute_live_impl(argv:list[str])->int:
     if os.geteuid()!=0:
         hold("apollyon_v2_installed_launcher_root_required")
@@ -332,6 +344,9 @@ def execute_live_impl(argv:list[str])->int:
                 check=False,
                 timeout=60,
             )
+            signal_reason=classify_runtime_returncode(completed.returncode)
+            if signal_reason is not None:
+                raise Hold(signal_reason)
             return completed.returncode
         finally:
             cleanup_private_tree(
@@ -383,6 +398,13 @@ def self_test()->None:
         ) is not None:
             raise AssertionError("unexpected exception was classified")
 
+        if classify_runtime_returncode(-9)!=(
+            "apollyon_v2_installed_launcher_runtime_signaled:9"
+        ):
+            raise AssertionError("signal returncode classification mismatch")
+        if classify_runtime_returncode(2) is not None:
+            raise AssertionError("ordinary HOLD returncode misclassified")
+
         runtime_root=top/"runtime-root"
         runtime_root.mkdir(mode=0o700)
         runtime_env=sanitized_environment(runtime_root)
@@ -417,6 +439,19 @@ def self_test()->None:
                 raise
         else:
             raise AssertionError("writable Node fixture unexpectedly admitted")
+
+        for insecure_mode in (0o4755,0o2755):
+            os.chmod(node_fixture,insecure_mode)
+            try:
+                open_trusted_executable(
+                    node_fixture,require_root_custody=False,
+                )
+            except Hold as exc:
+                if str(exc)!="apollyon_v2_installed_launcher_node_untrusted":
+                    raise
+            else:
+                raise AssertionError("set-id Node fixture unexpectedly admitted")
+        os.chmod(node_fixture,0o755)
 
         # A failure after mkdtemp must remove the partial reviewed tree.
         original_write=globals()["write_private_file"]
@@ -544,6 +579,8 @@ def self_test()->None:
     print("runtime_exceptions_classified_to_hold=true")
     print("trusted_node_descriptor_execution=true")
     print("writable_node_rejected=true")
+    print("setuid_setgid_node_rejected=true")
+    print("signal_terminated_node_classified_to_hold=true")
     print("materialization_failure_cleanup=true")
     print("post_execution_cleanup_failure_classified=true")
     print("cleanup_failure_retained_path_reported=true")
