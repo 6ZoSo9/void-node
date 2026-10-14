@@ -155,6 +155,26 @@ function normalizeServiceControl(value,identities){
     "org.freedesktop.systemd1.manage-units",
     ...SYSTEMD_GLOBAL_CONTROL_ACTIONS,
   ];
+  const runtimeUserJson=JSON.stringify(value.polkit_deny_rule.runtime_user);
+  const actionExpression=expectedActions
+    .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+    .join(" ||\n");
+  const expectedPolkitRule=
+    "polkit.addRule(function(action, subject) {\n"+
+    "  if (\n"+
+    "    subject.user === "+runtimeUserJson+" &&\n"+
+    "    (\n"+
+    actionExpression+"\n"+
+    "    )\n"+
+    "  ) {\n"+
+    "    return polkit.Result.NO;\n"+
+    "  }\n"+
+    "  return polkit.Result.NOT_HANDLED;\n"+
+    "});\n";
+  const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+  const expectedPolkitRuleSha256=crypto.createHash("sha256")
+    .update(expectedPolkitRuleBytes)
+    .digest("hex");
   if(
     value.polkit_deny_rule.action_id_only!==true||
     value.polkit_deny_rule.details_can_change_result!==false||
@@ -170,10 +190,8 @@ function normalizeServiceControl(value,identities){
     !SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
     value.polkit_deny_rule.path!==
       "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
-    !Number.isSafeInteger(value.polkit_deny_rule.bytes)||
-    value.polkit_deny_rule.bytes<1||
-    typeof value.polkit_deny_rule.sha256!=="string"||
-    !/^[0-9a-f]{64}$/u.test(value.polkit_deny_rule.sha256)||
+    value.polkit_deny_rule.bytes!==expectedPolkitRuleBytes.length||
+    value.polkit_deny_rule.sha256!==expectedPolkitRuleSha256||
     typeof value.polkit_deny_rule.mode!=="string"||
     !/^0[0-7]{3}$/u.test(value.polkit_deny_rule.mode)||
     (Number.parseInt(value.polkit_deny_rule.mode,8)&0o022)!==0||
