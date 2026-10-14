@@ -331,6 +331,10 @@ def collect() -> dict[str, Any]:
         re.fullmatch(r"[1-9][0-9]*", gateway_env.get("VOID_EARN_MUTATION_DOWNSTREAM_PORT", ""))
     )
 
+    tunnel_route_classification_complete = (
+        not tunnel_before["active_running"]
+        or tunnel_routes["config_observed"]
+    )
     legacy_cutover_required = bool(
         gateway_before["active_running"]
         or tunnel_before["active_running"]
@@ -375,15 +379,20 @@ def collect() -> dict[str, Any]:
             **tunnel_routes,
         },
         "legacy_cutover_required": legacy_cutover_required,
+        "tunnel_route_classification_complete": tunnel_route_classification_complete,
         "mutation_route_removal_required": tunnel_routes["mutation_routes_direct_4122"],
         "status_route_preservation_required": tunnel_routes["status_routes_direct_4122"],
         "system_gateway_4122_conflict": bool(listener_count_4122),
         "safe_to_stage_system_gateway_on_4122_while_legacy_running": False if listener_count_4122 else True,
         "live_cutover_authorized": False,
         "next_action": (
-            "PLAN_LEGACY_TO_PROTECTED_CUTOVER"
-            if legacy_cutover_required
-            else "PLAN_PROTECTED_INSTALL_WITHOUT_LEGACY_CUTOVER"
+            "TUNNEL_CONFIG_OBSERVATION_HOLD"
+            if not tunnel_route_classification_complete
+            else (
+                "PLAN_LEGACY_TO_PROTECTED_CUTOVER"
+                if legacy_cutover_required
+                else "PLAN_PROTECTED_INSTALL_WITHOUT_LEGACY_CUTOVER"
+            )
         ),
     }
 
