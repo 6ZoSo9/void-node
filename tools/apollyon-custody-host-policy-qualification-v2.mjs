@@ -26,6 +26,8 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   all_training_uid_processes_capability_free_required:true,
   all_training_uid_threads_capability_free_required:true,
   training_uid_thread_stability_required:true,
+  training_uid_thread_discovery_required:true,
+  actual_system_bus_sender_denial_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
@@ -73,6 +75,10 @@ function normalizeSocketParentV2(value){
 function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
+    "actual_system_bus_sender_checks_required",
+    "actual_system_bus_sender_count",
+    "actual_system_bus_sender_set_stable",
+    "actual_system_bus_senders",
     "all_systemd_control_actions_explicitly_denied",
     "all_training_uid_processes_capability_free",
     "all_training_uid_threads_capability_free",
@@ -107,6 +113,13 @@ function normalizeServiceControl(value,identities){
     value.pkcheck_subject!==String(value.training_pid)+","+
       value.training_process_start_time_ticks+","+String(value.training_uid)||
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
+    value.actual_system_bus_sender_checks_required!==true||
+    value.actual_system_bus_sender_set_stable!==true||
+    !Number.isSafeInteger(value.actual_system_bus_sender_count)||
+    value.actual_system_bus_sender_count<0||
+    value.actual_system_bus_sender_count>32||
+    !Array.isArray(value.actual_system_bus_senders)||
+    value.actual_system_bus_senders.length!==value.actual_system_bus_sender_count||
     value.all_systemd_control_actions_explicitly_denied!==true||
     value.all_training_uid_processes_capability_free!==true||
     value.all_training_uid_threads_capability_free!==true||
@@ -215,6 +228,36 @@ function normalizeServiceControl(value,identities){
     })),
     ...SYSTEMD_GLOBAL_CONTROL_ACTIONS.map((action_id)=>({action_id,details:[]})),
   ];
+  const expectedDenied=expected.map((entry)=>({
+    action_id:entry.action_id,
+    details:entry.details,
+    exit_status:1,
+    result:"explicitly_denied",
+  }));
+  const expectedBusDigest=crypto.createHash("sha256")
+    .update(canonicalApollyonCustodyHostPolicyJsonV1(expectedDenied))
+    .digest("hex");
+  const admittedPids=new Set(value.training_uid_processes.map((process)=>process.pid));
+  let previousBusName="";
+  for(const sender of value.actual_system_bus_senders){
+    exactKeys(sender,[
+      "all_systemd_control_actions_explicitly_denied","bus_name",
+      "checked_action_count","denial_transcript_sha256","pid",
+      "subject_type","uid",
+    ],code);
+    if(
+      typeof sender.bus_name!=="string"||
+      !/^:[0-9]+\.[0-9]+$/u.test(sender.bus_name)||
+      (previousBusName!==""&&sender.bus_name<=previousBusName)||
+      !Number.isSafeInteger(sender.pid)||!admittedPids.has(sender.pid)||
+      sender.uid!==value.training_uid||
+      sender.subject_type!=="system-bus-name"||
+      sender.all_systemd_control_actions_explicitly_denied!==true||
+      sender.checked_action_count!==expectedDenied.length||
+      sender.denial_transcript_sha256!==expectedBusDigest
+    )fail(code);
+    previousBusName=sender.bus_name;
+  }
   if(!Array.isArray(value.checked_actions)||value.checked_actions.length!==expected.length){
     fail(code);
   }
@@ -236,6 +279,9 @@ function normalizeServiceControl(value,identities){
       details:Object.freeze(entry.details.map((detail)=>Object.freeze({...detail}))),
     }))),
     training_process_capabilities:Object.freeze({...value.training_process_capabilities}),
+    actual_system_bus_senders:Object.freeze(
+      value.actual_system_bus_senders.map((sender)=>Object.freeze({...sender})),
+    ),
     training_uid_processes:Object.freeze(
       value.training_uid_processes.map((process)=>Object.freeze({
         ...process,
