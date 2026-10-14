@@ -33,6 +33,7 @@ CONFIRM = "installBuyVoidV7ProtectedSourceV1"
 STATE_ROOT = Path.home() / ".local/state/void/buy-void-v7-protected-source-install-v1"
 MAX_PLAN_BYTES = 64 * 1024 * 1024
 MAX_MANIFEST_ENTRIES = 100_000
+MAX_PLAN_AGE_SECONDS = 30 * 60
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -136,6 +137,38 @@ def repo_identity(root: Path) -> tuple[str, str]:
     if not SHA40.fullmatch(head) or not SHA40.fullmatch(tree):
         fail("source_git_identity_invalid")
     return head, tree
+
+def remote_main_sha() -> str:
+    result = run(
+        [
+            "/usr/bin/git",
+            "ls-remote",
+            "https://github.com/6ZoSo9/void-node.git",
+            "refs/heads/main",
+        ],
+        env=git_env(),
+        timeout=60,
+    )
+    rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != "refs/heads/main":
+        fail("remote_main_resolution_invalid")
+    sha = rows[0][0].lower()
+    if not SHA40.fullmatch(sha):
+        fail("remote_main_sha_invalid")
+    return sha
+
+def plan_age_seconds(material: dict[str, Any]) -> float:
+    raw = str(material.get("created_at", ""))
+    try:
+        created = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        fail("plan_created_at_invalid")
+    if created.tzinfo is None:
+        fail("plan_created_at_timezone_missing")
+    age = (datetime.now(timezone.utc) - created.astimezone(timezone.utc)).total_seconds()
+    if age < -300:
+        fail("plan_created_at_from_future")
+    return age
 
 def require_absolute_root_owned_executable(pathname: str) -> str:
     path = Path(pathname)
@@ -415,6 +448,9 @@ def prepare(args: argparse.Namespace) -> None:
         fail("prepare_must_be_unprivileged")
     source = Path(args.source_root).resolve()
     head, tree = repo_identity(source)
+    remote_main = remote_main_sha()
+    if remote_main != head:
+        fail(f"source_not_current_remote_main:local={head}:remote={remote_main}")
     parse_lock(source)
     run_deployment_plan(source, head, tree)
 
@@ -430,8 +466,7 @@ def prepare(args: argparse.Namespace) -> None:
         [
             "/usr/bin/git",
             "clone",
-            "--depth",
-            "1",
+            "--no-local",
             "--single-branch",
             "--branch",
             "main",
@@ -554,6 +589,7 @@ def prepare(args: argparse.Namespace) -> None:
     print("funds_movement=false")
     print(f"source_commit={head}")
     print(f"source_tree={tree}")
+    print("remote_main_exact=true")
     print(f"accepted_enforcement_set_sha256={EXPECTED_ENFORCEMENT_SET}")
     print(f"stage_manifest_entries={len(rows)}")
     print(f"stage_manifest_sha256={tree_manifest_sha}")
@@ -613,6 +649,8 @@ def load_plan(
         fail("plan_stage_manifest_sha_invalid")
     if not SHA64.fullmatch(str(material.get("native_candidate_sha256", ""))):
         fail("plan_native_sha_invalid")
+    if plan_age_seconds(material) > MAX_PLAN_AGE_SECONDS:
+        fail("plan_expired")
     rows = material.get("stage_manifest")
     if not isinstance(rows, list) or len(rows) != material.get("stage_manifest_entries"):
         fail("plan_manifest_shape_invalid")
@@ -764,7 +802,13 @@ def apply(args: argparse.Namespace) -> None:
     runtime_gid = int(material["runtime_gid"])
     if runtime_uid <= 0 or runtime_gid <= 0:
         fail("runtime_identity_invalid")
+    if args.expected_live_runtime_commit != material["source_commit"]:
+        fail("live_runtime_commit_not_final_source_generation")
+    if not SHA40.fullmatch(args.expected_live_runtime_commit):
+        fail("expected_live_runtime_commit_invalid")
 
+    if remote_main_sha() != material["source_commit"]:
+        fail("remote_main_moved_since_prepare")
     source = Path(material["source_root"])
     if repo_identity(source) != (
         material["source_commit"],
@@ -817,6 +861,7 @@ def apply(args: argparse.Namespace) -> None:
     print(MARKER)
     print("mode=--apply")
     print("source_checkout_mutation=false")
+    print("live_runtime_generation_precondition_verified=true")
     print("protected_source_install=true")
     print("native_preentry_install=true")
     print("service_mutation=false")
@@ -876,6 +921,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plan-file")
     parser.add_argument("--expected-plan-id", default="")
     parser.add_argument("--expected-plan-sha256", default="")
+    parser.add_argument("--expected-live-runtime-commit", default="")
     parser.add_argument("--confirm", default="")
     return parser.parse_args()
 
