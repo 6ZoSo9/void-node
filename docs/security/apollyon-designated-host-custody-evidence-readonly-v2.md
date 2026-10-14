@@ -45,10 +45,17 @@ directories, and deny the training user by action ID only for
 The collector then performs non-interactive `/usr/bin/pkcheck` probes for the
 reviewed systemd control surface. It retains the PID/start-time/UID
 `--process` probes as defense-in-depth, and separately enumerates the live
-unique system-bus names using `busctl`. For any live bus connection whose
-authenticated Unix UID equals the training UID or whose authenticated Unix PID
-belongs to the admitted training-process set, both PID and UID must match the
-admitted training identity exactly. Each such connection is probed using
+unique system-bus names using `busctl`. The listing row's PID and user are
+used only as a conservative candidate prefilter. Rows whose listed PID is not in
+the admitted training-process set and whose listed user is neither the training
+user nor training UID are not credential-queried; this excludes the collector's
+own short-lived root `busctl list` connection without turning its disappearance
+into a false HOLD. Any row that could belong to the training boundary must still
+survive authoritative D-Bus PID/UID lookup; lookup failure, list/credential PID
+drift, or PID/UID mismatch HOLDS.
+
+For every admitted live bus connection, both authenticated PID and UID must match
+the training identity exactly. Each such connection is probed using
 `pkcheck --system-bus-name` across the full reviewed control surface, then the
 relevant bus-sender set is collected again and must be unchanged. A unique name
 that disappears or fails either authenticated PID/UID lookup causes HOLD rather
