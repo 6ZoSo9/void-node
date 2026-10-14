@@ -244,8 +244,10 @@ function connectDownstream(socket, dispatch) {
   });
 }
 
-const server = net.createServer((socket) => {
-  socket.setNoDelay(true);
+const server = net.createServer(
+  { allowHalfOpen: true },
+  (socket) => {
+    socket.setNoDelay(true);
   void (async () => {
     let dispatch;
     try {
@@ -268,8 +270,9 @@ const server = net.createServer((socket) => {
         sendError(socket, "downstream_unavailable");
       }
     }
-  })();
-});
+    })();
+  },
+);
 
 server.maxConnections = 256;
 server.on("error", (error) => {
