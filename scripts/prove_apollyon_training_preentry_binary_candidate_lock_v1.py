@@ -27,7 +27,7 @@ EXPECTED_BINARY_BYTES=17352
 EXPECTED_SOURCE_GIT_BLOB_SHA1="9503d19c8bc0b4f073ba117f6a547d339b7623d0"
 EXPECTED_LOCK_ID=(
     "apollyon_training_preentry_binary_candidate_lock_v1:"
-    "f13fb7c9737defa61e8f883426e5c53dafbc8d5ec70616b86b2b09fdb790c622"
+    "d5acb7184059f2690120374f990968f0a041872e8119c555d3da21671c6d49a5"
 )
 MAX_FIXTURE_BYTES=128*1024
 HEX40=re.compile(r"^[0-9a-f]{40}$")
@@ -129,7 +129,7 @@ def validate_lock(value:dict,validator)->None:
     if (
         value["marker"]!=MARKER or value["version"]!=1 or
         value["status"]!="candidate_binary_identity_locked_repository_evidence" or
-        value["next_gate"]!="apollyon_training_preentry_installed_binary_custody_v1" or
+        value["next_gate"]!="installed_apollyon_training_bus_isolation_qualification_v1" or
         value["reviewed_candidate_head_sha"]!=REVIEWED_CANDIDATE_HEAD or
         value["reviewed_candidate_validator_git_blob_sha1"]!=
             REVIEWED_VALIDATOR_GIT_BLOB_SHA1
