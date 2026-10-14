@@ -31,6 +31,7 @@ if (G.__void_datanet_receipts_persist_v1) process.exit(0);
 G.__void_datanet_receipts_persist_v1 = true;
 
 const SCAN_DEADLINE_MS = 5_000;
+const MAX_SCAN_WINDOW_BYTES = 256 * 1024;
 const MAX_CARRY_BYTES = 1024 * 1024;
 
 // incremental state
@@ -39,7 +40,7 @@ let st = {
   dev: 0,
   ino: 0,
   pos: 0,
-  buf: "",
+  buf: Buffer.alloc(0),
   totals: {
     lines: 0,
     ok: 0,
@@ -58,7 +59,7 @@ function resetFor(file, dev, ino) {
   st.dev = dev;
   st.ino = ino;
   st.pos = 0;
-  st.buf = "";
+  st.buf = Buffer.alloc(0);
   st.totals = { lines:0, ok:0, bad:0, bytes:0, wc:0, parse_err:0, last_any_ts_ms:0, last_ok_ts_ms:0 };
 }
 
@@ -91,7 +92,7 @@ function snapshotState() {
     dev: st.dev,
     ino: st.ino,
     pos: st.pos,
-    buf: st.buf,
+    buf: Buffer.from(st.buf),
     totals: { ...st.totals },
     last_scan_ms: st.last_scan_ms,
   };
@@ -148,7 +149,7 @@ async function scanOnceUnlocked() {
     }
 
     const start = st.pos;
-    const end = s.size - 1;
+    const end = Math.min(s.size, start + MAX_SCAN_WINDOW_BYTES) - 1;
     const expectedBytes = end - start + 1;
     await new Promise((resolve, reject) => {
       const rs = fs.createReadStream(file, {
@@ -156,7 +157,6 @@ async function scanOnceUnlocked() {
         autoClose: false,
         start,
         end,
-        encoding: "utf8",
       });
       let settled = false;
       let deadlineTimer = null;
@@ -189,14 +189,16 @@ async function scanOnceUnlocked() {
       );
       rs.on("data", (chunk) => {
         if (settled) return;
-        const text = String(chunk);
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         let cursor = 0;
-        while (cursor <= text.length) {
-          const newline = text.indexOf("\n", cursor);
+        while (cursor <= bytes.length) {
+          const newline = bytes.indexOf(0x0a, cursor);
           const terminal = newline < 0;
-          const segment = terminal ? text.slice(cursor) : text.slice(cursor, newline);
-          const carryBytes = Buffer.byteLength(st.buf, "utf8");
-          const segmentBytes = Buffer.byteLength(segment, "utf8");
+          const segment = terminal
+            ? bytes.subarray(cursor)
+            : bytes.subarray(cursor, newline);
+          const carryBytes = st.buf.length;
+          const segmentBytes = segment.length;
           if (
             carryBytes > MAX_CARRY_BYTES ||
             segmentBytes > MAX_CARRY_BYTES - carryBytes
@@ -205,11 +207,18 @@ async function scanOnceUnlocked() {
             return;
           }
           if (terminal) {
-            st.buf += segment;
+            st.buf = Buffer.concat(
+              [st.buf, segment],
+              carryBytes + segmentBytes,
+            );
             break;
           }
-          const line = (st.buf + segment).trim();
-          st.buf = "";
+          const lineBytes = Buffer.concat(
+            [st.buf, segment],
+            carryBytes + segmentBytes,
+          );
+          const line = lineBytes.toString("utf8").trim();
+          st.buf = Buffer.alloc(0);
           if (line) absorbLine(line);
           cursor = newline + 1;
         }
@@ -229,7 +238,7 @@ async function scanOnceUnlocked() {
     });
 
     closeDescriptor();
-    st.pos = s.size;
+    st.pos = end + 1;
     st.last_scan_ms = nowMs();
     return { file, missing: false };
   } catch (error) {
@@ -347,3 +356,4 @@ const iv = setInterval(() => {
   if (mountOnce()) { clearInterval(iv); return; }
   if (tries >= 200) { clearInterval(iv); }
 }, 250);
+

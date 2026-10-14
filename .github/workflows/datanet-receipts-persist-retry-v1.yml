@@ -48,6 +48,10 @@ jobs:
           grep -Fx "path_replacement_next_scan_resets=true" "$proof_file"
           grep -Fx "descriptor_close_verified=true" "$proof_file"
           grep -Fx "scan_deadline_ms=5000" "$proof_file"
+          grep -Fx "max_scan_window_bytes=262144" "$proof_file"
+          grep -Fx "bounded_window_progress=true" "$proof_file"
+          grep -Fx "utf8_boundary_carry_preserved=true" "$proof_file"
+          grep -Fx "multi_window_valid_backlog_completed=true" "$proof_file"
           grep -Fx "scan_timeout_rollback=true" "$proof_file"
           grep -Fx "single_flight_released_after_timeout=true" "$proof_file"
           grep -Fx "timed_out_stream_destroyed=true" "$proof_file"
@@ -64,3 +68,4 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           git diff --check "$BASE" "$HEAD"
+

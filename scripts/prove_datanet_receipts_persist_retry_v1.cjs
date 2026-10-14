@@ -8,6 +8,7 @@ const vm = require("node:vm");
 const repositoryRoot = path.resolve(__dirname, "..");
 const target = path.join(repositoryRoot, "src/diag/datanet_receipts_persist_v1.cjs");
 const source = fs.readFileSync(target, "utf8");
+const MAX_SCAN_WINDOW_BYTES = 256 * 1024;
 const receiptBytes = Buffer.from(
   [
     JSON.stringify({ ts_ms: 100, ok: true, bytes: 10, wc: 2 }),
@@ -29,6 +30,29 @@ const recoveryBytes = Buffer.from(
   JSON.stringify({ ts_ms: 400, ok: true, bytes: 11, wc: 4 }) + "\n",
 );
 const generationRecovery = { dev: 1, ino: 10, bytes: recoveryBytes };
+const windowedHeader =
+  '{"ts_ms":500,"ok":true,"bytes":13,"wc":6,"note":"';
+const windowedPrefix = "a".repeat(
+  MAX_SCAN_WINDOW_BYTES - 1 - Buffer.byteLength(windowedHeader),
+);
+const windowedBytes = Buffer.from(
+  windowedHeader +
+  windowedPrefix +
+  "雪" +
+  "b".repeat(MAX_SCAN_WINDOW_BYTES + 32) +
+  '"}\n',
+);
+assert.equal(
+  windowedBytes[MAX_SCAN_WINDOW_BYTES - 1],
+  Buffer.from("雪")[0],
+  "first window must split one UTF-8 sequence",
+);
+assert.ok(
+  windowedBytes.length > MAX_SCAN_WINDOW_BYTES * 2 &&
+    windowedBytes.length < 1024 * 1024,
+  "windowed valid line must require multiple scans within carry bound",
+);
+const generationWindowed = { dev: 1, ino: 11, bytes: windowedBytes };
 let visibleGeneration = generationA;
 let streamCalls = 0;
 let openCalls = 0;
@@ -95,7 +119,7 @@ const mockFs = {
     };
     const emitData = (bytes) => {
       stream.bytesRead += bytes.length;
-      stream.emit("data", bytes.toString("utf8"));
+      stream.emit("data", bytes);
     };
     setImmediate(() => {
       const firstLineEnd = generation.bytes.indexOf(0x0a) + 1;
@@ -238,17 +262,40 @@ function metric(body, name) {
   assert.equal(metric(stable, "void_datanet_receipts_persist_lines_total"), 1);
 
   visibleGeneration = generationOversize;
-  const oversized = await invokeRoute();
-  assert.equal(streamCalls, 7, "over-limit generation must start one scan");
+  const beforeOversizedStreams = streamCalls;
+  const oversizeAttempts = Math.ceil(
+    generationOversize.bytes.length / MAX_SCAN_WINDOW_BYTES,
+  );
+  let oversized;
+  for (let attempt = 0; attempt < oversizeAttempts; attempt += 1) {
+    oversized = await invokeRoute();
+    if (attempt + 1 < oversizeAttempts) {
+      assert.doesNotMatch(oversized, /^# err=1$/m);
+      assert.equal(
+        metric(oversized, "void_datanet_receipts_persist_lines_total"),
+        0,
+      );
+    }
+  }
+  assert.equal(
+    streamCalls - beforeOversizedStreams,
+    oversizeAttempts,
+    "over-limit line must be bounded across windows before rejection",
+  );
   assert.match(oversized, /^# err=1$/m);
   assert.match(oversized, /^# err_reason=line_too_large$/m);
-  assert.equal(metric(oversized, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(metric(oversized, "void_datanet_receipts_persist_lines_total"), 0);
   assert.equal(destroyCalls, 2, "over-limit stream must be destroyed");
   assert.equal(timers.size, 0, "over-limit timer must be released");
 
   visibleGeneration = generationRecovery;
+  const beforeRecoveryStreams = streamCalls;
   const recovered = await invokeRoute();
-  assert.equal(streamCalls, 8, "valid generation after over-limit must retry");
+  assert.equal(
+    streamCalls,
+    beforeRecoveryStreams + 1,
+    "valid generation after over-limit must retry",
+  );
   assert.doesNotMatch(recovered, /^# err=1$/m);
   assert.equal(metric(recovered, "void_datanet_receipts_persist_lines_total"), 1);
   assert.equal(metric(recovered, "void_datanet_receipts_persist_ok_total"), 1);
@@ -257,9 +304,53 @@ function metric(body, name) {
   assert.equal(metric(recovered, "void_datanet_receipts_persist_wc_total"), 4);
 
   const recoveryStable = await invokeRoute();
-  assert.equal(streamCalls, 8, "unchanged recovery generation must not be rescanned");
+  assert.equal(
+    streamCalls,
+    beforeRecoveryStreams + 1,
+    "unchanged recovery generation must not be rescanned",
+  );
+
+  visibleGeneration = generationWindowed;
+  const windowCount = Math.ceil(
+    generationWindowed.bytes.length / MAX_SCAN_WINDOW_BYTES,
+  );
+  assert.ok(windowCount >= 3, "valid backlog must span at least three windows");
+  const beforeWindowedStreams = streamCalls;
+  let windowed;
+  for (let window = 0; window < windowCount; window += 1) {
+    windowed = await invokeRoute();
+    assert.doesNotMatch(windowed, /^# err=1$/m);
+    if (window + 1 < windowCount) {
+      assert.equal(
+        metric(windowed, "void_datanet_receipts_persist_lines_total"),
+        0,
+        "incomplete line must remain buffered until its final window",
+      );
+    }
+  }
+  assert.equal(
+    streamCalls - beforeWindowedStreams,
+    windowCount,
+    "one bounded stream must commit per route scan",
+  );
+  assert.equal(metric(windowed, "void_datanet_receipts_persist_lines_total"), 1);
+  assert.equal(metric(windowed, "void_datanet_receipts_persist_ok_total"), 1);
+  assert.equal(metric(windowed, "void_datanet_receipts_persist_bad_total"), 0);
+  assert.equal(metric(windowed, "void_datanet_receipts_persist_bytes_total"), 13);
+  assert.equal(metric(windowed, "void_datanet_receipts_persist_wc_total"), 6);
+
+  const windowedStable = await invokeRoute();
+  assert.equal(
+    streamCalls,
+    beforeWindowedStreams + windowCount,
+    "completed valid backlog must not be rescanned",
+  );
+  assert.equal(
+    metric(windowedStable, "void_datanet_receipts_persist_lines_total"),
+    1,
+  );
   assert.equal(descriptors.size, 0, "every scanner descriptor must be closed");
-  assert.ok(openCalls >= 10, "every route scan must bind a descriptor generation");
+  assert.ok(openCalls >= 10 + windowCount, "every route scan must bind a descriptor generation");
 
   assert.doesNotMatch(source, /fs\.statSync\(file\)/u);
   assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
@@ -267,6 +358,7 @@ function metric(body, name) {
   assert.match(source, /autoClose:\s*false/u);
 
   assert.match(source, /const SCAN_DEADLINE_MS = 5_000;/u);
+  assert.match(source, /const MAX_SCAN_WINDOW_BYTES = 256 \* 1024;/u);
   assert.match(source, /const MAX_CARRY_BYTES = 1024 \* 1024;/u);
   assert.match(source, /rejectAndDestroy\("scan_timeout"\)/u);
   assert.match(source, /rejectAndDestroy\("line_too_large"\)/u);
@@ -282,6 +374,10 @@ function metric(body, name) {
   console.log("path_replacement_next_scan_resets=true");
   console.log("descriptor_close_verified=true");
   console.log("scan_deadline_ms=5000");
+  console.log("max_scan_window_bytes=262144");
+  console.log("bounded_window_progress=true");
+  console.log("utf8_boundary_carry_preserved=true");
+  console.log("multi_window_valid_backlog_completed=true");
   console.log("scan_timeout_rollback=true");
   console.log("single_flight_released_after_timeout=true");
   console.log("timed_out_stream_destroyed=true");
@@ -293,3 +389,4 @@ function metric(body, name) {
   console.error(error);
   process.exitCode = 1;
 });
+
