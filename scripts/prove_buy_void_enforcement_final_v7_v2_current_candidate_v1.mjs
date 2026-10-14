@@ -19,6 +19,13 @@ import {
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const CANDIDATE_WORKFLOW=".github/workflows/buy-void-enforcement-final-v7-v2-current-candidate-v1.yml";
+const CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES=Object.freeze([
+  "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
+  "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs",
+  "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
+  "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs",
+]);
 const RUNTIME_RUNTIME_SOURCE_PARENT="82aee920f26b45c7e43bcc9f9e1023a175e2783a";
 const CURRENT_ENFORCEMENT_PARENT="a2f304fa3ae494cdd4fa71f65aa6f689a1313948";
 const PREDECESSOR_LOCK="ops/security/buy-void-enforcement-post2865-lock-v1.json";
@@ -121,6 +128,17 @@ function read(relative,max=4*1024*1024){
 }
 function pin(relative,expected,max){
   const bytes=read(relative,max);assert.equal(gitBlob(bytes),expected,"git_blob_drift:"+relative);return bytes;
+}
+function assertCandidateWorkflowTriggerCoverage(){
+  const workflow=read(CANDIDATE_WORKFLOW,128*1024).toString("utf8");
+  for(const relative of CANDIDATE_WORKFLOW_TRIGGER_DEPENDENCIES){
+    const exact='      - "'+relative+'"';
+    assert.equal(
+      workflow.split(exact).length-1,
+      2,
+      "candidate_workflow_trigger_dependency_count:"+relative,
+    );
+  }
 }
 function run(command,args,{timeout=180000}={}){
   const r=spawnSync(command,args,{cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout,maxBuffer:16*1024*1024,
@@ -278,7 +296,7 @@ function currentEnforcementInventory(){
   });
 }
 function derive(){
-  requireRuntimeSourceStable();const inventoryEvidence=inventories();const currentEnforcement=currentEnforcementInventory();predecessor();const pkg=packageIdentity();const provider=providerIdentity();deltaIdentity();const liveV2=liveProcessV2StaticEdge();sagaEdge();
+  assertCandidateWorkflowTriggerCoverage();requireRuntimeSourceStable();const inventoryEvidence=inventories();const currentEnforcement=currentEnforcementInventory();predecessor();const pkg=packageIdentity();const provider=providerIdentity();deltaIdentity();const liveV2=liveProcessV2StaticEdge();sagaEdge();
   const body={
     schema:"void_buy_void_enforcement_final_v7_v2_current_candidate_v1",marker:"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_CURRENT_CANDIDATE_V1",version:1,
     repository:"6ZoSo9/void-node",runtime_source_parent:RUNTIME_SOURCE_PARENT,current_enforcement_parent:CURRENT_ENFORCEMENT_PARENT,hosted_census_evidence:HOSTED_CENSUS,
