@@ -334,16 +334,50 @@ function openCheckpointFileV1(rootAuthority, relativePath) {
   }
 }
 
-function readCheckpointFileV1(rootAuthority, relativePath) {
+function readCheckpointFileV1(
+  rootAuthority,
+  relativePath,
+  maximumBytes = null,
+) {
   assertCheckpointRootPathPinnedV1(rootAuthority);
   const opened = openCheckpointFileV1(rootAuthority, relativePath);
   try {
     const before = opened.st;
-    const bytes = fs.readFileSync(opened.fd);
+    if (
+      !Number.isSafeInteger(before.size) ||
+      before.size < 0 ||
+      (
+        maximumBytes !== null &&
+        (
+          !Number.isSafeInteger(maximumBytes) ||
+          maximumBytes < 0 ||
+          before.size > maximumBytes
+        )
+      )
+    ) {
+      throw new Error("checkpoint entry size invalid");
+    }
+
+    const bytes = Buffer.allocUnsafe(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const bytesRead = fs.readSync(
+        opened.fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0) {
+        throw new Error("checkpoint entry short read");
+      }
+      offset += bytesRead;
+    }
+
     const after = fs.fstatSync(opened.fd);
     if (
       !sameCheckpointDescriptorIdentityV1(before, after) ||
-      bytes.length !== before.size
+      offset !== before.size
     ) {
       throw new Error("checkpoint entry generation changed during read");
     }
@@ -503,6 +537,7 @@ function loadCheckpointPublicationV1() {
     const fileEntry = readCheckpointFileV1(
       rootAuthority,
       expectedPath,
+      VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
     );
     if (
       fileEntry.st.size !== entry.bytes ||
@@ -632,6 +667,7 @@ function checkpointResponseBytesV1(route) {
   const opened = readCheckpointFileV1(
     CHECKPOINT_PUBLICATION_V1.rootAuthority,
     relative,
+    VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
   );
   if (
     expected.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
