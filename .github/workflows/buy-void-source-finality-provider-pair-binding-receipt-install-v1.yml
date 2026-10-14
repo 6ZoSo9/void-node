@@ -1,0 +1,73 @@
+name: VOID Buy VOID V7 provider-pair receipt installer v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v1.md"
+      - ".github/workflows/buy-void-source-finality-provider-pair-binding-receipt-install-v1.yml"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test -z "$(git status --porcelain=v1)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and run unprivileged proof
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "provider-pair-installer-${{ matrix.node }}.log"
+          grep -Fx 'raw_rpc_url_input=false' "provider-pair-installer-${{ matrix.node }}.log"
+          grep -Fx 'rpc_contact=false' "provider-pair-installer-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false' "provider-pair-installer-${{ matrix.node }}.log"
+      - name: Diff hygiene
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+  root-custody:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise root create-once custody in disposable fixture
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/provider-pair-installer-root.log"
+          grep -Fx 'root_custody_positive_exercised=true' "$RUNNER_TEMP/provider-pair-installer-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-installer-root.log"
