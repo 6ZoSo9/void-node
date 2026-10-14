@@ -431,9 +431,24 @@ function forwardHeaders(sanitized, bodyLength) {
   return headers;
 }
 
-function forwardToAdapter(admitted, body) {
+function forwardToAdapter(admitted, body, clientSocket) {
   return new Promise((resolve, reject) => {
-    const upstream = http.request(
+    let settled = false;
+    let upstream;
+    const onClientClose = () => {
+      if (settled) return;
+      upstream?.destroy(
+        new Error("public_earn_edge_client_disconnected"),
+      );
+    };
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clientSocket.off("close", onClientClose);
+      fn(value);
+    };
+
+    upstream = http.request(
       {
         protocol: "http:",
         hostname: "127.0.0.1",
@@ -454,7 +469,7 @@ function forwardToAdapter(admitted, body) {
           if (done) return;
           done = true;
           response.destroy();
-          reject(error);
+          finish(reject, error);
         };
         response.on("data", (chunk) => {
           if (done) return;
@@ -477,12 +492,14 @@ function forwardToAdapter(admitted, body) {
             status < 100 ||
             status > 599
           ) {
-            reject(
+            finish(
+              reject,
               new Error("public_earn_edge_adapter_status_invalid"),
             );
             return;
           }
-          resolve(
+          finish(
+            resolve,
             Object.freeze({
               status,
               body: Buffer.concat(chunks),
@@ -495,12 +512,17 @@ function forwardToAdapter(admitted, body) {
         });
       },
     );
+    clientSocket.once("close", onClientClose);
+    if (clientSocket.destroyed) {
+      onClientClose();
+      return;
+    }
     upstream.once("timeout", () =>
       upstream.destroy(
         new Error("public_earn_edge_adapter_timeout"),
       ),
     );
-    upstream.once("error", reject);
+    upstream.once("error", (error) => finish(reject, error));
     upstream.end(body);
   });
 }
@@ -524,6 +546,13 @@ function classifyClientError(error) {
 }
 
 const server = net.createServer((socket) => {
+  let clientError = null;
+  const onClientError = (error) => {
+    clientError = error;
+  };
+  socket.on("error", onClientError);
+  socket.once("close", () => socket.off("error", onClientError));
+
   void (async () => {
     let header;
     try {
@@ -533,6 +562,7 @@ const server = net.createServer((socket) => {
       send(socket, status, { ok: false, error: code });
       return;
     }
+    if (clientError !== null || socket.destroyed) return;
 
     let admitted;
     try {
@@ -561,6 +591,7 @@ const server = net.createServer((socket) => {
       });
       return;
     }
+    if (clientError !== null || socket.destroyed) return;
 
     if (admitted.ok !== true) {
       if (admitted.status === "RATE_LIMITED") {
@@ -607,15 +638,22 @@ const server = net.createServer((socket) => {
       send(socket, status, { ok: false, error: code });
       return;
     }
+    if (clientError !== null || socket.destroyed) return;
 
     try {
-      const response = await forwardToAdapter(admitted, body);
+      const response = await forwardToAdapter(
+        admitted,
+        body,
+        socket,
+      );
+      if (clientError !== null || socket.destroyed) return;
       const extraHeaders = {};
       if (response.retryAfter !== null) {
         extraHeaders["Retry-After"] = response.retryAfter;
       }
       send(socket, response.status, response.body, extraHeaders);
     } catch (error) {
+      if (clientError !== null || socket.destroyed) return;
       process.stderr.write(
         MARKER + " adapter_error=" + String(error) + "\n",
       );
