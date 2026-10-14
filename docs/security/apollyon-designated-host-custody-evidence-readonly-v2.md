@@ -14,9 +14,11 @@ symlink/write exposure, and derives training UID rename/unlink denial through th
 socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
-its /proc start-time ticks and UID, then inventories every process whose Linux
-UID slots touch the training UID. The process inventory must remain stable
-across a second scan. For every admitted process it enumerates
+its /proc start-time ticks and UID. Process discovery walks every
+`/proc/<tgid>/task/<tid>/status`; if any thread touches the training UID, its
+whole thread group enters the admitted inspection set. The process inventory
+must remain stable across a second scan. For every admitted process it
+enumerates
 `/proc/<pid>/task/<tid>` twice and requires every thread credential transcript
 to remain stable: all four UID slots equal the training UID, zero
 CapInh/CapPrm/CapEff/CapAmb, and NoNewPrivs=1. Evidence carries bounded thread
@@ -41,8 +43,18 @@ directories, and deny the training user by action ID only for
 `polkit.message` / `polkit.gettext_domain` request details.
 
 The collector then performs non-interactive `/usr/bin/pkcheck` probes for the
-reviewed systemd control surface. Only exit status 1 is accepted as explicit
-denial. RefuseManualStart/Stop remain
+reviewed systemd control surface. It retains the PID/start-time/UID
+`--process` probes as defense-in-depth, and separately enumerates the live
+unique system-bus names using `busctl`. For any live bus connection whose
+authenticated Unix UID equals the training UID or whose authenticated Unix PID
+belongs to the admitted training-process set, both PID and UID must match the
+admitted training identity exactly. Each such connection is probed using
+`pkcheck --system-bus-name` across the full reviewed control surface, then the
+relevant bus-sender set is collected again and must be unchanged. Evidence
+contains a bounded sender list with identity, action count, and the SHA-256 of
+its canonical all-denied transcript.
+
+Only exit status 1 is accepted as explicit denial. RefuseManualStart/Stop remain
 defense-in-depth unit facts; they no longer independently justify
 `runtime_can_control_service=false`.
 
