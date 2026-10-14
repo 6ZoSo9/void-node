@@ -129,6 +129,10 @@ const nativeBinary=path.join(tmp,"void-buy-void-v7-native-preentry");
 const systemNode="/usr/bin/node";
 let installedSystemNodeFixture=false;
 let originalOptMode=null;
+let optModeChanged=false;
+let proofCompleted=false;
+let proofFailure=null;
+let cleanupFailure=null;
 
 try{
   if(!fs.existsSync(systemNode)){
@@ -165,10 +169,11 @@ try{
   assert.equal(optBefore.isDirectory(),true,"native /opt fixture ancestor must be a directory");
   assert.equal(optBefore.isSymbolicLink(),false,"native /opt fixture ancestor must not be a symlink");
   assert.equal(optBefore.uid,0,"native /opt fixture ancestor must be root-owned");
-  if((optBefore.mode&0o022)!==0){
-    originalOptMode=optBefore.mode&0o7777;
+  originalOptMode=optBefore.mode&0o7777;
+  if((originalOptMode&0o022)!==0){
     const safeOptMode=originalOptMode&~0o022;
     sudo(["/usr/bin/chmod",safeOptMode.toString(8),"--","/opt"]);
+    optModeChanged=true;
   }
   sudo(["mkdir","-p","--",FIXED_PREENTRY_DIR]);
   sudo(["chown","0:0","--",FIXED_PREENTRY_DIR]);
@@ -289,6 +294,40 @@ try{
   assert.equal(dirty.status,2);
   assert.match(dirty.stderr,/source_tree_dirty/u);
 
+  proofCompleted=true;
+}catch(error){
+  proofFailure=error;
+}finally{
+  try{
+    sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR]);
+    if(originalOptMode!==null){
+      if(optModeChanged){
+        sudo(["/usr/bin/chmod",originalOptMode.toString(8),"--","/opt"]);
+      }
+      const restoredOpt=fs.lstatSync("/opt");
+      assert.equal(restoredOpt.isDirectory(),true,"restored /opt must remain directory");
+      assert.equal(restoredOpt.isSymbolicLink(),false,"restored /opt must not be symlink");
+      assert.equal(restoredOpt.uid,0,"restored /opt must remain root-owned");
+      assert.equal(
+        restoredOpt.mode&0o7777,
+        originalOptMode,
+        "host /opt mode was not restored exactly",
+      );
+    }
+    if(installedSystemNodeFixture) sudo(["rm","-f","--",systemNode]);
+    fs.rmSync(tmp,{recursive:true,force:true});
+  }catch(error){
+    cleanupFailure=error;
+  }
+}
+if(proofFailure!==null){
+  if(cleanupFailure!==null){
+    console.error("cleanup_failure="+String(cleanupFailure?.message||cleanupFailure));
+  }
+  throw proofFailure;
+}
+if(cleanupFailure!==null)throw cleanupFailure;
+assert.equal(proofCompleted,true,"proof body did not complete");
   console.log(MARKER+"_PROOF_GREEN");
   console.log("native_preentry_first_instruction=true");
   console.log("host_opt_fixture_mode_restored=true");
@@ -317,11 +356,3 @@ try{
   console.log("credential_wallet_signer_transaction_authority=false");
   console.log("presale_activation=false");
   console.log("funds_movement=false");
-}finally{
-  sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
-  if(originalOptMode!==null){
-    sudo(["/usr/bin/chmod",originalOptMode.toString(8),"--","/opt"],{allow:true});
-  }
-  if(installedSystemNodeFixture) sudo(["rm","-f","--",systemNode],{allow:true});
-  fs.rmSync(tmp,{recursive:true,force:true});
-}
