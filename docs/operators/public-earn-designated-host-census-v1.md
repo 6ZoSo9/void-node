@@ -83,6 +83,10 @@ raw state path is emitted.
 The raw nftables JSON is never printed or written into the census result; only
 presence, byte count and SHA-256 are emitted.
 
+Each run records `observed_at_utc` in canonical whole-second UTC form. The
+census does not promote that timestamp into a freshness acceptance claim; a
+later verifier must apply its own bounded age/skew policy.
+
 ## Derived topology
 
 The census derives, without inventing values:
