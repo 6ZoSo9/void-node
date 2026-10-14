@@ -13,6 +13,7 @@ const PACKAGE_PROOF="scripts/prove_void_reviewed_node_package_runtime_enforcemen
 const PACKAGE_PROOF_BLOB="841fedfe8d1a3ed2257d79104bc6086cafc290d6";
 const CANDIDATE_PROOF="scripts/prove_buy_void_enforcement_artifact_attestation_v6_candidate.mjs";
 const CANDIDATE_PROOF_BLOB="a5160f4b11d469accc7af952d39045a4092f0f45";
+const WORKFLOW=".github/workflows/buy-void-enforcement-artifact-attestation-v5-candidate.yml";
 const EXPECTED_CANDIDATE_JSON_SHA256="f3680f613095054be2699fefe6d1f11dc03eda725d930254d2a045462bf4646e";
 const EXPECTED_CANDIDATE_SET="43a1a3cbec71f59e0c33216afe5e5b826e119e95aa14acfd2bc2d8b2c238a297";
 const EXPECTED_PROFILE_ID="voidrnpr1_c15b7f3cb00d85f378a69cfc536c3845e29f9be7047e3af0f9fbd646eb2f5860";
@@ -39,6 +40,32 @@ function repo(relative,max){
   const p=path.join(ROOT,relative);
   assert.ok(p.startsWith(ROOT+path.sep));
   return regular(p,max);
+}
+function workflowContract(){
+  const text=repo(WORKFLOW,256*1024).toString("utf8");
+  const pushStart=text.indexOf("  push:\n");
+  const prStart=text.indexOf("  pull_request:\n");
+  assert.ok(pushStart>=0&&prStart>pushStart,"main_push_trigger_missing");
+  const push=text.slice(pushStart,prStart);
+  assert.ok(push.includes('      - "main"'),"main_push_branch_missing");
+  for(const relative of [
+    MANIFEST,
+    "scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs",
+    PACKAGE_MANIFEST,
+    PACKAGE_PROOF,
+    CANDIDATE_PROOF,
+    "package.json",
+    "package-lock.json",
+  ]){
+    assert.ok(push.includes(`      - "${relative}"`),"main_push_path_missing:"+relative);
+  }
+  for(const required of [
+    "github.event.pull_request.head.sha || github.sha",
+    "github.event.pull_request.base.sha || github.event.before",
+    "${{ runner.temp }}/v6-evidence",
+  ]){
+    assert.ok(text.includes(required),"push_compatibility_contract_missing:"+required);
+  }
 }
 function packageLock(){
   const bytes=repo(PACKAGE_MANIFEST,128*1024);
@@ -160,6 +187,7 @@ function parseArgs(){
   assert.ok(out.mode&&out.candidate&&out.log,"required_arguments_missing");
   return out;
 }
+workflowContract();
 const a=parseArgs();
 const expected=derive(path.resolve(a.candidate),path.resolve(a.log));
 if(a.mode==="--derive")process.stdout.write(JSON.stringify(expected,null,2)+"\n");

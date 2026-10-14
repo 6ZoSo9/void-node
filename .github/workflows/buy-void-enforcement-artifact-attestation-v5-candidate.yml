@@ -1,6 +1,36 @@
 name: VOID Buy VOID enforcement V6 current candidate derivation
 
 on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "src/economic/**"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v6_candidate.mjs"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs"
+      - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
+      - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
+      - "scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs"
+      - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
+      - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v6-candidate.md"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v6.json"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v6.md"
+      - "ops/security/reviewed-node-package-runtime-enforcement-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs"
+      - ".github/workflows/buy-void-enforcement-artifact-attestation-v5-candidate.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "Dockerfile"
   pull_request:
     paths:
       - "src/economic/**"
@@ -34,7 +64,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.number || github.run_id }}
+  group: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -49,14 +79,14 @@ jobs:
       - name: Check out exact PR source generation
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact head and stacked base
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
           test -n "$EXPECTED_HEAD"
@@ -188,15 +218,15 @@ jobs:
       - name: Upload V6 candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          name: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: enforcement-v6-candidate-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 1
 
       - name: Exact stacked diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test -n "$BASE_SHA"
@@ -212,7 +242,7 @@ jobs:
       - name: Download exact V6 candidates
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha }}-node-*
+          pattern: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./v6-evidence
       - name: Require Node 22 24 26 byte equality
@@ -251,7 +281,7 @@ jobs:
       - name: Check out exact lock candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Node
@@ -263,48 +293,53 @@ jobs:
       - name: Download exact V6 candidate evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha }}-node-*
+          pattern: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: ./v6-evidence
+          path: ${{ runner.temp }}/v6-evidence
       - name: Requalify locked ethers plus express package identity
         run: |
           set -euo pipefail
+          package_log="$RUNNER_TEMP/enforcement-package-lock-${{ matrix.node }}.log"
           node scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs \
-            | tee "enforcement-package-lock-${{ matrix.node }}.log"
+            | tee "$package_log"
       - name: Derive and verify accepted V6 enforcement identity
         run: |
           set -euo pipefail
+          candidate="$RUNNER_TEMP/v6-evidence/enforcement-v6-candidate-22.json"
+          package_log="$RUNNER_TEMP/enforcement-package-lock-${{ matrix.node }}.log"
+          lock_json="$RUNNER_TEMP/enforcement-v6-lock-${{ matrix.node }}.json"
+          lock_txt="$RUNNER_TEMP/enforcement-v6-lock-${{ matrix.node }}.txt"
           node --check scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs
           node scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs \
             --derive \
-            --candidate="v6-evidence/enforcement-v6-candidate-22.json" \
-            --package-runtime-log="enforcement-package-lock-${{ matrix.node }}.log" \
-            > "enforcement-v6-lock-${{ matrix.node }}.json"
-          cmp "enforcement-v6-lock-${{ matrix.node }}.json" \
+            --candidate="$candidate" \
+            --package-runtime-log="$package_log" \
+            > "$lock_json"
+          cmp "$lock_json" \
             docs/architecture/buy-void-enforcement-artifact-attestation-v6.json
           node scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs \
             --verify \
-            --candidate="v6-evidence/enforcement-v6-candidate-22.json" \
-            --package-runtime-log="enforcement-package-lock-${{ matrix.node }}.log" \
-            | tee "enforcement-v6-lock-${{ matrix.node }}.txt"
-          grep -Fx 'candidate_identity_accepted=true' "enforcement-v6-lock-${{ matrix.node }}.txt"
-          grep -Fx 'complete_executable_closure_verified=true' "enforcement-v6-lock-${{ matrix.node }}.txt"
-          grep -Fx 'production_source_finality_authority_ready=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
-          grep -Fx 'public_presale_activation=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
-          grep -Fx 'funds_movement=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
+            --candidate="$candidate" \
+            --package-runtime-log="$package_log" \
+            | tee "$lock_txt"
+          grep -Fx 'candidate_identity_accepted=true' "$lock_txt"
+          grep -Fx 'complete_executable_closure_verified=true' "$lock_txt"
+          grep -Fx 'production_source_finality_authority_ready=false' "$lock_txt"
+          grep -Fx 'public_presale_activation=false' "$lock_txt"
+          grep -Fx 'funds_movement=false' "$lock_txt"
       - name: Upload accepted V6 identity
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          name: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: |
-            enforcement-v6-lock-${{ matrix.node }}.json
-            enforcement-v6-lock-${{ matrix.node }}.txt
+            ${{ runner.temp }}/enforcement-v6-lock-${{ matrix.node }}.json
+            ${{ runner.temp }}/enforcement-v6-lock-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff hygiene
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
@@ -318,7 +353,7 @@ jobs:
       - name: Download accepted V6 identities
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha }}-node-*
+          pattern: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./accepted
       - name: Require exact Node 22 24 26 accepted identity
