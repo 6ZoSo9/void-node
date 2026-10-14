@@ -12,10 +12,10 @@ import {
   type BuyVoidSourceFinalityAuthenticatedReadyV3,
 } from "./buy_void_source_finality_authenticated_composition_v3.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1,
-  verifyBuyVoidSourceFinalityLiveProcessBindingV1,
-  type BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
-} from "./buy_void_source_finality_live_process_binding_v1.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
+  verifyBuyVoidSourceFinalityLiveProcessBindingV2,
+  type BuyVoidSourceFinalityLiveProcessBindingDecisionV2,
+} from "./buy_void_source_finality_live_process_binding_v2.js";
 import {
   assertBuyVoidSourceFinalityProviderPairVerifiedV1,
   verifyBuyVoidSourceFinalityProviderPairBindingV1,
@@ -82,6 +82,7 @@ const REVIEWED_SOURCE_PATHS_V7 = Object.freeze([
   "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
   "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
   "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
+  "src/economic/buy_void_source_finality_live_process_binding_v2.ts",
   "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
   "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
   "src/economic/buy_void_source_finality_authority_v2.ts",
@@ -113,7 +114,7 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
       readonly deployment_receipt_id: string;
       readonly accepted_enforcement_set_sha256: string;
       readonly reviewed_source_files_sha256: string;
-      readonly reviewed_source_file_count: "9";
+      readonly reviewed_source_file_count: "10";
       readonly source_generation_verified: true;
       readonly deployed_artifact_generation_verified: true;
     }
@@ -146,8 +147,8 @@ function isCustodyVerifiedDeploymentV7(
 }
 
 function custodyVerifiedLiveProcessBindingV7(
-  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
-): BuyVoidSourceFinalityLiveProcessBindingDecisionV1 {
+  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV2,
+): BuyVoidSourceFinalityLiveProcessBindingDecisionV2 {
   if (decision.ok === false) return decision;
   const verified = Object.freeze({ ...decision });
   VERIFIED_LIVE_PROCESS_BINDINGS_V7.add(verified);
@@ -155,7 +156,7 @@ function custodyVerifiedLiveProcessBindingV7(
 }
 
 function isCustodyVerifiedLiveProcessBindingV7(
-  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV1,
+  decision: BuyVoidSourceFinalityLiveProcessBindingDecisionV2,
 ): boolean {
   return decision.ok === true &&
     VERIFIED_LIVE_PROCESS_BINDINGS_V7.has(decision as object);
@@ -209,7 +210,7 @@ export type BuyVoidSourceFinalityGenerationReadyV7 =
     readonly rpc_url_fingerprint_sha256: string;
     readonly reviewed_source_files_verified: true;
     readonly reviewed_source_files_sha256: string;
-    readonly verified_source_file_count: "9";
+    readonly verified_source_file_count: "10";
     readonly source_file_verification_mode: "operator_deployment_receipt_bound_v1";
     readonly deployment_receipt_id: string;
     readonly live_process_binding_receipt_id: string;
@@ -395,7 +396,7 @@ function readStableRegularFile(absolute: string, maxBytes: number): Buffer {
 
 export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "9";
+  reviewed_source_file_count: "10";
   files: readonly Readonly<{ path: string; git_blob_sha1: string }>[];
 }> {
   const files = REVIEWED_SOURCE_PATHS_V7.map((relative) => {
@@ -414,7 +415,7 @@ export function inspectBuyVoidSourceFinalityReviewedSourceFilesV7(): Readonly<{
       repository: "6ZoSo9/void-node",
       files,
     }),
-    reviewed_source_file_count: "9",
+    reviewed_source_file_count: "10",
     files: Object.freeze(files),
   });
 }
@@ -448,7 +449,7 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
   receipt: unknown;
   process_source_identity: ProcessSourceIdentityV7;
   reviewed_source_files_sha256: string;
-  reviewed_source_file_count: "9";
+  reviewed_source_file_count: "10";
 }): BuyVoidSourceFinalityDeploymentDecisionV7 {
   const bad = (reason: string): BuyVoidSourceFinalityDeploymentDecisionV7 => ({
     ok: false,
@@ -764,7 +765,7 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   primary: unknown;
   secondary: unknown;
   deployment: BuyVoidSourceFinalityDeploymentDecisionV7;
-  live_process_binding: BuyVoidSourceFinalityLiveProcessBindingDecisionV1;
+  live_process_binding: BuyVoidSourceFinalityLiveProcessBindingDecisionV2;
   provider_pair_binding: unknown;
 }): BuyVoidSourceFinalityGenerationDecisionV7 {
   const primaryEndpoint = providerEndpoint(input.primary_policy);
@@ -981,12 +982,12 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
   if (deployment.ok === false) return held(deployment.reason);
   if (
     input.policy.live_process_binding_receipt_path !==
-    VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V1
+    VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2
   ) {
     return held("source_finality_live_process_binding_path_invalid");
   }
   const liveProcessBinding = custodyVerifiedLiveProcessBindingV7(
-    verifyBuyVoidSourceFinalityLiveProcessBindingV1({
+    verifyBuyVoidSourceFinalityLiveProcessBindingV2({
       receipt_path: input.policy.live_process_binding_receipt_path,
       deployment_receipt_id: deployment.deployment_receipt_id,
     }),
