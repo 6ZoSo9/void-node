@@ -33,6 +33,11 @@ generation unstable.
 If `legacy_cutover_required=true`, the next deployment must be a guarded
 migration rather than an independent system-service start.
 
+If the tunnel is active but its config cannot be safely observed,
+`tunnel_route_classification_complete=false` and
+`next_action=TUNNEL_CONFIG_OBSERVATION_HOLD`. The tool does not infer that
+mutation routes are absent from an unreadable config.
+
 If `mutation_route_removal_required=true`, claim/submit must be removed from
 the old cloudflared direct-to-4122 route before protected public mutation ingress
 can be considered live.
