@@ -30,6 +30,43 @@ function canonical(value:any):string{
 }
 
 const reviewedSources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
+
+const focusedWorkflowPath =
+  ".github/workflows/buy-void-source-finality-provider-pair-binding-receipt-install-v1.yml";
+const focusedWorkflow = fs.readFileSync(focusedWorkflowPath, "utf8");
+assert.match(
+  focusedWorkflow,
+  /\non:\n  push:\n    branches: \[main\]\n    paths:\n/u,
+  "focused workflow must requalify on main pushes",
+);
+assert.match(
+  focusedWorkflow,
+  /\n  pull_request:\n    paths:\n/u,
+  "focused workflow must qualify pull requests",
+);
+for (const reviewed of reviewedSources.files) {
+  const needle = `      - "${reviewed.path}"`;
+  assert.equal(
+    focusedWorkflow.split(needle).length - 1,
+    2,
+    `reviewed source must be in symmetric PR/main triggers: ${reviewed.path}`,
+  );
+}
+for (const requiredPath of [
+  "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
+  "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts",
+  "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts",
+  focusedWorkflowPath,
+  "package.json",
+  "package-lock.json",
+]) {
+  const needle = `      - "${requiredPath}"`;
+  assert.equal(
+    focusedWorkflow.split(needle).length - 1,
+    2,
+    `focused dependency must be in symmetric PR/main triggers: ${requiredPath}`,
+  );
+}
 const deploymentBody={
   accepted_enforcement_set_sha256:VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   marker:VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,

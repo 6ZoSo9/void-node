@@ -1,6 +1,24 @@
 name: VOID Buy VOID V7 provider-pair receipt installer v1
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v1.md"
+      - ".github/workflows/buy-void-source-finality-provider-pair-binding-receipt-install-v1.yml"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "package.json"
+      - "package-lock.json"
   pull_request:
     paths:
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
@@ -9,6 +27,13 @@ on:
       - ".github/workflows/buy-void-source-finality-provider-pair-binding-receipt-install-v1.yml"
       - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -49,7 +74,15 @@ jobs:
           grep -Fx 'rpc_contact=false' "provider-pair-installer-${{ matrix.node }}.log"
           grep -Fx 'funds_movement=false' "provider-pair-installer-${{ matrix.node }}.log"
       - name: Diff hygiene
-        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
 
   root-custody:
     needs: [prove]
