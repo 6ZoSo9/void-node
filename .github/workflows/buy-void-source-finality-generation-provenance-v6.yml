@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "src/economic/buy_void_source_finality_generation_provenance_v6.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6.ts"
+      - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
@@ -13,6 +15,7 @@ on:
       - "src/economic/buy_void_verified_payment_v2.ts"
       - "Dockerfile"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v6.md"
+      - "docs/architecture/buy-void-source-finality-generation-provenance-v7.md"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v6-review-checklist.md"
       - ".github/workflows/buy-void-source-finality-generation-provenance-v6.yml"
   workflow_dispatch:
@@ -67,11 +70,16 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             src/economic/buy_void_source_finality_generation_provenance_v6.ts \
+            src/economic/buy_void_source_finality_generation_provenance_v7.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6.ts \
+            scripts/prove_buy_void_source_finality_generation_provenance_v7.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
 
       - name: Prove reviewed source-file binding V6
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6.ts
+
+      - name: Prove dormant V7 deployment receipt and provider quorum
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v7.ts
 
       - name: Prove V6 preflight shares the total deadline
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
