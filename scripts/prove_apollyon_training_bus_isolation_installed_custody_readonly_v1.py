@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import types
 import importlib.util
 import json
 import os
@@ -15,6 +16,8 @@ OBSERVER=ROOT/"ops/xiphos/apollyon_training_bus_isolation_installed_custody_read
 UNIT_SOURCE=ROOT/"ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
 PREENTRY_SOURCE=ROOT/"ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
 LOCK_FIXTURE=ROOT/"fixtures/security/apollyon-training-preentry-binary-candidate-lock-v1.json"
+LOCK_VALIDATOR=ROOT/"scripts/prove_apollyon_training_preentry_binary_candidate_lock_v1.py"
+EXPECTED_LOCK_VALIDATOR_BLOB="75aa69044b9413aad51352b760f7bd81806b0063"
 CC="/usr/bin/cc"
 FLAGS=(
     "-std=c11","-O2","-Wall","-Wextra","-Werror",
@@ -32,6 +35,26 @@ def load_observer():
         raise AssertionError("observer import unavailable")
     module=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def load_lock_validator(observer_module):
+    source=LOCK_VALIDATOR.read_bytes()
+    if observer_module.git_blob_sha1(source)!=EXPECTED_LOCK_VALIDATOR_BLOB:
+        raise AssertionError("merged candidate lock validator Git blob mismatch")
+    module=types.ModuleType("void_apollyon_preentry_lock_validator_v1")
+    module.__file__=os.fspath(LOCK_VALIDATOR)
+    code=compile(
+        source,
+        os.fspath(LOCK_VALIDATOR),
+        "exec",
+        dont_inherit=True,
+        optimize=0,
+    )
+    exec(code,module.__dict__)
+    for name in ("load_validator","validate_lock","require_reviewed_head_ancestry"):
+        if not callable(getattr(module,name,None)):
+            raise AssertionError("candidate lock validator export missing: "+name)
     return module
 
 
@@ -73,20 +96,25 @@ def main()->int:
     module=load_observer()
     module.self_test()
 
-    lock=json.loads(LOCK_FIXTURE.read_text(encoding="utf-8"))
-    if lock["lock_id"]!=module.EXPECTED_LOCK_ID:
-        raise AssertionError("merged candidate lock ID drift")
-    if lock["candidate"]["candidate_id"]!=module.EXPECTED_CANDIDATE_ID:
-        raise AssertionError("merged candidate ID drift")
-    if lock["candidate"]["binary_sha256"]!=module.EXPECTED_PREENTRY_SHA256:
-        raise AssertionError("merged candidate binary SHA-256 drift")
-    if lock["candidate"]["binary_bytes"]!=module.EXPECTED_PREENTRY_BYTES:
-        raise AssertionError("merged candidate byte count drift")
-    if (
-        lock["next_gate"]!=
-        "installed_apollyon_training_bus_isolation_qualification_v1"
-    ):
-        raise AssertionError("merged candidate lock handoff drift")
+    lock_bytes=LOCK_FIXTURE.read_bytes()
+    try:
+        lock=json.loads(lock_bytes)
+    except json.JSONDecodeError as exc:
+        raise AssertionError("merged candidate lock JSON invalid") from exc
+    if module.canonical(lock)+"\n"!=lock_bytes.decode("utf-8"):
+        raise AssertionError("merged candidate lock is not canonical")
+    lock_validator=load_lock_validator(module)
+    lock_validator.require_reviewed_head_ancestry()
+    candidate_validator=lock_validator.load_validator()
+    lock_validator.validate_lock(lock,candidate_validator)
+    if lock_validator.EXPECTED_LOCK_ID!=module.EXPECTED_LOCK_ID:
+        raise AssertionError("observer lock ID does not match canonical validator")
+    if lock_validator.EXPECTED_CANDIDATE_ID!=module.EXPECTED_CANDIDATE_ID:
+        raise AssertionError("observer candidate ID does not match canonical validator")
+    if lock_validator.EXPECTED_BINARY_SHA256!=module.EXPECTED_PREENTRY_SHA256:
+        raise AssertionError("observer binary SHA-256 does not match canonical validator")
+    if lock_validator.EXPECTED_BINARY_BYTES!=module.EXPECTED_PREENTRY_BYTES:
+        raise AssertionError("observer binary byte count does not match canonical validator")
 
     unit_bytes=UNIT_SOURCE.read_bytes()
     if module.git_blob_sha1(unit_bytes)!=module.EXPECTED_UNIT_GIT_BLOB_SHA1:
@@ -129,12 +157,19 @@ def main()->int:
             owner_uid=os.getuid(),
             owner_gid=os.getgid(),
             require_xiphos=False,
+            observation_scope="synthetic_fixture",
             trusted_root=trusted,
         )
-        if result["installed_unit_identity_observed"] is not True:
-            raise AssertionError("unit identity not observed")
-        if result["installed_preentry_binary_identity_observed"] is not True:
-            raise AssertionError("pre-entry identity not observed")
+        if result["observation_scope"]!="synthetic_fixture":
+            raise AssertionError("synthetic observation scope mismatch")
+        if result["synthetic_fixture_unit_identity_observed"] is not True:
+            raise AssertionError("synthetic unit identity not observed")
+        if result["synthetic_fixture_preentry_binary_identity_observed"] is not True:
+            raise AssertionError("synthetic pre-entry identity not observed")
+        if result["installed_unit_identity_observed"] is not False:
+            raise AssertionError("synthetic fixture overclaimed installed unit observation")
+        if result["installed_preentry_binary_identity_observed"] is not False:
+            raise AssertionError("synthetic fixture overclaimed installed binary observation")
         for key in (
             "installed_unit_identity_proven",
             "installed_preentry_binary_identity_proven",
@@ -164,7 +199,7 @@ def main()->int:
             lambda: module.qualify_materials(
                 unit,preentry,
                 owner_uid=os.getuid(),owner_gid=os.getgid(),
-                require_xiphos=False,trusted_root=trusted,
+                require_xiphos=False,observation_scope="synthetic_fixture",trusted_root=trusted,
             ),
         )
         unit.write_bytes(original_unit)
@@ -181,7 +216,7 @@ def main()->int:
             lambda: module.qualify_materials(
                 unit,preentry,
                 owner_uid=os.getuid(),owner_gid=os.getgid(),
-                require_xiphos=False,trusted_root=trusted,
+                require_xiphos=False,observation_scope="synthetic_fixture",trusted_root=trusted,
             ),
         )
         preentry.write_bytes(original_binary)
@@ -194,10 +229,33 @@ def main()->int:
             lambda: module.qualify_materials(
                 unit,preentry,
                 owner_uid=os.getuid(),owner_gid=os.getgid(),
-                require_xiphos=False,trusted_root=trusted,
+                require_xiphos=False,observation_scope="synthetic_fixture",trusted_root=trusted,
             ),
         )
         os.chmod(preentry,0o755)
+
+        original_open=module.os.open
+        def raced_open(path,*args,**kwargs):
+            if Path(path)==preentry:
+                raise OSError("synthetic O_NOFOLLOW race")
+            return original_open(path,*args,**kwargs)
+        module.os.open=raced_open
+        try:
+            expect_hold(
+                module,
+                "apollyon_training_installed_custody_file_open_failed",
+                lambda: module.read_stable_regular_file(
+                    preentry,
+                    owner_uid=os.getuid(),
+                    owner_gid=os.getgid(),
+                    mode=module.EXPECTED_PREENTRY_MODE,
+                    maximum_bytes=module.MAX_PREENTRY_BYTES,
+                    exact_bytes=module.EXPECTED_PREENTRY_BYTES,
+                    trusted_root=trusted,
+                ),
+            )
+        finally:
+            module.os.open=original_open
 
         real_dir=trusted/"real-bin"
         real_dir.mkdir(mode=0o755)
@@ -213,7 +271,7 @@ def main()->int:
             lambda: module.qualify_materials(
                 unit,symlink_parent/preentry.name,
                 owner_uid=os.getuid(),owner_gid=os.getgid(),
-                require_xiphos=False,trusted_root=trusted,
+                require_xiphos=False,observation_scope="synthetic_fixture",trusted_root=trusted,
             ),
         )
 
@@ -232,6 +290,16 @@ def main()->int:
             raise AssertionError("observer mutation call: "+fn.attr)
         if isinstance(fn,ast.Name) and fn.id in forbidden_calls:
             raise AssertionError("observer mutation call: "+fn.id)
+    for required in (
+        "ancestor_after=assert_ancestor_custody(",
+        "apollyon_training_installed_custody_ancestor_identity_drift",
+        "apollyon_training_installed_custody_file_open_failed",
+        'observation_scope=="live_installed"',
+        'observation_scope=="synthetic_fixture"',
+    ):
+        if required not in source:
+            raise AssertionError("observer missing hardening: "+required)
+
     for forbidden in (
         "subprocess","systemctl","busctl","pkcheck","createPrivateKey",
         "signTransaction","eth_sendRawTransaction",
@@ -243,17 +311,22 @@ def main()->int:
         "VOID_APOLLYON_TRAINING_BUS_ISOLATION_"
         "INSTALLED_CUSTODY_READONLY_V1_PROOF_GREEN"
     )
-    print("merged_candidate_lock_bound=true")
+    print("merged_candidate_lock_full_schema_validated=true")
+    print("merged_candidate_lock_id_recomputed=true")
     print("exact_locked_candidate_binary_reproduced=true")
     print("exact_reviewed_unit_bytes_bound=true")
     print("stable_no_follow_reads=true")
     print("trusted_ancestry_required=true")
+    print("ancestor_custody_revalidated_after_read=true")
+    print("nofollow_open_race_translated_to_hold=true")
     print("unit_tamper_rejected=true")
     print("binary_tamper_rejected=true")
     print("permission_drift_rejected=true")
     print("symlink_ancestor_rejected=true")
-    print("installed_unit_identity_observed=true")
-    print("installed_preentry_binary_identity_observed=true")
+    print("synthetic_fixture_unit_identity_observed=true")
+    print("synthetic_fixture_preentry_binary_identity_observed=true")
+    print("installed_unit_identity_observed=false")
+    print("installed_preentry_binary_identity_observed=false")
     print("installed_unit_identity_proven=false")
     print("installed_preentry_binary_identity_proven=false")
     print("trusted_observer_proven=false")
