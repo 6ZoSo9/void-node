@@ -84,6 +84,11 @@ export type BuyVoidV2LiveProcessCollectionPlanV1=Readonly<{
   selector_ready_and_green_same_generation:true;
   manager_and_service_pidfds_retained_by_selector:true;
   systemctl_user_selector_authority:false;
+  process_environment_read_performed:true;
+  selector_process_execution_performed:true;
+  filesystem_read_performed:true;
+  filesystem_write_performed:false;
+  network_contact_performed:false;
   receipt_publication_authorized:false;
   production_source_finality_authority_ready:false;
   public_presale_activation:false;
@@ -418,6 +423,11 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
       selector_ready_and_green_same_generation:true as const,
       manager_and_service_pidfds_retained_by_selector:true as const,
       systemctl_user_selector_authority:false as const,
+      process_environment_read_performed:true as const,
+      selector_process_execution_performed:true as const,
+      filesystem_read_performed:true as const,
+      filesystem_write_performed:false as const,
+      network_contact_performed:false as const,
       receipt_publication_authorized:false as const,
       production_source_finality_authority_ready:false as const,
       public_presale_activation:false as const,
