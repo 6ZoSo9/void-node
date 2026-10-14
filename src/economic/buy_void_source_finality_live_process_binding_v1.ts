@@ -422,7 +422,7 @@ export function classifyBuyVoidSourceFinalityLiveProcessBindingV1(input:{
     if(receipt.deployment_receipt_id!==input.deployment_receipt_id){
       return held("deployment_receipt_id_mismatch");
     }
-    const pairs:readonly [keyof BuyVoidSourceFinalitySelfProcessIdentityV1,unknown][]=[
+    const pairs:ReadonlyArray<readonly [keyof BuyVoidSourceFinalitySelfProcessIdentityV1,unknown]>=[
       ["process_source_identity_marker",receipt.process_source_identity_marker],
       ["process_source_commit",receipt.process_source_commit],
       ["process_source_tree",receipt.process_source_tree],
