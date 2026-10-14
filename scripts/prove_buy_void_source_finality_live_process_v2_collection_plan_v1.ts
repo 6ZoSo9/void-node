@@ -42,7 +42,8 @@ const material={
   cwd_realpath:"/opt/void-node-live/releases/"+"3".repeat(40),
   node_options_sha256:"6".repeat(64),
   canonical_producer_role:true,capabilities_zero:true,no_new_privileges:true,
-  source_custody_proven:true,selector_ready_and_green_same_generation:true,
+  source_generation_verified:true,reviewed_launcher_shape_verified:true,
+  selector_ready_and_green_same_generation:true,
   manager_and_service_pidfds_retained_by_selector:true,
   systemctl_user_selector_authority:false,receipt_publication_authorized:false,
   production_source_finality_authority_ready:false,public_presale_activation:false,
@@ -63,7 +64,10 @@ for(const required of [
   "EXPECTED_SELECTOR_BYTES",
   'child.stdin.write("VERIFY\\n")',
   "selector_ready_green_generation_mismatch",
-  "source_custody_proven:true",
+  "source_generation_verified:true",
+  "reviewed_launcher_shape_verified:true",
+  "service_release_path_invalid",
+  "service_launcher_shape_invalid",
   "receipt_publication_authorized:false",
   "systemctl_user_selector_authority:false",
 ]) assert.equal(source.includes(required),true,required);
@@ -77,6 +81,8 @@ console.log("selector_elf_lock_bound=true");
 console.log("selector_pidfd_handshake_required=true");
 console.log("selector_ready_green_same_generation_required=true");
 console.log("process_source_generation_verified=true");
+console.log("reviewed_launcher_shape_verified=true");
+console.log("source_custody_overclaim=false");
 console.log("receipt_publication_authorized=false");
 console.log("production_source_finality_authority_ready=false");
 console.log("public_presale_activation=false");
