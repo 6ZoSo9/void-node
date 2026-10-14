@@ -159,7 +159,7 @@ const unverifiedLiveProcessBinding = {
 } as any;
 
 const classifyProvider = (input: any) =>
-  classifyProvider({
+  classifyBuyVoidSourceFinalityProviderQuorumV7({
     ...input,
     live_process_binding: unverifiedLiveProcessBinding,
   });
