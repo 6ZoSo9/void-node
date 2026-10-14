@@ -1639,7 +1639,10 @@ try {
         return;
       }
 
-      const resolved = safeResolveStatic(root, realRoot, req.url || "/");
+      const resolved = safeResolveStatic(
+        staticRootAuthority,
+        req.url || "/",
+      );
       if (resolved.error) {
         const messages = {
           400: "bad request\n",
@@ -1651,7 +1654,10 @@ try {
         return;
       }
 
-      const body = readFileSync(resolved.file);
+      const body = readResolvedTorStaticV1(
+        staticRootAuthority,
+        resolved,
+      );
       send(res, 200, body, method, contentType(resolved.file));
     })().catch(() => {
       req.resume();
