@@ -78,9 +78,10 @@ bytes, and exercises the real observer against disposable installed-path
 fixtures.
 
 Negative proofs cover unit-byte drift, ELF-byte drift, permission drift,
-symlinked-ancestor substitution, a raced `O_NOFOLLOW` open failure, and a
-synthetic descriptor-read I/O failure. Both failure classes must become
-deterministic HOLDs rather than uncaught tracebacks.
+symlinked-ancestor substitution, a raced `O_NOFOLLOW` open failure,
+synthetic descriptor-read I/O failure, and an OS-level hostname lookup failure.
+Operational observation failures must become deterministic HOLDs rather than
+uncaught tracebacks.
 
 ## Truth boundary
 
