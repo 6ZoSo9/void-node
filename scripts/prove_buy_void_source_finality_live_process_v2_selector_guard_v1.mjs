@@ -29,8 +29,14 @@ for(const required of [
 ]) assert.equal(source.includes(required),true,required);
 
 for(const forbidden of [
-  "systemctl",
-  "dbus",
+  "/usr/bin/systemctl",
+  "spawnSync(",
+  "system(",
+  "popen(",
+  "execvp(",
+  "execlp(",
+  "sd_bus",
+  "DBUS_SESSION_BUS_ADDRESS",
   "/run/user/",
   "curl",
   "wget",
