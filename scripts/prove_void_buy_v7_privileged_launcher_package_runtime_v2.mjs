@@ -303,6 +303,8 @@ function provePrivateTsxExecution(lock,packages){
     fs.chmodSync(esbuildBinary,0o500);
     makePrivateDirectoriesReadOnly(path.join(destination,"node_modules"));
 
+    const scratch=path.join(destination,"scratch");
+    fs.mkdirSync(scratch,{mode:0o700});
     const tsconfig=path.join(destination,"tsconfig.json");
     const probe=path.join(destination,"probe.ts");
     fs.writeFileSync(
@@ -325,6 +327,7 @@ function provePrivateTsxExecution(lock,packages){
       [
         "--permission",
         "--allow-fs-read="+destination,
+        "--allow-fs-write="+scratch,
         "--allow-child-process",
         cli,
         probe,
@@ -341,6 +344,9 @@ function provePrivateTsxExecution(lock,packages){
           LANG:"C",
           LC_ALL:"C",
           TZ:"UTC",
+          TMPDIR:scratch,
+          TMP:scratch,
+          TEMP:scratch,
         },
       },
     );
@@ -355,7 +361,7 @@ function provePrivateTsxExecution(lock,packages){
     assert.equal(sha256(fs.readFileSync(probe)),probeBefore,"tsx_probe_mutated");
     assert.deepEqual(
       fs.readdirSync(destination).sort(),
-      ["node_modules","probe.ts","tsconfig.json"],
+      ["node_modules","probe.ts","scratch","tsconfig.json"],
       "tsx_private_runtime_root_mutated",
     );
     const after=packages.map(row=>privatePackageRecord(destination,row))
@@ -368,6 +374,8 @@ function provePrivateTsxExecution(lock,packages){
       tsx_private_materialization_verified:true,
       tsx_inert_transform_execution_verified:true,
       esbuild_runtime_execution_verified:true,
+      tsx_scratch_write_scope_private:true,
+      tsx_scratch_outside_package_tree:true,
       ancestor_package_resolution_blocked_by_fs_permission:true,
       ambient_node_resolution_overrides_inherited:false,
       execution_probe_mutated:false,
@@ -476,6 +484,8 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     tsx_private_materialization_verified:execution.tsx_private_materialization_verified,
     tsx_inert_transform_execution_verified:execution.tsx_inert_transform_execution_verified,
     esbuild_runtime_execution_verified:execution.esbuild_runtime_execution_verified,
+    tsx_scratch_write_scope_private:execution.tsx_scratch_write_scope_private,
+    tsx_scratch_outside_package_tree:execution.tsx_scratch_outside_package_tree,
     ancestor_package_resolution_blocked_by_fs_permission:execution.ancestor_package_resolution_blocked_by_fs_permission,
     ambient_node_resolution_overrides_inherited:execution.ambient_node_resolution_overrides_inherited,
     execution_probe_mutated:execution.execution_probe_mutated,
@@ -504,6 +514,8 @@ function report(j){
   console.log("tsx_private_materialization_verified=true");
   console.log("tsx_inert_transform_execution_verified=true");
   console.log("esbuild_runtime_execution_verified=true");
+  console.log("tsx_scratch_write_scope_private=true");
+  console.log("tsx_scratch_outside_package_tree=true");
   console.log("privileged_launcher_package_runtime_verified=true");
   console.log("protected_source_install_authorized=false");
   console.log("privileged_receipt_execution_authorized=false");

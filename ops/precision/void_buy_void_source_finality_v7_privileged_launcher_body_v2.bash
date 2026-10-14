@@ -12,7 +12,7 @@ STAT="/usr/bin/stat"
 ENV="/usr/bin/env"
 GREP="/usr/bin/grep"
 PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
-PACKAGE_RUNTIME_PROOF_BLOB="c4c95142b617ca4a4279e31ff11e7f9953ba2409"
+PACKAGE_RUNTIME_PROOF_BLOB="2b536754f6213e0522a64d566d26cbe8074eac90"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
@@ -174,6 +174,12 @@ printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'esbuild_runtime_execution_verified=true' >/dev/null ||
   hold privileged_launcher_esbuild_execution_not_verified
 printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'tsx_scratch_write_scope_private=true' >/dev/null ||
+  hold privileged_launcher_tsx_scratch_scope_not_verified
+printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'tsx_scratch_outside_package_tree=true' >/dev/null ||
+  hold privileged_launcher_tsx_scratch_boundary_not_verified
+printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
   hold privileged_launcher_package_runtime_not_verified
 printf '%s\n' "$package_runtime_out" |
@@ -195,6 +201,8 @@ printf 'package_runtime_proof_git_blob_sha1=%s\n' "$PACKAGE_RUNTIME_PROOF_BLOB"
 printf 'tsx_private_materialization_verified=true\n'
 printf 'tsx_inert_transform_execution_verified=true\n'
 printf 'esbuild_runtime_execution_verified=true\n'
+printf 'tsx_scratch_write_scope_private=true\n'
+printf 'tsx_scratch_outside_package_tree=true\n'
 printf 'privileged_launcher_package_runtime_verified=true\n'
 printf 'ambient_git_environment_inherited=false\n'
 printf 'ambient_node_environment_inherited=false\n'
