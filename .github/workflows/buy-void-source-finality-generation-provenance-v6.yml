@@ -7,6 +7,9 @@ on:
       - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v7.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts"
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "src/economic/buy_void_source_finality_authority_v2.ts"
@@ -73,6 +76,8 @@ jobs:
             src/economic/buy_void_source_finality_generation_provenance_v7.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v7.ts \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
 
       - name: Prove reviewed source-file binding V6
@@ -91,6 +96,18 @@ jobs:
           grep -Fx 'cloned_deployment_object_rejected=true' "$proof_log"
           grep -Fx 'writable_parent_rejected=true' "$proof_log"
           grep -Fx 'root_custody_positive_exercised=true' "$proof_log"
+
+      - name: Prove V7 root-custodied deployment receipt installer
+        run: |
+          set -euo pipefail
+          install_log="$RUNNER_TEMP/source-finality-v7-receipt-installer.txt"
+          sudo env "PATH=$PATH" ./node_modules/.bin/tsx \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            | tee "$install_log"
+          grep -Fx 'root_custodied_create_once_positive=true' "$install_log"
+          grep -Fx 'matching_reapply_idempotent=true' "$install_log"
+          grep -Fx 'mismatched_existing_receipt_rejected=true' "$install_log"
+          grep -Fx 'funds_movement=false' "$install_log"
 
       - name: Prove V6 preflight shares the total deadline
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts
