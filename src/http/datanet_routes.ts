@@ -217,6 +217,21 @@ type VerifiedDataNetChunkSnapshotV1 = Readonly<{
   size: number;
 }>;
 
+function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mode === b.mode &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs
+  );
+}
+
+function sameDataNetChunkInodeV1(a: fs.Stats, b: fs.Stats): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
 function readVerifiedDataNetChunkSnapshotV1(
   file: string,
   expectedLeaf: string,
