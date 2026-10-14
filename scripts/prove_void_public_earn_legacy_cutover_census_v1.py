@@ -27,6 +27,9 @@ for required in [
     "status_route_preservation_required",
     "running_source_matches_ready_2993",
     "safe_to_stage_system_gateway_on_4122_while_legacy_running",
+    "hostname_matches_precision",
+    "ordinary_user_observer",
+    "effective_user_is_zoso",
     "live_cutover_authorized",
 ]:
     assert required in source, required
