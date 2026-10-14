@@ -14,8 +14,10 @@ and the accepted selector lock before execution.
 The selector stays alive holding manager/service pidfds. After its READY line,
 the collector independently checks the selected service's UID/GID,
 capabilities, NoNewPrivs, source identity, cgroup, start ticks, cmdline digest,
-initial loader environment, executable/cwd and exact clean main source
-generation. Only then does it send `VERIFY`; the selector must re-prove the
+initial loader environment, executable/cwd, the exact commit/tree-bound
+Node/TSX launcher argv and exact clean main release generation. This plan does
+not claim the broader source-custody receipt proof; that remains a final
+protected-collector responsibility. Only then does it send `VERIFY`; the selector must re-prove the
 same kernel generation and exit GREEN.
 
 Output is a content-addressed `voidbsv2colplan1_` collection plan only. It
