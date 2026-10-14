@@ -50,7 +50,8 @@ for value in [
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
- "canonical_training_user","getpwnam(name)","getpwuid(forward.pw_uid)",
+ "canonical_training_user","passwd_identity","assert_training_user_mapping_stable",
+ "getpwnam(name)","getpwuid(forward.pw_uid)","reverse_again=pwd.getpwuid(forward.pw_uid)",
  "process_has_training_uid_thread","/task/","collect_training_uid_processes","training_uid_process_inventory",
  "all_training_uid_processes_capability_free",
  "'training_user':tr.pw_name",
@@ -82,8 +83,14 @@ assert source.count("def training_thread_subject") == 1
 assert source.count("def training_process_thread_inventory") == 1
 assert source.count("def zero_capability_credentials") == 1
 assert source.count("def parse_systemd_bus_owner_pid") == 1
+assert source.count("def canonical_training_user") == 1
+assert source.count("def assert_training_user_mapping_stable") == 1
 assert source.count("def service_control_evidence") == 1
 assert "process['subject']" not in source
+authorization_index=source.index("control=service_control_evidence(tr,a.training_pid,a.service_unit)")
+nss_recheck_index=source.index("assert_training_user_mapping_stable(tr)")
+service_index=source.index("service=service_evidence(a.service_unit",nss_recheck_index)
+assert authorization_index<nss_recheck_index<service_index
 assert source.count("def collect(a)") == 1
 assert source.count("if __name__=='__main__':raise SystemExit(main())") == 1
 assert source.rstrip().endswith("if __name__=='__main__':raise SystemExit(main())")
@@ -163,6 +170,53 @@ try:
   raise AssertionError('failed bus credential lookup unexpectedly ignored')
 finally:
  mod.run_status=original_run_status
+class SyntheticPasswd:
+ def __init__(self,name,uid=1000,gid=1000):
+  self.pw_name=name
+  self.pw_uid=uid
+  self.pw_gid=gid
+original_getpwnam=mod.pwd.getpwnam
+original_getpwuid=mod.pwd.getpwuid
+reverse_calls=0
+def stable_forward(name):
+ if name!='zoso':raise KeyError(name)
+ return SyntheticPasswd('zoso')
+def drifting_reverse(uid):
+ global reverse_calls
+ reverse_calls+=1
+ return SyntheticPasswd('zoso' if reverse_calls==1 else 'alias',uid)
+try:
+ mod.pwd.getpwnam=stable_forward
+ mod.pwd.getpwuid=drifting_reverse
+ try:
+  mod.canonical_training_user('zoso')
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('second reverse NSS drift unexpectedly admitted')
+finally:
+ mod.pwd.getpwnam=original_getpwnam
+ mod.pwd.getpwuid=original_getpwuid
+
+training_identity=SyntheticPasswd('zoso')
+def post_forward(name):
+ if name!='zoso':raise KeyError(name)
+ return SyntheticPasswd('zoso')
+def post_reverse(uid):
+ return SyntheticPasswd('alias',uid)
+try:
+ mod.pwd.getpwnam=post_forward
+ mod.pwd.getpwuid=post_reverse
+ try:
+  mod.assert_training_user_mapping_stable(training_identity)
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('post-authorization reverse NSS drift unexpectedly admitted')
+finally:
+ mod.pwd.getpwnam=original_getpwnam
+ mod.pwd.getpwuid=original_getpwuid
+
 synthetic_status='''Name:\tfixture
 Uid:\t1000\t1000\t1000\t1000
 CapInh:\t0000000000000000
@@ -401,6 +455,8 @@ print('training_uid_process_full_identity_double_snapshot=true')
 print('system_bus_credential_lookup_fail_closed=true')
 print('nontraining_busctl_census_client_excluded_prelookup=true')
 print('relevant_bus_sender_credentials_still_authoritative=true')
+print('training_username_forward_reverse_double_snapshot=true')
+print('training_username_post_authorization_recheck=true')
 print('training_uid_process_set_stability_required=true')
 print('systemd_bus_owner_pid_is_pid1_required=true')
 print('reviewed_systemd_package_version=255.4-1ubuntu8.11')

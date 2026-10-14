@@ -81,22 +81,41 @@ def no_acl(path:Path)->bool:
 def user(name:str):
  try:return pwd.getpwnam(name)
  except KeyError as e: raise Hold('apollyon_custody_collector_user_missing') from e
+def passwd_identity(value)->tuple[str,int,int]:
+ return (value.pw_name,value.pw_uid,value.pw_gid)
 def canonical_training_user(name:str):
  try:
   forward=pwd.getpwnam(name)
   reverse=pwd.getpwuid(forward.pw_uid)
   again=pwd.getpwnam(name)
+  reverse_again=pwd.getpwuid(forward.pw_uid)
  except KeyError as e:
   raise Hold('apollyon_custody_collector_training_user_missing') from e
- identity=lambda value:(value.pw_name,value.pw_uid,value.pw_gid)
+ expected=passwd_identity(forward)
  if (
   forward.pw_name!=name or
   reverse.pw_name!=name or
-  identity(forward)!=identity(reverse) or
-  identity(forward)!=identity(again)
+  reverse_again.pw_name!=name or
+  passwd_identity(reverse)!=expected or
+  passwd_identity(again)!=expected or
+  passwd_identity(reverse_again)!=expected
  ):
   hold('apollyon_custody_collector_training_user_not_canonical')
  return forward
+def assert_training_user_mapping_stable(training)->None:
+ try:
+  forward=pwd.getpwnam(training.pw_name)
+  reverse=pwd.getpwuid(training.pw_uid)
+ except KeyError as e:
+  raise Hold('apollyon_custody_collector_training_user_mapping_changed') from e
+ expected=passwd_identity(training)
+ if (
+  forward.pw_name!=training.pw_name or
+  reverse.pw_name!=training.pw_name or
+  passwd_identity(forward)!=expected or
+  passwd_identity(reverse)!=expected
+ ):
+  hold('apollyon_custody_collector_training_user_mapping_changed')
 def group(name:str):
  try:return grp.getgrnam(name)
  except KeyError as e: raise Hold('apollyon_custody_collector_group_missing') from e
@@ -655,13 +674,14 @@ def collect(a)->dict[str,Any]:
  if cu.pw_gid in tg or tr.pw_gid in cg:hold('apollyon_custody_collector_primary_group_cross_membership')
  sr=canonical_abs(a.state_root,'apollyon_custody_collector_state_root_invalid'); sp=canonical_abs(a.socket_path,'apollyon_custody_collector_socket_path_invalid')
  if sp.parent==sr or sp.parent.is_relative_to(sr) or sr.is_relative_to(sp.parent):hold('apollyon_custody_collector_paths_not_separated')
- sev,cev,spev,sockev=path_evidence(sr,sp,tr,cu,ipc.gr_gid); control=service_control_evidence(tr,a.training_pid,a.service_unit); service=service_evidence(a.service_unit,sr,sp.parent,cu,ipc.gr_gid,control); snap=snapshot(a.ttl_ms); now=time.time_ns()//1_000_000
+ sev,cev,spev,sockev=path_evidence(sr,sp,tr,cu,ipc.gr_gid); control=service_control_evidence(tr,a.training_pid,a.service_unit); assert_training_user_mapping_stable(tr); service=service_evidence(a.service_unit,sr,sp.parent,cu,ipc.gr_gid,control); snap=snapshot(a.ttl_ms); now=time.time_ns()//1_000_000
  if now<snap['observed_at_ms'] or now>=snap['expires_at_ms']:hold('apollyon_custody_collector_clock_window_invalid')
  return {'consumed_directory':cev,'evidence_snapshot':snap,'identities':{'custody_gid':cu.pw_gid,'custody_supplementary_gids':cg,'custody_uid':cu.pw_uid,'ipc_gid':ipc.gr_gid,'training_gid':tr.pw_gid,'training_supplementary_gids':tg,'training_uid':tr.pw_uid,'training_user':tr.pw_name},'marker':EVIDENCE_MARKER,'service':service,'service_control':control,'socket':sockev,'socket_parent':spev,'source_binding':source,'state_root':sev,'target_host':TARGET_HOST,'verification_now_ms':now,'version':2}
 def self_test():
  current_name=pwd.getpwuid(os.getuid()).pw_name
  canonical_current=canonical_training_user(current_name)
  assert canonical_current.pw_name==current_name
+ assert_training_user_mapping_stable(canonical_current)
  assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')['installed_systemd_package_version']=='255.4-1ubuntu8.11'; assert parse_running_systemd_manager_version('s \"255.4-1ubuntu8.11\"')['running_systemd_manager_major']==255; assert parse_systemd_bus_owner_pid('u 1')['systemd_bus_owner_pid_is_pid1'] is True; assert REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',); assert SYSTEM_BUS_UNIQUE_NAME_RE.fullmatch(':1.42') is not None; assert parse_busctl_unique_names(':1.2 2 service root\n:1.1 1 other root\n')==[':1.1',':1.2']; assert b'polkit.message' not in expected_polkit_deny_rule('training'); assert b'action.id' in expected_polkit_deny_rule('training'); assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
  try:boolprop('bad')
  except Hold:pass
