@@ -13,6 +13,10 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v2.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-v7-v2-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-final-v7-v2-lock-v1.json"
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_lock_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-lock-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v2.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
@@ -33,6 +37,10 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v2.mjs"
       - "scripts/prove_buy_void_enforcement_final_v7_v2_candidate_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-v7-v2-candidate-v1.json"
+      - "ops/security/buy-void-enforcement-final-v7-v2-lock-v1.json"
+      - "scripts/prove_buy_void_enforcement_final_v7_v2_lock_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-v7-v2-lock-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v2.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
@@ -410,3 +418,76 @@ jobs:
           console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
           console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
           NODE
+
+  final-v7-v2-enforcement-lock:
+    needs: [final-v7-v2-enforcement-candidate-cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact lock head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Download exact same-run V2 candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-v7-v2-enforcement-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: candidate
+      - name: Bind committed candidate and derive exact lock
+        run: |
+          set -euo pipefail
+          cmp "candidate/final-v7-v2-candidate-${{ matrix.node }}.json"             "ops/security/buy-void-enforcement-final-v7-v2-candidate-v1.json"
+          node --check scripts/prove_buy_void_enforcement_final_v7_v2_lock_v1.mjs
+          node scripts/prove_buy_void_enforcement_final_v7_v2_lock_v1.mjs --self-test |
+            tee "lock-${{ matrix.node }}.txt"
+          node scripts/prove_buy_void_enforcement_final_v7_v2_lock_v1.mjs --derive             > "lock-${{ matrix.node }}.json"
+          cmp "lock-${{ matrix.node }}.json"             "ops/security/buy-void-enforcement-final-v7-v2-lock-v1.json"
+          grep -Fx 'candidate_enforcement_identity_accepted=true' "lock-${{ matrix.node }}.txt"
+          grep -Fx 'production_source_finality_authority_ready=false' "lock-${{ matrix.node }}.txt"
+          grep -Fx 'public_presale_activation=false' "lock-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "lock-${{ matrix.node }}.txt"
+      - name: Upload exact lock evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-final-v7-v2-enforcement-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            lock-${{ matrix.node }}.json
+            lock-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  final-v7-v2-enforcement-lock-cross-node:
+    needs: [final-v7-v2-enforcement-lock]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major lock evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-final-v7-v2-enforcement-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: lock
+      - name: Require exact Node 22 24 26 lock equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "lock/lock-$node.json"
+            test -s "lock/lock-$node.txt"
+          done
+          cmp lock/lock-22.json lock/lock-24.json
+          cmp lock/lock-22.json lock/lock-26.json
+          cmp lock/lock-22.txt lock/lock-24.txt
+          cmp lock/lock-22.txt lock/lock-26.txt
+          sha256sum lock/lock-22.json
+          echo "VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_LOCK_CROSS_NODE_GREEN"

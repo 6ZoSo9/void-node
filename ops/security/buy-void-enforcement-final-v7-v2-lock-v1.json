@@ -1,0 +1,33 @@
+{
+  "schema": "void_buy_void_enforcement_final_v7_v2_lock_v1",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_head": "d5a8e8914d830ed210cf6483590490632ac76454",
+  "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-v7-v2-candidate-v1.json",
+    "bytes": 5651,
+    "sha256": "929bdd377d64de242387a6db4d37e333333cdaaa4a31cece3126c352e2dcd085",
+    "git_blob_sha1": "c331e2dbef9fa4f82f3dfcc205a6564e836ad1df",
+    "candidate_enforcement_set_sha256": "d62a87d8c6adeccc3a25cc8e9fe3d7199dddee3ea8ac9706d15862adfd446697"
+  },
+  "source_parent": "82aee920f26b45c7e43bcc9f9e1023a175e2783a",
+  "hosted_census_id": "voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a",
+  "hosted_census_artifact_inventory_sha256": "8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496",
+  "hosted_census_source_inventory_sha256": "9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b",
+  "v7_executable_delta_generation_sha256": "cfac0b510932203623a4b9a0c09ad9c6639efdb04b0e5f1ff9feba15175f9311",
+  "v7_executable_delta_source_inventory_sha256": "55b409c31801d743af3e449edce3cdc5408170e16dfc285053a539208c44cacb",
+  "v7_executable_delta_artifact_inventory_sha256": "45ae15e681a209b0cecef9d581febd98e7cefaf3db72d2c869efedd59e2d5429",
+  "audited_package_profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+  "audited_package_profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+  "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+  "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+  "live_process_v2_static_execution_closure_verified": true,
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false
+}
