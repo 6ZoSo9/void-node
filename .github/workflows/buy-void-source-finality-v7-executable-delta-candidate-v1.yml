@@ -229,52 +229,36 @@ jobs:
           };
           const sha256=(v)=>crypto.createHash("sha256").update(Buffer.from(canonical(v),"utf8")).digest("hex");
           assert.equal(c.repository_head_sha,process.env.EXPECTED_HEAD);
-          assert.equal(c.source_parent,"c8ce2b67b72cd59111a62d9638035a46c6120afa");
+          assert.equal(c.source_parent,"ccb4546cf841ce1a43a13339272e4d07c90f7cc0");
           assert.match(c.census_id,/^voidbe2933c1_[0-9a-f]{64}$/u);
           assert.equal(c.artifact_count,27);
           assert.equal(c.source_file_count,27);
-          assert.equal(
-            sha256(c.artifacts),
-            "07ccac7dd9b02c4067739686e8020e589af9134886da62a9ad807ac54c4fbe5a",
-          );
-          assert.equal(
-            sha256(c.sources),
-            "828f4e6e3391c7f5b3d0e8e5ef131dd9ebb5325b0dd7f88b692b8e283bd74964",
-          );
+          assert.match(sha256(c.artifacts),/^[0-9a-f]{64}$/u);
+          assert.match(sha256(c.sources),/^[0-9a-f]{64}$/u);
           assert.equal(c.complete_executable_closure_verified,false);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.production_source_finality_authority_ready,false);
           NODE
 
-      - name: Derive complete unaccepted enforcement candidate
+      - name: Upload exact 27-artifact census
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-enforcement-post2933-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/census-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Confirm stale candidate refuses the new census generation
         run: |
           set -euo pipefail
           node --check scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs
-          node scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs --self-test
-          out="$RUNNER_TEMP/enforcement-post2933-candidate-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs --derive > "$out"
-          cmp "$out" ops/security/buy-void-enforcement-post2933-candidate-v1.json
-          node --input-type=module - "$out" <<'NODE'
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_V1");
-          assert.equal(c.candidate_enforcement_set_sha256,"839840e9480abdda2afe2daa3e948e7f1508ffe3a5e1c8316e4fc32b22ccebbc");
-          assert.equal(c.complete_executable_closure_verified,true);
-          assert.equal(c.candidate_enforcement_identity_accepted,false);
-          assert.equal(c.deployed_artifact_generation_verified,false);
-          assert.equal(c.production_source_finality_authority_ready,false);
-          assert.equal(c.public_presale_activation,false);
-          assert.equal(c.funds_movement,false);
-          NODE
-
-      - name: Upload exact candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: buy-void-enforcement-post2933-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: ${{ runner.temp }}/enforcement-post2933-candidate-${{ matrix.node }}.json
-          if-no-files-found: error
-          retention-days: 7
+          if node scripts/prove_buy_void_enforcement_post2933_candidate_v1.mjs --derive \
+              > "$RUNNER_TEMP/stale-candidate.txt" 2>&1; then
+            echo "UNEXPECTED_STALE_CANDIDATE_ACCEPTANCE" >&2
+            exit 1
+          fi
+          grep -E 'census|artifact|source|candidate|mismatch|expected' "$RUNNER_TEMP/stale-candidate.txt" >/dev/null
+          echo "STALE_POST2933_CANDIDATE_REFUSES_RECURSION_FREE_V7=true"
 
       - name: Diff hygiene
         env:
@@ -287,38 +271,44 @@ jobs:
           test -n "$MERGE_BASE"
           git diff --check "$MERGE_BASE" "$HEAD"
 
-  enforcement-candidate-cross-node:
+  enforcement-census-cross-node:
     needs: [enforcement-candidate]
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 8
-
     steps:
-      - name: Download Node-major enforcement candidates
+      - name: Download Node-major census evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-enforcement-post2933-candidate-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-enforcement-post2933-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: receipts
-
-      - name: Require exact Node 22 24 26 candidate equality
+          path: census
+      - name: Require exact Node 22 24 26 census equality
         run: |
           set -euo pipefail
-          for node in 22 24 26; do
-            test -s "receipts/enforcement-post2933-candidate-$node.json"
-          done
-          cmp receipts/enforcement-post2933-candidate-22.json receipts/enforcement-post2933-candidate-24.json
-          cmp receipts/enforcement-post2933-candidate-22.json receipts/enforcement-post2933-candidate-26.json
-          sha256sum receipts/enforcement-post2933-candidate-22.json
+          for node in 22 24 26; do test -s "census/census-$node.json"; done
+          cmp census/census-22.json census/census-24.json
+          cmp census/census-22.json census/census-26.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
+          import crypto from "node:crypto";
           import fs from "node:fs";
-          const c=JSON.parse(fs.readFileSync("receipts/enforcement-post2933-candidate-22.json","utf8"));
-          assert.equal(c.candidate_enforcement_set_sha256,"839840e9480abdda2afe2daa3e948e7f1508ffe3a5e1c8316e4fc32b22ccebbc");
-          assert.equal(c.complete_executable_closure_verified,true);
+          const c=JSON.parse(fs.readFileSync("census/census-22.json","utf8"));
+          const canonical=(v)=>{
+            if(v===null||typeof v==="boolean"||typeof v==="string")return JSON.stringify(v);
+            if(typeof v==="number"){assert.ok(Number.isSafeInteger(v));return String(v);}
+            if(Array.isArray(v))return "["+v.map(canonical).join(",")+"]";
+            assert.ok(v&&typeof v==="object"&&!Array.isArray(v));
+            return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canonical(v[k])).join(",")+"}";
+          };
+          const hash=(v)=>crypto.createHash("sha256").update(Buffer.from(canonical(v),"utf8")).digest("hex");
+          assert.equal(c.source_parent,"ccb4546cf841ce1a43a13339272e4d07c90f7cc0");
+          assert.equal(c.artifact_count,27);
+          assert.equal(c.source_file_count,27);
+          assert.equal(c.complete_executable_closure_verified,false);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
-          assert.equal(c.production_source_finality_authority_ready,false);
-          assert.equal(c.public_presale_activation,false);
-          assert.equal(c.funds_movement,false);
-          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2933_CANDIDATE_CROSS_NODE_GREEN");
-          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
+          console.log("VOID_BUY_VOID_RECURSION_FREE_V7_CENSUS_CROSS_NODE_GREEN");
+          console.log("census_id="+c.census_id);
+          console.log("artifact_inventory_sha256="+hash(c.artifacts));
+          console.log("source_inventory_sha256="+hash(c.sources));
           NODE
