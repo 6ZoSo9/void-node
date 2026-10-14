@@ -482,7 +482,7 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   ) {
     return held("source_finality_provider_independence_invalid");
   }
-  if (!input.deployment.ok) return held(input.deployment.reason);
+  if (input.deployment.ok === false) return held(input.deployment.reason);
   const primary = input.primary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   const secondary = input.secondary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   for (const [label, observed, endpoint] of [
@@ -622,7 +622,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
     deployment_receipt_path: input.policy.deployment_receipt_path,
     process_source_identity: input.policy.process_source_identity,
   });
-  if (!deployment.ok) return held(deployment.reason);
+  if (deployment.ok === false) return held(deployment.reason);
 
   const primaryEndpoint = providerEndpoint(input.policy.primary);
   const secondaryEndpoint = providerEndpoint(input.policy.secondary);
