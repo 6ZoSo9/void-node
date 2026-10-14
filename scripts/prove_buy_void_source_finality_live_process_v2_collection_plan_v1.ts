@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1,
@@ -77,15 +79,52 @@ for(const required of [
   "network_contact_performed:false",
   "receipt_publication_authorized:false",
   "systemctl_user_selector_authority:false",
+  'child.on("error",persistent_error_listener)',
+  "selector_process_spawn_error:",
+  "--test-only-selector-spawn-error",
 ]) assert.equal(source.includes(required),true,required);
 for(const forbidden of [
   "systemctl --user","DBUS_SESSION_BUS_ADDRESS","eth_sendRawTransaction",
   "eth_sendTransaction","PRIVATE_KEY","SEED_PHRASE",
 ]) assert.equal(source.includes(forbidden),false,forbidden);
 
+const cli=spawnSync(
+  process.execPath,
+  [
+    path.join("node_modules","tsx","dist","cli.mjs"),
+    "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts",
+    "--test-only-selector-spawn-error",
+  ],
+  {
+    cwd:process.cwd(),
+    encoding:"utf8",
+    stdio:["ignore","pipe","pipe"],
+    timeout:10_000,
+    env:{
+      PATH:"/usr/bin:/bin",
+      HOME:"/nonexistent",
+      LANG:"C",
+      LC_ALL:"C",
+      TZ:"UTC",
+    },
+  },
+);
+assert.equal(cli.error,undefined,String(cli.error||""));
+assert.equal(cli.signal,null,"selector_spawn_error_regression_signal");
+assert.equal(cli.status,2,String(cli.stderr||cli.stdout||""));
+assert.match(
+  String(cli.stderr||""),
+  /VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1_HOLD/u,
+);
+assert.match(
+  String(cli.stderr||""),
+  /reason=selector_process_spawn_error:ENOENT/u,
+);
+
 console.log("VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1_PROOF_GREEN");
 console.log("selector_elf_lock_bound=true");
 console.log("selector_pidfd_handshake_required=true");
+console.log("selector_spawn_error_machine_readable_hold=true");
 console.log("selector_ready_green_same_generation_required=true");
 console.log("process_source_generation_verified=true");
 console.log("reviewed_launcher_shape_verified=true");
