@@ -28,6 +28,16 @@ const SHA40=/^[0-9a-f]{40}$/u;
 const SHA64=/^[0-9a-f]{64}$/u;
 const UINT=/^[1-9][0-9]*$/u;
 const MAX_PROC=2*1024*1024;
+const REVIEWED_SELF_HTTP_GUARD_BY_INDEX_BLOB=Object.freeze({
+  "1fde828c97175560f98ab070af33eefc595f8002":
+    "runtime/canonical-producer-self-http-guard-v1.cjs",
+  "8198912a70c8db0c81dad5d341cb4a779906c851":
+    "runtime/canonical-producer-self-http-guard-v2.cjs",
+  "40239e0f76aa1edce43523d18c1b57691e41e8cf":
+    "runtime/canonical-producer-self-http-guard-v3.cjs",
+  "123ec1792a027f93d4c9030749a0e7e136a75a44":
+    "runtime/canonical-producer-self-http-guard-v4.cjs",
+} as const);
 
 type SelectorLine=Readonly<{
   manager_pid:number;
@@ -293,7 +303,59 @@ function parseCmdline(bytes:Buffer):string[]{
   if(parts.length<1||parts.some(value=>value.length===0))fail("service_cmdline_invalid");
   return parts;
 }
+export function testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1(input:{
+  cwd:string;
+  index_git_blob_sha1:string;
+  node_options:string;
+}):Readonly<{ok:boolean;reason:string|null;guard_relative_path:string|null}>{
+  const guard=REVIEWED_SELF_HTTP_GUARD_BY_INDEX_BLOB[
+    input.index_git_blob_sha1 as keyof typeof REVIEWED_SELF_HTTP_GUARD_BY_INDEX_BLOB
+  ];
+  if(!guard){
+    return Object.freeze({
+      ok:false,
+      reason:"reviewed_node_options_index_generation_unknown",
+      guard_relative_path:null,
+    });
+  }
+  const expected="--require "+path.join(input.cwd,...guard.split("/"));
+  if(input.node_options!==expected){
+    return Object.freeze({
+      ok:false,
+      reason:"reviewed_node_options_exact_value_mismatch",
+      guard_relative_path:guard,
+    });
+  }
+  return Object.freeze({ok:true,reason:null,guard_relative_path:guard});
+}
+
+function exactTrackedBlob(
+  cwd:string,
+  commit:string,
+  relative:string,
+):string{
+  const observed=runGit(cwd,["hash-object","--",relative]);
+  const tracked=runGit(cwd,["rev-parse","--verify",commit+":"+relative]);
+  if(observed!==tracked)fail("reviewed_tracked_blob_mismatch:"+relative);
+  return observed;
+}
+
+function verifyReviewedNodeOptions(cwd:string,env:InitialEnv):true{
+  const indexBlob=exactTrackedBlob(cwd,env.source_commit,"src/index.ts");
+  const decision=testOnlyClassifyBuyVoidV2ReviewedNodeOptionsV1({
+    cwd,
+    index_git_blob_sha1:indexBlob,
+    node_options:env.node_options,
+  });
+  if(!decision.ok||!decision.guard_relative_path){
+    fail(decision.reason||"reviewed_node_options_invalid");
+  }
+  exactTrackedBlob(cwd,env.source_commit,decision.guard_relative_path);
+  return true;
+}
+
 function verifyLauncherShape(cwd:string,env:InitialEnv,cmdlineBytes:Buffer):true{
+  verifyReviewedNodeOptions(cwd,env);
   const expected=[
     "/usr/bin/node",
     "--conditions=void-process-source-identity-v1",
