@@ -80,7 +80,7 @@ if(rootCapable){
   const pairPath=path.join(root,"provider-pair-binding-v1.json");
   try{
     fs.mkdirSync(root,{recursive:true,mode:0o755});
-    fs.writeFileSync(deploymentPath,canonical(deploymentReceipt)+"\n",{mode:0o444});
+    fs.writeFileSync(deploymentPath,JSON.stringify(deploymentReceipt,null,2)+"\n",{mode:0o444});
     fs.chownSync(deploymentPath,0,0);
     fs.chmodSync(deploymentPath,0o444);
     const observed=readDeploymentBindingV1(deploymentPath);
@@ -110,7 +110,7 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const forbidden of [
-  "fetch(","http.request(","https.request(","eth_sendRawTransaction",
+  "fetch(","http.request(","https.request(","Math.random(","eth_sendRawTransaction",
   "eth_sendTransaction","new Wallet(","systemctl","--base-primary-url ",
   "--ethereum-primary-url ",
 ]){
@@ -121,7 +121,7 @@ for(const required of [
   "--base-secondary-url-fingerprint-sha256",
   "--ethereum-primary-url-fingerprint-sha256",
   "--ethereum-secondary-url-fingerprint-sha256",
-  "rpc_contact=false","credential_access=false","funds_movement=false",
+  "crypto.randomBytes","rpc_contact=false","credential_access=false","funds_movement=false",
 ]){
   assert.equal(source.includes(required),true,required);
 }

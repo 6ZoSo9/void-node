@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -142,8 +143,8 @@ export function readDeploymentBindingV1(absolutePath:string):DeploymentBinding{
   assert.equal(parsed.receipt_id,
     buyVoidSourceFinalityDeploymentReceiptIdV7(withoutId),
     "deployment_receipt_content_address_mismatch");
-  assert.equal(canonical(parsed)+"\n",bytes.toString("utf8"),
-    "deployment_receipt_not_canonical");
+  assert.equal(JSON.stringify(parsed,null,2)+"\n",bytes.toString("utf8"),
+    "deployment_receipt_wire_format_mismatch");
   return Object.freeze({
     deployment_receipt_id:String(parsed.receipt_id),
     accepted_enforcement_set_sha256:String(parsed.accepted_enforcement_set_sha256),
@@ -236,7 +237,7 @@ export function installProviderPairReceiptCreateOnceV1(input:{
   }
   const temp=path.join(parent,
     "."+path.basename(absolute)+".tmp-"+String(process.pid)+"-"+
-    Math.random().toString(16).slice(2));
+    crypto.randomBytes(8).toString("hex"));
   let fd=-1;
   try{
     fd=fs.openSync(temp,
