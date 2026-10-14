@@ -18,6 +18,7 @@ import re
 import socket
 import stat
 import struct
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -31,6 +32,8 @@ ARCHIVE_SHA256 = "ede5706fa6ecaf50a3e22e893a7fc24d65ed1c640901c16e151239319296ab
 EXPECTED_HOSTNAME = "Nimo"
 EXPECTED_MACHINE_ID_SHA256 = "48a3554126d621d6460385ebacf3d41b454157337271cb7405af012158f203d4"
 EXPECTED_HOSTKEY_FINGERPRINT = "SHA256:3c9mfrwEQ9RKbVwL8pw/kvbCFt5imaj3QCK79yynkvk"
+EXPECTED_ROOT_DISK_SERIAL = "50026B76873B25AB"
+EXPECTED_ROOT_DISK_WWN = "eui.00000000000000000026b76873b25ab5"
 MACHINE_ID_PATH = "/etc/machine-id"
 HOSTKEY_PATH = "/etc/ssh/ssh_host_ed25519_key.pub"
 MAX_SYSTEM_FILE_BYTES = 64 * 1024
@@ -41,10 +44,12 @@ AUTHORITY = {
     "reviewed_private_stage_inspector_exact": True,
     "reviewed_nimo_machine_id_required": True,
     "reviewed_nimo_ed25519_hostkey_required": True,
+    "reviewed_nimo_root_disk_required": True,
+    "read_only_fixed_disk_probe_execution": True,
     "private_stage_bytes_verified": True,
     "stage_host_authenticated": True,
     "live_nimo_private_stage_verified": True,
-    "root_disk_continuity_reverified": False,
+    "root_disk_continuity_reverified": True,
     "external_transport_authenticated": False,
     "live_nimo_installed": False,
     "installation_qualification_composed": False,
@@ -248,10 +253,80 @@ def parse_ed25519_public_key(raw: bytes) -> tuple[str, bytes]:
     return fingerprint, blob
 
 
+def run_read_only_probe(command: str, args: list[str]) -> str:
+    allowed = {
+        "/usr/bin/findmnt": ("-n", "-o", "SOURCE", "/"),
+    }
+    if command == "/usr/bin/findmnt":
+        if tuple(args) != allowed[command]:
+            hold("disk_probe_arguments_invalid")
+    elif command == "/usr/bin/lsblk":
+        if tuple(args[:2]) not in {("-ndo", "PKNAME"), ("-ndo", "SERIAL,WWN")}:
+            hold("disk_probe_arguments_invalid")
+        if len(args) != 3 or not args[2].startswith("/dev/"):
+            hold("disk_probe_arguments_invalid")
+    else:
+        hold("disk_probe_command_invalid")
+    try:
+        result = subprocess.run(
+            [command, *args],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=False,
+            timeout=5,
+            check=False,
+            env={
+                "PATH": "/usr/bin:/bin",
+                "HOME": "/nonexistent",
+                "LANG": "C",
+                "LC_ALL": "C",
+            },
+        )
+    except (OSError, subprocess.SubprocessError):
+        hold("disk_probe_execution_failed")
+    if result.returncode != 0 or len(result.stdout) > 64 * 1024:
+        hold("disk_probe_execution_failed")
+    return result.stdout
+
+
+def root_disk_identity(run_probe=run_read_only_probe) -> dict:
+    source = run_probe("/usr/bin/findmnt", ["-n", "-o", "SOURCE", "/"]).strip()
+    if not re.fullmatch(r"/dev/[A-Za-z0-9._/+:-]+", source):
+        hold("root_source_invalid")
+    parent_name = run_probe("/usr/bin/lsblk", ["-ndo", "PKNAME", source]).strip()
+    if parent_name:
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", parent_name):
+            hold("root_parent_invalid")
+        parent = "/dev/" + parent_name
+    else:
+        parent = source
+    values = run_probe(
+        "/usr/bin/lsblk",
+        ["-ndo", "SERIAL,WWN", parent],
+    ).strip().split()
+    if len(values) != 2:
+        hold("root_disk_identity_invalid")
+    serial, wwn = values
+    if serial != EXPECTED_ROOT_DISK_SERIAL:
+        hold("root_disk_serial_mismatch")
+    if wwn != EXPECTED_ROOT_DISK_WWN:
+        hold("root_disk_wwn_mismatch")
+    return {
+        "root_source": source,
+        "root_parent_device": parent,
+        "root_disk_serial": serial,
+        "root_disk_wwn": wwn,
+        "reviewed_root_disk_identity_verified": True,
+    }
+
+
 def qualify_host_identity(
     hostname: str,
     machine_digest: str,
     hostkey_fingerprint: str,
+    disk: dict,
 ) -> dict:
     if hostname != EXPECTED_HOSTNAME:
         hold("hostname_mismatch")
@@ -259,11 +334,18 @@ def qualify_host_identity(
         hold("machine_id_mismatch")
     if hostkey_fingerprint != EXPECTED_HOSTKEY_FINGERPRINT:
         hold("hostkey_fingerprint_mismatch")
+    if (
+        disk.get("root_disk_serial") != EXPECTED_ROOT_DISK_SERIAL
+        or disk.get("root_disk_wwn") != EXPECTED_ROOT_DISK_WWN
+        or disk.get("reviewed_root_disk_identity_verified") is not True
+    ):
+        hold("root_disk_identity_mismatch")
     return {
         "hostname": hostname,
         "machine_id_sha256": machine_digest,
         "ssh_hostkey_algorithm": "ssh-ed25519",
         "ssh_hostkey_fingerprint": hostkey_fingerprint,
+        **disk,
         "reviewed_successor_machine_identity_verified": True,
         "reviewed_hostkey_identity_verified": True,
     }
@@ -355,10 +437,12 @@ def collect_live() -> dict:
     )
     hostkey_raw = read_exact_system_file(HOSTKEY_PATH, 64 * 1024)
     hostkey_fingerprint, _blob = parse_ed25519_public_key(hostkey_raw)
+    disk = root_disk_identity()
     host = qualify_host_identity(
         socket.gethostname(),
         machine_digest,
         hostkey_fingerprint,
+        disk,
     )
 
     home = pwd.getpwuid(os.getuid()).pw_dir
@@ -409,15 +493,29 @@ def self_test() -> None:
     if machine_id_digest(b"a" * 32 + b"\n") != expected_machine:
         hold("selftest_machine_hash_failed")
 
+    disk_calls = []
+    def synthetic_probe(command: str, args: list[str]) -> str:
+        disk_calls.append((command, tuple(args)))
+        if command == "/usr/bin/findmnt":
+            return "/dev/nvme0n1p2\n"
+        if args[1] == "PKNAME":
+            return "nvme0n1\n"
+        return EXPECTED_ROOT_DISK_SERIAL + " " + EXPECTED_ROOT_DISK_WWN + "\n"
+    disk = root_disk_identity(synthetic_probe)
+    if disk["root_parent_device"] != "/dev/nvme0n1" or len(disk_calls) != 3:
+        hold("selftest_root_disk_probe_failed")
+
     host = qualify_host_identity(
         EXPECTED_HOSTNAME,
         EXPECTED_MACHINE_ID_SHA256,
         EXPECTED_HOSTKEY_FINGERPRINT,
+        disk,
     )
     for args, reason in [
-        (("Other", EXPECTED_MACHINE_ID_SHA256, EXPECTED_HOSTKEY_FINGERPRINT), "hostname"),
-        ((EXPECTED_HOSTNAME, "0" * 64, EXPECTED_HOSTKEY_FINGERPRINT), "machine"),
-        ((EXPECTED_HOSTNAME, EXPECTED_MACHINE_ID_SHA256, "SHA256:wrong"), "hostkey"),
+        (("Other", EXPECTED_MACHINE_ID_SHA256, EXPECTED_HOSTKEY_FINGERPRINT, disk), "hostname"),
+        ((EXPECTED_HOSTNAME, "0" * 64, EXPECTED_HOSTKEY_FINGERPRINT, disk), "machine"),
+        ((EXPECTED_HOSTNAME, EXPECTED_MACHINE_ID_SHA256, "SHA256:wrong", disk), "hostkey"),
+        ((EXPECTED_HOSTNAME, EXPECTED_MACHINE_ID_SHA256, EXPECTED_HOSTKEY_FINGERPRINT, {**disk, "root_disk_serial": "wrong"}), "disk"),
     ]:
         try:
             qualify_host_identity(*args)
@@ -431,6 +529,7 @@ def self_test() -> None:
         not re.fullmatch(r"voidnv5stage1_[0-9a-f]{64}", receipt["evidence_id"])
         or receipt["authority"]["stage_host_authenticated"] is not True
         or receipt["authority"]["live_nimo_private_stage_verified"] is not True
+        or receipt["authority"]["root_disk_continuity_reverified"] is not True
         or receipt["authority"]["live_nimo_installed"] is not False
         or receipt["authority"]["production_gate_ready"] is not False
         or receipt["authority"]["public_presale_activation"] is not False
@@ -442,6 +541,8 @@ def self_test() -> None:
     print("reviewed_private_stage_inspector_exact=true")
     print("reviewed_nimo_machine_id_required=true")
     print("reviewed_nimo_ed25519_hostkey_required=true")
+    print("reviewed_nimo_root_disk_required=true")
+    print("root_disk_continuity_reverified=true")
     print("live_host_collection_performed=false")
     print("live_nimo_installed=false")
     print("production_gate_ready=false")
