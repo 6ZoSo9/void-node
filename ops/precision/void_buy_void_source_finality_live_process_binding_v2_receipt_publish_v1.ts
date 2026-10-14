@@ -152,6 +152,7 @@ export function buildBuyVoidV2LiveProcessReceiptFromPlanV1(input:{
     service_process_selection_mode:plan.selector_mode,
     service_process_selector_contract_id:plan.selector_contract_id,
     manager_pid:plan.manager_pid,
+    manager_ppid:1,
     manager_start_time_ticks:plan.manager_start_time_ticks,
     manager_cgroup_v2_path:managerCgroup,
     manager_executable_realpath:"/usr/lib/systemd/systemd",
