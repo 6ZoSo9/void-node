@@ -609,7 +609,7 @@ const futureReadyObservation = {
   reviewed_source_files_verified: true,
   source_file_verification_mode: "operator_deployment_receipt_bound_v1",
   deployment_receipt_id: "voidbsfdep1_" + "a".repeat(64),
-  live_process_binding_receipt_id: "voidbsflp1_" + "b".repeat(64),
+  live_process_binding_receipt_id: "voidbsflp2_" + "b".repeat(64),
   same_live_process_binding_proven: true,
   accepted_enforcement_set_sha256:
     VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
@@ -647,6 +647,23 @@ assert.equal(preAttemptTestReady.would_be_transition_ready, true);
 assert.equal(preAttemptTestReady.production_transition_authority, false);
 assert.equal(preAttemptTestReady.payment_verified_event_write_performed, false);
 assert.equal(preAttemptTestReady.inventory_reservation_write_performed, false);
+
+const staleV1ReceiptGeneration =
+  testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1({
+    observation: {
+      ...futureReadyObservation,
+      live_process_binding_receipt_id: "voidbsflp1_" + "b".repeat(64),
+    },
+    verified_payment_event: preAttemptVerifiedEvent,
+    canonical_payment_identity: canonicalIdentity,
+    transaction_hash: transactionHash,
+  });
+assert.equal(staleV1ReceiptGeneration.would_be_transition_ready, false);
+assert.equal(
+  staleV1ReceiptGeneration.reason,
+  "ethereum_pre_attempt_source_finality_not_authoritative",
+);
+assert.equal(staleV1ReceiptGeneration.production_transition_authority, false);
 
 const higherLatestConfirmationEvent =
   structuredClone(preAttemptVerifiedEvent) as any;
@@ -1096,6 +1113,8 @@ console.log("pre_attempt_verified_payment_request_binding_required=true");
 console.log("pre_attempt_verified_payment_observation_binding_required=true");
 console.log("pre_attempt_forbidden_side_effects_required=true");
 console.log("pre_attempt_execution_attempt_circularity_removed=true");
+console.log("pre_attempt_v2_live_process_receipt_required=true");
+console.log("pre_attempt_v1_live_process_receipt_rejected=true");
 console.log("pre_attempt_current_production_authority=false");
 console.log("synthetic_finality_production_authority=false");
 console.log("base_behavior_preserved=true");
