@@ -15,8 +15,11 @@ The selector stays alive holding manager/service pidfds. After its READY line,
 the collector independently checks the selected service's UID/GID,
 capabilities, NoNewPrivs, source identity, cgroup, start ticks, cmdline digest,
 initial loader environment, executable/cwd, the exact commit/tree-bound
-Node/TSX launcher argv and exact clean main release generation. This plan does
-not claim the broader source-custody receipt proof; that remains a final
+Node/TSX launcher argv, and the exact canonical-producer NODE_OPTIONS mapping
+from the tracked src/index.ts Git blob to its reviewed self-HTTP guard. Extra,
+reordered, unknown-generation, or ambient preload flags HOLD. The selected
+guard bytes must also match the same tracked source commit. This plan does not
+claim the broader source-custody receipt proof; that remains a final
 protected-collector responsibility. Only then does it send `VERIFY`; the selector must re-prove the
 same kernel generation and exit GREEN.
 
