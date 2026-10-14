@@ -12,6 +12,7 @@
     "cross_node_byte_identity_verified": true
   },
   "candidate_evidence": {
+    "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json",
     "derivation_proof_path": "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs",
     "derivation_proof_git_blob_sha1": "d1cb550cf8f05692ca83114281cc35b2a6fe0cf1",
     "bytes": 16342,

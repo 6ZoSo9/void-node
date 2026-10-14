@@ -18,10 +18,14 @@ Hosted run `38644238903` produced byte-identical Node 22/24/26 candidate output:
 - candidate Git-blob SHA-1 `6b2958bdb4dbb38354d5a4b41e5b4d1e919b6794`;
 - candidate enforcement-set SHA-256 `152dc7a45f4d596513cfd7dc44277ece1aea3d64e30e616089162760ec245a9e`.
 
-The lock proof rederives those exact bytes instead of trusting a second committed
-copy. It requires the #2989 candidate proof blob unchanged, permits only this
-four-path additive lock delta, rederives the 49-row protected source inventory
-digest, and independently recomputes the candidate enforcement-set identity.
+The exact hosted candidate bytes are committed at
+`ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json` because the protected deployment installer reopens that
+tracked object and independently verifies its complete 49-row source inventory
+against the deployment generation. The lock proof rederives the #2989 candidate,
+requires byte-for-byte equality with the committed hosted evidence, preserves the
+candidate proof blob unchanged, and independently recomputes the enforcement-set
+identity. The lock delta is five paths and changes no authority-bearing protected
+source row.
 
 ## Promotion boundary
 

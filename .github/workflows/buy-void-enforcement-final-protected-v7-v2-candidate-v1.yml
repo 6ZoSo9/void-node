@@ -11,6 +11,7 @@ on:
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v1.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v1.json"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
@@ -37,6 +38,7 @@ on:
       - "scripts/prove_buy_void_crash_consistent_fulfillment_saga_v1.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v1.md"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v1.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v1.json"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
@@ -134,6 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
+          cmp "$candidate" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json
           node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs --self-test
           lock="$RUNNER_TEMP/final-protected-v7-v2-lock-${{ matrix.node }}.json"
@@ -193,6 +196,7 @@ jobs:
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
           assert.equal(l.schema,"void_buy_void_enforcement_final_protected_v7_v2_lock_v1");
+          assert.equal(l.candidate_evidence.path,"ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json");
           assert.equal(l.candidate_head,"9982e7899a52402ad010fb9066ad78db8c9d49cc");
           assert.equal(l.candidate_evidence.sha256,"481603ad75f871aef503686548cc1e4b8b54d556f83dca55136813d33d6d991c");
           assert.equal(l.candidate_evidence.candidate_enforcement_set_sha256,"152dc7a45f4d596513cfd7dc44277ece1aea3d64e30e616089162760ec245a9e");
