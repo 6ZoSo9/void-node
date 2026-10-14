@@ -22,6 +22,10 @@ const MODULES=Object.freeze([
     artifact:"dist/economic/buy_void_source_finality_live_process_binding_v1.js",
   }),
   Object.freeze({
+    source:"src/economic/buy_void_source_finality_live_process_binding_v2.ts",
+    artifact:"dist/economic/buy_void_source_finality_live_process_binding_v2.js",
+  }),
+  Object.freeze({
     source:"src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
     artifact:"dist/economic/buy_void_source_finality_provider_pair_binding_v1.js",
   }),

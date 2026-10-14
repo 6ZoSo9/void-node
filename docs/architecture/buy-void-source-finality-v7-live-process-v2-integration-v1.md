@@ -43,3 +43,11 @@ A separately reviewed collector behind the native pidfd selector remains
 required before real V2 evidence can exist.
 
 PROTECT THE CORE.
+
+## Executable-delta consequence
+
+The V7 executable-delta candidate advances from five to six modules by adding
+`buy_void_source_finality_live_process_binding_v2`. The historical V1 module
+remains in the delta because V2 depends on its self-process identity reader.
+Node 22/24/26 must derive the six-module candidate byte-identically before any
+fresh whole-enforcement census/acceptance successor is attempted.

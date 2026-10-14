@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
       - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
       - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
@@ -21,6 +22,7 @@ on:
       - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
       - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
       - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
@@ -87,8 +89,8 @@ jobs:
             value.marker,
             "VOID_BUY_VOID_SOURCE_FINALITY_V7_EXECUTABLE_DELTA_CANDIDATE_V1",
           );
-          assert.equal(value.module_count,5);
-          assert.equal(value.modules.length,5);
+          assert.equal(value.module_count,6);
+          assert.equal(value.modules.length,6);
           assert.equal(value.predecessor_enforcement_lock.historical_identity_preserved,true);
           assert.equal(value.cross_node_byte_identity_required,true);
           assert.equal(value.candidate_only,true);
@@ -150,7 +152,7 @@ jobs:
           const value=JSON.parse(
             fs.readFileSync("receipts/v7-executable-delta-node-22.json","utf8"),
           );
-          assert.equal(value.module_count,5);
+          assert.equal(value.module_count,6);
           assert.equal(value.candidate_only,true);
           assert.equal(value.complete_executable_closure_verified,false);
           assert.equal(value.candidate_enforcement_identity_accepted,false);
