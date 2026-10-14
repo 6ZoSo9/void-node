@@ -94,6 +94,13 @@ static void install_signal_handlers(void) {
       sigaction(SIGINT, &action, NULL) != 0) {
     hold("apollyon_candidate_training_entrypoint_signal_setup_failed");
   }
+
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = SIG_IGN;
+  if (sigemptyset(&action.sa_mask) != 0 ||
+      sigaction(SIGPIPE, &action, NULL) != 0) {
+    hold("apollyon_candidate_training_entrypoint_sigpipe_setup_failed");
+  }
 }
 
 static int run_self_test(void) {
@@ -153,6 +160,9 @@ static void emit_ready(void) {
   if (written < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
       hold("apollyon_candidate_training_entrypoint_stdout_not_immediately_writable");
+    }
+    if (errno == EPIPE) {
+      hold("apollyon_candidate_training_entrypoint_stdout_reader_closed");
     }
     hold("apollyon_candidate_training_entrypoint_stdout_write_failed");
   }
