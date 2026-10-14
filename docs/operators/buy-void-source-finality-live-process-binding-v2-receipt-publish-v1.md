@@ -56,15 +56,20 @@ pattern directly. The protected launcher now has an explicit `live-process-v2`
 allowlist entry for this publisher, while the historical V1 `live-process`
 receipt installer is not reachable from that launcher.
 
-The retained non-executable launcher body is exactly **11,442 bytes** with
+The retained non-executable launcher body is exactly **12,644 bytes** with
 SHA-256
-`fe3767e9d82239f33e3d15e011d5afe5300ded00e8dc16479b6e7e97ebed9a98`.
+`88f1ca67563b2b4da7310cf36f0238bfa03fd4f356a7e086ac276273faf8c1fe`.
 The native pre-entry embeds that exact size/digest and authenticates the retained
-launcher descriptor before Bash evaluation. The package/runtime proof remains
+launcher descriptor before Bash evaluation. Immediately before tool execution,
+the launcher rechecks the exact repository commit/tree/main/clean state and
+selected tool blob, then passes the bounded protected-dispatch binding. The
+publisher requires that binding for `--apply` and independently revalidates
+the fixed protected root plus its own tracked/visible bytes before publication. The package/runtime proof remains
 the byte-identical accepted V2 proof and rederives the audited TSX/esbuild
 runtime on Node 22/24/26.
 
-Direct privileged checkout execution remains unsupported.
+Direct privileged checkout apply remains unsupported; only plan/read-only
+inspection may be invoked outside the protected launcher.
 
 It performs:
 - V2 native selector execution through the locked collection-plan module;
