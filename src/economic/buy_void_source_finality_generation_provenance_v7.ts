@@ -702,25 +702,6 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   if (!isCustodyVerifiedDeploymentV7(input.deployment)) {
     return held("source_finality_deployment_not_custody_verified");
   }
-  if (
-    input.live_process_binding?.ok !== true ||
-    input.live_process_binding.same_live_process_binding_proven !== true
-  ) {
-    return held(
-      input.live_process_binding?.ok === false
-        ? "source_finality_live_process_" + input.live_process_binding.reason
-        : "source_finality_live_process_binding_not_verified",
-    );
-  }
-  if (!isCustodyVerifiedLiveProcessBindingV7(input.live_process_binding)) {
-    return held("source_finality_live_process_binding_not_custody_verified");
-  }
-  if (
-    input.live_process_binding.deployment_receipt_id !==
-    input.deployment.deployment_receipt_id
-  ) {
-    return held("source_finality_live_process_deployment_receipt_mismatch");
-  }
   const primary = input.primary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   const secondary = input.secondary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   for (const [label, observed, endpoint] of [
@@ -774,6 +755,26 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   ) {
     return held("source_finality_provider_quorum_finality_invalid");
   }
+  if (
+    input.live_process_binding?.ok !== true ||
+    input.live_process_binding.same_live_process_binding_proven !== true
+  ) {
+    return held(
+      input.live_process_binding?.ok === false
+        ? "source_finality_live_process_" + input.live_process_binding.reason
+        : "source_finality_live_process_binding_not_verified",
+    );
+  }
+  if (!isCustodyVerifiedLiveProcessBindingV7(input.live_process_binding)) {
+    return held("source_finality_live_process_binding_not_custody_verified");
+  }
+  if (
+    input.live_process_binding.deployment_receipt_id !==
+    input.deployment.deployment_receipt_id
+  ) {
+    return held("source_finality_live_process_deployment_receipt_mismatch");
+  }
+
   const quorum = Object.freeze({
     source_chain: primary.source_chain,
     transaction_hash: primary.transaction_hash,
