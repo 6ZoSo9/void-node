@@ -130,7 +130,7 @@ jobs:
             echo "UNEXPECTED_HISTORICAL_V5_DERIVATION" >&2
             exit 1
           fi
-          grep -F '22a30e3ffad6047a472488104c769140bd050878 HEAD --' "$RUNNER_TEMP/v5-hold.log"
+          grep -F 'bound source/ancestor blob drift:src/economic/buy_void_source_finality_execution_preflight_v1.ts' "$RUNNER_TEMP/v5-hold.log"
 
       - name: Requalify exact real saga dynamic edge
         run: |
