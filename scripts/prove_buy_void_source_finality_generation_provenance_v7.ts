@@ -282,8 +282,8 @@ try {
   if (!isRoot) {
     assert.equal(ownerDecision.ok, false);
   } else {
-    assert.equal(ownerDecision.ok, true);
     if (ownerDecision.ok === false) throw new Error(ownerDecision.reason);
+    assert.equal(ownerDecision.ok, true);
     rootCustodyPositiveExercised = true;
 
     const green = classifyBuyVoidSourceFinalityProviderQuorumV7({
@@ -293,8 +293,8 @@ try {
       secondary,
       deployment: ownerDecision,
     });
-    assert.equal(green.ok, true);
     if (green.ok === false) throw new Error(green.reason);
+    assert.equal(green.ok, true);
     assert.equal(green.marker, VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7);
     assert.equal(green.independent_remote_provider_transport_verified, true);
     assert.equal(green.remote_provider_identity_verified, false);
