@@ -48,8 +48,13 @@ as 0700 is preserved.
 
 The final receipt is root-owned, single-link, mode 0444. Temporary creation,
 hard-link no-clobber publication, cleanup, verification, and directory fsync
-operate through the retained parent descriptor. A symlinked/rebound parent
-HOLDs without collateral target metadata mutation. An existing byte-identical
+operate through the retained parent descriptor. When the final custody
+directory is newly created, both that directory and its retained grandparent
+are fsynced before the directory entry is treated as durable. The temporary
+file's device/inode is captured immediately after exclusive creation so a
+failure during ownership, write, fsync, or chmod removes only the inode created
+by that invocation; a substituted foreign inode is never deleted. A
+symlinked/rebound parent HOLDs without collateral target metadata mutation. An existing byte-identical
 receipt is accepted idempotently; an existing different receipt HOLDs and is
 never overwritten.
 

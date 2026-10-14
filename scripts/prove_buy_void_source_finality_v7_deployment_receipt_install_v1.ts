@@ -150,6 +150,133 @@ if(rootCapable){
   assert.equal(fs.existsSync(path.join(redirect,"deployment-receipt.json")),false);
   fs.unlinkSync(symlinkParent);
 
+  const tempPrefix=(receiptPath:string)=>
+    "."+path.basename(receiptPath)+".tmp-";
+  const tempEntries=(receiptPath:string)=>{
+    const parent=path.dirname(receiptPath);
+    if(!fs.existsSync(parent))return [];
+    const prefix=tempPrefix(receiptPath);
+    return fs.readdirSync(parent).filter((name)=>name.startsWith(prefix));
+  };
+
+  // A newly created final custody directory is not durable until its retained
+  // grandparent directory entry has also been fsynced.
+  {
+    const receipt=path.join(root,"grand-sync","deployment-receipt.json");
+    const grandparent=root;
+    const originalOpen=(fs as any).openSync;
+    const originalFsync=(fs as any).fsyncSync;
+    let grandFd=-1;
+    let injected=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        if(String(args[0])===grandparent)grandFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(!injected&&grandFd>=0&&fd===grandFd){
+          injected=true;
+          throw Object.assign(new Error("synthetic_grandparent_fsync_failure"),{code:"EIO"});
+        }
+        return originalFsync.call(fs,fd);
+      };
+      assert.throws(()=>installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      }),/synthetic_grandparent_fsync_failure/u);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.equal(injected,true);
+    assert.equal(fs.existsSync(receipt),false);
+  }
+
+  const proveTempFailureCleanup=(
+    label:string,
+    method:"fchownSync"|"writeSync"|"fsyncSync"|"fchmodSync",
+  )=>{
+    const receipt=path.join(root,"temp-"+label,"deployment-receipt.json");
+    const originalOpen=(fs as any).openSync;
+    const originalTarget=(fs as any)[method];
+    let tempFd=-1;
+    let injected=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
+        return fd;
+      };
+      (fs as any)[method]=function(...args:any[]){
+        if(!injected&&tempFd>=0&&Number(args[0])===tempFd){
+          injected=true;
+          throw Object.assign(new Error("synthetic_temp_"+label+"_failure"),{code:"EIO"});
+        }
+        return originalTarget.apply(fs,args);
+      };
+      assert.throws(()=>installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      }),new RegExp("synthetic_temp_"+label+"_failure","u"));
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any)[method]=originalTarget;
+    }
+    assert.equal(injected,true,label+"_failure_not_injected");
+    assert.equal(fs.existsSync(receipt),false,label+"_published_receipt");
+    assert.deepEqual(tempEntries(receipt),[],label+"_temp_survived");
+  };
+
+  proveTempFailureCleanup("fchown","fchownSync");
+  proveTempFailureCleanup("write","writeSync");
+  proveTempFailureCleanup("fsync","fsyncSync");
+  proveTempFailureCleanup("fchmod","fchmodSync");
+
+  // A path substitution after exclusive temp creation must never be cleaned up
+  // as though the replacement were the inode created by this installer.
+  {
+    const receipt=path.join(root,"temp-foreign","deployment-receipt.json");
+    const originalOpen=(fs as any).openSync;
+    const originalFchown=(fs as any).fchownSync;
+    let tempFd=-1;
+    let tempPath="";
+    let foreignIdentity:fs.Stats|undefined;
+    let injected=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        if(String(args[0]).includes(tempPrefix(receipt))){
+          tempFd=fd;
+          tempPath=String(args[0]);
+        }
+        return fd;
+      };
+      (fs as any).fchownSync=function(fd:number,uid:number,gid:number){
+        if(!injected&&tempFd>=0&&fd===tempFd){
+          injected=true;
+          fs.unlinkSync(tempPath);
+          fs.writeFileSync(tempPath,"foreign\n",{mode:0o600});
+          fs.chownSync(tempPath,0,0);
+          foreignIdentity=fs.lstatSync(tempPath);
+          throw Object.assign(new Error("synthetic_foreign_substitution"),{code:"EIO"});
+        }
+        return originalFchown.call(fs,fd,uid,gid);
+      };
+      assert.throws(()=>installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      }),/synthetic_foreign_substitution/u);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fchownSync=originalFchown;
+    }
+    assert.equal(injected,true);
+    assert.ok(foreignIdentity);
+    const after=fs.lstatSync(tempPath);
+    assert.equal(after.dev,foreignIdentity!.dev);
+    assert.equal(after.ino,foreignIdentity!.ino);
+    assert.equal(fs.readFileSync(tempPath,"utf8"),"foreign\n");
+    fs.unlinkSync(tempPath);
+  }
+
   const restrictiveParent=path.join(root,"restrictive");
   const restrictiveReceipt=path.join(restrictiveParent,"deployment-receipt.json");
   fs.mkdirSync(restrictiveParent,{mode:0o700});
@@ -211,6 +338,9 @@ console.log("root_custody_positive_exercised="+String(rootCapable));
 console.log("descriptor_relative_parent_publication="+String(rootCapable));
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
+console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
+console.log("post_create_temp_failure_cleanup_exact="+String(rootCapable));
+console.log("foreign_temp_inode_preserved="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));

@@ -292,6 +292,8 @@ function bindReceiptParentV1(absolute:string):ReceiptParentBindingV1{
       fs.fchownSync(parentFd,0,0);
       fs.fchmodSync(parentFd,0o755);
       fs.fsyncSync(parentFd);
+      // Persist the new parent directory entry in the retained grandparent.
+      fs.fsyncSync(grandFd);
     }
     const opened=fs.fstatSync(parentFd);
     assertRootDirectoryV1(opened,"receipt_parent");
@@ -416,6 +418,7 @@ export function installRootCustodiedReceiptV1(input:{
   assert.match(leaf,/^[A-Za-z0-9._-]{3,120}$/u,"receipt_leaf_name_invalid");
   let binding:ReceiptParentBindingV1|undefined;
   let tempFd=-1;
+  let tempCreatedIdentity:Readonly<{dev:number;ino:number}>|undefined;
   let tempIdentity:fs.Stats|undefined;
   let tempVia="";
   try{
@@ -438,6 +441,11 @@ export function installRootCustodiedReceiptV1(input:{
         fs.constants.O_NOFOLLOW,
       0o600,
     );
+    const justCreated=fs.fstatSync(tempFd);
+    tempCreatedIdentity=Object.freeze({
+      dev:justCreated.dev,
+      ino:justCreated.ino,
+    });
     fs.fchownSync(tempFd,0,0);
     let offset=0;
     while(offset<input.bytes.length){
@@ -451,6 +459,12 @@ export function installRootCustodiedReceiptV1(input:{
     fs.fchmodSync(tempFd,0o444);
     fs.fsyncSync(tempFd);
     tempIdentity=fs.fstatSync(tempFd);
+    assert.ok(
+      tempCreatedIdentity&&
+      tempIdentity.dev===tempCreatedIdentity.dev&&
+      tempIdentity.ino===tempCreatedIdentity.ino,
+      "receipt_temp_descriptor_identity_changed",
+    );
     const tempVisible=fs.lstatSync(tempVia);
     assert.ok(
       sameMetadataIdentityV1(tempIdentity,tempVisible),
@@ -487,10 +501,13 @@ export function installRootCustodiedReceiptV1(input:{
     return Object.freeze({created:true,already_matching:false});
   }finally{
     if(tempFd>=0)fs.closeSync(tempFd);
-    if(binding&&tempIdentity&&tempVia){
+    if(binding&&tempCreatedIdentity&&tempVia){
       try{
         const visible=fs.lstatSync(tempVia);
-        if(visible.dev===tempIdentity.dev&&visible.ino===tempIdentity.ino){
+        if(
+          visible.dev===tempCreatedIdentity.dev&&
+          visible.ino===tempCreatedIdentity.ino
+        ){
           fs.unlinkSync(tempVia);
           fs.fsyncSync(binding.parent_fd);
         }
