@@ -1,0 +1,65 @@
+name: Apollyon training bus-isolation installed custody read-only v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "fixtures/security/apollyon-training-preentry-binary-candidate-lock-v1.json"
+      - "ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py"
+      - "scripts/prove_apollyon_training_bus_isolation_installed_custody_readonly_v1.py"
+      - "docs/security/apollyon-training-bus-isolation-installed-custody-readonly-v1.md"
+      - ".github/workflows/apollyon-training-bus-isolation-installed-custody-readonly-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
+      - "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+      - "fixtures/security/apollyon-training-preentry-binary-candidate-lock-v1.json"
+      - "ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py"
+      - "scripts/prove_apollyon_training_bus_isolation_installed_custody_readonly_v1.py"
+      - "docs/security/apollyon-training-bus-isolation-installed-custody-readonly-v1.md"
+      - ".github/workflows/apollyon-training-bus-isolation-installed-custody-readonly-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  installed-custody-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact candidate
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Syntax and installed-custody proof
+        run: |
+          set -euo pipefail
+          python3 -I -B -c 'compile(open("ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py",encoding="utf-8").read(),"ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py","exec")'
+          python3 -I -B -c 'compile(open("scripts/prove_apollyon_training_bus_isolation_installed_custody_readonly_v1.py",encoding="utf-8").read(),"scripts/prove_apollyon_training_bus_isolation_installed_custody_readonly_v1.py","exec")'
+          python3 -I -B ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py --self-test
+          python3 -I -B scripts/prove_apollyon_training_bus_isolation_installed_custody_readonly_v1.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Committed-range diff hygiene
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^")"
+          fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
