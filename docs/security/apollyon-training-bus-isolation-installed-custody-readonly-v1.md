@@ -35,10 +35,15 @@ file. Every retained ancestor from `/` through the immediate parent must be a
 direct root:root directory with no group/world write bits.
 
 Both files are opened with `O_NOFOLLOW`; any raced open failure is converted
-to a machine-readable HOLD. Path and descriptor identities are checked before,
-during and after the bounded read. The complete retained ancestor chain is then
-revalidated after the file read and required to keep the same
-device/inode/owner/group/mode/link identity before success may be emitted.
+to a machine-readable HOLD. All descriptor `fstat` / `read` / close failures
+are likewise converted to HOLD rather than traceback.
+
+The observer retains **both** unit and pre-entry descriptors simultaneously.
+Each file is checked before/open/during/after its bounded read, and its complete
+ancestor chain is revalidated. After both reviewed digests have passed, both
+retained descriptors, both visible pathnames, and both ancestor chains are
+revalidated again as one pair immediately before the receipt can be returned.
+A success therefore carries `joint_material_identity_stable=true`.
 
 ## Exact reviewed identities
 
@@ -73,8 +78,9 @@ bytes, and exercises the real observer against disposable installed-path
 fixtures.
 
 Negative proofs cover unit-byte drift, ELF-byte drift, permission drift,
-symlinked-ancestor substitution, and a raced `O_NOFOLLOW` open failure that
-must become a deterministic HOLD rather than an uncaught traceback.
+symlinked-ancestor substitution, a raced `O_NOFOLLOW` open failure, and a
+synthetic descriptor-read I/O failure. Both failure classes must become
+deterministic HOLDs rather than uncaught tracebacks.
 
 ## Truth boundary
 
