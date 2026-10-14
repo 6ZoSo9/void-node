@@ -161,6 +161,15 @@ try{
 
   sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
   sudo(["mkdir","-p","--",FIXED_PREENTRY_DIR]);
+  sudo(["chown","0:0","--",FIXED_PREENTRY_DIR]);
+  sudo(["chmod","0755","--",FIXED_PREENTRY_DIR]);
+  for(const trustedDir of ["/","/opt",FIXED_PREENTRY_DIR]){
+    const st=fs.lstatSync(trustedDir);
+    assert.equal(st.isDirectory(),true,"native fixed-path ancestor must be a directory: "+trustedDir);
+    assert.equal(st.isSymbolicLink(),false,"native fixed-path ancestor must not be a symlink: "+trustedDir);
+    assert.equal(st.uid,0,"native fixed-path ancestor must be root-owned: "+trustedDir);
+    assert.equal(st.mode&0o022,0,"native fixed-path ancestor must not be group/world writable: "+trustedDir);
+  }
   sudo(["cp","-a","--",replica,FIXED_SOURCE_ROOT],{timeout:120000});
   sudo(["chown","-R","0:0",FIXED_SOURCE_ROOT],{timeout:120000});
   sudo(["chmod","0644",FIXED_LAUNCHER]);
