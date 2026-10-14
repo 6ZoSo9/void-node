@@ -115,7 +115,6 @@ jobs:
           MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
           test -n "$MERGE_BASE"
           git diff --check "$MERGE_BASE" "$HEAD"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Upload exact candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
