@@ -149,6 +149,17 @@ function sensitiveRouteForPath(pathname) {
 function classifyRoute(requestLine) {
   const normalizedSensitive =
     sensitiveRouteForPath(requestLine.pathname);
+  const sensitiveTrailingSlash = [
+    VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1,
+    VOID_PUBLIC_EARN_CLAIM_PATH_V1,
+    VOID_PUBLIC_EARN_SUBMIT_PATH_V1,
+  ].some((candidate) =>
+    requestLine.pathname.startsWith(candidate + "/"),
+  );
+
+  if (sensitiveTrailingSlash) {
+    fail("dispatch_sensitive_target_noncanonical");
+  }
 
   if (normalizedSensitive !== null) {
     if (requestLine.method !== "POST") {
