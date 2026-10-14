@@ -67,6 +67,38 @@ async function json(url, options) {
   return { response, body, text };
 }
 
+async function rawHttp({ port, path: requestPath, method = "POST", body = "" }) {
+  return new Promise((resolve, reject) => {
+    const bytes = Buffer.from(body, "utf8");
+    const request = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        method,
+        path: requestPath,
+        headers: {
+          "content-type": "application/json",
+          "content-length": String(bytes.length),
+          connection: "close",
+        },
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        response.once("end", () => {
+          resolve({
+            status: response.statusCode,
+            headers: response.headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      },
+    );
+    request.once("error", reject);
+    request.end(bytes);
+  });
+}
+
 async function main() {
   assert.equal(fs.existsSync(repositoryCliFile), true, "participant CLI missing");
   assert.equal(fs.existsSync(claimCliFile), true, "claim CLI missing");
@@ -639,6 +671,23 @@ async function main() {
   );
   assert.equal(sensitiveStatus.response.status, 404);
 
+  const aliasCallsBefore = earnRequests.length;
+  for (const requestPath of [
+    "/wc/public-earning-pilot-v1/claim-ticket?x=1",
+    "/wc/public-earning-pilot-v1/claim-ticket/",
+    "/wc/public-earning-pilot-v1/x/../claim-ticket",
+    "/wc/public-earning-pilot-v1/%63laim-ticket",
+    "/wc/public-earning-pilot-v1/submit-result?x=1",
+  ]) {
+    const rejectedAlias = await rawHttp({
+      port: mutationPort,
+      path: requestPath,
+      body: "{}",
+    });
+    assert.equal(rejectedAlias.status, 404, requestPath);
+  }
+  assert.equal(earnRequests.length, aliasCallsBefore);
+
   const claimCallsBeforeInvalid = earnRequests.length;
   const invalidClaim = await json(
     `${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`,
@@ -969,6 +1018,7 @@ async function main() {
   console.log("VOID_PUBLIC_EARN_GATEWAY_V1_GREEN");
   console.log("shared_mutation_routes_disabled=true");
   console.log("dedicated_mutation_listener_exact_routes_only=true");
+  console.log("dedicated_mutation_raw_aliases_fail_closed=true");
   console.log("dedicated_mutation_port_publicly_disclosed=false");
   console.log("local_transport_trust_proven=false");
 }
