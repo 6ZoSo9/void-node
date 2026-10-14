@@ -241,7 +241,14 @@ function acquirePublisherLockV1(target:string):PublisherLockV1{
     fsyncDirectory(parent);
     return Object.freeze({fd,path:lockPath,parent,identity});
   }catch(error){
-    try{fs.closeSync(fd);}catch{}
+    let closeFailure:unknown=null;
+    try{fs.closeSync(fd);}catch(closeError){closeFailure=closeError;}
+    if(closeFailure!==null){
+      throw new AggregateError(
+        [error,closeFailure],
+        "publisher_publication_lock_acquire_cleanup_failed",
+      );
+    }
     throw error;
   }
 }
