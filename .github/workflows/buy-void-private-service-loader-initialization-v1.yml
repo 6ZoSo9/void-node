@@ -1,0 +1,156 @@
+name: VOID Buy VOID private service loader initialization v1
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "scripts/prove_buy_void_private_service_loader_initialization_v1.mjs"
+      - "docs/architecture/buy-void-private-service-loader-initialization-v1.md"
+      - ".github/workflows/buy-void-private-service-loader-initialization-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-private-service-loader-initialization-v1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: private service loaders / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact PR head without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install exact lock without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Compile caller modules with the locked TypeScript compiler only
+        run: node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Preserve the reviewed three-target dynamic-tool census
+        run: |
+          set -euo pipefail
+          census="$RUNNER_TEMP/dynamic-tool-census.json"
+          node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
+          node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > "$census"
+          node --input-type=module - "$census" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.original_unique_tool_count,3);
+          assert.equal(j.original_dynamic_caller_count,13);
+          assert.equal(j.executed_target_verified,false);
+          assert.equal(j.dynamic_tool_transitive_closure_verified,false);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.candidate_identity_accepted,false);
+          const counts=Object.create(null);
+          for(const row of j.source_callers) counts[row.candidate_target]=(counts[row.candidate_target]||0)+1;
+          assert.deepEqual({...counts},{
+            "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs":3,
+            "tools/buy-void-prepared-transaction-custodian-service-v1.mjs":1,
+            "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs":9,
+          });
+          console.log("VOID_DYNAMIC_TOOL_THREE_TARGET_CENSUS_PRESERVED_GREEN");
+          NODE
+
+      - name: Qualify exact compiled private service loader initialization
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/private-service-loader-node-${{ matrix.node }}.json"
+          node --check scripts/prove_buy_void_private_service_loader_initialization_v1.mjs
+          node scripts/prove_buy_void_private_service_loader_initialization_v1.mjs --self-test
+          node scripts/prove_buy_void_private_service_loader_initialization_v1.mjs --derive > "$report"
+          node --input-type=module - "$report" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.actual_compiled_loader_body_executed,true);
+          assert.equal(j.exact_service_module_bytes_imported,true);
+          assert.equal(j.broadcaster_module_initialization_qualified,true);
+          assert.equal(j.custodian_module_initialization_qualified,true);
+          assert.equal(j.broadcaster_caller_count,3);
+          assert.equal(j.custodian_caller_count,1);
+          assert.equal(j.service_factory_invoked,false);
+          assert.equal(j.service_started,false);
+          assert.equal(j.socket_created,false);
+          assert.equal(j.credential_or_private_key_access,false);
+          assert.equal(j.rpc_call,false);
+          assert.equal(j.execution_network_isolation_provided,false);
+          assert.equal(j.signing,false);
+          assert.equal(j.transaction_submission,false);
+          assert.equal(j.transaction_broadcast,false);
+          assert.equal(j.money_movement,false);
+          assert.equal(j.dynamic_tool_initialization_closure_verified_for_broadcaster_and_custodian,true);
+          assert.equal(j.complete_executable_closure_verified,false);
+          assert.equal(j.accepted_enforcement_generation,false);
+          assert.equal(j.production_source_finality_authority_ready,false);
+          assert.equal(j.funds_movement,false);
+          console.log("VOID_PRIVATE_SERVICE_LOADER_INITIALIZATION_GREEN");
+          NODE
+
+      - name: Upload exact initialization report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-private-service-loader-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/private-service-loader-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Exact committed-range diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download Node 22 24 26 reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-private-service-loader-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: ./reports
+
+      - name: Require byte-identical reports
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do test -s "reports/private-service-loader-node-$v.json"; done
+          cmp reports/private-service-loader-node-22.json reports/private-service-loader-node-24.json
+          cmp reports/private-service-loader-node-22.json reports/private-service-loader-node-26.json
+          sha256sum reports/private-service-loader-node-22.json
+          echo "VOID_PRIVATE_SERVICE_LOADER_INITIALIZATION_CROSS_NODE_GREEN"
