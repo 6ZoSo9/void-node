@@ -67,7 +67,7 @@ export function validateTorQualificationReceiptForManifestV1(receipt,{expectedSo
   return Object.freeze(structuredClone(receipt));
 }
 
-export function buildTorBootstrapManifestCandidateV1({receipt,expectedSourceSha,validatedRoot,predecessor,nowMs=Date.now(),validityMinutes=72*60}={}){
+export function buildTorBootstrapManifestCandidateV1({receipt,expectedSourceSha,validatedRoot,predecessor,nowMs=Date.now(),validityMinutes=7*24*60}={}){
   const q=validateTorQualificationReceiptForManifestV1(receipt,{expectedSourceSha,nowMs});
   const rootValidation=validateTorBootstrapReleaseRoot(validatedRoot?.root||validatedRoot,{allowHold:false});
   const root=rootValidation.root;
@@ -209,7 +209,7 @@ export function writeCandidateOutputsV1({manifestFile,manifestBytes,payloadFile,
   throw error;
  }finally{closeBoundOutputV1(payloadBound,fsImpl);closeBoundOutputV1(manifestBound,fsImpl);}
 }
-function args(argv){const out={validityMinutes:72*60};for(let i=0;i<argv.length;i+=2){const key=argv[i],value=argv[i+1];if(!key?.startsWith("--")||value===undefined)fail("invalid arguments");out[key.slice(2).replace(/-([a-z])/gu,(_m,c)=>c.toUpperCase())]=value;}return out;}
+function args(argv){const out={validityMinutes:7*24*60};for(let i=0;i<argv.length;i+=2){const key=argv[i],value=argv[i+1];if(!key?.startsWith("--")||value===undefined)fail("invalid arguments");out[key.slice(2).replace(/-([a-z])/gu,(_m,c)=>c.toUpperCase())]=value;}return out;}
 
 async function main(){
   const o=args(process.argv.slice(2));
