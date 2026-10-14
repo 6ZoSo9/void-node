@@ -320,6 +320,31 @@ function serverCompositionArtifact() {
     "runtime server dynamic tool not reviewed");
   return {path:SERVER_ENTRY,bytes:bytes.length,sha256:sha256(bytes),...graph};
 }
+function dependencyGlobalSourceCensus() {
+  const economicDir=path.join(ROOT,"src","economic");
+  const literal="__void_buy_void_delivery_runtime_dependencies_v1";
+  const paths=fs.readdirSync(economicDir,{withFileTypes:true})
+    .filter(entry=>entry.isFile()&&/^[a-z0-9_]+[.]ts$/u.test(entry.name))
+    .map(entry=>"src/economic/"+entry.name)
+    .filter(relative=>readPinned(ROOT,relative).toString("utf8").includes(literal))
+    .sort();
+  assert.deepEqual(paths,[
+    "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+    "src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts",
+  ],"dependency global source census changed");
+  const consumer=readPinned(ROOT,
+    "src/economic/buy_void_delivery_runtime_integration_v1.ts").toString("utf8");
+  const provider=readPinned(ROOT,
+    "src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts").toString("utf8");
+  assert.match(consumer,/globalThis as any\)\[GLOBAL_DEPENDENCIES\]/u,
+    "delivery consumer no longer reads reviewed dependency global");
+  assert.doesNotMatch(consumer,/\[GLOBAL_DEPENDENCIES\]\s*=/u,
+    "delivery consumer unexpectedly writes dependency global");
+  assert.match(provider,
+    /globalState\[GLOBAL_DEPENDENCIES\]\s*=\s*decision[.]dependencies/u,
+    "reviewed dependency provider no longer writes exact dependencies");
+  return Object.freeze(paths);
+}
 function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
@@ -401,6 +426,7 @@ function runSelfTest() {
   console.log("unreviewed_node_child_process_builtin_rejected=true");
   console.log("recognized_dynamic_constructor_census_only=true");
   console.log("dependency_provider_global_writer_shape_bound=true");
+  console.log("dependency_provider_global_writer_unique_source_census=true");
   console.log("unrecognized_dynamic_loaders_rejected=true");
   console.log("computed_global_dynamic_loader_aliases_rejected=true");
   console.log("assigned_dynamic_loader_aliases_rejected=true");
@@ -534,6 +560,7 @@ export function deriveBuyVoidEnforcementArtifactAttestationV6Candidate(input) {
   const artifacts=closedArtifacts();
   const providerArtifacts=closedProviderArtifacts();
   const serverIntegrationArtifact=serverCompositionArtifact();
+  const dependencyGlobalSourcePaths=dependencyGlobalSourceCensus();
   const sourceRuntimeInputs=[
     ...new Set([
       ...artifacts.map(a=>
@@ -634,6 +661,8 @@ export function deriveBuyVoidEnforcementArtifactAttestationV6Candidate(input) {
     dependency_provider_runtime_artifacts:providerArtifacts,
     dependency_provider_static_relative_import_graph_bound:true,
     dependency_provider_global_writer_verified:true,
+    dependency_provider_global_writer_unique:true,
+    dependency_global_source_paths:dependencyGlobalSourcePaths,
     dependency_provider_transitive_closure_verified:true,
     dependency_provider_third_party_package_imports:providerThirdPartyPackages,
     // The consumer + provider graphs above are fully enumerated STATIC

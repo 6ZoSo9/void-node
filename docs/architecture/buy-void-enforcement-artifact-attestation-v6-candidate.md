@@ -132,3 +132,12 @@ This can establish
 still keeps `complete_executable_closure_verified=false`: reviewed installed
 package-runtime acceptance remains a separate successor gate. No signer,
 credential, RPC, broadcast, payment or funds action is executed by this proof.
+
+
+The proof also performs a repository source census for the literal dependency
+global. Exactly two economic source files may contain it: the delivery consumer
+(read-only) and the reviewed dependency injector (the sole writer). Any future
+third source reference, consumer write, or change to the exact injector write
+shape fails the candidate derivation. The workflow already triggers on
+`src/economic/**`, so this uniqueness guard is re-evaluated whenever an
+economic source file changes.
