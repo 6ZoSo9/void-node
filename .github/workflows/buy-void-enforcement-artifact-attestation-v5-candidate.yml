@@ -369,7 +369,7 @@ jobs:
           cmp accepted/enforcement-v6-lock-22.txt accepted/enforcement-v6-lock-26.txt
           sha256sum accepted/enforcement-v6-lock-22.json
           echo "VOID_BUY_VOID_ENFORCEMENT_V6_LOCK_CROSS_NODE_GREEN"
-          echo "accepted_enforcement_set_sha256=c197ccf77e6fc7499143ed26f00be95c39ae2e8b16d2900255c0dcab576f0f4c"
+          echo "accepted_enforcement_set_sha256=ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb"
           echo "production_source_finality_authority_ready=false"
           echo "public_presale_activation=false"
           echo "funds_movement=false"
