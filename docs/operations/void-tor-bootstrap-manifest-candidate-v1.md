@@ -37,7 +37,7 @@ or separately prove the installed service source. Do not guess current `main`.
 
 The manifest has no clearnet sync endpoints, one non-temporary Tor v3 endpoint,
 all authority false, and a signed validity from one hour through seven days.
-The default is 72 hours. The qualification must be fresh at issuance; it does
+The default is the full reviewed seven-day bound (168 hours). The qualification must be fresh at issuance; it does
 not need to remain younger than two hours for the entire signed lifetime because
 current endpoint availability is independently live-probed before use.
 
@@ -47,7 +47,7 @@ node scripts/build_void_tor_bootstrap_manifest_candidate_v1.mjs \
   --expected-source-sha <installed-qualified-source-sha> \
   --manifest-output "$HOME/Downloads/void-tor-manifest-candidate.json" \
   --payload-output "$HOME/Downloads/void-tor-manifest-signing-payload.bin" \
-  --validity-minutes 4320
+  --validity-minutes 10080
 ```
 
 Outputs must remain outside the repository and are create-only. Each output
