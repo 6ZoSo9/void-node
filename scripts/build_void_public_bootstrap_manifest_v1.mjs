@@ -18,7 +18,7 @@ function parseArgs(argv) {
   const values = {
     receipts: [],
     output: process.env.VOID_PUBLIC_BOOTSTRAP_MANIFEST_OUTPUT || "",
-    validityHours: Number(process.env.VOID_PUBLIC_BOOTSTRAP_MANIFEST_VALIDITY_HOURS || 72),
+    validityHours: Number(process.env.VOID_PUBLIC_BOOTSTRAP_MANIFEST_VALIDITY_HOURS || 168),
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
