@@ -50,6 +50,7 @@ for value in [
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
+ "canonical_training_user","getpwnam(name)","getpwuid(forward.pw_uid)",
  "process_has_training_uid_thread","/task/","collect_training_uid_processes","training_uid_process_inventory",
  "all_training_uid_processes_capability_free",
  "'training_user':tr.pw_name",
