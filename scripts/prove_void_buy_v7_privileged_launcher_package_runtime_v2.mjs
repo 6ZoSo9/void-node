@@ -180,9 +180,15 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     'native_preentry_verified=true',
   ]) assert.ok(launcherText.includes(required),"launcher_required:"+required);
   assert.ok(
-    launcherText.indexOf('NATIVE_PREENTRY_MARKER=')<
-    launcherText.indexOf('SELF="$('),
+    launcherText.indexOf("native_preentry_required")<
+    launcherText.indexOf('"$ID" -u'),
     "native_marker_must_precede_external_launcher_calls",
+  );
+  const launcherMetadata=fs.lstatSync(path.join(ROOT,LAUNCHER));
+  assert.equal(
+    launcherMetadata.mode&0o111,
+    0,
+    "launcher_body_must_not_be_directly_executable",
   );
   for(const required of [
     '#define MARKER "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"',

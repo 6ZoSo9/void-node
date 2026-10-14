@@ -15,7 +15,6 @@ on:
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
-      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs"
       - "ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
       - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "docs/security/buy-void-v7-privileged-launcher-package-runtime-candidate-v1.md"
