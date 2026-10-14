@@ -341,6 +341,18 @@ jobs:
           assert.equal(c.source_parent,"82aee920f26b45c7e43bcc9f9e1023a175e2783a");
           assert.equal(c.hosted_census_evidence.census_id,
             "voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a");
+          assert.equal(c.hosted_census_evidence.artifact_inventory_sha256,
+            "e7fe07c5e9e5386d6dd4e95132b6d2551426d9b62fabd9257f43f2e271cdfd8f");
+          assert.equal(c.hosted_census_evidence.source_inventory_sha256,
+            "ceaaf5cd9faf3b9176cfd02f1fabf455212391f24df1040707ba487a7ebb96a3");
+          assert.equal(c.current_inventory_evidence.hosted_json_artifact_inventory_sha256,
+            c.hosted_census_evidence.artifact_inventory_sha256);
+          assert.equal(c.current_inventory_evidence.hosted_json_source_inventory_sha256,
+            c.hosted_census_evidence.source_inventory_sha256);
+          assert.equal(c.current_inventory_evidence.canonical_artifact_inventory_sha256,
+            "8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496");
+          assert.equal(c.current_inventory_evidence.canonical_source_inventory_sha256,
+            "9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b");
           assert.equal(c.hosted_census_evidence.artifact_count,28);
           assert.equal(c.hosted_census_evidence.source_file_count,28);
           assert.equal(c.v7_executable_delta.module_count,6);

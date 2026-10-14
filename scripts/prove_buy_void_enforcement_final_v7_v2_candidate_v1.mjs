@@ -42,12 +42,16 @@ const HOSTED_CENSUS=Object.freeze({
   artifact_json_sha256:"5d73fccde209c2cc9719ed488f3944c9cb625d7c32c66a0f99a0ccd4c0c1c350",
   artifact_json_git_blob_sha1:"9fae8e53c01771e3b1b9cdf04a0fc85a4ad324a9",
   census_id:"voidbefv7c2_2dddb68128ce0baff4a848568fac7651c025cc97956cdf1b3d6faff6a9ae075a",
-  artifact_inventory_sha256:"8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496",
-  source_inventory_sha256:"9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b",
+  artifact_inventory_sha256:"e7fe07c5e9e5386d6dd4e95132b6d2551426d9b62fabd9257f43f2e271cdfd8f",
+  source_inventory_sha256:"ceaaf5cd9faf3b9176cfd02f1fabf455212391f24df1040707ba487a7ebb96a3",
   artifact_count:28,
   source_file_count:28,
   cross_node_byte_identity_verified:true,
 });
+const CURRENT_CANONICAL_ARTIFACT_INVENTORY_SHA256=
+  "8d186c88bad544fdbdcbc928cce3883c83d9be194ae57f2e00ff1cf84e705496";
+const CURRENT_CANONICAL_SOURCE_INVENTORY_SHA256=
+  "9036b38b760d34a586aa8fb44f86e85b6120fbf941b1b487069c90bd1739948b";
 const UNCHANGED_PREDECESSOR_ARTIFACTS_SHA256="3844cc20dca3f5fa7c09e22bd9e614a499d7949ea9c03d5a1a066122016c9f91";
 const CURRENT_PREFLIGHT=Object.freeze({
   path:"dist/economic/buy_void_source_finality_execution_preflight_v1.js",
@@ -129,15 +133,28 @@ function inventories(){
     return {path:relative,bytes:b.length,git_blob_sha1:blob,sha256:sha256(b)};
   });
   assert.equal(artifacts.length,28);assert.equal(sources.length,28);
-  assert.equal(sha256(Buffer.from(canonical(artifacts))),HOSTED_CENSUS.artifact_inventory_sha256);
-  assert.equal(sha256(Buffer.from(canonical(sources))),HOSTED_CENSUS.source_inventory_sha256);
+  const hostedArtifactInventorySha256=sha256(Buffer.from(JSON.stringify(artifacts),"utf8"));
+  const hostedSourceInventorySha256=sha256(Buffer.from(JSON.stringify(sources),"utf8"));
+  const canonicalArtifactInventorySha256=sha256(Buffer.from(canonical(artifacts),"utf8"));
+  const canonicalSourceInventorySha256=sha256(Buffer.from(canonical(sources),"utf8"));
+  assert.equal(hostedArtifactInventorySha256,HOSTED_CENSUS.artifact_inventory_sha256);
+  assert.equal(hostedSourceInventorySha256,HOSTED_CENSUS.source_inventory_sha256);
+  assert.equal(canonicalArtifactInventorySha256,CURRENT_CANONICAL_ARTIFACT_INVENTORY_SHA256);
+  assert.equal(canonicalSourceInventorySha256,CURRENT_CANONICAL_SOURCE_INVENTORY_SHA256);
   const unchanged=artifacts.filter(x=>x.path!==CURRENT_PREFLIGHT.path&&!ADDED.includes(x.path));
   assert.equal(unchanged.length,22);
   assert.equal(sha256(Buffer.from(canonical(unchanged))),UNCHANGED_PREDECESSOR_ARTIFACTS_SHA256);
   const preflight=artifacts.find(x=>x.path===CURRENT_PREFLIGHT.path);assert.deepEqual(preflight,CURRENT_PREFLIGHT);
   assert.notEqual(preflight.bytes,OLD_PREFLIGHT.bytes);assert.notEqual(preflight.sha256,OLD_PREFLIGHT.sha256);
   for(const added of ADDED)assert.ok(artifacts.some(x=>x.path===added),"missing_added_artifact:"+added);
-  return {artifacts,sources};
+  return Object.freeze({
+    artifacts,
+    sources,
+    hosted_artifact_inventory_sha256:hostedArtifactInventorySha256,
+    hosted_source_inventory_sha256:hostedSourceInventorySha256,
+    canonical_artifact_inventory_sha256:canonicalArtifactInventorySha256,
+    canonical_source_inventory_sha256:canonicalSourceInventorySha256,
+  });
 }
 function requireRuntimeSourceStable(){
   git(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"]);
@@ -228,10 +245,16 @@ function sagaEdge(){
     ts.isStringLiteral(second.expression.arguments[0])&&second.expression.arguments[0].text===TOOL_SPEC);
 }
 function derive(){
-  requireRuntimeSourceStable();inventories();predecessor();const pkg=packageIdentity();const provider=providerIdentity();deltaIdentity();const liveV2=liveProcessV2StaticEdge();sagaEdge();
+  requireRuntimeSourceStable();const inventoryEvidence=inventories();predecessor();const pkg=packageIdentity();const provider=providerIdentity();deltaIdentity();const liveV2=liveProcessV2StaticEdge();sagaEdge();
   const body={
     schema:"void_buy_void_enforcement_final_v7_v2_candidate_v1",marker:"VOID_BUY_VOID_ENFORCEMENT_FINAL_V7_V2_CANDIDATE_V1",version:1,
     repository:"6ZoSo9/void-node",source_parent:SOURCE_PARENT,hosted_census_evidence:HOSTED_CENSUS,
+    current_inventory_evidence:Object.freeze({
+      hosted_json_artifact_inventory_sha256:inventoryEvidence.hosted_artifact_inventory_sha256,
+      hosted_json_source_inventory_sha256:inventoryEvidence.hosted_source_inventory_sha256,
+      canonical_artifact_inventory_sha256:inventoryEvidence.canonical_artifact_inventory_sha256,
+      canonical_source_inventory_sha256:inventoryEvidence.canonical_source_inventory_sha256,
+    }),
     predecessor_enforcement:{path:PREDECESSOR_LOCK,git_blob_sha1:PREDECESSOR_LOCK_BLOB,candidate_enforcement_set_sha256:PREDECESSOR_SET,
       complete_executable_closure_verified:true,candidate_enforcement_identity_accepted:true,historical_identity_preserved:true},
     audited_package_runtime:{manifest_path:PACKAGE_MANIFEST,manifest_git_blob_sha1:PACKAGE_MANIFEST_BLOB,profile_id:pkg.profile_id,
