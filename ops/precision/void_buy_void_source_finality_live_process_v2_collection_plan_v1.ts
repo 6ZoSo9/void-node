@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -343,20 +343,115 @@ export function buildBuyVoidV2LiveProcessCollectionPlanV1(
   return Object.freeze({...material,plan_id:planId(material)});
 }
 
-function readLine(stream:NodeJS.ReadableStream,timeoutMs:number):Promise<string>{
+type SelectorProcessErrorState={error:Error|null};
+type SelectorSession=Readonly<{
+  child:ChildProcessWithoutNullStreams;
+  error_state:SelectorProcessErrorState;
+  persistent_error_listener:(error:Error)=>void;
+}>;
+
+function normalizedSelectorProcessError(error:Error):Error{
+  const code=String((error as NodeJS.ErrnoException).code||"unknown");
+  return new Error("selector_process_spawn_error:"+code);
+}
+
+function startSelectorSession(
+  executable:string,
+  args:readonly string[],
+):SelectorSession{
+  const child=spawn(executable,[...args],{
+    stdio:["pipe","pipe","pipe"],
+    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+  });
+  const error_state:SelectorProcessErrorState={error:null};
+  const persistent_error_listener=(error:Error)=>{
+    error_state.error=normalizedSelectorProcessError(error);
+  };
+  // Install this immediately after spawn so an asynchronous exec failure can
+  // never become an unhandled ChildProcess "error" event.
+  child.on("error",persistent_error_listener);
+  return Object.freeze({child,error_state,persistent_error_listener});
+}
+
+function readSelectorLine(
+  session:SelectorSession,
+  timeoutMs:number,
+):Promise<string>{
+  const {child,error_state}=session;
+  if(error_state.error)return Promise.reject(error_state.error);
   return new Promise((resolve,reject)=>{
     let buffer="";
     const timer=setTimeout(()=>{cleanup();reject(new Error("selector_line_timeout"));},timeoutMs);
     const onData=(chunk:Buffer|string)=>{
       buffer+=chunk.toString();
       const i=buffer.indexOf("\n");
-      if(i>=0){const line=buffer.slice(0,i);cleanup();resolve(line);}
+      if(i>=0){const line=buffer.slice(0,i);cleanup();resolve(line);return;}
       if(buffer.length>8192){cleanup();reject(new Error("selector_line_too_large"));}
     };
     const onEnd=()=>{cleanup();reject(new Error("selector_stdout_ended"));};
-    const cleanup=()=>{clearTimeout(timer);stream.off("data",onData);stream.off("end",onEnd);};
-    stream.on("data",onData);stream.on("end",onEnd);
+    const onError=(error:Error)=>{
+      cleanup();
+      reject(normalizedSelectorProcessError(error));
+    };
+    const cleanup=()=>{
+      clearTimeout(timer);
+      child.stdout.off("data",onData);
+      child.stdout.off("end",onEnd);
+      child.off("error",onError);
+    };
+    child.stdout.on("data",onData);
+    child.stdout.on("end",onEnd);
+    child.once("error",onError);
+    if(error_state.error){cleanup();reject(error_state.error);}
   });
+}
+
+function waitSelectorExit(
+  session:SelectorSession,
+  timeoutMs:number,
+):Promise<number>{
+  const {child,error_state}=session;
+  if(error_state.error)return Promise.reject(error_state.error);
+  if(child.exitCode!==null)return Promise.resolve(child.exitCode);
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{
+      cleanup();
+      child.kill("SIGKILL");
+      reject(new Error("selector_exit_timeout"));
+    },timeoutMs);
+    const onError=(error:Error)=>{
+      cleanup();
+      reject(normalizedSelectorProcessError(error));
+    };
+    const onExit=(code:number|null)=>{
+      cleanup();
+      resolve(code??-1);
+    };
+    const cleanup=()=>{
+      clearTimeout(timer);
+      child.off("error",onError);
+      child.off("exit",onExit);
+    };
+    child.once("error",onError);
+    child.once("exit",onExit);
+    if(error_state.error){cleanup();reject(error_state.error);}
+  });
+}
+
+export async function testOnlyBuyVoidV2SelectorSpawnErrorV1():Promise<never>{
+  const session=startSelectorSession(
+    "/definitely-not-present/void-buy-void-v2-selector",
+    ["--select","--runtime-uid","1000","--runtime-gid","1000"],
+  );
+  try{
+    await readSelectorLine(session,2_000);
+    throw new Error("selector_spawn_error_test_unexpected_success");
+  }finally{
+    session.child.off("error",session.persistent_error_listener);
+    if(session.child.exitCode===null&&!session.child.killed){
+      session.child.kill("SIGKILL");
+    }
+  }
 }
 
 export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
@@ -369,14 +464,16 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
   assertSelectorBinary();
   const uid=positive(input.runtime_uid,"collection_plan_runtime_uid_invalid");
   const gid=positive(input.runtime_gid,"collection_plan_runtime_gid_invalid");
-  const child=spawn(VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,[
-    "--select","--runtime-uid",String(uid),"--runtime-gid",String(gid),
-  ],{
-    stdio:["pipe","pipe","pipe"],
-    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
-  });
+  const session=startSelectorSession(
+    VOID_BUY_VOID_V2_SELECTOR_INSTALLED_PATH_V1,
+    ["--select","--runtime-uid",String(uid),"--runtime-gid",String(gid)],
+  );
+  const {child}=session;
   try{
-    const ready=parseBuyVoidV2SelectorLineV1(await readLine(child.stdout,10_000),READY_MARKER);
+    const ready=parseBuyVoidV2SelectorLineV1(
+      await readSelectorLine(session,10_000),
+      READY_MARKER,
+    );
     const status=parseStatus(readProc(ready.service_pid,"status"),uid,gid);
     const start=parseStartTicks(readProc(ready.service_pid,"stat"));
     const cgroup=parseCgroup(readProc(ready.service_pid,"cgroup"));
@@ -435,36 +532,43 @@ export async function collectBuyVoidV2LiveProcessCollectionPlanV1(input:{
     });
     child.stdin.write("VERIFY\n");
     child.stdin.end();
-    const green=parseBuyVoidV2SelectorLineV1(await readLine(child.stdout,10_000),GREEN_MARKER);
+    const green=parseBuyVoidV2SelectorLineV1(
+      await readSelectorLine(session,10_000),
+      GREEN_MARKER,
+    );
     if(canonical(green)!==canonical(ready))fail("selector_ready_green_generation_mismatch");
-    const exitCode=child.exitCode!==null
-      ? child.exitCode
-      : await new Promise<number>((resolve,reject)=>{
-          const timer=setTimeout(()=>{child.kill("SIGKILL");reject(new Error("selector_exit_timeout"));},10_000);
-          child.once("error",error=>{clearTimeout(timer);reject(error);});
-          child.once("exit",code=>{clearTimeout(timer);resolve(code??-1);});
-        });
+    const exitCode=await waitSelectorExit(session,10_000);
     if(exitCode!==0)fail("selector_process_not_green");
     return buildBuyVoidV2LiveProcessCollectionPlanV1(material);
   }catch(error){
-    if(!child.killed)child.kill("SIGKILL");
+    if(child.exitCode===null&&!child.killed)child.kill("SIGKILL");
     throw error;
+  }finally{
+    child.off("error",session.persistent_error_listener);
   }
 }
 
-function main():void{
+async function main():Promise<void>{
   const args=process.argv.slice(2);
+  if(args.length===1&&args[0]==="--test-only-selector-spawn-error"){
+    await testOnlyBuyVoidV2SelectorSpawnErrorV1();
+    return;
+  }
   if(args.length!==4||args[0]!=="--runtime-uid"||args[2]!=="--runtime-gid"){
     fail("collection_plan_arguments_invalid");
   }
   const uid=positive(args[1],"collection_plan_runtime_uid_invalid");
   const gid=positive(args[3],"collection_plan_runtime_gid_invalid");
-  collectBuyVoidV2LiveProcessCollectionPlanV1({runtime_uid:uid,runtime_gid:gid})
-    .then(plan=>{process.stdout.write(JSON.stringify(plan,null,2)+"\n");})
-    .catch(error=>{
-      console.error("VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1_HOLD");
-      console.error("reason="+String((error as Error)?.message||"unknown"));
-      process.exitCode=2;
-    });
+  const plan=await collectBuyVoidV2LiveProcessCollectionPlanV1({
+    runtime_uid:uid,
+    runtime_gid:gid,
+  });
+  process.stdout.write(JSON.stringify(plan,null,2)+"\n");
 }
-if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main();
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  main().catch(error=>{
+    console.error("VOID_BUY_VOID_V2_LIVE_PROCESS_COLLECTION_PLAN_V1_HOLD");
+    console.error("reason="+String((error as Error)?.message||"unknown"));
+    process.exitCode=2;
+  });
+}
