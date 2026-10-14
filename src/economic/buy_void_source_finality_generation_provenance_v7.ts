@@ -835,7 +835,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
       total_timeout_ms: String(primaryRemaining),
     },
   });
-  if (!primary.ok) return held("source_finality_primary_" + primary.reason);
+  if (primary.ok === false) return held("source_finality_primary_" + primary.reason);
 
   const secondaryRemaining = remainingMs(deadline);
   if (secondaryRemaining === 0) return held("source_finality_v7_total_deadline_exceeded");
@@ -846,7 +846,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
       total_timeout_ms: String(secondaryRemaining),
     },
   });
-  if (!secondary.ok) return held("source_finality_secondary_" + secondary.reason);
+  if (secondary.ok === false) return held("source_finality_secondary_" + secondary.reason);
   if (remainingMs(deadline) === 0) return held("source_finality_v7_total_deadline_exceeded");
 
   return classifyBuyVoidSourceFinalityProviderQuorumV7({
