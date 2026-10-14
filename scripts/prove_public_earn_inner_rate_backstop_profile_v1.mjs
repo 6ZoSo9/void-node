@@ -138,6 +138,8 @@ for (const needle of [
   "function dedicatedEarnMutationIngressEnabled()",
   'mode: dedicatedEarnMutationIngressEnabled()',
   '"dedicated_loopback"',
+  "submit_requests_per_minute: EARN_RATE_LIMIT_PER_MINUTE",
+  "claim_requests_per_minute: EARN_CLAIM_RATE_LIMIT_PER_MINUTE",
 ]) {
   assert.ok(adapterSource.includes(needle), needle);
 }

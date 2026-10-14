@@ -38,6 +38,12 @@ outer budget after the first source reaches its outer limit.
 The profile intentionally preserves a bounded aggregate wall: ten fully utilized
 outer-source budgets can fit before the corresponding inner backstop is reached.
 
+The effective values are already exposed on the bounded public gateway status
+surface as `limits.claim_requests_per_minute` and
+`limits.submit_requests_per_minute`. Designated-host acceptance can therefore
+verify the installed 60/300 profile from that non-secret status response without
+reading `/proc/<pid>/environ` or another process-environment source.
+
 ## Trust boundary
 
 This profile does not carry public source identity into the adapter and does not
