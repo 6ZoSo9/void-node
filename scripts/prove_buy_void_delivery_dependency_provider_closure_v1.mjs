@@ -204,7 +204,22 @@ function providerBoundary(){
   assert.equal(gitBlob(readExact("package-lock.json",4*1024*1024)),LOCK_BLOB,"lock generation drift");
 
   const artifacts=closedProviderArtifacts();
-  const sourcePaths=[...new Set(artifacts.map(row=>sourcePathForArtifact(row.path)))].sort();
+  const boundaryArtifacts=[SERVER_RUNTIME,DELIVERY_CONSUMER].map((p)=>{
+    const bytes=readExact(p);
+    const graph=scanModule(p,bytes);
+    return Object.freeze({
+      path:p,
+      bytes:bytes.length,
+      sha256:sha256(bytes),
+      git_blob_sha1:gitBlob(bytes),
+      imports:graph.imports,
+      packages:graph.packages,
+      builtins:graph.builtins,
+    });
+  });
+  const sourcePaths=[...new Set(
+    [...artifacts,...boundaryArtifacts].map(row=>sourcePathForArtifact(row.path)),
+  )].sort();
   const changed=spawnSync(
     "/usr/bin/git",
     ["--no-replace-objects","-C",ROOT,"diff","--quiet","--no-ext-diff","--no-textconv",
@@ -223,11 +238,13 @@ function providerBoundary(){
   assert.equal(changed.error,undefined,String(changed.error||""));
   assert.equal(changed.status,0,String(changed.stderr||""));
 
-  const serverBytes=readExact(SERVER_RUNTIME);
-  const serverGraph=scanModule(SERVER_RUNTIME,serverBytes);
-  assert.equal(serverGraph.imports.includes(ENTRY),true,"server runtime does not import provider");
+  const serverArtifact=boundaryArtifacts.find(row=>row.path===SERVER_RUNTIME);
+  const consumerArtifact=boundaryArtifacts.find(row=>row.path===DELIVERY_CONSUMER);
+  assert.ok(serverArtifact,"server runtime identity missing");
+  assert.ok(consumerArtifact,"delivery consumer identity missing");
+  assert.equal(serverArtifact.imports.includes(ENTRY),true,"server runtime does not import provider");
   assert.equal(
-    serverGraph.imports.includes(DELIVERY_CONSUMER),
+    serverArtifact.imports.includes(DELIVERY_CONSUMER),
     true,
     "server runtime does not import delivery consumer",
   );
@@ -271,7 +288,13 @@ function providerBoundary(){
     package_lock_git_blob_sha1:LOCK_BLOB,
     entry_artifact:ENTRY,
     server_runtime_artifact:SERVER_RUNTIME,
+    server_runtime_identity:serverArtifact,
     delivery_consumer_artifact:DELIVERY_CONSUMER,
+    delivery_consumer_identity:consumerArtifact,
+    boundary_source_paths:Object.freeze([
+      sourcePathForArtifact(SERVER_RUNTIME),
+      sourcePathForArtifact(DELIVERY_CONSUMER),
+    ].sort()),
     dependency_global_key:GLOBAL_KEY,
     server_runtime_imports_provider:true,
     server_runtime_imports_delivery_consumer:true,
