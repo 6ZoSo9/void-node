@@ -110,7 +110,9 @@ reviewed Linux-x64 esbuild binary executable without making it writable, and
 runs an inert TypeScript-only probe through the exact TSX CLI under Node
 filesystem permissions. A synthetic read-only private-root `package.json` terminates
 Node/TSX package-scope lookup inside the permitted tree instead of widening the
-filesystem read boundary. TSX receives a dedicated private scratch directory via
+filesystem read boundary. The proof explicitly grants Worker-thread authority because
+the reviewed esbuild synchronous transform starts a worker service; this is reported as
+`tsx_worker_threads_allowed=true`. TSX receives a dedicated private scratch directory via
 `TMPDIR`/`TMP`/`TEMP`; filesystem writes are permitted only to that scratch
 subtree, never to the copied package tree or probe source. The proof then
 re-inventories the private package bytes and requires no probe or package

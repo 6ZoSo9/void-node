@@ -114,6 +114,7 @@ jobs:
           assert.equal(j.launcher_gate_contract_verified,true);
           assert.equal(j.package_runtime_identity_rederived,true);
           assert.equal(j.privileged_launcher_package_runtime_verified,true);
+          assert.equal(j.tsx_worker_threads_allowed,true);
           assert.equal(j.tsx_runtime_id,"voidtsxpr1_0f2bf2dba60718942e7db9b83779a2aeb2e9db32e74610a96a8ec978ad35e4d4");
           assert.equal(j.protected_source_install_authorized,false);
           assert.equal(j.privileged_receipt_execution_authorized,false);
@@ -127,6 +128,7 @@ jobs:
           grep -Fx 'launcher_gate_contract_verified=true' "$receipt"
           grep -Fx 'package_runtime_identity_rederived=true' "$receipt"
           grep -Fx 'privileged_launcher_package_runtime_verified=true' "$receipt"
+          grep -Fx 'tsx_worker_threads_allowed=true' "$receipt"
           grep -Fx 'privileged_receipt_execution_authorized=false' "$receipt"
           grep -Fx 'funds_movement=false' "$receipt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -166,6 +168,7 @@ jobs:
           cmp runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt runtime-v2/v7-privileged-launcher-package-runtime-v2-26.txt
           grep -Fx 'native_preentry_contract_verified=true' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
           grep -Fx 'privileged_launcher_package_runtime_verified=true' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
+          grep -Fx 'tsx_worker_threads_allowed=true' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
           grep -Fx 'privileged_receipt_execution_authorized=false' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
           grep -Fx 'funds_movement=false' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
           sha256sum runtime-v2/v7-privileged-launcher-package-runtime-v2-22.json

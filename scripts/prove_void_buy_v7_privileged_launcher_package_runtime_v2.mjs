@@ -355,6 +355,7 @@ function provePrivateTsxExecution(lock,packages){
         "--allow-fs-read="+caseProbePath,
         "--allow-fs-write="+scratch,
         "--allow-child-process",
+        "--allow-worker",
         "--import",
         pathToFileURL(loader).href,
         probe,
@@ -407,6 +408,7 @@ function provePrivateTsxExecution(lock,packages){
       tsx_scratch_outside_package_tree:true,
       tsx_node_import_execution_verified:true,
       tsx_cli_ipc_required:false,
+      tsx_worker_threads_allowed:true,
       case_inversion_probe_permission_bounded:true,
       ancestor_package_resolution_blocked_by_fs_permission:true,
       ambient_node_resolution_overrides_inherited:false,
@@ -522,6 +524,7 @@ export async function derivePrivilegedLauncherPackageRuntimeV2(){
     tsx_scratch_outside_package_tree:execution.tsx_scratch_outside_package_tree,
     tsx_node_import_execution_verified:execution.tsx_node_import_execution_verified,
     tsx_cli_ipc_required:execution.tsx_cli_ipc_required,
+    tsx_worker_threads_allowed:execution.tsx_worker_threads_allowed,
     case_inversion_probe_permission_bounded:execution.case_inversion_probe_permission_bounded,
     ancestor_package_resolution_blocked_by_fs_permission:execution.ancestor_package_resolution_blocked_by_fs_permission,
     ambient_node_resolution_overrides_inherited:execution.ambient_node_resolution_overrides_inherited,
@@ -557,6 +560,7 @@ function report(j){
   console.log("tsx_scratch_outside_package_tree=true");
   console.log("tsx_node_import_execution_verified=true");
   console.log("tsx_cli_ipc_required=false");
+  console.log("tsx_worker_threads_allowed=true");
   console.log("case_inversion_probe_permission_bounded=true");
   console.log("privileged_launcher_package_runtime_verified=true");
   console.log("private_temporary_filesystem_write=true");
