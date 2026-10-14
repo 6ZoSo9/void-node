@@ -125,6 +125,7 @@ const SELECTOR_CONTRACT_MATERIAL=Object.freeze({
     "/user.slice/user-<uid>.slice/user@<uid>.service/app.slice/void-node-live.service",
   manager_executable:MANAGER_EXE,
   manager_argv:Object.freeze([MANAGER_EXE,"--user"]),
+  manager_ppid_must_equal_pid1:true,
   service_executable:NODE_EXE,
   service_parent_must_equal_manager_pid:true,
   exact_one_manager_candidate:true,
@@ -166,6 +167,7 @@ export function selectBuyVoidSourceFinalityServiceProcessV2(input:{
   const serviceCgroup=exactServiceCgroup(uid);
   const managers=input.manager_processes.filter(row=>
     row.uid===uid&&row.gid===gid&&
+    row.ppid===1&&
     row.cgroup_v2_path===managerScope&&
     row.comm==="systemd"&&
     row.executable_realpath===MANAGER_EXE&&
@@ -204,6 +206,7 @@ export type BuyVoidSourceFinalityLiveProcessBindingMaterialV2=Readonly<{
   service_process_selector_contract_id:
     typeof VOID_BUY_VOID_SOURCE_FINALITY_SERVICE_PROCESS_SELECTOR_CONTRACT_ID_V2;
   manager_pid:number;
+  manager_ppid:1;
   manager_start_time_ticks:string;
   manager_cgroup_v2_path:string;
   manager_executable_realpath:typeof MANAGER_EXE;
@@ -243,7 +246,7 @@ export type BuyVoidSourceFinalityLiveProcessBindingReceiptV2=
 const MATERIAL_KEYS=Object.freeze([
   "marker","version","deployment_receipt_id",
   "service_process_selection_mode","service_process_selector_contract_id",
-  "manager_pid","manager_start_time_ticks","manager_cgroup_v2_path",
+  "manager_pid","manager_ppid","manager_start_time_ticks","manager_cgroup_v2_path",
   "manager_executable_realpath","manager_cmdline_sha256",
   "manager_pidfd_retained_during_collection","service_pidfd_retained_during_collection",
   "process_source_identity_marker","process_source_commit","process_source_tree",
@@ -285,6 +288,7 @@ function validateMaterial(raw:unknown):BuyVoidSourceFinalityLiveProcessBindingMa
     raw.reviewed_launcher_contract_proven!==true
   )throw new Error("live_process_v2_material_invalid");
   positive(raw.manager_pid,"live_process_v2_manager_pid_invalid");
+  if(raw.manager_ppid!==1)throw new Error("live_process_v2_manager_ppid_invalid");
   positive(raw.runtime_uid,"live_process_v2_runtime_uid_invalid");
   positive(raw.runtime_gid,"live_process_v2_runtime_gid_invalid");
   positive(raw.main_pid,"live_process_v2_main_pid_invalid");
@@ -379,6 +383,7 @@ export type BuyVoidSourceFinalityLiveProcessBindingDecisionV2=
       deployment_receipt_id:string;
       service_process_selector_contract_id:string;
       manager_pid:number;
+      manager_ppid:1;
       manager_start_time_ticks:string;
       main_pid:number;
       process_start_time_ticks:string;
@@ -452,6 +457,9 @@ export function classifyBuyVoidSourceFinalityLiveProcessBindingV2(input:{
     if(input.self_parent_pid!==receipt.manager_pid){
       return held("live_process_v2_direct_parent_mismatch");
     }
+    if(receipt.manager_ppid!==1){
+      return held("live_process_v2_manager_ppid_invalid");
+    }
     if(input.manager_start_time_ticks!==receipt.manager_start_time_ticks){
       return held("live_process_v2_manager_generation_mismatch");
     }
@@ -470,6 +478,7 @@ export function classifyBuyVoidSourceFinalityLiveProcessBindingV2(input:{
       service_process_selector_contract_id:
         receipt.service_process_selector_contract_id,
       manager_pid:receipt.manager_pid,
+      manager_ppid:1,
       manager_start_time_ticks:receipt.manager_start_time_ticks,
       main_pid:receipt.main_pid,
       process_start_time_ticks:receipt.process_start_time_ticks,
@@ -546,6 +555,9 @@ export function verifyBuyVoidSourceFinalityLiveProcessBindingV2(input:{
     const selfStat=procStat(process.pid);
     const receipt=readRootReceiptV2(input.receipt_path);
     const managerStat=procStat(receipt.manager_pid);
+    if(managerStat.ppid!==1){
+      return held("live_process_v2_manager_not_pid1_child");
+    }
     const managerCgroup=procCgroup(receipt.manager_pid);
     const managerCmdlineSha=procCmdlineSha(receipt.manager_pid);
     const after=readBuyVoidSourceFinalitySelfProcessIdentityV1();
