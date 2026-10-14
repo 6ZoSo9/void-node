@@ -56,7 +56,7 @@ Before any shell source is evaluated, the native pre-entry:
 - opens the fixed launcher body with `O_NOFOLLOW`, requires it to be
   root-owned, single-link, non-group/world-writable and **non-executable**,
   then retains that exact descriptor across exec;
-- requires that retained body to be exactly 10,813 bytes with SHA-256
+- requires that retained body to be exactly 11,436 bytes with SHA-256
   `f02c87279c1f9a5b74187612e1e202b8e9304c16bbbfb213075002b0098a975a`
   using the native pre-entry's internal SHA-256 before Bash evaluates it;
 - invokes bash with `fexecve()`, `--noprofile --norc`, and the launcher
