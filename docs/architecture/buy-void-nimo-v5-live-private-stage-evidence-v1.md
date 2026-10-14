@@ -77,14 +77,24 @@ blob, and independently fingerprinted.
 Both paths require direct root-owned files with root-owned, non-group/world-
 writable parent ancestry.
 
-This V1 evidence intentionally does **not** re-prove the historical root-disk
-serial/WWN continuity, so:
+The collector also re-proves the reviewed root-disk identity using only the
+fixed read-only probes already used by the V3 installation evidence:
 
 ```text
-root_disk_continuity_reverified=false
+/usr/bin/findmnt -n -o SOURCE /
+/usr/bin/lsblk -ndo PKNAME <root-source>
+/usr/bin/lsblk -ndo SERIAL,WWN <root-parent>
 ```
 
-That stronger installation-identity contract remains a separate gate.
+The required stable identity is:
+
+```text
+root_disk_serial = 50026B76873B25AB
+root_disk_wwn    = eui.00000000000000000026b76873b25ab5
+root_disk_continuity_reverified=true
+```
+
+No shell, mount, block-device write, or storage mutation is permitted.
 
 ## Live collection
 
@@ -98,7 +108,7 @@ It requires:
 
 - Linux/POSIX;
 - non-root execution and no setuid identity change;
-- exact reviewed Nimo hostname, machine ID and Ed25519 host key;
+- exact reviewed Nimo hostname, machine ID, root-disk serial/WWN, and Ed25519 host key;
 - exact #2914 inspector source identity;
 - the exact V5 private stage already present under the invoking user's home;
 - all eight staged runtime files to pass the reviewed descriptor/inotify
@@ -120,7 +130,7 @@ the reviewed Nimo host identity at collection time.
 Even a GREEN live receipt keeps:
 
 ```text
-root_disk_continuity_reverified=false
+root_disk_continuity_reverified=true
 external_transport_authenticated=false
 live_nimo_installed=false
 installation_qualification_composed=false
