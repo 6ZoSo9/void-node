@@ -1,0 +1,248 @@
+{
+  "schema": "void_buy_void_delivery_dependency_provider_closure_v1",
+  "marker": "VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "repository_head_sha": "bc510343c5c418a75154bedcc445cbf1251dc037",
+  "repository_tree_sha": "7e21075ccd632ea11f4d424424b348217a013dfe",
+  "source_parent": "35ff3f8ec453f8104b59967580a84347d6bc1d23",
+  "package_json_git_blob_sha1": "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+  "package_lock_git_blob_sha1": "15b5c82ea36f13079a2f9e8863722f654eb3f201",
+  "entry_artifact": "dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js",
+  "server_runtime_artifact": "dist/economic/buy_void_runtime_integration_v1.js",
+  "server_runtime_identity": {
+    "path": "dist/economic/buy_void_runtime_integration_v1.js",
+    "bytes": 21010,
+    "sha256": "a6899902ce2855a9d5e7f5ae0bddd6f876bb31c12a403b6104b1f7ba6a5285fc",
+    "git_blob_sha1": "077fc75df5e6a1e9165341192adcec15a2978cbc",
+    "imports": [
+      "dist/economic/buy_void_confirmed_closeout_runtime_v1.js",
+      "dist/economic/buy_void_delivery_runtime_integration_v1.js",
+      "dist/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.js",
+      "dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js",
+      "dist/economic/buy_void_history_carrier_pipeline_mount_v1.js",
+      "dist/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.js",
+      "dist/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.js",
+      "dist/economic/buy_void_payment_keyed_full_runtime_v1.js",
+      "dist/economic/buy_void_pipeline_coordinator_v1.js",
+      "dist/economic/buy_void_saga_broadcast_reconciliation_runtime_v1.js",
+      "dist/economic/buy_void_saga_terminal_closeout_runtime_v1.js"
+    ],
+    "packages": [
+      "express"
+    ],
+    "builtins": [
+      "node:path"
+    ]
+  },
+  "delivery_consumer_artifact": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
+  "delivery_consumer_identity": {
+    "path": "dist/economic/buy_void_delivery_runtime_integration_v1.js",
+    "bytes": 17043,
+    "sha256": "c6897d1abcaa680ae8f18d0a8311d87532385ed30fda99f32f850f554cde2421",
+    "git_blob_sha1": "d9abd8aa544695abd209d34d08289b5eb5ce49fe",
+    "imports": [
+      "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+      "dist/economic/buy_void_delivery_submission_guard_v1.js",
+      "dist/economic/buy_void_erc20_execution_composition_v1.js",
+      "dist/economic/buy_void_source_finality_execution_preflight_v1.js"
+    ],
+    "packages": [
+      "express"
+    ],
+    "builtins": [
+      "node:path"
+    ]
+  },
+  "delivery_adapter_artifact": "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+  "delivery_adapter_identity": {
+    "path": "dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js",
+    "bytes": 28661,
+    "sha256": "0d8dff6b431ce06883c4240bfb7f5828817bec9685a590f34f60fcc10b47611a",
+    "git_blob_sha1": "b546b604a72202f8606c31526daf9dc719c8110a",
+    "imports": [],
+    "packages": [
+      "ethers"
+    ],
+    "builtins": [
+      "node:crypto"
+    ]
+  },
+  "boundary_source_paths": [
+    "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+    "src/economic/buy_void_runtime_integration_v1.ts"
+  ],
+  "dependency_global_key": "__void_buy_void_delivery_runtime_dependencies_v1",
+  "server_runtime_imports_provider": true,
+  "server_runtime_imports_delivery_consumer": true,
+  "provider_global_writer_bound": true,
+  "consumer_global_reader_bound": true,
+  "provider_runtime_artifact_count": 9,
+  "provider_runtime_artifacts": [
+    {
+      "path": "dist/economic/buy_void_delivery_submission_guard_v1.js",
+      "bytes": 18457,
+      "sha256": "b3006f5a93bc982721d1d4b25274a129dd548486fccc2788b7f4ffd939536132",
+      "git_blob_sha1": "7648603bb0cff644c03ef2c3d7cf40ee9f5f8f56",
+      "imports": [],
+      "packages": [],
+      "builtins": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_epoch2_fulfillment_access_list_v1.js",
+      "bytes": 6490,
+      "sha256": "d8b049219d97ca23f3a9a46aeb9cae774d8c753e477fdf9bb667b23f05abbba4",
+      "git_blob_sha1": "5d53d38f18c348764c02f7963a66d1083110c0e2",
+      "imports": [],
+      "packages": [],
+      "builtins": []
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_chain2050_broadcaster_v1.js",
+      "bytes": 6641,
+      "sha256": "7ecbbc1c561b8e00085d3c168be3582597cfd4d8528c20b67c210f33079b17b3",
+      "git_blob_sha1": "8d34ce1f96734e7be41e60a2b1e03c69626b0bc9",
+      "imports": [
+        "dist/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.js",
+        "dist/economic/buy_void_native_chain2050_broadcaster_v1.js"
+      ],
+      "packages": [
+        "ethers"
+      ],
+      "builtins": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.js",
+      "bytes": 8326,
+      "sha256": "d9ae0b2e26d8deaa4ca516b0ba7e1bc984e72c94de21f5d2e2698a957fd15200",
+      "git_blob_sha1": "2f04745a9f407d2543817852f8d197c4ab189879",
+      "imports": [],
+      "packages": [],
+      "builtins": [
+        "node:http"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.js",
+      "bytes": 11377,
+      "sha256": "e390ecc93c994b79a20f90fb2e79b566f41e6cce9f88b50ba9046f8c307f7663",
+      "git_blob_sha1": "a5b3b726cc040fc2d4040999a9b191b2050d5989",
+      "imports": [
+        "dist/economic/buy_void_delivery_submission_guard_v1.js",
+        "dist/economic/buy_void_erc20_chain2050_broadcaster_v1.js",
+        "dist/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js"
+      ],
+      "packages": [
+        "ethers"
+      ],
+      "builtins": [
+        "node:crypto",
+        "node:path"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js",
+      "bytes": 6849,
+      "sha256": "c1438110641299e75e660b613ffea532e0d7da58f57355127d3e91d9328b3260",
+      "git_blob_sha1": "b64065102c16d72f4da8bfc43a984628090bbc4a",
+      "imports": [
+        "dist/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.js",
+        "dist/economic/buy_void_erc20_production_credential_binding_evidence_v1.js"
+      ],
+      "packages": [],
+      "builtins": []
+    },
+    {
+      "path": "dist/economic/buy_void_erc20_production_credential_binding_evidence_v1.js",
+      "bytes": 2660,
+      "sha256": "3948f21518d84134156ed12b04d3283ae2291f24ba65d23db4017b89e5f796b5",
+      "git_blob_sha1": "a59828fbd2d89dc5e5ee13a5c6d214611a60e94d",
+      "imports": [],
+      "packages": [],
+      "builtins": [
+        "node:crypto"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_native_chain2050_broadcaster_v1.js",
+      "bytes": 27629,
+      "sha256": "5277d650c479c3ce79264cae06aedd60037a174f3f706d61f62f89743c22d012",
+      "git_blob_sha1": "f837350d050d16e3cab46108f3467476224961a1",
+      "imports": [],
+      "packages": [
+        "ethers"
+      ],
+      "builtins": [
+        "node:crypto",
+        "node:http"
+      ]
+    },
+    {
+      "path": "dist/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.js",
+      "bytes": 19016,
+      "sha256": "635e34fa70ce9e7e0b631b155c7ee019f1506dfef8d2d461618386b4a6ff7631",
+      "git_blob_sha1": "181f8b260d580abe6a2d640d954db411b30b0477",
+      "imports": [
+        "dist/economic/buy_void_epoch2_fulfillment_access_list_v1.js"
+      ],
+      "packages": [
+        "ethers"
+      ],
+      "builtins": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    }
+  ],
+  "provider_source_paths": [
+    "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+    "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+    "src/economic/buy_void_delivery_submission_guard_v1.ts",
+    "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts",
+    "src/economic/buy_void_erc20_chain2050_broadcaster_v1.ts",
+    "src/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.ts",
+    "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
+    "src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts",
+    "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts",
+    "src/economic/buy_void_native_chain2050_broadcaster_v1.ts",
+    "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts",
+    "src/economic/buy_void_runtime_integration_v1.ts"
+  ],
+  "provider_third_party_packages": [
+    "ethers"
+  ],
+  "provider_node_builtin_imports": [
+    "node:crypto",
+    "node:fs",
+    "node:http",
+    "node:path"
+  ],
+  "required_signer_artifact_present": true,
+  "required_broadcaster_artifact_present": true,
+  "required_submission_guard_artifact_present": true,
+  "required_sign_broadcast_adapter_artifact_present": true,
+  "provider_static_module_closure_verified": true,
+  "dynamic_module_loader_present": false,
+  "post_2865_dependency_generation": true,
+  "delivery_route_closure_composed": false,
+  "whole_enforcement_closure_verified": false,
+  "package_runtime_identity_accepted": false,
+  "candidate_enforcement_identity_accepted": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "credential_read_performed": false,
+  "signing_performed": false,
+  "rpc_call_performed": false,
+  "transaction_broadcast_performed": false,
+  "production_source_finality_authority_ready": false,
+  "presale_activation": false,
+  "funds_movement": false,
+  "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945"
+}
