@@ -239,6 +239,7 @@ if(rootCapable){
     const originalFchown=(fs as any).fchownSync;
     let tempFd=-1;
     let tempPath="";
+    let foreignVisible="";
     let foreignIdentity:fs.Stats|undefined;
     let injected=false;
     try{
@@ -247,6 +248,7 @@ if(rootCapable){
         if(String(args[0]).includes(tempPrefix(receipt))){
           tempFd=fd;
           tempPath=String(args[0]);
+          foreignVisible=path.join(path.dirname(receipt),path.basename(tempPath));
         }
         return fd;
       };
@@ -270,11 +272,12 @@ if(rootCapable){
     }
     assert.equal(injected,true);
     assert.ok(foreignIdentity);
-    const after=fs.lstatSync(tempPath);
+    assert.ok(foreignVisible);
+    const after=fs.lstatSync(foreignVisible);
     assert.equal(after.dev,foreignIdentity!.dev);
     assert.equal(after.ino,foreignIdentity!.ino);
-    assert.equal(fs.readFileSync(tempPath,"utf8"),"foreign\n");
-    fs.unlinkSync(tempPath);
+    assert.equal(fs.readFileSync(foreignVisible,"utf8"),"foreign\n");
+    fs.unlinkSync(foreignVisible);
   }
 
   const restrictiveParent=path.join(root,"restrictive");
