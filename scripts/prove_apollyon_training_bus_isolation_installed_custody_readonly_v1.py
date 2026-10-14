@@ -246,10 +246,6 @@ def main()->int:
             expect_hold(
                 module,
                 "apollyon_training_installed_custody_file_open_failed",
-        "apollyon_training_installed_custody_descriptor_io_failed",
-        "joint_material_identity_stable",
-        "revalidate_retained_file(",
-        "close_descriptor(",
                 lambda: module.read_stable_regular_file(
                     preentry,
                     owner_uid=os.getuid(),
@@ -321,6 +317,10 @@ def main()->int:
         "ancestor_after=assert_ancestor_custody(",
         "apollyon_training_installed_custody_ancestor_identity_drift",
         "apollyon_training_installed_custody_file_open_failed",
+        "apollyon_training_installed_custody_descriptor_io_failed",
+        "joint_material_identity_stable",
+        "revalidate_retained_file(",
+        "close_descriptor(",
         'observation_scope=="live_installed"',
         'observation_scope=="synthetic_fixture"',
     ):
