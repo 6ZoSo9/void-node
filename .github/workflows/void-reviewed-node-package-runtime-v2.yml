@@ -11,6 +11,8 @@ on:
       - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs"
@@ -71,7 +73,7 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           git diff --check "$BASE" "$HEAD"
 
-  preserve-v7-privileged-launcher-package-runtime:
+  prove-v7-privileged-launcher-package-runtime-v2:
     needs: [prove]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -98,40 +100,41 @@ jobs:
           git merge-base --is-ancestor "$BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           npm ci --ignore-scripts --no-audit --no-fund
-      - name: Preserve accepted package identity across launcher tightening
+      - name: Reinventory current privileged launcher package runtime
         run: |
           set -euo pipefail
-          node --check scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs
-          out="$RUNNER_TEMP/v7-privileged-launcher-package-preservation-${{ matrix.node }}.json"
-          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs --derive > "$out"
+          node --check scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs
+          out="$RUNNER_TEMP/v7-privileged-launcher-package-runtime-v2-${{ matrix.node }}.json"
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs --derive > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(j.package_runtime_identity_preserved,true);
+          assert.equal(j.native_preentry_contract_verified,true);
+          assert.equal(j.launcher_gate_contract_verified,true);
+          assert.equal(j.package_runtime_identity_rederived,true);
           assert.equal(j.privileged_launcher_package_runtime_verified,true);
-          assert.equal(j.accepted_enforcement_profile_rederived,true);
           assert.equal(j.tsx_runtime_id,"voidtsxpr1_0f2bf2dba60718942e7db9b83779a2aeb2e9db32e74610a96a8ec978ad35e4d4");
-          assert.equal(j.historical_candidate_rederived_against_current_launcher,false);
           assert.equal(j.protected_source_install_authorized,false);
           assert.equal(j.privileged_receipt_execution_authorized,false);
           assert.equal(j.public_presale_activation,false);
           assert.equal(j.funds_movement,false);
-          console.log("VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_PRESERVATION_NODE_GREEN");
+          console.log("VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V2_NODE_GREEN");
           NODE
-          receipt="$RUNNER_TEMP/v7-privileged-launcher-package-preservation-${{ matrix.node }}.txt"
-          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs --report | tee "$receipt"
-          grep -Fx 'package_runtime_identity_preserved=true' "$receipt"
+          receipt="$RUNNER_TEMP/v7-privileged-launcher-package-runtime-v2-${{ matrix.node }}.txt"
+          node scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs --report | tee "$receipt"
+          grep -Fx 'native_preentry_contract_verified=true' "$receipt"
+          grep -Fx 'launcher_gate_contract_verified=true' "$receipt"
+          grep -Fx 'package_runtime_identity_rederived=true' "$receipt"
           grep -Fx 'privileged_launcher_package_runtime_verified=true' "$receipt"
-          grep -Fx 'historical_candidate_rederived_against_current_launcher=false' "$receipt"
           grep -Fx 'privileged_receipt_execution_authorized=false' "$receipt"
           grep -Fx 'funds_movement=false' "$receipt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: void-v7-privileged-launcher-package-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: void-v7-privileged-launcher-package-runtime-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: |
-            ${{ runner.temp }}/v7-privileged-launcher-package-preservation-${{ matrix.node }}.json
-            ${{ runner.temp }}/v7-privileged-launcher-package-preservation-${{ matrix.node }}.txt
+            ${{ runner.temp }}/v7-privileged-launcher-package-runtime-v2-${{ matrix.node }}.json
+            ${{ runner.temp }}/v7-privileged-launcher-package-runtime-v2-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Diff hygiene
@@ -140,30 +143,30 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: git diff --check "$BASE" "$HEAD"
 
-  v7-privileged-launcher-package-preservation-cross-node:
-    needs: [preserve-v7-privileged-launcher-package-runtime]
+  v7-privileged-launcher-package-runtime-v2-cross-node:
+    needs: [prove-v7-privileged-launcher-package-runtime-v2]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: void-v7-privileged-launcher-package-preservation-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: void-v7-privileged-launcher-package-runtime-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: ./preservation
-      - name: Require exact Node 22 24 26 preservation evidence
+          path: ./runtime-v2
+      - name: Require exact Node 22 24 26 runtime evidence
         run: |
           set -euo pipefail
           for v in 22 24 26; do
-            test -s "preservation/v7-privileged-launcher-package-preservation-$v.json"
-            test -s "preservation/v7-privileged-launcher-package-preservation-$v.txt"
+            test -s "runtime-v2/v7-privileged-launcher-package-runtime-v2-$v.json"
+            test -s "runtime-v2/v7-privileged-launcher-package-runtime-v2-$v.txt"
           done
-          cmp preservation/v7-privileged-launcher-package-preservation-22.json preservation/v7-privileged-launcher-package-preservation-24.json
-          cmp preservation/v7-privileged-launcher-package-preservation-22.json preservation/v7-privileged-launcher-package-preservation-26.json
-          cmp preservation/v7-privileged-launcher-package-preservation-22.txt preservation/v7-privileged-launcher-package-preservation-24.txt
-          cmp preservation/v7-privileged-launcher-package-preservation-22.txt preservation/v7-privileged-launcher-package-preservation-26.txt
-          grep -Fx 'package_runtime_identity_preserved=true' preservation/v7-privileged-launcher-package-preservation-22.txt
-          grep -Fx 'privileged_launcher_package_runtime_verified=true' preservation/v7-privileged-launcher-package-preservation-22.txt
-          grep -Fx 'privileged_receipt_execution_authorized=false' preservation/v7-privileged-launcher-package-preservation-22.txt
-          grep -Fx 'funds_movement=false' preservation/v7-privileged-launcher-package-preservation-22.txt
-          sha256sum preservation/v7-privileged-launcher-package-preservation-22.json
-          echo "VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_PRESERVATION_CROSS_NODE_GREEN"
+          cmp runtime-v2/v7-privileged-launcher-package-runtime-v2-22.json runtime-v2/v7-privileged-launcher-package-runtime-v2-24.json
+          cmp runtime-v2/v7-privileged-launcher-package-runtime-v2-22.json runtime-v2/v7-privileged-launcher-package-runtime-v2-26.json
+          cmp runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt runtime-v2/v7-privileged-launcher-package-runtime-v2-24.txt
+          cmp runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt runtime-v2/v7-privileged-launcher-package-runtime-v2-26.txt
+          grep -Fx 'native_preentry_contract_verified=true' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
+          grep -Fx 'privileged_launcher_package_runtime_verified=true' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
+          grep -Fx 'privileged_receipt_execution_authorized=false' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
+          grep -Fx 'funds_movement=false' runtime-v2/v7-privileged-launcher-package-runtime-v2-22.txt
+          sha256sum runtime-v2/v7-privileged-launcher-package-runtime-v2-22.json
+          echo "VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V2_CROSS_NODE_GREEN"

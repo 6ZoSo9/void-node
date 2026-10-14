@@ -1,33 +1,41 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
 set -euo pipefail
 
 MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1"
+NATIVE_PREENTRY_MARKER="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"
+FIXED_SOURCE_ROOT="/opt/void-buy-void-v7-reviewed-v1"
 GIT="/usr/bin/git"
 NODE="/usr/bin/node"
 SETPRIV="/usr/bin/setpriv"
-PACKAGE_RUNTIME_LOCK_REL="ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
-PACKAGE_RUNTIME_LOCK_BLOB="b26ce09f1726d3f6fed94cea7d58f1cb68d3cb65"
-PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs"
-PACKAGE_RUNTIME_PROOF_BLOB="1d5c89400faa6390031fbeab8e85ba6bd0f6f16c"
+ID="/usr/bin/id"
+UNAME="/usr/bin/uname"
+STAT="/usr/bin/stat"
+ENV="/usr/bin/env"
+GREP="/usr/bin/grep"
+PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
+PACKAGE_RUNTIME_PROOF_BLOB="69faca71a28883572c7ef652369b0f6ba34caa9f"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
   exit 2
 }
 
-SELF="$(readlink -f -- "${BASH_SOURCE[0]}")" || hold self_realpath_unavailable
-ROOT="$(CDPATH= cd -- "$(dirname -- "$SELF")/../.." && pwd -P)" ||
-  hold source_root_unavailable
-test "$SELF" = "$ROOT/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh" ||
-  hold launcher_location_invalid
+if [ "${VOID_BUY_VOID_V7_NATIVE_PREENTRY:-}" != "$NATIVE_PREENTRY_MARKER" ]; then
+  hold native_preentry_required
+fi
+case "${BASH_SOURCE[0]}" in
+  /proc/self/fd/[0-9]*) ;;
+  *) hold native_preentry_descriptor_required ;;
+esac
 
-if [ "$(id -u)" != "0" ]; then hold root_required; fi
-if [ "$(uname -s)" != "Linux" ]; then hold linux_required; fi
+ROOT="$FIXED_SOURCE_ROOT"
+if [ "$("$ID" -u)" != "0" ]; then hold root_required; fi
+if [ "$("$UNAME" -s)" != "Linux" ]; then hold linux_required; fi
 
-for binary in "$GIT" "$NODE" "$SETPRIV" /usr/bin/id /usr/bin/stat /usr/bin/readlink; do
+for binary in "$GIT" "$NODE" "$SETPRIV" "$ID" "$UNAME" "$STAT" "$ENV" "$GREP"; do
   test -x "$binary" || hold required_binary_missing
-  test "$(stat -Lc '%u' -- "$binary")" = "0" || hold required_binary_not_root_owned
-  mode="$(stat -Lc '%a' -- "$binary")"
+  test "$("$STAT" -Lc '%u' -- "$binary")" = "0" || hold required_binary_not_root_owned
+  mode="$("$STAT" -Lc '%a' -- "$binary")"
   perm=$((8#$mode))
   if (( (perm & 0022) != 0 )); then hold required_binary_group_or_world_writable; fi
 done
@@ -74,7 +82,7 @@ done
 [[ "$runtime_gid" =~ ^[1-9][0-9]*$ ]] || hold runtime_gid_invalid
 
 git_reviewed() {
-  env -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     GIT_CONFIG_NOSYSTEM=1     GIT_CONFIG_GLOBAL=/dev/null     GIT_CONFIG_SYSTEM=/dev/null     GIT_NO_REPLACE_OBJECTS=1     GIT_OPTIONAL_LOCKS=0     GIT_TERMINAL_PROMPT=0     GIT_ASKPASS=/bin/false     "$GIT" -c "safe.directory=$ROOT" -C "$ROOT" "$@"
+  "$ENV" -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     GIT_CONFIG_NOSYSTEM=1     GIT_CONFIG_GLOBAL=/dev/null     GIT_CONFIG_SYSTEM=/dev/null     GIT_NO_REPLACE_OBJECTS=1     GIT_OPTIONAL_LOCKS=0     GIT_TERMINAL_PROMPT=0     GIT_ASKPASS=/bin/false     "$GIT" -c "safe.directory=$ROOT" -C "$ROOT" "$@"
 }
 
 head_before="$(git_reviewed rev-parse --verify 'HEAD^{commit}')" ||
@@ -96,7 +104,7 @@ test -f "$CUSTODY" || hold source_custody_checker_missing
 
 set +e
 custody_out="$(
-  env -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     "$SETPRIV"       --reuid="$runtime_uid"       --regid="$runtime_gid"       --clear-groups       --no-new-privs       "$NODE" "$CUSTODY" "$ROOT" 2>&1
+  "$ENV" -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     "$SETPRIV"       --reuid="$runtime_uid"       --regid="$runtime_gid"       --clear-groups       --no-new-privs       "$NODE" "$CUSTODY" "$ROOT" 2>&1
 )"
 custody_rc=$?
 set -e
@@ -105,7 +113,7 @@ if [ "$custody_rc" -ne 0 ]; then
   hold protected_source_custody_failed
 fi
 printf '%s\n' "$custody_out" |
-  grep -Eq '^VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN source_nodes_checked=[0-9]+$' ||
+  "$GREP" -Eq '^VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN source_nodes_checked=[0-9]+$' ||
   hold protected_source_custody_marker_missing
 
 verify_reviewed_blob() {
@@ -136,13 +144,11 @@ test "$tree_after" = "$tree_before" || hold source_tree_changed_during_qualifica
 test "$branch_after" = "$branch_before" || hold source_branch_changed_during_qualification
 test "$status_after" = "$status_before" || hold source_status_changed_during_qualification
 
-verify_reviewed_blob "$PACKAGE_RUNTIME_LOCK_REL" "$PACKAGE_RUNTIME_LOCK_BLOB"
 verify_reviewed_blob "$PACKAGE_RUNTIME_PROOF_REL" "$PACKAGE_RUNTIME_PROOF_BLOB"
 
 set +e
 package_runtime_out="$(
-  env -i \
-    PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C TZ=UTC \
+  "$ENV" -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C TZ=UTC \
     GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
     GIT_NO_REPLACE_OBJECTS=1 GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 \
     "$NODE" "$ROOT/$PACKAGE_RUNTIME_PROOF_REL" --report 2>&1
@@ -154,17 +160,17 @@ if [ "$package_runtime_rc" -ne 0 ]; then
   hold privileged_launcher_package_runtime_verification_failed
 fi
 printf '%s\n' "$package_runtime_out" |
-  grep -Fx 'VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_PRESERVATION_V1_GREEN' >/dev/null ||
+  "$GREP" -Fx 'VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V2_GREEN' >/dev/null ||
   hold privileged_launcher_package_runtime_marker_missing
 printf '%s\n' "$package_runtime_out" |
-  grep -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
+  "$GREP" -Fx 'native_preentry_contract_verified=true' >/dev/null ||
+  hold native_preentry_contract_not_verified
+printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
   hold privileged_launcher_package_runtime_not_verified
 printf '%s\n' "$package_runtime_out" |
-  grep -Fx 'privileged_receipt_execution_authorized=false' >/dev/null ||
+  "$GREP" -Fx 'privileged_receipt_execution_authorized=false' >/dev/null ||
   hold privileged_launcher_package_runtime_authority_overclaim
-printf '%s\n' "$package_runtime_out" |
-  grep -Fx 'package_runtime_identity_preserved=true' >/dev/null ||
-  hold privileged_launcher_package_runtime_identity_not_preserved
 
 printf '%s\n' "$MARKER"
 printf 'source_root=%s\n' "$ROOT"
@@ -174,8 +180,9 @@ printf 'source_branch=main\n'
 printf 'runtime_uid=%s\n' "$runtime_uid"
 printf 'runtime_gid=%s\n' "$runtime_gid"
 printf 'root_owned_protected_source=true\n'
+printf 'native_preentry_verified=true\n'
+printf 'launcher_descriptor_execution=true\n'
 printf 'source_custody_green=true\n'
-printf 'package_runtime_lock_git_blob_sha1=%s\n' "$PACKAGE_RUNTIME_LOCK_BLOB"
 printf 'package_runtime_proof_git_blob_sha1=%s\n' "$PACKAGE_RUNTIME_PROOF_BLOB"
 printf 'privileged_launcher_package_runtime_verified=true\n'
 printf 'ambient_git_environment_inherited=false\n'
@@ -224,4 +231,4 @@ printf 'tool_path=%s\n' "$tool_path"
 printf 'tool_git_blob_sha1=%s\n' "$tracked_blob"
 printf 'tool_execution=true\n'
 
-exec env -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC   "$NODE" "$TSX_CLI" "$tool_absolute" "${tool_args[@]}"
+exec "$ENV" -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC   "$NODE" "$TSX_CLI" "$tool_absolute" "${tool_args[@]}"

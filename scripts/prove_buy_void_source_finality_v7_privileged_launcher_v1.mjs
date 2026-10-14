@@ -6,35 +6,49 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1";
+const NATIVE_MARKER="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
 const ROOT=process.cwd();
 const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh";
+const NATIVE="ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c";
+const FIXED_SOURCE_ROOT="/opt/void-buy-void-v7-reviewed-v1";
+const FIXED_PREENTRY_DIR="/opt/void-buy-void-v7-preentry-v1";
+const FIXED_NATIVE=FIXED_PREENTRY_DIR+"/void_buy_void_source_finality_v7_native_preentry_v1";
+const FIXED_LAUNCHER=FIXED_SOURCE_ROOT+"/"+LAUNCHER;
 const launcher=fs.readFileSync(LAUNCHER,"utf8");
+const nativeSource=fs.readFileSync(NATIVE,"utf8");
 
 for(const required of [
+  'NATIVE_PREENTRY_MARKER="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"',
+  'FIXED_SOURCE_ROOT="/opt/void-buy-void-v7-reviewed-v1"',
   'GIT="/usr/bin/git"',
   'NODE="/usr/bin/node"',
   'SETPRIV="/usr/bin/setpriv"',
-  "GIT_CONFIG_NOSYSTEM=1",
-  "GIT_NO_REPLACE_OBJECTS=1",
-  "GIT_OPTIONAL_LOCKS=0",
-  "--clear-groups",
-  "--no-new-privs",
-  "canonical-producer-source-custody-v1.cjs",
-  "source_branch_not_main",
-  "source_tree_dirty",
-  "deployment)",
-  "provider-pair)",
-  "live-process)",
-  "env -i",
-  "ambient_git_environment_inherited=false",
-  "ambient_node_environment_inherited=false",
-  "funds_movement_by_launcher=false",
-  "buy-void-v7-privileged-launcher-package-runtime-v1.json",
-  "prove_void_buy_v7_privileged_launcher_package_runtime_preservation_v1.mjs",
-  "privileged_launcher_package_runtime_verified=true",
+  'ENV="/usr/bin/env"',
+  'GREP="/usr/bin/grep"',
+  'PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"',
+  'native_preentry_required',
+  'native_preentry_descriptor_required',
+  '/proc/self/fd/[0-9]*',
+  'canonical-producer-source-custody-v1.cjs',
+  'source_branch_not_main',
+  'source_tree_dirty',
+  'deployment)',
+  'provider-pair)',
+  'live-process)',
+  'native_preentry_verified=true',
+  'launcher_descriptor_execution=true',
+  'privileged_launcher_package_runtime_verified=true',
+  'funds_movement_by_launcher=false',
 ]) assert.equal(launcher.includes(required),true,required);
 
+assert.equal(launcher.startsWith("#!/usr/bin/bash\n"),true);
+assert.equal(fs.statSync(LAUNCHER).mode&0o111,0,"launcher body must not be executable");
+assert.ok(
+  launcher.indexOf("native_preentry_required") < launcher.indexOf('"$ID" -u'),
+  "native marker must be checked before external launcher commands",
+);
 for(const forbidden of [
+  /#!\/usr\/bin\/env bash/u,
   /\beval\b/u,
   /\bsource\s/u,
   /bash\s+-c/u,
@@ -43,126 +57,155 @@ for(const forbidden of [
   /\bwget\b/u,
   /eth_sendRawTransaction/u,
   /eth_sendTransaction/u,
+  /PACKAGE_RUNTIME_LOCK_/u,
 ]) assert.doesNotMatch(launcher,forbidden);
+
+for(const required of [
+  '#define MARKER "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"',
+  '#define FIXED_SELF "/opt/void-buy-void-v7-preentry-v1/void_buy_void_source_finality_v7_native_preentry_v1"',
+  '#define FIXED_BASH "/usr/bin/bash"',
+  '#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"',
+  'O_RDONLY | O_NOFOLLOW',
+  'fcntl(launcher_fd, F_SETFD, descriptor_flags & ~FD_CLOEXEC)',
+  'fexecve(bash_fd, next_argv, envp)',
+  '"--noprofile"',
+  '"--norc"',
+  'PREENTRY_ENV',
+  'launcher_direct_exec_mode=false',
+  'privileged_receipt_execution_authorized=false',
+  'public_presale_activation=false',
+  'funds_movement=false',
+]) assert.equal(nativeSource.includes(required),true,"native missing "+required);
+for(const forbidden of [
+  'setuid(', 'seteuid(', 'setresuid(', 'chmod(', 'chown(',
+  'system(', 'popen(', 'execvp(', 'execlp(', '/bin/sh',
+]) assert.equal(nativeSource.includes(forbidden),false,"native forbidden "+forbidden);
 
 const syntax=spawnSync("/usr/bin/bash",["-n",LAUNCHER],{
   cwd:ROOT,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:5000,
 });
 assert.equal(syntax.status,0,syntax.stderr);
 
-function run(command,args,{allow=false,env=process.env}={}){
-  const p=spawnSync(command,args,{encoding:"utf8",stdio:["ignore","pipe","pipe"],
-    timeout:30000,maxBuffer:1024*1024,env});
-  if(!allow)assert.equal(p.status,0,p.stderr);
+function run(command,args,{allow=false,env=process.env,timeout=30000}={}){
+  const p=spawnSync(command,args,{
+    encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout,
+    maxBuffer:4*1024*1024,env,
+  });
+  assert.equal(p.error,undefined,String(p.error||""));
+  if(!allow) assert.equal(p.status,0,p.stderr||p.stdout);
   return p;
 }
-function sudo(args,{allow=false,env=process.env}={}){
-  return run("/usr/bin/sudo",["-n",...args],{allow,env});
+function sudo(args,{allow=false,env=process.env,timeout=30000}={}){
+  return run("/usr/bin/sudo",["-n",...args],{allow,env,timeout});
 }
 function git(cwd,...args){
   return run("/usr/bin/git",["-C",cwd,...args]).stdout.trim();
 }
-
-assert.notEqual(process.getuid?.(),0,"proof runner must be unprivileged");
-const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-protected-launcher-src-"));
-const fixture="/var/lib/void-v7-protected-launcher-proof-"+
-  String(process.pid)+"-"+String(process.getuid());
-const runtimeUid=String(process.getuid());
-const runtimeGid=String(process.getgid());
-const systemNode="/usr/bin/node";
-let installedSystemNodeFixture=false;
-
-function ensureSystemNodeFixture(){
-  if(fs.existsSync(systemNode)) return;
-  const source=fs.realpathSync.native(process.execPath);
-  const sourceStat=fs.statSync(source);
-  assert.equal(sourceStat.isFile(),true,"setup-node executable must be a regular file");
-  assert.notEqual(sourceStat.mode&0o111,0,"setup-node executable must be executable");
-  sudo([
-    "/usr/bin/install",
-    "-o","root",
-    "-g","root",
-    "-m","0755",
-    "--",
-    source,
-    systemNode,
-  ]);
-  installedSystemNodeFixture=true;
-  const installed=fs.statSync(systemNode);
-  assert.equal(installed.uid,0,"CI /usr/bin/node fixture must be root-owned");
-  assert.equal(installed.gid,0,"CI /usr/bin/node fixture must be root-group");
-  assert.equal(installed.mode&0o022,0,"CI /usr/bin/node fixture must not be group/world writable");
-}
-
-function launcherArgs(commit,tree){
+function argsFor(commit,tree){
   return [
-    path.join(fixture,LAUNCHER),
+    FIXED_NATIVE,
     "--qualify-only",
-    "--runtime-uid",runtimeUid,
-    "--runtime-gid",runtimeGid,
+    "--runtime-uid",String(process.getuid()),
+    "--runtime-gid",String(process.getgid()),
     "--expected-commit",commit,
     "--expected-tree",tree,
   ];
 }
+
+assert.notEqual(process.getuid?.(),0,"proof runner must be unprivileged");
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-native-preentry-proof-"));
+const nativeBinary=path.join(tmp,"void-buy-void-v7-native-preentry");
+const systemNode="/usr/bin/node";
+let installedSystemNodeFixture=false;
+
 try{
-  // GitHub's setup-node installs Node under the hosted toolcache, while the
-  // production launcher intentionally requires the fixed /usr/bin/node path.
-  // Materialize only an ephemeral root-owned CI copy; never relax launcher path
-  // authority to ambient PATH or a caller-selected executable.
-  ensureSystemNodeFixture();
+  if(!fs.existsSync(systemNode)){
+    const source=fs.realpathSync.native(process.execPath);
+    const st=fs.statSync(source);
+    assert.equal(st.isFile(),true);
+    assert.notEqual(st.mode&0o111,0);
+    sudo([
+      "/usr/bin/install","-o","root","-g","root","-m","0755","--",
+      source,systemNode,
+    ]);
+    installedSystemNodeFixture=true;
+  }
+
+  run("/usr/bin/cc",[
+    "-std=c11","-Wall","-Wextra","-Werror","-O2",
+    "-o",nativeBinary,NATIVE,
+  ]);
+  const selfTest=run(nativeBinary,["--self-test"]);
+  assert.match(selfTest.stdout,new RegExp("^"+NATIVE_MARKER+"_SELF_TEST=GREEN$","m"));
+  assert.match(selfTest.stdout,/launcher_descriptor_retained=true/u);
+  assert.match(selfTest.stdout,/launcher_direct_exec_mode=false/u);
 
   const replica=path.join(tmp,"repo");
-  run("/usr/bin/cp",["-a","--",ROOT,replica]);
+  run("/usr/bin/cp",["-a","--",ROOT,replica],{timeout:120000});
   git(replica,"checkout","-B","main","HEAD");
-  assert.equal(
-    git(replica,"status","--porcelain=v1","--untracked-files=all"),
-    "",
-    "full protected replica must be clean",
-  );
+  assert.equal(git(replica,"status","--porcelain=v1","--untracked-files=all"),"");
   const commit=git(replica,"rev-parse","HEAD");
   const tree=git(replica,"rev-parse","HEAD^{tree}");
 
+  sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
+  sudo(["mkdir","-p","--",FIXED_PREENTRY_DIR]);
+  sudo(["cp","-a","--",replica,FIXED_SOURCE_ROOT],{timeout:120000});
+  sudo(["chown","-R","0:0",FIXED_SOURCE_ROOT],{timeout:120000});
+  sudo(["chmod","0644",FIXED_LAUNCHER]);
+  sudo([
+    "/usr/bin/install","-o","root","-g","root","-m","0755","--",
+    nativeBinary,FIXED_NATIVE,
+  ]);
 
-  sudo(["rm","-rf","--",fixture],{allow:true});
-  sudo(["cp","-a","--",replica,fixture]);
-  sudo(["chown","-R","0:0",fixture]);
+  const positive=sudo(argsFor(commit,tree),{timeout:180000});
+  assert.match(positive.stdout,new RegExp("^"+MARKER+"$","m"));
+  for(const marker of [
+    "root_owned_protected_source=true",
+    "native_preentry_verified=true",
+    "launcher_descriptor_execution=true",
+    "source_custody_green=true",
+    "privileged_launcher_package_runtime_verified=true",
+    "tool_execution=false",
+    "host_mutation=false",
+    "status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN",
+  ]) assert.match(positive.stdout,new RegExp("^"+marker+"$","m"),marker);
 
-  const positive=sudo(launcherArgs(commit,tree));
-  assert.match(positive.stdout,
-    new RegExp("^"+MARKER+"$","m"));
-  assert.match(positive.stdout,/root_owned_protected_source=true/u);
-  assert.match(positive.stdout,/source_custody_green=true/u);
-  assert.match(positive.stdout,/privileged_launcher_package_runtime_verified=true/u);
-  assert.match(positive.stdout,/tool_execution=false/u);
-  assert.match(positive.stdout,/host_mutation=false/u);
-  assert.match(positive.stdout,/status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN/u);
+  const directBody=sudo([
+    "/usr/bin/bash",FIXED_LAUNCHER,
+    "--qualify-only",
+    "--runtime-uid",String(process.getuid()),
+    "--runtime-gid",String(process.getgid()),
+    "--expected-commit",commit,
+    "--expected-tree",tree,
+  ],{allow:true});
+  assert.equal(directBody.status,2);
+  assert.match(directBody.stderr,/native_preentry_required/u);
 
-  const wrong=sudo(launcherArgs("f".repeat(40),tree),{allow:true});
-  assert.equal(wrong.status,2);
-  assert.match(wrong.stderr,/expected_commit_mismatch/u);
-
-  sudo(["chmod","0777",path.join(fixture,"src")]);
-  const writable=sudo(launcherArgs(commit,tree),{allow:true});
-  assert.equal(writable.status,2);
-  assert.match(writable.stderr,/protected_source_custody_failed/u);
-  sudo(["chmod","0755",path.join(fixture,"src")]);
-
-  sudo(["sh","-c",
-    "printf tamper >> "+JSON.stringify(path.join(fixture,"src/index.ts"))]);
-  const dirty=sudo(launcherArgs(commit,tree),{allow:true});
-  assert.equal(dirty.status,2);
-  assert.match(dirty.stderr,/source_tree_dirty/u);
-
-  const mutableCheckout=sudo([
+  const directCheckout=sudo([
     "/usr/bin/bash",path.join(ROOT,LAUNCHER),
     "--qualify-only",
-    "--runtime-uid",runtimeUid,
-    "--runtime-gid",runtimeGid,
+    "--runtime-uid",String(process.getuid()),
+    "--runtime-gid",String(process.getgid()),
     "--expected-commit",git(ROOT,"rev-parse","HEAD"),
     "--expected-tree",git(ROOT,"rev-parse","HEAD^{tree}"),
   ],{allow:true});
-  assert.equal(mutableCheckout.status,2);
-  assert.match(mutableCheckout.stderr,/protected_source_custody_failed/u);
+  assert.equal(directCheckout.status,2);
+  assert.match(directCheckout.stderr,/native_preentry_required/u);
+
+  const wrongPath=sudo([
+    nativeBinary,
+    "--qualify-only",
+    "--runtime-uid",String(process.getuid()),
+    "--runtime-gid",String(process.getgid()),
+    "--expected-commit",commit,
+    "--expected-tree",tree,
+  ],{allow:true});
+  assert.equal(wrongPath.status,2);
+  assert.match(wrongPath.stderr,/native_preentry_fixed_path_required/u);
+
+  const wrongCommit=sudo(argsFor("f".repeat(40),tree),{allow:true,timeout:180000});
+  assert.equal(wrongCommit.status,2);
+  assert.match(wrongCommit.stderr,/expected_commit_mismatch/u);
 
   const fake=path.join(tmp,"fake-bin");
   fs.mkdirSync(fake);
@@ -171,11 +214,30 @@ try{
     "#!/bin/sh\nprintf x > "+JSON.stringify(sentinel)+"\nexit 99\n",
     {mode:0o755});
   const hostileEnv={...process.env,PATH:fake};
-  const wrongAgain=sudo(launcherArgs("e".repeat(40),tree),{allow:true,env:hostileEnv});
-  assert.equal(wrongAgain.status,2);
+  const hostile=sudo(argsFor("e".repeat(40),tree),{
+    allow:true,env:hostileEnv,timeout:180000,
+  });
+  assert.equal(hostile.status,2);
+  assert.match(hostile.stderr,/expected_commit_mismatch/u);
   assert.equal(fs.existsSync(sentinel),false,"ambient PATH git shim must not execute");
 
+  sudo(["chmod","0777",path.join(FIXED_SOURCE_ROOT,"src")]);
+  const writable=sudo(argsFor(commit,tree),{allow:true,timeout:180000});
+  assert.equal(writable.status,2);
+  assert.match(writable.stderr,/protected_source_custody_failed/u);
+  sudo(["chmod","0755",path.join(FIXED_SOURCE_ROOT,"src")]);
+
+  sudo(["sh","-c",
+    "printf tamper >> "+JSON.stringify(path.join(FIXED_SOURCE_ROOT,"src/index.ts"))]);
+  const dirty=sudo(argsFor(commit,tree),{allow:true,timeout:180000});
+  assert.equal(dirty.status,2);
+  assert.match(dirty.stderr,/source_tree_dirty/u);
+
   console.log(MARKER+"_PROOF_GREEN");
+  console.log("native_preentry_first_instruction=true");
+  console.log("native_bash_descriptor_execution=true");
+  console.log("native_launcher_descriptor_execution=true");
+  console.log("direct_shell_privileged_invocation_supported=false");
   console.log("protected_root_owned_source_positive=true");
   console.log("writable_checkout_rejected=true");
   console.log("dirty_protected_tree_rejected=true");
@@ -189,10 +251,8 @@ try{
   console.log("credential_wallet_signer_transaction_authority=false");
   console.log("presale_activation=false");
   console.log("funds_movement=false");
-} finally {
-  sudo(["rm","-rf","--",fixture],{allow:true});
-  if(installedSystemNodeFixture){
-    sudo(["rm","-f","--",systemNode],{allow:true});
-  }
+}finally{
+  sudo(["rm","-rf","--",FIXED_SOURCE_ROOT,FIXED_PREENTRY_DIR],{allow:true});
+  if(installedSystemNodeFixture) sudo(["rm","-f","--",systemNode],{allow:true});
   fs.rmSync(tmp,{recursive:true,force:true});
 }

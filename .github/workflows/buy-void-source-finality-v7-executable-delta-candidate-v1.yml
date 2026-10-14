@@ -22,6 +22,8 @@ on:
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
       - "ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
@@ -59,6 +61,8 @@ on:
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
       - "ops/security/buy-void-v7-privileged-launcher-package-runtime-v1.json"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v1.mjs"
@@ -705,6 +709,10 @@ jobs:
           bash -n ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh
           node scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs |
             tee "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'native_preentry_first_instruction=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'native_bash_descriptor_execution=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'native_launcher_descriptor_execution=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'direct_shell_privileged_invocation_supported=false'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'protected_root_owned_source_positive=true'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'writable_checkout_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
           grep -Fx 'dirty_protected_tree_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
