@@ -124,15 +124,20 @@ function artifactIdentity(){
 }
 function sourceFinalityGeneration(){
   pin(BUILD_EQUIVALENCE,BUILD_EQUIVALENCE_BLOB,512*1024);
-  const wanted=new Set([
+  const sourceFinalityArtifactOrder=[
     "dist/economic/buy_void_source_finality_generation_provenance_v6.js",
     "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
     "dist/economic/buy_void_source_finality_authority_v2.js",
     "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
     "dist/economic/buy_void_payment_rpc_observer_v1.js",
     "dist/economic/buy_void_verified_payment_v2.js",
-  ]);
-  const rows=REVIEWED_ARTIFACTS.filter(row=>wanted.has(row.path));
+  ];
+  const byPath=new Map(REVIEWED_ARTIFACTS.map(row=>[row.path,row]));
+  const rows=sourceFinalityArtifactOrder.map(relative=>{
+    const row=byPath.get(relative);
+    assert.ok(row,"missing source-finality artifact:"+relative);
+    return row;
+  });
   assert.equal(rows.length,6);
   const generation=sha256(Buffer.from(canonical({
     marker:"VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V5",
