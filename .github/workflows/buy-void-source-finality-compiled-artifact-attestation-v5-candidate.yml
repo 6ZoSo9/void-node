@@ -16,6 +16,7 @@ on:
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs"
       - "scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_v5_historical_refusal_v3.mjs"
       - "scripts/prove_buy_void_source_finality_dependency_build_equivalence_v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
@@ -92,6 +93,7 @@ jobs:
       - name: Prove V5 descriptor boundary
         run: |
           node --check scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs
+          node --check scripts/prove_buy_void_source_finality_v5_historical_refusal_v3.mjs
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v5_candidate.mjs --self-test
 
       - name: Derive unaccepted V5 candidate
@@ -133,14 +135,15 @@ jobs:
         if: steps.package-generation.outputs.mode == 'audited'
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_v5_historical_refusal_v2.mjs > "v5-candidate-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_source_finality_v5_historical_refusal_v3.mjs > "v5-candidate-${{ matrix.node }}.json"
           node --input-type=module - <<'NODE' "v5-candidate-${{ matrix.node }}.json"
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v2");
+          assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v3");
           assert.equal(j.frozen_v5_refuses_audited_package_generation,true);
-          assert.equal(j.current_positive_build_equivalence_prerequisite_present,true);
+          assert.equal(j.hardened_build_equivalence_prerequisite_present,true);
+          assert.equal(j.historical_v2_refusal_preserved,true);
           assert.equal(j.compiled_artifact_generation_verified,false);
           assert.equal(j.deployed_artifact_generation_verified,false);
           assert.equal(j.runtime_mount_authority,false);
@@ -212,9 +215,10 @@ jobs:
             console.log("V5_CANDIDATE_CROSS_NODE_EXACT_BYTES_GREEN");
             console.log("v5_candidate_generation="+j.compiled_artifact_generation_sha256);
           } else {
-            assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v2");
+            assert.equal(j.schema,"void_buy_void_source_finality_v5_historical_refusal_v3");
             assert.equal(j.frozen_v5_refuses_audited_package_generation,true);
-            assert.equal(j.current_positive_build_equivalence_prerequisite_present,true);
+            assert.equal(j.hardened_build_equivalence_prerequisite_present,true);
+            assert.equal(j.historical_v2_refusal_preserved,true);
             assert.equal(j.compiled_artifact_generation_verified,false);
             assert.equal(j.deployed_artifact_generation_verified,false);
             assert.equal(j.runtime_mount_authority,false);
