@@ -471,6 +471,32 @@ try {
     /qualification is stale/,
   );
 
+  const postIssuanceQualificationManifest =
+    structuredClone(staleQualificationManifest);
+  const postIssuanceGeneratedAt = Date.parse(
+    postIssuanceQualificationManifest.generated_at,
+  );
+  postIssuanceQualificationManifest.onion_endpoints[0].qualified_at =
+    new Date(postIssuanceGeneratedAt + 1).toISOString();
+  postIssuanceQualificationManifest.manifest_id = contentId(
+    "voidpbm1_",
+    postIssuanceQualificationManifest,
+    "manifest_id",
+  );
+  const postIssuanceQualificationEnvelope = createEnvelope(
+    root,
+    postIssuanceQualificationManifest,
+    [keyPair],
+  );
+  assert.throws(
+    () => validateTorBootstrapSignedManifest(
+      postIssuanceQualificationEnvelope,
+      validatedRoot,
+      { nowMs: lifecycleNow },
+    ),
+    /qualification must not postdate manifest issuance/,
+  );
+
   const tamperedExpired = structuredClone(expiredLifecycleEnvelope);
   tamperedExpired.signatures[0].signature_base64 = changedBase64(
     tamperedExpired.signatures[0].signature_base64,
@@ -681,6 +707,7 @@ try {
   console.log("signature_replay_across_roots_rejected=true");
   console.log("strict_manifest_contract_verified=true");
   console.log("qualification_fresh_at_manifest_issuance_required=true");
+  console.log("qualification_postdating_manifest_rejected=true");
   console.log("unexpired_old_qualification_remains_signed_identity_evidence=true");
   console.log("runtime_health_requires_live_probe=true");
   console.log("authenticated_stale_default_classification_verified=true");
