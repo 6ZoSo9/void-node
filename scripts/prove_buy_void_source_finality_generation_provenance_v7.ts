@@ -186,7 +186,39 @@ assert.equal(forgedAuthority.ok, false);
 if (forgedAuthority.ok) throw new Error("forged_deployment_unexpected_ready");
 assert.equal(
   forgedAuthority.reason,
-  "source_finality_deployment_not_custody_verified",
+  "source_finality_primary_observation_not_composition_verified",
+);
+
+const clonedPrimaryAuthority = classifyProvider({
+  primary_policy: primaryPolicy,
+  secondary_policy: secondaryPolicy,
+  primary: structuredClone(primary),
+  secondary,
+  deployment: forgedDeployment as any,
+});
+assert.equal(clonedPrimaryAuthority.ok, false);
+if (clonedPrimaryAuthority.ok) {
+  throw new Error("cloned_primary_observation_unexpected_ready");
+}
+assert.equal(
+  clonedPrimaryAuthority.reason,
+  "source_finality_primary_observation_not_composition_verified",
+);
+
+const spreadPrimaryAuthority = classifyProvider({
+  primary_policy: primaryPolicy,
+  secondary_policy: secondaryPolicy,
+  primary: { ...primary },
+  secondary,
+  deployment: forgedDeployment as any,
+});
+assert.equal(spreadPrimaryAuthority.ok, false);
+if (spreadPrimaryAuthority.ok) {
+  throw new Error("spread_primary_observation_unexpected_ready");
+}
+assert.equal(
+  spreadPrimaryAuthority.reason,
+  "source_finality_primary_observation_not_composition_verified",
 );
 
 function expectHold(
@@ -454,6 +486,9 @@ console.log("deployment_receipt_reviewed_source_digest_bound=true");
 console.log("deployment_receipt_enforcement_identity_bound=true");
 console.log("deployment_receipt_root_owned_read_only_required=true");
 console.log("deployment_receipt_root_owned_ancestor_custody_required=true");
+console.log("caller_built_provider_observation_rejected=true");
+console.log("cloned_provider_observation_rejected=true");
+console.log("spread_provider_observation_rejected=true");
 console.log("forged_deployment_object_rejected=true");
 console.log("cloned_deployment_object_rejected=true");
 console.log("writable_parent_rejected=" + String(writableParentRejected));

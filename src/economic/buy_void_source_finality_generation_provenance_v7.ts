@@ -117,6 +117,7 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
 
 const VERIFIED_DEPLOYMENT_DECISIONS_V7 = new WeakSet<object>();
 const VERIFIED_LIVE_PROCESS_BINDINGS_V7 = new WeakSet<object>();
+const VERIFIED_PROVIDER_OBSERVATIONS_V7 = new WeakSet<object>();
 
 function custodyVerifiedDeploymentV7(
   decision: BuyVoidSourceFinalityDeploymentDecisionV7,
@@ -148,6 +149,24 @@ function isCustodyVerifiedLiveProcessBindingV7(
 ): boolean {
   return decision.ok === true &&
     VERIFIED_LIVE_PROCESS_BINDINGS_V7.has(decision as object);
+}
+
+function compositionVerifiedProviderObservationV7(
+  observation: BuyVoidSourceFinalityAuthenticatedReadyV3,
+): BuyVoidSourceFinalityAuthenticatedReadyV3 {
+  const verified = Object.freeze({ ...observation });
+  VERIFIED_PROVIDER_OBSERVATIONS_V7.add(verified);
+  return verified;
+}
+
+function isCompositionVerifiedProviderObservationV7(
+  observation: unknown,
+): observation is BuyVoidSourceFinalityAuthenticatedReadyV3 {
+  return (
+    observation !== null &&
+    typeof observation === "object" &&
+    VERIFIED_PROVIDER_OBSERVATIONS_V7.has(observation)
+  );
 }
 
 export type BuyVoidSourceFinalityGenerationHeldV7 = {
@@ -698,12 +717,18 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
   ) {
     return held("source_finality_provider_independence_invalid");
   }
+  if (!isCompositionVerifiedProviderObservationV7(input.primary)) {
+    return held("source_finality_primary_observation_not_composition_verified");
+  }
+  if (!isCompositionVerifiedProviderObservationV7(input.secondary)) {
+    return held("source_finality_secondary_observation_not_composition_verified");
+  }
   if (input.deployment.ok === false) return held(input.deployment.reason);
   if (!isCustodyVerifiedDeploymentV7(input.deployment)) {
     return held("source_finality_deployment_not_custody_verified");
   }
-  const primary = input.primary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
-  const secondary = input.secondary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
+  const primary = input.primary;
+  const secondary = input.secondary;
   for (const [label, observed, endpoint] of [
     ["primary", primary, primaryEndpoint],
     ["secondary", secondary, secondaryEndpoint],
@@ -896,25 +921,33 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV7(input: 
   const deadline = performance.now() + totalTimeout;
   const primaryRemaining = remainingMs(deadline);
   if (primaryRemaining === 0) return held("source_finality_v7_total_deadline_exceeded");
-  const primary = await observeBuyVoidSourceFinalityAuthenticatedCompositionV3({
-    request: input.request,
-    policy: {
-      ...input.policy.primary,
-      total_timeout_ms: String(primaryRemaining),
-    },
-  });
-  if (primary.ok === false) return held("source_finality_primary_" + primary.reason);
+  const primaryObserved =
+    await observeBuyVoidSourceFinalityAuthenticatedCompositionV3({
+      request: input.request,
+      policy: {
+        ...input.policy.primary,
+        total_timeout_ms: String(primaryRemaining),
+      },
+    });
+  if (primaryObserved.ok === false) {
+    return held("source_finality_primary_" + primaryObserved.reason);
+  }
+  const primary = compositionVerifiedProviderObservationV7(primaryObserved);
 
   const secondaryRemaining = remainingMs(deadline);
   if (secondaryRemaining === 0) return held("source_finality_v7_total_deadline_exceeded");
-  const secondary = await observeBuyVoidSourceFinalityAuthenticatedCompositionV3({
-    request: input.request,
-    policy: {
-      ...input.policy.secondary,
-      total_timeout_ms: String(secondaryRemaining),
-    },
-  });
-  if (secondary.ok === false) return held("source_finality_secondary_" + secondary.reason);
+  const secondaryObserved =
+    await observeBuyVoidSourceFinalityAuthenticatedCompositionV3({
+      request: input.request,
+      policy: {
+        ...input.policy.secondary,
+        total_timeout_ms: String(secondaryRemaining),
+      },
+    });
+  if (secondaryObserved.ok === false) {
+    return held("source_finality_secondary_" + secondaryObserved.reason);
+  }
+  const secondary = compositionVerifiedProviderObservationV7(secondaryObserved);
   if (remainingMs(deadline) === 0) return held("source_finality_v7_total_deadline_exceeded");
 
   return classifyBuyVoidSourceFinalityProviderQuorumV7({
