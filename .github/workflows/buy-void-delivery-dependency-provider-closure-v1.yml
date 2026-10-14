@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-provider-closure-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: provider-closure-${{ matrix.node }}.json
+          path: ${{ runner.temp }}/provider-closure-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
