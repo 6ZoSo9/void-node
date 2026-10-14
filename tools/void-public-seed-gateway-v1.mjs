@@ -338,6 +338,7 @@ function readCheckpointFileV1(
   rootAuthority,
   relativePath,
   maximumBytes = null,
+  expectedBytes = null,
 ) {
   assertCheckpointRootPathPinnedV1(rootAuthority);
   const opened = openCheckpointFileV1(rootAuthority, relativePath);
@@ -352,6 +353,14 @@ function readCheckpointFileV1(
           !Number.isSafeInteger(maximumBytes) ||
           maximumBytes < 0 ||
           before.size > maximumBytes
+        )
+      ) ||
+      (
+        expectedBytes !== null &&
+        (
+          !Number.isSafeInteger(expectedBytes) ||
+          expectedBytes < 0 ||
+          before.size !== expectedBytes
         )
       )
     ) {
@@ -538,6 +547,7 @@ function loadCheckpointPublicationV1() {
       rootAuthority,
       expectedPath,
       VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+      entry.bytes,
     );
     if (
       fileEntry.st.size !== entry.bytes ||
@@ -668,6 +678,7 @@ function checkpointResponseBytesV1(route) {
     CHECKPOINT_PUBLICATION_V1.rootAuthority,
     relative,
     VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+    expected.bytes,
   );
   if (
     expected.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
