@@ -271,7 +271,7 @@ function closedArtifacts() {
     "canonical V2 verifier missing");
   return [...found.values()].sort((a,b)=>a.path.localeCompare(b.path,"en"));
 }
-function runSelfTest() {function runSelfTest() {
+function runSelfTest() {
   const valid=scan(ENTRY,Buffer.from('import "./buy_void_source_finality_execution_preflight_v1.js";\n'));
   assert.ok(valid.imports.includes(PREFLIGHT));
   // Current reviewed V2 verifier imports built-in util.types.isProxy to
@@ -615,7 +615,6 @@ export function deriveBuyVoidEnforcementArtifactAttestationV7Candidate(input) {
   };
 }
 if (
-  process.argv[1] &&if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
