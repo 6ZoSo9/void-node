@@ -307,6 +307,13 @@ function provePrivateTsxExecution(lock,packages){
     fs.chmodSync(esbuildBinary,0o500);
     makePrivateDirectoriesReadOnly(path.join(destination,"node_modules"));
 
+    const packageScope=path.join(destination,"package.json");
+    fs.writeFileSync(
+      packageScope,
+      '{"private":true,"type":"module"}\n',
+      {mode:0o400,flag:"wx"},
+    );
+    const packageScopeBefore=sha256(fs.readFileSync(packageScope));
     const scratch=path.join(destination,"scratch");
     fs.mkdirSync(scratch,{mode:0o700});
     const tsconfig=path.join(destination,"tsconfig.json");
@@ -363,9 +370,10 @@ function provePrivateTsxExecution(lock,packages){
       "tsx_inert_transform_output",
     );
     assert.equal(sha256(fs.readFileSync(probe)),probeBefore,"tsx_probe_mutated");
+    assert.equal(sha256(fs.readFileSync(packageScope)),packageScopeBefore,"tsx_package_scope_mutated");
     assert.deepEqual(
       fs.readdirSync(destination).sort(),
-      ["node_modules","probe.ts","scratch","tsconfig.json"],
+      ["node_modules","package.json","probe.ts","scratch","tsconfig.json"],
       "tsx_private_runtime_root_mutated",
     );
     const after=packages.map(row=>privatePackageRecord(destination,row))

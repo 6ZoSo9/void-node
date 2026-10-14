@@ -57,7 +57,7 @@ Before any shell source is evaluated, the native pre-entry:
   root-owned, single-link, non-group/world-writable and **non-executable**,
   then retains that exact descriptor across exec;
 - requires that retained body to be exactly 10,813 bytes with SHA-256
-  `497c8f79097aced91a0c1a603285f526728db9d5a684424eb087d66a962aae91`
+  `565ec5f55a32c429e150294a71835482c52c9fbc3fde4a22fdbc1f0c475eb81a`
   using the native pre-entry's internal SHA-256 before Bash evaluates it;
 - invokes bash with `fexecve()`, `--noprofile --norc`, and the launcher
   pathname supplied as `/proc/self/fd/<retained-fd>`; and
@@ -108,7 +108,9 @@ the exact three-package `tsx + esbuild + @esbuild/linux-x64` byte closure into
 a purpose-built private materialization outside the repository, makes only the
 reviewed Linux-x64 esbuild binary executable without making it writable, and
 runs an inert TypeScript-only probe through the exact TSX CLI under Node
-filesystem permissions. TSX receives a dedicated private scratch directory via
+filesystem permissions. A synthetic read-only private-root `package.json` terminates
+Node/TSX package-scope lookup inside the permitted tree instead of widening the
+filesystem read boundary. TSX receives a dedicated private scratch directory via
 `TMPDIR`/`TMP`/`TEMP`; filesystem writes are permitted only to that scratch
 subtree, never to the copied package tree or probe source. The proof then
 re-inventories the private package bytes and requires no probe or package
