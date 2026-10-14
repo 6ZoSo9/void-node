@@ -61,7 +61,7 @@ is:
 Reviewed Python-launcher source blob:
 
 ```text
-fcf35b4f8f927eadea0f7285c06465804aac90f1
+e6a8cb82323df130f72de4f937db13b97460f47a
 ```
 
 That launcher then authenticates the separately installed reviewed source root:
@@ -220,11 +220,16 @@ sudo /usr/bin/python3 .../apollyon_v2_installed_live_launcher_v1.py ...
 sudo node tools/apollyon-designated-host-custody-live-qualification-v2.mjs ...
 ```
 
-The installed launcher creates one private pre-entry execution tree, and the
-Node runner creates and removes its own reviewed dependency tree. Normal success
-and ordinary HOLD paths report the temporary-write boundary truthfully. If
-either the outer launcher or inner Node runner cannot remove its temporary
-reviewed tree, it instead reports:
+The installed launcher creates one private pre-entry execution tree and binds
+the Node runner's `TMPDIR` to that exact outer private root. The Node runner's
+nested `void-apollyon-custody-v2-reviewed-*` dependency tree is therefore
+physically contained beneath the launcher-owned `/run` tree. If the 60-second
+Node deadline kills the runner before its own cleanup executes, the launcher's
+parent cleanup recursively removes both layers.
+
+Normal success and ordinary HOLD paths report the temporary-write boundary
+truthfully. If either the outer launcher or inner Node runner cannot remove its
+temporary reviewed tree, it instead reports:
 
 ```text
 persistent_host_mutation=unknown
@@ -239,9 +244,10 @@ It never converts a cleanup error into a false
 Expected launcher runtime failures are also fail-closed and machine-readable:
 Node deadline expiry, OS/path/exec failures, and other subprocess-layer failures
 are converted to bounded `HOLD=apollyon_v2_installed_launcher_runtime_*`
-reasons after cleanup semantics run. Existing `Hold` results are preserved.
-Unexpected programming exceptions are deliberately not relabeled as normal
-runtime HOLDs.
+reasons after cleanup semantics run. The timeout case is cleanup-safe because
+the runner's `TMPDIR` is inside the launcher's retained outer private root.
+Existing `Hold` results are preserved. Unexpected programming exceptions are
+deliberately not relabeled as normal runtime HOLDs.
 
 No service mutation, private-key access, signing, attempt claim, training
 execution, wallet/transaction operation or funds movement is granted by this
