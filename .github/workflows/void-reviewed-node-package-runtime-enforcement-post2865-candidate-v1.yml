@@ -5,6 +5,9 @@ on:
     paths:
       - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
       - "docs/security/reviewed-node-package-runtime-enforcement-post2865-candidate-v1.md"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-post2865-v1.md"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-candidate-v1.yml"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
@@ -16,6 +19,9 @@ on:
     paths:
       - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_candidate_v1.mjs"
       - "docs/security/reviewed-node-package-runtime-enforcement-post2865-candidate-v1.md"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs"
+      - "docs/security/reviewed-node-package-runtime-enforcement-post2865-v1.md"
+      - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - ".github/workflows/void-reviewed-node-package-runtime-enforcement-post2865-candidate-v1.yml"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
@@ -93,6 +99,20 @@ jobs:
           console.log("VOID_ENFORCEMENT_PACKAGE_POST2865_CANDIDATE_NODE_GREEN");
           NODE
 
+      - name: Lock exact audited package runtime identity
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs
+          lock_receipt="$RUNNER_TEMP/enforcement-package-post2865-lock-${{ matrix.node }}.txt"
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_post2865_v1.mjs \
+            | tee "$lock_receipt"
+          grep -Fx 'profile_identity_accepted=true' "$lock_receipt"
+          grep -Fx 'whole_enforcement_closure_verified=false' "$lock_receipt"
+          grep -Fx 'candidate_enforcement_identity_accepted=false' "$lock_receipt"
+          grep -Fx 'production_source_finality_authority_ready=false' "$lock_receipt"
+          grep -Fx 'public_presale_activation=false' "$lock_receipt"
+          grep -Fx 'funds_movement=false' "$lock_receipt"
+
       - name: Diff hygiene
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -109,7 +129,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-enforcement-package-post2865-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: ${{ runner.temp }}/enforcement-package-post2865-${{ matrix.node }}.json
+          path: |
+            ${{ runner.temp }}/enforcement-package-post2865-${{ matrix.node }}.json
+            ${{ runner.temp }}/enforcement-package-post2865-lock-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 7
 
@@ -133,6 +155,15 @@ jobs:
           done
           cmp candidate/enforcement-package-post2865-22.json candidate/enforcement-package-post2865-24.json
           cmp candidate/enforcement-package-post2865-22.json candidate/enforcement-package-post2865-26.json
+          for node in 22 24 26; do
+            test -s "candidate/enforcement-package-post2865-lock-$node.txt"
+          done
+          cmp candidate/enforcement-package-post2865-lock-22.txt candidate/enforcement-package-post2865-lock-24.txt
+          cmp candidate/enforcement-package-post2865-lock-22.txt candidate/enforcement-package-post2865-lock-26.txt
+          grep -Fx 'profile_identity_accepted=true' candidate/enforcement-package-post2865-lock-22.txt
+          grep -Fx 'whole_enforcement_closure_verified=false' candidate/enforcement-package-post2865-lock-22.txt
+          grep -Fx 'production_source_finality_authority_ready=false' candidate/enforcement-package-post2865-lock-22.txt
+          grep -Fx 'funds_movement=false' candidate/enforcement-package-post2865-lock-22.txt
           node --input-type=module - <<'NODE'
           import crypto from "node:crypto";
           import fs from "node:fs";
