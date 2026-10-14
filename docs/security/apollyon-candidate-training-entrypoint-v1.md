@@ -51,9 +51,11 @@ void_chain_mutation=false
 
 The first operation in `main()` establishes process-output safety before any
 argument, identity, no-new-privileges, descriptor, or self-test path can reach a
-HOLD: SIGPIPE is ignored and both stdout/stderr are marked `O_NONBLOCK`.
-Early refusals therefore cannot be terminated by SIGPIPE or block indefinitely
-on a full diagnostic sink.
+HOLD. SIGPIPE is ignored first. Stderr is then marked `O_NONBLOCK` using a
+no-HOLD bootstrap path; only after the diagnostic channel is nonblocking may
+ordinary fail-closed helpers run while stdout is made nonblocking. Early
+refusals therefore cannot be terminated by SIGPIPE or block indefinitely on a
+full diagnostic sink, including a failure while preparing stdout itself.
 
 After identity/descriptor checks and TERM/INT signal setup, the target captures
 one absolute `CLOCK_BOOTTIME` deadline **before publishing readiness**. The
@@ -97,7 +99,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob 7545155df30a02215341a3eab092b7dc05775218
+Git blob 613f0ece15696db57b81e41b9e8aa5638f8f29c7
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -113,8 +115,10 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
-- proves SIGPIPE ignore + nonblocking stdout/stderr are established before
-  the first possible HOLD path;
+- proves SIGPIPE ignore is established first and stderr becomes nonblocking
+  before any setup path is permitted to call HOLD;
+- proves the full process-output safety call is the first operation in
+  `main()`, before the first ordinary HOLD path;
 - closes stderr and separately fills stderr to capacity on an early
   no-new-privileges refusal, requiring prompt exit status 2 rather than signal
   termination or blocking;
