@@ -132,6 +132,7 @@ function serviceControlFixture(){
     training_process_start_time_ticks:"123456",
     training_uid:1000,
     training_uid_process_count:2,
+    training_uid_process_identity_stable_across_authorization:true,
     training_uid_process_set_stable:true,
     training_uid_processes:[
       {
@@ -302,6 +303,11 @@ for(const mutate of [
 }
 {
   const bad=v2Fixture();
+  bad.service_control.training_uid_process_identity_stable_across_authorization=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
   bad.service_control.actual_system_bus_senders[0].uid=0;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
@@ -341,6 +347,7 @@ for(const [key,expected] of Object.entries({
   all_training_uid_processes_capability_free_required:true,
   all_training_uid_threads_capability_free_required:true,
   training_uid_thread_stability_required:true,
+  training_uid_process_identity_stability_required:true,
   training_uid_thread_discovery_required:true,
   actual_system_bus_sender_denial_required:true,
 })){
@@ -366,6 +373,7 @@ console.log("systemd_bus_owner_pid_is_pid1=true");
 console.log("all_training_uid_processes_capability_free_required=true");
 console.log("all_training_uid_threads_capability_free_required=true");
 console.log("training_uid_thread_stability_required=true");
+console.log("training_uid_process_identity_stability_required=true");
 console.log("training_uid_thread_discovery_required=true");
 console.log("actual_system_bus_sender_denial_required=true");
 console.log("live_host_qualification_performed=false");
