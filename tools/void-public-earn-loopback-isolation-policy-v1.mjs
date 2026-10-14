@@ -44,6 +44,11 @@ export const VOID_PUBLIC_EARN_LOOPBACK_ISOLATION_POLICY_AUTHORITY_V1 =
   });
 
 const TARGET_HOST = "127.0.0.1";
+const DISPATCHER_SERVICE_UNIT =
+  "void-public-443-proxy-v2-dispatch-v1.service";
+const EARN_EDGE_SERVICE_UNIT =
+  "void-public-earn-proxy-v2-edge-v1.service";
+const GATEWAY_SERVICE_UNIT = "void-public-earn-gateway-v1.service";
 const TABLE_NAME = "void_public_earn_edge_v1";
 const CHAIN_NAME = "output";
 const MAX_PORT = 65535;
@@ -183,6 +188,9 @@ export function classifyVoidPublicEarnLoopbackIsolationPolicyV1(input) {
       input.dispatcher,
       "public_earn_isolation_dispatcher",
     );
+    if (dispatcher.service_unit !== DISPATCHER_SERVICE_UNIT) {
+      throw new Error("public_earn_isolation_dispatcher_service_invalid");
+    }
 
     const edge = exactKeys(
       input.earn_edge,
@@ -200,6 +208,9 @@ export function classifyVoidPublicEarnLoopbackIsolationPolicyV1(input) {
       "public_earn_isolation_edge_shape_invalid",
     );
     name(edge.service_unit, "public_earn_isolation_edge_service_invalid");
+    if (edge.service_unit !== EARN_EDGE_SERVICE_UNIT) {
+      throw new Error("public_earn_isolation_edge_service_invalid");
+    }
     const edgePort = integer(
       edge.listen_port,
       1024,
@@ -276,6 +287,9 @@ export function classifyVoidPublicEarnLoopbackIsolationPolicyV1(input) {
       "public_earn_isolation_gateway_shape_invalid",
     );
     name(gateway.service_unit, "public_earn_isolation_gateway_service_invalid");
+    if (gateway.service_unit !== GATEWAY_SERVICE_UNIT) {
+      throw new Error("public_earn_isolation_gateway_service_invalid");
+    }
     const sharedPort = integer(
       gateway.shared_listen_port,
       1024,
