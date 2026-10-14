@@ -332,7 +332,10 @@ function readHeaders(socket) {
       try {
         buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
         const decoded = tryDecodeHeaders(buffer);
-        if (decoded) finish(resolve, decoded);
+        if (decoded) {
+          socket.pause();
+          finish(resolve, decoded);
+        }
       } catch (error) {
         finish(reject, error);
       }
@@ -343,6 +346,7 @@ function readHeaders(socket) {
     socket.once("end", onEnd);
     socket.once("timeout", onTimeout);
     socket.setTimeout(REQUEST_TIMEOUT_MS);
+    socket.resume();
   });
 }
 
@@ -391,6 +395,7 @@ function readBody(socket, initialBody, contentLength) {
       }
       chunks.push(bytes);
       if (total === contentLength) {
+        socket.pause();
         finish(resolve, Buffer.concat(chunks, total));
       }
     };
