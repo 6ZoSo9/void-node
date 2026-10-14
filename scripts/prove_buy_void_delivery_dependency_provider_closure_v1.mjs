@@ -117,7 +117,7 @@ function sourcePathForArtifact(artifact){
   assert.match(artifact,/^dist\/economic\/[a-z0-9_]+\.js$/u);
   return artifact.replace(/^dist\//u,"src/").replace(/\.js$/u,".ts");
 }
-function addModuleSpecifier(specifier,p,relatives,packages,builtins){
+function addModuleSpecifier(specifier,p,relatives,packages,builtins,allowedPackages=ALLOWED_PACKAGES){
   assert.equal(typeof specifier,"string");
   if(specifier.startsWith(".")){
     assert.match(specifier,/^\.\/[a-z0-9_]+\.js$/u,"relative import escapes provider closure: "+p);
@@ -128,10 +128,10 @@ function addModuleSpecifier(specifier,p,relatives,packages,builtins){
     builtins.add(specifier);
     return;
   }
-  assert.equal(ALLOWED_PACKAGES.has(specifier),true,"unreviewed provider package: "+p+":"+specifier);
+  assert.equal(allowedPackages.has(specifier),true,"unreviewed module package: "+p+":"+specifier);
   packages.add(specifier);
 }
-function scanModule(p,bytes){
+function scanModule(p,bytes,allowedPackages=ALLOWED_PACKAGES){
   const ast=ts.createSourceFile(
     p,
     bytes.toString("utf8"),
@@ -146,7 +146,7 @@ function scanModule(p,bytes){
   function visit(node){
     if((ts.isImportDeclaration(node)||ts.isExportDeclaration(node))&&node.moduleSpecifier){
       assert.ok(ts.isStringLiteral(node.moduleSpecifier),"nonliteral static import: "+p);
-      addModuleSpecifier(node.moduleSpecifier.text,p,relatives,packages,builtins);
+      addModuleSpecifier(node.moduleSpecifier.text,p,relatives,packages,builtins,allowedPackages);
     }
     if(ts.isCallExpression(node)&&node.expression.kind===ts.SyntaxKind.ImportKeyword){
       assert.fail("dynamic import forbidden in provider closure: "+p);
@@ -206,7 +206,10 @@ function providerBoundary(){
   const artifacts=closedProviderArtifacts();
   const boundaryArtifacts=[SERVER_RUNTIME,DELIVERY_CONSUMER,DELIVERY_ADAPTER].map((p)=>{
     const bytes=readExact(p);
-    const graph=scanModule(p,bytes);
+    const allowedPackages=p===DELIVERY_ADAPTER
+      ? new Set(["ethers"])
+      : new Set(["express"]);
+    const graph=scanModule(p,bytes,allowedPackages);
     return Object.freeze({
       path:p,
       bytes:bytes.length,
