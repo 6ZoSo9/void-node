@@ -107,7 +107,7 @@ jobs:
           const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.deepEqual(j.required_privileged_root_packages,["ethers","express","tsx"]);
           assert.equal(j.root_versions.tsx,"4.23.15");
-          assert.equal(j.accepted_enforcement_profile.package_records_preserved_in_candidate,true);
+          assert.equal(j.accepted_enforcement_profile.package_records_preserved,true);\n          assert.equal(j.tsx_runtime.package_count,3);\n          assert.deepEqual(j.tsx_runtime.installed_optional_platform_packages,["@esbuild/linux-x64"]);
           assert.equal(j.profile_candidate_accepted,false);
           assert.equal(j.privileged_launcher_package_runtime_verified,false);
           assert.equal(j.privileged_receipt_execution_authorized,false);
@@ -153,8 +153,6 @@ jobs:
           assert.equal(j.privileged_receipt_execution_authorized,false);
           console.log("VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_CROSS_NODE_GREEN");
           console.log("candidate_sha256="+crypto.createHash("sha256").update(b).digest("hex"));
-          console.log("profile_id="+j.profile.profile_id);
-          console.log("packages_aggregate_sha256="+j.profile.packages_aggregate_sha256);
-          console.log("package_count="+j.profile.package_count);
+          console.log("tsx_runtime_id="+j.tsx_runtime.runtime_id);\n          console.log("tsx_packages_aggregate_sha256="+j.tsx_runtime.packages_aggregate_sha256);\n          console.log("tsx_package_count="+j.tsx_runtime.package_count);
           console.log("profile_acceptance=false");
           NODE
