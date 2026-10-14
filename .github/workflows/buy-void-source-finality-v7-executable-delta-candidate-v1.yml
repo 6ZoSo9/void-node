@@ -21,6 +21,10 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-v1.md"
+      - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
@@ -46,6 +50,10 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "docs/operators/buy-void-source-finality-v7-protected-privileged-launcher-v1.md"
+      - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
@@ -652,3 +660,42 @@ jobs:
           grep -Fx 'post_create_temp_failure_cleanup_exact=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'foreign_temp_inode_preserved=true'             "$RUNNER_TEMP/deployment-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-current-root.log"
+
+  protected-privileged-launcher:
+    needs: [deployment-receipt-current-enforcement-root]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact launcher head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove root-owned protected launcher boundary
+        run: |
+          set -euo pipefail
+          bash -n ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh
+          node scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs |
+            tee "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'protected_root_owned_source_positive=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'writable_checkout_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'dirty_protected_tree_rejected=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'ambient_path_git_shim_blocked=true'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'privileged_tool_execution_performed=false'             "$RUNNER_TEMP/protected-launcher.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-launcher.log"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"

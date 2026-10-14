@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1"
+GIT="/usr/bin/git"
+NODE="/usr/bin/node"
+SETPRIV="/usr/bin/setpriv"
+
+hold() {
+  printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
+  exit 2
+}
+
+SELF="$(readlink -f -- "${BASH_SOURCE[0]}")" || hold self_realpath_unavailable
+ROOT="$(CDPATH= cd -- "$(dirname -- "$SELF")/../.." && pwd -P)" ||
+  hold source_root_unavailable
+test "$SELF" = "$ROOT/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh" ||
+  hold launcher_location_invalid
+
+if [ "$(id -u)" != "0" ]; then hold root_required; fi
+if [ "$(uname -s)" != "Linux" ]; then hold linux_required; fi
+
+for binary in "$GIT" "$NODE" "$SETPRIV" /usr/bin/id /usr/bin/stat /usr/bin/readlink; do
+  test -x "$binary" || hold required_binary_missing
+  test "$(stat -Lc '%u' -- "$binary")" = "0" || hold required_binary_not_root_owned
+  mode="$(stat -Lc '%a' -- "$binary")"
+  perm=$((8#$mode))
+  if (( (perm & 0022) != 0 )); then hold required_binary_group_or_world_writable; fi
+done
+
+expected_commit=""
+expected_tree=""
+runtime_uid=""
+runtime_gid=""
+tool=""
+qualify_only=false
+declare -a tool_args=()
+
+while (($#)); do
+  case "$1" in
+    --expected-commit)
+      (($# >= 2)) || hold expected_commit_required
+      expected_commit="$2"; shift 2 ;;
+    --expected-tree)
+      (($# >= 2)) || hold expected_tree_required
+      expected_tree="$2"; shift 2 ;;
+    --runtime-uid)
+      (($# >= 2)) || hold runtime_uid_required
+      runtime_uid="$2"; shift 2 ;;
+    --runtime-gid)
+      (($# >= 2)) || hold runtime_gid_required
+      runtime_gid="$2"; shift 2 ;;
+    --tool)
+      (($# >= 2)) || hold tool_required
+      tool="$2"; shift 2 ;;
+    --qualify-only)
+      qualify_only=true; shift ;;
+    --)
+      shift
+      tool_args=("$@")
+      break ;;
+    *)
+      hold unknown_launcher_argument ;;
+  esac
+done
+
+[[ "$expected_commit" =~ ^[0-9a-f]{40}$ ]] || hold expected_commit_invalid
+[[ "$expected_tree" =~ ^[0-9a-f]{40}$ ]] || hold expected_tree_invalid
+[[ "$runtime_uid" =~ ^[1-9][0-9]*$ ]] || hold runtime_uid_invalid
+[[ "$runtime_gid" =~ ^[1-9][0-9]*$ ]] || hold runtime_gid_invalid
+
+git_reviewed() {
+  env -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     GIT_CONFIG_NOSYSTEM=1     GIT_CONFIG_GLOBAL=/dev/null     GIT_CONFIG_SYSTEM=/dev/null     GIT_NO_REPLACE_OBJECTS=1     GIT_OPTIONAL_LOCKS=0     GIT_TERMINAL_PROMPT=0     GIT_ASKPASS=/bin/false     "$GIT" -c "safe.directory=$ROOT" -C "$ROOT" "$@"
+}
+
+head_before="$(git_reviewed rev-parse --verify 'HEAD^{commit}')" ||
+  hold git_head_unavailable
+tree_before="$(git_reviewed rev-parse --verify 'HEAD^{tree}')" ||
+  hold git_tree_unavailable
+branch_before="$(git_reviewed symbolic-ref --short -q HEAD)" ||
+  hold source_branch_unavailable
+status_before="$(git_reviewed status --porcelain=v1 --untracked-files=all)" ||
+  hold source_status_unavailable
+
+test "$head_before" = "$expected_commit" || hold expected_commit_mismatch
+test "$tree_before" = "$expected_tree" || hold expected_tree_mismatch
+test "$branch_before" = "main" || hold source_branch_not_main
+test -z "$status_before" || hold source_tree_dirty
+
+CUSTODY="$ROOT/runtime/canonical-producer-source-custody-v1.cjs"
+test -f "$CUSTODY" || hold source_custody_checker_missing
+
+set +e
+custody_out="$(
+  env -i     PATH=/usr/bin:/bin     HOME=/nonexistent     LANG=C LC_ALL=C TZ=UTC     "$SETPRIV"       --reuid="$runtime_uid"       --regid="$runtime_gid"       --clear-groups       --no-new-privs       "$NODE" "$CUSTODY" "$ROOT" 2>&1
+)"
+custody_rc=$?
+set -e
+if [ "$custody_rc" -ne 0 ]; then
+  printf '%s\n' "$custody_out" >&2
+  hold protected_source_custody_failed
+fi
+printf '%s\n' "$custody_out" |
+  grep -Eq '^VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN source_nodes_checked=[0-9]+$' ||
+  hold protected_source_custody_marker_missing
+
+head_after="$(git_reviewed rev-parse --verify 'HEAD^{commit}')" ||
+  hold git_head_recheck_unavailable
+tree_after="$(git_reviewed rev-parse --verify 'HEAD^{tree}')" ||
+  hold git_tree_recheck_unavailable
+branch_after="$(git_reviewed symbolic-ref --short -q HEAD)" ||
+  hold source_branch_recheck_unavailable
+status_after="$(git_reviewed status --porcelain=v1 --untracked-files=all)" ||
+  hold source_status_recheck_unavailable
+
+test "$head_after" = "$head_before" || hold source_head_changed_during_qualification
+test "$tree_after" = "$tree_before" || hold source_tree_changed_during_qualification
+test "$branch_after" = "$branch_before" || hold source_branch_changed_during_qualification
+test "$status_after" = "$status_before" || hold source_status_changed_during_qualification
+
+printf '%s\n' "$MARKER"
+printf 'source_root=%s\n' "$ROOT"
+printf 'source_commit=%s\n' "$head_before"
+printf 'source_tree=%s\n' "$tree_before"
+printf 'source_branch=main\n'
+printf 'runtime_uid=%s\n' "$runtime_uid"
+printf 'runtime_gid=%s\n' "$runtime_gid"
+printf 'root_owned_protected_source=true\n'
+printf 'source_custody_green=true\n'
+printf 'ambient_git_environment_inherited=false\n'
+printf 'ambient_node_environment_inherited=false\n'
+printf 'credential_access_by_launcher=false\n'
+printf 'wallet_or_signer_access_by_launcher=false\n'
+printf 'rpc_contact_by_launcher=false\n'
+printf 'transaction_broadcast_by_launcher=false\n'
+printf 'service_mutation_by_launcher=false\n'
+printf 'presale_activation_by_launcher=false\n'
+printf 'funds_movement_by_launcher=false\n'
+
+if [ "$qualify_only" = true ]; then
+  test -z "$tool" || hold qualify_only_tool_forbidden
+  test "${#tool_args[@]}" = "0" || hold qualify_only_tool_args_forbidden
+  printf 'tool_execution=false\n'
+  printf 'host_mutation=false\n'
+  printf 'status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN\n'
+  exit 0
+fi
+
+case "$tool" in
+  deployment)
+    tool_path="ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts" ;;
+  provider-pair)
+    tool_path="ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts" ;;
+  live-process)
+    tool_path="ops/precision/void_buy_void_source_finality_live_process_binding_receipt_install_v1.ts" ;;
+  *)
+    hold tool_not_allowlisted ;;
+esac
+
+tool_absolute="$ROOT/$tool_path"
+test -f "$tool_absolute" || hold reviewed_tool_missing
+tracked_blob="$(git_reviewed rev-parse --verify "HEAD:$tool_path")" ||
+  hold reviewed_tool_not_tracked
+visible_blob="$(git_reviewed hash-object -- "$tool_absolute")" ||
+  hold reviewed_tool_hash_unavailable
+test "$tracked_blob" = "$visible_blob" || hold reviewed_tool_worktree_blob_mismatch
+
+TSX_CLI="$ROOT/node_modules/tsx/dist/cli.mjs"
+test -f "$TSX_CLI" || hold protected_tsx_cli_missing
+
+printf 'tool=%s\n' "$tool"
+printf 'tool_path=%s\n' "$tool_path"
+printf 'tool_git_blob_sha1=%s\n' "$tracked_blob"
+printf 'tool_execution=true\n'
+
+exec env -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC   "$NODE" "$TSX_CLI" "$tool_absolute" "${tool_args[@]}"
