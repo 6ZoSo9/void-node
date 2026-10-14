@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 
 MARKER="VOID_APOLLYON_TRAINING_PREENTRY_BINARY_CANDIDATE_LOCK_V1"
@@ -56,7 +57,7 @@ def exact_keys(value,expected:tuple[str,...],label:str)->None:
 def bounded_bytes(path:Path,maximum:int,label:str)->bytes:
     metadata=path.lstat()
     if (
-        not metadata.is_file() or metadata.is_symlink() or
+        not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode) or
         metadata.st_nlink!=1 or metadata.st_size<2 or
         metadata.st_size>maximum
     ):
