@@ -49,9 +49,12 @@ wallet_or_funds_action=false
 void_chain_mutation=false
 ```
 
-It then remains alive for at most 300 seconds so a later, separately authorized
-installed/live qualification can observe the exact systemd cgroup and descriptor
-boundary. SIGTERM or SIGINT ends the observation window early.
+It then remains alive only until one absolute `CLOCK_MONOTONIC` deadline
+300 seconds after admission. The hold uses `clock_nanosleep(..., TIMER_ABSTIME)`
+so suspension, CPU contention, and time spent between waits cannot extend the
+documented observation lifetime. A later, separately authorized installed/live
+qualification can observe the exact systemd cgroup and descriptor boundary
+during that interval. SIGTERM or SIGINT ends the observation window early.
 
 Every normal exit is fail-closed:
 
@@ -81,7 +84,7 @@ weights can change.
 
 ```text
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
-Git blob db8cbcd5032800a6a38ba23433175824247bc57d
+Git blob caac8932ac8fd6f2f9339404b5703bda969b96a6
 ```
 
 The source file is repository evidence only. No executable identity is accepted
@@ -97,6 +100,7 @@ by this lane.
 - runs the source self-test;
 - proves direct execution without no-new-privileges HOLDS;
 - passes an inherited descriptor and proves it HOLDS;
+- requires the source to use an absolute monotonic 300-second deadline;
 - starts the qualification target with no-new-privileges, proves it stays alive
   for observation, sends SIGTERM, and requires the durable-claim HOLD; and
 - statically rejects network, subprocess/exec, filesystem-mutation and ML

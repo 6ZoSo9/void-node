@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "db8cbcd5032800a6a38ba23433175824247bc57d"
+EXPECTED_SOURCE_BLOB = "caac8932ac8fd6f2f9339404b5703bda969b96a6"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -185,6 +185,9 @@ def prove_source_boundary(source: str) -> None:
     required = (
         '#define MARKER "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_HOLD_V1"',
         "#define QUALIFICATION_WINDOW_SECONDS 300U",
+        "CLOCK_MONOTONIC",
+        "TIMER_ABSTIME",
+        "clock_nanosleep(",
         "PR_GET_NO_NEW_PRIVS",
         'opendir("/proc/self/fd")',
         "apollyon_candidate_training_entrypoint_inherited_fd_present",
