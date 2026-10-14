@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
       - "scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
       - "docs/operators/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.md"
       - ".github/workflows/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.yml"
@@ -23,6 +26,9 @@ on:
     branches: [main]
     paths:
       - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
       - "scripts/prove_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
       - "docs/operators/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.md"
       - ".github/workflows/buy-void-source-finality-live-process-binding-v2-receipt-publish-v1.yml"
@@ -120,6 +126,32 @@ jobs:
           grep -Fx 'privileged_launcher_package_runtime_verified=true' "$RUNNER_TEMP/protected-v2-launcher.log"
           grep -Fx 'persistent_host_mutation=false' "$RUNNER_TEMP/protected-v2-launcher.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-v2-launcher.log"
+      - name: Prove current-generation provider-pair installer
+        run: |
+          set -euo pipefail
+          npx tsx scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_RECEIPT_INSTALL_V1_CURRENT_ENFORCEMENT_PROOF_GREEN' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'historical_enforcement_constant_dependency=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'provider_pair_dynamic_enforcement_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'rpc_contact=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-${{ matrix.node }}.log"
+
+      - name: Root provider-pair custody fixture
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC \
+            "$nodebin" --import "file://$PWD/node_modules/tsx/dist/loader.mjs" \
+            scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts |
+            tee "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_PROVIDER_PAIR_RECEIPT_INSTALL_V1_CURRENT_ENFORCEMENT_PROOF_GREEN' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'current_reviewed_source_digest_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'provider_pair_dynamic_enforcement_crossbinding=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'root_custody_positive_exercised=true' "$RUNNER_TEMP/provider-pair-current-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
+
       - name: Root create-once publisher fixture
         if: matrix.node == 24
         run: |
