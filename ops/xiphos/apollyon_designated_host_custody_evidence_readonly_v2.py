@@ -195,7 +195,7 @@ def classify_pkcheck_status(code:int)->str:
  if code==3:return 'dismissed'
  return 'error'
 def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
- value=line.strip(); match=re.fullmatch(r'^systemd\\s+([0-9]+)\\s+\\(([^()]+)\\)$',value)
+ value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)$',value)
  if not match:hold('apollyon_custody_collector_systemd_version_failed')
  major=int(match.group(1)); package_version=match.group(2).strip()
  if (
@@ -210,7 +210,7 @@ def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
   'reviewed_systemd_package_version':package_version,
  }
 def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r's\\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
+ value=raw.strip(); match=re.fullmatch(r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
  if not match:hold('apollyon_custody_collector_running_systemd_version_failed')
  version=match.group(1)
  if version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
@@ -223,7 +223,7 @@ def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
   'running_systemd_manager_version':version,
  }
 def parse_systemd_bus_owner_pid(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r'u\\s+([1-9][0-9]*)',value)
+ value=raw.strip(); match=re.fullmatch(r'u\s+([1-9][0-9]*)',value)
  if not match:hold('apollyon_custody_collector_systemd_bus_owner_pid_invalid')
  pid=int(match.group(1))
  if pid!=1:hold('apollyon_custody_collector_systemd_bus_owner_not_pid1')
