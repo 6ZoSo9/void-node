@@ -76,7 +76,8 @@ installation:
 
 ```text
 private_stage_source_qualified=true
-live_nimo_private_stage_performed=false
+stage_host_authenticated=false
+live_nimo_private_stage_verified=false
 live_nimo_installed=false
 authenticated_custody_principal_verified=false
 verified_payment_to_allocation_mounted=false
@@ -86,8 +87,14 @@ presale_activation=false
 funds_moved=false
 ```
 
+A successful public `--stage` reports only that a user-private stage was
+performed in the invoking user's home. It deliberately does not infer that the
+host is Nimo: `stage_host_authenticated=false` and
+`live_nimo_private_stage_verified=false` remain explicit until a separate
+host-identity ceremony binds that fact.
+
 The next boundary is a separately authorized Nimo quiescence/private-stage or
-install ceremony with rollback and post-install evidence. No SSH, root/service
+install ceremony with host identity, rollback and post-install evidence. No SSH, root/service
 mutation, credential/key/wallet/signer access, customer/payment/allocation
 mutation, transaction, Chain-2050/WC mutation, inventory/treasury/liquidity
 operation, presale/market activation or funds movement is performed here.

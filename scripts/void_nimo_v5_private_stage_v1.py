@@ -461,8 +461,8 @@ def stage_into(payload: dict[str, bytes], parent: str) -> None:
         hold("post_stage_inspection_failed")
 
 
-def report(mode: str, count: int = 0) -> None:
-    print(json.dumps({
+def report_value(mode: str, count: int = 0) -> dict:
+    return {
         "marker": MARKER,
         "mode": mode,
         "archive_bytes": ARCHIVE_BYTES,
@@ -472,7 +472,8 @@ def report(mode: str, count: int = 0) -> None:
         "staged_files_verified": count,
         "private_stage_source_qualified": True,
         "user_private_stage_performed": mode == "stage",
-        "live_nimo_private_stage_performed": False,
+        "stage_host_authenticated": False,
+        "live_nimo_private_stage_verified": False,
         "live_nimo_installed": False,
         "authenticated_custody_principal_verified": False,
         "verified_payment_to_allocation_mounted": False,
@@ -480,7 +481,11 @@ def report(mode: str, count: int = 0) -> None:
         "production_gate_ready": False,
         "presale_activation": False,
         "funds_moved": False,
-    }, sort_keys=True, separators=(",", ":")))
+    }
+
+
+def report(mode: str, count: int = 0) -> None:
+    print(json.dumps(report_value(mode, count), sort_keys=True, separators=(",", ":")))
 
 
 def self_test(payload: dict[str, bytes]) -> None:
@@ -566,6 +571,15 @@ def self_test(payload: dict[str, bytes]) -> None:
         stage_into(payload, temp)
         if inspect_stage(temp) != len(RUNTIME):
             hold("selftest_retry_after_interruption_failed")
+
+    staged_receipt = report_value("stage", len(RUNTIME))
+    if (
+        staged_receipt.get("user_private_stage_performed") is not True
+        or staged_receipt.get("stage_host_authenticated") is not False
+        or staged_receipt.get("live_nimo_private_stage_verified") is not False
+        or "live_nimo_private_stage_performed" in staged_receipt
+    ):
+        hold("selftest_stage_receipt_host_truth_invalid")
 
 
 def main() -> None:

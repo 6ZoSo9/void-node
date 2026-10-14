@@ -120,7 +120,9 @@ jobs:
             assert.equal(j.candidate_manifest_id,"voidwfb5_10391f1bf567fba6d9cab2099fb1db2b180333baa01ae868fe62367208984dcb");
             assert.equal(j.runtime_files_exact,8);
             assert.equal(j.private_stage_source_qualified,true);
-            assert.equal(j.live_nimo_private_stage_performed,false);
+            assert.equal(j.stage_host_authenticated,false);
+            assert.equal(j.live_nimo_private_stage_verified,false);
+            assert.equal("live_nimo_private_stage_performed" in j,false);
             assert.equal(j.live_nimo_installed,false);
             assert.equal(j.production_gate_ready,false);
             assert.equal(j.presale_activation,false);
