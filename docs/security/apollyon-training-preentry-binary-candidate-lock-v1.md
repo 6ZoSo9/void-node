@@ -28,8 +28,9 @@ and exact candidate-validator Git blob:
 ```
 
 The lock proof requires that predecessor head to be an ancestor of the
-candidate-lock checkout and recomputes the validator Git blob before importing
-it.
+candidate-lock checkout and recomputes the validator Git blob. It then compiles
+and executes those already-verified bytes directly in memory; it does not reopen
+the validator pathname after verification.
 
 ## Locked candidate
 
