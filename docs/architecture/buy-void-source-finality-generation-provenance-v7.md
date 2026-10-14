@@ -24,8 +24,11 @@ addressed deployment receipt. The receipt binds:
 - the exact reviewed-source file count.
 
 The receipt is read through O_NOFOLLOW and retained-descriptor identity checks.
-It must be a direct single-link regular file, owned by the current service UID
-or root, and not group/world writable.
+It must be a direct single-link regular file, **root-owned and exactly mode
+0444**. The unprivileged node/service UID cannot create, chmod, replace or
+self-authorize this deployment receipt. Its contents are non-secret identity
+evidence; root-only mutation, rather than confidentiality, is the authority
+boundary.
 
 No production source path in this PR creates or installs that receipt. A later
 operator lane must create it only after the final integrated source/enforcement
@@ -40,7 +43,7 @@ The two server-controlled policies must use:
 
 - HTTPS;
 - distinct configured RPC identities;
-- distinct normalized RPC URL fingerprints; and
+- distinct normalized RPC URL fingerprints, each rederived from its exact normalized HTTPS URL; and
 - distinct hostnames.
 
 V7 does not claim knowledge of the remote companies' legal identities. The old
@@ -92,7 +95,7 @@ plus fail-closed cases for:
 - finalized reference below the receipt;
 - insufficient secondary confirmations;
 - unaccepted deployment generation;
-- group/world-writable deployment receipt; and
+- unprivileged-owned or writable deployment receipt; and
 - process commit mismatch.
 
 ## Next gate
