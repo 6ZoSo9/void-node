@@ -5,13 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-
-import {
-  canonicalJson,
-  collectReviewedNodePackageRuntimeV1,
-} from "../tools/void-reviewed-node-package-runtime-v1.mjs";
-import { runReviewedGitV1 } from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MARKER="VOID_BUY_VOID_V7_PRIVILEGED_LAUNCHER_PACKAGE_RUNTIME_V2";
@@ -19,8 +13,6 @@ const PACKAGE_JSON_BLOB="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";
 const PACKAGE_LOCK_BLOB="15b5c82ea36f13079a2f9e8863722f654eb3f201";
 const PACKAGE_TOOL="tools/void-reviewed-node-package-runtime-v1.mjs";
 const PACKAGE_TOOL_BLOB="6475c3f18ffe566cf5f448ca1de4795391a6efde";
-const GIT_HELPER="scripts/prove_buy_void_reviewed_git_invocation_v1.mjs";
-const GIT_HELPER_BLOB="2df64e31debd4884f2d859d55a87e4ef15925d3d";
 const ACCEPTED_MANIFEST="ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json";
 const ACCEPTED_MANIFEST_BLOB="445bcfbf5feae928e0d9cc06d4d31c1ee186fe39";
 const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash";
@@ -77,6 +69,13 @@ const OPTIONAL_ABSENT=Object.freeze([
   "@esbuild/win32-x64","fsevents",
 ]);
 
+function canonicalJson(value){
+  if(value===null||typeof value==="boolean"||typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="number"){assert.ok(Number.isSafeInteger(value),"canonical_number_not_safe_integer");return String(value);}
+  if(Array.isArray(value))return "["+value.map(canonicalJson).join(",")+"]";
+  assert.ok(value&&typeof value==="object","canonical_value_invalid");
+  return "{"+Object.keys(value).sort().map(k=>JSON.stringify(k)+":"+canonicalJson(value[k])).join(",")+"}";
+}
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
 const gitBlob=b=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+b.length+"\0","utf8")).update(b).digest("hex");
@@ -112,11 +111,16 @@ function exact(relative,expected,max=2*1024*1024){
   assert.equal(gitBlob(bytes),expected,"blob_drift:"+relative);
   return bytes;
 }
+function reviewedGit(args){
+  const git="/usr/bin/git",real=fs.realpathSync.native(git),st=fs.statSync(real);
+  assert.equal(real,git,"reviewed_git_path_alias");
+  assert.ok(st.isFile()&&st.uid===0&&(st.mode&0o022)===0&&(st.mode&0o111)!==0,"reviewed_git_binary_invalid");
+  const r=spawnSync(git,["-C",ROOT,"-c","safe.directory="+ROOT,...args],{encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,maxBuffer:1024*1024,env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0"}});
+  assert.equal(r.error,undefined,String(r.error||""));assert.equal(r.signal,null,"reviewed_git_signal");assert.equal(r.status,0,String(r.stderr||""));return String(r.stdout||"").trim();
+}
 function trackedVisible(relative,max=2*1024*1024){
-  const bytes=stableBytes(path.join(ROOT,relative),"tracked_"+relative.replaceAll("/","_"),max);
-  const visible=gitBlob(bytes);
-  const tracked=runReviewedGitV1(["rev-parse","--verify","HEAD:"+relative],ROOT).trim();
-  assert.equal(visible,tracked,"worktree_blob_mismatch:"+relative);
+  const bytes=stableBytes(path.join(ROOT,relative),"tracked_"+relative.replaceAll("/","_"),max),visible=gitBlob(bytes);
+  assert.equal(visible,reviewedGit(["rev-parse","--verify","HEAD:"+relative]),"worktree_blob_mismatch:"+relative);
   return {bytes,git_blob_sha1:visible};
 }
 function packageRecord(lock,row){
@@ -386,7 +390,7 @@ function provePrivateTsxExecution(lock,packages){
   }
 }
 
-export function derivePrivilegedLauncherPackageRuntimeV2(){
+export async function derivePrivilegedLauncherPackageRuntimeV2(){
   assert.equal(process.platform,"linux");
   assert.equal(process.arch,"x64");
   assert.ok([22,24,26].includes(Number(process.versions.node.split(".")[0])));
@@ -394,8 +398,9 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
   exact("package.json",PACKAGE_JSON_BLOB,128*1024);
   const lockBytes=exact("package-lock.json",PACKAGE_LOCK_BLOB,2*1024*1024);
   exact(PACKAGE_TOOL,PACKAGE_TOOL_BLOB,1024*1024);
-  exact(GIT_HELPER,GIT_HELPER_BLOB,256*1024);
   exact(ACCEPTED_MANIFEST,ACCEPTED_MANIFEST_BLOB,128*1024);
+  const packageTool=await import(pathToFileURL(path.join(ROOT,PACKAGE_TOOL)).href);
+  assert.equal(typeof packageTool.collectReviewedNodePackageRuntimeV1,"function","reviewed_package_collector_export_missing");
 
   const launcher=trackedVisible(LAUNCHER,128*1024);
   const native=trackedVisible(NATIVE_PREENTRY,128*1024);
@@ -431,7 +436,7 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     'launcher_direct_exec_mode=false',
   ]) assert.ok(nativeText.includes(required),"native_required:"+required);
 
-  const accepted=collectReviewedNodePackageRuntimeV1({rootPackages:["ethers","express"]});
+  const accepted=packageTool.collectReviewedNodePackageRuntimeV1({rootPackages:["ethers","express"]});
   assert.equal(accepted.profile_id,ACCEPTED_PROFILE_ID);
   assert.equal(accepted.packages_aggregate_sha256,ACCEPTED_AGGREGATE);
   assert.equal(sha256(Buffer.from(canonicalJson(accepted),"utf8")),ACCEPTED_CANONICAL_SHA);
@@ -493,6 +498,8 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
     launcher_gate_contract_verified:true,
     package_runtime_identity_rederived:true,
     privileged_launcher_package_runtime_verified:true,
+    private_temporary_filesystem_write:true,
+    persistent_host_mutation:false,
     protected_source_install_authorized:false,
     privileged_receipt_execution_authorized:false,
     runtime_service_mutation:false,
@@ -517,6 +524,8 @@ function report(j){
   console.log("tsx_scratch_write_scope_private=true");
   console.log("tsx_scratch_outside_package_tree=true");
   console.log("privileged_launcher_package_runtime_verified=true");
+  console.log("private_temporary_filesystem_write=true");
+  console.log("persistent_host_mutation=false");
   console.log("protected_source_install_authorized=false");
   console.log("privileged_receipt_execution_authorized=false");
   console.log("public_presale_activation=false");
@@ -526,7 +535,7 @@ function report(j){
 const invoked=process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url);
 if(invoked){
   const args=process.argv.slice(2);
-  const value=derivePrivilegedLauncherPackageRuntimeV2();
+  const value=await derivePrivilegedLauncherPackageRuntimeV2();
   if(args.length===1&&args[0]==="--derive")process.stdout.write(JSON.stringify(value,null,2)+"\n");
   else if(args.length===1&&args[0]==="--report")report(value);
   else throw Error("v7_privileged_launcher_package_runtime_v2_requires_derive_or_report");

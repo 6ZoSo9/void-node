@@ -12,7 +12,7 @@ STAT="/usr/bin/stat"
 ENV="/usr/bin/env"
 GREP="/usr/bin/grep"
 PACKAGE_RUNTIME_PROOF_REL="scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
-PACKAGE_RUNTIME_PROOF_BLOB="2b536754f6213e0522a64d566d26cbe8074eac90"
+PACKAGE_RUNTIME_PROOF_BLOB="2de85eb1431991e81f670fbbaebf5549329aa7f1"
 
 hold() {
   printf '%s_HOLD reason=%s\n' "$MARKER" "$1" >&2
@@ -183,6 +183,12 @@ printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'privileged_launcher_package_runtime_verified=true' >/dev/null ||
   hold privileged_launcher_package_runtime_not_verified
 printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'private_temporary_filesystem_write=true' >/dev/null ||
+  hold privileged_launcher_temporary_write_truth_missing
+printf '%s\n' "$package_runtime_out" |
+  "$GREP" -Fx 'persistent_host_mutation=false' >/dev/null ||
+  hold privileged_launcher_persistent_mutation_truth_missing
+printf '%s\n' "$package_runtime_out" |
   "$GREP" -Fx 'privileged_receipt_execution_authorized=false' >/dev/null ||
   hold privileged_launcher_package_runtime_authority_overclaim
 
@@ -218,7 +224,8 @@ if [ "$qualify_only" = true ]; then
   test -z "$tool" || hold qualify_only_tool_forbidden
   test "${#tool_args[@]}" = "0" || hold qualify_only_tool_args_forbidden
   printf 'tool_execution=false\n'
-  printf 'host_mutation=false\n'
+  printf 'private_temporary_filesystem_write=true\n'
+  printf 'persistent_host_mutation=false\n'
   printf 'status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN\n'
   exit 0
 fi

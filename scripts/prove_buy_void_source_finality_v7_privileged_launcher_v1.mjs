@@ -43,6 +43,8 @@ for(const required of [
   'tsx_inert_transform_execution_verified=true',
   'esbuild_runtime_execution_verified=true',
   'privileged_launcher_package_runtime_verified=true',
+  'private_temporary_filesystem_write=true',
+  'persistent_host_mutation=false',
   'funds_movement_by_launcher=false',
 ]) assert.equal(launcher.includes(required),true,required);
 
@@ -76,6 +78,10 @@ for(const required of [
   '"--noprofile"',
   '"--norc"',
   'PREENTRY_ENV',
+  '#define FIXED_LAUNCHER_BYTES 10813U',
+  'FIXED_LAUNCHER_SHA256',
+  'sha256_fd_matches(launcher_fd)',
+  'native_preentry_launcher_digest_mismatch',
   'launcher_direct_exec_mode=false',
   'privileged_receipt_execution_authorized=false',
   'public_presale_activation=false',
@@ -144,6 +150,7 @@ try{
   assert.match(selfTest.stdout,new RegExp("^"+NATIVE_MARKER+"_SELF_TEST=GREEN$","m"));
   assert.match(selfTest.stdout,/launcher_descriptor_retained=true/u);
   assert.match(selfTest.stdout,/launcher_direct_exec_mode=false/u);
+  assert.match(selfTest.stdout,/launcher_exact_sha256_bound=true/u);
 
   const replica=path.join(tmp,"repo");
   run("/usr/bin/cp",["-a","--",ROOT,replica],{timeout:120000});
@@ -178,9 +185,13 @@ try{
     "esbuild_runtime_execution_verified=true",
     "privileged_launcher_package_runtime_verified=true",
     "tool_execution=false",
-    "host_mutation=false",
+    "private_temporary_filesystem_write=true",
+    "persistent_host_mutation=false",
     "status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN",
   ]) assert.match(positive.stdout,new RegExp("^"+marker+"$","m"),marker);
+
+  const originalBody=fs.readFileSync(path.join(replica,LAUNCHER));const tamperedBody=Buffer.from(originalBody);tamperedBody[Math.floor(tamperedBody.length/2)]^=1;const tamperedBodyPath=path.join(tmp,"tampered-launcher-body.bash");fs.writeFileSync(tamperedBodyPath,tamperedBody,{mode:0o600});assert.equal(tamperedBody.length,originalBody.length);
+  sudo(["/usr/bin/install","-o","root","-g","root","-m","0644","--",tamperedBodyPath,FIXED_LAUNCHER]);const tamperedBodyRun=sudo(argsFor(commit,tree),{allow:true,timeout:180000});assert.equal(tamperedBodyRun.status,2);assert.match(tamperedBodyRun.stderr,/native_preentry_launcher_digest_mismatch/u);assert.doesNotMatch(tamperedBodyRun.stdout,new RegExp("^"+MARKER+"$","m"));sudo(["/usr/bin/install","-o","root","-g","root","-m","0644","--",path.join(replica,LAUNCHER),FIXED_LAUNCHER]);
 
   const legacyExec=sudo([FIXED_LEGACY_STUB],{allow:true});
   assert.notEqual(legacyExec.status,0);
@@ -263,6 +274,8 @@ try{
   console.log("native_preentry_first_instruction=true");
   console.log("native_bash_descriptor_execution=true");
   console.log("native_launcher_descriptor_execution=true");
+  console.log("native_launcher_exact_sha256_bound=true");
+  console.log("same_size_root_owned_launcher_substitution_rejected=true");
   console.log("direct_shell_privileged_invocation_supported=false");
   console.log("legacy_sh_path_fail_only=true");
   console.log("nonexecutable_launcher_body=true");
@@ -277,6 +290,8 @@ try{
   console.log("tsx_inert_transform_execution_verified=true");
   console.log("esbuild_runtime_execution_verified=true");
   console.log("privileged_launcher_package_runtime_verified=true");
+  console.log("private_temporary_filesystem_write=true");
+  console.log("persistent_host_mutation=false");
   console.log("privileged_tool_execution_performed=false");
   console.log("service_mutation=false");
   console.log("credential_wallet_signer_transaction_authority=false");
