@@ -1,0 +1,49 @@
+{
+  "schema": "void_buy_void_enforcement_artifact_attestation_v6",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V6",
+  "version": 6,
+  "repository": "6ZoSo9/void-node",
+  "source_runtime_parent": "99c9b6a5aaaf0f4a5440ebc2dfade3fba70dfc1e",
+  "candidate": {
+    "source_head": "21773007311f63c7a2e5d288e8bfa1e2243d49b6",
+    "candidate_json_sha256": "f3680f613095054be2699fefe6d1f11dc03eda725d930254d2a045462bf4646e",
+    "candidate_enforcement_set_sha256": "43a1a3cbec71f59e0c33216afe5e5b826e119e95aa14acfd2bc2d8b2c238a297"
+  },
+  "compiled_source_finality": {
+    "manifest_git_blob_sha1": "44dc5c187adeb35b6a41038a044165f1c6799c74",
+    "compiled_artifact_generation_sha256": "18758f6563f9a96aea0d55e293a4c10da8de349ba12ecc90fdebd82f486b944c",
+    "compiled_artifact_generation_verified": true
+  },
+  "dynamic_runtime": {
+    "dynamic_tool_candidate_count": 1,
+    "dynamic_tool_execution_identity_verified": true,
+    "dynamic_tool_transitive_closure_verified": true,
+    "no_dynamic_unknown_imports": true
+  },
+  "package_runtime": {
+    "manifest_path": "ops/security/reviewed-node-package-runtime-enforcement-v1.json",
+    "manifest_git_blob_sha1": "169216419f35c9213a96cde8d835c97ef4410710",
+    "profile_id": "voidrnpr1_c15b7f3cb00d85f378a69cfc536c3845e29f9be7047e3af0f9fbd646eb2f5860",
+    "packages_aggregate_sha256": "5eb57ae9bfa6a0f195d5ccf40697985f0043456057525c3fdca7f4c894173561",
+    "root_packages": [
+      "ethers",
+      "express"
+    ],
+    "package_json_git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+    "package_lock_git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    "profile_identity_accepted": true,
+    "third_party_package_runtime_closure_verified": true
+  },
+  "third_party_package_imports": [
+    "ethers",
+    "express"
+  ],
+  "complete_executable_closure_verified": true,
+  "candidate_identity_accepted": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "accepted_enforcement_set_sha256": "c197ccf77e6fc7499143ed26f00be95c39ae2e8b16d2900255c0dcab576f0f4c"
+}

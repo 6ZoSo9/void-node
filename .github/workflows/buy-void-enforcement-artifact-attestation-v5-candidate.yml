@@ -6,6 +6,7 @@ on:
       - "src/economic/**"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v6_candidate.mjs"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs"
       - "scripts/prove_buy_void_enforcement_descriptor_relative_linux_v1.mjs"
       - "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs"
       - "scripts/prove_buy_void_stopped_real_saga_loader_v1.mjs"
@@ -16,6 +17,10 @@ on:
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v5.json"
       - "docs/architecture/buy-void-enforcement-artifact-attestation-v6-candidate.md"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v6.json"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v6.md"
+      - "ops/security/reviewed-node-package-runtime-enforcement-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs"
       - ".github/workflows/buy-void-enforcement-artifact-attestation-v5-candidate.yml"
       - "package.json"
       - "package-lock.json"
@@ -233,3 +238,103 @@ jobs:
           console.log("remaining_package_gap=express");
           console.log("production_authority=false");
           NODE
+
+  lock-v6:
+    needs: [cross-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact lock candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Download exact V6 candidate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-v6-candidate-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: ./v6-evidence
+      - name: Requalify locked ethers plus express package identity
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs \
+            | tee "enforcement-package-lock-${{ matrix.node }}.log"
+      - name: Derive and verify accepted V6 enforcement identity
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs \
+            --derive \
+            --candidate="v6-evidence/enforcement-v6-candidate-22.json" \
+            --package-runtime-log="enforcement-package-lock-${{ matrix.node }}.log" \
+            > "enforcement-v6-lock-${{ matrix.node }}.json"
+          cmp "enforcement-v6-lock-${{ matrix.node }}.json" \
+            docs/architecture/buy-void-enforcement-artifact-attestation-v6.json
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v6.mjs \
+            --verify \
+            --candidate="v6-evidence/enforcement-v6-candidate-22.json" \
+            --package-runtime-log="enforcement-package-lock-${{ matrix.node }}.log" \
+            | tee "enforcement-v6-lock-${{ matrix.node }}.txt"
+          grep -Fx 'candidate_identity_accepted=true' "enforcement-v6-lock-${{ matrix.node }}.txt"
+          grep -Fx 'complete_executable_closure_verified=true' "enforcement-v6-lock-${{ matrix.node }}.txt"
+          grep -Fx 'production_source_finality_authority_ready=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
+          grep -Fx 'public_presale_activation=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "enforcement-v6-lock-${{ matrix.node }}.txt"
+      - name: Upload accepted V6 identity
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: |
+            enforcement-v6-lock-${{ matrix.node }}.json
+            enforcement-v6-lock-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  lock-v6-cross-node:
+    needs: [lock-v6]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download accepted V6 identities
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-enforcement-v6-lock-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: ./accepted
+      - name: Require exact Node 22 24 26 accepted identity
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "accepted/enforcement-v6-lock-$v.json"
+            test -s "accepted/enforcement-v6-lock-$v.txt"
+          done
+          cmp accepted/enforcement-v6-lock-22.json accepted/enforcement-v6-lock-24.json
+          cmp accepted/enforcement-v6-lock-22.json accepted/enforcement-v6-lock-26.json
+          cmp accepted/enforcement-v6-lock-22.txt accepted/enforcement-v6-lock-24.txt
+          cmp accepted/enforcement-v6-lock-22.txt accepted/enforcement-v6-lock-26.txt
+          sha256sum accepted/enforcement-v6-lock-22.json
+          echo "VOID_BUY_VOID_ENFORCEMENT_V6_LOCK_CROSS_NODE_GREEN"
+          echo "accepted_enforcement_set_sha256=c197ccf77e6fc7499143ed26f00be95c39ae2e8b16d2900255c0dcab576f0f4c"
+          echo "production_source_finality_authority_ready=false"
+          echo "public_presale_activation=false"
+          echo "funds_movement=false"
