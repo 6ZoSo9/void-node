@@ -21,6 +21,9 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
@@ -43,6 +46,9 @@ on:
       - "ops/security/buy-void-enforcement-post2933-candidate-v1.json"
       - "docs/architecture/buy-void-enforcement-post2933-candidate-v1.md"
       - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "docs/operators/buy-void-source-finality-v7-deployment-receipt-current-enforcement-v2.md"
       - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
       - "docs/operators/buy-void-source-finality-provider-pair-binding-receipt-install-v2.md"
@@ -580,3 +586,69 @@ jobs:
           grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'fresh_enforcement_set=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "$RUNNER_TEMP/provider-pair-current-root.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/provider-pair-current-root.log"
+
+  deployment-receipt-current-enforcement:
+    needs: [provider-pair-current-enforcement-root]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact deployment-custody head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove current V2 deployment receipt
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             | tee "deployment-current-${{ matrix.node }}.log"
+          grep -Fx 'current_enforcement_lock_v2_verified=true'             "deployment-current-${{ matrix.node }}.log"
+          grep -Fx 'accepted_enforcement_set_sha256=f1f3fbdd0a015fdabf8da924a53a87174663d38cdde182cdc036cf0f9a3407bd'             "deployment-current-${{ matrix.node }}.log"
+          grep -Fx 'unprivileged_proof_stack_safe=true'             "deployment-current-${{ matrix.node }}.log"
+          grep -Fx 'presale_activation=false' "deployment-current-${{ matrix.node }}.log"
+          grep -Fx 'funds_movement=false' "deployment-current-${{ matrix.node }}.log"
+
+  deployment-receipt-current-enforcement-root:
+    needs: [deployment-receipt-current-enforcement]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact deployment-custody head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Use reviewed Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Install exact audited dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise disposable root receipt custody
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=PATH ./node_modules/.bin/tsx             scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts             | tee "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'current_enforcement_lock_v2_verified=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'root_custody_positive_exercised=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'descriptor_relative_parent_publication=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'symlink_parent_no_collateral_mutation=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'new_parent_grandparent_fsync_required=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'post_create_temp_failure_cleanup_exact=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'foreign_temp_inode_preserved=true'             "$RUNNER_TEMP/deployment-current-root.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-current-root.log"
