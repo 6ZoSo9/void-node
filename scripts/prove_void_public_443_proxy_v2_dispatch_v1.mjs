@@ -243,9 +243,11 @@ for (const [key, expected] of Object.entries({
 
 async function makeBackend(name) {
   const calls = [];
-  const state = { accepted: 0 };
+  const state = { accepted: 0, live: 0 };
   const server = net.createServer((socket) => {
     state.accepted += 1;
+    state.live += 1;
+    socket.once("close", () => { state.live -= 1; });
     socket.on("error", () => {});
     const chunks = [];
     socket.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
@@ -396,6 +398,39 @@ async function abruptResetAfterDispatch(port, bytes, backend) {
   await closed;
 }
 
+async function proveRelayIdleCleanup(port, bytes, backend) {
+  const expectedAccepted = backend.state.accepted + 1;
+  const socket = net.createConnection({ host: "127.0.0.1", port });
+  socket.setNoDelay(true);
+  socket.on("error", () => {});
+  const closed = new Promise((resolve) => socket.once("close", resolve));
+  await once(socket, "connect");
+  // Fully classified request, but no client FIN: backend intentionally waits
+  // for EOF, and the relay must close both descriptors after a quiet interval.
+  socket.write(bytes);
+  await waitForAccepted(backend, expectedAccepted);
+  let deadline;
+  try {
+    await Promise.race([
+      closed,
+      new Promise((_, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("relay idle socket remained open")),
+          6000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+    socket.destroy();
+  }
+
+  for (let index = 0; index < 160 && backend.state.live !== 0; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(backend.state.live, 0, "idle downstream leaked a socket");
+}
+
 async function stop(runtime) {
   if (runtime.child.exitCode !== null) return;
   const exit = once(runtime.child, "exit");
@@ -416,6 +451,8 @@ try {
   const info = await ready(runtime);
   assert.equal(info.listen_host, "127.0.0.1");
   assert.equal(info.public_tls_port, 443);
+  assert.equal(info.relay_idle_timeout_ms, 1500);
+  assert.equal(info.relay_idle_cleanup_enabled, true);
   assert.equal(info.one_public_443_owner_required, true);
   assert.equal(info.strict_proxy_v2_source_required, true);
   assert.equal(info.sensitive_proxy_preface_preserved, true);
@@ -479,6 +516,19 @@ try {
   );
   assert.deepEqual(frontdoorBackend.calls.at(-1), ordinary.http);
 
+  await proveRelayIdleCleanup(
+    info.listen_port,
+    ordinary.all,
+    frontdoorBackend,
+  );
+  assert.equal(
+    runtime.child.exitCode,
+    null,
+    "idle relay cleanup terminated dispatcher: " + runtime.logs.join(""),
+  );
+  response = await sendRaw(info.listen_port, ordinary.all);
+  assert.match(response, /^HTTP\/1\.1 200 OK/u);
+
   const beforeRejects = Object.freeze({
     credential: credentialBackend.calls.length,
     earn: earnBackend.calls.length,
@@ -530,6 +580,8 @@ try {
   console.log("frontdoor_proxy_preface_stripped=true");
   console.log("client_half_close_response_preserved=true");
   console.log("client_reset_after_classification_process_survives=true");
+  console.log("relay_idle_socket_pair_closed=true");
+  console.log("relay_idle_cleanup_dispatcher_survives=true");
   console.log("sensitive_aliases_fail_closed=true");
   console.log("generic_sensitive_mutation_route_authorized=false");
   console.log("source_port_in_dispatch_identity=false");
