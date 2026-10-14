@@ -6,7 +6,9 @@ on:
       - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
       - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
       - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v2.mjs"
       - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v2.mjs"
       - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
       - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
@@ -57,7 +59,9 @@ on:
       - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
       - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
       - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v2.mjs"
       - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v2.mjs"
       - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
       - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
@@ -129,8 +133,33 @@ jobs:
         run: |
           node --check tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs
           node --check scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
-      - name: Prove bounded-canary candidate promotion
-        run: node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+          node --check tools/void-wc-void-bounded-canary-candidate-promotion-v2.mjs
+          node --check scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v2.mjs
+      - name: Prove bounded-canary candidate promotion generation
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+              echo "bounded_canary_candidate_promotion_mode=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/bounded-canary-promotion-v1-hold.txt"
+              if node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'BOUNDED_CANARY_REVIEWED_SOURCE_DRIFT:package_json' "$hold"
+              node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v2.mjs
+              echo "bounded_canary_candidate_promotion_mode=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
       - name: Upstream classifier regressions
         run: |
           node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
