@@ -19,7 +19,7 @@ const NATIVE_PREENTRY=path.join(
 const NATIVE_PREENTRY_BLOB_SHA1=
   "7863007de9d55614305be4d01083c3f8e8bd7453";
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "fcf35b4f8f927eadea0f7285c06465804aac90f1";
+  "e6a8cb82323df130f72de4f937db13b97460f47a";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -95,6 +95,11 @@ for(const required of [
   'apollyon_v2_installed_launcher_runtime_os_error',
   'apollyon_v2_installed_launcher_runtime_subprocess_error',
   'cleanup_failure_retained_path_reported=true',
+  'def sanitized_environment(private_root:Path)',
+  '"TMPDIR":os.fspath(root)',
+  'env=sanitized_environment(private_root)',
+  'runner_tmpdir_bound_to_outer_private_root=true',
+  'timeout_inner_tree_parent_cleanup=true',
 ]){
   assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
 }
@@ -133,6 +138,7 @@ for(const required of [
   'stdio:["ignore","pipe","pipe",collectorFd,python.fd]',
   'apollyon_live_qualification_v2_python_interpreter_untrusted',
   'apollyon_live_qualification_v2_cleanup_failed:',
+  'path.join(os.tmpdir(),"void-apollyon-custody-v2-reviewed-")',
   'temporary_filesystem_cleanup_proven=false',
   'retained_private_tree_possible=true',
   'persistent_host_mutation=unknown',
@@ -264,6 +270,8 @@ console.log("postprepare_collector_replacement_inert=true");
 console.log("collector_descriptor_execution=true");
 console.log("runner_cleanup_failure_persistence_unknown=true");
 console.log("launcher_cleanup_failure_persistence_unknown=true");
+console.log("runner_tmpdir_bound_to_outer_private_root=true");
+console.log("timeout_inner_tree_parent_cleanup=true");
 console.log("two_live_observations_required=true");
 console.log("socket_parent_namespace_v2_required=true");
 console.log("live_host_qualification_performed_capability=true");
