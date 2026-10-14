@@ -405,6 +405,7 @@ function readBody(socket, initialBody, contentLength) {
     socket.once("end", onEnd);
     socket.once("timeout", onTimeout);
     socket.setTimeout(REQUEST_TIMEOUT_MS);
+    socket.resume();
   });
 }
 
