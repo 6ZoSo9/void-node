@@ -15,7 +15,7 @@ MARKER = "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_V1_PROOF_GREEN"
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
 
-EXPECTED_SOURCE_BLOB = "7545155df30a02215341a3eab092b7dc05775218"
+EXPECTED_SOURCE_BLOB = "613f0ece15696db57b81e41b9e8aa5638f8f29c7"
 PR_SET_NO_NEW_PRIVS = 38
 
 COMPILE = (
@@ -316,6 +316,8 @@ def prove_source_boundary(source: str) -> None:
         "O_NONBLOCK",
         "prepare_process_io_safety();",
         "sigaction(SIGPIPE",
+        "int stderr_flags = fcntl(STDERR_FILENO, F_GETFL);",
+        "fcntl(STDERR_FILENO, F_SETFL, stderr_flags | O_NONBLOCK)",
         "write(STDOUT_FILENO, payload, sizeof(payload) - 1U)",
         "apollyon_candidate_training_entrypoint_stdout_not_immediately_writable",
         "SIGPIPE",
@@ -340,6 +342,24 @@ def prove_source_boundary(source: str) -> None:
     for value in required:
         if value not in source:
             raise AssertionError("source missing: " + value)
+
+    safety_function_index = source.index("static void prepare_process_io_safety(void)")
+    safety_sigpipe_index = source.index("sigaction(SIGPIPE", safety_function_index)
+    safety_stderr_index = source.index(
+        "int stderr_flags = fcntl(STDERR_FILENO, F_GETFL);",
+        safety_function_index,
+    )
+    safety_stdout_index = source.index(
+        "require_nonblocking_fd(\n      STDOUT_FILENO",
+        safety_function_index,
+    )
+    if not (
+        safety_function_index < safety_sigpipe_index <
+        safety_stderr_index < safety_stdout_index
+    ):
+        raise AssertionError(
+            "stderr is not secured before any setup path can call HOLD"
+        )
 
     main_index = source.index("int main(int argc, char **argv)")
     io_index = source.index("prepare_process_io_safety();", main_index)
@@ -421,6 +441,7 @@ def main() -> None:
     print("sigpipe_ignored_before_all_hold_paths=true")
     print("early_hold_closed_stderr_exit2=true")
     print("early_hold_full_stderr_nonblocking=true")
+    print("stderr_secured_before_setup_hold=true")
     print("no_inherited_fds_ge_3_required=true")
     print("observation_stdout_stderr_nonblocking=true")
     print("blocked_readiness_sink_fails_closed=true")
