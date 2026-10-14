@@ -13,6 +13,7 @@ const SOURCE_PARENT="35ff3f8ec453f8104b59967580a84347d6bc1d23";
 const ENTRY="dist/economic/buy_void_erc20_delivery_dependency_injection_v1.js";
 const SERVER_RUNTIME="dist/economic/buy_void_runtime_integration_v1.js";
 const DELIVERY_CONSUMER="dist/economic/buy_void_delivery_runtime_integration_v1.js";
+const DELIVERY_ADAPTER="dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js";
 const GLOBAL_KEY="__void_buy_void_delivery_runtime_dependencies_v1";
 const PACKAGE_BLOB="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f";
 const LOCK_BLOB="15b5c82ea36f13079a2f9e8863722f654eb3f201";
@@ -203,7 +204,7 @@ function providerBoundary(){
   assert.equal(gitBlob(readExact("package-lock.json",4*1024*1024)),LOCK_BLOB,"lock generation drift");
 
   const artifacts=closedProviderArtifacts();
-  const boundaryArtifacts=[SERVER_RUNTIME,DELIVERY_CONSUMER].map((p)=>{
+  const boundaryArtifacts=[SERVER_RUNTIME,DELIVERY_CONSUMER,DELIVERY_ADAPTER].map((p)=>{
     const bytes=readExact(p);
     const graph=scanModule(p,bytes);
     return Object.freeze({
@@ -239,13 +240,20 @@ function providerBoundary(){
 
   const serverArtifact=boundaryArtifacts.find(row=>row.path===SERVER_RUNTIME);
   const consumerArtifact=boundaryArtifacts.find(row=>row.path===DELIVERY_CONSUMER);
+  const adapterArtifact=boundaryArtifacts.find(row=>row.path===DELIVERY_ADAPTER);
   assert.ok(serverArtifact,"server runtime identity missing");
   assert.ok(consumerArtifact,"delivery consumer identity missing");
+  assert.ok(adapterArtifact,"delivery adapter identity missing");
   assert.equal(serverArtifact.imports.includes(ENTRY),true,"server runtime does not import provider");
   assert.equal(
     serverArtifact.imports.includes(DELIVERY_CONSUMER),
     true,
     "server runtime does not import delivery consumer",
+  );
+  assert.equal(
+    consumerArtifact.imports.includes(DELIVERY_ADAPTER),
+    true,
+    "delivery consumer does not import sign/broadcast adapter",
   );
 
   const providerText=readExact(ENTRY).toString("utf8");
@@ -290,6 +298,8 @@ function providerBoundary(){
     server_runtime_identity:serverArtifact,
     delivery_consumer_artifact:DELIVERY_CONSUMER,
     delivery_consumer_identity:consumerArtifact,
+    delivery_adapter_artifact:DELIVERY_ADAPTER,
+    delivery_adapter_identity:adapterArtifact,
     boundary_source_paths:Object.freeze([
       sourcePathForArtifact(SERVER_RUNTIME),
       sourcePathForArtifact(DELIVERY_CONSUMER),

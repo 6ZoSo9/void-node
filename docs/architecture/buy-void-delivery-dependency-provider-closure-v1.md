@@ -25,12 +25,18 @@ buy_void_runtime_integration_v1
             -> native fulfillment wallet credential signer
             -> Chain-2050 ERC-20 broadcaster
             -> delivery submission guard
-            -> sign/broadcast adapter
 ```
 
 Those methods may later read the reviewed credential, sign, call RPC and
 broadcast when separately enabled. Their code therefore belongs in any future
 claim of a complete production enforcement/executable closure.
+
+The sign/broadcast adapter is **not** a runtime member of this provider graph:
+the bootstrap and broadcaster reference its interfaces through TypeScript
+`import type`, which is erased from compiled JavaScript. The delivery consumer
+imports the adapter's runtime constants separately. This proof therefore binds
+and content-addresses that adapter at the consumer boundary without falsely
+classifying it as a provider-closure member.
 
 ## Exact generation
 
