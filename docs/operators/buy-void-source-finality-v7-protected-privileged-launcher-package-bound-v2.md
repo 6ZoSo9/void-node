@@ -56,6 +56,9 @@ Before any shell source is evaluated, the native pre-entry:
 - opens the fixed launcher body with `O_NOFOLLOW`, requires it to be
   root-owned, single-link, non-group/world-writable and **non-executable**,
   then retains that exact descriptor across exec;
+- requires that retained body to be exactly 10,813 bytes with SHA-256
+  `497c8f79097aced91a0c1a603285f526728db9d5a684424eb087d66a962aae91`
+  using the native pre-entry's internal SHA-256 before Bash evaluates it;
 - invokes bash with `fexecve()`, `--noprofile --norc`, and the launcher
   pathname supplied as `/proc/self/fd/<retained-fd>`; and
 - supplies a minimal fixed environment containing the native-entry marker.
@@ -63,6 +66,10 @@ Before any shell source is evaluated, the native pre-entry:
 The historical `.sh` path remains executable only as a fail-only retirement stub so the repository-wide `ops/**/*.sh` executable guard stays intact. It cannot dispatch a receipt tool.\n\nThe shell body fails closed unless both the native marker and descriptor-form
 `BASH_SOURCE[0]` are present. Direct privileged invocation of either the
 repository checkout shell or the installed shell body is unsupported.
+
+CI also replaces the fixed launcher with a same-length, root-owned, mode-0644
+mutation and requires the native digest gate to reject it before the launcher
+marker can execute.
 
 The native executable itself has no setuid transition, service mutation, RPC,
 credential/key, signer, wallet, transaction, payment, WC, presale, treasury,
@@ -83,6 +90,11 @@ Instead it pins the reviewed source blob of:
 ```text
 scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs
 ```
+
+Before importing repository helper code, that proof first verifies the exact
+reviewed package-helper bytes. Git-object checks use a fixed `/usr/bin/git`
+invocation with a closed environment rather than importing another local helper.
+Only after the package helper is byte-verified is it dynamically imported.
 
 That proof independently re-inventories:
 
@@ -136,6 +148,8 @@ tsx_private_materialization_verified=true
 tsx_inert_transform_execution_verified=true
 esbuild_runtime_execution_verified=true
 privileged_launcher_package_runtime_verified=true
+private_temporary_filesystem_write=true
+persistent_host_mutation=false
 privileged_tool_execution_performed=false
 funds_movement=false
 ```
