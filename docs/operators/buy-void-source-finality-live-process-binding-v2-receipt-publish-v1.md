@@ -17,14 +17,25 @@ Canonical output:
 
 `/var/lib/void-source-finality-v7/live-process-binding-v2.json`
 
-Apply is create-once and requires the exact confirmation token
+Apply requires the exact confirmation token
 `publish-v7-live-process-binding-v2-receipt`.
 
 Before publication the publisher collects the V2 plan twice and requires the
-same content-addressed plan and receipt identity. After publication it collects
-once more. If that post-publication generation changed and this invocation
-created the receipt, the exact new file is removed and the parent directory is
-fsynced before HOLD. A pre-existing byte-identical receipt is never removed.
+same content-addressed plan and receipt identity. A byte-identical existing V2
+receipt is idempotent. A different existing receipt is retired only when it is
+itself a canonical, content-address-valid V2 receipt and the two current
+collections agree on a different generation. Malformed or uncertain existing
+evidence HOLDS and is left untouched.
+
+Stale retirement unlinks the old canonical receipt and fsyncs the root-custodied
+parent before the new create-once publication. A crash in that interval leaves
+the V2 receipt missing, which is fail-closed and rerunnable rather than
+stale-authoritative.
+
+After publication the publisher collects once more. If that post-publication
+generation changed and this invocation created the receipt, the exact new file
+is removed and the parent directory is fsynced before HOLD. A byte-identical
+pre-existing current receipt is never removed.
 
 The V2 runtime verifier independently checks current self/manager generations,
 so a stale receipt cannot grant production authority during the bounded
@@ -51,7 +62,8 @@ It performs:
 - V2 native selector execution through the locked collection-plan module;
 - read-only live process/source inspection;
 - root deployment-receipt verification;
-- create-once V2 receipt publication on explicit apply.
+- idempotent create-once publication or validated stale-V2 retirement followed
+  by create-once publication on explicit apply.
 
 It does not restart/mutate a service, contact RPC, access credentials, wallets,
 signers or private keys, construct/broadcast transactions, activate presale/WC,
