@@ -1,0 +1,61 @@
+name: VOID Public Earn legacy cutover census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/public/void_public_earn_legacy_cutover_census_v1.py"
+      - "scripts/prove_void_public_earn_legacy_cutover_census_v1.py"
+      - "docs/operators/public-earn-legacy-cutover-census-v1.md"
+      - ".github/workflows/public-earn-legacy-cutover-census-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/public/void_public_earn_legacy_cutover_census_v1.py"
+      - "scripts/prove_void_public_earn_legacy_cutover_census_v1.py"
+      - "docs/operators/public-earn-legacy-cutover-census-v1.md"
+      - ".github/workflows/public-earn-legacy-cutover-census-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    name: legacy cutover census source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Prove source
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/public-earn-legacy-cutover-census.txt"
+          {
+            python3 -I -B ops/public/void_public_earn_legacy_cutover_census_v1.py --self-test
+            python3 -I -B scripts/prove_void_public_earn_legacy_cutover_census_v1.py
+          } | tee "$proof"
+          grep -Fx 'VOID_PUBLIC_EARN_LEGACY_CUTOVER_CENSUS_V1_PROOF_GREEN' "$proof"
+          grep -Fx 'legacy_gateway_and_tunnel_read_only=true' "$proof"
+          grep -Fx 'process_generation_stability_required=true' "$proof"
+          grep -Fx 'live_cutover_authorized=false' "$proof"
+      - name: Prove inert plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/public-earn-legacy-plan.txt"
+          python3 -I -B ops/public/void_public_earn_legacy_cutover_census_v1.py --plan | tee "$plan"
+          grep -Fx 'read_only=true' "$plan"
+          grep -Fx 'service_mutation=false' "$plan"
+          grep -Fx 'tunnel_mutation=false' "$plan"
+          grep -Fx 'process_environment_output=false' "$plan"
+          grep -Fx 'live_cutover_authorized=false' "$plan"
+      - name: Diff hygiene
+        run: git diff --check
