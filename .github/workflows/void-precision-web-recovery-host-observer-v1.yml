@@ -71,7 +71,7 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-app-composition-gateway-v1.mjs' \
+          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-frontdoor-v1.mjs' \
             "$RUNNER_TEMP/host-v1.stderr"
           echo "frozen_precision_host_v1_refusal=GREEN"
       - name: Preserve frozen upstream V1 refusal and prove V2 successor
@@ -82,7 +82,7 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-app-composition-gateway-v1.mjs' \
+          grep -F 'precision_web_source_blob_mismatch:ops/public/void-public-frontdoor-v1.mjs' \
             "$RUNNER_TEMP/precision-v1.stderr"
           node scripts/prove_void_precision_web_recovery_evidence_v2.mjs
       - name: Diff hygiene
