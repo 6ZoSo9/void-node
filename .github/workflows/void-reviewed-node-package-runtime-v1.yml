@@ -210,15 +210,15 @@ jobs:
           set -euo pipefail
           node --check scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs
           node scripts/prove_void_reviewed_node_package_runtime_enforcement_v1.mjs \
-            | tee "enforcement-profile-lock-${{ matrix.node }}.txt"
-          grep -Fx 'profile_identity_accepted=true' "enforcement-profile-lock-${{ matrix.node }}.txt"
-          grep -Fx 'private_express_and_ethers_import_green=true' "enforcement-profile-lock-${{ matrix.node }}.txt"
-          grep -Fx 'complete_executable_closure_verified=false' "enforcement-profile-lock-${{ matrix.node }}.txt"
-          grep -Fx 'funds_movement=false' "enforcement-profile-lock-${{ matrix.node }}.txt"
+            | tee "$RUNNER_TEMP/enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'profile_identity_accepted=true' "$RUNNER_TEMP/enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'private_express_and_ethers_import_green=true' "$RUNNER_TEMP/enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'complete_executable_closure_verified=false' "$RUNNER_TEMP/enforcement-profile-lock-${{ matrix.node }}.txt"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/enforcement-profile-lock-${{ matrix.node }}.txt"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: void-enforcement-package-profile-lock-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
-          path: enforcement-profile-lock-${{ matrix.node }}.txt
+          path: ${{ runner.temp }}/enforcement-profile-lock-${{ matrix.node }}.txt
           if-no-files-found: error
           retention-days: 1
       - name: Exact diff hygiene
