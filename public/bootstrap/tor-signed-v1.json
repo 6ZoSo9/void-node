@@ -6,8 +6,8 @@
     "network": "VOID Network",
     "chain_id": 2050,
     "status": "stable_tor_seed",
-    "generated_at": "2026-09-28T12:50:46.974Z",
-    "expires_at": "2026-09-28T14:40:46.974Z",
+    "generated_at": "2026-10-14T17:29:51.499Z",
+    "expires_at": "2026-10-21T17:29:51.499Z",
     "sync_endpoints": [],
     "onion_endpoints": [
       {
@@ -16,8 +16,8 @@
         "priority": 0,
         "enabled": true,
         "temporary": false,
-        "qualification_id": "voidptq1_dbf009f43b9a620aff21f9ba45c0aa7b0f4c4d34a845ea146552205228d4f64e",
-        "qualified_at": "2026-09-28T12:50:46.927Z",
+        "qualification_id": "voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe",
+        "qualified_at": "2026-10-14T17:29:51.380Z",
         "qualified_head": 1951058
       }
     ],
@@ -31,13 +31,13 @@
       "work_credit_authority": false,
       "money_movement_authority": false
     },
-    "notes": "Nimo Tor v3 public seed; source anchor 03988a213c677007999506d732742ccfee9cda7c; qualification receipt sha256 db68325159c680f2ce4ef41806947c1ab7a7676f575cb7482372f79c2c83d4b2; PR #1920 signed-manifest renewal",
-    "manifest_id": "voidpbm1_7a11e3a88fb36929379bfa2fe4bd4f235fe52f105ce5de6f6782e0c791e72ff7"
+    "notes": "Issue #2854 Tor renewal candidate; source_sha=06b34efb8e6cd01046e541c02cc2f341ab3b3e1b; qualification_id=voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe; predecessor_manifest_id=voidpbm1_f216f54d3022a02df1f56f8547f0db0d5093ff696a09220fe9877c85094f2c11; signing_performed=false",
+    "manifest_id": "voidpbm1_c76f442a285e2ad7a8dc30caa9ade6dc525ad1905220ea42425af51e99ffffaa"
   },
   "signatures": [
     {
       "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
-      "signature_base64": "7XqqJUoJ5mon9a/dyN4UlJWCTqON3GSuwmDnxVUk8MgB3r+7w0PUZAjj2vDGU/WTjaOePbqyHRxTc4qHgJrtCg=="
+      "signature_base64": "I33Pajtb9oVIYFDiMLn47cs0qkOfRWY4IaHwIq3TeuP9Yw70Je8zaYhBDdWHfQ2/vdiNOftMYytP632rCIhGBg=="
     }
   ]
 }

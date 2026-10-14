@@ -11,7 +11,7 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 export const DEFAULT_MIN_SAMPLES = 3;
 export const DEFAULT_MIN_SPAN_MS = 60_000;
 export const DEFAULT_MAX_RECEIPT_AGE_MS = 2 * 60 * 60 * 1000;
-export const DEFAULT_MANIFEST_VALIDITY_MS = 72 * 60 * 60 * 1000;
+export const DEFAULT_MANIFEST_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
 const TEMPORARY_HOST_SUFFIXES = Object.freeze([
   ".trycloudflare.com",
