@@ -1,0 +1,62 @@
+{
+  "schema": "void_apollyon_candidate_training_entrypoint_binary_candidate_lock_v1",
+  "marker": "VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_BINARY_CANDIDATE_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "candidate_parent_head": "56a4887ac3d9a8e98ee0bc6c7837206a893cb35c",
+  "source": {
+    "path": "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c",
+    "git_blob_sha1": "bfeff81f3eab98988a9be9600a05c696674c49d6",
+    "sha256": "7f3a8ff04add448777a267ed4e2e144e67b6a9be2828e0fbdc1bdd563f908182"
+  },
+  "candidate_proof": {
+    "path": "scripts/prove_apollyon_candidate_training_entrypoint_binary_candidate_v1.py",
+    "git_blob_sha1": "727279721dd65f22bae719f52d8ee60f923867d0"
+  },
+  "candidate_workflow": {
+    "path": ".github/workflows/apollyon-candidate-training-entrypoint-binary-candidate-v1.yml",
+    "git_blob_sha1": "ce044721d68101e750e824fcac63545fbe8ad807"
+  },
+  "compiler": {
+    "requested_path": "/usr/bin/cc",
+    "realpath": "/usr/bin/x86_64-linux-gnu-gcc-13",
+    "version_line": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "dumpmachine": "x86_64-linux-gnu",
+    "dumpversion": "13.3.0"
+  },
+  "compile_recipe": {
+    "argv_prefix": ["/usr/bin/cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-D_FORTIFY_SOURCE=2", "-fstack-protector-strong", "-Wl,-z,relro,-z,now", "-Wl,--build-id=none"],
+    "source_date_epoch": "0",
+    "build_id_disabled": true
+  },
+  "binary": {
+    "bytes": 17384,
+    "sha256": "7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a",
+    "elf_magic_verified": true,
+    "two_builds_byte_identical": true
+  },
+  "self_test": {
+    "stdout_sha256": "f6b49a70391202157ac02d5c45c71d1e1952693a7afa758ffb9798056c015b0a",
+    "exact_transcript_verified": true,
+    "stderr_empty": true
+  },
+  "candidate_id": "apollyon_candidate_training_entrypoint_binary_candidate_v1:c6c4241f236606bd95775805ab96e7ed3bb7dc00bdcd2e8c936dc9fc6bca832a",
+  "hosted_evidence": {
+    "workflow_run": 38578911961,
+    "three_reports_byte_identical": true,
+    "comparison_rederived_elf": true
+  },
+  "candidate_binary_identity_accepted": true,
+  "installed_training_entrypoint_identity_proven": false,
+  "live_systemd_enforcement_proven": false,
+  "durable_attempt_claim_proven": false,
+  "candidate_weight_mutation": false,
+  "training_execution": false,
+  "attempt_claim": false,
+  "service_action": false,
+  "wallet_access": false,
+  "transaction_signing": false,
+  "funds_movement": false,
+  "next_gate": "apollyon_candidate_training_entrypoint_installed_identity_v1",
+  "lock_id": "apollyon_candidate_training_entrypoint_binary_lock_v1:f63b6018e752ec685ed427a1badacae1799896f859dea8bb447a6fc271fd8a7a"
+}

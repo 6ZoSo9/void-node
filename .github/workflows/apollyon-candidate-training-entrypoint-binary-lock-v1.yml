@@ -1,0 +1,117 @@
+name: Apollyon candidate training entrypoint binary lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
+      - "scripts/prove_apollyon_candidate_training_entrypoint_binary_candidate_v1.py"
+      - ".github/workflows/apollyon-candidate-training-entrypoint-binary-candidate-v1.yml"
+      - "ops/security/apollyon-candidate-training-entrypoint-binary-lock-v1.json"
+      - "scripts/prove_apollyon_candidate_training_entrypoint_binary_lock_v1.py"
+      - ".github/workflows/apollyon-candidate-training-entrypoint-binary-lock-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_candidate_training_entrypoint_v1.c"
+      - "scripts/prove_apollyon_candidate_training_entrypoint_binary_candidate_v1.py"
+      - ".github/workflows/apollyon-candidate-training-entrypoint-binary-candidate-v1.yml"
+      - "ops/security/apollyon-candidate-training-entrypoint-binary-lock-v1.json"
+      - "scripts/prove_apollyon_candidate_training_entrypoint_binary_lock_v1.py"
+      - ".github/workflows/apollyon-candidate-training-entrypoint-binary-lock-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify lock / ${{ matrix.lane }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Verify reproducible binary lock
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/lock-proof-${{ matrix.lane }}.txt"
+          receipt="$RUNNER_TEMP/lock-verification-${{ matrix.lane }}.json"
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache-${{ matrix.lane }}"             python3 -m py_compile             scripts/prove_apollyon_candidate_training_entrypoint_binary_lock_v1.py
+          python3 -I -B scripts/prove_apollyon_candidate_training_entrypoint_binary_lock_v1.py             --self-test | tee "$proof"
+          grep -Fx 'VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_BINARY_CANDIDATE_LOCK_V1_SELF_TEST_GREEN' "$proof"
+          grep -Fx 'candidate_rederived_before_lock_acceptance=true' "$proof"
+          grep -Fx 'rehashed_forged_binary_lock_rejected=true' "$proof"
+          grep -Fx 'rehashed_forged_source_lock_rejected=true' "$proof"
+          grep -Fx 'candidate_binary_identity_accepted=true' "$proof"
+          grep -Fx 'installed_training_entrypoint_identity_proven=false' "$proof"
+          grep -Fx 'training_execution=false' "$proof"
+          grep -Fx 'funds_movement=false' "$proof"
+          python3 -I -B scripts/prove_apollyon_candidate_training_entrypoint_binary_lock_v1.py             --verify "$receipt"
+          test -s "$receipt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git diff --check "$merge_base" "$HEAD"
+      - name: Upload verification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-entrypoint-binary-lock-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}-${{ matrix.lane }}
+          path: ${{ runner.temp }}/lock-verification-${{ matrix.lane }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: apollyon-entrypoint-binary-lock-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}-*
+          merge-multiple: true
+          path: receipts
+      - name: Require three byte-identical verifications
+        run: |
+          set -euo pipefail
+          for lane in a b c; do test -s "receipts/lock-verification-$lane.json"; done
+          cmp receipts/lock-verification-a.json receipts/lock-verification-b.json
+          cmp receipts/lock-verification-a.json receipts/lock-verification-c.json
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+          v=json.loads(Path("receipts/lock-verification-a.json").read_text())
+          assert v["marker"]=="VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_BINARY_CANDIDATE_LOCK_V1_VERIFIED"
+          assert type(v["version"]) is int and v["version"]==1
+          assert v["lock_id"]=="apollyon_candidate_training_entrypoint_binary_lock_v1:f63b6018e752ec685ed427a1badacae1799896f859dea8bb447a6fc271fd8a7a"
+          assert v["candidate_id"]=="apollyon_candidate_training_entrypoint_binary_candidate_v1:c6c4241f236606bd95775805ab96e7ed3bb7dc00bdcd2e8c936dc9fc6bca832a"
+          assert v["binary_bytes"]==17384
+          assert v["binary_sha256"]=="7a1ec91b612998824e37aa0f8522a94d7ceffe9f4f21e0702fe0a0d5ca5bdd9a"
+          assert v["comparison_rederived_elf"] is True
+          assert v["candidate_binary_identity_accepted"] is True
+          assert v["installed_training_entrypoint_identity_proven"] is False
+          assert v["training_execution"] is False
+          assert v["funds_movement"] is False
+          print("VOID_APOLLYON_CANDIDATE_TRAINING_ENTRYPOINT_BINARY_LOCK_V1_THREE_RUN_GREEN")
+          PY
