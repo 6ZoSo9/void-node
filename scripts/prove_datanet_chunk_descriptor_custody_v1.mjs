@@ -151,6 +151,42 @@ try {
   assert.equal(symlinkGet.body.includes(secretBytes), false);
   fs.unlinkSync(secretChunk);
 
+  // A same-directory substitution of the staged pathname after its bytes were
+  // verified must not publish the substituted inode under the content leaf.
+  const raceBody = Buffer.from("staging-race-original-body", "utf8");
+  const raceLeaf = sha256(raceBody);
+  const raceRoute = "/datanet/v1/chunks/" + raceLeaf;
+  const raceFinal = path.join(chunksDir, raceLeaf + ".bin");
+  const realLinkSync = fs.linkSync;
+  let stagingSwapExercised = false;
+  try {
+    fs.linkSync = function injectedLinkSync(existingPath, newPath) {
+      if (
+        !stagingSwapExercised &&
+        path.resolve(String(newPath)) === path.resolve(raceFinal)
+      ) {
+        const original = String(existingPath) + ".retained-original";
+        fs.renameSync(String(existingPath), original);
+        fs.writeFileSync(
+          String(existingPath),
+          Buffer.from("foreign-staging-generation", "utf8"),
+          { mode: 0o600 },
+        );
+        stagingSwapExercised = true;
+      }
+      return realLinkSync.call(fs, existingPath, newPath);
+    };
+    syncBuiltinESMExports();
+
+    const race = await request(port, "PUT", raceRoute, raceBody);
+    assert.equal(race.status, 500);
+    assert.equal(stagingSwapExercised, true);
+    assert.equal(fs.existsSync(raceFinal), false);
+  } finally {
+    fs.linkSync = realLinkSync;
+    syncBuiltinESMExports();
+  }
+
   // Public PUT must never follow an existing symlink and overwrite its target.
   const victimOriginal = Buffer.from("victim-must-remain-unchanged", "utf8");
   fs.writeFileSync(victim, victimOriginal, { mode: 0o600 });
@@ -188,6 +224,9 @@ try {
   console.log("path_swap_after_verification_not_served=true");
   console.log("symlink_get_rejected=true");
   console.log("chunk_put_create_only=true");
+  console.log("staging_descriptor_retained_through_publish=true");
+  console.log("staging_path_substitution_rejected=true");
+  console.log("foreign_final_not_published=true");
   console.log("symlink_put_target_unchanged=true");
   console.log("existing_valid_chunk_idempotent=true");
   console.log("wallet_signer_validator_wc_money_authority=0");

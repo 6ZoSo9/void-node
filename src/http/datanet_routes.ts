@@ -357,12 +357,21 @@ function publishDataNetChunkCreateOnlyV1(
     ) {
       throw new Error("datanet_chunk_staging_metadata_invalid");
     }
-    fs.closeSync(fd);
-    fd = null;
 
-    // link() publishes create-only: an existing regular file or symlink is
-    // never replaced. A concurrent EEXIST fails closed and can be retried.
+    // Retain the staged descriptor across create-only publication. If a
+    // same-directory actor substitutes the temporary pathname after the write,
+    // the final leaf cannot match the descriptor identity and is withdrawn.
     fs.linkSync(temporary, file);
+    const stagedAfterLink = fs.fstatSync(fd);
+    const published = fs.lstatSync(file);
+    if (
+      !published.isFile() ||
+      published.isSymbolicLink() ||
+      !sameDataNetChunkIdentityV1(stagedAfterLink, published)
+    ) {
+      fs.unlinkSync(file);
+      throw new Error("datanet_chunk_publish_identity_mismatch");
+    }
   } finally {
     if (fd !== null) fs.closeSync(fd);
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
