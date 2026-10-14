@@ -180,6 +180,14 @@ export function validateTorBootstrapManifestContract(rawManifest, nowMs = Date.n
     manifest.onion_endpoints,
     generatedAt,
   );
+  for (const endpoint of endpoints) {
+    const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));
+    if (!Number.isFinite(qualifiedAt) || qualifiedAt > generatedAt) {
+      throw new Error(
+        "Tor bootstrap signed-manifest qualification must not postdate manifest issuance",
+      );
+    }
+  }
   return Object.freeze({
     manifest: Object.freeze(structuredClone(manifest)),
     manifestId,
