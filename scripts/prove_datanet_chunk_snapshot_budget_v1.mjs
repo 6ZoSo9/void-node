@@ -81,6 +81,60 @@ fs.writeFileSync(file, body, { mode: 0o600 });
 const leaf = createHash("sha256").update(body).digest("hex");
 
 try {
+  const concurrentReads = new DataNetChunkSnapshotBudgetV1({
+    maxAggregateBytes: 16,
+    maxReservationBytes: 8,
+    maxReservations: 8,
+  });
+  const firstRead = readVerifiedDataNetChunkSnapshotV1(
+    file,
+    leaf,
+    concurrentReads,
+  );
+  const secondRead = readVerifiedDataNetChunkSnapshotV1(
+    file,
+    leaf,
+    concurrentReads,
+  );
+  assert.ok(firstRead.reservation);
+  assert.ok(secondRead.reservation);
+  assert.equal(concurrentReads.snapshot().in_flight_bytes, 16);
+  assert.equal(concurrentReads.snapshot().in_flight_reservations, 2);
+
+  const originalConcurrentAllocUnsafe = Buffer.allocUnsafe;
+  let rejectedConcurrentAllocations = 0;
+  Buffer.allocUnsafe = function countedRejectedConcurrentAllocUnsafe(size) {
+    rejectedConcurrentAllocations += 1;
+    return originalConcurrentAllocUnsafe(size);
+  };
+  try {
+    assert.throws(
+      () =>
+        readVerifiedDataNetChunkSnapshotV1(
+          file,
+          leaf,
+          concurrentReads,
+        ),
+      (error) => error instanceof DataNetChunkSnapshotCapacityErrorV1,
+    );
+    assert.equal(rejectedConcurrentAllocations, 0);
+  } finally {
+    Buffer.allocUnsafe = originalConcurrentAllocUnsafe;
+  }
+
+  assert.equal(firstRead.reservation.release(), true);
+  const recoveredRead = readVerifiedDataNetChunkSnapshotV1(
+    file,
+    leaf,
+    concurrentReads,
+  );
+  assert.ok(recoveredRead.reservation);
+  assert.deepEqual(recoveredRead.bytes, body);
+  assert.equal(concurrentReads.snapshot().in_flight_bytes, 16);
+  assert.equal(secondRead.reservation.release(), true);
+  assert.equal(recoveredRead.reservation.release(), true);
+  assert.equal(concurrentReads.snapshot().in_flight_bytes, 0);
+
   const blocked = new DataNetChunkSnapshotBudgetV1({
     maxAggregateBytes: 8,
     maxReservationBytes: 8,
@@ -285,6 +339,7 @@ console.log(
 );
 console.log("reservation_before_allocation=true");
 console.log("overload_no_snapshot_allocation=true");
+console.log("concurrent_snapshot_recovery_proven=true");
 console.log("aggregate_byte_ceiling_proven=true");
 console.log("concurrency_count_ceiling_proven=true");
 console.log("request_owned_release_token=true");
