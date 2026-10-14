@@ -27,7 +27,7 @@ The boundary consists of two security-critical source artifacts:
 
 ```text
 ops/xiphos/void-apollyon-training-bus-isolation-v1.service
-  Git blob bafdd73dea00a516b6d9fd186898ad6aa7be7bce
+  Git blob 62fbabe1cf7ae0d940f5d96e19b06282f841267b
 
 ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c
   Git blob 9503d19c8bc0b4f073ba117f6a547d339b7623d0
@@ -87,8 +87,10 @@ The source additionally requires:
   `EnvironmentFile=` directive;
 - `RestrictNamespaces=yes`;
 - `RestrictSUIDSGID=yes`;
+- `ProtectControlGroups=yes`, using the boolean syntax required by reviewed
+  systemd major 255;
 - `ProtectProc=invisible` and `ProcSubset=pid`;
-- strict system/kernel/cgroup filesystem protections; and
+- strict system/kernel filesystem protections; and
 - only the declared training output directory writable.
 
 The explicit syscall deny set complements `RestrictAddressFamilies=none` by
@@ -128,6 +130,12 @@ The proof:
 
 - pins both exact Git blobs;
 - parses and closes the service directive set;
+- requires the hosted parser to be systemd major 255 and runs
+  `systemd-analyze verify` on a disposable path-adjusted copy of the exact
+  unit;
+- requires that parser to accept the reviewed `ProtectControlGroups=yes`
+  generation and explicitly rejects the historical invalid
+  `ProtectControlGroups=strict` form;
 - rejects AF_UNIX, fd-store, and alternate-ABI weakenings;
 - forbids socket/fd ambient-input directives;
 - compiles the native pre-entry with strict warnings;
