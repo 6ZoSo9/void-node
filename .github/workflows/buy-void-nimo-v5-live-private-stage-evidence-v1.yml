@@ -59,6 +59,8 @@ jobs:
           grep -Fx 'reviewed_nimo_ed25519_hostkey_required=true' "$proof"
           grep -Fx 'reviewed_nimo_root_disk_required=true' "$proof"
           grep -Fx 'root_disk_continuity_reverified=true' "$proof"
+          grep -Fx 'collector_source_identity_reported=true' "$proof"
+          grep -Fx 'live_evidence_origin_proven=false' "$proof"
           grep -Fx 'live_host_collection_performed=false' "$proof"
           grep -Fx 'live_nimo_installed=false' "$proof"
           grep -Fx 'production_gate_ready=false' "$proof"
@@ -103,6 +105,7 @@ jobs:
               '"/usr/bin/lsblk"',
               '"live_nimo_installed": False',
               '"root_disk_continuity_reverified": True',
+              '"live_evidence_origin_proven": False',
               '"public_presale_activation": False',
               '"funds_movement": False',
           ]
