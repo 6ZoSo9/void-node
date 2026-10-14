@@ -60,6 +60,7 @@ jobs:
           grep -Fx 'max_in_flight_snapshots=8' "$proof_file"
           grep -Fx 'reservation_before_allocation=true' "$proof_file"
           grep -Fx 'overload_no_snapshot_allocation=true' "$proof_file"
+          grep -Fx 'concurrent_snapshot_recovery_proven=true' "$proof_file"
           grep -Fx 'aggregate_byte_ceiling_proven=true' "$proof_file"
           grep -Fx 'concurrency_count_ceiling_proven=true' "$proof_file"
           grep -Fx 'request_owned_release_token=true' "$proof_file"
