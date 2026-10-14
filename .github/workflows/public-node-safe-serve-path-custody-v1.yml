@@ -1,0 +1,54 @@
+name: VOID public node safe serve path custody v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/public-node-safe-serve-v1.mjs"
+      - "tools/check_public_node_safe_serve_v1.sh"
+      - ".github/workflows/public-node-safe-serve-path-custody-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: path custody / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove descriptor-relative public-root custody
+        run: |
+          set -euo pipefail
+          proof_file="$RUNNER_TEMP/public-node-safe-serve-path-custody-v1.txt"
+          bash tools/check_public_node_safe_serve_v1.sh | tee "$proof_file"
+          grep -Fx 'VOID_PUBLIC_NODE_SAFE_SERVE_PATH_CUSTODY_V1_GREEN' "$proof_file"
+          grep -Fx 'descriptor_relative_path_custody=true' "$proof_file"
+          grep -Fx 'symlink_components_followed=false' "$proof_file"
+          grep -Fx 'leaf_symlink_escape_rejected=true' "$proof_file"
+          grep -Fx 'ancestor_symlink_escape_rejected=true' "$proof_file"
+          grep -Fx 'lexical_traversal_rejected=true' "$proof_file"
+          grep -Fx 'head_body_empty=true' "$proof_file"
+          grep -Fx 'dangerous_paths_touched=false' "$proof_file"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check "$BASE" "$HEAD"
