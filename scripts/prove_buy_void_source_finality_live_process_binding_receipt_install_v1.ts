@@ -121,6 +121,12 @@ for(const required of [
   "systemctl",
   "MainPID",
   "InvocationID",
+  "WorkingDirectory",
+  "ExecStart",
+  "NeedDaemonReload",
+  "effective_service_contract_mismatch",
+  "VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN",
+  "canonical_source_custody_requalification_failed",
   "VOID_PROCESS_SOURCE_COMMIT",
   "VOID_CANONICAL_PRODUCER_ROLE",
   "NODE_OPTIONS",
@@ -138,16 +144,41 @@ for(const required of [
   "canonical-producer-source-custody-v1.cjs",
   "different_live_process_receipt_already_exists",
 ]) assert.equal(source.includes(required),true,required);
+
+assert.equal(
+  source.includes('exactTrackedBlob(cwd,env.source_commit,"node_modules/tsx'),
+  false,
+  "node_modules must not be treated as Git-tracked source",
+);
+assert.equal(
+  source.includes('proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/preflight.cjs"),false)'),
+  true,
+);
+assert.equal(
+  source.includes('proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/loader.mjs"),false)'),
+  true,
+);
+
 for(const forbidden of [
-  "systemctl","--user","restart",
-  "systemctl","--user","start",
-  "systemctl","--user","stop",
+  '"restart"',
+  '"start"',
+  '"stop"',
   "eth_sendRawTransaction",
   "eth_sendTransaction",
   "new Wallet(",
   "PRIVATE_KEY",
   "SEED_PHRASE",
-]) assert.equal(source.includes(forbidden),false,forbidden);
+]) {
+  if (["\"restart\"","\"start\"","\"stop\""].includes(forbidden)) {
+    assert.equal(
+      source.includes('"--user",'+forbidden),
+      false,
+      "systemd mutation forbidden: "+forbidden,
+    );
+  } else {
+    assert.equal(source.includes(forbidden),false,forbidden);
+  }
+}
 
 if(typeof process.geteuid==="function"&&process.geteuid()===0){
   const parent=fs.mkdtempSync(path.join(fs.existsSync("/run")?"/run":os.tmpdir(),"void-live-binding-install-proof-"));
