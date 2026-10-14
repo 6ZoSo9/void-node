@@ -488,7 +488,7 @@ for(const required of [
   );
   assert.throws(
     () => prepareVoidPrecisionWebRecoveryPlanV1(),
-    /precision_web_source_blob_mismatch:ops\/public\/void-public-frontdoor-v1\.mjs/u,
+    /precision_web_source_blob_mismatch:ops\/public\/void-public-app-composition-gateway-v1\.mjs/u,
     "historical V1 must reject the newer current gateway",
   );
 }
