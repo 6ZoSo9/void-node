@@ -22,6 +22,10 @@ const stringChainManifestPath = path.join(
   temporary,
   "bootstrap-string-chain-id.json",
 );
+const postIssuanceManifestPath = path.join(
+  temporary,
+  "bootstrap-post-issuance-qualification.json",
+);
 const requested = [];
 
 function listen(server) {
@@ -106,12 +110,13 @@ let adapter = null;
 
 try {
   const now = Date.now();
+  const issuedAt = now - 3 * 60 * 60 * 1000;
   const manifestBody = {
     schema: "void_public_bootstrap_v1",
     network: "VOID Network",
     chain_id: 2050,
     status: "stable_tor_seed",
-    generated_at: new Date(now - 60_000).toISOString(),
+    generated_at: new Date(issuedAt).toISOString(),
     expires_at: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
     sync_endpoints: [],
     onion_endpoints: [
@@ -122,7 +127,7 @@ try {
         enabled: true,
         temporary: false,
         qualification_id: QUALIFICATION,
-        qualified_at: new Date(now - 60_000).toISOString(),
+        qualified_at: new Date(issuedAt - 60_000).toISOString(),
         qualified_head: 1856587,
       },
     ],
@@ -142,6 +147,10 @@ try {
     ...manifestBody,
     manifest_id: contentId("voidpbm1_", manifestBody, "manifest_id"),
   };
+  assert(
+    now - Date.parse(manifest.onion_endpoints[0].qualified_at) > 2 * 60 * 60 * 1000,
+    "fixture qualification must be older than the historical runtime age limit",
+  );
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
 
   const stringChainManifestBody = {
@@ -159,6 +168,29 @@ try {
   fs.writeFileSync(
     stringChainManifestPath,
     `${JSON.stringify(stringChainManifest, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+
+  const postIssuanceBody = {
+    ...manifestBody,
+    onion_endpoints: [{
+      ...manifestBody.onion_endpoints[0],
+      qualified_at: new Date(
+        Date.parse(manifestBody.generated_at) + 1,
+      ).toISOString(),
+    }],
+  };
+  const postIssuanceManifest = {
+    ...postIssuanceBody,
+    manifest_id: contentId(
+      "voidpbm1_",
+      postIssuanceBody,
+      "manifest_id",
+    ),
+  };
+  fs.writeFileSync(
+    postIssuanceManifestPath,
+    `${JSON.stringify(postIssuanceManifest, null, 2)}\n`,
     { mode: 0o600 },
   );
 
@@ -180,6 +212,29 @@ try {
   assert.equal(requested.length, 0);
   console.log(
     "[PASS] direct resolver rejects string Tor manifest chain IDs before SOCKS access",
+  );
+
+  const postIssuance = await runResolver(
+    [
+      "--manifest-file",
+      postIssuanceManifestPath,
+      "--expected-manifest-id",
+      postIssuanceManifest.manifest_id,
+    ],
+    {
+      VOID_TOR_SOCKS_HOST: "192.0.2.1",
+      VOID_TOR_SOCKS_PORT: "19051",
+      VOID_TOR_BOOTSTRAP_TIMEOUT_MS: "1000",
+    },
+  );
+  assert.equal(postIssuance.code, 1);
+  assert.match(
+    postIssuance.stderr,
+    /qualification must not postdate manifest issuance/,
+  );
+  assert.equal(requested.length, 0);
+  console.log(
+    "[PASS] post-issuance qualification rejected before SOCKS access",
   );
 
   const socksPort = await listen(socks);
@@ -272,6 +327,10 @@ try {
   console.log("adapter_numeric_parameters_bounded=true");
   console.log("local_status_query_rejected=true");
   console.log("resolver_adapter_composed=true");
+  console.log("qualification_fresh_at_manifest_issuance=true");
+  console.log("qualification_postdating_manifest_rejected_before_socks=true");
+  console.log("runtime_qualification_age_gt_two_hours_proven=true");
+  console.log("runtime_live_health_probe_required=true");
   console.log("block_range_contiguous=true");
   console.log("dns_resolution_required=false");
   console.log("domain_registrar_required=false");
