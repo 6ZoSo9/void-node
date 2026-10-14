@@ -33,6 +33,7 @@ function git(repositoryRoot:string,args:string[]):string{
     "-c","core.untrackedCache=false",
     "-c","core.preloadIndex=false",
     "-c","submodule.recurse=false",
+    "-c","safe.directory="+root,
     "-C",root,
     ...args,
   ],{
