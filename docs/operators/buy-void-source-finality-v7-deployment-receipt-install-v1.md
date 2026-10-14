@@ -21,6 +21,20 @@ The runtime deliberately does **not** hard-code the accepted enforcement-set
 hash. This avoids a self-referential cycle where changing that constant changes
 the executable closure whose hash is being accepted.
 
+The deployment installer additionally owns one exact, versioned
+current-enforcement tracked-source path set. A current accepted candidate must
+carry `current_enforcement_tracked_source_inventory_v1`, sorted by path, with
+the exact Git blob SHA-1 and Git mode for every required production economic
+source, dynamic saga, privileged receipt tool, V2 selector/ELF lock,
+native/launcher input, protected TSX runtime verifier/profile, live service
+entry/source-custody guard, and package/build input. The installer independently
+hashes the visible protected-tree files, requires exact HEAD objects and modes,
+and compares the candidate inventory row-for-row before receipt construction.
+
+Candidate/lock/proof documentation is deliberately outside this path set, so
+the later candidate and acceptance commits do not create a source self-reference
+cycle. Historical locks that predate this inventory field now fail closed.
+
 `--plan` is read-only and requires the repository to be clean `main` at the
 exact operator-supplied commit/tree. It also requires
 `--accepted-enforcement-lock-path <ops/security/...json>` and independently

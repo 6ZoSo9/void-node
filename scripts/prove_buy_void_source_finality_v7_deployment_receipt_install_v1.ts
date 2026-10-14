@@ -10,10 +10,13 @@ import {
   MARKER,
   buildBuyVoidSourceFinalityV7DeploymentReceiptV1,
   inspectAcceptedEnforcementLockV1,
+  inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1,
+  assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1,
   inspectRepositoryIdentityV1,
   installRootCustodiedReceiptV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
 import {
+  buyVoidSourceFinalityEnforcementLockIdV7,
   classifyBuyVoidSourceFinalityDeploymentReceiptV7,
   inspectBuyVoidSourceFinalityReviewedSourceFilesV7,
   verifyBuyVoidSourceFinalityDeploymentReceiptV7,
@@ -28,12 +31,43 @@ const processIdentity={
   commit,tree,branch:"main" as const,
 };
 const sources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
-const acceptedLock=inspectAcceptedEnforcementLockV1(
-  "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+assert.throws(
+  ()=>inspectAcceptedEnforcementLockV1(
+    "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+  ),
+  /accepted_enforcement_candidate_current_source_inventory_missing/u,
 );
-assert.match(acceptedLock.accepted_enforcement_lock_id,
-  /^voidbenfl1_[0-9a-f]{64}$/u);
-assert.match(acceptedLock.accepted_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
+const currentInventory=
+  inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1();
+assert.equal(currentInventory.length,49);
+assert.deepEqual(
+  currentInventory.map(row=>row.path),
+  [...currentInventory.map(row=>row.path)].sort(),
+);
+assert.doesNotThrow(
+  ()=>assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1({
+    current_enforcement_tracked_source_inventory_v1:currentInventory,
+  }),
+);
+const wrongInventory=structuredClone(currentInventory) as any[];
+wrongInventory[0].git_blob_sha1="0".repeat(40);
+assert.throws(
+  ()=>assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1({
+    current_enforcement_tracked_source_inventory_v1:wrongInventory,
+  }),
+  /accepted_enforcement_candidate_current_source_inventory_mismatch/u,
+);
+const acceptedLock=Object.freeze({
+  accepted_enforcement_set_sha256:"a".repeat(64),
+  accepted_enforcement_lock_git_blob_sha1:"b".repeat(40),
+  accepted_enforcement_lock_sha256:"c".repeat(64),
+  accepted_enforcement_lock_id:buyVoidSourceFinalityEnforcementLockIdV7({
+    accepted_enforcement_set_sha256:"a".repeat(64),
+    accepted_enforcement_lock_git_blob_sha1:"b".repeat(40),
+    accepted_enforcement_lock_sha256:"c".repeat(64),
+  }),
+  current_enforcement_tracked_source_inventory_verified:true as const,
+});
 const built=buildBuyVoidSourceFinalityV7DeploymentReceiptV1({
   process_source_commit:commit,
   process_source_tree:tree,
@@ -164,7 +198,10 @@ if(rootCapable){
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("v7_receipt_uses_module_content_address=true");
-console.log("external_accepted_enforcement_lock_verified=true");
+console.log("historical_enforcement_lock_refused_after_current_closure_expansion=true");
+console.log("current_enforcement_tracked_source_inventory_count=49");
+console.log("current_enforcement_tracked_source_inventory_verified=true");
+console.log("current_enforcement_tracked_source_inventory_blob_and_mode_bound=true");
 console.log("deployment_receipt_enforcement_set_not_source_hardcoded=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
 console.log("repository_local_fsmonitor_ignored=true");

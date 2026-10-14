@@ -22,6 +22,154 @@ const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const SAFE_LOCK_PATH=/^ops\/security\/[A-Za-z0-9._\/-]+\.json$/u;
 
+export const VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1=
+  Object.freeze([
+  "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts",
+  "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts",
+  "ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c",
+  "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts",
+  "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
+  "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c",
+  "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash",
+  "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh",
+  "ops/run-void-node-live-v1.sh",
+  "ops/security/buy-void-v7-live-process-v2-selector-elf-lock-v1.json",
+  "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json",
+  "package-lock.json",
+  "package.json",
+  "runtime/canonical-producer-self-http-guard-v4.cjs",
+  "runtime/canonical-producer-source-custody-v1.cjs",
+  "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
+  "src/economic/buy_void_auto_fulfillment_v1.ts",
+  "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+  "src/economic/buy_void_confirmed_state_journal_v1.ts",
+  "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+  "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+  "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+  "src/economic/buy_void_delivery_submission_guard_v1.ts",
+  "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts",
+  "src/economic/buy_void_erc20_execution_composition_v1.ts",
+  "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+  "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts",
+  "src/economic/buy_void_execution_attempt_journal_v1.ts",
+  "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+  "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+  "src/economic/buy_void_fulfillment_journal_v1.ts",
+  "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+  "src/economic/buy_void_payment_rpc_observer_v1.ts",
+  "src/economic/buy_void_pipeline_coordinator_v1.ts",
+  "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
+  "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
+  "src/economic/buy_void_source_finality_authority_v2.ts",
+  "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
+  "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
+  "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
+  "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
+  "src/economic/buy_void_source_finality_live_process_binding_v2.ts",
+  "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
+  "src/economic/buy_void_verified_payment_v2.ts",
+  "src/index.ts",
+  "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+  "tools/void-reviewed-node-package-runtime-v1.mjs",
+  "tsconfig.build.json",
+  "tsconfig.json",
+  ] as const);
+
+export type BuyVoidCurrentEnforcementTrackedSourceRowV1=Readonly<{
+  path:string;
+  git_blob_sha1:string;
+  git_mode:"100644"|"100755";
+}>;
+
+function currentSourceBlobV1(bytes:Buffer):string{
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
+    .update(bytes).digest("hex");
+}
+
+function inspectCurrentTrackedSourceRowV1(
+  repositoryRoot:string,
+  relative:string,
+):BuyVoidCurrentEnforcementTrackedSourceRowV1{
+  assert.ok(
+    (VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1 as readonly string[])
+      .includes(relative),
+    "current_enforcement_source_path_not_required:"+relative,
+  );
+  const absolute=path.join(repositoryRoot,...relative.split("/"));
+  const before=fs.lstatSync(absolute);
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1,
+    "current_enforcement_source_not_direct_regular_file:"+relative);
+  const bytes=fs.readFileSync(absolute);
+  const after=fs.lstatSync(absolute);
+  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
+    assert.equal(after[key],before[key],
+      "current_enforcement_source_changed:"+relative+":"+key);
+  }
+  const visibleBlob=currentSourceBlobV1(bytes);
+  const headBlob=git(repositoryRoot,["rev-parse","--verify","HEAD:"+relative]);
+  assert.equal(visibleBlob,headBlob,
+    "current_enforcement_source_worktree_blob_mismatch:"+relative);
+  const entry=git(repositoryRoot,["ls-tree","HEAD","--",relative]);
+  const match=entry.match(/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/u);
+  assert.ok(match,"current_enforcement_source_tree_entry_invalid:"+relative);
+  assert.equal(match[2],headBlob,
+    "current_enforcement_source_tree_blob_mismatch:"+relative);
+  assert.equal(match[3],relative,
+    "current_enforcement_source_tree_path_mismatch:"+relative);
+  const visibleMode:(("100644"|"100755"))=
+    (before.mode&0o111)!==0?"100755":"100644";
+  assert.equal(visibleMode,match[1],
+    "current_enforcement_source_worktree_mode_mismatch:"+relative);
+  return Object.freeze({
+    path:relative,
+    git_blob_sha1:headBlob,
+    git_mode:visibleMode,
+  });
+}
+
+export function inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1(
+  repositoryRoot:string=ROOT,
+):readonly BuyVoidCurrentEnforcementTrackedSourceRowV1[]{
+  return Object.freeze(
+    VOID_BUY_VOID_CURRENT_ENFORCEMENT_TRACKED_SOURCE_PATHS_V1.map(
+      relative=>inspectCurrentTrackedSourceRowV1(repositoryRoot,relative),
+    ),
+  );
+}
+
+export function assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1(
+  candidate:unknown,
+  repositoryRoot:string=ROOT,
+):void{
+  assert.ok(candidate&&typeof candidate==="object"&&!Array.isArray(candidate),
+    "accepted_enforcement_candidate_object_required");
+  const rows=(candidate as any).current_enforcement_tracked_source_inventory_v1;
+  assert.ok(Array.isArray(rows),
+    "accepted_enforcement_candidate_current_source_inventory_missing");
+  const current=inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1(
+    repositoryRoot,
+  );
+  assert.equal(rows.length,current.length,
+    "accepted_enforcement_candidate_current_source_inventory_count_mismatch");
+  for(let index=0;index<current.length;index+=1){
+    const row=rows[index];
+    assert.ok(row&&typeof row==="object"&&!Array.isArray(row),
+      "accepted_enforcement_candidate_current_source_inventory_row_invalid");
+    assert.deepEqual(
+      Object.keys(row).sort(),
+      ["git_blob_sha1","git_mode","path"],
+      "accepted_enforcement_candidate_current_source_inventory_row_shape",
+    );
+    assert.deepEqual(
+      row,
+      current[index],
+      "accepted_enforcement_candidate_current_source_inventory_mismatch:"+
+        current[index].path,
+    );
+  }
+}
+
 function git(repositoryRoot:string,args:string[]):string{
   const root=path.resolve(repositoryRoot);
   assert.equal(root,repositoryRoot,"repository_root_not_canonical");
@@ -139,6 +287,10 @@ export function inspectAcceptedEnforcementLockV1(
     "accepted_enforcement_candidate_closure_not_verified");
   assert.equal(candidate?.candidate_enforcement_identity_accepted,false,
     "accepted_enforcement_candidate_must_be_unaccepted");
+  assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1(
+    candidate,
+    repositoryRoot,
+  );
 
   const accepted_enforcement_lock_id=buyVoidSourceFinalityEnforcementLockIdV7({
     accepted_enforcement_set_sha256:set,
@@ -151,6 +303,7 @@ export function inspectAcceptedEnforcementLockV1(
     accepted_enforcement_lock_git_blob_sha1:lockFile.git_blob_sha1,
     accepted_enforcement_lock_sha256:lockFile.sha256,
     accepted_enforcement_lock_id,
+    current_enforcement_tracked_source_inventory_verified:true as const,
   });
 }
 
@@ -162,6 +315,7 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
     accepted_enforcement_lock_git_blob_sha1:string;
     accepted_enforcement_lock_sha256:string;
     accepted_enforcement_lock_id:string;
+    current_enforcement_tracked_source_inventory_verified:true;
   }>;
 }){
   const commit=String(input.process_source_commit||"").trim().toLowerCase();
@@ -180,6 +334,11 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
     lock.accepted_enforcement_lock_id,
     buyVoidSourceFinalityEnforcementLockIdV7(lock),
     "accepted_enforcement_lock_id_invalid",
+  );
+  assert.equal(
+    lock.current_enforcement_tracked_source_inventory_verified,
+    true,
+    "accepted_enforcement_current_source_inventory_not_verified",
   );
   const body={
     accepted_enforcement_lock_git_blob_sha1:
