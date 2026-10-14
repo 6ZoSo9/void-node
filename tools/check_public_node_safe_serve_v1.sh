@@ -42,7 +42,7 @@ ln -s "$tmp/outside-dir" "$tmp/public/public-node/dir-link"
 
 (
   cd "$tmp"
-  node "$REPO_ROOT/tools/public-node-safe-serve-v1.mjs"     --host 127.0.0.1     --port 0 >"$log" 2>&1
+  exec node "$REPO_ROOT/tools/public-node-safe-serve-v1.mjs" \\\n    --host 127.0.0.1 \\\n    --port 0 >"$log" 2>&1
 ) &
 pid=$!
 
