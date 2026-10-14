@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 UNIT = ROOT / "ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
 PREENTRY = ROOT / "ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
 
-EXPECTED_UNIT_BLOB = "bafdd73dea00a516b6d9fd186898ad6aa7be7bce"
+EXPECTED_UNIT_BLOB = "62fbabe1cf7ae0d940f5d96e19b06282f841267b"
 EXPECTED_PREENTRY_BLOB = "9503d19c8bc0b4f073ba117f6a547d339b7623d0"
 
 FIXED_PREENTRY = (
@@ -107,7 +108,7 @@ def prove_unit(text: str) -> None:
         "ProtectKernelTunables": "yes",
         "ProtectKernelModules": "yes",
         "ProtectKernelLogs": "yes",
-        "ProtectControlGroups": "strict",
+        "ProtectControlGroups": "yes",
         "ProtectProc": "invisible",
         "ProcSubset": "pid",
         "Restart": "no",
@@ -189,6 +190,83 @@ def prove_preentry(source: str) -> None:
             raise AssertionError(f"preentry gained forbidden primitive {value}")
 
 
+
+def verify_systemd_v255_parser(unit_text: str) -> None:
+    version = subprocess.run(
+        ["systemd-analyze", "--version"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=15,
+    )
+    if version.returncode != 0:
+        raise AssertionError("systemd-analyze --version failed")
+    first = version.stdout.splitlines()[0] if version.stdout.splitlines() else ""
+    match = re.match(r"^systemd\s+([0-9]+)(?:\s|$)", first)
+    if match is None or int(match.group(1)) != 255:
+        raise AssertionError("focused parser proof requires systemd major 255")
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-apollyon-training-systemd-v255-"
+    ) as td:
+        root = Path(td)
+        executable = root / "preentry"
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+        work = root / "work"
+        training = root / "training"
+        isolation = root / "isolation"
+        input_dir = root / "input"
+        output_dir = root / "output"
+        for directory in (work, training, isolation, input_dir, output_dir):
+            directory.mkdir()
+
+        validation = unit_text
+        replacements = {
+            "User=voidapollyontrain": "User=root",
+            "Group=voidapollyontrain": "Group=root",
+            "WorkingDirectory=/var/lib/void-apollyon-training-v1":
+                f"WorkingDirectory={work}",
+            f"ExecStart={FIXED_PREENTRY}": f"ExecStart={executable}",
+            "ReadOnlyPaths=/opt/void-apollyon-training-v1":
+                f"ReadOnlyPaths={training}",
+            "ReadOnlyPaths=/opt/void-apollyon-training-bus-isolation-v1":
+                f"ReadOnlyPaths={isolation}",
+            "ReadOnlyPaths=/var/lib/void-apollyon-training-v1/input":
+                f"ReadOnlyPaths={input_dir}",
+            "ReadWritePaths=/var/lib/void-apollyon-training-v1/output":
+                f"ReadWritePaths={output_dir}",
+        }
+        for old, new in replacements.items():
+            if old not in validation:
+                raise AssertionError(f"systemd parser fixture missing {old}")
+            validation = validation.replace(old, new)
+
+        unit = root / "void-apollyon-training-bus-isolation-v1.service"
+        unit.write_text(validation, encoding="utf-8")
+        result = subprocess.run(
+            ["systemd-analyze", "verify", str(unit)],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+        )
+        transcript = result.stdout + "\n" + result.stderr
+        parse_failures = (
+            "Failed to parse",
+            "Unknown key",
+            "Unknown lvalue",
+            "Failed to parse boolean value",
+        )
+        if result.returncode != 0 or any(x in transcript for x in parse_failures):
+            raise AssertionError(
+                "systemd v255 parser rejected isolation unit: " +
+                transcript[-2000:]
+            )
+
+
 def compile_and_self_test() -> None:
     with tempfile.TemporaryDirectory(
         prefix="void-apollyon-training-bus-isolation-v1-"
@@ -248,6 +326,20 @@ def main() -> None:
     source = preentry_bytes.decode("utf-8")
     prove_unit(unit_text)
     prove_preentry(source)
+    verify_systemd_v255_parser(unit_text)
+
+    invalid_v255 = unit_text.replace(
+        "ProtectControlGroups=yes",
+        "ProtectControlGroups=strict",
+    )
+    try:
+        verify_systemd_v255_parser(invalid_v255)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError(
+            "systemd-v255-invalid ProtectControlGroups value unexpectedly admitted"
+        )
 
     weakened = unit_text.replace(
         "RestrictAddressFamilies=none",
@@ -290,6 +382,8 @@ def main() -> None:
     print("service_start_performed=false")
     print("training_execution=false")
     print("attempt_claim=false")
+    print("systemd_v255_parser_verified=true")
+    print("protect_control_groups_boolean_required=true")
     print("inherited_fd_close_boundary_source_proven=true")
     print("all_socket_families_denied_by_reviewed_unit_source=true")
     print("socketpair_scm_rights_io_uring_pidfd_acquisition_denied_in_source=true")
