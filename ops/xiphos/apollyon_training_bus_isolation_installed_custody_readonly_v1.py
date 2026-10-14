@@ -81,14 +81,24 @@ def assert_ancestor_custody(
     *,
     owner_uid:int,
     owner_gid:int,
+    trusted_root:Path,
 )->None:
     absolute=Path(os.path.abspath(os.fspath(pathname)))
-    if absolute!=pathname or not absolute.is_absolute():
+    root=Path(os.path.abspath(os.fspath(trusted_root)))
+    if (
+        absolute!=pathname or not absolute.is_absolute() or
+        root!=trusted_root or not root.is_absolute()
+    ):
         hold("apollyon_training_installed_custody_path_not_canonical")
-    parsed=Path(absolute.anchor)
-    current=parsed
+    try:
+        relative_parent=absolute.parent.relative_to(root)
+    except ValueError as exc:
+        raise Hold(
+            "apollyon_training_installed_custody_path_outside_trusted_root"
+        ) from exc
+    current=root
     ancestors=[current]
-    for part in absolute.parent.parts[1:]:
+    for part in relative_parent.parts:
         current=current/part
         ancestors.append(current)
     for ancestor in ancestors:
@@ -116,11 +126,13 @@ def read_stable_regular_file(
     mode:int,
     maximum_bytes:int,
     exact_bytes:int|None=None,
+    trusted_root:Path=Path("/"),
 )->tuple[bytes,os.stat_result]:
     assert_ancestor_custody(
         pathname,
         owner_uid=owner_uid,
         owner_gid=owner_gid,
+        trusted_root=trusted_root,
     )
     try:
         before=os.lstat(pathname)
@@ -181,6 +193,7 @@ def qualify_materials(
     owner_uid:int,
     owner_gid:int,
     require_xiphos:bool,
+    trusted_root:Path=Path("/"),
 )->dict[str,Any]:
     if require_xiphos and socket.gethostname().casefold()!=TARGET_HOST.casefold():
         hold("apollyon_training_installed_custody_wrong_host")
@@ -191,6 +204,7 @@ def qualify_materials(
         owner_gid=owner_gid,
         mode=EXPECTED_UNIT_MODE,
         maximum_bytes=MAX_UNIT_BYTES,
+        trusted_root=trusted_root,
     )
     if git_blob_sha1(unit_bytes)!=EXPECTED_UNIT_GIT_BLOB_SHA1:
         hold("apollyon_training_installed_custody_unit_bytes_mismatch")
@@ -202,6 +216,7 @@ def qualify_materials(
         mode=EXPECTED_PREENTRY_MODE,
         maximum_bytes=MAX_PREENTRY_BYTES,
         exact_bytes=EXPECTED_PREENTRY_BYTES,
+        trusted_root=trusted_root,
     )
     if sha256(preentry_bytes)!=EXPECTED_PREENTRY_SHA256:
         hold("apollyon_training_installed_custody_preentry_bytes_mismatch")
