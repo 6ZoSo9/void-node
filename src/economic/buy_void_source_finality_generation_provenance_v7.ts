@@ -414,11 +414,12 @@ export function verifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
       };
     }
     const stat = fs.lstatSync(input.deployment_receipt_path);
-    const euid = typeof process.geteuid === "function" ? process.geteuid() : null;
     if (
-      !stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 ||
-      euid === null || (stat.uid !== euid && stat.uid !== 0) ||
-      (stat.mode & 0o022) !== 0
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.nlink !== 1 ||
+      stat.uid !== 0 ||
+      (stat.mode & 0o777) !== 0o444
     ) {
       throw new Error("deployment_receipt_path_policy_invalid");
     }
@@ -455,6 +456,12 @@ function providerEndpoint(policy: BuyVoidSourceFinalityAuthenticatedCompositionP
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash) {
       return null;
     }
+    const normalizedRpcUrl = parsed.toString();
+    const expectedFingerprint = crypto
+      .createHash("sha256")
+      .update(normalizedRpcUrl, "utf8")
+      .digest("hex");
+    if (fingerprint !== expectedFingerprint) return null;
     return Object.freeze({
       rpc_identity: rpcIdentity,
       rpc_url_fingerprint_sha256: fingerprint,
