@@ -1,0 +1,147 @@
+name: VOID Buy VOID delivery dependency provider closure v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+      - "docs/architecture/buy-void-delivery-dependency-provider-closure-v1.md"
+      - ".github/workflows/buy-void-delivery-dependency-provider-closure-v1.yml"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+      - "docs/architecture/buy-void-delivery-dependency-provider-closure-v1.md"
+      - ".github/workflows/buy-void-delivery-dependency-provider-closure-v1.yml"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Use reviewed Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and compile exact TypeScript generation
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Prove provider closure candidate
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs
+          node scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs --self-test
+          node scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs --derive \
+            > "provider-closure-${{ matrix.node }}.json"
+          node --input-type=module - "provider-closure-${{ matrix.node }}.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const value=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(value.marker,"VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_V1");
+          assert.equal(value.provider_static_module_closure_verified,true);
+          assert.equal(value.server_runtime_imports_provider,true);
+          assert.equal(value.server_runtime_imports_delivery_consumer,true);
+          assert.equal(value.provider_global_writer_bound,true);
+          assert.equal(value.consumer_global_reader_bound,true);
+          assert.deepEqual(value.provider_third_party_packages,["ethers"]);
+          assert.equal(value.dynamic_module_loader_present,false);
+          assert.equal(value.post_2865_dependency_generation,true);
+          assert.equal(value.delivery_route_closure_composed,false);
+          assert.equal(value.whole_enforcement_closure_verified,false);
+          assert.equal(value.package_runtime_identity_accepted,false);
+          assert.equal(value.candidate_enforcement_identity_accepted,false);
+          assert.equal(value.deployed_artifact_generation_verified,false);
+          assert.equal(value.runtime_mount_authority,false);
+          assert.equal(value.credential_read_performed,false);
+          assert.equal(value.signing_performed,false);
+          assert.equal(value.rpc_call_performed,false);
+          assert.equal(value.transaction_broadcast_performed,false);
+          assert.equal(value.production_source_finality_authority_ready,false);
+          assert.equal(value.presale_activation,false);
+          assert.equal(value.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROVIDER_CLOSURE_CANDIDATE_NODE_GREEN");
+          NODE
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD"
+
+      - name: Upload candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-provider-closure-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: provider-closure-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Node-major candidates
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-provider-closure-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: evidence
+
+      - name: Require exact Node 22 24 26 identity
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "evidence/provider-closure-$node.json"
+          done
+          cmp evidence/provider-closure-22.json evidence/provider-closure-24.json
+          cmp evidence/provider-closure-22.json evidence/provider-closure-26.json
+          sha256sum evidence/provider-closure-22.json
+          echo VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_CROSS_NODE_GREEN
+          echo whole_enforcement_closure_verified=false
+          echo production_source_finality_authority_ready=false
+          echo presale_activation=false
+          echo funds_movement=false
