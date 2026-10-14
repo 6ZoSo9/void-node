@@ -31,6 +31,17 @@ for value in [
  "system.posix_acl_access","CLOCK_BOOTTIME","'/usr/bin/systemctl','show'",
  "'/usr/bin/systemctl','--version'","'/usr/bin/busctl','--system','get-property'",
  "'org.freedesktop.systemd1.Manager','Version'","'/usr/bin/pkcheck'","'--process'",
+ "'--system-bus-name'","parse_busctl_unique_rows","parse_busctl_unique_names",
+ "system_bus_sender_snapshot","listed_pid","listed_user",
+ "system_bus_sender_evidence","actual_system_bus_sender_checks_required",
+ "actual_system_bus_sender_set_stable","denial_transcript_sha256",
+ "system_bus_credentials_lookup_failed",
+ "training_uid_process_identity_stable_across_authorization",
+ "absolute_runtime_service_control_denial_proven",
+ "inherited_system_bus_descriptor_absence_required",
+ "inherited_system_bus_descriptor_absence_proven",
+ "'runtime_can_control_service':None",
+ "MAX_SYSTEM_BUS_UNIQUE_NAMES=256","system_bus_list_oversize",
  "POLKIT_DENY_RULE_PATH=Path('/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules')",
  "POLKIT_RULE_DIRECTORIES=(Path('/etc/polkit-1/rules.d'),Path('/usr/share/polkit-1/rules.d'))",
  "expected_polkit_deny_rule","'action_id_only':True","'details_can_change_result':False",
@@ -39,6 +50,17 @@ for value in [
  "'org.freedesktop.systemd1.reload-daemon'","'org.freedesktop.systemd1.set-environment'",
  "'set-property'","'reset-failed'","'bind-mount'","'mount-image'",
  "training_process_subject","training_process_capabilities","all_systemd_control_actions_explicitly_denied",
+ "canonical_training_user","getpwnam(name)","getpwuid(forward.pw_uid)",
+ "process_has_training_uid_thread","/task/","collect_training_uid_processes","training_uid_process_inventory",
+ "all_training_uid_processes_capability_free",
+ "'training_user':tr.pw_name",
+ "training_thread_subject","training_process_thread_inventory",
+ "all_training_uid_threads_capability_free","training_uid_thread_count",
+ "training_uid_thread_sets_stable","thread_inventory_sha256",
+ "training_uid_process_set_stable","training_uid_processes",
+ "REVIEWED_SYSTEMD_PACKAGE_VERSIONS=('255.4-1ubuntu8.11',)",
+ "parse_systemd_bus_owner_pid","GetConnectionUnixProcessID",
+ "systemd_bus_owner_pid_is_pid1","reviewed_systemd_package_version",
  "runtime_can_control_service':control['runtime_can_control_service']","--training-pid",
 ]:
  assert value in source,value
@@ -50,7 +72,18 @@ assert mod.MARKER=='VOID_APOLLYON_DESIGNATED_HOST_CUSTODY_EVIDENCE_READONLY_V2'
 assert source.count("def parse_installed_systemd_version_line") == 1
 assert source.count("def parse_running_systemd_manager_version") == 1
 assert source.count("def training_process_subject") == 1
+assert source.count("def process_has_training_uid_thread") == 1
+assert source.count("def collect_training_uid_processes") == 1
+assert source.count("def training_uid_process_inventory") == 1
+assert source.count("def system_bus_sender_snapshot") == 1
+assert source.count("def system_bus_sender_evidence") == 1
+assert source.count("def pkcheck_bus_denial") == 1
+assert source.count("def training_thread_subject") == 1
+assert source.count("def training_process_thread_inventory") == 1
+assert source.count("def zero_capability_credentials") == 1
+assert source.count("def parse_systemd_bus_owner_pid") == 1
 assert source.count("def service_control_evidence") == 1
+assert "process['subject']" not in source
 assert source.count("def collect(a)") == 1
 assert source.count("if __name__=='__main__':raise SystemExit(main())") == 1
 assert source.rstrip().endswith("if __name__=='__main__':raise SystemExit(main())")
@@ -62,10 +95,265 @@ assert mod.classify_pkcheck_status(3)=='dismissed'
 assert mod.classify_pkcheck_status(127)=='error'
 installed=mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')
 running=mod.parse_running_systemd_manager_version('s "255.4-1ubuntu8.11"')
+owner=mod.parse_systemd_bus_owner_pid('u 1')
 assert installed['installed_systemd_major']==255
 assert installed['installed_systemd_package_version']=='255.4-1ubuntu8.11'
 assert running['running_systemd_manager_major']==255
 assert running['running_systemd_manager_version']=='255.4-1ubuntu8.11'
+assert owner['systemd_bus_owner_pid']==1
+assert owner['systemd_bus_owner_pid_is_pid1'] is True
+assert mod.parse_busctl_unique_names(
+ ':1.42 4242 python zoso :1.42 user@1000.service - - fixture\n'
+ ':1.7  7 dbus root :1.7 dbus.service - - fixture\n'
+)==[':1.42',':1.7']
+class CandidateTraining:
+ pw_name='zoso'
+ pw_uid=1000
+rows=mod.parse_busctl_unique_rows(
+ ':1.99 999 busctl root :1.99 session.scope - - collector\n'
+ ':1.42 4242 python zoso :1.42 user@1000.service - - training\n'
+)
+assert rows[0]['bus_name']==':1.42'
+assert rows[1]['bus_name']==':1.99'
+original_run=mod.run
+original_dbus_uint32=mod.dbus_connection_uint32
+credential_queries=[]
+def fake_bus_list(args):
+ return (
+  ':1.99 999 busctl root :1.99 session.scope - - collector\n'
+  ':1.42 4242 python zoso :1.42 user@1000.service - - training\n'
+ )
+def fake_bus_credentials(method,name):
+ credential_queries.append((method,name))
+ if name!=':1.42':
+  raise AssertionError('nontraining busctl census client was credential-queried')
+ return 4242 if method=='GetConnectionUnixProcessID' else 1000
+try:
+ mod.run=fake_bus_list
+ mod.dbus_connection_uint32=fake_bus_credentials
+ observed=mod.system_bus_sender_snapshot(CandidateTraining(),{4242})
+finally:
+ mod.run=original_run
+ mod.dbus_connection_uint32=original_dbus_uint32
+assert observed==[{'bus_name':':1.42','pid':4242,'uid':1000}]
+assert credential_queries==[
+ ('GetConnectionUnixProcessID',':1.42'),
+ ('GetConnectionUnixUser',':1.42'),
+]
+try:
+ mod.parse_busctl_unique_names(
+  ''.join(f':1.{i} 1 proc user :1.{i} unit - - fixture\n' for i in range(257))
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('oversize system-bus census unexpectedly admitted')
+class FailedBusCall:
+ returncode=1
+ stdout=''
+ stderr='name vanished'
+original_run_status=mod.run_status
+try:
+ mod.run_status=lambda args:FailedBusCall()
+ try:
+  mod.dbus_connection_uint32('GetConnectionUnixProcessID',':1.42')
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('failed bus credential lookup unexpectedly ignored')
+finally:
+ mod.run_status=original_run_status
+synthetic_status='''Name:\tfixture
+Uid:\t1000\t1000\t1000\t1000
+CapInh:\t0000000000000000
+CapPrm:\t0000000000000000
+CapEff:\t0000000000000000
+CapAmb:\t0000000000000000
+NoNewPrivs:\t1
+'''
+class Training:
+ pw_uid=1000
+credentials=mod.zero_capability_credentials(synthetic_status,Training())
+assert credentials['uid_slots']==[1000,1000,1000,1000]
+assert credentials['capabilities']=={
+ 'ambient':'0','effective':'0','inheritable':'0',
+ 'no_new_privileges':True,'permitted':'0',
+}
+try:
+ mod.zero_capability_credentials(
+  synthetic_status.replace('CapEff:\t0000000000000000','CapEff:\t0000000000000001'),
+  Training(),
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('privileged synthetic thread unexpectedly admitted')
+try:
+ mod.zero_capability_credentials(
+  synthetic_status.replace('Uid:\t1000\t1000\t1000\t1000','Uid:\t1000\t0\t1000\t1000'),
+  Training(),
+ )
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('mixed-UID synthetic thread unexpectedly admitted')
+inventory_calls=0
+original_collect_processes=mod.collect_training_uid_processes
+def drifting_process_snapshot(training):
+ global inventory_calls
+ inventory_calls+=1
+ start='123456' if inventory_calls==1 else '123457'
+ return {
+  'processes':[{
+   'all_threads_capability_free':True,
+   'pid':4242,'start_time_ticks':start,'uid':1000,
+   'uid_slots':[1000,1000,1000,1000],
+   'capabilities':{
+    'ambient':'0','effective':'0','inheritable':'0',
+    'no_new_privileges':True,'permitted':'0',
+   },
+   'thread_count':1,'thread_inventory_sha256':'88'*32,
+   'thread_set_stable':True,
+  }],
+  'thread_count':1,
+ }
+try:
+ mod.collect_training_uid_processes=drifting_process_snapshot
+ try:
+  mod.training_uid_process_inventory(Training(),4242)
+ except mod.Hold:
+  pass
+ else:
+  raise AssertionError('PID-reuse/full-identity drift unexpectedly admitted')
+finally:
+ mod.collect_training_uid_processes=original_collect_processes
+calls=[]
+zero_caps={
+ 'ambient':'0','effective':'0','inheritable':'0',
+ 'no_new_privileges':True,'permitted':'0',
+}
+fake_inventory={
+ 'all_training_uid_processes_capability_free':True,
+ 'all_training_uid_threads_capability_free':True,
+ 'training_uid_process_count':1,
+ 'training_uid_process_identity_stable_across_authorization':True,
+ 'training_uid_process_set_stable':True,
+ 'training_uid_processes':[{
+  'all_threads_capability_free':True,
+  'pid':4242,'start_time_ticks':'123456','uid':1000,
+  'uid_slots':[1000,1000,1000,1000],
+  'capabilities':zero_caps,
+  'thread_count':1,
+  'thread_inventory_sha256':'88'*32,
+  'thread_set_stable':True,
+ }],
+ 'training_uid_thread_count':1,
+ 'training_uid_thread_sets_stable':True,
+}
+fake_versions={
+ 'installed_systemd_package_version':'255.4-1ubuntu8.11',
+ 'observed_systemd_version_line':'systemd 255 (255.4-1ubuntu8.11)',
+ 'reviewed_systemd_package_version':'255.4-1ubuntu8.11',
+ 'running_installed_systemd_version_match':True,
+ 'running_systemd_manager_major':255,
+ 'running_systemd_manager_version':'255.4-1ubuntu8.11',
+ 'systemd_bus_owner_pid':1,
+ 'systemd_bus_owner_pid_is_pid1':True,
+}
+fake_bus={
+ 'actual_system_bus_sender_checks_required':True,
+ 'actual_system_bus_sender_count':1,
+ 'actual_system_bus_sender_set_stable':True,
+ 'actual_system_bus_senders':[{
+  'all_systemd_control_actions_explicitly_denied':True,
+  'bus_name':':1.42',
+  'checked_action_count':1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS),
+  'denial_transcript_sha256':'aa'*32,
+  'pid':4242,'subject_type':'system-bus-name','uid':1000,
+ }],
+}
+originals={
+ 'systemd_version_evidence':mod.systemd_version_evidence,
+ 'training_uid_process_inventory':mod.training_uid_process_inventory,
+ 'polkit_deny_rule_evidence':mod.polkit_deny_rule_evidence,
+ 'pkcheck_denial':mod.pkcheck_denial,
+ 'system_bus_sender_evidence':mod.system_bus_sender_evidence,
+}
+def fake_pkcheck(action_id,subject,details=()):
+ calls.append((action_id,subject,details))
+ return {
+  'action_id':action_id,
+  'details':[{'key':k,'value':v} for k,v in details],
+  'exit_status':1,
+  'result':'explicitly_denied',
+ }
+try:
+ mod.systemd_version_evidence=lambda:fake_versions
+ mod.training_uid_process_inventory=lambda training,pid:fake_inventory
+ mod.polkit_deny_rule_evidence=lambda training:{'fixture':True}
+ mod.pkcheck_denial=fake_pkcheck
+ mod.system_bus_sender_evidence=lambda training,inventory,unit:fake_bus
+ control=mod.service_control_evidence(Training(),4242,'void-apollyon-test.service')
+finally:
+ for name,value in originals.items():
+  setattr(mod,name,value)
+assert control['pkcheck_subject']=='4242,123456,1000'
+assert control['actual_system_bus_sender_count']==1
+assert control['runtime_can_control_service'] is None
+assert control['absolute_runtime_service_control_denial_proven'] is False
+assert control['inherited_system_bus_descriptor_absence_required'] is True
+assert control['inherited_system_bus_descriptor_absence_proven'] is False
+assert control['training_uid_process_identity_stable_across_authorization'] is True
+assert control['actual_system_bus_senders'][0]['bus_name']==':1.42'
+assert len(calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
+assert all(subject=='4242,123456,1000' for _,subject,_ in calls)
+assert any(details and details[0][0]=='unit' for _,_,details in calls)
+assert any(action=='org.freedesktop.systemd1.reload-daemon' for action,_,_ in calls)
+bus_calls=[]
+snapshot_calls=0
+original_snapshot=mod.system_bus_sender_snapshot
+original_bus_pkcheck=mod.pkcheck_bus_denial
+def fake_snapshot(training,process_ids):
+ global snapshot_calls
+ snapshot_calls+=1
+ assert process_ids=={4242}
+ return [{'bus_name':':1.42','pid':4242,'uid':1000}]
+def fake_bus_pkcheck(action_id,bus_name,details=()):
+ bus_calls.append((action_id,bus_name,details))
+ return {
+  'action_id':action_id,
+  'details':[{'key':k,'value':v} for k,v in details],
+  'exit_status':1,
+  'result':'explicitly_denied',
+ }
+try:
+ mod.system_bus_sender_snapshot=fake_snapshot
+ mod.pkcheck_bus_denial=fake_bus_pkcheck
+ bus_evidence=mod.system_bus_sender_evidence(
+  Training(),fake_inventory,'void-apollyon-test.service',
+ )
+finally:
+ mod.system_bus_sender_snapshot=original_snapshot
+ mod.pkcheck_bus_denial=original_bus_pkcheck
+assert snapshot_calls==2
+assert bus_evidence['actual_system_bus_sender_count']==1
+assert bus_evidence['actual_system_bus_sender_set_stable'] is True
+assert bus_evidence['actual_system_bus_senders'][0]['subject_type']=='system-bus-name'
+assert len(bus_calls)==1+len(mod.SYSTEMD_MANAGE_UNIT_VERBS)+len(mod.SYSTEMD_GLOBAL_CONTROL_ACTIONS)
+assert all(name==':1.42' for _,name,_ in bus_calls)
+assert mod.REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',)
+try:
+ mod.parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.12)')
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('unreviewed systemd package unexpectedly admitted')
+try:
+ mod.parse_systemd_bus_owner_pid('u 2')
+except mod.Hold:
+ pass
+else:
+ raise AssertionError('non-PID1 systemd bus owner unexpectedly admitted')
 rule=mod.expected_polkit_deny_rule('zoso').decode('utf-8')
 for action in (
  'org.freedesktop.systemd1.manage-units',
@@ -96,6 +384,26 @@ print('running_systemd_manager_version_bound=true')
 print('running_installed_systemd_version_match_required=true')
 print('training_process_capabilities_zero_required=true')
 print('training_process_no_new_privileges_required=true')
+print('all_training_uid_processes_capability_free_required=true')
+print('all_training_uid_threads_capability_free_required=true')
+print('training_uid_thread_inventory_double_snapshot=true')
+print('training_uid_thread_inventory_digest_bound=true')
+print('service_control_bound_subject_execution_test=true')
+print('training_uid_discovery_scans_every_thread=true')
+print('actual_system_bus_sender_subject_test=true')
+print('actual_system_bus_sender_set_stability_required=true')
+print('inherited_system_bus_descriptor_absence_required=true')
+print('inherited_system_bus_descriptor_absence_proven=false')
+print('absolute_runtime_service_control_denial_proven=false')
+print('runtime_can_control_service=unknown')
+print('system_bus_unique_name_census_bounded=true')
+print('training_uid_process_full_identity_double_snapshot=true')
+print('system_bus_credential_lookup_fail_closed=true')
+print('nontraining_busctl_census_client_excluded_prelookup=true')
+print('relevant_bus_sender_credentials_still_authoritative=true')
+print('training_uid_process_set_stability_required=true')
+print('systemd_bus_owner_pid_is_pid1_required=true')
+print('reviewed_systemd_package_version=255.4-1ubuntu8.11')
 print('live_host_qualification_performed=false')
 print('host_mutation=false')
 print('service_action=false')

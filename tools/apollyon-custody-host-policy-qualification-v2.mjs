@@ -21,9 +21,20 @@ export const VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2 = Object.freeze({
   reviewed_systemd_major_pinned:true,
   running_systemd_manager_version_bound:true,
   running_installed_systemd_version_match_required:true,
+  reviewed_systemd_package_version_pinned:true,
+  systemd_bus_owner_pid1_required:true,
+  all_training_uid_processes_capability_free_required:true,
+  all_training_uid_threads_capability_free_required:true,
+  training_uid_thread_stability_required:true,
+  training_uid_process_identity_stability_required:true,
+  training_uid_thread_discovery_required:true,
+  actual_system_bus_sender_denial_required:true,
+  inherited_system_bus_descriptor_absence_required:true,
+  absolute_runtime_service_control_denial_required:true,
 });
 const MAX_ANCESTORS=128;
 const REVIEWED_SYSTEMD_MAJOR=255;
+const REVIEWED_SYSTEMD_PACKAGE_VERSION="255.4-1ubuntu8.11";
 const SAFE_UNIT=/^[A-Za-z0-9_.@-]+\.service$/u;
 const SAFE_RUNTIME_USER=/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/u;
 const SYSTEMD_MANAGE_UNIT_VERBS=Object.freeze([
@@ -64,30 +75,60 @@ function normalizeSocketParentV2(value){
   }
   return Object.freeze({...value});
 }
+function normalizeIdentitiesV2(value){
+  const code="apollyon_custody_policy_v2_identities_invalid";
+  exactKeys(value,[
+    "custody_gid","custody_supplementary_gids","custody_uid","ipc_gid",
+    "training_gid","training_supplementary_gids","training_uid","training_user",
+  ],code);
+  if(
+    typeof value.training_user!=="string"||
+    !SAFE_RUNTIME_USER.test(value.training_user)
+  )fail(code);
+  return Object.freeze({
+    ...value,
+    custody_supplementary_gids:Object.freeze([...value.custody_supplementary_gids]),
+    training_supplementary_gids:Object.freeze([...value.training_supplementary_gids]),
+  });
+}
 function normalizeServiceControl(value,identities){
   const code="apollyon_custody_policy_v2_service_control_invalid";
   exactKeys(value,[
-    "all_systemd_control_actions_explicitly_denied","checked_actions",
-    "installed_systemd_package_version","observed_systemd_version_line","pkcheck_subject",
-    "polkit_deny_rule","reviewed_systemd_major","running_installed_systemd_version_match",
+    "absolute_runtime_service_control_denial_proven",
+    "actual_system_bus_sender_checks_required",
+    "actual_system_bus_sender_count",
+    "actual_system_bus_sender_set_stable",
+    "actual_system_bus_senders",
+    "all_systemd_control_actions_explicitly_denied",
+    "all_training_uid_processes_capability_free",
+    "all_training_uid_threads_capability_free",
+    "checked_actions","inherited_system_bus_descriptor_absence_proven",
+    "inherited_system_bus_descriptor_absence_required",
+    "installed_systemd_package_version",
+    "observed_systemd_version_line","pkcheck_subject","polkit_deny_rule",
+    "reviewed_systemd_major","reviewed_systemd_package_version",
+    "running_installed_systemd_version_match",
     "running_systemd_manager_major","running_systemd_manager_version",
-    "runtime_can_control_service","service_unit","training_pid",
+    "runtime_can_control_service","service_unit","systemd_bus_owner_pid",
+    "systemd_bus_owner_pid_is_pid1","training_pid",
     "training_process_capabilities","training_process_start_time_ticks",
-    "training_uid",
+    "training_uid","training_uid_process_count",
+    "training_uid_process_identity_stable_across_authorization",
+    "training_uid_process_set_stable","training_uid_processes",
+    "training_uid_thread_count","training_uid_thread_sets_stable",
   ],code);
   if(
     value.reviewed_systemd_major!==REVIEWED_SYSTEMD_MAJOR||
-    typeof value.observed_systemd_version_line!=="string"||
-    typeof value.installed_systemd_package_version!=="string"||
-    typeof value.running_systemd_manager_version!=="string"||
+    value.reviewed_systemd_package_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
+    value.installed_systemd_package_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
+    value.running_systemd_manager_version!==REVIEWED_SYSTEMD_PACKAGE_VERSION||
     value.running_systemd_manager_major!==REVIEWED_SYSTEMD_MAJOR||
     value.running_installed_systemd_version_match!==true||
-    !/^systemd\s+255\s+\([^()]+\)$/u.test(value.observed_systemd_version_line)||
+    value.systemd_bus_owner_pid!==1||
+    value.systemd_bus_owner_pid_is_pid1!==true||
+    typeof value.observed_systemd_version_line!=="string"||
     value.observed_systemd_version_line!==
-      "systemd 255 ("+value.installed_systemd_package_version+")"||
-    !/^[A-Za-z0-9.+:~_-]{1,120}$/u.test(value.installed_systemd_package_version)||
-    value.running_systemd_manager_version!==value.installed_systemd_package_version||
-    !/^255(?:[.-]|$)/u.test(value.running_systemd_manager_version)||
+      "systemd 255 ("+REVIEWED_SYSTEMD_PACKAGE_VERSION+")"||
     !Number.isSafeInteger(value.training_pid)||value.training_pid<=0||
     !Number.isSafeInteger(value.training_uid)||value.training_uid!==identities.training_uid||
     typeof value.training_process_start_time_ticks!=="string"||
@@ -95,9 +136,31 @@ function normalizeServiceControl(value,identities){
     value.pkcheck_subject!==String(value.training_pid)+","+
       value.training_process_start_time_ticks+","+String(value.training_uid)||
     typeof value.service_unit!=="string"||!SAFE_UNIT.test(value.service_unit)||
+    value.absolute_runtime_service_control_denial_proven!==true||
+    value.inherited_system_bus_descriptor_absence_required!==true||
+    value.inherited_system_bus_descriptor_absence_proven!==true||
+    value.actual_system_bus_sender_checks_required!==true||
+    value.actual_system_bus_sender_set_stable!==true||
+    !Number.isSafeInteger(value.actual_system_bus_sender_count)||
+    value.actual_system_bus_sender_count<0||
+    value.actual_system_bus_sender_count>32||
+    !Array.isArray(value.actual_system_bus_senders)||
+    value.actual_system_bus_senders.length!==value.actual_system_bus_sender_count||
     value.all_systemd_control_actions_explicitly_denied!==true||
+    value.all_training_uid_processes_capability_free!==true||
+    value.all_training_uid_threads_capability_free!==true||
+    value.training_uid_process_identity_stable_across_authorization!==true||
+    value.training_uid_process_set_stable!==true||
+    value.training_uid_thread_sets_stable!==true||
+    !Number.isSafeInteger(value.training_uid_process_count)||
+    value.training_uid_process_count<1||
+    !Number.isSafeInteger(value.training_uid_thread_count)||
+    value.training_uid_thread_count<value.training_uid_process_count||
+    !Array.isArray(value.training_uid_processes)||
+    value.training_uid_processes.length!==value.training_uid_process_count||
     value.runtime_can_control_service!==false
   )fail(code);
+
   exactKeys(value.polkit_deny_rule,[
     "action_id_only","bytes","denied_action_ids","details_can_change_result",
     "group_other_writable","lexically_first","mode","owner_gid","owner_uid",
@@ -108,6 +171,26 @@ function normalizeServiceControl(value,identities){
     "org.freedesktop.systemd1.manage-units",
     ...SYSTEMD_GLOBAL_CONTROL_ACTIONS,
   ];
+  const runtimeUserJson=JSON.stringify(value.polkit_deny_rule.runtime_user);
+  const actionExpression=expectedActions
+    .map((actionId)=>"      action.id === "+JSON.stringify(actionId))
+    .join(" ||\n");
+  const expectedPolkitRule=
+    "polkit.addRule(function(action, subject) {\n"+
+    "  if (\n"+
+    "    subject.user === "+runtimeUserJson+" &&\n"+
+    "    (\n"+
+    actionExpression+"\n"+
+    "    )\n"+
+    "  ) {\n"+
+    "    return polkit.Result.NO;\n"+
+    "  }\n"+
+    "  return polkit.Result.NOT_HANDLED;\n"+
+    "});\n";
+  const expectedPolkitRuleBytes=Buffer.from(expectedPolkitRule,"utf8");
+  const expectedPolkitRuleSha256=crypto.createHash("sha256")
+    .update(expectedPolkitRuleBytes)
+    .digest("hex");
   if(
     value.polkit_deny_rule.action_id_only!==true||
     value.polkit_deny_rule.details_can_change_result!==false||
@@ -119,13 +202,13 @@ function normalizeServiceControl(value,identities){
     value.polkit_deny_rule.group_other_writable!==false||
     value.polkit_deny_rule.retained_ancestors_root_owned!==true||
     value.polkit_deny_rule.retained_ancestors_group_other_writable!==false||
-    typeof value.polkit_deny_rule.runtime_user!=="string"||!SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    typeof value.polkit_deny_rule.runtime_user!=="string"||
+    !SAFE_RUNTIME_USER.test(value.polkit_deny_rule.runtime_user)||
+    value.polkit_deny_rule.runtime_user!==identities.training_user||
     value.polkit_deny_rule.path!==
       "/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules"||
-    !Number.isSafeInteger(value.polkit_deny_rule.bytes)||
-    value.polkit_deny_rule.bytes<1||
-    typeof value.polkit_deny_rule.sha256!=="string"||
-    !/^[0-9a-f]{64}$/u.test(value.polkit_deny_rule.sha256)||
+    value.polkit_deny_rule.bytes!==expectedPolkitRuleBytes.length||
+    value.polkit_deny_rule.sha256!==expectedPolkitRuleSha256||
     typeof value.polkit_deny_rule.mode!=="string"||
     !/^0[0-7]{3}$/u.test(value.polkit_deny_rule.mode)||
     (Number.parseInt(value.polkit_deny_rule.mode,8)&0o022)!==0||
@@ -133,16 +216,56 @@ function normalizeServiceControl(value,identities){
     canonicalApollyonCustodyHostPolicyJsonV1(value.polkit_deny_rule.denied_action_ids)!==
       canonicalApollyonCustodyHostPolicyJsonV1(expectedActions)
   )fail(code);
-  exactKeys(value.training_process_capabilities,[
-    "ambient","effective","inheritable","no_new_privileges","permitted",
-  ],code);
+
+  const validateCapabilities=(caps)=>{
+    exactKeys(caps,[
+      "ambient","effective","inheritable","no_new_privileges","permitted",
+    ],code);
+    if(
+      caps.ambient!=="0"||
+      caps.effective!=="0"||
+      caps.inheritable!=="0"||
+      caps.permitted!=="0"||
+      caps.no_new_privileges!==true
+    )fail(code);
+  };
+  validateCapabilities(value.training_process_capabilities);
+
+  let previousPid=0;
+  let selected=null;
+  let threadTotal=0;
+  for(const process of value.training_uid_processes){
+    exactKeys(process,[
+      "all_threads_capability_free","capabilities","pid","start_time_ticks",
+      "thread_count","thread_inventory_sha256","thread_set_stable",
+      "uid","uid_slots",
+    ],code);
+    if(
+      !Number.isSafeInteger(process.pid)||process.pid<=previousPid||
+      process.uid!==value.training_uid||
+      !Array.isArray(process.uid_slots)||process.uid_slots.length!==4||
+      process.uid_slots.some((uid)=>uid!==value.training_uid)||
+      typeof process.start_time_ticks!=="string"||
+      !/^[1-9][0-9]*$/u.test(process.start_time_ticks)||
+      !Number.isSafeInteger(process.thread_count)||process.thread_count<1||
+      typeof process.thread_inventory_sha256!=="string"||
+      !/^[0-9a-f]{64}$/u.test(process.thread_inventory_sha256)||
+      process.thread_set_stable!==true||
+      process.all_threads_capability_free!==true
+    )fail(code);
+    validateCapabilities(process.capabilities);
+    threadTotal+=process.thread_count;
+    if(process.pid===value.training_pid)selected=process;
+    previousPid=process.pid;
+  }
   if(
-    value.training_process_capabilities.ambient!=="0"||
-    value.training_process_capabilities.effective!=="0"||
-    value.training_process_capabilities.inheritable!=="0"||
-    value.training_process_capabilities.permitted!=="0"||
-    value.training_process_capabilities.no_new_privileges!==true
+    threadTotal!==value.training_uid_thread_count||
+    selected===null||
+    selected.start_time_ticks!==value.training_process_start_time_ticks||
+    canonicalApollyonCustodyHostPolicyJsonV1(selected.capabilities)!==
+      canonicalApollyonCustodyHostPolicyJsonV1(value.training_process_capabilities)
   )fail(code);
+
   const expected=[
     {action_id:"org.freedesktop.systemd1.manage-units",details:[]},
     ...SYSTEMD_MANAGE_UNIT_VERBS.map((verb)=>({
@@ -151,6 +274,36 @@ function normalizeServiceControl(value,identities){
     })),
     ...SYSTEMD_GLOBAL_CONTROL_ACTIONS.map((action_id)=>({action_id,details:[]})),
   ];
+  const expectedDenied=expected.map((entry)=>({
+    action_id:entry.action_id,
+    details:entry.details,
+    exit_status:1,
+    result:"explicitly_denied",
+  }));
+  const expectedBusDigest=crypto.createHash("sha256")
+    .update(canonicalApollyonCustodyHostPolicyJsonV1(expectedDenied))
+    .digest("hex");
+  const admittedPids=new Set(value.training_uid_processes.map((process)=>process.pid));
+  let previousBusName="";
+  for(const sender of value.actual_system_bus_senders){
+    exactKeys(sender,[
+      "all_systemd_control_actions_explicitly_denied","bus_name",
+      "checked_action_count","denial_transcript_sha256","pid",
+      "subject_type","uid",
+    ],code);
+    if(
+      typeof sender.bus_name!=="string"||
+      !/^:[0-9]+\.[0-9]+$/u.test(sender.bus_name)||
+      (previousBusName!==""&&sender.bus_name<=previousBusName)||
+      !Number.isSafeInteger(sender.pid)||!admittedPids.has(sender.pid)||
+      sender.uid!==value.training_uid||
+      sender.subject_type!=="system-bus-name"||
+      sender.all_systemd_control_actions_explicitly_denied!==true||
+      sender.checked_action_count!==expectedDenied.length||
+      sender.denial_transcript_sha256!==expectedBusDigest
+    )fail(code);
+    previousBusName=sender.bus_name;
+  }
   if(!Array.isArray(value.checked_actions)||value.checked_actions.length!==expected.length){
     fail(code);
   }
@@ -172,13 +325,31 @@ function normalizeServiceControl(value,identities){
       details:Object.freeze(entry.details.map((detail)=>Object.freeze({...detail}))),
     }))),
     training_process_capabilities:Object.freeze({...value.training_process_capabilities}),
+    actual_system_bus_senders:Object.freeze(
+      value.actual_system_bus_senders.map((sender)=>Object.freeze({...sender})),
+    ),
+    training_uid_processes:Object.freeze(
+      value.training_uid_processes.map((process)=>Object.freeze({
+        ...process,
+        uid_slots:Object.freeze([...process.uid_slots]),
+        capabilities:Object.freeze({...process.capabilities}),
+      })),
+    ),
   });
 }
 function historicalV1Input(input,sp){
   return Object.freeze({
     consumed_directory:input.consumed_directory,
     evidence_snapshot:input.evidence_snapshot,
-    identities:input.identities,
+    identities:Object.freeze({
+      custody_gid:input.identities.custody_gid,
+      custody_supplementary_gids:input.identities.custody_supplementary_gids,
+      custody_uid:input.identities.custody_uid,
+      ipc_gid:input.identities.ipc_gid,
+      training_gid:input.identities.training_gid,
+      training_supplementary_gids:input.identities.training_supplementary_gids,
+      training_uid:input.identities.training_uid,
+    }),
     marker:VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V1,
     service:input.service,
     socket:input.socket,
@@ -206,8 +377,9 @@ export function qualifyApollyonCustodyHostPolicyV2(input){
      input.version!==2||input.target_host!=="Xiphos"){
     fail("apollyon_custody_policy_v2_input_invalid");
   }
+  const identities=normalizeIdentitiesV2(input.identities);
   const socketParent=normalizeSocketParentV2(input.socket_parent);
-  const serviceControl=normalizeServiceControl(input.service_control,input.identities);
+  const serviceControl=normalizeServiceControl(input.service_control,identities);
   if(input.service?.runtime_can_control_service!==serviceControl.runtime_can_control_service){
     fail("apollyon_custody_policy_v2_service_control_mismatch");
   }
@@ -215,7 +387,9 @@ export function qualifyApollyonCustodyHostPolicyV2(input){
   if(v1.ok!==true||v1.status!=="source_policy_qualified"){
     fail("apollyon_custody_policy_v2_historical_v1_reuse_failed");
   }
-  const normalized=Object.freeze({...input,socket_parent:socketParent,service_control:serviceControl});
+  const normalized=Object.freeze({
+    ...input,identities,socket_parent:socketParent,service_control:serviceControl,
+  });
   const qualificationId="apollyon_custody_policy_v2:"+
     crypto.createHash("sha256")
       .update(canonicalApollyonCustodyHostPolicyJsonV1(normalized)).digest("hex");

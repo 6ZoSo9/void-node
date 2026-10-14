@@ -14,12 +14,24 @@ symlink/write exposure, and derives training UID rename/unlink denial through th
 socket parent's immediate parent.
 
 The caller must also supply the exact live training PID. V84 binds that PID to
-its /proc start-time ticks and UID, requires zero CapInh/CapPrm/CapEff/CapAmb
-and NoNewPrivs=1. It binds the installed systemd package version from
-`systemctl --version` to the running PID 1 manager's D-Bus
-`org.freedesktop.systemd1.Manager.Version` property, requires exact equality,
-and requires both to resolve to reviewed major 255. An upgraded userspace with
-an older still-running manager therefore HOLDS.
+its /proc start-time ticks and UID. Process discovery walks every
+`/proc/<tgid>/task/<tid>/status`; if any thread touches the training UID, its
+whole thread group enters the admitted inspection set. The process inventory
+must remain stable across a second scan. For every admitted process it
+enumerates
+`/proc/<pid>/task/<tid>` twice and requires every thread credential transcript
+to remain stable: all four UID slots equal the training UID, zero
+CapInh/CapPrm/CapEff/CapAmb, and NoNewPrivs=1. Evidence carries bounded thread
+counts and SHA-256 inventory digests per process plus a total thread count. A
+privileged sibling process or sibling thread therefore cannot be hidden behind
+a harmless selected PID.
+
+The collector pins systemd to the exact reviewed package generation
+`255.4-1ubuntu8.11`. It obtains the Unix PID owning
+`org.freedesktop.systemd1` via the system-bus
+`GetConnectionUnixProcessID` method and requires that owner to be PID 1 before
+reading `org.freedesktop.systemd1.Manager.Version`. Installed package,
+running-manager version and reviewed package generation must match exactly.
 
 The collector also requires the exact reviewed early Polkit rule at
 `/etc/polkit-1/rules.d/00-void-apollyon-training-custody-deny-v1.rules`.
@@ -31,10 +43,51 @@ directories, and deny the training user by action ID only for
 `polkit.message` / `polkit.gettext_domain` request details.
 
 The collector then performs non-interactive `/usr/bin/pkcheck` probes for the
-reviewed systemd control surface. Only exit status 1 is accepted as explicit
-denial. RefuseManualStart/Stop remain
-defense-in-depth unit facts; they no longer independently justify
-`runtime_can_control_service=false`.
+reviewed systemd control surface. It retains the PID/start-time/UID
+`--process` probes as defense-in-depth, and separately enumerates the live
+unique system-bus names using `busctl`. The listing row's PID and user are
+used only as a conservative candidate prefilter. Rows whose listed PID is not in
+the admitted training-process set and whose listed user is neither the training
+user nor training UID are not credential-queried; this excludes the collector's
+own short-lived root `busctl list` connection without turning its disappearance
+into a false HOLD. Any row that could belong to the training boundary must still
+survive authoritative D-Bus PID/UID lookup; lookup failure, list/credential PID
+drift, or PID/UID mismatch HOLDS.
+
+For every admitted live bus connection, both authenticated PID and UID must match
+the training identity exactly. Each such connection is probed using
+`pkcheck --system-bus-name` across the full reviewed control surface, then the
+relevant bus-sender set is collected again and must be unchanged. A unique name
+that disappears or fails either authenticated PID/UID lookup causes HOLD rather
+than being omitted from the census. Evidence contains a bounded sender list with
+identity, action count, and the SHA-256 of its canonical all-denied transcript.
+
+The complete training-process inventory is then collected again after the bus
+checks and compared using PID + process start time + thread inventory digest.
+That closes PID-reuse ambiguity across the authorization window and is surfaced
+as `training_uid_process_identity_stable_across_authorization=true`.
+
+Only exit status 1 is accepted as explicit denial. RefuseManualStart/Stop remain
+defense-in-depth unit facts.
+
+The collector intentionally does **not** convert these endpoint observations
+into an absolute service-control claim. It cannot prove that the training
+execution boundary lacks a pre-authenticated system-bus descriptor inherited or
+received under different credentials, nor can two endpoint snapshots rule out a
+connection that exists only between those snapshots. Its service-control
+evidence therefore reports:
+
+```text
+inherited_system_bus_descriptor_absence_required=true
+inherited_system_bus_descriptor_absence_proven=false
+absolute_runtime_service_control_denial_proven=false
+runtime_can_control_service=null
+```
+
+The V2 policy requires the missing provenance proof to be true, so this current
+collector deliberately HOLDS before live source-policy qualification. A later
+reviewed training-launch/runtime isolation gate must close that descriptor
+provenance boundary; this collector does not manufacture it.
 
 It emits VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2 version 2 with a separate
 `service_control` transcript. It performs no filesystem/service mutation,
