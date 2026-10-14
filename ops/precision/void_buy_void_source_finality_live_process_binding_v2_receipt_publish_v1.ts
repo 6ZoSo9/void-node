@@ -192,18 +192,74 @@ function receiptBytes(receipt:BuyVoidSourceFinalityLiveProcessBindingReceiptV2):
   if(bytes.length<2||bytes.length>MAX_RECEIPT_BYTES)fail("publisher_receipt_size_invalid");
   return bytes;
 }
-function verifyInstalled(target:string,expected:Buffer):void{
+function sameReceiptIdentity(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+function fsyncDirectory(parent:string):void{
+  const d=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
+  try{fs.fsyncSync(d);}finally{fs.closeSync(d);}
+}
+function readInstalledCanonicalReceipt(target:string):Readonly<{
+  bytes:Buffer;
+  receipt:BuyVoidSourceFinalityLiveProcessBindingReceiptV2;
+  identity:fs.Stats;
+}>{
   proveRootCustodyPath(target,false);
-  const st=fs.lstatSync(target);
-  if(st.gid!==0||st.nlink!==1||(st.mode&0o777)!==0o444){
+  const before=fs.lstatSync(target);
+  if(before.gid!==0||before.nlink!==1||(before.mode&0o777)!==0o444){
     fail("publisher_receipt_metadata_invalid");
   }
-  if(!fs.readFileSync(target).equals(expected))fail("publisher_receipt_bytes_mismatch");
+  const fd=fs.openSync(
+    target,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const opened=fs.fstatSync(fd);
+    if(!sameReceiptIdentity(before,opened)){
+      fail("publisher_receipt_open_identity_mismatch");
+    }
+    const bytes=fs.readFileSync(fd);
+    const after=fs.fstatSync(fd);
+    const visible=fs.lstatSync(target);
+    if(
+      !sameReceiptIdentity(opened,after)||
+      !sameReceiptIdentity(after,visible)||
+      bytes.length!==after.size
+    )fail("publisher_receipt_changed_during_read");
+    let rebuilt:BuyVoidSourceFinalityLiveProcessBindingReceiptV2;
+    try{
+      const parsed=JSON.parse(
+        new TextDecoder("utf-8",{fatal:true}).decode(bytes),
+      ) as Record<string,unknown>;
+      if(!parsed||typeof parsed!=="object"||Array.isArray(parsed)){
+        fail("publisher_existing_receipt_invalid");
+      }
+      const receiptId=String(parsed.receipt_id||"");
+      const material={...parsed};
+      delete material.receipt_id;
+      rebuilt=buildBuyVoidSourceFinalityLiveProcessBindingReceiptV2(
+        material as unknown as BuyVoidSourceFinalityLiveProcessBindingMaterialV2,
+      );
+      if(
+        rebuilt.receipt_id!==receiptId||
+        !receiptBytes(rebuilt).equals(bytes)
+      )fail("publisher_existing_receipt_invalid");
+    }catch{
+      fail("publisher_existing_receipt_invalid");
+    }
+    return Object.freeze({bytes,receipt:rebuilt,identity:after});
+  }finally{fs.closeSync(fd);}
+}
+function verifyInstalled(target:string,expected:Buffer):void{
+  const observed=readInstalledCanonicalReceipt(target);
+  if(!observed.bytes.equals(expected))fail("publisher_receipt_bytes_mismatch");
 }
 export function installBuyVoidV2LiveProcessReceiptCreateOnceV1(input:{
   target_path:string;
   receipt:BuyVoidSourceFinalityLiveProcessBindingReceiptV2;
-}):Readonly<{created:boolean;already_matching:boolean}>{
+}):Readonly<{created:boolean;already_matching:boolean;retired_stale:boolean}>{
   if(process.platform!=="linux")fail("publisher_linux_required");
   if(typeof process.getuid!=="function"||process.getuid()!==0)fail("publisher_root_required");
   const target=path.resolve(input.target_path);
@@ -211,9 +267,26 @@ export function installBuyVoidV2LiveProcessReceiptCreateOnceV1(input:{
   const parent=path.dirname(target);
   proveRootCustodyPath(parent,true);
   const bytes=receiptBytes(input.receipt);
+  let retiredStale=false;
   if(fs.existsSync(target)){
-    verifyInstalled(target,bytes);
-    return Object.freeze({created:false,already_matching:true});
+    const existing=readInstalledCanonicalReceipt(target);
+    if(existing.bytes.equals(bytes)){
+      return Object.freeze({
+        created:false,
+        already_matching:true,
+        retired_stale:false,
+      });
+    }
+    const visible=fs.lstatSync(target);
+    if(!sameReceiptIdentity(existing.identity,visible)){
+      fail("publisher_existing_receipt_changed_before_retirement");
+    }
+    fs.unlinkSync(target);
+    fsyncDirectory(parent);
+    if(fs.existsSync(target)){
+      fail("publisher_stale_receipt_retirement_failed");
+    }
+    retiredStale=true;
   }
   const temp=path.join(parent,"."+path.basename(target)+".tmp-"+process.pid+"-"+crypto.randomBytes(8).toString("hex"));
   let fd=-1;
@@ -230,15 +303,21 @@ export function installBuyVoidV2LiveProcessReceiptCreateOnceV1(input:{
       if(error?.code!=="EEXIST")throw error;
       verifyInstalled(target,bytes);
       fs.unlinkSync(temp);
-      const d=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-      try{fs.fsyncSync(d);}finally{fs.closeSync(d);}
-      return Object.freeze({created:false,already_matching:true});
+      fsyncDirectory(parent);
+      return Object.freeze({
+        created:false,
+        already_matching:true,
+        retired_stale:retiredStale,
+      });
     }
     fs.unlinkSync(temp);
-    const d=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-    try{fs.fsyncSync(d);}finally{fs.closeSync(d);}
+    fsyncDirectory(parent);
     verifyInstalled(target,bytes);
-    return Object.freeze({created:true,already_matching:false});
+    return Object.freeze({
+      created:true,
+      already_matching:false,
+      retired_stale:retiredStale,
+    });
   }finally{
     if(fd>=0)fs.closeSync(fd);
     if(fs.existsSync(temp))fs.unlinkSync(temp);
@@ -254,8 +333,7 @@ export function rollbackNewBuyVoidV2LiveProcessReceiptV1(input:{
   const bytes=receiptBytes(input.receipt);
   verifyInstalled(target,bytes);
   fs.unlinkSync(target);
-  const d=fs.openSync(path.dirname(target),fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-  try{fs.fsyncSync(d);}finally{fs.closeSync(d);}
+  fsyncDirectory(path.dirname(target));
 }
 function samePlan(a:BuyVoidV2LiveProcessCollectionPlanV1,b:BuyVoidV2LiveProcessCollectionPlanV1):void{
   if(a.plan_id!==b.plan_id)fail("publisher_live_generation_changed");
@@ -357,6 +435,7 @@ async function main():Promise<void>{
   console.log("receipt_publication=true");
   console.log("receipt_created="+String(result.created));
   console.log("receipt_already_matching="+String(result.already_matching));
+  console.log("stale_receipt_retired="+String(result.retired_stale));
   console.log("post_publication_generation_recheck=true");
   console.log("service_mutation=false");
   console.log("rpc_contact=false");
