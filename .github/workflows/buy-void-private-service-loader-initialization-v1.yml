@@ -1,6 +1,25 @@
 name: VOID Buy VOID private service loader initialization v1
 
 on:
+  push:
+    branches:
+      - "ren/buy-void-private-service-loader-initialization-v1-20261013"
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs"
+      - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
+      - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_chain2050_composition_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_inspection_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_broadcaster_submission_activation_v1.ts"
+      - "src/economic/buy_void_prepared_transaction_custodian_credential_composition_v1.ts"
+      - "scripts/prove_buy_void_private_service_loader_initialization_v1.mjs"
+      - "docs/architecture/buy-void-private-service-loader-initialization-v1.md"
+      - ".github/workflows/buy-void-private-service-loader-initialization-v1.yml"
   pull_request:
     paths:
       - "package.json"
@@ -23,7 +42,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buy-void-private-service-loader-initialization-v1-${{ github.event.pull_request.number }}
+  group: buy-void-private-service-loader-initialization-v1-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +58,7 @@ jobs:
       - name: Checkout exact PR head without stored credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -118,15 +137,15 @@ jobs:
       - name: Upload exact initialization report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-private-service-loader-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          name: buy-void-private-service-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
           path: ${{ runner.temp }}/private-service-loader-node-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 1
 
       - name: Exact committed-range diff hygiene
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || '99c9b6a5aaaf0f4a5440ebc2dfade3fba70dfc1e' }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
@@ -142,7 +161,7 @@ jobs:
       - name: Download Node 22 24 26 reports
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-private-service-loader-${{ github.event.pull_request.head.sha }}-node-*
+          pattern: buy-void-private-service-loader-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: ./reports
 
