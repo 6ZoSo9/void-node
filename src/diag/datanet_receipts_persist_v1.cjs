@@ -174,7 +174,14 @@ async function scanOnceUnlocked() {
         settle(reject, new Error(code));
         try {
           if (typeof rs.destroy === "function") rs.destroy();
-        } catch {}
+        } catch (destroyError) {
+          try {
+            console.error("[datanet_receipts_persist_v1] stream destroy failed");
+          } catch (logError) {
+            void logError;
+          }
+          void destroyError;
+        }
       };
       deadlineTimer = setTimeout(
         () => rejectAndDestroy("scan_timeout"),
