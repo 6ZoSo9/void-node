@@ -3,7 +3,6 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS,
   canonicalJson,
   contentId,
   validateTorNativeEndpoints,
@@ -175,7 +174,20 @@ export function validateTorBootstrapManifestContract(rawManifest, nowMs = Date.n
   if (manifest.manifest_id !== manifestId) {
     throw new Error("Tor bootstrap signed manifest ID does not match its content");
   }
-  const endpoints = validateTorNativeEndpoints(manifest.onion_endpoints, nowMs);
+  // Qualification freshness is an issuance-time claim. Current endpoint health
+  // is established separately by the live Tor readiness probe before use.
+  const endpoints = validateTorNativeEndpoints(
+    manifest.onion_endpoints,
+    generatedAt,
+  );
+  for (const endpoint of endpoints) {
+    const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));
+    if (!Number.isFinite(qualifiedAt) || qualifiedAt > generatedAt) {
+      throw new Error(
+        "Tor bootstrap signed-manifest qualification must not postdate manifest issuance",
+      );
+    }
+  }
   return Object.freeze({
     manifest: Object.freeze(structuredClone(manifest)),
     manifestId,
@@ -397,22 +409,10 @@ export function classifyTorBootstrapSignedManifestLifecycle(
     const staleReasons = [];
     if (expiresAt <= nowMs) staleReasons.push("manifest_expired");
 
-    for (const endpoint of manifest.onion_endpoints) {
-      if (endpoint.enabled !== true) continue;
-      const qualifiedAt = Date.parse(String(endpoint.qualified_at || ""));
-      if (
-        !Number.isFinite(qualifiedAt) ||
-        qualifiedAt > nowMs + 5 * 60 * 1000
-      ) {
-        throw currentError;
-      }
-      if (nowMs - qualifiedAt > TOR_NATIVE_DEFAULT_MAX_QUALIFICATION_AGE_MS) {
-        if (!staleReasons.includes("qualification_stale")) {
-          staleReasons.push("qualification_stale");
-        }
-      }
-    }
-
+    // An endpoint qualification that was fresh when this signed manifest was
+    // issued remains provenance evidence for the signed identity. Runtime
+    // availability is never inferred from that old sample; the resolver must
+    // still perform a fresh live readiness probe before returning the endpoint.
     if (staleReasons.length === 0) throw currentError;
     return Object.freeze({
       ...historical,
