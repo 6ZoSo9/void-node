@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,12 +24,19 @@ export const DEPLOYMENT_RECEIPT_PATH =
 export const APPLY_CONFIRMATION =
   "installBuyVoidSourceFinalityProviderPairReceiptV1";
 
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SAFE_ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const DEPLOYMENT_ID=/^voidbsfdep1_[0-9a-f]{64}$/u;
 const ENFORCEMENT_LOCK_ID=/^voidbenfl1_[0-9a-f]{64}$/u;
 const MAX_BYTES=64*1024;
+export const VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1 =
+  "VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
+const VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1 =
+  "/opt/void-buy-void-v7-reviewed-v1";
+const VOID_BUY_VOID_V7_PROVIDER_PAIR_TOOL_REL_V1 =
+  "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts";
 
 type PairInput = Readonly<{
   base_primary_identity:string;
@@ -45,6 +53,99 @@ type DeploymentBinding = Readonly<{
   deployment_receipt_id:string;
   accepted_enforcement_set_sha256:string;
 }>;
+
+function protectedDispatchGitV1(args:string[]):string{
+  return execFileSync("/usr/bin/git",[
+    "--no-replace-objects",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.attributesFile=/dev/null",
+    "-c","core.fsmonitor=false",
+    "-c","core.untrackedCache=false",
+    "-c","core.preloadIndex=false",
+    "-c","submodule.recurse=false",
+    "-c","safe.directory="+ROOT,
+    "-C",ROOT,
+    ...args,
+  ],{
+    encoding:"utf8",
+    timeout:15_000,
+    maxBuffer:1024*1024,
+    stdio:["ignore","pipe","pipe"],
+    env:{
+      PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+      GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
+      GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",
+      GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0",
+    },
+  }).trim();
+}
+function protectedDispatchBlobV1(bytes:Buffer):string{
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
+    .update(bytes).digest("hex");
+}
+function assertProtectedDispatchSourceCustodyV1(absolute:string,directory:boolean):void{
+  const resolved=path.resolve(absolute);
+  assert.equal(resolved,absolute,"protected_dispatch_path_not_canonical");
+  const leaf=fs.lstatSync(absolute);
+  assert.equal(leaf.isSymbolicLink(),false,"protected_dispatch_symlink_forbidden");
+  assert.equal(directory?leaf.isDirectory():leaf.isFile(),true,
+    "protected_dispatch_path_type_invalid");
+  assert.equal(leaf.uid,0,"protected_dispatch_path_not_root_owned");
+  assert.equal(leaf.mode&0o022,0,"protected_dispatch_path_writable");
+  if(!directory)assert.equal(leaf.nlink,1,"protected_dispatch_tool_link_count_invalid");
+  let cursor=directory?absolute:path.dirname(absolute);
+  for(;;){
+    const st=fs.lstatSync(cursor);
+    assert.ok(st.isDirectory()&&!st.isSymbolicLink(),
+      "protected_dispatch_ancestor_invalid:"+cursor);
+    assert.equal(st.uid,0,"protected_dispatch_ancestor_not_root_owned:"+cursor);
+    assert.equal(st.mode&0o022,0,"protected_dispatch_ancestor_writable:"+cursor);
+    if(cursor==="/")break;
+    cursor=path.dirname(cursor);
+  }
+}
+export function assertBuyVoidV7ProtectedProviderPairDispatchV1(
+  env:NodeJS.ProcessEnv=process.env,
+):void{
+  assert.equal(process.geteuid?.(),0,"protected_dispatch_root_required");
+  assert.equal(ROOT,VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT_V1,
+    "protected_dispatch_fixed_source_root_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_DISPATCH,
+    VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1,
+    "protected_dispatch_marker_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_NATIVE_PREENTRY,
+    "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1",
+    "protected_dispatch_native_preentry_marker_required");
+  assert.equal(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT,ROOT,
+    "protected_dispatch_source_root_mismatch");
+  const commit=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT||"");
+  const tree=String(env.VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE||"");
+  const toolPath=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH||"");
+  const toolBlob=String(env.VOID_BUY_VOID_V7_PROTECTED_TOOL_BLOB_SHA1||"");
+  assert.match(commit,SHA40,"protected_dispatch_commit_invalid");
+  assert.match(tree,SHA40,"protected_dispatch_tree_invalid");
+  assert.equal(toolPath,VOID_BUY_VOID_V7_PROVIDER_PAIR_TOOL_REL_V1,
+    "protected_dispatch_tool_path_mismatch");
+  assert.match(toolBlob,SHA40,"protected_dispatch_tool_blob_invalid");
+  assertProtectedDispatchSourceCustodyV1(ROOT,true);
+  const toolAbsolute=path.join(ROOT,...toolPath.split("/"));
+  assert.equal(fileURLToPath(import.meta.url),toolAbsolute,
+    "protected_dispatch_module_path_mismatch");
+  assertProtectedDispatchSourceCustodyV1(toolAbsolute,false);
+  const currentCommit=protectedDispatchGitV1(["rev-parse","--verify","HEAD^{commit}"]);
+  const currentTree=protectedDispatchGitV1(["rev-parse","--verify","HEAD^{tree}"]);
+  const currentBranch=protectedDispatchGitV1(["symbolic-ref","--short","-q","HEAD"]);
+  const currentStatus=protectedDispatchGitV1(["status","--porcelain=v1","--untracked-files=all"]);
+  assert.equal(currentCommit,commit,"protected_dispatch_commit_mismatch");
+  assert.equal(currentTree,tree,"protected_dispatch_tree_mismatch");
+  assert.equal(currentBranch,"main","protected_dispatch_branch_not_main");
+  assert.equal(currentStatus,"","protected_dispatch_tree_dirty");
+  const tracked=protectedDispatchGitV1(["rev-parse","--verify","HEAD:"+toolPath]);
+  const visible=protectedDispatchBlobV1(fs.readFileSync(toolAbsolute));
+  assert.equal(tracked,toolBlob,"protected_dispatch_tracked_blob_mismatch");
+  assert.equal(visible,toolBlob,"protected_dispatch_visible_blob_mismatch");
+}
 
 export function assertProviderPairApplyBindingV1(input:{
   expected_receipt_id:string;
@@ -549,6 +650,9 @@ function parseArgs(argv:string[]){
 
 function main():void{
   const args=parseArgs(process.argv.slice(2));
+  if(args.mode==="apply"){
+    assertBuyVoidV7ProtectedProviderPairDispatchV1();
+  }
   console.log(MARKER);
   console.log("mode="+args.mode);
   console.log("raw_rpc_url_input=false");
