@@ -185,13 +185,17 @@ try{
     const originalWriteFile=fs.writeFileSync;
     const originalRename=fs.renameSync;
     let tempPath="";
+    let tempVisiblePath="";
     let injected=false;
     fs.openSync=function(file,...args){
       const fd=originalOpen.call(fs,file,...args);
       if(
         typeof file==="string"&&file.includes("/proc/self/fd/")&&
         file.includes(".rate-state.json.tmp.")
-      ) tempPath=file;
+      ){
+        tempPath=file;
+        tempVisiblePath=path.join(tempRaceRoot,path.basename(file));
+      }
       return fd;
     };
     fs.writeFileSync=function(file,...args){
@@ -214,9 +218,10 @@ try{
       fs.writeFileSync=originalWriteFile;
     }
     assert.equal(injected,true);
-    assert.equal(fs.readFileSync(tempPath,"utf8"),"foreign\n",
+    assert.ok(tempVisiblePath,"canonical temp path was not captured");
+    assert.equal(fs.readFileSync(tempVisiblePath,"utf8"),"foreign\n",
       "cleanup must not unlink substituted foreign temp inode");
-    assert.equal(fs.existsSync(tempPath+".created"),true);
+    assert.equal(fs.existsSync(tempVisiblePath+".created"),true);
   }finally{
     fs.rmSync(tempRaceRoot,{recursive:true,force:true});
   }
