@@ -19,7 +19,7 @@ const NATIVE_PREENTRY=path.join(
 const NATIVE_PREENTRY_BLOB_SHA1=
   "7863007de9d55614305be4d01083c3f8e8bd7453";
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "e6a8cb82323df130f72de4f937db13b97460f47a";
+  "61aa52d8c91387fa0fa9de914f2625661f49ecb3";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -100,6 +100,11 @@ for(const required of [
   'env=sanitized_environment(private_root)',
   'runner_tmpdir_bound_to_outer_private_root=true',
   'timeout_inner_tree_parent_cleanup=true',
+  'mode&(stat.S_ISUID|stat.S_ISGID)',
+  'setuid_setgid_node_rejected=true',
+  'def classify_runtime_returncode(returncode:int)',
+  'apollyon_v2_installed_launcher_runtime_signaled:',
+  'signal_terminated_node_classified_to_hold=true',
 ]){
   assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
 }
@@ -272,6 +277,8 @@ console.log("runner_cleanup_failure_persistence_unknown=true");
 console.log("launcher_cleanup_failure_persistence_unknown=true");
 console.log("runner_tmpdir_bound_to_outer_private_root=true");
 console.log("timeout_inner_tree_parent_cleanup=true");
+console.log("setuid_setgid_node_rejected=true");
+console.log("signal_terminated_node_classified_to_hold=true");
 console.log("two_live_observations_required=true");
 console.log("socket_parent_namespace_v2_required=true");
 console.log("live_host_qualification_performed_capability=true");
