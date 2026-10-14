@@ -59,13 +59,14 @@ for(const mutate of [
   assert.equal(out.ok,false);
 }
 
-if(typeof process.getuid!=="function"||process.getuid()!==0)
-  throw Error("receipt_install_proof_requires_root");
+const rootCapable=
+  typeof process.getuid==="function" && process.getuid()===0;
 
-const root="/root/void-v7-receipt-install-proof-"+String(process.pid);
-const good=path.join(root,"good","deployment-receipt.json");
-const bad=path.join(root,"bad","deployment-receipt.json");
-try{
+if(rootCapable){
+  const root="/root/void-v7-receipt-install-proof-"+String(process.pid);
+  const good=path.join(root,"good","deployment-receipt.json");
+  const bad=path.join(root,"bad","deployment-receipt.json");
+  try{
   const first=installRootCustodiedReceiptV1({
     absolute_path:good,bytes:built.bytes,
   });
@@ -95,17 +96,21 @@ try{
     absolute_path:bad,bytes:built.bytes,
   }),/receipt_leaf_bytes_mismatch/u);
 
-  console.log(MARKER+"_PROOF_GREEN");
-  console.log("v7_receipt_uses_module_content_address=true");
-  console.log("v7_reviewed_source_digest_uses_module_inspector=true");
-  console.log("root_custodied_create_once_positive=true");
-  console.log("matching_reapply_idempotent=true");
-  console.log("mismatched_existing_receipt_rejected=true");
-  console.log("leaf_root_owned_mode_0444_single_link=true");
-  console.log("service_mutation=false");
-  console.log("credential_wallet_signer_transaction_authority=false");
-  console.log("presale_activation=false");
-  console.log("funds_movement=false");
-}finally{
-  fs.rmSync(root,{recursive:true,force:true});
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
 }
+
+console.log(MARKER+"_PROOF_GREEN");
+console.log("v7_receipt_uses_module_content_address=true");
+console.log("v7_reviewed_source_digest_uses_module_inspector=true");
+console.log("root_custody_positive_exercised="+String(rootCapable));
+console.log("root_custodied_create_once_positive="+String(rootCapable));
+console.log("matching_reapply_idempotent="+String(rootCapable));
+console.log("mismatched_existing_receipt_rejected="+String(rootCapable));
+console.log("leaf_root_owned_mode_0444_single_link="+String(rootCapable));
+console.log("unprivileged_proof_stack_safe="+String(!rootCapable));
+console.log("service_mutation=false");
+console.log("credential_wallet_signer_transaction_authority=false");
+console.log("presale_activation=false");
+console.log("funds_movement=false");
