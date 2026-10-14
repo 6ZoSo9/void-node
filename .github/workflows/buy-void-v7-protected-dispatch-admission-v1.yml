@@ -1,0 +1,99 @@
+name: VOID Buy VOID protected dispatch admission v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "scripts/prove_buy_void_v7_protected_dispatch_admission_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "docs/operators/buy-void-v7-protected-dispatch-admission-v1.md"
+      - ".github/workflows/buy-void-v7-protected-dispatch-admission-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "scripts/prove_buy_void_v7_protected_dispatch_admission_v1.mjs"
+      - "scripts/prove_buy_void_source_finality_v7_privileged_launcher_v1.mjs"
+      - "docs/operators/buy-void-v7-protected-dispatch-admission-v1.md"
+      - ".github/workflows/buy-void-v7-protected-dispatch-admission-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove dispatch source contract
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          node scripts/prove_buy_void_v7_protected_dispatch_admission_v1.mjs |
+            tee "$RUNNER_TEMP/protected-dispatch.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_DISPATCH_ADMISSION_V1_GREEN' "$RUNNER_TEMP/protected-dispatch.log"
+          grep -Fx 'protected_launcher_only_persistent_mutation_entry=true' "$RUNNER_TEMP/protected-dispatch.log"
+          grep -Fx 'protected_dispatch_exact_root_commit_tree_tool_blob_bound=true' "$RUNNER_TEMP/protected-dispatch.log"
+          grep -Fx 'native_launcher_exact_size_sha256_bound=true' "$RUNNER_TEMP/protected-dispatch.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/protected-dispatch.log"
+      - name: Direct root CLI apply must refuse mutable checkout
+        if: matrix.node == 24
+        run: |
+          set -euo pipefail
+          nodebin="$(command -v node)"
+          loader="file://$PWD/node_modules/tsx/dist/loader.mjs"
+
+          if sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC               "$nodebin" --import "$loader"               ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts               --apply               --expected-commit 1111111111111111111111111111111111111111               --expected-tree 2222222222222222222222222222222222222222               --accepted-enforcement-lock-path ops/security/never-used.json               --confirm-create-v7-deployment-receipt               >"$RUNNER_TEMP/direct-deployment.out" 2>"$RUNNER_TEMP/direct-deployment.err"; then
+            echo UNEXPECTED_DIRECT_DEPLOYMENT_APPLY >&2
+            exit 1
+          fi
+          grep -F 'protected_dispatch_fixed_source_root_required' "$RUNNER_TEMP/direct-deployment.err"
+
+          if sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC               "$nodebin" --import "$loader"               ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts               --apply --confirm installBuyVoidSourceFinalityProviderPairReceiptV1               >"$RUNNER_TEMP/direct-provider.out" 2>"$RUNNER_TEMP/direct-provider.err"; then
+            echo UNEXPECTED_DIRECT_PROVIDER_PAIR_APPLY >&2
+            exit 1
+          fi
+          grep -F 'protected_dispatch_fixed_source_root_required' "$RUNNER_TEMP/direct-provider.err"
+
+          if sudo env PATH=/usr/bin:/bin HOME=/root LANG=C LC_ALL=C TZ=UTC               "$nodebin" --import "$loader"               ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts               --apply --runtime-uid 1000 --runtime-gid 1000               --confirm publish-v7-live-process-binding-v2-receipt               >"$RUNNER_TEMP/direct-v2.out" 2>"$RUNNER_TEMP/direct-v2.err"; then
+            echo UNEXPECTED_DIRECT_V2_PUBLISH_APPLY >&2
+            exit 1
+          fi
+          grep -F 'protected_dispatch_fixed_source_root_required' "$RUNNER_TEMP/direct-v2.err"
+
+          echo VOID_BUY_VOID_V7_DIRECT_ROOT_CLI_APPLY_REFUSAL_GREEN
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git diff --check "$merge_base" "$HEAD"
