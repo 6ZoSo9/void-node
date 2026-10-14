@@ -19,7 +19,7 @@ const NATIVE_PREENTRY=path.join(
 const NATIVE_PREENTRY_BLOB_SHA1=
   "7863007de9d55614305be4d01083c3f8e8bd7453";
 const INSTALLED_LAUNCHER_BLOB_SHA1=
-  "431b91aafcb36b4aa2d77ec05061dc98cf7ec668";
+  "446d5af1a7bec9c099055366a597c0f62d2e7eae";
 const REVIEWED=Object.freeze({
   "tools/apollyon-custody-host-policy-qualification-v1.mjs":
     "6f34e79d94c502e31ca4923fd78922d4875550a5",
@@ -89,6 +89,11 @@ for(const required of [
   'apollyon_v2_installed_launcher_native_preentry_required',
   'apollyon_v2_installed_launcher_post_execution_cleanup_failed:',
   'post_execution_cleanup_failure_classified=true',
+  'runtime_exceptions_classified_to_hold=true',
+  'def classify_runtime_exception(',
+  'apollyon_v2_installed_launcher_runtime_timeout',
+  'apollyon_v2_installed_launcher_runtime_os_error',
+  'apollyon_v2_installed_launcher_runtime_subprocess_error',
   'cleanup_failure_retained_path_reported=true',
 ]){
   assert.equal(launcherSource.includes(required),true,"launcher missing "+required);
