@@ -127,7 +127,7 @@ function expectedLock(){return {"schema":"void_buy_void_enforcement_final_protec
 function verify(){
   verifyBranchDelta();verifyWorkflowTriggers();const bytes=candidateBytes();
   const tampered=JSON.parse(bytes.toString("utf8"));tampered.candidate_enforcement_identity_accepted=true;
-  assert.throws(()=>validateCandidate(tampered),/Expected values to be strictly equal/u);
+  assert.throws(()=>validateCandidate(tampered),/candidate_enforcement_identity_accepted/u);
   const expected=Buffer.from(JSON.stringify(expectedLock(),null,2)+"\n","utf8");
   const actual=readExact(LOCK,64*1024);assert.ok(actual.equals(expected),"locked_manifest_not_exact");
   return expected;
