@@ -18,6 +18,13 @@ import {
 } from "../tools/void-public-earn-proxy-v2-rate-state-v1.mjs";
 
 const ROOT = process.cwd();
+const edgeSource = fs.readFileSync(
+  path.join(ROOT, "ops", "public", "void-public-earn-proxy-v2-edge-v1.mjs"),
+  "utf8",
+);
+assert.match(edgeSource, /socket\.on\("error", onClientError\)/u);
+assert.match(edgeSource, /clientSocket\.once\("close", onClientClose\)/u);
+assert.match(edgeSource, /public_earn_edge_client_disconnected/u);
 const EDGE = path.join(
   ROOT,
   "ops",
@@ -128,6 +135,42 @@ async function sendRequest(port, options, { splitBody = false } = {}) {
   );
 }
 
+async function resetAfterAdapterAdmission(
+  port,
+  options,
+  expectedAdapterCalls,
+) {
+  const parts = requestParts(options);
+  const socket = net.createConnection({
+    host: "127.0.0.1",
+    port,
+  });
+  socket.setNoDelay(true);
+  socket.on("error", () => {});
+  await once(socket, "connect");
+  socket.write(Buffer.concat([parts.head, parts.body]));
+  for (
+    let index = 0;
+    index < 160 && adapterCalls.length < expectedAdapterCalls;
+    index += 1
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(
+    adapterCalls.length >= expectedAdapterCalls,
+    true,
+    "reset fixture must reach delayed adapter before reset",
+  );
+  assert.equal(
+    typeof socket.resetAndDestroy,
+    "function",
+    "supported Node runtimes must expose resetAndDestroy",
+  );
+  const closed = once(socket, "close");
+  socket.resetAndDestroy();
+  await closed;
+}
+
 function startEdge({
   port,
   adapterPort,
@@ -193,6 +236,7 @@ async function stop(runtime) {
 }
 
 const adapterCalls = [];
+let delayNextAdapterResponse = false;
 const adapter = http.createServer(async (req, res) => {
   const chunks = [];
   for await (const chunk of req) {
@@ -206,6 +250,10 @@ const adapter = http.createServer(async (req, res) => {
     body,
   };
   adapterCalls.push(call);
+  if (delayNextAdapterResponse) {
+    delayNextAdapterResponse = false;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 
   let status = 202;
   let payload = { ok: true, accepted: true };
@@ -396,6 +444,29 @@ try {
   assert.equal(oversizedClaimResponse.status, 413);
   assert.equal(adapterCalls.length, callsBeforeOversizedClaim);
 
+  delayNextAdapterResponse = true;
+  const callsBeforeReset = adapterCalls.length;
+  await resetAfterAdapterAdmission(
+    info.port,
+    {
+      source: "203.0.113.41",
+      target: VOID_PUBLIC_EARN_CLAIM_PATH_V1,
+    },
+    callsBeforeReset + 1,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(
+    runtime.child.exitCode,
+    null,
+    "client reset after admission must not terminate Earn edge process",
+  );
+  const afterReset = await sendRequest(info.port, {
+    source: "203.0.113.42",
+    target: VOID_PUBLIC_EARN_CLAIM_PATH_V1,
+  });
+  assert.equal(afterReset.status, 202);
+  assert.equal(adapterCalls.length, callsBeforeReset + 2);
+
   const persisted = readVoidPublicEarnProxyV2RateStateV1(
     stateFile,
   );
@@ -438,6 +509,7 @@ try {
   console.log("unauthenticated_submit_spam_outer_limited=true");
   console.log("generic_mutation_route_forwarded=false");
   console.log("restart_rate_state_preserved=true");
+  console.log("post_admission_client_reset_process_survives=true");
   console.log("connector_process_identity_proven=false");
   console.log("installed_listener_ownership_proven=false");
   console.log("live_state_custody_proven=false");
