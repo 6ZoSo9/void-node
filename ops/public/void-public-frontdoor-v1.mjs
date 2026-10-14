@@ -21,6 +21,19 @@ const UPSTREAM_STATUS_MAX_AGE_MS = 30_000;
 const UPSTREAM_STATUS_PATH = "/__void/public-app/network.json";
 const UPSTREAM_MARKER = "VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1";
 const UPSTREAM_RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1";
+const SENSITIVE_EDGE_PATHS = Object.freeze([
+  "/__void/agents/paid-work/credential-requests/v1",
+  "/wc/public-earning-pilot-v1/claim-ticket",
+  "/wc/public-earning-pilot-v1/submit-result",
+]);
+
+function isSensitiveEdgeBypassV1(requestUrl) {
+  return SENSITIVE_EDGE_PATHS.some(
+    (candidate) =>
+      requestUrl.pathname === candidate ||
+      requestUrl.pathname.startsWith(candidate + "/"),
+  );
+}
 
 if (!Number.isSafeInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error("invalid frontdoor port");
 if (!Number.isSafeInteger(UPSTREAM_PORT) || UPSTREAM_PORT < 1 || UPSTREAM_PORT > 65535) throw new Error("invalid upstream port");
@@ -331,6 +344,20 @@ const server = http.createServer((req, res) => {
   } catch {
     res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
     res.end("bad request\n");
+    return;
+  }
+
+  if (isSensitiveEdgeBypassV1(requestUrl)) {
+    req.resume();
+    const body = Buffer.from("not public\n");
+    res.writeHead(404, {
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": body.byteLength,
+      "cache-control": "no-store",
+      "connection": "close",
+      "x-void-frontdoor": MARKER,
+    });
+    res.end(body);
     return;
   }
 
