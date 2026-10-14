@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix="void-public-earn-census-proof-") as tmp
         raise AssertionError("create-only evidence writer overwrote an existing file")
 
 sample_time = module.datetime.now(module.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z", sample_time)
+assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", sample_time)
 
 source = TARGET.read_text(encoding="utf-8")
 for required in [
