@@ -42,6 +42,10 @@ The census binds the exact reviewed runtime blobs inherited from Ready #2997:
 A running Node process is compared to the reviewed Git blob by reading only its
 entry-script bytes from argv[1]. The entry path itself is not emitted.
 
+The collector also independently re-hashes the four reviewed source files in
+the checkout and requires those Git blobs to match before
+`policy_candidate_observed=true` can be emitted.
+
 ## Canonical service units
 
 The observer checks these **system** units:
@@ -71,9 +75,10 @@ The collector may read:
 
 It never reads the rate-state file contents.
 
-Environment output is limited to the topology keys needed to derive ports. It
-does not emit the full process environment. The rate-state path is represented
-only by SHA-256 plus file metadata.
+Environment values are consumed only in memory to derive the topology and are
+removed from the emitted service evidence. The rate-state path is represented
+only by SHA-256 plus file metadata; neither the full process environment nor the
+raw state path is emitted.
 
 The raw nftables JSON is never printed or written into the census result; only
 presence, byte count and SHA-256 are emitted.
@@ -93,7 +98,8 @@ The census derives, without inventing values:
 - whether all three effective UIDs are non-root and pairwise distinct;
 - whether NoNewPrivileges is active and CAP_NET_ADMIN absent;
 - whether running entry scripts match the reviewed Git blobs;
-- exact IPv4-loopback listener ownership for the observed ports;
+- exact IPv4-loopback listener ownership for the Earn edge and both gateway
+  listener surfaces;
 - private same-UID rate-state custody shape.
 
 A `policy_candidate_observed=true` result is still **not** live acceptance.
