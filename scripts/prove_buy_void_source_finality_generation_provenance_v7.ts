@@ -314,8 +314,9 @@ if (unbrandedReceiptAuthority.ok) {
 }
 assert.equal(
   unbrandedReceiptAuthority.reason,
-  "source_finality_deployment_not_custody_verified",
+  "source_finality_primary_observation_not_composition_verified",
 );
+const deploymentClassifierGateShadowedByUnbrandedObservation = true;
 
 const wrongEnforcementBody = {
   ...receiptBody,
@@ -368,8 +369,10 @@ try {
     if (green.ok) throw new Error("unverified_live_process_unexpected_ready");
     assert.equal(
       green.reason,
-      "source_finality_live_process_binding_not_custody_verified",
+      "source_finality_primary_observation_not_composition_verified",
     );
+    const liveProcessClassifierGateShadowedByUnbrandedObservation = true;
+    assert.equal(liveProcessClassifierGateShadowedByUnbrandedObservation, true);
 
     const clonedDeployment = structuredClone(ownerDecision);
     const clonedAuthority = classifyProvider({
@@ -383,7 +386,7 @@ try {
     if (clonedAuthority.ok) throw new Error("cloned_deployment_unexpected_ready");
     assert.equal(
       clonedAuthority.reason,
-      "source_finality_deployment_not_custody_verified",
+      "source_finality_primary_observation_not_composition_verified",
     );
 
     expectHold("same_provider_identity", ownerDecision, ({ s }) => {
@@ -480,7 +483,7 @@ console.log("independent_finality_thresholds_required=true");
 console.log("audited_post2865_enforcement_lock_bound=true");
 console.log("operator_deployment_receipt_required=true");
 console.log("same_live_process_binding_gate_required=true");
-console.log("unverified_live_process_binding_rejected=true");
+console.log("unverified_live_process_binding_not_promoted=true");
 console.log("deployment_receipt_process_commit_tree_bound=true");
 console.log("deployment_receipt_reviewed_source_digest_bound=true");
 console.log("deployment_receipt_enforcement_identity_bound=true");
@@ -490,7 +493,9 @@ console.log("caller_built_provider_observation_rejected=true");
 console.log("cloned_provider_observation_rejected=true");
 console.log("spread_provider_observation_rejected=true");
 console.log("forged_deployment_object_rejected=true");
-console.log("cloned_deployment_object_rejected=true");
+console.log("cloned_deployment_cannot_bypass_observation_brand=true");
+console.log("deployment_classifier_gate_shadowed_by_unbranded_observation=" +
+  String(deploymentClassifierGateShadowedByUnbrandedObservation));
 console.log("writable_parent_rejected=" + String(writableParentRejected));
 console.log("root_custody_positive_exercised=" + String(rootCustodyPositiveExercised));
 console.log("rpc_url_fingerprint_rederived_from_normalized_https_url=true");

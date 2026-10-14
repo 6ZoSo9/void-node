@@ -103,10 +103,11 @@ jobs:
           grep -Fx 'audited_post2865_enforcement_lock_bound=true' "$proof_log"
           grep -Fx 'deployment_receipt_enforcement_identity_bound=true' "$proof_log"
           grep -Fx 'same_live_process_binding_gate_required=true' "$proof_log"
-          grep -Fx 'unverified_live_process_binding_rejected=true' "$proof_log"
+          grep -Fx 'unverified_live_process_binding_not_promoted=true' "$proof_log"
           grep -Fx 'deployment_receipt_root_owned_ancestor_custody_required=true' "$proof_log"
           grep -Fx 'forged_deployment_object_rejected=true' "$proof_log"
-          grep -Fx 'cloned_deployment_object_rejected=true' "$proof_log"
+          grep -Fx 'cloned_deployment_cannot_bypass_observation_brand=true' "$proof_log"
+          grep -Fx 'deployment_classifier_gate_shadowed_by_unbranded_observation=true' "$proof_log"
           grep -Fx 'writable_parent_rejected=true' "$proof_log"
           grep -Fx 'root_custody_positive_exercised=true' "$proof_log"
 
