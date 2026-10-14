@@ -36,10 +36,10 @@ The reviewed protected source root is fixed:
 /opt/void-buy-void-v7-reviewed-v1
 ```
 
-and the launcher body is fixed beneath it:
+and the non-executable launcher body is fixed beneath it:
 
 ```text
-/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh
+/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash
 ```
 
 Before any shell source is evaluated, the native pre-entry:
@@ -58,7 +58,7 @@ Before any shell source is evaluated, the native pre-entry:
   pathname supplied as `/proc/self/fd/<retained-fd>`; and
 - supplies a minimal fixed environment containing the native-entry marker.
 
-The shell body fails closed unless both the native marker and descriptor-form
+The historical `.sh` path remains executable only as a fail-only retirement stub so the repository-wide `ops/**/*.sh` executable guard stays intact. It cannot dispatch a receipt tool.\n\nThe shell body fails closed unless both the native marker and descriptor-form
 `BASH_SOURCE[0]` are present. Direct privileged invocation of either the
 repository checkout shell or the installed shell body is unsupported.
 

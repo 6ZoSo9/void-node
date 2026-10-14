@@ -21,7 +21,7 @@ const GIT_HELPER="scripts/prove_buy_void_reviewed_git_invocation_v1.mjs";
 const GIT_HELPER_BLOB="2df64e31debd4884f2d859d55a87e4ef15925d3d";
 const ACCEPTED_MANIFEST="ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json";
 const ACCEPTED_MANIFEST_BLOB="445bcfbf5feae928e0d9cc06d4d31c1ee186fe39";
-const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh";
+const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash";
 const NATIVE_PREENTRY="ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c";
 
 const ACCEPTED_PROFILE_ID="voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac";
@@ -193,7 +193,7 @@ export function derivePrivilegedLauncherPackageRuntimeV2(){
   for(const required of [
     '#define MARKER "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"',
     '#define FIXED_BASH "/usr/bin/bash"',
-    '#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"',
+    '#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"',
     'O_RDONLY | O_NOFOLLOW',
     'fexecve(bash_fd, next_argv, envp)',
     '"--noprofile"',

@@ -13,7 +13,7 @@
 #define MARKER "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"
 #define FIXED_SELF "/opt/void-buy-void-v7-preentry-v1/void_buy_void_source_finality_v7_native_preentry_v1"
 #define FIXED_BASH "/usr/bin/bash"
-#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
 #define PREENTRY_ENV "VOID_BUY_VOID_V7_NATIVE_PREENTRY=VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"
 
 static void hold(const char *reason) {

@@ -8,12 +8,14 @@ import { spawnSync } from "node:child_process";
 const MARKER="VOID_BUY_VOID_SOURCE_FINALITY_V7_PROTECTED_PRIVILEGED_LAUNCHER_V1";
 const NATIVE_MARKER="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
 const ROOT=process.cwd();
-const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh";
+const LAUNCHER="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash";
+const LEGACY_STUB="ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh";
 const NATIVE="ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c";
 const FIXED_SOURCE_ROOT="/opt/void-buy-void-v7-reviewed-v1";
 const FIXED_PREENTRY_DIR="/opt/void-buy-void-v7-preentry-v1";
 const FIXED_NATIVE=FIXED_PREENTRY_DIR+"/void_buy_void_source_finality_v7_native_preentry_v1";
 const FIXED_LAUNCHER=FIXED_SOURCE_ROOT+"/"+LAUNCHER;
+const FIXED_LEGACY_STUB=FIXED_SOURCE_ROOT+"/"+LEGACY_STUB;
 const launcher=fs.readFileSync(LAUNCHER,"utf8");
 const nativeSource=fs.readFileSync(NATIVE,"utf8");
 
@@ -64,7 +66,7 @@ for(const required of [
   '#define MARKER "VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1"',
   '#define FIXED_SELF "/opt/void-buy-void-v7-preentry-v1/void_buy_void_source_finality_v7_native_preentry_v1"',
   '#define FIXED_BASH "/usr/bin/bash"',
-  '#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"',
+  '#define FIXED_LAUNCHER "/opt/void-buy-void-v7-reviewed-v1/ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"',
   'O_RDONLY | O_NOFOLLOW',
   'fcntl(launcher_fd, F_SETFD, descriptor_flags & ~FD_CLOEXEC)',
   'fexecve(bash_fd, next_argv, envp)',
@@ -152,6 +154,10 @@ try{
   sudo(["cp","-a","--",replica,FIXED_SOURCE_ROOT],{timeout:120000});
   sudo(["chown","-R","0:0",FIXED_SOURCE_ROOT],{timeout:120000});
   sudo(["chmod","0644",FIXED_LAUNCHER]);
+  const legacyMode=fs.statSync(path.join(ROOT,LEGACY_STUB)).mode;
+  assert.notEqual(legacyMode&0o111,0,"legacy *.sh refusal stub must remain executable");
+  assert.match(fs.readFileSync(path.join(ROOT,LEGACY_STUB),"utf8"),/^#!\/usr\/bin\/bash\n/u);
+
   sudo([
     "/usr/bin/install","-o","root","-g","root","-m","0755","--",
     nativeBinary,FIXED_NATIVE,
@@ -169,6 +175,20 @@ try{
     "host_mutation=false",
     "status=PROTECTED_PRIVILEGED_LAUNCHER_QUALIFICATION_GREEN",
   ]) assert.match(positive.stdout,new RegExp("^"+marker+"$","m"),marker);
+
+  const legacyExec=sudo([FIXED_LEGACY_STUB],{allow:true});
+  assert.notEqual(legacyExec.status,0);
+  assert.match(
+    legacyExec.stderr,
+    /VOID_BUY_VOID_SOURCE_FINALITY_V7_PRIVILEGED_LAUNCHER_V1_RETIRED_DIRECT_ENTRY_HOLD/u,
+  );
+
+  const legacyBash=sudo(["/usr/bin/bash",FIXED_LEGACY_STUB],{allow:true});
+  assert.equal(legacyBash.status,2);
+  assert.match(
+    legacyBash.stderr,
+    /privileged_receipt_execution_authorized=false/u,
+  );
 
   const directBody=sudo([
     "/usr/bin/bash",FIXED_LAUNCHER,
@@ -238,6 +258,8 @@ try{
   console.log("native_bash_descriptor_execution=true");
   console.log("native_launcher_descriptor_execution=true");
   console.log("direct_shell_privileged_invocation_supported=false");
+  console.log("legacy_sh_path_fail_only=true");
+  console.log("nonexecutable_launcher_body=true");
   console.log("protected_root_owned_source_positive=true");
   console.log("writable_checkout_rejected=true");
   console.log("dirty_protected_tree_rejected=true");

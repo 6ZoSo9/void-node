@@ -11,6 +11,7 @@ on:
       - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json"
       - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
       - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_candidate_v1.mjs"
