@@ -61,7 +61,7 @@ is:
 Reviewed Python-launcher source blob:
 
 ```text
-431b91aafcb36b4aa2d77ec05061dc98cf7ec668
+446d5af1a7bec9c099055366a597c0f62d2e7eae
 ```
 
 That launcher then authenticates the separately installed reviewed source root:
@@ -234,9 +234,18 @@ retained_private_tree=<exact possible retained path>
 ```
 
 It never converts a cleanup error into a false
-`persistent_host_mutation=false` claim. No service mutation, private-key
-access, signing, attempt claim, training execution, wallet/transaction
-operation or funds movement is granted by this source lane.
+`persistent_host_mutation=false` claim.
+
+Expected launcher runtime failures are also fail-closed and machine-readable:
+Node deadline expiry, OS/path/exec failures, and other subprocess-layer failures
+are converted to bounded `HOLD=apollyon_v2_installed_launcher_runtime_*`
+reasons after cleanup semantics run. Existing `Hold` results are preserved.
+Unexpected programming exceptions are deliberately not relabeled as normal
+runtime HOLDs.
+
+No service mutation, private-key access, signing, attempt claim, training
+execution, wallet/transaction operation or funds movement is granted by this
+source lane.
 
 ## Next gates
 
