@@ -45,6 +45,9 @@ type ServiceSnapshot={
   active_state:string;
   main_pid:number;
   invocation_id:string;
+  working_directory:string;
+  exec_start:string;
+  need_daemon_reload:string;
   raw:string;
 };
 
@@ -285,7 +288,8 @@ function serviceSnapshot(uid:number):ServiceSnapshot{
   const result=spawnSync("/usr/bin/systemctl",[
     "--user","show",VOID_BUY_VOID_LIVE_PROCESS_SERVICE_V1,
     "--property=ActiveState","--property=MainPID","--property=InvocationID",
-    "--no-pager",
+    "--property=WorkingDirectory","--property=ExecStart",
+    "--property=NeedDaemonReload","--no-pager",
   ],{
     encoding:"utf8",
     stdio:["ignore","pipe","pipe"],
@@ -302,11 +306,26 @@ function serviceSnapshot(uid:number):ServiceSnapshot{
   }
   const pid=asPositiveInt(map.get("MainPID"),"service_main_pid_invalid");
   const invocation=String(map.get("InvocationID")||"").toLowerCase();
-  if(map.get("ActiveState")!=="active"||!INVOCATION.test(invocation)){
+  const workingDirectory=String(map.get("WorkingDirectory")||"");
+  const execStart=String(map.get("ExecStart")||"");
+  const needDaemonReload=String(map.get("NeedDaemonReload")||"");
+  if(
+    map.get("ActiveState")!=="active"||
+    !INVOCATION.test(invocation)||
+    !path.isAbsolute(workingDirectory)||
+    !execStart||
+    needDaemonReload!=="no"
+  ){
     fail("service_identity_invalid");
   }
   return Object.freeze({
-    active_state:"active",main_pid:pid,invocation_id:invocation,raw,
+    active_state:"active",
+    main_pid:pid,
+    invocation_id:invocation,
+    working_directory:workingDirectory,
+    exec_start:execStart,
+    need_daemon_reload:needDaemonReload,
+    raw,
   });
 }
 
@@ -325,6 +344,8 @@ function validateSourceAndLauncher(
   env:InitialEnvironment,
   executable:string,
   cmdline:string[],
+  runtimeUid:number,
+  runtimeGid:number,
 ):Readonly<{source_custody_proven:true;reviewed_launcher_contract_proven:true}>{
   proveRootCustodyPath(cwd,true);
   proveRootCustodyPath(executable,false);
@@ -338,8 +359,8 @@ function validateSourceAndLauncher(
   exactTrackedBlob(cwd,env.source_commit,"src/index.ts");
   exactTrackedBlob(cwd,env.source_commit,"ops/run-void-node-live-v1.sh");
   exactTrackedBlob(cwd,env.source_commit,"runtime/canonical-producer-source-custody-v1.cjs");
-  exactTrackedBlob(cwd,env.source_commit,"node_modules/tsx/dist/preflight.cjs");
-  exactTrackedBlob(cwd,env.source_commit,"node_modules/tsx/dist/loader.mjs");
+  proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/preflight.cjs"),false);
+  proveRootCustodyPath(path.join(cwd,"node_modules/tsx/dist/loader.mjs"),false);
 
   const expected=[
     executable,
@@ -360,6 +381,33 @@ function validateSourceAndLauncher(
   );
   if(!guardMatch)fail("node_options_guard_invalid");
   exactTrackedBlob(cwd,env.source_commit,"runtime/"+guardMatch[1]);
+
+  const custodyScript=path.join(
+    cwd,
+    "runtime/canonical-producer-source-custody-v1.cjs",
+  );
+  const custody=spawnSync(executable,[custodyScript,cwd],{
+    uid:runtimeUid,
+    gid:runtimeGid,
+    encoding:"utf8",
+    stdio:["ignore","pipe","pipe"],
+    timeout:30_000,
+    env:{
+      PATH:"/usr/bin:/bin",
+      HOME:"/nonexistent",
+      LANG:"C",
+      LC_ALL:"C",
+      TZ:"UTC",
+    },
+  });
+  if(
+    custody.status!==0||
+    !String(custody.stdout||"").includes(
+      "VOID_CANONICAL_PRODUCER_SOURCE_CUSTODY_V1_GREEN",
+    )
+  ){
+    fail("canonical_source_custody_requalification_failed");
+  }
   return Object.freeze({
     source_custody_proven:true,
     reviewed_launcher_contract_proven:true,
@@ -441,7 +489,23 @@ export function collectBuyVoidLiveProcessBindingReceiptV1(
   const executable=fs.realpathSync("/proc/"+String(pid)+"/exe");
   const cwd=fs.realpathSync("/proc/"+String(pid)+"/cwd");
 
-  const reviewed=validateSourceAndLauncher(cwd,env,executable,cmdline);
+  const launcher=path.join(cwd,"ops/run-void-node-live-v1.sh");
+  if(
+    path.resolve(before.working_directory)!==cwd||
+    !before.exec_start.includes("path="+launcher)||
+    !before.exec_start.includes("argv[]="+launcher)
+  ){
+    fail("effective_service_contract_mismatch");
+  }
+
+  const reviewed=validateSourceAndLauncher(
+    cwd,
+    env,
+    executable,
+    cmdline,
+    status.uid,
+    status.gid,
+  );
   assert.equal(reviewed.source_custody_proven,true);
   assert.equal(reviewed.reviewed_launcher_contract_proven,true);
 
