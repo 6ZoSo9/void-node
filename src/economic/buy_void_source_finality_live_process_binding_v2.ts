@@ -546,6 +546,50 @@ function readRootReceiptV2(receiptPath:string):BuyVoidSourceFinalityLiveProcessB
   }finally{fs.closeSync(fd);}
 }
 
+type BuyVoidLiveProcessKernelGenerationSampleV2=Readonly<{
+  ppid:number;
+  start_time_ticks:string;
+}>;
+
+function liveProcessKernelGenerationRecheckReasonV2(input:{
+  manager_pid:number;
+  manager_before:BuyVoidLiveProcessKernelGenerationSampleV2;
+  manager_after:BuyVoidLiveProcessKernelGenerationSampleV2;
+  self_before:BuyVoidLiveProcessKernelGenerationSampleV2;
+  self_after:BuyVoidLiveProcessKernelGenerationSampleV2;
+}):string|null{
+  if(input.manager_pid<=0||!Number.isSafeInteger(input.manager_pid)){
+    return "live_process_v2_manager_pid_invalid";
+  }
+  if(input.manager_before.ppid!==1||input.manager_after.ppid!==1){
+    return "live_process_v2_manager_not_pid1_child";
+  }
+  if(
+    input.manager_after.start_time_ticks!==input.manager_before.start_time_ticks||
+    input.manager_after.ppid!==input.manager_before.ppid
+  ){
+    return "live_process_v2_manager_identity_changed_during_verification";
+  }
+  if(input.self_after.start_time_ticks!==input.self_before.start_time_ticks){
+    return "live_process_v2_self_generation_changed_during_verification";
+  }
+  if(
+    input.self_before.ppid!==input.manager_pid||
+    input.self_after.ppid!==input.manager_pid||
+    input.self_after.ppid!==input.self_before.ppid
+  ){
+    return "live_process_v2_self_parent_changed_during_verification";
+  }
+  return null;
+}
+
+export function testOnlyClassifyBuyVoidLiveProcessKernelGenerationRecheckV2(
+  input:Parameters<typeof liveProcessKernelGenerationRecheckReasonV2>[0],
+):Readonly<{ok:boolean;reason:string|null}>{
+  const reason=liveProcessKernelGenerationRecheckReasonV2(input);
+  return Object.freeze({ok:reason===null,reason});
+}
+
 export function verifyBuyVoidSourceFinalityLiveProcessBindingV2(input:{
   receipt_path:string;
   deployment_receipt_id:string;
@@ -573,13 +617,18 @@ export function verifyBuyVoidSourceFinalityLiveProcessBindingV2(input:{
       manager_cmdline_sha256:managerCmdlineSha,
       deployment_receipt_id:input.deployment_receipt_id,
     });
+    if(decision.ok===false)return decision;
+
     const managerAfter=procStat(receipt.manager_pid);
-    if(
-      managerAfter.start_time_ticks!==managerStat.start_time_ticks||
-      managerAfter.ppid!==managerStat.ppid
-    ){
-      return held("live_process_v2_manager_identity_changed_during_verification");
-    }
+    const selfStatAfter=procStat(process.pid);
+    const generationReason=liveProcessKernelGenerationRecheckReasonV2({
+      manager_pid:receipt.manager_pid,
+      manager_before:managerStat,
+      manager_after:managerAfter,
+      self_before:selfStat,
+      self_after:selfStatAfter,
+    });
+    if(generationReason!==null)return held(generationReason);
     return decision;
   }catch(error){
     return held(error instanceof Error?error.message:"live_process_v2_verification_uncertain");
