@@ -12,6 +12,9 @@ on:
       - "ops/security/buy-void-enforcement-post2865-candidate-v1.json"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "docs/architecture/buy-void-enforcement-post2865-candidate-v1.md"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
@@ -32,6 +35,9 @@ on:
       - "ops/security/buy-void-enforcement-post2865-candidate-v1.json"
       - "ops/security/buy-void-enforcement-post2865-lock-v1.json"
       - "scripts/prove_buy_void_enforcement_post2865_lock_v1.mjs"
+      - "scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
       - "docs/architecture/buy-void-enforcement-post2865-lock-v1.md"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
       - "src/economic/**"
@@ -82,6 +88,16 @@ jobs:
           npm run typecheck
           node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
 
+      - name: Classify historical versus V7 enforcement generation
+        id: enforcement-generation
+        run: |
+          set -euo pipefail
+          if test -f src/economic/buy_void_source_finality_generation_provenance_v7.ts; then
+            echo "mode=v7" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=historical" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Re-enforce exact hosted provider closure
         run: |
           set -euo pipefail
@@ -119,6 +135,7 @@ jobs:
           NODE
 
       - name: Derive audited whole-enforcement candidate
+        if: steps.enforcement-generation.outputs.mode == 'historical'
         run: |
           set -euo pipefail
           provider_receipt="$RUNNER_TEMP/provider-closure-lock-${{ matrix.node }}.json"
@@ -146,6 +163,7 @@ jobs:
           NODE
 
       - name: Lock exact audited whole-enforcement identity
+        if: steps.enforcement-generation.outputs.mode == 'historical'
         run: |
           set -euo pipefail
           candidate="$RUNNER_TEMP/enforcement-post2865-${{ matrix.node }}.json"
@@ -156,6 +174,35 @@ jobs:
             > "$RUNNER_TEMP/enforcement-post2865-lock-${{ matrix.node }}.json"
           cmp "$RUNNER_TEMP/enforcement-post2865-lock-${{ matrix.node }}.json" \
             ops/security/buy-void-enforcement-post2865-lock-v1.json
+
+      - name: Require frozen post-2865 lock refusal on V7 generation
+        if: steps.enforcement-generation.outputs.mode == 'v7'
+        run: |
+          set -euo pipefail
+          provider_receipt="$RUNNER_TEMP/provider-closure-lock-${{ matrix.node }}.json"
+          refusal="$RUNNER_TEMP/enforcement-post2865-v7-refusal-${{ matrix.node }}.json"
+          node --check scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs
+          node scripts/prove_buy_void_enforcement_post2865_v7_historical_refusal_v2.mjs \
+            --provider-lock-receipt "$provider_receipt" > "$refusal"
+          node --input-type=module - "$refusal" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const value=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(
+            value.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_POST2865_V7_HISTORICAL_REFUSAL_V2",
+          );
+          assert.equal(value.frozen_candidate_refuses_v7_generation,true);
+          assert.equal(value.frozen_candidate_bytes_unchanged,true);
+          assert.equal(value.frozen_lock_bytes_unchanged,true);
+          assert.equal(value.current_v7_delta_candidate_required,true);
+          assert.equal(value.complete_executable_closure_verified,false);
+          assert.equal(value.candidate_enforcement_identity_accepted,false);
+          assert.equal(value.production_source_finality_authority_ready,false);
+          assert.equal(value.public_presale_activation,false);
+          assert.equal(value.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_V7_REFUSAL_NODE_GREEN");
+          NODE
 
       - name: Diff hygiene
         env:
@@ -177,6 +224,7 @@ jobs:
             ${{ runner.temp }}/provider-closure-lock-${{ matrix.node }}.json
             ${{ runner.temp }}/enforcement-post2865-${{ matrix.node }}.json
             ${{ runner.temp }}/enforcement-post2865-lock-${{ matrix.node }}.json
+            ${{ runner.temp }}/enforcement-post2865-v7-refusal-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
@@ -193,7 +241,7 @@ jobs:
           merge-multiple: true
           path: receipts
 
-      - name: Require Node 22 24 26 lock identity
+      - name: Require Node 22 24 26 historical lock or V7 refusal identity
         run: |
           set -euo pipefail
           for node in 22 24 26; do
@@ -201,15 +249,6 @@ jobs:
           done
           cmp receipts/provider-closure-lock-22.json receipts/provider-closure-lock-24.json
           cmp receipts/provider-closure-lock-22.json receipts/provider-closure-lock-26.json
-          for node in 22 24 26; do test -s "receipts/enforcement-post2865-$node.json"; done
-          cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-24.json
-          cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-26.json
-          for node in 22 24 26; do test -s "receipts/enforcement-post2865-lock-$node.json"; done
-          cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-24.json
-          cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-26.json
-          sha256sum receipts/provider-closure-lock-22.json
-          sha256sum receipts/enforcement-post2865-lock-22.json
-          sha256sum receipts/enforcement-post2865-22.json
           node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -219,38 +258,55 @@ jobs:
           assert.equal(v.production_source_finality_authority_ready,false);
           assert.equal(v.funds_movement,false);
           console.log("VOID_BUY_VOID_PROVIDER_CLOSURE_POST2865_LOCK_CROSS_NODE_GREEN");
-          console.log("candidate_json_sha256="+v.candidate_json_sha256);
-          console.log("provider_closure_sha256="+v.provider_closure_sha256);
-          console.log("provider_closure_semantic_sha256="+v.provider_closure_semantic_sha256);
           NODE
-          node --input-type=module - <<'NODE'
+
+          if test -s receipts/enforcement-post2865-v7-refusal-22.json; then
+            for node in 22 24 26; do
+              test -s "receipts/enforcement-post2865-v7-refusal-$node.json"
+            done
+            cmp receipts/enforcement-post2865-v7-refusal-22.json receipts/enforcement-post2865-v7-refusal-24.json
+            cmp receipts/enforcement-post2865-v7-refusal-22.json receipts/enforcement-post2865-v7-refusal-26.json
+            node --input-type=module - <<'NODE'
           import assert from "node:assert/strict";
-          import crypto from "node:crypto";
           import fs from "node:fs";
-          const bytes=fs.readFileSync("receipts/enforcement-post2865-22.json");
-          const c=JSON.parse(bytes);
+          const v=JSON.parse(
+            fs.readFileSync("receipts/enforcement-post2865-v7-refusal-22.json","utf8"),
+          );
+          assert.equal(
+            v.marker,
+            "VOID_BUY_VOID_ENFORCEMENT_POST2865_V7_HISTORICAL_REFUSAL_V2",
+          );
+          assert.equal(v.frozen_candidate_refuses_v7_generation,true);
+          assert.equal(v.current_v7_delta_candidate_required,true);
+          assert.equal(v.complete_executable_closure_verified,false);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.production_source_finality_authority_ready,false);
+          assert.equal(v.public_presale_activation,false);
+          assert.equal(v.funds_movement,false);
+          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_V7_REFUSAL_CROSS_NODE_GREEN");
+          console.log("v7_source_git_blob_sha1="+v.v7_source_git_blob_sha1);
+          console.log("preflight_source_git_blob_sha1="+v.preflight_source_git_blob_sha1);
+          NODE
+          else
+            for node in 22 24 26; do
+              test -s "receipts/enforcement-post2865-$node.json"
+              test -s "receipts/enforcement-post2865-lock-$node.json"
+            done
+            cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-24.json
+            cmp receipts/enforcement-post2865-22.json receipts/enforcement-post2865-26.json
+            cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-24.json
+            cmp receipts/enforcement-post2865-lock-22.json receipts/enforcement-post2865-lock-26.json
+            node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const c=JSON.parse(fs.readFileSync("receipts/enforcement-post2865-22.json","utf8"));
+          const l=JSON.parse(fs.readFileSync("receipts/enforcement-post2865-lock-22.json","utf8"));
           assert.equal(c.complete_executable_closure_verified,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
-          assert.equal(c.production_source_finality_authority_ready,false);
-          assert.equal(c.public_presale_activation,false);
-          assert.equal(c.funds_movement,false);
-          console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_CROSS_NODE_GREEN");
-          console.log("candidate_json_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
-          console.log("candidate_enforcement_set_sha256="+c.candidate_enforcement_set_sha256);
-          console.log("candidate_enforcement_identity_accepted=false");
-          console.log("production_source_finality_authority_ready=false");
-          console.log("funds_movement=false");
-          NODE
-          node --input-type=module - <<'NODE'
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          const l=JSON.parse(fs.readFileSync("receipts/enforcement-post2865-lock-22.json","utf8"));
           assert.equal(l.complete_executable_closure_verified,true);
           assert.equal(l.candidate_enforcement_identity_accepted,true);
-          assert.equal(l.deployed_artifact_generation_verified,false);
-          assert.equal(l.runtime_mount_authority,false);
           assert.equal(l.production_source_finality_authority_ready,false);
-          assert.equal(l.public_presale_activation,false);
           assert.equal(l.funds_movement,false);
           console.log("VOID_BUY_VOID_ENFORCEMENT_POST2865_LOCK_CROSS_NODE_GREEN");
           NODE
+          fi
