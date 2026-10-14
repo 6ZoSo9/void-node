@@ -115,6 +115,7 @@ jobs:
           if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 1) throw new Error('manifest endpoint count mismatch');
           if (manifest.sync_endpoints[0].base !== endpoint) throw new Error('manifest endpoint mismatch');
           if (manifest.sync_endpoints[0].temporary !== false) throw new Error('manifest accepted a temporary endpoint');
+          if (Date.parse(manifest.expires_at) - Date.parse(manifest.generated_at) !== 7 * 24 * 60 * 60 * 1000) throw new Error('manifest validity is not seven days');
           for (const value of Object.values(manifest.authority || {})) {
             if (value !== false) throw new Error('manifest authority boundary mismatch');
           }
@@ -136,6 +137,7 @@ jobs:
           echo 'services_deployed=false'
           echo 'credentials_accessed=false'
           echo 'money_movement_authority=false'
+          echo 'manifest_validity_hours=168'
 
       - name: Build and verify publication review packet
         shell: bash
