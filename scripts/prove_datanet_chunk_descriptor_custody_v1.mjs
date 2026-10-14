@@ -101,22 +101,26 @@ try {
   assert.equal(ordinaryGet.body.equals(body), true);
   assert.equal(Number(ordinaryGet.headers["content-length"]), body.length);
 
-  // Swap the visible pathname only after the route has opened and verified
-  // its retained descriptor. The streamed bytes must still come from that fd.
+  // Mutate the pathname only after the route has snapshotted and verified the
+  // retained descriptor. The response must use the already-verified bytes.
   fs.writeFileSync(secret, "path-swap-secret-never-served", { mode: 0o600 });
   const backup = path.join(ROOT, "original-chunk.bin");
-  const realCreateReadStream = fs.createReadStream;
+  const realCloseSync = fs.closeSync;
   let swapped = false;
   try {
-    fs.createReadStream = function injectedCreateReadStream(file, options) {
-      assert.equal(typeof options?.fd, "number");
-      assert.equal(options?.autoClose, true);
-      if (!swapped && path.resolve(String(file)) === path.resolve(chunkPath)) {
-        fs.renameSync(chunkPath, backup);
-        fs.symlinkSync(secret, chunkPath);
-        swapped = true;
+    fs.closeSync = function injectedCloseSync(fd) {
+      if (!swapped) {
+        let target = "";
+        try {
+          target = fs.readlinkSync("/proc/self/fd/" + String(fd));
+        } catch {}
+        if (path.resolve(target.replace(/ \(deleted\)$/u, "")) === path.resolve(chunkPath)) {
+          fs.renameSync(chunkPath, backup);
+          fs.symlinkSync(secret, chunkPath);
+          swapped = true;
+        }
       }
-      return realCreateReadStream.call(fs, file, options);
+      return realCloseSync.call(fs, fd);
     };
     syncBuiltinESMExports();
 
@@ -129,10 +133,74 @@ try {
     );
     assert.equal(swapped, true);
   } finally {
-    fs.createReadStream = realCreateReadStream;
+    fs.closeSync = realCloseSync;
     syncBuiltinESMExports();
     if (fs.existsSync(chunkPath)) fs.unlinkSync(chunkPath);
     if (fs.existsSync(backup)) fs.renameSync(backup, chunkPath);
+  }
+
+  // A second same-UID descriptor can mutate the *same inode* after the route's
+  // verification completes. Serving the verified snapshot, not the file again,
+  // must keep those later bytes out of the response.
+  const postVerifyMutation = Buffer.from(
+    "same-inode-post-verify-mutation-never-served",
+    "utf8",
+  );
+  const attackerFd = fs.openSync(chunkPath, fs.constants.O_WRONLY);
+  let sameInodeMutated = false;
+  try {
+    fs.closeSync = function injectedCloseSync(fd) {
+      if (!sameInodeMutated && fd !== attackerFd) {
+        let target = "";
+        try {
+          target = fs.readlinkSync("/proc/self/fd/" + String(fd));
+        } catch {}
+        if (path.resolve(target.replace(/ \(deleted\)$/u, "")) === path.resolve(chunkPath)) {
+          fs.ftruncateSync(attackerFd, 0);
+          let offset = 0;
+          while (offset < postVerifyMutation.length) {
+            const written = fs.writeSync(
+              attackerFd,
+              postVerifyMutation,
+              offset,
+              postVerifyMutation.length - offset,
+              offset,
+            );
+            assert.ok(written > 0, "same-inode mutation made no progress");
+            offset += written;
+          }
+          fs.fsyncSync(attackerFd);
+          sameInodeMutated = true;
+        }
+      }
+      return realCloseSync.call(fs, fd);
+    };
+    syncBuiltinESMExports();
+
+    const snapshotGet = await request(port, "GET", route);
+    assert.equal(snapshotGet.status, 200);
+    assert.equal(snapshotGet.body.equals(body), true);
+    assert.equal(snapshotGet.body.includes(postVerifyMutation), false);
+    assert.equal(sameInodeMutated, true);
+    assert.equal(fs.readFileSync(chunkPath).equals(postVerifyMutation), true);
+  } finally {
+    fs.closeSync = realCloseSync;
+    syncBuiltinESMExports();
+    fs.ftruncateSync(attackerFd, 0);
+    let offset = 0;
+    while (offset < body.length) {
+      const written = fs.writeSync(
+        attackerFd,
+        body,
+        offset,
+        body.length - offset,
+        offset,
+      );
+      assert.ok(written > 0, "chunk restore made no progress");
+      offset += written;
+    }
+    fs.fsyncSync(attackerFd);
+    realCloseSync.call(fs, attackerFd);
   }
 
   // Even if the request leaf is the exact hash of a target's bytes, a symlink
@@ -238,14 +306,17 @@ try {
   const proofStart = source.indexOf('router.get("/proof/:root/:index"');
   assert.ok(getStart >= 0 && putStart > getStart && proofStart > putStart);
   const chunkRoutes = source.slice(getStart, proofStart);
-  assert.match(chunkRoutes, /openVerifiedDataNetChunkV1/u);
+  assert.match(chunkRoutes, /readVerifiedDataNetChunkSnapshotV1/u);
   assert.match(chunkRoutes, /publishDataNetChunkCreateOnlyV1/u);
-  assert.match(chunkRoutes, /autoClose:\s*true/u);
+  assert.doesNotMatch(chunkRoutes, /fs\.createReadStream/u);
+  assert.match(chunkRoutes, /res\.status\(200\)\.end\(opened\.bytes\)/u);
   assert.doesNotMatch(chunkRoutes, /fs\.writeFileSync\(p,\s*body\)/u);
 
   console.log("VOID_DATANET_CHUNK_DESCRIPTOR_CUSTODY_V1_GREEN");
   console.log("chunk_get_descriptor_bound=true");
   console.log("chunk_get_hash_revalidated=true");
+  console.log("chunk_get_verified_snapshot_served=true");
+  console.log("same_inode_mutation_after_verification_not_served=true");
   console.log("path_swap_after_verification_not_served=true");
   console.log("symlink_get_rejected=true");
   console.log("chunk_put_create_only=true");

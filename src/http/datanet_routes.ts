@@ -212,30 +212,15 @@ function sha256Hex(buf: Buffer) {
 const DATANET_CHUNK_HASH_READ_BYTES = 64 * 1024;
 const DATANET_CHUNK_MAX_BYTES = 64 * 1024 * 1024;
 
-type OpenedDataNetChunkV1 = Readonly<{
-  fd: number;
+type VerifiedDataNetChunkSnapshotV1 = Readonly<{
+  bytes: Buffer;
   size: number;
 }>;
 
-function sameDataNetChunkIdentityV1(a: fs.Stats, b: fs.Stats): boolean {
-  return (
-    a.dev === b.dev &&
-    a.ino === b.ino &&
-    a.mode === b.mode &&
-    a.size === b.size &&
-    a.mtimeMs === b.mtimeMs &&
-    a.ctimeMs === b.ctimeMs
-  );
-}
-
-function sameDataNetChunkInodeV1(a: fs.Stats, b: fs.Stats): boolean {
-  return a.dev === b.dev && a.ino === b.ino;
-}
-
-function openVerifiedDataNetChunkV1(
+function readVerifiedDataNetChunkSnapshotV1(
   file: string,
   expectedLeaf: string,
-): OpenedDataNetChunkV1 {
+): VerifiedDataNetChunkSnapshotV1 {
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number" || noFollow <= 0) {
     throw new Error("datanet_chunk_nofollow_unavailable");
@@ -247,7 +232,6 @@ function openVerifiedDataNetChunkV1(
       noFollow |
       Number(fs.constants.O_NONBLOCK || 0),
   );
-  let accepted = false;
   try {
     const before = fs.fstatSync(fd);
     if (
@@ -259,18 +243,22 @@ function openVerifiedDataNetChunkV1(
       throw new Error("datanet_chunk_metadata_invalid");
     }
 
-    const digest = createHash("sha256");
-    const buffer = Buffer.allocUnsafe(
-      Math.min(DATANET_CHUNK_HASH_READ_BYTES, before.size),
-    );
+    // Snapshot the exact bounded bytes that will be served. Hashing a retained
+    // descriptor and then streaming the mutable inode later would allow a
+    // same-UID writer to change the response after verification.
+    const bytes = Buffer.allocUnsafe(before.size);
     let position = 0;
-    while (position < before.size) {
-      const want = Math.min(buffer.length, before.size - position);
-      const got = fs.readSync(fd, buffer, 0, want, position);
-      if (got !== want) {
+    while (position < bytes.length) {
+      const got = fs.readSync(
+        fd,
+        bytes,
+        position,
+        bytes.length - position,
+        position,
+      );
+      if (got <= 0) {
         throw new Error("datanet_chunk_short_read");
       }
-      digest.update(buffer.subarray(0, got));
       position += got;
     }
 
@@ -278,14 +266,13 @@ function openVerifiedDataNetChunkV1(
     if (!sameDataNetChunkIdentityV1(before, after)) {
       throw new Error("datanet_chunk_identity_changed");
     }
-    if (digest.digest("hex") !== expectedLeaf) {
+    if (createHash("sha256").update(bytes).digest("hex") !== expectedLeaf) {
       throw new Error("datanet_chunk_hash_mismatch");
     }
 
-    accepted = true;
-    return Object.freeze({ fd, size: before.size });
+    return Object.freeze({ bytes, size: before.size });
   } finally {
-    if (!accepted) fs.closeSync(fd);
+    fs.closeSync(fd);
   }
 }
 
@@ -303,15 +290,11 @@ function publishDataNetChunkCreateOnlyV1(
     if (!visible.isFile() || visible.isSymbolicLink()) {
       throw new Error("datanet_chunk_existing_path_invalid");
     }
-    const opened = openVerifiedDataNetChunkV1(file, expectedLeaf);
-    try {
-      if (opened.size !== body.length) {
-        throw new Error("datanet_chunk_existing_size_mismatch");
-      }
-      return Object.freeze({ reused: true });
-    } finally {
-      fs.closeSync(opened.fd);
+    const opened = readVerifiedDataNetChunkSnapshotV1(file, expectedLeaf);
+    if (opened.size !== body.length) {
+      throw new Error("datanet_chunk_existing_size_mismatch");
     }
+    return Object.freeze({ reused: true });
   }
 
   const noFollow = fs.constants.O_NOFOLLOW;
@@ -367,7 +350,7 @@ function publishDataNetChunkCreateOnlyV1(
 
     // Retain the staged descriptor across create-only publication. If a
     // same-directory actor substitutes the temporary pathname after the write,
-    // the final leaf cannot match the descriptor identity and is withdrawn.
+    // the final leaf cannot match the descriptor identity and is rejected.
     fs.linkSync(temporary, file);
     const stagedAfterLink = fs.fstatSync(fd);
     const published = fs.lstatSync(file);
@@ -394,13 +377,9 @@ function publishDataNetChunkCreateOnlyV1(
     }
   }
 
-  const opened = openVerifiedDataNetChunkV1(file, expectedLeaf);
-  try {
-    if (opened.size !== body.length) {
-      throw new Error("datanet_chunk_published_size_mismatch");
-    }
-  } finally {
-    fs.closeSync(opened.fd);
+  const opened = readVerifiedDataNetChunkSnapshotV1(file, expectedLeaf);
+  if (opened.size !== body.length) {
+    throw new Error("datanet_chunk_published_size_mismatch");
   }
   return Object.freeze({ reused: false });
 }
@@ -637,23 +616,10 @@ const router = express.Router();
       return res.status(409).json({ ok: false, err: "stored_chunk_invalid" });
     }
 
-    const opened = openVerifiedDataNetChunkV1(p, leaf);
+    const opened = readVerifiedDataNetChunkSnapshotV1(p, leaf);
     res.setHeader("content-type", "application/octet-stream");
     res.setHeader("content-length", String(opened.size));
-    const stream = fs.createReadStream(p, {
-      fd: opened.fd,
-      autoClose: true,
-      start: 0,
-      end: opened.size - 1,
-    });
-    stream.once("error", (error) => {
-      if (!res.headersSent) {
-        res.status(500).json({ ok: false, err: "chunk_stream_failed" });
-        return;
-      }
-      res.destroy(error);
-    });
-    stream.pipe(res);
+    return res.status(200).end(opened.bytes);
   });
 
   router.put("/chunks/:leaf", express.raw({ type: "*/*", limit: DATANET_CHUNK_MAX_BYTES }), (req, res) => {

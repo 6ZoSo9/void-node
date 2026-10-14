@@ -44,6 +44,8 @@ jobs:
           grep -Fx 'VOID_DATANET_CHUNK_DESCRIPTOR_CUSTODY_V1_GREEN' "$proof_file"
           grep -Fx 'chunk_get_descriptor_bound=true' "$proof_file"
           grep -Fx 'chunk_get_hash_revalidated=true' "$proof_file"
+          grep -Fx 'chunk_get_verified_snapshot_served=true' "$proof_file"
+          grep -Fx 'same_inode_mutation_after_verification_not_served=true' "$proof_file"
           grep -Fx 'path_swap_after_verification_not_served=true' "$proof_file"
           grep -Fx 'symlink_get_rejected=true' "$proof_file"
           grep -Fx 'chunk_put_create_only=true' "$proof_file"

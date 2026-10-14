@@ -21,9 +21,10 @@ Chunk GET now:
 - requires the visible leaf to be a regular non-symlink file;
 - opens it with `O_NOFOLLOW` and retains that exact descriptor;
 - bounds size to the route-owned 64 MiB chunk ceiling;
-- recomputes SHA-256 from the retained descriptor and requires the request leaf;
-- rechecks descriptor identity after hashing; and
-- streams through that retained descriptor rather than reopening the pathname.
+- snapshots the complete bounded bytes from that descriptor;
+- recomputes SHA-256 over the exact snapshot and requires the request leaf;
+- rechecks descriptor identity after the snapshot read; and
+- sends that verified snapshot directly, so neither pathname replacement nor later same-inode mutation can change the response.
 
 Chunk PUT now:
 
@@ -38,13 +39,17 @@ Chunk PUT now:
   inode after publication identity failure; and
 - reopens/revalidates the published object before reporting success.
 
-The adversarial proof replaces the visible GET pathname after descriptor
-verification and proves the retained generation is served. It also proves GET
-does not disclose a symlink target, PUT cannot overwrite a symlink target, and
-a substituted staging/final inode is rejected without deleting or serving the
-foreign bytes.
+The adversarial proof replaces the visible GET pathname after snapshot
+verification and proves the verified generation is served. A second adversary
+keeps another writable descriptor to the same inode and mutates that inode only
+after verification; the response must still contain the pre-mutation verified
+snapshot. The proof also shows GET does not disclose a symlink target, PUT
+cannot overwrite a symlink target, and a substituted staging/final inode is
+rejected without deleting or serving the foreign bytes.
 
 ## Non-claims
+
+Snapshot serving intentionally bounds one verified response allocation to 64 MiB; concurrency/resource admission remains a separate operational boundary.
 
 This does not prove every DataNet manifest, receipt, MVP2, or site-bundle path
 has equivalent descriptor custody. The cleanup identity check is fail-closed
