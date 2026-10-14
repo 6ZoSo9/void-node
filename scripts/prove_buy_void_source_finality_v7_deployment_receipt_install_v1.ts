@@ -128,6 +128,45 @@ if(rootCapable){
   const good=path.join(root,"good","deployment-receipt.json");
   const bad=path.join(root,"bad","deployment-receipt.json");
   try{
+  fs.mkdirSync(root,{mode:0o700});
+  fs.chownSync(root,0,0);
+  fs.chmodSync(root,0o700);
+
+  const redirect=path.join(root,"redirect");
+  const symlinkParent=path.join(root,"symlink-parent");
+  fs.mkdirSync(redirect,{mode:0o700});
+  fs.chownSync(redirect,0,0);
+  fs.chmodSync(redirect,0o700);
+  const redirectBefore=fs.lstatSync(redirect);
+  fs.symlinkSync(redirect,symlinkParent,"dir");
+  assert.throws(()=>installRootCustodiedReceiptV1({
+    absolute_path:path.join(symlinkParent,"deployment-receipt.json"),
+    bytes:built.bytes,
+  }));
+  const redirectAfter=fs.lstatSync(redirect);
+  assert.equal(redirectAfter.uid,redirectBefore.uid);
+  assert.equal(redirectAfter.gid,redirectBefore.gid);
+  assert.equal(redirectAfter.mode,redirectBefore.mode);
+  assert.equal(fs.existsSync(path.join(redirect,"deployment-receipt.json")),false);
+  fs.unlinkSync(symlinkParent);
+
+  const restrictiveParent=path.join(root,"restrictive");
+  const restrictiveReceipt=path.join(restrictiveParent,"deployment-receipt.json");
+  fs.mkdirSync(restrictiveParent,{mode:0o700});
+  fs.chownSync(restrictiveParent,0,0);
+  fs.chmodSync(restrictiveParent,0o700);
+  const restrictiveBefore=fs.lstatSync(restrictiveParent);
+  const restrictiveResult=installRootCustodiedReceiptV1({
+    absolute_path:restrictiveReceipt,bytes:built.bytes,
+  });
+  assert.equal(restrictiveResult.created,true);
+  const restrictiveAfter=fs.lstatSync(restrictiveParent);
+  assert.equal(restrictiveAfter.dev,restrictiveBefore.dev);
+  assert.equal(restrictiveAfter.ino,restrictiveBefore.ino);
+  assert.equal(restrictiveAfter.uid,restrictiveBefore.uid);
+  assert.equal(restrictiveAfter.gid,restrictiveBefore.gid);
+  assert.equal(restrictiveAfter.mode,restrictiveBefore.mode);
+
   const first=installRootCustodiedReceiptV1({
     absolute_path:good,bytes:built.bytes,
   });
@@ -169,6 +208,9 @@ console.log("deployment_receipt_enforcement_set_not_source_hardcoded=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
 console.log("repository_local_fsmonitor_ignored=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
+console.log("descriptor_relative_parent_publication="+String(rootCapable));
+console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
+console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));
