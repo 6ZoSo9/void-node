@@ -34,6 +34,13 @@ function close(server) {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
+async function reservePort() {
+  const temporary = http.createServer();
+  const port = await listen(temporary);
+  await close(temporary);
+  return port;
+}
+
 async function waitFor(url) {
   let lastError;
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -331,7 +338,9 @@ async function main() {
 
   const regularPort = await listen(regularServer);
   const earnPort = await listen(earnServer);
-  const adapterPort = 30000 + Math.floor(Math.random() * 20000);
+  const adapterPort = await reservePort();
+  let mutationPort = await reservePort();
+  while (mutationPort === adapterPort) mutationPort = await reservePort();
   const logFile = path.join(temp, "adapter.log");
   const log = fs.openSync(logFile, "w");
 
@@ -345,6 +354,7 @@ async function main() {
       VOID_EARN_NO_NODE_CLIENT_FILE: noNodeClientFile,
       VOID_ADAPTER_HOST: "127.0.0.1",
       VOID_ADAPTER_PORT: String(adapterPort),
+      VOID_EARN_MUTATION_DOWNSTREAM_PORT: String(mutationPort),
       VOID_EARN_GATEWAY_MAX_BODY_BYTES: String(64 * 1024),
       VOID_EARN_GATEWAY_MAX_RESPONSE_BYTES: String(256 * 1024),
       VOID_EARN_GATEWAY_RATE_LIMIT_PER_MINUTE: "20",
@@ -355,6 +365,7 @@ async function main() {
   });
 
   const base = `http://127.0.0.1:${adapterPort}`;
+  const mutationBase = `http://127.0.0.1:${mutationPort}`;
   await waitFor(`${base}/__void/public-earn-gateway-v1/status.json`);
 
   const gateway = await json(`${base}/__void/public-earn-gateway-v1/status.json`);
@@ -372,6 +383,24 @@ async function main() {
   assert.deepEqual(gateway.body.methods.claim_ticket, ["POST"]);
   assert.deepEqual(gateway.body.methods.no_node_client, ["GET", "HEAD"]);
   assert.equal("balance" in gateway.body.methods, false);
+  assert.equal(gateway.body.mutation_ingress.mode, "dedicated_loopback");
+  assert.equal(
+    gateway.body.mutation_ingress.dedicated_loopback_configured,
+    true,
+  );
+  assert.equal(
+    gateway.body.mutation_ingress.shared_listener_mutations_enabled,
+    false,
+  );
+  assert.equal(
+    gateway.body.mutation_ingress.dedicated_listener_host_public,
+    false,
+  );
+  assert.equal(
+    gateway.body.mutation_ingress.local_transport_trust_proven,
+    false,
+  );
+  assert.equal(JSON.stringify(gateway.body).includes(String(mutationPort)), false);
   assert.equal(gateway.body.safety.public_ticket_issue, true);
   assert.equal(gateway.body.safety.public_signed_ticket_claim, true);
   assert.equal(gateway.body.safety.public_operator_ticket_issue, false);
@@ -567,9 +596,52 @@ async function main() {
     },
   };
 
+  const sharedClaimCallsBefore = earnRequests.length;
+  const sharedClaim = await json(
+    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(claimPayload),
+    },
+  );
+  assert.equal(sharedClaim.response.status, 404);
+  assert.equal(
+    sharedClaim.body.error,
+    "public_earn_mutation_dedicated_ingress_required",
+  );
+  assert.equal(earnRequests.length, sharedClaimCallsBefore);
+
+  const sharedSubmit = await json(
+    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer wcep1.${"1".repeat(32)}.${"A".repeat(43)}`,
+      },
+      body: JSON.stringify({
+        envelope: { ticket_id: "1".repeat(32) },
+      }),
+    },
+  );
+  assert.equal(sharedSubmit.response.status, 404);
+  assert.equal(
+    sharedSubmit.body.error,
+    "public_earn_mutation_dedicated_ingress_required",
+  );
+  assert.equal(earnRequests.length, sharedClaimCallsBefore);
+
+  const sensitiveHealth = await json(`${mutationBase}/health`);
+  assert.equal(sensitiveHealth.response.status, 404);
+  const sensitiveStatus = await json(
+    `${mutationBase}/wc/public-earning-pilot-v1/status`,
+  );
+  assert.equal(sensitiveStatus.response.status, 404);
+
   const claimCallsBeforeInvalid = earnRequests.length;
   const invalidClaim = await json(
-    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    `${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -584,7 +656,7 @@ async function main() {
   assert.equal(earnRequests.length, claimCallsBeforeInvalid);
 
   const claimAuthorizationRejected = await json(
-    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    `${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`,
     {
       method: "POST",
       headers: {
@@ -601,7 +673,7 @@ async function main() {
   );
 
   const claim = await json(
-    `${base}/wc/public-earning-pilot-v1/claim-ticket`,
+    `${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`,
     {
       method: "POST",
       headers: {
@@ -653,7 +725,7 @@ async function main() {
 
   const missingCallsBefore = earnRequests.length;
   const missingAuthorization = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -676,7 +748,7 @@ async function main() {
   ]) {
     const callsBefore = earnRequests.length;
     const rejected = await json(
-      `${base}/wc/public-earning-pilot-v1/submit-result`,
+      `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
       {
         method: "POST",
         headers: {
@@ -696,7 +768,7 @@ async function main() {
 
   const mismatchCallsBefore = earnRequests.length;
   const mismatchedTicket = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: {
@@ -717,7 +789,7 @@ async function main() {
   assert.equal(earnRequests.length, mismatchCallsBefore);
 
   const submit = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: {
@@ -767,7 +839,7 @@ async function main() {
   assert.equal(forwardedHealth.headers.authorization, undefined);
 
   const wrongContentType = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: {
@@ -780,7 +852,7 @@ async function main() {
   assert.equal(wrongContentType.response.status, 415);
 
   const invalidJson = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: {
@@ -793,7 +865,7 @@ async function main() {
   assert.equal(invalidJson.response.status, 400);
 
   const oversized = await json(
-    `${base}/wc/public-earning-pilot-v1/submit-result`,
+    `${mutationBase}/wc/public-earning-pilot-v1/submit-result`,
     {
       method: "POST",
       headers: {
@@ -875,6 +947,7 @@ async function main() {
   );
   const manifestText = JSON.stringify(adapterManifest.body);
   assert.equal(manifestText.includes(String(earnPort)), false);
+  assert.equal(manifestText.includes(String(mutationPort)), false);
   assert.equal(manifestText.includes("127.0.0.1"), false);
 
   const ready = await json(`${base}/__void/ready.json`);
@@ -886,12 +959,16 @@ async function main() {
   assert.equal(rpc.response.status, 404);
   assert.match(rpc.text, /not_public/);
 
-  const submitGet = await json(`${base}/wc/public-earning-pilot-v1/submit-result`);
+  const submitGet = await json(`${mutationBase}/wc/public-earning-pilot-v1/submit-result`);
   assert.equal(submitGet.response.status, 404);
-  const claimGet = await json(`${base}/wc/public-earning-pilot-v1/claim-ticket`);
+  const claimGet = await json(`${mutationBase}/wc/public-earning-pilot-v1/claim-ticket`);
   assert.equal(claimGet.response.status, 404);
 
   console.log("VOID_PUBLIC_EARN_GATEWAY_V1_GREEN");
+  console.log("shared_mutation_routes_disabled=true");
+  console.log("dedicated_mutation_listener_exact_routes_only=true");
+  console.log("dedicated_mutation_port_publicly_disclosed=false");
+  console.log("local_transport_trust_proven=false");
 }
 
 try {
