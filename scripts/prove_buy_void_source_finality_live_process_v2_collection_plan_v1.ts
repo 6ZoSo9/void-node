@@ -45,7 +45,10 @@ const material={
   source_generation_verified:true,reviewed_launcher_shape_verified:true,
   selector_ready_and_green_same_generation:true,
   manager_and_service_pidfds_retained_by_selector:true,
-  systemctl_user_selector_authority:false,receipt_publication_authorized:false,
+  systemctl_user_selector_authority:false,
+  process_environment_read_performed:true,selector_process_execution_performed:true,
+  filesystem_read_performed:true,filesystem_write_performed:false,
+  network_contact_performed:false,receipt_publication_authorized:false,
   production_source_finality_authority_ready:false,public_presale_activation:false,
   funds_movement:false,
 } as const;
@@ -68,6 +71,10 @@ for(const required of [
   "reviewed_launcher_shape_verified:true",
   "service_release_path_invalid",
   "service_launcher_shape_invalid",
+  "process_environment_read_performed:true",
+  "selector_process_execution_performed:true",
+  "filesystem_write_performed:false",
+  "network_contact_performed:false",
   "receipt_publication_authorized:false",
   "systemctl_user_selector_authority:false",
 ]) assert.equal(source.includes(required),true,required);
@@ -83,6 +90,10 @@ console.log("selector_ready_green_same_generation_required=true");
 console.log("process_source_generation_verified=true");
 console.log("reviewed_launcher_shape_verified=true");
 console.log("source_custody_overclaim=false");
+console.log("process_environment_read_performed=true");
+console.log("selector_process_execution_performed=true");
+console.log("filesystem_write_performed=false");
+console.log("network_contact_performed=false");
 console.log("receipt_publication_authorized=false");
 console.log("production_source_finality_authority_ready=false");
 console.log("public_presale_activation=false");
