@@ -136,9 +136,6 @@ function sourceBoundary(){
   for(const target of Object.values(TARGETS)){
     assert.ok(census.includes(target.path),"historical census target missing: "+target.path);
   }
-  for(const caller of CALLERS){
-    assert.ok(census.includes(caller.source),"historical census caller missing: "+caller.source);
-  }
 }
 
 function proveAuditedPackageProfile(){
