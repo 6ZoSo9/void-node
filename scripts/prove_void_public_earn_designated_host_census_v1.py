@@ -67,6 +67,8 @@ for required in [
     "VOID_PUBLIC_EARN_PROXY_V2_RATE_STATE_FILE",
     "VOID_EARN_MUTATION_DOWNSTREAM_PORT",
     "VOID_PUBLIC_443_EARN_EDGE_PORT",
+    "process_generation_stability_required",
+    "pid_reuse_or_restart_fails_candidate",
 ]:
     assert required in source, required
 
@@ -86,4 +88,6 @@ print("reviewed_runtime_source_blobs_bound=true")
 print("process_environment_output_allowlisted_only=true")
 print("nftables_raw_output_printed=false")
 print("rate_state_contents_read=false")
+print("process_generation_stability_required=true")
+print("pid_reuse_or_restart_fails_candidate=true")
 print("live_host_acceptance_claimed=false")
