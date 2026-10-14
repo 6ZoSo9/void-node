@@ -46,6 +46,8 @@ jobs:
           grep -Fx 'VOID_PUBLIC_EARN_LEGACY_CUTOVER_CENSUS_V1_PROOF_GREEN' "$proof"
           grep -Fx 'legacy_gateway_and_tunnel_read_only=true' "$proof"
           grep -Fx 'process_generation_stability_required=true' "$proof"
+          grep -Fx 'process_environment_access=false' "$proof"
+          grep -Fx 'loopback_status_get_only=true' "$proof"
           grep -Fx 'live_cutover_authorized=false' "$proof"
       - name: Prove inert plan
         run: |
@@ -57,7 +59,9 @@ jobs:
           grep -Fx 'ordinary_zoso_user_manager_required=true' "$plan"
           grep -Fx 'service_mutation=false' "$plan"
           grep -Fx 'tunnel_mutation=false' "$plan"
+          grep -Fx 'process_environment_access=false' "$plan"
           grep -Fx 'process_environment_output=false' "$plan"
+          grep -Fx 'loopback_status_get_only=true' "$plan"
           grep -Fx 'live_cutover_authorized=false' "$plan"
       - name: Diff hygiene
         run: git diff --check
