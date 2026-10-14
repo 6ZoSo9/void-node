@@ -23,6 +23,8 @@ assert module.EXPECTED_GATEWAY_SOURCE_BLOB == "140796d809a13171f0186a226bade1b4d
 source = TARGET.read_text(encoding="utf-8")
 for required in [
     "legacy_cutover_required",
+    "tunnel_route_classification_complete",
+    "TUNNEL_CONFIG_OBSERVATION_HOLD",
     "mutation_route_removal_required",
     "status_route_preservation_required",
     "running_source_matches_ready_2993",
