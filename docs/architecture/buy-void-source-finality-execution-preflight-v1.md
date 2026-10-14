@@ -2,6 +2,47 @@
 
 Marker: `VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1`
 
+## V7 production-authority integration successor — 2026-10-13
+
+This revision supersedes the V6 production-default observer described below while
+preserving V6 as historical predecessor evidence. The execution preflight now
+uses source-finality generation V7 and remains fail-closed unless all of the
+following server-controlled inputs are present:
+
+```text
+VOID_BUY_VOID_SOURCE_FINALITY_BASE_RPC_URL
+VOID_BUY_VOID_SOURCE_FINALITY_BASE_RPC_IDENTITY
+VOID_BUY_VOID_SOURCE_FINALITY_BASE_SECONDARY_RPC_URL
+VOID_BUY_VOID_SOURCE_FINALITY_BASE_SECONDARY_RPC_IDENTITY
+VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_RPC_URL
+VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_RPC_IDENTITY
+VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_SECONDARY_RPC_URL
+VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_SECONDARY_RPC_IDENTITY
+VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_PATH
+VOID_BUY_VOID_SOURCE_FINALITY_TOTAL_TIMEOUT_MS
+```
+
+Existing primary rail fields remain in their original policy locations for
+checkout compatibility. V7 receives the selected rail's primary and secondary
+policies, the immutable process commit/tree identity, and the absolute canonical
+deployment-receipt path. The default observer may release the existing lazy
+signer/broadcaster dependency guard only when V7 returns its exact production
+quorum-ready marker, binds accepted enforcement identity
+`ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb`,
+proves retained root-custodied deployment receipt authority, two independent
+provider transports, source/deployed generation, ancestry and quorum, and still
+reports no wallet/signing/broadcast/money authority of its own.
+
+The currently deployed Precision environment does not yet contain these new
+secondary-provider/receipt settings, so this source integration by itself cannot
+activate the presale or access a signer. Runtime configuration, receipt
+installation, deployment, live RPC qualification and the first real canary
+remain separate gates.
+
+Sections below that describe V6 as the current production-default observer are
+retained as historical rationale; this V7 successor section controls where they
+conflict.
+
 ## Outcome
 
 Insert the accepted source-finality stack into the live ERC-20 delivery dependency path without granting production source-finality authority, mounting a new route, deploying source, accessing a signer, broadcasting a transaction, mutating Chain-2050, changing presale inventory, or moving funds.

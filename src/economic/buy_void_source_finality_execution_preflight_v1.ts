@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import path from "node:path";
 
 import type { BuyVoidRequestV1 } from "./buy_void_auto_fulfillment_v1.js";
 import {
@@ -21,9 +22,13 @@ import type {
   BuyVoidSourceChainFinalityRpcPolicyV1,
 } from "./buy_void_source_chain_finality_rpc_adapter_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6,
-  observeBuyVoidSourceFinalityGenerationProvenanceV6,
-} from "./buy_void_source_finality_generation_provenance_v6.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
+  observeBuyVoidSourceFinalityGenerationProvenanceV7,
+  type BuyVoidSourceFinalityGenerationPolicyV7,
+} from "./buy_void_source_finality_generation_provenance_v7.js";
+import {
+  VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
+} from "./buy_void_source_finality_live_process_binding_v2.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1";
@@ -32,9 +37,19 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1 =
   Object.freeze({
     base_rpc_url: "VOID_BUY_VOID_SOURCE_FINALITY_BASE_RPC_URL",
     base_rpc_identity: "VOID_BUY_VOID_SOURCE_FINALITY_BASE_RPC_IDENTITY",
+    base_secondary_rpc_url:
+      "VOID_BUY_VOID_SOURCE_FINALITY_BASE_SECONDARY_RPC_URL",
+    base_secondary_rpc_identity:
+      "VOID_BUY_VOID_SOURCE_FINALITY_BASE_SECONDARY_RPC_IDENTITY",
     ethereum_rpc_url: "VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_RPC_URL",
     ethereum_rpc_identity:
       "VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_RPC_IDENTITY",
+    ethereum_secondary_rpc_url:
+      "VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_SECONDARY_RPC_URL",
+    ethereum_secondary_rpc_identity:
+      "VOID_BUY_VOID_SOURCE_FINALITY_ETHEREUM_SECONDARY_RPC_IDENTITY",
+    deployment_receipt_path:
+      "VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_PATH",
     total_timeout_ms: "VOID_BUY_VOID_SOURCE_FINALITY_TOTAL_TIMEOUT_MS",
     request_timeout_ms: "VOID_BUY_VOID_SOURCE_FINALITY_RPC_TIMEOUT_MS",
     max_response_bytes:
@@ -47,7 +62,11 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1 =
     server_controlled_policy: true,
     fulfillment_journal_reconstruction: true,
     immutable_process_source_identity_required: true,
-    v6_runtime_source_file_verification_reused: true,
+    v7_runtime_source_file_verification_required: true,
+    operator_deployment_receipt_required: true,
+    operator_approved_provider_pair_binding_required: true,
+    same_live_process_binding_required: true,
+    independent_remote_provider_transport_required: true,
     authenticated_source_rpc_transport_reused: true,
     total_operation_deadline_reused: true,
     production_source_finality_authority_required: true,
@@ -74,6 +93,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const PAYMENT_ID =
   /^voidpay1:(base|ethereum):(0x[0-9a-f]{64}):(0|[1-9][0-9]*)$/;
 const UINT = /^(0|[1-9][0-9]*)$/;
+const PROVIDER_PAIR_RECEIPT_ID = /^voidbsfpp1_[0-9a-f]{64}$/;
 const MAX_TOTAL_TIMEOUT_MS = 120_000;
 const MAX_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
@@ -95,7 +115,11 @@ export type BuyVoidSourceFinalityExecutionRailV1 = {
 
 export type BuyVoidSourceFinalityExecutionPolicyV1 = {
   base: BuyVoidSourceFinalityExecutionRailV1;
+  base_secondary: BuyVoidSourceFinalityExecutionRailV1;
   ethereum: BuyVoidSourceFinalityExecutionRailV1;
+  ethereum_secondary: BuyVoidSourceFinalityExecutionRailV1;
+  deployment_receipt_path: string;
+  live_process_binding_receipt_path: string;
   authority_policy_generation: BuyVoidSourceFinalityStaticPolicyV2;
   total_timeout_ms: string;
 };
@@ -131,6 +155,9 @@ export type BuyVoidSourceFinalityExecutionPreflightReadyV1 = {
   deployed_artifact_generation_verified: true;
   ancestry_verified: true;
   provider_quorum_verified: true;
+  provider_pair_binding_receipt_id: string;
+  operator_approved_provider_pair_binding_verified: true;
+  same_live_process_binding_proven: true;
   production_source_finality_authority_ready: true;
   wallet_access_performed: false;
   signing_performed: false;
@@ -154,6 +181,8 @@ export type BuyVoidSourceFinalityExecutionPreflightHeldV1 = {
   deployed_artifact_generation_verified: boolean;
   ancestry_verified: boolean;
   provider_quorum_verified: boolean;
+  operator_approved_provider_pair_binding_verified: boolean;
+  same_live_process_binding_proven: boolean;
   production_source_finality_authority_ready: false;
   wallet_access_performed: false;
   signing_performed: false;
@@ -167,11 +196,7 @@ export type BuyVoidSourceFinalityExecutionPreflightDecisionV1 =
 
 export type BuyVoidSourceFinalityExecutionObserverV1 = (input: {
   request: BuyVoidRequestV1;
-  policy: {
-    source_finality_policy: BuyVoidSourceChainFinalityRpcPolicyV1;
-    authority_policy_generation: BuyVoidSourceFinalityStaticPolicyV2;
-    total_timeout_ms: string;
-  };
+  policy: BuyVoidSourceFinalityGenerationPolicyV7;
 }) => Promise<unknown>;
 
 export type BuyVoidSourceFinalityExecutionPreflightDependenciesV1 = {
@@ -207,7 +232,7 @@ function normalizeChain(value: unknown): "base" | "ethereum" | "" {
   return raw === "base" || raw === "ethereum" ? raw : "";
 }
 
-function normalizeRpcUrl(value: unknown): string {
+function normalizeProductionSourceRpcUrl(value: unknown): string {
   let url: URL;
   try {
     url = new URL(text(value));
@@ -215,22 +240,36 @@ function normalizeRpcUrl(value: unknown): string {
     return "";
   }
   if (url.username || url.password || url.hash) return "";
-  const loopback = ["127.0.0.1", "::1", "localhost"].includes(
-    url.hostname.toLowerCase(),
-  );
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    return "";
-  }
+  if (url.protocol !== "https:") return "";
   return url.toString();
 }
 
-function processSourceIdentityVerified(env: NodeJS.ProcessEnv): boolean {
-  return (
-    text(env.VOID_PROCESS_SOURCE_IDENTITY_MARKER) === PROCESS_SOURCE_MARKER &&
-    SHA40.test(text(env.VOID_PROCESS_SOURCE_COMMIT).toLowerCase()) &&
-    SHA40.test(text(env.VOID_PROCESS_SOURCE_TREE).toLowerCase()) &&
-    text(env.VOID_PROCESS_SOURCE_BRANCH) === "main"
-  );
+type BuyVoidProcessSourceIdentityV1 = {
+  marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
+  commit: string;
+  tree: string;
+  branch: "main";
+};
+
+function processSourceIdentityV1(
+  env: NodeJS.ProcessEnv,
+): BuyVoidProcessSourceIdentityV1 | null {
+  const marker = text(env.VOID_PROCESS_SOURCE_IDENTITY_MARKER);
+  const commit = text(env.VOID_PROCESS_SOURCE_COMMIT).toLowerCase();
+  const tree = text(env.VOID_PROCESS_SOURCE_TREE).toLowerCase();
+  const branch = text(env.VOID_PROCESS_SOURCE_BRANCH);
+  if (
+    marker !== PROCESS_SOURCE_MARKER ||
+    !SHA40.test(commit) ||
+    !SHA40.test(tree) ||
+    branch !== "main"
+  ) return null;
+  return {
+    marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+    commit,
+    tree,
+    branch: "main",
+  };
 }
 
 function unitsToDecimal6(value: unknown): string {
@@ -345,6 +384,10 @@ function held(
       options.deployed_artifact_generation_verified === true,
     ancestry_verified: options.ancestry_verified === true,
     provider_quorum_verified: options.provider_quorum_verified === true,
+    operator_approved_provider_pair_binding_verified:
+      options.operator_approved_provider_pair_binding_verified === true,
+    same_live_process_binding_proven:
+      options.same_live_process_binding_proven === true,
     production_source_finality_authority_ready: false,
     wallet_access_performed: false,
     signing_performed: false,
@@ -420,8 +463,13 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
   const required = [
     names.base_rpc_url,
     names.base_rpc_identity,
+    names.base_secondary_rpc_url,
+    names.base_secondary_rpc_identity,
     names.ethereum_rpc_url,
     names.ethereum_rpc_identity,
+    names.ethereum_secondary_rpc_url,
+    names.ethereum_secondary_rpc_identity,
+    names.deployment_receipt_path,
     names.total_timeout_ms,
   ];
   const missing = required.filter((name) => !text(env[name]));
@@ -454,19 +502,38 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
   const maxResponseBytes = text(env[names.max_response_bytes])
     ? positiveBounded(env[names.max_response_bytes], MAX_RESPONSE_BYTES)
     : "262144";
-  const baseUrl = normalizeRpcUrl(env[names.base_rpc_url]);
-  const ethereumUrl = normalizeRpcUrl(env[names.ethereum_rpc_url]);
+  const baseUrl = normalizeProductionSourceRpcUrl(env[names.base_rpc_url]);
+  const baseSecondaryUrl = normalizeProductionSourceRpcUrl(env[names.base_secondary_rpc_url]);
+  const ethereumUrl = normalizeProductionSourceRpcUrl(env[names.ethereum_rpc_url]);
+  const ethereumSecondaryUrl = normalizeProductionSourceRpcUrl(
+    env[names.ethereum_secondary_rpc_url],
+  );
   const baseIdentity = text(env[names.base_rpc_identity]);
+  const baseSecondaryIdentity = text(env[names.base_secondary_rpc_identity]);
   const ethereumIdentity = text(env[names.ethereum_rpc_identity]);
+  const ethereumSecondaryIdentity = text(
+    env[names.ethereum_secondary_rpc_identity],
+  );
+  const deploymentReceiptPath = text(env[names.deployment_receipt_path]);
+  const canonicalDeploymentReceiptPath = deploymentReceiptPath &&
+    path.isAbsolute(deploymentReceiptPath) &&
+    path.resolve(deploymentReceiptPath) === deploymentReceiptPath
+      ? deploymentReceiptPath
+      : "";
 
   if (
     !totalTimeout ||
     !requestTimeout ||
     !maxResponseBytes ||
     !baseUrl ||
+    !baseSecondaryUrl ||
     !ethereumUrl ||
+    !ethereumSecondaryUrl ||
     !SAFE_ID.test(baseIdentity) ||
-    !SAFE_ID.test(ethereumIdentity)
+    !SAFE_ID.test(baseSecondaryIdentity) ||
+    !SAFE_ID.test(ethereumIdentity) ||
+    !SAFE_ID.test(ethereumSecondaryIdentity) ||
+    !canonicalDeploymentReceiptPath
   ) {
     return {
       ok: false,
@@ -512,8 +579,18 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
   };
 
   const base = makeRail("base", baseUrl, baseIdentity);
+  const baseSecondary = makeRail(
+    "base",
+    baseSecondaryUrl,
+    baseSecondaryIdentity,
+  );
   const ethereum = makeRail("ethereum", ethereumUrl, ethereumIdentity);
-  if (!base || !ethereum) {
+  const ethereumSecondary = makeRail(
+    "ethereum",
+    ethereumSecondaryUrl,
+    ethereumSecondaryIdentity,
+  );
+  if (!base || !baseSecondary || !ethereum || !ethereumSecondary) {
     return {
       ok: false,
       status: "held",
@@ -557,7 +634,12 @@ export function readBuyVoidSourceFinalityExecutionPolicyV1(
     status: "configured",
     policy: {
       base,
+      base_secondary: baseSecondary,
       ethereum,
+      ethereum_secondary: ethereumSecondary,
+      deployment_receipt_path: canonicalDeploymentReceiptPath,
+      live_process_binding_receipt_path:
+        VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_PATH_V2,
       authority_policy_generation: authorityPolicy,
       total_timeout_ms: totalTimeout,
     },
@@ -571,18 +653,27 @@ function readyObservation(value: unknown): value is Record<string, any> {
   return (
     result.ok === true &&
     result.marker ===
-      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V6 &&
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 &&
     result.reviewed_source_files_verified === true &&
+    result.source_file_verification_mode ===
+      "operator_deployment_receipt_bound_v1" &&
+    SHA256.test(String(result.accepted_enforcement_set_sha256 ?? "")) &&
     result.authenticated_transport_identity_verified === true &&
+    result.independent_remote_provider_transport_verified === true &&
     result.observation_generated_in_composition === true &&
     result.same_provider_consistency_verified === true &&
     result.provider_consistency_verified === true &&
     result.total_operation_deadline_verified === true &&
     result.source_generation_verified === true &&
     result.deployed_artifact_generation_verified === true &&
-    result.remote_provider_identity_verified === true &&
+    result.remote_provider_identity_verified === false &&
     result.ancestry_verified === true &&
     result.provider_quorum_verified === true &&
+    PROVIDER_PAIR_RECEIPT_ID.test(
+      String(result.provider_pair_binding_receipt_id ?? ""),
+    ) &&
+    result.operator_approved_provider_pair_binding_verified === true &&
+    result.same_live_process_binding_proven === true &&
     result.production_source_finality_authority_ready === true
   );
 }
@@ -613,7 +704,7 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
   if (!SHA256.test(attemptId)) {
     return held("source_finality_execution_attempt_id_invalid");
   }
-  const processIdentity = processSourceIdentityVerified(env);
+  const processIdentity = processSourceIdentityV1(env);
   if (!processIdentity) {
     return held("source_finality_process_source_identity_unavailable", {
       attempt_id: attemptId,
@@ -657,32 +748,50 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
     | "base"
     | "ethereum";
   const rail = policy.policy[sourceChain];
-  const sourcePolicy: BuyVoidSourceChainFinalityRpcPolicyV1 = {
+  const secondaryRail = sourceChain === "base"
+    ? policy.policy.base_secondary
+    : policy.policy.ethereum_secondary;
+  const sourcePolicy = (
+    selected: BuyVoidSourceFinalityExecutionRailV1,
+  ): BuyVoidSourceChainFinalityRpcPolicyV1 => ({
     enabled: true,
     source_chain: sourceChain,
-    chain_id: rail.evm_chain_id,
-    rpc_url: rail.rpc_url,
-    rpc_url_fingerprint_sha256: rail.rpc_url_fingerprint_sha256,
-    rpc_identity: rail.rpc_identity,
-    finality_adapter_id: rail.finality_adapter_id,
-    min_confirmations: rail.min_confirmations,
-    usdc_contract: rail.usdc_contract,
-    receive_address: rail.receive_address,
-    timeout_ms: rail.timeout_ms,
-    max_response_bytes: rail.max_response_bytes,
-  };
+    chain_id: selected.evm_chain_id,
+    rpc_url: selected.rpc_url,
+    rpc_url_fingerprint_sha256: selected.rpc_url_fingerprint_sha256,
+    rpc_identity: selected.rpc_identity,
+    finality_adapter_id: selected.finality_adapter_id,
+    min_confirmations: selected.min_confirmations,
+    usdc_contract: selected.usdc_contract,
+    receive_address: selected.receive_address,
+    timeout_ms: selected.timeout_ms,
+    max_response_bytes: selected.max_response_bytes,
+  });
 
   const observe =
     dependencies.observe_source_finality ||
-    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV6(value));
+    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV7(value));
   let observation: unknown;
   try {
     observation = await observe({
       request,
       policy: {
-        source_finality_policy: sourcePolicy,
-        authority_policy_generation:
-          policy.policy.authority_policy_generation,
+        primary: {
+          source_finality_policy: sourcePolicy(rail),
+          authority_policy_generation:
+            policy.policy.authority_policy_generation,
+          total_timeout_ms: policy.policy.total_timeout_ms,
+        },
+        secondary: {
+          source_finality_policy: sourcePolicy(secondaryRail),
+          authority_policy_generation:
+            policy.policy.authority_policy_generation,
+          total_timeout_ms: policy.policy.total_timeout_ms,
+        },
+        deployment_receipt_path: policy.policy.deployment_receipt_path,
+        live_process_binding_receipt_path:
+          policy.policy.live_process_binding_receipt_path,
+        process_source_identity: processIdentity,
         total_timeout_ms: policy.policy.total_timeout_ms,
       },
     });
@@ -713,6 +822,10 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
       record.deployed_artifact_generation_verified === true,
     ancestry_verified: record.ancestry_verified === true,
     provider_quorum_verified: record.provider_quorum_verified === true,
+    operator_approved_provider_pair_binding_verified:
+      record.operator_approved_provider_pair_binding_verified === true,
+    same_live_process_binding_proven:
+      record.same_live_process_binding_proven === true,
   } as const;
 
   if (!readyObservation(observation)) {
@@ -752,6 +865,10 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
     deployed_artifact_generation_verified: true,
     ancestry_verified: true,
     provider_quorum_verified: true,
+    provider_pair_binding_receipt_id:
+      String(record.provider_pair_binding_receipt_id),
+    operator_approved_provider_pair_binding_verified: true,
+    same_live_process_binding_proven: true,
     production_source_finality_authority_ready: true,
     wallet_access_performed: false,
     signing_performed: false,
