@@ -559,12 +559,12 @@ try {
     null,
     "client reset terminated dispatcher: " + runtime.logs.join(""),
   );
-  const callsBeforeResetRecovery = frontdoorBackend.calls.length;
+  const acceptedBeforeResetRecovery = frontdoorBackend.state.accepted;
   response = await sendRaw(info.listen_port, ordinary.all);
   assert.match(response, /^HTTP\/1\.1 200 OK/u);
   assert.equal(
-    frontdoorBackend.calls.length,
-    callsBeforeResetRecovery + 1,
+    frontdoorBackend.state.accepted,
+    acceptedBeforeResetRecovery + 1,
   );
   assert.deepEqual(frontdoorBackend.calls.at(-1), ordinary.http);
 
