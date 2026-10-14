@@ -10,6 +10,9 @@ import {
   canonicalJson,
   collectReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
+import {
+  runReviewedGitV1,
+} from "./prove_buy_void_reviewed_git_invocation_v1.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MARKER="VOID_REVIEWED_NODE_PACKAGE_RUNTIME_ENFORCEMENT_CANDIDATE_V1";
@@ -21,6 +24,10 @@ const ENFORCEMENT_V6_PROOF=
 const ENFORCEMENT_V6_PROOF_BLOB="a5160f4b11d469accc7af952d39045a4092f0f45";
 const TOOL="tools/void-reviewed-node-package-runtime-v1.mjs";
 const TOOL_BLOB="6475c3f18ffe566cf5f448ca1de4795391a6efde";
+const REVIEWED_GIT_HELPER=
+  "scripts/prove_buy_void_reviewed_git_invocation_v1.mjs";
+const REVIEWED_GIT_HELPER_BLOB=
+  "2df64e31debd4884f2d859d55a87e4ef15925d3d";
 const EXPECTED_ROOTS=["ethers","express"];
 const EXPECTED_VERSIONS=Object.freeze({ethers:"6.17.0",express:"4.22.2"});
 
@@ -60,6 +67,8 @@ function derive(){
   exact("package-lock.json",PACKAGE_LOCK_BLOB,2*1024*1024);
   exact(ENFORCEMENT_V6_PROOF,ENFORCEMENT_V6_PROOF_BLOB,1024*1024);
   exact(TOOL,TOOL_BLOB,1024*1024);
+  exact(REVIEWED_GIT_HELPER,REVIEWED_GIT_HELPER_BLOB,256*1024);
+  runReviewedGitV1(["merge-base","--is-ancestor",SOURCE_PARENT,"HEAD"],ROOT);
 
   const profile=collectReviewedNodePackageRuntimeV1({
     rootPackages:EXPECTED_ROOTS,
