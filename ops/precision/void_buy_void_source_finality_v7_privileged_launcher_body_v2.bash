@@ -257,6 +257,19 @@ visible_blob="$(git_reviewed hash-object -- "$tool_absolute")" ||
   hold reviewed_tool_hash_unavailable
 test "$tracked_blob" = "$visible_blob" || hold reviewed_tool_worktree_blob_mismatch
 
+dispatch_head="$(git_reviewed rev-parse --verify 'HEAD^{commit}')" ||
+  hold protected_dispatch_head_unavailable
+dispatch_tree="$(git_reviewed rev-parse --verify 'HEAD^{tree}')" ||
+  hold protected_dispatch_tree_unavailable
+dispatch_branch="$(git_reviewed symbolic-ref --short -q HEAD)" ||
+  hold protected_dispatch_branch_unavailable
+dispatch_status="$(git_reviewed status --porcelain=v1 --untracked-files=all)" ||
+  hold protected_dispatch_status_unavailable
+test "$dispatch_head" = "$head_before" || hold protected_dispatch_head_changed
+test "$dispatch_tree" = "$tree_before" || hold protected_dispatch_tree_changed
+test "$dispatch_branch" = "main" || hold protected_dispatch_branch_not_main
+test -z "$dispatch_status" || hold protected_dispatch_tree_dirty
+
 TSX_LOADER="$ROOT/node_modules/tsx/dist/loader.mjs"
 TSX_TSCONFIG="$ROOT/tsconfig.json"
 test -f "$TSX_LOADER" || hold protected_tsx_loader_missing
@@ -270,4 +283,11 @@ printf 'tsx_execution_mode=node_import_hook\n'
 
 exec "$ENV" -i   PATH=/usr/bin:/bin   HOME=/root   LANG=C LC_ALL=C TZ=UTC \
   TSX_TSCONFIG_PATH="$TSX_TSCONFIG" \
+  VOID_BUY_VOID_V7_PROTECTED_DISPATCH=VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1 \
+  VOID_BUY_VOID_V7_PROTECTED_NATIVE_PREENTRY="$NATIVE_PREENTRY_MARKER" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_ROOT="$ROOT" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_COMMIT="$dispatch_head" \
+  VOID_BUY_VOID_V7_PROTECTED_SOURCE_TREE="$dispatch_tree" \
+  VOID_BUY_VOID_V7_PROTECTED_TOOL_PATH="$tool_path" \
+  VOID_BUY_VOID_V7_PROTECTED_TOOL_BLOB_SHA1="$tracked_blob" \
   "$NODE" --import "file://$TSX_LOADER" "$tool_absolute" "${tool_args[@]}"
