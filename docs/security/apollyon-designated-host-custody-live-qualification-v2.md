@@ -61,7 +61,7 @@ is:
 Reviewed Python-launcher source blob:
 
 ```text
-446d5af1a7bec9c099055366a597c0f62d2e7eae
+fcf35b4f8f927eadea0f7285c06465804aac90f1
 ```
 
 That launcher then authenticates the separately installed reviewed source root:
@@ -99,7 +99,7 @@ After those interpreter checks, the live runner itself is pinned by the
 installed launcher to Git blob:
 
 ```text
-32447680186fb7a231f8e16bea2c220eb7f08fa7
+a46cae54131bd25c25f2efb2d67c24b57a872a7e
 ```
 
 The runner then binds a complete reviewed execution closure **before first
@@ -108,7 +108,7 @@ policy evaluation or collector execution**:
 ```text
 V1 policy    6f34e79d94c502e31ca4923fd78922d4875550a5
 V2 policy    db5493a513a42780865e7194580eec3b770dc8e1
-V2 collector cc194b7f239eea049c6ca7e5a536487634d800ab
+V2 collector c7c63106511ee285f8f1cf79b97d32afe0424c65
 custody core f9f18db5bbfeea466202ef0d7babe08c3c401d66
 service      8961572ba5834371b1229f790a1960940fc74935
 client       fb31dbbda76c94f0ad08e38094c151a24a78b486
