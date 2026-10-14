@@ -17,7 +17,7 @@ const NATIVE_PREENTRY=path.join(
   ROOT,"ops/xiphos/apollyon_v2_native_preentry_v1.c",
 );
 const NATIVE_PREENTRY_BLOB_SHA1=
-  "a167b1a46a213644b7bf52f54706c170b491bb8e";
+  "7863007de9d55614305be4d01083c3f8e8bd7453";
 const INSTALLED_LAUNCHER_BLOB_SHA1=
   "d80f848d3412729d0299ccd65fd6845fc1405c21";
 const REVIEWED=Object.freeze({
@@ -158,6 +158,8 @@ for(const required of [
   'fexecve(python_fd, next_argv, envp);',
   'VOID_APOLLYON_V2_NATIVE_PREENTRY=VOID_APOLLYON_V2_NATIVE_PREENTRY_V1',
   'setuid_binary=false',
+  'setuid_setgid_rejected=true',
+  '(S_ISUID | S_ISGID)',
 ]){
   assert.equal(nativeSource.includes(required),true,"native pre-entry missing "+required);
 }
@@ -247,7 +249,7 @@ console.log("exact_v2_policy_blob=true");
 console.log("exact_v2_collector_blob=true");
 console.log("private_reviewed_execution_tree=true");
 console.log("native_pre_python_entry_required=true");
-console.log("native_preentry_source_blob=a167b1a46a213644b7bf52f54706c170b491bb8e");
+console.log("native_preentry_source_blob=7863007de9d55614305be4d01083c3f8e8bd7453");
 console.log("installed_preentry_launcher_required=true");
 console.log("direct_worktree_privileged_invocation_supported=false");
 console.log("modified_runner_rejected_before_node=true");

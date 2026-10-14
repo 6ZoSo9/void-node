@@ -65,6 +65,15 @@ static void require_safe_ancestors(const char *pathname, const char *reason) {
     }
 }
 
+static bool safe_regular_metadata(const struct stat *st, bool executable) {
+    return S_ISREG(st->st_mode) &&
+           st->st_uid == 0 &&
+           st->st_nlink == 1 &&
+           (st->st_mode & 0022) == 0 &&
+           (st->st_mode & (S_ISUID | S_ISGID)) == 0 &&
+           (!executable || (st->st_mode & 0111) != 0);
+}
+
 static void require_safe_regular(
     const char *pathname,
     bool executable,
@@ -73,12 +82,8 @@ static void require_safe_regular(
     struct stat st;
     require_safe_ancestors(pathname, reason);
     if (lstat(pathname, &st) != 0 ||
-        !S_ISREG(st.st_mode) ||
         S_ISLNK(st.st_mode) ||
-        st.st_uid != 0 ||
-        st.st_nlink != 1 ||
-        (st.st_mode & 0022) != 0 ||
-        (executable && (st.st_mode & 0111) == 0)) {
+        !safe_regular_metadata(&st, executable)) {
         hold(reason);
     }
 }
@@ -134,11 +139,7 @@ static int open_trusted_python(void) {
     if (fstat(fd, &opened) != 0 ||
         lstat(canonical, &visible) != 0 ||
         !same_identity(&opened, &visible) ||
-        !S_ISREG(opened.st_mode) ||
-        opened.st_uid != 0 ||
-        opened.st_nlink != 1 ||
-        (opened.st_mode & 0022) != 0 ||
-        (opened.st_mode & 0111) == 0) {
+        !safe_regular_metadata(&opened, true)) {
         close(fd);
         hold("apollyon_v2_native_preentry_python_identity_drift");
     }
@@ -151,12 +152,31 @@ static int self_test(void) {
         FIXED_LAUNCHER[0] != '/') {
         return 1;
     }
+
+    struct stat synthetic;
+    memset(&synthetic, 0, sizeof(synthetic));
+    synthetic.st_mode = S_IFREG | 0755;
+    synthetic.st_uid = 0;
+    synthetic.st_nlink = 1;
+    if (!safe_regular_metadata(&synthetic, true)) {
+        return 1;
+    }
+    synthetic.st_mode |= S_ISUID;
+    if (safe_regular_metadata(&synthetic, true)) {
+        return 1;
+    }
+    synthetic.st_mode = S_IFREG | 0755 | S_ISGID;
+    if (safe_regular_metadata(&synthetic, true)) {
+        return 1;
+    }
+
     puts(MARKER "_SELF_TEST=GREEN");
     puts("native_preentry_source_only=true");
     puts("python_path_fixed=true");
     puts("python_descriptor_execution=true");
     puts("launcher_path_fixed=true");
     puts("setuid_binary=false");
+    puts("setuid_setgid_rejected=true");
     puts("attempt_claim=false");
     puts("training_execution=false");
     return 0;
