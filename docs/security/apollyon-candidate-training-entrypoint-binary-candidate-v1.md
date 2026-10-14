@@ -20,7 +20,7 @@ source so the installed-isolation lane can eventually bind the fixed target to
 reviewed bytes without introducing training authority.
 
 This PR is stacked on exact #2937 source head
-`0a37ee7611500b6ffdcd09c2fa51c56700f5b431` and must not land independently.
+`aac65feb61272367e75e8ffad3b8bc0595277eaf` and must not land independently.
 
 ## Exact source
 
@@ -29,7 +29,7 @@ path
 ops/xiphos/apollyon_candidate_training_entrypoint_v1.c
 
 Git blob
-caac8932ac8fd6f2f9339404b5703bda969b96a6
+73c6f623200b493dce3e1f138df1a1ade81e5350
 ```
 
 The deterministic compile recipe is:
@@ -64,7 +64,7 @@ Each hosted derivation:
 6. emits one canonical JSON candidate report bounded to 65,536 bytes; and
 7. grants no binary acceptance or runtime authority.
 
-The repaired parent also uses an absolute CLOCK_MONOTONIC/TIMER_ABSTIME 300-second observation deadline. The exact self-test commits to the qualification-only boundary, including:
+The repaired parent arms an absolute CLOCK_BOOTTIME/TIMER_ABSTIME 300-second observation deadline before readiness. The exact self-test commits to the qualification-only boundary, including:
 
 ```text
 durable_attempt_claim_proven=false
@@ -84,7 +84,7 @@ A compare job requires all three raw report byte strings to be identical and
 then revalidates the closed report schema, current source identity, compiler
 identity and content-addressed candidate ID.
 
-The candidate ID is:
+Validation also requires the JSON `version` field to be an actual integer; Python boolean or floating-point values that compare equal to 1 are rejected.\n\nThe candidate ID is:
 
 ```text
 apollyon_candidate_training_entrypoint_binary_candidate_v1:<sha256>
