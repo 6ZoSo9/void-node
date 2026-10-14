@@ -96,9 +96,9 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,forbidden);
 }
 assert.equal(
-  source.includes("systemctl_user_selector_authority:false"),
+  source.includes("plan.systemctl_user_selector_authority!==false"),
   true,
-  "publisher must preserve the explicit no-systemctl-selector authority claim",
+  "publisher must reject any collection plan that grants systemctl selector authority",
 );
 
 const rootFixture=process.argv.includes("--root-fixture");
