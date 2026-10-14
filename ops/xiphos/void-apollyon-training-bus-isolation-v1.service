@@ -1,13 +1,12 @@
 [Unit]
 Description=VOID Apollyon candidate training bus-isolation boundary v1
-Documentation=VOID_APOLLYON_TRAINING_BUS_ISOLATION_V1
 
 [Service]
 Type=simple
 User=voidapollyontrain
 Group=voidapollyontrain
 WorkingDirectory=/var/lib/void-apollyon-training-v1
-ExecStart=/opt/void-apollyon-training-v1/apollyon_candidate_training_entrypoint_v1
+ExecStart=/opt/void-apollyon-training-bus-isolation-v1/apollyon_training_bus_isolation_preentry_v1
 
 NoNewPrivileges=yes
 CapabilityBoundingSet=
@@ -41,6 +40,7 @@ ProtectProc=invisible
 ProcSubset=pid
 
 ReadOnlyPaths=/opt/void-apollyon-training-v1
+ReadOnlyPaths=/opt/void-apollyon-training-bus-isolation-v1
 ReadOnlyPaths=/var/lib/void-apollyon-training-v1/input
 ReadWritePaths=/var/lib/void-apollyon-training-v1/output
 
