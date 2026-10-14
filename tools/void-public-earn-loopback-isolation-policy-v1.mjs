@@ -340,16 +340,6 @@ export function classifyVoidPublicEarnLoopbackIsolationPolicyV1(input) {
       "public_earn_isolation_gateway_no_new_privileges_required",
     );
 
-    if (
-      new Set([
-        dispatcher.service_unit,
-        edge.service_unit,
-        gateway.service_unit,
-      ]).size !== 3
-    ) {
-      throw new Error("public_earn_isolation_service_units_not_dedicated");
-    }
-
     const firewall = exactKeys(
       input.firewall,
       [
