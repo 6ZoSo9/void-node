@@ -331,11 +331,15 @@ function dependencyGlobalSourceCensus() {
   assert.deepEqual(paths,[
     "src/economic/buy_void_delivery_runtime_integration_v1.ts",
     "src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts",
+    "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts",
   ],"dependency global source census changed");
   const consumer=readPinned(ROOT,
     "src/economic/buy_void_delivery_runtime_integration_v1.ts").toString("utf8");
   const provider=readPinned(ROOT,
     "src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts").toString("utf8");
+  const activationContract=readPinned(ROOT,
+    "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts")
+    .toString("utf8");
   assert.match(consumer,/globalThis as any\)\[GLOBAL_DEPENDENCIES\]/u,
     "delivery consumer no longer reads reviewed dependency global");
   assert.doesNotMatch(consumer,/\[GLOBAL_DEPENDENCIES\]\s*=/u,
@@ -343,6 +347,13 @@ function dependencyGlobalSourceCensus() {
   assert.match(provider,
     /globalState\[GLOBAL_DEPENDENCIES\]\s*=\s*decision[.]dependencies/u,
     "reviewed dependency provider no longer writes exact dependencies");
+  assert.match(activationContract,
+    /dependency_global:\s*"__void_buy_void_delivery_runtime_dependencies_v1"/u,
+    "activation contract no longer declares exact dependency global");
+  assert.doesNotMatch(activationContract,/\bglobalThis\b/u,
+    "activation contract must not access runtime globalThis");
+  assert.doesNotMatch(activationContract,/\bglobalState\b/u,
+    "activation contract must not access runtime globalState");
   return Object.freeze(paths);
 }
 function runSelfTest() {
