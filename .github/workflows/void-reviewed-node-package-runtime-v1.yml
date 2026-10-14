@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-reviewed-node-package-runtime-v1.yml"
       - "docs/security/reviewed-node-package-runtime-v1.md"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1_historical_refusal_v2.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "package.json"
@@ -16,6 +17,7 @@ on:
       - ".github/workflows/void-reviewed-node-package-runtime-v1.yml"
       - "docs/security/reviewed-node-package-runtime-v1.md"
       - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1_historical_refusal_v2.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "package.json"
@@ -48,7 +50,32 @@ jobs:
         run: |
           node --check tools/void-reviewed-node-package-runtime-v1.mjs
           node --check scripts/prove_void_reviewed_node_package_runtime_v1.mjs
-      - name: Enforce pinned reviewed ethers runtime profile
-        run: node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+          node --check scripts/prove_void_reviewed_node_package_runtime_v1_historical_refusal_v2.mjs
+      - name: Enforce frozen V1 positive or historical refusal
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          historical_package="f28c3e9446c7623ef203da36a9642d046e5f34ee"
+          historical_lock="b2671f0149f522b2489247016df0a5ec4bb72b8b"
+          audited_package="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"
+          audited_lock="15b5c82ea36f13079a2f9e8863722f654eb3f201"
+
+          if [[ "$package_blob" == "$historical_package" && "$lock_blob" == "$historical_lock" ]]; then
+            node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+            echo "reviewed_node_runtime_v1_mode=historical_positive"
+          elif [[ "$package_blob" == "$audited_package" && "$lock_blob" == "$audited_lock" ]]; then
+            receipt="$RUNNER_TEMP/reviewed-node-package-runtime-v1-historical-refusal-v2.txt"
+            node scripts/prove_void_reviewed_node_package_runtime_v1_historical_refusal_v2.mjs | tee "$receipt"
+            grep -Fx "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1_HISTORICAL_REFUSAL_V2_GREEN" "$receipt"
+            grep -Fx "frozen_v1_bytes_unchanged=true" "$receipt"
+            grep -Fx "frozen_v1_refuses_audited_package_generation=true" "$receipt"
+            grep -Fx "unknown_package_generation_accepted=false" "$receipt"
+            echo "reviewed_node_runtime_v1_mode=historical_refusal"
+          else
+            echo "unsupported reviewed Node package generation: package=$package_blob lock=$lock_blob" >&2
+            exit 1
+          fi
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD

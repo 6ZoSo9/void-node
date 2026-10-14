@@ -6,7 +6,9 @@ on:
       - ".github/workflows/void-wc-void-launch-controller-control-requalification-v1.yml"
       - "docs/operators/wc-void-launch-controller-control-requalification-v1.md"
       - "scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs"
+      - "scripts/prove_void_wc_void_launch_controller_control_requalification_v2.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-launch-controller-control-requalification-v2.mjs"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
       - "package.json"
@@ -17,7 +19,9 @@ on:
       - ".github/workflows/void-wc-void-launch-controller-control-requalification-v1.yml"
       - "docs/operators/wc-void-launch-controller-control-requalification-v1.md"
       - "scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs"
+      - "scripts/prove_void_wc_void_launch_controller_control_requalification_v2.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-launch-controller-control-requalification-v2.mjs"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
       - "package.json"
@@ -49,9 +53,35 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-launch-controller-control-requalification-v1.mjs
+          node --check tools/void-wc-void-launch-controller-control-requalification-v2.mjs
           node --check scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs
-      - name: Prove current launch-controller control contract
-        run: node scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs
+          node --check scripts/prove_void_wc_void_launch_controller_control_requalification_v2.mjs
+      - name: Prove current launch-controller control source generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs
+              echo "launch_controller_control_source_generation=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/launch-controller-control-v1-hold.txt"
+              if node scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 source binding acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'control_source_blob_mismatch:package.json' "$hold"
+              node scripts/prove_void_wc_void_launch_controller_control_requalification_v2.mjs
+              echo "launch_controller_control_source_generation=audited_v2"
+              ;;
+            *)
+              echo "unknown package generation" >&2
+              exit 1
+              ;;
+          esac
       - name: Diff hygiene
         shell: bash
         run: |

@@ -5,15 +5,20 @@ on:
     paths:
       - ".github/workflows/void-wc-void-opening-related-identity-review-attestation-v1.yml"
       - "tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs"
+      - "tools/void-wc-void-opening-related-identity-review-attestation-v2.mjs"
       - "scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs"
+      - "scripts/prove_void_wc_void_opening_related_identity_review_attestation_v2.mjs"
       - "docs/operators/wc-void-opening-related-identity-review-attestation-v1.md"
       - "tools/void-wc-void-opening-related-identity-reviewer-role-v1.mjs"
       - "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-launch-controller-control-requalification-v2.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
       - "tools/void-wc-void-coupled-opening-v1.mjs"
@@ -27,15 +32,20 @@ on:
     paths:
       - ".github/workflows/void-wc-void-opening-related-identity-review-attestation-v1.yml"
       - "tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs"
+      - "tools/void-wc-void-opening-related-identity-review-attestation-v2.mjs"
       - "scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs"
+      - "scripts/prove_void_wc_void_opening_related_identity_review_attestation_v2.mjs"
       - "docs/operators/wc-void-opening-related-identity-review-attestation-v1.md"
       - "tools/void-wc-void-opening-related-identity-reviewer-role-v1.mjs"
       - "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-launch-controller-control-requalification-v2.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "ops/security/reviewed-node-package-runtime-ethers-v2.json"
       - "package.json"
       - "package-lock.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v2.mjs"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
       - "tools/void-wc-void-coupled-opening-v1.mjs"
@@ -63,15 +73,70 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Bind exact candidate revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
-      - run: npm ci --ignore-scripts
-      - run: node --check tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs
-      - run: node --check scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs
-      - run: node scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs
-      - run: git diff --check
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax-check both reviewed generations
+        run: |
+          set -euo pipefail
+          node --check tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs
+          node --check scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs
+          node --check tools/void-wc-void-opening-related-identity-review-attestation-v2.mjs
+          node --check scripts/prove_void_wc_void_opening_related_identity_review_attestation_v2.mjs
+
+      - name: Prove exact related-identity review generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs
+              echo "related_identity_review_mode=historical_v1"
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              hold="$RUNNER_TEMP/related-identity-v1-hold.txt"
+              if node scripts/prove_void_wc_void_opening_related_identity_review_attestation_v1.mjs >"$hold" 2>&1; then
+                echo "unexpected V1 acceptance of audited package generation" >&2
+                exit 1
+              fi
+              grep -F 'review_control_worktree_blob_mismatch' "$hold"
+              node scripts/prove_void_wc_void_opening_related_identity_review_attestation_v2.mjs
+              node scripts/prove_void_reviewed_node_package_runtime_v2.mjs
+              echo "related_identity_review_mode=audited_v2"
+              ;;
+            *)
+              echo "unknown related-identity package generation: package=$package_blob lock=$lock_blob" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then
+            BASE="$HEAD_SHA^"
+          fi
+          git cat-file -e "$BASE^{commit}"
+          MERGE_BASE="$(git merge-base "$BASE" "$HEAD_SHA")"
+          test -n "$MERGE_BASE"
+          git diff --check "$MERGE_BASE" "$HEAD_SHA"

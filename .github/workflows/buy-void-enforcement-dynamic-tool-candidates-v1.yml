@@ -13,7 +13,9 @@ on:
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "tools/buy-void-prepared-transaction-broadcaster-service-v1.mjs"
       - "tools/buy-void-prepared-transaction-custodian-service-v1.mjs"
+      - "package.json"
       - "package-lock.json"
+      - "scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs"
   workflow_dispatch:
 
 permissions:
@@ -72,32 +74,72 @@ jobs:
 
       - name: Prove synthetic generated-loader edge and reject unreviewed inputs
         run: node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --self-test
-      - name: Derive exact three-target thirteen-caller source census
+      - name: Derive exact reviewed dynamic-tool generation
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > tool-candidates-${{ matrix.node }}.json
-          node --input-type=module -e '
-            import assert from "node:assert/strict";
-            import fs from "node:fs";
-            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-            assert.equal(j.schema,"void_buy_void_dynamic_tool_candidate_source_identity_v1");
-            assert.equal(j.reviewed_source_generation,"32f40899d6b71561bf4bf3a917e51c431cb867de");
-            assert.equal(j.original_dynamic_caller_count,13);
-            assert.equal(j.original_unique_tool_count,3);
-            assert.equal(j.source_callers.length,13);
-            assert.equal(j.tool_candidates.length,3);
-            assert.equal(j.source_target_files_git_blobs_verified,true);
-            for(const key of ["actual_compiled_importer_execution_qualified",
-              "executed_target_verified","dynamic_tool_transitive_closure_verified",
-              "complete_executable_closure_verified","candidate_identity_accepted",
-              "deployed_artifact_generation_verified",
-              "production_source_finality_authority_ready","presale_activation",
-              "funds_movement"])assert.equal(j[key],false,key);
-            assert.ok(j.source_callers.every(x=>x.executed_target_verified===false));
-            assert.ok(j.tool_candidates.every(x=>x.executed_target_verified===false));
-            console.log("VOID_BUY_VOID_DYNAMIC_TOOL_SOURCE_IDENTITY_CANDIDATE_GREEN");
-            console.log("production_authority=false");
-          ' tool-candidates-${{ matrix.node }}.json
+          package_blob="$(git hash-object package.json)"
+          lock_blob="$(git hash-object package-lock.json)"
+          case "$package_blob:$lock_blob" in
+            f28c3e9446c7623ef203da36a9642d046e5f34ee:b2671f0149f522b2489247016df0a5ec4bb72b8b)
+              node scripts/prove_buy_void_enforcement_dynamic_tool_candidates_v1.mjs --derive > tool-candidates-${{ matrix.node }}.json
+              node --input-type=module -e '
+                import assert from "node:assert/strict";
+                import fs from "node:fs";
+                const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+                assert.equal(j.schema,"void_buy_void_dynamic_tool_candidate_source_identity_v1");
+                assert.equal(j.reviewed_source_generation,"32f40899d6b71561bf4bf3a917e51c431cb867de");
+                assert.equal(j.original_dynamic_caller_count,13);
+                assert.equal(j.original_unique_tool_count,3);
+                assert.equal(j.source_callers.length,13);
+                assert.equal(j.tool_candidates.length,3);
+                assert.equal(j.source_target_files_git_blobs_verified,true);
+                for(const key of ["actual_compiled_importer_execution_qualified",
+                  "executed_target_verified","dynamic_tool_transitive_closure_verified",
+                  "complete_executable_closure_verified","candidate_identity_accepted",
+                  "deployed_artifact_generation_verified",
+                  "production_source_finality_authority_ready","presale_activation",
+                  "funds_movement"])assert.equal(j[key],false,key);
+                assert.ok(j.source_callers.every(x=>x.executed_target_verified===false));
+                assert.ok(j.tool_candidates.every(x=>x.executed_target_verified===false));
+                console.log("VOID_BUY_VOID_DYNAMIC_TOOL_SOURCE_IDENTITY_CANDIDATE_GREEN");
+                console.log("production_authority=false");
+              ' tool-candidates-${{ matrix.node }}.json
+              ;;
+            14fbdf5717b07fd4c734f5da7a8e84ed59bee93f:15b5c82ea36f13079a2f9e8863722f654eb3f201)
+              audited_refusal="$RUNNER_TEMP/dynamic-tool-audited-refusal-${{ matrix.node }}.json"
+              node scripts/prove_buy_void_enforcement_v5_audited_package_refusal_v1.mjs > "$audited_refusal"
+              cp "$audited_refusal" tool-candidates-${{ matrix.node }}.json
+              node --input-type=module - <<'NODE' "$audited_refusal"
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(j.schema,"void_buy_void_enforcement_v5_historical_refusal_epoch2_v1");
+          assert.equal(j.audited_package_generation_refusal,true);
+          assert.equal(j.historical_dynamic_tool_candidate_derived,false);
+          assert.equal(j.historical_dynamic_tool_candidate_refused_audited_package_generation,true);
+          assert.equal(
+            j.frozen_dynamic_tool_script_git_blob_sha1,
+            "368ade74f36acad899420db5cf994363d6dfa04a",
+          );
+          for(const key of [
+            "dynamic_tool_execution_identity_verified",
+            "dynamic_tool_transitive_closure_verified",
+            "complete_executable_closure_verified",
+            "candidate_identity_accepted",
+            "deployed_artifact_generation_verified",
+            "production_source_finality_authority_ready",
+            "production_payment_activation",
+            "presale_activation",
+            "funds_movement",
+          ]) assert.equal(j[key],false,key);
+          console.log("VOID_BUY_VOID_DYNAMIC_TOOL_AUDITED_PACKAGE_REFUSAL_GREEN");
+          NODE
+              ;;
+            *)
+              echo "UNKNOWN_DYNAMIC_TOOL_PACKAGE_GENERATION:$package_blob:$lock_blob" >&2
+              exit 1
+              ;;
+          esac
       - name: Reject invocation without derive-only intent
         run: |
           set -euo pipefail
@@ -147,10 +189,24 @@ jobs:
             import crypto from "node:crypto";
             const bytes=fs.readFileSync("candidate/tool-candidates-22.json");
             const result=JSON.parse(bytes);
-            assert.equal(result.complete_executable_closure_verified,false);
-            assert.equal(result.executed_target_verified,false);
-            assert.equal(result.candidate_identity_accepted,false);
-            console.log("VOID_DYNAMIC_TOOL_CANDIDATE_THREE_NODE_BYTES_GREEN");
+            if(result.schema==="void_buy_void_enforcement_v5_historical_refusal_epoch2_v1"){
+              assert.equal(result.audited_package_generation_refusal,true);
+              assert.equal(result.historical_dynamic_tool_candidate_derived,false);
+              assert.equal(
+                result.historical_dynamic_tool_candidate_refused_audited_package_generation,
+                true,
+              );
+              assert.equal(result.dynamic_tool_execution_identity_verified,false);
+              assert.equal(result.dynamic_tool_transitive_closure_verified,false);
+              assert.equal(result.complete_executable_closure_verified,false);
+              assert.equal(result.candidate_identity_accepted,false);
+              console.log("VOID_DYNAMIC_TOOL_AUDITED_REFUSAL_THREE_NODE_BYTES_GREEN");
+            } else {
+              assert.equal(result.complete_executable_closure_verified,false);
+              assert.equal(result.executed_target_verified,false);
+              assert.equal(result.candidate_identity_accepted,false);
+              console.log("VOID_DYNAMIC_TOOL_CANDIDATE_THREE_NODE_BYTES_GREEN");
+            }
             console.log("candidate_sha256="+crypto.createHash("sha256").update(bytes).digest("hex"));
             console.log("complete_execution_authority=false");
           '
