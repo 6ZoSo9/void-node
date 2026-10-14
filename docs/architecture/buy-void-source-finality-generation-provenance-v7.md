@@ -18,17 +18,26 @@ Production success requires a separate operator-installed, private, content-
 addressed deployment receipt. The receipt binds:
 
 - immutable process-source marker, commit, tree and main branch;
-- an accepted enforcement-set SHA-256;
+- exact accepted V6 enforcement identity `ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb`;
 - the SHA-256 of the exact seven source files V7 treats as its reviewed runtime
   source surface; and
 - the exact reviewed-source file count.
 
-The receipt is read through O_NOFOLLOW and retained-descriptor identity checks.
-It must be a direct single-link regular file, **root-owned and exactly mode
-0444**. The unprivileged node/service UID cannot create, chmod, replace or
-self-authorize this deployment receipt. Its contents are non-secret identity
-evidence; root-only mutation, rather than confidentiality, is the authority
-boundary.
+The receipt is read through retained descriptor custody. Every filesystem
+ancestor from the receipt parent through the filesystem root must be a
+root-owned, non-symlink directory with no group/world write bits. Those
+directories remain open while the leaf is opened descriptor-relative through
+the retained parent; the leaf must be a direct single-link regular file,
+**root-owned and exactly mode 0444**. This closes rename/unlink replacement by
+the unprivileged service UID at the directory-entry boundary.
+
+A structurally valid deployment object is not authority. The public receipt
+classifier can describe valid bytes, but only the filesystem verifier brands
+the exact successful object inside this module; the provider-quorum classifier
+refuses synthetic or cloned success objects that did not cross that retained
+custody boundary. The receipt contents are non-secret identity evidence;
+root-controlled immutable placement, rather than confidentiality, is the
+authority boundary.
 
 No production source path in this PR creates or installs that receipt. A later
 operator lane must create it only after the final integrated source/enforcement
@@ -94,8 +103,11 @@ plus fail-closed cases for:
 - payment amount disagreement;
 - finalized reference below the receipt;
 - insufficient secondary confirmations;
+- structurally forged or cloned deployment success objects;
+- well-formed receipt with the wrong accepted V6 enforcement identity;
 - unaccepted deployment generation;
-- unprivileged-owned or writable deployment receipt; and
+- unprivileged-owned or writable deployment receipt;
+- root-owned receipt below a writable ancestor directory; and
 - process commit mismatch.
 
 ## Next gate

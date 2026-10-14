@@ -79,7 +79,18 @@ jobs:
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6.ts
 
       - name: Prove dormant V7 deployment receipt and provider quorum
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v7.ts
+        run: |
+          set -euo pipefail
+          proof_log="$RUNNER_TEMP/source-finality-v7-root-proof.txt"
+          sudo env "PATH=$PATH" ./node_modules/.bin/tsx \
+            scripts/prove_buy_void_source_finality_generation_provenance_v7.ts \
+            | tee "$proof_log"
+          grep -Fx 'deployment_receipt_enforcement_identity_bound=true' "$proof_log"
+          grep -Fx 'deployment_receipt_root_owned_ancestor_custody_required=true' "$proof_log"
+          grep -Fx 'forged_deployment_object_rejected=true' "$proof_log"
+          grep -Fx 'cloned_deployment_object_rejected=true' "$proof_log"
+          grep -Fx 'writable_parent_rejected=true' "$proof_log"
+          grep -Fx 'root_custody_positive_exercised=true' "$proof_log"
 
       - name: Prove V6 preflight shares the total deadline
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v6_deadline.ts

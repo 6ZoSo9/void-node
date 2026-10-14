@@ -16,6 +16,8 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7 =
   "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7";
 export const VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1";
+export const VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 =
+  "ea7abb9300215e4f76caea4706fa4c4c81465c32f30a3350fe4f01177f845cfb";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V7 =
   Object.freeze({
@@ -103,6 +105,24 @@ export type BuyVoidSourceFinalityDeploymentDecisionV7 =
       readonly source_generation_verified: false;
       readonly deployed_artifact_generation_verified: false;
     };
+
+const VERIFIED_DEPLOYMENT_DECISIONS_V7 = new WeakSet<object>();
+
+function custodyVerifiedDeploymentV7(
+  decision: BuyVoidSourceFinalityDeploymentDecisionV7,
+): BuyVoidSourceFinalityDeploymentDecisionV7 {
+  if (decision.ok === false) return decision;
+  const verified = Object.freeze({ ...decision });
+  VERIFIED_DEPLOYMENT_DECISIONS_V7.add(verified);
+  return verified;
+}
+
+function isCustodyVerifiedDeploymentV7(
+  decision: BuyVoidSourceFinalityDeploymentDecisionV7,
+): boolean {
+  return decision.ok === true &&
+    VERIFIED_DEPLOYMENT_DECISIONS_V7.has(decision as object);
+}
 
 export type BuyVoidSourceFinalityGenerationHeldV7 = {
   readonly ok: false;
@@ -375,6 +395,8 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
     !SHA40.test(String(receipt.process_source_commit ?? "")) ||
     !SHA40.test(String(receipt.process_source_tree ?? "")) ||
     !SHA256.test(String(receipt.accepted_enforcement_set_sha256 ?? "")) ||
+    receipt.accepted_enforcement_set_sha256 !==
+      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7 ||
     receipt.reviewed_source_files_sha256 !== input.reviewed_source_files_sha256 ||
     receipt.reviewed_source_file_count !== input.reviewed_source_file_count ||
     !RECEIPT_ID.test(String(receipt.receipt_id ?? ""))
@@ -399,6 +421,166 @@ export function classifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
   };
 }
 
+function readRootCustodiedDeploymentReceiptV7(
+  absolute: string,
+  maxBytes: number,
+): Buffer {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
+  if (
+    process.platform !== "linux" ||
+    typeof noFollow !== "number" || noFollow <= 0 ||
+    typeof directory !== "number" || directory <= 0
+  ) {
+    throw new Error("deployment_receipt_custody_platform_unavailable");
+  }
+  const resolved = path.resolve(absolute);
+  if (resolved !== absolute) {
+    throw new Error("deployment_receipt_path_not_canonical");
+  }
+
+  const heldDirectories: Array<{
+    fd: number;
+    dev: number;
+    ino: number;
+    uid: number;
+    mode: number;
+  }> = [];
+  let leafFd = -1;
+  try {
+    let current = path.dirname(resolved);
+    for (;;) {
+      const visible = fs.lstatSync(current);
+      if (
+        !visible.isDirectory() ||
+        visible.isSymbolicLink() ||
+        visible.uid !== 0 ||
+        (visible.mode & 0o022) !== 0
+      ) {
+        throw new Error("deployment_receipt_ancestor_custody_invalid");
+      }
+      const fd = fs.openSync(
+        current,
+        fs.constants.O_RDONLY | directory | noFollow,
+      );
+      const held = fs.fstatSync(fd);
+      if (
+        !held.isDirectory() ||
+        held.dev !== visible.dev ||
+        held.ino !== visible.ino ||
+        held.uid !== 0 ||
+        (held.mode & 0o022) !== 0
+      ) {
+        fs.closeSync(fd);
+        throw new Error("deployment_receipt_ancestor_identity_mismatch");
+      }
+      heldDirectories.push({
+        fd,
+        dev: held.dev,
+        ino: held.ino,
+        uid: held.uid,
+        mode: held.mode & 0o777,
+      });
+      const next = path.dirname(current);
+      if (next === current) break;
+      current = next;
+    }
+
+    const parent = heldDirectories[0];
+    if (!parent) throw new Error("deployment_receipt_parent_missing");
+    const leafViaParent =
+      `/proc/self/fd/${parent.fd}/${path.basename(resolved)}`;
+    const visibleBefore = fs.lstatSync(leafViaParent);
+    if (
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      visibleBefore.nlink !== 1 ||
+      visibleBefore.uid !== 0 ||
+      (visibleBefore.mode & 0o777) !== 0o444 ||
+      visibleBefore.size <= 0 ||
+      visibleBefore.size > maxBytes
+    ) {
+      throw new Error("deployment_receipt_path_policy_invalid");
+    }
+
+    leafFd = fs.openSync(
+      leafViaParent,
+      fs.constants.O_RDONLY | noFollow,
+    );
+    const before = fs.fstatSync(leafFd);
+    if (
+      !before.isFile() ||
+      before.dev !== visibleBefore.dev ||
+      before.ino !== visibleBefore.ino ||
+      before.nlink !== 1 ||
+      before.uid !== 0 ||
+      (before.mode & 0o777) !== 0o444 ||
+      before.size !== visibleBefore.size
+    ) {
+      throw new Error("deployment_receipt_descriptor_identity_mismatch");
+    }
+
+    const buffer = Buffer.alloc(before.size + 1);
+    let total = 0;
+    while (total < buffer.length) {
+      const count = fs.readSync(
+        leafFd,
+        buffer,
+        total,
+        buffer.length - total,
+        total,
+      );
+      if (count === 0) break;
+      total += count;
+    }
+    if (total !== before.size) {
+      throw new Error("deployment_receipt_size_changed_during_read");
+    }
+
+    const after = fs.fstatSync(leafFd);
+    const visibleAfter = fs.lstatSync(leafViaParent);
+    if (
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.size !== before.size ||
+      after.nlink !== before.nlink ||
+      after.uid !== before.uid ||
+      (after.mode & 0o777) !== (before.mode & 0o777) ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs ||
+      !visibleAfter.isFile() ||
+      visibleAfter.isSymbolicLink() ||
+      visibleAfter.dev !== after.dev ||
+      visibleAfter.ino !== after.ino ||
+      visibleAfter.size !== after.size ||
+      visibleAfter.uid !== after.uid ||
+      (visibleAfter.mode & 0o777) !== (after.mode & 0o777)
+    ) {
+      throw new Error("deployment_receipt_identity_changed_during_read");
+    }
+
+    for (const held of heldDirectories) {
+      const currentStat = fs.fstatSync(held.fd);
+      if (
+        !currentStat.isDirectory() ||
+        currentStat.dev !== held.dev ||
+        currentStat.ino !== held.ino ||
+        currentStat.uid !== held.uid ||
+        (currentStat.mode & 0o777) !== held.mode ||
+        (currentStat.mode & 0o022) !== 0
+      ) {
+        throw new Error("deployment_receipt_ancestor_changed_during_read");
+      }
+    }
+    return buffer.subarray(0, total);
+  } finally {
+    if (leafFd >= 0) fs.closeSync(leafFd);
+    for (let index = heldDirectories.length - 1; index >= 0; index -= 1) {
+      fs.closeSync(heldDirectories[index].fd);
+    }
+  }
+}
+
 export function verifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
   deployment_receipt_path: string;
   process_source_identity: ProcessSourceIdentityV7;
@@ -413,25 +595,23 @@ export function verifyBuyVoidSourceFinalityDeploymentReceiptV7(input: {
         deployed_artifact_generation_verified: false,
       };
     }
-    const stat = fs.lstatSync(input.deployment_receipt_path);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.nlink !== 1 ||
-      stat.uid !== 0 ||
-      (stat.mode & 0o777) !== 0o444
-    ) {
-      throw new Error("deployment_receipt_path_policy_invalid");
+    const absolute = path.resolve(input.deployment_receipt_path);
+    if (absolute !== input.deployment_receipt_path) {
+      throw new Error("deployment_receipt_path_not_canonical");
     }
-    const bytes = readStableRegularFile(input.deployment_receipt_path, MAX_RECEIPT_BYTES);
+    const bytes = readRootCustodiedDeploymentReceiptV7(
+      absolute,
+      MAX_RECEIPT_BYTES,
+    );
     const receipt = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     const sources = inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
-    return classifyBuyVoidSourceFinalityDeploymentReceiptV7({
+    const decision = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
       receipt,
       process_source_identity: input.process_source_identity,
       reviewed_source_files_sha256: sources.reviewed_source_files_sha256,
       reviewed_source_file_count: sources.reviewed_source_file_count,
     });
+    return custodyVerifiedDeploymentV7(decision);
   } catch {
     return {
       ok: false,
@@ -490,6 +670,9 @@ export function classifyBuyVoidSourceFinalityProviderQuorumV7(input: {
     return held("source_finality_provider_independence_invalid");
   }
   if (input.deployment.ok === false) return held(input.deployment.reason);
+  if (!isCustodyVerifiedDeploymentV7(input.deployment)) {
+    return held("source_finality_deployment_not_custody_verified");
+  }
   const primary = input.primary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   const secondary = input.secondary as Partial<BuyVoidSourceFinalityAuthenticatedReadyV3>;
   for (const [label, observed, endpoint] of [

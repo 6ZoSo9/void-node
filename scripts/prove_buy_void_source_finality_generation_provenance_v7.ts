@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7,
   buyVoidSourceFinalityDeploymentReceiptIdV7,
@@ -132,11 +133,12 @@ function observation(policy: any, overrides: Record<string, unknown> = {}) {
 
 const primaryPolicy = stablePolicy("https://rpc-a.example.invalid/v1", "provider-a");
 const secondaryPolicy = stablePolicy("https://rpc-b.example.invalid/v1", "provider-b");
-const deployment = {
+const forgedDeployment = {
   ok: true,
   status: "deployment_generation_verified",
   deployment_receipt_id: "voidbsfdep1_" + "c".repeat(64),
-  accepted_enforcement_set_sha256: "d".repeat(64),
+  accepted_enforcement_set_sha256:
+    VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   reviewed_source_files_sha256: "e".repeat(64),
   reviewed_source_file_count: "7",
   source_generation_verified: true,
@@ -155,86 +157,43 @@ const secondary = observation(secondaryPolicy, {
   composition_policy_sha256: "4".repeat(64),
 });
 
-const green = classifyBuyVoidSourceFinalityProviderQuorumV7({
+const forgedAuthority = classifyBuyVoidSourceFinalityProviderQuorumV7({
   primary_policy: primaryPolicy,
   secondary_policy: secondaryPolicy,
   primary,
   secondary,
-  deployment: deployment as any,
+  deployment: forgedDeployment as any,
 });
-assert.equal(green.ok, true);
-if (!green.ok) throw new Error(green.reason);
-assert.equal(green.marker, VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7);
-assert.equal(green.independent_remote_provider_transport_verified, true);
-assert.equal(green.remote_provider_identity_verified, false);
-assert.equal(green.ancestry_verified, true);
-assert.equal(green.provider_quorum_verified, true);
-assert.equal(green.source_generation_verified, true);
-assert.equal(green.deployed_artifact_generation_verified, true);
-assert.equal(green.production_source_finality_authority_ready, true);
-assert.equal(green.wallet_access, false);
-assert.equal(green.signing, false);
-assert.equal(green.transaction_broadcast, false);
-assert.equal(green.money_movement, false);
-assert.match(green.provider_quorum_sha256, /^[0-9a-f]{64}$/u);
+assert.equal(forgedAuthority.ok, false);
+if (forgedAuthority.ok) throw new Error("forged_deployment_unexpected_ready");
+assert.equal(
+  forgedAuthority.reason,
+  "source_finality_deployment_not_custody_verified",
+);
 
-function expectHold(label: string, mutate: (value: any) => void) {
+function expectHold(
+  label: string,
+  verifiedDeployment: any,
+  mutate: (value: any) => void,
+) {
   const p = structuredClone(primaryPolicy);
   const s = structuredClone(secondaryPolicy);
   const a = structuredClone(primary);
   const b = structuredClone(secondary);
-  const d = structuredClone(deployment) as any;
-  const box = { p, s, a, b, d };
+  const box = { p, s, a, b };
   mutate(box);
   const out = classifyBuyVoidSourceFinalityProviderQuorumV7({
     primary_policy: box.p,
     secondary_policy: box.s,
     primary: box.a,
     secondary: box.b,
-    deployment: box.d,
+    deployment: verifiedDeployment,
   });
   assert.equal(out.ok, false, label);
   if (out.ok) throw new Error(label + ":unexpected_ready");
   assert.equal(out.status, "held", label);
   assert.equal("production_source_finality_authority_ready" in out, false, label);
 }
-
-expectHold("same_provider_identity", ({ s }) => {
-  s.source_finality_policy.rpc_identity = primaryPolicy.source_finality_policy.rpc_identity;
-});
-expectHold("same_provider_url_fingerprint", ({ s }) => {
-  s.source_finality_policy.rpc_url_fingerprint_sha256 =
-    primaryPolicy.source_finality_policy.rpc_url_fingerprint_sha256;
-});
-expectHold("same_provider_hostname", ({ s }) => {
-  s.source_finality_policy.rpc_url = "https://rpc-a.example.invalid/other";
-  s.source_finality_policy.rpc_url_fingerprint_sha256 = sha256(
-    new URL(s.source_finality_policy.rpc_url).toString(),
-  );
-});
-expectHold("non_https_secondary", ({ s }) => {
-  s.source_finality_policy.rpc_url = "http://127.0.0.1:8545/";
-  s.source_finality_policy.rpc_url_fingerprint_sha256 = sha256(s.source_finality_policy.rpc_url);
-});
-expectHold("receipt_hash_disagreement", ({ b }) => {
-  b.receipt_block_hash = "0x" + "6".repeat(64);
-});
-expectHold("payment_amount_disagreement", ({ b }) => {
-  b.payment_usdc_atoms = "2000000";
-});
-expectHold("secondary_finality_below_receipt", ({ b }) => {
-  b.finalized_reference_block = "99";
-});
-expectHold("secondary_confirmations_below_min", ({ b }) => {
-  b.confirmations_observed = "2";
-});
-expectHold("deployment_not_accepted", ({ d }) => {
-  d.ok = false;
-  d.status = "held";
-  d.reason = "synthetic_hold";
-  d.source_generation_verified = false;
-  d.deployed_artifact_generation_verified = false;
-});
 
 const processIdentity = {
   marker: "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
@@ -254,7 +213,8 @@ const receiptBody = {
   process_source_commit: processIdentity.commit,
   process_source_tree: processIdentity.tree,
   process_source_branch: processIdentity.branch,
-  accepted_enforcement_set_sha256: "3".repeat(64),
+  accepted_enforcement_set_sha256:
+    VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
   reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
   reviewed_source_file_count: "7",
 };
@@ -270,36 +230,178 @@ const receiptDecision = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
 });
 assert.equal(receiptDecision.ok, true);
 
-const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-sf-v7-receipt-"));
+const unbrandedReceiptAuthority = classifyBuyVoidSourceFinalityProviderQuorumV7({
+  primary_policy: primaryPolicy,
+  secondary_policy: secondaryPolicy,
+  primary,
+  secondary,
+  deployment: receiptDecision,
+});
+assert.equal(unbrandedReceiptAuthority.ok, false);
+if (unbrandedReceiptAuthority.ok) {
+  throw new Error("unbranded_receipt_unexpected_ready");
+}
+assert.equal(
+  unbrandedReceiptAuthority.reason,
+  "source_finality_deployment_not_custody_verified",
+);
+
+const wrongEnforcementBody = {
+  ...receiptBody,
+  accepted_enforcement_set_sha256: "0".repeat(64),
+};
+const wrongEnforcementReceipt = {
+  ...wrongEnforcementBody,
+  receipt_id: buyVoidSourceFinalityDeploymentReceiptIdV7(wrongEnforcementBody),
+};
+const wrongEnforcement = classifyBuyVoidSourceFinalityDeploymentReceiptV7({
+  receipt: wrongEnforcementReceipt,
+  process_source_identity: processIdentity,
+  reviewed_source_files_sha256: sourceInventory.reviewed_source_files_sha256,
+  reviewed_source_file_count: "7",
+});
+assert.equal(wrongEnforcement.ok, false);
+
+const isRoot =
+  typeof process.geteuid === "function" && process.geteuid() === 0;
+const tempParent = isRoot && fs.existsSync("/run") ? "/run" : os.tmpdir();
+const temp = fs.mkdtempSync(path.join(tempParent, "void-sf-v7-receipt-"));
+let writableParentRejected = false;
+let rootCustodyPositiveExercised = false;
 try {
   const receiptPath = path.join(temp, "deployment.json");
-  fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n", { mode: 0o444 });
+  fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n", {
+    mode: 0o444,
+  });
 
-  // A receipt created by the unprivileged test/service UID must never become
-  // deployment authority merely because its bytes are valid.
-  const unprivilegedOwner = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+  const ownerDecision = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
     deployment_receipt_path: receiptPath,
     process_source_identity: processIdentity,
   });
-  if (typeof process.geteuid === "function" && process.geteuid() !== 0) {
-    assert.equal(unprivilegedOwner.ok, false);
-  }
 
-  // When this proof is intentionally run as root, exercise the positive
-  // filesystem policy as well: root-owned, exactly mode 0444.
-  if (typeof process.geteuid === "function" && process.geteuid() === 0) {
-    const verified = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+  if (!isRoot) {
+    assert.equal(ownerDecision.ok, false);
+  } else {
+    assert.equal(ownerDecision.ok, true);
+    if (!ownerDecision.ok) throw new Error(ownerDecision.reason);
+    rootCustodyPositiveExercised = true;
+
+    const green = classifyBuyVoidSourceFinalityProviderQuorumV7({
+      primary_policy: primaryPolicy,
+      secondary_policy: secondaryPolicy,
+      primary,
+      secondary,
+      deployment: ownerDecision,
+    });
+    assert.equal(green.ok, true);
+    if (!green.ok) throw new Error(green.reason);
+    assert.equal(green.marker, VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V7);
+    assert.equal(green.independent_remote_provider_transport_verified, true);
+    assert.equal(green.remote_provider_identity_verified, false);
+    assert.equal(green.ancestry_verified, true);
+    assert.equal(green.provider_quorum_verified, true);
+    assert.equal(green.source_generation_verified, true);
+    assert.equal(green.deployed_artifact_generation_verified, true);
+    assert.equal(green.production_source_finality_authority_ready, true);
+    assert.equal(
+      green.accepted_enforcement_set_sha256,
+      VOID_BUY_VOID_SOURCE_FINALITY_ACCEPTED_ENFORCEMENT_SET_V7,
+    );
+    assert.equal(green.wallet_access, false);
+    assert.equal(green.signing, false);
+    assert.equal(green.transaction_broadcast, false);
+    assert.equal(green.money_movement, false);
+    assert.match(green.provider_quorum_sha256, /^[0-9a-f]{64}$/u);
+
+    const clonedDeployment = structuredClone(ownerDecision);
+    const clonedAuthority = classifyBuyVoidSourceFinalityProviderQuorumV7({
+      primary_policy: primaryPolicy,
+      secondary_policy: secondaryPolicy,
+      primary,
+      secondary,
+      deployment: clonedDeployment,
+    });
+    assert.equal(clonedAuthority.ok, false);
+    if (clonedAuthority.ok) throw new Error("cloned_deployment_unexpected_ready");
+    assert.equal(
+      clonedAuthority.reason,
+      "source_finality_deployment_not_custody_verified",
+    );
+
+    expectHold("same_provider_identity", ownerDecision, ({ s }) => {
+      s.source_finality_policy.rpc_identity =
+        primaryPolicy.source_finality_policy.rpc_identity;
+    });
+    expectHold("same_provider_url_fingerprint", ownerDecision, ({ s }) => {
+      s.source_finality_policy.rpc_url_fingerprint_sha256 =
+        primaryPolicy.source_finality_policy.rpc_url_fingerprint_sha256;
+    });
+    expectHold("same_provider_hostname", ownerDecision, ({ s }) => {
+      s.source_finality_policy.rpc_url = "https://rpc-a.example.invalid/other";
+      s.source_finality_policy.rpc_url_fingerprint_sha256 = sha256(
+        new URL(s.source_finality_policy.rpc_url).toString(),
+      );
+    });
+    expectHold("non_https_secondary", ownerDecision, ({ s }) => {
+      s.source_finality_policy.rpc_url = "http://127.0.0.1:8545/";
+      s.source_finality_policy.rpc_url_fingerprint_sha256 =
+        sha256(s.source_finality_policy.rpc_url);
+    });
+    expectHold("receipt_hash_disagreement", ownerDecision, ({ b }) => {
+      b.receipt_block_hash = "0x" + "6".repeat(64);
+    });
+    expectHold("payment_amount_disagreement", ownerDecision, ({ b }) => {
+      b.payment_usdc_atoms = "2000000";
+    });
+    expectHold("secondary_finality_below_receipt", ownerDecision, ({ b }) => {
+      b.finalized_reference_block = "99";
+    });
+    expectHold("secondary_confirmations_below_min", ownerDecision, ({ b }) => {
+      b.confirmations_observed = "2";
+    });
+
+    const heldDeployment = {
+      ok: false,
+      status: "held",
+      reason: "synthetic_hold",
+      source_generation_verified: false,
+      deployed_artifact_generation_verified: false,
+    } as const;
+    const heldAuthority = classifyBuyVoidSourceFinalityProviderQuorumV7({
+      primary_policy: primaryPolicy,
+      secondary_policy: secondaryPolicy,
+      primary,
+      secondary,
+      deployment: heldDeployment,
+    });
+    assert.equal(heldAuthority.ok, false);
+
+    fs.chmodSync(temp, 0o777);
+    const writableParent = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
       deployment_receipt_path: receiptPath,
       process_source_identity: processIdentity,
     });
-    assert.equal(verified.ok, true);
+    assert.equal(writableParent.ok, false);
+    writableParentRejected = true;
+    fs.chmodSync(temp, 0o700);
+
     fs.chmodSync(receiptPath, 0o644);
-    const writable = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+    const writableLeaf = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
       deployment_receipt_path: receiptPath,
       process_source_identity: processIdentity,
     });
-    assert.equal(writable.ok, false);
+    assert.equal(writableLeaf.ok, false);
     fs.chmodSync(receiptPath, 0o444);
+
+    fs.chownSync(receiptPath, 65534, 65534);
+    const unprivilegedOwner = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
+      deployment_receipt_path: receiptPath,
+      process_source_identity: processIdentity,
+    });
+    assert.equal(unprivilegedOwner.ok, false);
+    fs.chownSync(receiptPath, 0, 0);
+    fs.chmodSync(receiptPath, 0o444);
+
     const wrongProcess = verifyBuyVoidSourceFinalityDeploymentReceiptV7({
       deployment_receipt_path: receiptPath,
       process_source_identity: { ...processIdentity, commit: "4".repeat(40) },
@@ -307,6 +409,7 @@ try {
     assert.equal(wrongProcess.ok, false);
   }
 } finally {
+  try { fs.chmodSync(temp, 0o700); } catch {}
   try { fs.chmodSync(path.join(temp, "deployment.json"), 0o600); } catch {}
   fs.rmSync(temp, { recursive: true, force: true });
 }
@@ -318,7 +421,15 @@ console.log("receipt_block_hash_quorum_required=true");
 console.log("independent_finality_thresholds_required=true");
 console.log("operator_deployment_receipt_required=true");
 console.log("deployment_receipt_process_commit_tree_bound=true");
-console.log("deployment_receipt_reviewed_source_digest_bound=true");\nconsole.log("deployment_receipt_root_owned_read_only_required=true");\nconsole.log("rpc_url_fingerprint_rederived_from_normalized_https_url=true");
+console.log("deployment_receipt_reviewed_source_digest_bound=true");
+console.log("deployment_receipt_enforcement_identity_bound=true");
+console.log("deployment_receipt_root_owned_read_only_required=true");
+console.log("deployment_receipt_root_owned_ancestor_custody_required=true");
+console.log("forged_deployment_object_rejected=true");
+console.log("cloned_deployment_object_rejected=true");
+console.log("writable_parent_rejected=" + String(writableParentRejected));
+console.log("root_custody_positive_exercised=" + String(rootCustodyPositiveExercised));
+console.log("rpc_url_fingerprint_rederived_from_normalized_https_url=true");
 console.log("remote_provider_legal_identity_claimed=false");
 console.log("wallet_access=false");
 console.log("signing=false");
