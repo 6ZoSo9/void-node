@@ -78,6 +78,7 @@ function serviceControlFixture(){
     .update(canonicalApollyonCustodyHostPolicyJsonV1(checks))
     .digest("hex");
   return {
+    absolute_runtime_service_control_denial_proven:true,
     actual_system_bus_sender_checks_required:true,
     actual_system_bus_sender_count:1,
     actual_system_bus_sender_set_stable:true,
@@ -94,6 +95,8 @@ function serviceControlFixture(){
     all_training_uid_processes_capability_free:true,
     all_training_uid_threads_capability_free:true,
     checked_actions:checks,
+    inherited_system_bus_descriptor_absence_proven:true,
+    inherited_system_bus_descriptor_absence_required:true,
     installed_systemd_package_version:"255.4-1ubuntu8.11",
     observed_systemd_version_line:"systemd 255 (255.4-1ubuntu8.11)",
     pkcheck_subject:"4242,123456,1000",
@@ -327,6 +330,16 @@ for(const mutate of [
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
 }
 {
+  const bad=v2Fixture();
+  bad.service_control.inherited_system_bus_descriptor_absence_proven=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
+  const bad=v2Fixture();
+  bad.service_control.absolute_runtime_service_control_denial_proven=false;
+  assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/service_control_invalid/u);
+}
+{
   const bad=v2Fixture();bad.service.runtime_can_control_service=true;
   assert.throws(()=>qualifyApollyonCustodyHostPolicyV2(bad),/(service_control_mismatch|service_invalid)/u);
 }
@@ -350,6 +363,8 @@ for(const [key,expected] of Object.entries({
   training_uid_process_identity_stability_required:true,
   training_uid_thread_discovery_required:true,
   actual_system_bus_sender_denial_required:true,
+  inherited_system_bus_descriptor_absence_required:true,
+  absolute_runtime_service_control_denial_required:true,
 })){
   assert.equal(VOID_APOLLYON_CUSTODY_HOST_POLICY_AUTHORITY_V2[key],expected,key);
 }
@@ -376,6 +391,8 @@ console.log("training_uid_thread_stability_required=true");
 console.log("training_uid_process_identity_stability_required=true");
 console.log("training_uid_thread_discovery_required=true");
 console.log("actual_system_bus_sender_denial_required=true");
+console.log("inherited_system_bus_descriptor_absence_required=true");
+console.log("absolute_runtime_service_control_denial_required=true");
 console.log("live_host_qualification_performed=false");
 console.log("production_gate_ready=false");
 console.log("attempt_claimed=false");
