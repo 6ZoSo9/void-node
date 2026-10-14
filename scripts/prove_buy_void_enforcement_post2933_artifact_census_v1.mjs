@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const SOURCE_PARENT="c8ce2b67b72cd59111a62d9638035a46c6120afa";
+const SOURCE_PARENT="ccb4546cf841ce1a43a13339272e4d07c90f7cc0";
 const PRIOR_LOCK="ops/security/buy-void-enforcement-post2865-lock-v1.json";
 const PRIOR_ACCEPTED_SET=
   "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b";
