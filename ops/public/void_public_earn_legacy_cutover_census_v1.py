@@ -159,14 +159,44 @@ def same_generation(first: dict[str, Any], second: dict[str, Any]) -> bool:
         and first.get("start_ticks") == second.get("start_ticks")
     )
 
-def read_gateway_status_4122() -> dict[str, Any]:
-    result = {
+def empty_gateway_status() -> dict[str, Any]:
+    return {
         "status_observed": False,
         "marker_matches_public_earn_gateway": False,
         "mutation_ingress_status_observed": False,
         "dedicated_mutation_mode_observed": False,
         "shared_legacy_mode_observed": False,
     }
+
+
+def classify_gateway_status_payload(parsed: Any) -> dict[str, Any]:
+    result = empty_gateway_status()
+    if not isinstance(parsed, dict):
+        return result
+    result["status_observed"] = True
+    result["marker_matches_public_earn_gateway"] = (
+        parsed.get("marker") == "VOID_PUBLIC_EARN_GATEWAY_V1"
+    )
+    ingress = parsed.get("mutation_ingress")
+    if isinstance(ingress, dict):
+        result["mutation_ingress_status_observed"] = True
+        result["dedicated_mutation_mode_observed"] = (
+            ingress.get("mode") == "dedicated_loopback"
+            and ingress.get("dedicated_loopback_configured") is True
+            and ingress.get("shared_listener_mutations_enabled") is False
+            and ingress.get("dedicated_listener_host_public") is False
+            and ingress.get("local_transport_trust_proven") is False
+        )
+        result["shared_legacy_mode_observed"] = (
+            ingress.get("mode") == "shared_legacy_hold"
+            and ingress.get("dedicated_loopback_configured") is False
+            and ingress.get("shared_listener_mutations_enabled") is True
+        )
+    return result
+
+
+def read_gateway_status_4122() -> dict[str, Any]:
+    result = empty_gateway_status()
     connection = http.client.HTTPConnection(
         "127.0.0.1",
         LEGACY_SHARED_PORT,
@@ -190,34 +220,17 @@ def read_gateway_status_4122() -> dict[str, Any]:
         if len(raw) > 256 * 1024:
             return result
         parsed = json.loads(raw.decode("utf-8", "strict"))
-        if not isinstance(parsed, dict):
-            return result
-    except (OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError, http.client.HTTPException):
+    except (
+        OSError,
+        TimeoutError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        http.client.HTTPException,
+    ):
         return result
     finally:
         connection.close()
-
-    result["status_observed"] = True
-    result["marker_matches_public_earn_gateway"] = (
-        parsed.get("marker") == "VOID_PUBLIC_EARN_GATEWAY_V1"
-    )
-    ingress = parsed.get("mutation_ingress")
-    if isinstance(ingress, dict):
-        result["mutation_ingress_status_observed"] = True
-        result["dedicated_mutation_mode_observed"] = (
-            ingress.get("mode") == "dedicated_loopback"
-            and ingress.get("dedicated_loopback_configured") is True
-            and ingress.get("shared_listener_mutations_enabled") is False
-            and ingress.get("dedicated_listener_host_public") is False
-            and ingress.get("local_transport_trust_proven") is False
-        )
-        result["shared_legacy_mode_observed"] = (
-            ingress.get("mode") == "shared_legacy_hold"
-            and ingress.get("dedicated_loopback_configured") is False
-            and ingress.get("shared_listener_mutations_enabled") is True
-        )
-    return result
-
+    return classify_gateway_status_payload(parsed)
 
 def running_source_blob(pid: int) -> str | None:
     if pid < 1:
@@ -358,13 +371,7 @@ def collect() -> dict[str, Any]:
     gateway_status = (
         read_gateway_status_4122()
         if gateway_before["active_running"] and owned_4122
-        else {
-            "status_observed": False,
-            "marker_matches_public_earn_gateway": False,
-            "mutation_ingress_status_observed": False,
-            "dedicated_mutation_mode_observed": False,
-            "shared_legacy_mode_observed": False,
-        }
+        else empty_gateway_status()
     )
 
     config_path = parse_cloudflared_config_path(int(tunnel_before.get("main_pid") or 0))
@@ -453,6 +460,28 @@ def self_test() -> None:
         {"active_running": True, "main_pid": 5, "start_ticks": 10},
         {"active_running": True, "main_pid": 6, "start_ticks": 10},
     )
+    dedicated = classify_gateway_status_payload({
+        "marker": "VOID_PUBLIC_EARN_GATEWAY_V1",
+        "mutation_ingress": {
+            "mode": "dedicated_loopback",
+            "dedicated_loopback_configured": True,
+            "shared_listener_mutations_enabled": False,
+            "dedicated_listener_host_public": False,
+            "local_transport_trust_proven": False,
+        },
+    })
+    assert dedicated["status_observed"] is True
+    assert dedicated["mutation_ingress_status_observed"] is True
+    assert dedicated["dedicated_mutation_mode_observed"] is True
+    assert dedicated["shared_legacy_mode_observed"] is False
+
+    old_status = classify_gateway_status_payload({
+        "marker": "VOID_PUBLIC_EARN_GATEWAY_V1",
+    })
+    assert old_status["status_observed"] is True
+    assert old_status["mutation_ingress_status_observed"] is False
+    assert old_status["dedicated_mutation_mode_observed"] is False
+
     synthetic = """tunnel: x
 ingress:
   - hostname: seed.nullfeed.org
