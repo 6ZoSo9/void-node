@@ -1,0 +1,68 @@
+name: VOID Buy VOID live-process binding v2
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v2.ts"
+      - "docs/architecture/buy-void-source-finality-live-process-binding-v2.md"
+      - ".github/workflows/buy-void-source-finality-live-process-binding-v2.yml"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "scripts/prove_buy_void_source_finality_live_process_binding_v2.ts"
+      - "docs/architecture/buy-void-source-finality-live-process-binding-v2.md"
+      - ".github/workflows/buy-void-source-finality-live-process-binding-v2.yml"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and prove V2 selector/receipt contract
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npx tsx scripts/prove_buy_void_source_finality_live_process_binding_v2.ts |
+            tee "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'VOID_BUY_VOID_SOURCE_FINALITY_LIVE_PROCESS_BINDING_V2_PROOF_GREEN' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'exact_one_manager_shaped_candidate=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'exact_one_manager_parent_node_candidate=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'v1_receipt_production_authority_rejected=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'manager_pidfd_required_at_collection=true' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'systemctl_user_selector_authority=false' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'production_source_finality_authority_ready=false' "$RUNNER_TEMP/live-process-v2.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/live-process-v2.log"
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
+          git fetch --no-tags --depth=1 origin "$BASE" || true
+          merge_base="$(git merge-base "$BASE" "$HEAD")"
+          test -n "$merge_base"
+          git diff --check "$merge_base" "$HEAD"
