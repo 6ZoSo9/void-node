@@ -194,7 +194,7 @@ def classify_pkcheck_status(code:int)->str:
  if code==3:return 'dismissed'
  return 'error'
 def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
- value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)$',value)
+ value=line.strip(); match=re.fullmatch(r'^systemd\\s+([0-9]+)\\s+\\(([^()]+)\\)$',value)
  if not match:hold('apollyon_custody_collector_systemd_version_failed')
  major=int(match.group(1)); package_version=match.group(2).strip()
  if (
@@ -209,7 +209,7 @@ def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
   'reviewed_systemd_package_version':package_version,
  }
 def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
+ value=raw.strip(); match=re.fullmatch(r's\\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
  if not match:hold('apollyon_custody_collector_running_systemd_version_failed')
  version=match.group(1)
  if version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
@@ -222,7 +222,7 @@ def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
   'running_systemd_manager_version':version,
  }
 def parse_systemd_bus_owner_pid(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r'u\s+([1-9][0-9]*)',value)
+ value=raw.strip(); match=re.fullmatch(r'u\\s+([1-9][0-9]*)',value)
  if not match:hold('apollyon_custody_collector_systemd_bus_owner_pid_invalid')
  pid=int(match.group(1))
  if pid!=1:hold('apollyon_custody_collector_systemd_bus_owner_not_pid1')
@@ -252,6 +252,31 @@ def systemd_version_evidence()->dict[str,Any]:
   'running_installed_systemd_version_match':True,
  }
 
+def training_process_subject(pid:int,training)->dict[str,Any]:
+ if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
+ try:
+  stat_text=Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
+  status_text=Path(f'/proc/{pid}/status').read_text(encoding='utf-8')
+ except (OSError,UnicodeError) as e:raise Hold('apollyon_custody_collector_training_process_unreadable') from e
+ close=stat_text.rfind(') ')
+ if close<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ fields=stat_text[close+2:].strip().split()
+ if len(fields)<20 or not fields[19].isdecimal() or int(fields[19])<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ uid_line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
+ if uid_line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
+ uid_parts=uid_line.split()[1:]
+ if len(uid_parts)!=4 or any((not x.isdecimal()) or int(x)!=training.pw_uid for x in uid_parts):hold('apollyon_custody_collector_training_process_uid_invalid')
+ caps={}
+ for key in ('CapInh','CapPrm','CapEff','CapAmb'):
+  line=next((x for x in status_text.splitlines() if x.startswith(key+':')),None)
+  if line is None:hold('apollyon_custody_collector_training_process_capabilities_invalid')
+  raw=line.split(':',1)[1].strip()
+  if not re.fullmatch(r'[0-9A-Fa-f]+',raw) or int(raw,16)!=0:hold('apollyon_custody_collector_training_process_capabilities_nonzero')
+  caps[key]='0'
+ nnp=next((x for x in status_text.splitlines() if x.startswith('NoNewPrivs:')),None)
+ if nnp is None or nnp.split(':',1)[1].strip()!='1':hold('apollyon_custody_collector_training_process_no_new_privileges_not_enforced')
+ start=fields[19]; subject=f'{pid},{start},{training.pw_uid}'
+ return {'capabilities':{'ambient':caps['CapAmb'],'effective':caps['CapEff'],'inheritable':caps['CapInh'],'no_new_privileges':True,'permitted':caps['CapPrm']},'pid':pid,'start_time_ticks':start,'subject':subject,'uid':training.pw_uid}
 def process_uid_slots(status_text:str)->list[int]:
  line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
  if line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
@@ -317,10 +342,9 @@ def training_process_subject(pid:int,training)->dict[str,Any]:
  start=parse_proc_start_time(
   stat_text,'apollyon_custody_collector_training_process_stat_invalid',
  )
- subject=f'{pid},{start},{training.pw_uid}'
  return {
   'capabilities':credentials['capabilities'],
-  'pid':pid,'start_time_ticks':start,'subject':subject,
+  'pid':pid,'start_time_ticks':start,
   'uid':training.pw_uid,'uid_slots':credentials['uid_slots'],
  }
 def training_process_thread_ids(pid:int)->list[int]:
@@ -356,7 +380,8 @@ def process_has_training_uid_thread(pid:int,training_uid:int)->bool:
  for thread in entries:
   if not thread.name.isdecimal():continue
   try:status_text=(thread/'status').read_text(encoding='utf-8')
-  except FileNotFoundError:continue
+  except FileNotFoundError:
+   hold('apollyon_custody_collector_training_thread_inventory_changed')
   except (OSError,UnicodeError) as e:
    raise Hold('apollyon_custody_collector_training_thread_inventory_failed') from e
   if training_uid in process_uid_slots(status_text):
@@ -373,13 +398,10 @@ def training_uid_process_ids(training)->list[int]:
    ids.append(pid)
  ids.sort()
  return ids
-def training_uid_process_inventory(training,expected_pid:int)->dict[str,Any]:
- first=training_uid_process_ids(training)
- if expected_pid not in first or not first:
-  hold('apollyon_custody_collector_training_process_inventory_missing_expected')
- processes=[]
- total_threads=0
- for pid in first:
+def collect_training_uid_processes(training)->dict[str,Any]:
+ ids=training_uid_process_ids(training)
+ processes=[]; total_threads=0
+ for pid in ids:
   subject=training_process_subject(pid,training)
   threads=training_process_thread_inventory(pid,training)
   total_threads+=threads['thread_count']
@@ -394,19 +416,23 @@ def training_uid_process_inventory(training,expected_pid:int)->dict[str,Any]:
    'thread_set_stable':threads['thread_set_stable'],
    'all_threads_capability_free':threads['all_threads_capability_free'],
   })
- second=training_uid_process_ids(training)
+ return {'processes':processes,'thread_count':total_threads}
+def training_uid_process_inventory(training,expected_pid:int)->dict[str,Any]:
+ first=collect_training_uid_processes(training)
+ if not first['processes'] or expected_pid not in {x['pid'] for x in first['processes']}:
+  hold('apollyon_custody_collector_training_process_inventory_missing_expected')
+ second=collect_training_uid_processes(training)
  if first!=second:
   hold('apollyon_custody_collector_training_process_inventory_changed')
  return {
   'all_training_uid_processes_capability_free':True,
   'all_training_uid_threads_capability_free':True,
-  'training_uid_process_count':len(processes),
+  'training_uid_process_count':len(second['processes']),
   'training_uid_process_set_stable':True,
-  'training_uid_processes':processes,
-  'training_uid_thread_count':total_threads,
+  'training_uid_processes':second['processes'],
+  'training_uid_thread_count':second['thread_count'],
   'training_uid_thread_sets_stable':True,
  }
-
 def control_request_specs(unit:str)->list[tuple[str,tuple[tuple[str,str],...]]]:
  return [
   ('org.freedesktop.systemd1.manage-units',()),
@@ -447,7 +473,7 @@ def parse_busctl_unique_names(raw:str)->list[str]:
   hold('apollyon_custody_collector_system_bus_list_oversize')
  names.sort()
  return names
-def dbus_connection_uint32(method:str,name:str)->int|None:
+def dbus_connection_uint32(method:str,name:str)->int:
  if method not in {'GetConnectionUnixProcessID','GetConnectionUnixUser'}:
   hold('apollyon_custody_collector_system_bus_method_invalid')
  if not SYSTEM_BUS_UNIQUE_NAME_RE.fullmatch(name):
@@ -457,7 +483,8 @@ def dbus_connection_uint32(method:str,name:str)->int|None:
   'org.freedesktop.DBus','/org/freedesktop/DBus',
   'org.freedesktop.DBus',method,'s',name,
  ])
- if p.returncode!=0:return None
+ if p.returncode!=0:
+  hold('apollyon_custody_collector_system_bus_credentials_lookup_failed')
  match=re.fullmatch(r'u\s+([0-9]+)\s*',p.stdout)
  if not match:hold('apollyon_custody_collector_system_bus_credentials_invalid')
  value=int(match.group(1))
@@ -471,9 +498,7 @@ def system_bus_sender_snapshot(training,process_ids:set[int])->list[dict[str,Any
  senders=[]
  for name in names:
   pid=dbus_connection_uint32('GetConnectionUnixProcessID',name)
-  if pid is None:continue
   uid=dbus_connection_uint32('GetConnectionUnixUser',name)
-  if uid is None:continue
   if pid in process_ids or uid==training.pw_uid:
    if pid not in process_ids or uid!=training.pw_uid:
     hold('apollyon_custody_collector_training_system_bus_credentials_mismatch')
@@ -485,8 +510,7 @@ def system_bus_sender_snapshot(training,process_ids:set[int])->list[dict[str,Any
 def system_bus_sender_evidence(training,process_inventory:dict[str,Any],unit:str)->dict[str,Any]:
  process_ids={item['pid'] for item in process_inventory['training_uid_processes']}
  first=system_bus_sender_snapshot(training,process_ids)
- evidence=[]
- specs=control_request_specs(unit)
+ evidence=[]; specs=control_request_specs(unit)
  for sender in first:
   checks=[
    pkcheck_bus_denial(action_id,sender['bus_name'],details)
@@ -514,30 +538,27 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
  process_inventory=training_uid_process_inventory(training,training_pid)
  process=next(
   (item for item in process_inventory['training_uid_processes']
-   if item['pid']==training_pid),
-  None,
+   if item['pid']==training_pid),None,
  )
  if process is None:hold('apollyon_custody_collector_training_process_inventory_missing_expected')
  process_subject=f"{process['pid']},{process['start_time_ticks']},{process['uid']}"
  deny_rule=polkit_deny_rule_evidence(training)
  specs=control_request_specs(unit)
- checks=[
-  pkcheck_denial(action_id,process_subject,details)
-  for action_id,details in specs
- ]
+ checks=[pkcheck_denial(action_id,process_subject,details) for action_id,details in specs]
  bus=system_bus_sender_evidence(training,process_inventory,unit)
+ post_inventory=training_uid_process_inventory(training,training_pid)
+ if canonical(post_inventory['training_uid_processes'])!=canonical(process_inventory['training_uid_processes']):
+  hold('apollyon_custody_collector_training_process_identity_changed_during_authorization')
+ if post_inventory['training_uid_thread_count']!=process_inventory['training_uid_thread_count']:
+  hold('apollyon_custody_collector_training_process_identity_changed_during_authorization')
  return {
-  'actual_system_bus_sender_checks_required':
-   bus['actual_system_bus_sender_checks_required'],
+  'actual_system_bus_sender_checks_required':bus['actual_system_bus_sender_checks_required'],
   'actual_system_bus_sender_count':bus['actual_system_bus_sender_count'],
-  'actual_system_bus_sender_set_stable':
-   bus['actual_system_bus_sender_set_stable'],
+  'actual_system_bus_sender_set_stable':bus['actual_system_bus_sender_set_stable'],
   'actual_system_bus_senders':bus['actual_system_bus_senders'],
   'all_systemd_control_actions_explicitly_denied':True,
-  'all_training_uid_processes_capability_free':
-   process_inventory['all_training_uid_processes_capability_free'],
-  'all_training_uid_threads_capability_free':
-   process_inventory['all_training_uid_threads_capability_free'],
+  'all_training_uid_processes_capability_free':process_inventory['all_training_uid_processes_capability_free'],
+  'all_training_uid_threads_capability_free':process_inventory['all_training_uid_threads_capability_free'],
   'checked_actions':checks,
   'installed_systemd_package_version':versions['installed_systemd_package_version'],
   'observed_systemd_version_line':versions['observed_systemd_version_line'],
@@ -545,8 +566,7 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
   'polkit_deny_rule':deny_rule,
   'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,
   'reviewed_systemd_package_version':versions['reviewed_systemd_package_version'],
-  'running_installed_systemd_version_match':
-   versions['running_installed_systemd_version_match'],
+  'running_installed_systemd_version_match':versions['running_installed_systemd_version_match'],
   'running_systemd_manager_major':versions['running_systemd_manager_major'],
   'running_systemd_manager_version':versions['running_systemd_manager_version'],
   'runtime_can_control_service':False,
@@ -561,8 +581,7 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
   'training_uid_process_set_stable':process_inventory['training_uid_process_set_stable'],
   'training_uid_processes':process_inventory['training_uid_processes'],
   'training_uid_thread_count':process_inventory['training_uid_thread_count'],
-  'training_uid_thread_sets_stable':
-   process_inventory['training_uid_thread_sets_stable'],
+  'training_uid_thread_sets_stable':process_inventory['training_uid_thread_sets_stable'],
  }
 def proc_uids()->dict[int,set[int]]:
  out={}
@@ -625,7 +644,7 @@ def collect(a)->dict[str,Any]:
  if now<snap['observed_at_ms'] or now>=snap['expires_at_ms']:hold('apollyon_custody_collector_clock_window_invalid')
  return {'consumed_directory':cev,'evidence_snapshot':snap,'identities':{'custody_gid':cu.pw_gid,'custody_supplementary_gids':cg,'custody_uid':cu.pw_uid,'ipc_gid':ipc.gr_gid,'training_gid':tr.pw_gid,'training_supplementary_gids':tg,'training_uid':tr.pw_uid},'marker':EVIDENCE_MARKER,'service':service,'service_control':control,'socket':sockev,'socket_parent':spev,'source_binding':source,'state_root':sev,'target_host':TARGET_HOST,'verification_now_ms':now,'version':2}
 def self_test():
- assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')['installed_systemd_package_version']=='255.4-1ubuntu8.11'; assert parse_running_systemd_manager_version('s \"255.4-1ubuntu8.11\"')['running_systemd_manager_major']==255; assert parse_systemd_bus_owner_pid('u 1')['systemd_bus_owner_pid_is_pid1'] is True; assert REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',); assert b'polkit.message' not in expected_polkit_deny_rule('training'); assert b'action.id' in expected_polkit_deny_rule('training'); assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
+ assert git_blob_sha1(b'hello\n')==hashlib.sha1(b'blob 6\0hello\n').hexdigest(); assert canonical({'b':1,'a':2})=='{"a":2,"b":1}'; assert boolprop('yes') is True; assert boolprop('no') is False; assert classify_pkcheck_status(1)=='denied'; assert classify_pkcheck_status(0)=='authorized'; assert parse_installed_systemd_version_line('systemd 255 (255.4-1ubuntu8.11)')['installed_systemd_package_version']=='255.4-1ubuntu8.11'; assert parse_running_systemd_manager_version('s \"255.4-1ubuntu8.11\"')['running_systemd_manager_major']==255; assert parse_systemd_bus_owner_pid('u 1')['systemd_bus_owner_pid_is_pid1'] is True; assert REVIEWED_SYSTEMD_PACKAGE_VERSIONS==('255.4-1ubuntu8.11',); assert SYSTEM_BUS_UNIQUE_NAME_RE.fullmatch(':1.42') is not None; assert parse_busctl_unique_names(':1.2 service\n:1.1 other\n')==[':1.1',':1.2']; assert b'polkit.message' not in expected_polkit_deny_rule('training'); assert b'action.id' in expected_polkit_deny_rule('training'); assert classify_pkcheck_status(2)=='challenge'; assert classify_pkcheck_status(3)=='dismissed'; assert classify_pkcheck_status(127)=='error'
  try:boolprop('bad')
  except Hold:pass
  else:raise AssertionError('invalid boolean did not HOLD')
@@ -792,7 +811,7 @@ def classify_pkcheck_status(code:int)->str:
  if code==3:return 'dismissed'
  return 'error'
 def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
- value=line.strip(); match=re.fullmatch(r'^systemd\s+([0-9]+)\s+\(([^()]+)\)$',value)
+ value=line.strip(); match=re.fullmatch(r'^systemd\\s+([0-9]+)\\s+\\(([^()]+)\\)$',value)
  if not match:hold('apollyon_custody_collector_systemd_version_failed')
  major=int(match.group(1)); package_version=match.group(2).strip()
  if (
@@ -807,7 +826,7 @@ def parse_installed_systemd_version_line(line:str)->dict[str,Any]:
   'reviewed_systemd_package_version':package_version,
  }
 def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r's\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
+ value=raw.strip(); match=re.fullmatch(r's\\s+"([A-Za-z0-9.+:~_-]{1,120})"',value)
  if not match:hold('apollyon_custody_collector_running_systemd_version_failed')
  version=match.group(1)
  if version not in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
@@ -820,7 +839,7 @@ def parse_running_systemd_manager_version(raw:str)->dict[str,Any]:
   'running_systemd_manager_version':version,
  }
 def parse_systemd_bus_owner_pid(raw:str)->dict[str,Any]:
- value=raw.strip(); match=re.fullmatch(r'u\s+([1-9][0-9]*)',value)
+ value=raw.strip(); match=re.fullmatch(r'u\\s+([1-9][0-9]*)',value)
  if not match:hold('apollyon_custody_collector_systemd_bus_owner_pid_invalid')
  pid=int(match.group(1))
  if pid!=1:hold('apollyon_custody_collector_systemd_bus_owner_not_pid1')
@@ -850,6 +869,31 @@ def systemd_version_evidence()->dict[str,Any]:
   'running_installed_systemd_version_match':True,
  }
 
+def training_process_subject(pid:int,training)->dict[str,Any]:
+ if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
+ try:
+  stat_text=Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
+  status_text=Path(f'/proc/{pid}/status').read_text(encoding='utf-8')
+ except (OSError,UnicodeError) as e:raise Hold('apollyon_custody_collector_training_process_unreadable') from e
+ close=stat_text.rfind(') ')
+ if close<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ fields=stat_text[close+2:].strip().split()
+ if len(fields)<20 or not fields[19].isdecimal() or int(fields[19])<=0:hold('apollyon_custody_collector_training_process_stat_invalid')
+ uid_line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
+ if uid_line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
+ uid_parts=uid_line.split()[1:]
+ if len(uid_parts)!=4 or any((not x.isdecimal()) or int(x)!=training.pw_uid for x in uid_parts):hold('apollyon_custody_collector_training_process_uid_invalid')
+ caps={}
+ for key in ('CapInh','CapPrm','CapEff','CapAmb'):
+  line=next((x for x in status_text.splitlines() if x.startswith(key+':')),None)
+  if line is None:hold('apollyon_custody_collector_training_process_capabilities_invalid')
+  raw=line.split(':',1)[1].strip()
+  if not re.fullmatch(r'[0-9A-Fa-f]+',raw) or int(raw,16)!=0:hold('apollyon_custody_collector_training_process_capabilities_nonzero')
+  caps[key]='0'
+ nnp=next((x for x in status_text.splitlines() if x.startswith('NoNewPrivs:')),None)
+ if nnp is None or nnp.split(':',1)[1].strip()!='1':hold('apollyon_custody_collector_training_process_no_new_privileges_not_enforced')
+ start=fields[19]; subject=f'{pid},{start},{training.pw_uid}'
+ return {'capabilities':{'ambient':caps['CapAmb'],'effective':caps['CapEff'],'inheritable':caps['CapInh'],'no_new_privileges':True,'permitted':caps['CapPrm']},'pid':pid,'start_time_ticks':start,'subject':subject,'uid':training.pw_uid}
 def process_uid_slots(status_text:str)->list[int]:
  line=next((x for x in status_text.splitlines() if x.startswith('Uid:')),None)
  if line is None:hold('apollyon_custody_collector_training_process_uid_invalid')
@@ -857,94 +901,6 @@ def process_uid_slots(status_text:str)->list[int]:
  if len(parts)!=4 or any(not x.isdecimal() for x in parts):
   hold('apollyon_custody_collector_training_process_uid_invalid')
  return [int(x) for x in parts]
-def zero_capability_credentials(status_text:str,training)->dict[str,Any]:
- uid_slots=process_uid_slots(status_text)
- if any(uid!=training.pw_uid for uid in uid_slots):
-  hold('apollyon_custody_collector_training_process_uid_invalid')
- caps={}
- for key in ('CapInh','CapPrm','CapEff','CapAmb'):
-  line=next((x for x in status_text.splitlines() if x.startswith(key+':')),None)
-  if line is None:hold('apollyon_custody_collector_training_process_capabilities_invalid')
-  raw=line.split(':',1)[1].strip()
-  if not re.fullmatch(r'[0-9A-Fa-f]+',raw) or int(raw,16)!=0:
-   hold('apollyon_custody_collector_training_process_capabilities_nonzero')
-  caps[key]='0'
- nnp=next((x for x in status_text.splitlines() if x.startswith('NoNewPrivs:')),None)
- if nnp is None or nnp.split(':',1)[1].strip()!='1':
-  hold('apollyon_custody_collector_training_process_no_new_privileges_not_enforced')
- return {
-  'uid_slots':uid_slots,
-  'capabilities':{
-   'ambient':caps['CapAmb'],'effective':caps['CapEff'],
-   'inheritable':caps['CapInh'],'no_new_privileges':True,
-   'permitted':caps['CapPrm'],
-  },
- }
-def parse_proc_start_time(stat_text:str,code:str)->str:
- close=stat_text.rfind(') ')
- if close<=0:hold(code)
- fields=stat_text[close+2:].strip().split()
- if len(fields)<20 or not fields[19].isdecimal() or int(fields[19])<=0:hold(code)
- return fields[19]
-def training_thread_subject(pid:int,tid:int,training)->dict[str,Any]:
- if not isinstance(pid,int) or pid<=0 or not isinstance(tid,int) or tid<=0:
-  hold('apollyon_custody_collector_training_thread_invalid')
- base=Path(f'/proc/{pid}/task/{tid}')
- try:
-  stat_text=(base/'stat').read_text(encoding='utf-8')
-  status_text=(base/'status').read_text(encoding='utf-8')
- except (OSError,UnicodeError) as e:
-  raise Hold('apollyon_custody_collector_training_thread_unreadable') from e
- credentials=zero_capability_credentials(status_text,training)
- return {
-  'tid':tid,
-  'start_time_ticks':parse_proc_start_time(
-   stat_text,'apollyon_custody_collector_training_thread_stat_invalid',
-  ),
-  'uid_slots':credentials['uid_slots'],
-  'capabilities':credentials['capabilities'],
- }
-def training_process_subject(pid:int,training)->dict[str,Any]:
- if not isinstance(pid,int) or pid<=0:hold('apollyon_custody_collector_training_pid_invalid')
- try:
-  stat_text=Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
-  status_text=Path(f'/proc/{pid}/status').read_text(encoding='utf-8')
- except (OSError,UnicodeError) as e:
-  raise Hold('apollyon_custody_collector_training_process_unreadable') from e
- credentials=zero_capability_credentials(status_text,training)
- start=parse_proc_start_time(
-  stat_text,'apollyon_custody_collector_training_process_stat_invalid',
- )
- subject=f'{pid},{start},{training.pw_uid}'
- return {
-  'capabilities':credentials['capabilities'],
-  'pid':pid,'start_time_ticks':start,'subject':subject,
-  'uid':training.pw_uid,'uid_slots':credentials['uid_slots'],
- }
-def training_process_thread_ids(pid:int)->list[int]:
- task=Path(f'/proc/{pid}/task')
- try:entries=list(task.iterdir())
- except OSError as e:
-  raise Hold('apollyon_custody_collector_training_thread_inventory_failed') from e
- tids=sorted(int(entry.name) for entry in entries if entry.name.isdecimal())
- if not tids or pid not in tids:
-  hold('apollyon_custody_collector_training_thread_inventory_invalid')
- return tids
-def training_process_thread_inventory(pid:int,training)->dict[str,Any]:
- first_ids=training_process_thread_ids(pid)
- first=[training_thread_subject(pid,tid,training) for tid in first_ids]
- second_ids=training_process_thread_ids(pid)
- if first_ids!=second_ids:
-  hold('apollyon_custody_collector_training_thread_inventory_changed')
- second=[training_thread_subject(pid,tid,training) for tid in second_ids]
- if first!=second:
-  hold('apollyon_custody_collector_training_thread_credentials_changed')
- return {
-  'thread_count':len(second),
-  'thread_inventory_sha256':sha256(canonical(second).encode('utf-8')),
-  'thread_set_stable':True,
-  'all_threads_capability_free':True,
- }
 def training_uid_process_ids(training)->list[int]:
  ids=[]
  try:entries=list(Path('/proc').iterdir())
@@ -957,8 +913,6 @@ def training_uid_process_ids(training)->list[int]:
    raise Hold('apollyon_custody_collector_proc_inventory_failed') from e
   slots=process_uid_slots(status_text)
   if training.pw_uid in slots:
-   if any(uid!=training.pw_uid for uid in slots):
-    hold('apollyon_custody_collector_training_process_uid_invalid')
    ids.append(int(proc.name))
  ids.sort()
  return ids
@@ -967,33 +921,22 @@ def training_uid_process_inventory(training,expected_pid:int)->dict[str,Any]:
  if expected_pid not in first or not first:
   hold('apollyon_custody_collector_training_process_inventory_missing_expected')
  processes=[]
- total_threads=0
  for pid in first:
   subject=training_process_subject(pid,training)
-  threads=training_process_thread_inventory(pid,training)
-  total_threads+=threads['thread_count']
   processes.append({
    'pid':subject['pid'],
    'start_time_ticks':subject['start_time_ticks'],
    'uid':subject['uid'],
-   'uid_slots':subject['uid_slots'],
    'capabilities':subject['capabilities'],
-   'thread_count':threads['thread_count'],
-   'thread_inventory_sha256':threads['thread_inventory_sha256'],
-   'thread_set_stable':threads['thread_set_stable'],
-   'all_threads_capability_free':threads['all_threads_capability_free'],
   })
  second=training_uid_process_ids(training)
  if first!=second:
   hold('apollyon_custody_collector_training_process_inventory_changed')
  return {
   'all_training_uid_processes_capability_free':True,
-  'all_training_uid_threads_capability_free':True,
   'training_uid_process_count':len(processes),
   'training_uid_process_set_stable':True,
   'training_uid_processes':processes,
-  'training_uid_thread_count':total_threads,
-  'training_uid_thread_sets_stable':True,
  }
 
 def pkcheck_denial(action_id:str,subject:str,details:tuple[tuple[str,str],...]=())->dict[str,Any]:
@@ -1007,32 +950,24 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
  if not UNIT_RE.fullmatch(unit):hold('apollyon_custody_collector_service_unit_invalid')
  versions=systemd_version_evidence()
  process_inventory=training_uid_process_inventory(training,training_pid)
- process=next(
-  (item for item in process_inventory['training_uid_processes']
-   if item['pid']==training_pid),
-  None,
- )
- if process is None:hold('apollyon_custody_collector_training_process_inventory_missing_expected')
- process_subject=f"{process['pid']},{process['start_time_ticks']},{process['uid']}"
+ process=training_process_subject(training_pid,training)
  deny_rule=polkit_deny_rule_evidence(training)
- checks=[pkcheck_denial('org.freedesktop.systemd1.manage-units',process_subject)]
+ checks=[pkcheck_denial('org.freedesktop.systemd1.manage-units',process['subject'])]
  for verb in SYSTEMD_MANAGE_UNIT_VERBS:
   checks.append(pkcheck_denial(
-   'org.freedesktop.systemd1.manage-units',process_subject,
+   'org.freedesktop.systemd1.manage-units',process['subject'],
    (('unit',unit),('verb',verb)),
   ))
  for action in SYSTEMD_GLOBAL_CONTROL_ACTIONS:
-  checks.append(pkcheck_denial(action,process_subject))
+  checks.append(pkcheck_denial(action,process['subject']))
  return {
   'all_systemd_control_actions_explicitly_denied':True,
   'all_training_uid_processes_capability_free':
    process_inventory['all_training_uid_processes_capability_free'],
-  'all_training_uid_threads_capability_free':
-   process_inventory['all_training_uid_threads_capability_free'],
   'checked_actions':checks,
   'installed_systemd_package_version':versions['installed_systemd_package_version'],
   'observed_systemd_version_line':versions['observed_systemd_version_line'],
-  'pkcheck_subject':process_subject,
+  'pkcheck_subject':process['subject'],
   'polkit_deny_rule':deny_rule,
   'reviewed_systemd_major':REVIEWED_SYSTEMD_MAJOR,
   'reviewed_systemd_package_version':versions['reviewed_systemd_package_version'],
@@ -1051,9 +986,6 @@ def service_control_evidence(training,training_pid:int,unit:str)->dict[str,Any]:
   'training_uid_process_count':process_inventory['training_uid_process_count'],
   'training_uid_process_set_stable':process_inventory['training_uid_process_set_stable'],
   'training_uid_processes':process_inventory['training_uid_processes'],
-  'training_uid_thread_count':process_inventory['training_uid_thread_count'],
-  'training_uid_thread_sets_stable':
-   process_inventory['training_uid_thread_sets_stable'],
  }
 def proc_uids()->dict[int,set[int]]:
  out={}
