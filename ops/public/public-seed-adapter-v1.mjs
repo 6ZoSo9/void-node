@@ -1458,19 +1458,12 @@ const earnMutationServer = EARN_MUTATION_PORT === null
   ? null
   : http.createServer(async (req, res) => {
       try {
-        const url = new URL(
-          req.url || "/",
-          "http://public-earn-mutation.local",
-        );
+        const rawTarget = String(req.url || "/");
         const sensitive =
-          url.pathname === EARN_CLAIM_PATH ||
-          url.pathname === EARN_SUBMIT_PATH;
+          rawTarget === EARN_CLAIM_PATH ||
+          rawTarget === EARN_SUBMIT_PATH;
         if (!sensitive) {
           writeText(req, res, 404, "not_public\n");
-          return;
-        }
-        if (url.search) {
-          writeText(req, res, 400, "post_query_not_allowed\n");
           return;
         }
         if (req.method !== "POST") {
@@ -1483,7 +1476,7 @@ const earnMutationServer = EARN_MUTATION_PORT === null
           );
           return;
         }
-        if (url.pathname === EARN_CLAIM_PATH) {
+        if (rawTarget === EARN_CLAIM_PATH) {
           await proxyEarnClaim(req, res);
           return;
         }
