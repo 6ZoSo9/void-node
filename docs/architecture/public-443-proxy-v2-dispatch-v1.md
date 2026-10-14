@@ -94,6 +94,15 @@ classified, pauses the client stream, connects to the fixed route target, writes
 the already-buffered bytes in the correct framing mode, and then relays the
 remaining byte stream without application rewriting.
 
+The relay closes **both** socket descriptors when either side has no network
+activity for 60 seconds (1.5 seconds in disposable proof mode). A successful
+TCP connect does not disable idle protection. This bounds fully classified but
+incomplete requests and unresponsive backends; normal client half-close still
+allows the downstream response. Client disconnects and downstream errors also
+release the paired socket. The focused proof checks descriptor cleanup and
+subsequent healthy routing. This is an idle timeout, **not** an absolute maximum
+connection lifetime; periodic traffic can keep a connection active.
+
 The runtime does not authorize any concrete production port values.
 
 ## Focused proof
