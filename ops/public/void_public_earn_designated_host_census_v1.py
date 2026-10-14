@@ -193,6 +193,46 @@ def parse_proc_status(raw: str) -> dict[str, Any]:
     }
 
 
+def parse_proc_start_ticks(raw: bytes | str) -> int:
+    text = raw.decode("utf-8", "strict") if isinstance(raw, bytes) else raw
+    closing = text.rfind(")")
+    if closing < 2 or closing + 2 >= len(text):
+        raise CensusError("proc_stat_malformed")
+    tail = text[closing + 2 :].split()
+    # After the command field, tail[0] is field 3 (state); starttime is field 22.
+    if len(tail) < 20 or not re.fullmatch(r"[1-9][0-9]*", tail[19]):
+        raise CensusError("proc_stat_start_ticks_invalid")
+    ticks = int(tail[19])
+    if ticks < 1:
+        raise CensusError("proc_stat_start_ticks_invalid")
+    return ticks
+
+
+def read_proc_start_ticks(pid: int) -> int:
+    if not isinstance(pid, int) or pid < 1:
+        raise CensusError("proc_stat_pid_invalid")
+    try:
+        raw = read_bounded(pathlib.Path(f"/proc/{pid}/stat"), 64 * 1024)
+    except OSError as exc:
+        raise CensusError(f"proc_stat_unavailable:{pid}") from exc
+    return parse_proc_start_ticks(raw)
+
+
+def same_process_generation(
+    expected_pid: int,
+    expected_start_ticks: int | None,
+    observed: dict[str, Any],
+) -> bool:
+    return (
+        expected_pid > 0
+        and isinstance(expected_start_ticks, int)
+        and expected_start_ticks > 0
+        and observed.get("active_running") is True
+        and observed.get("main_pid") == expected_pid
+        and observed.get("start_ticks") == expected_start_ticks
+    )
+
+
 def parse_proc_environ(raw: bytes, allowed: tuple[str, ...]) -> dict[str, str]:
     if len(raw) > MAX_PROC_BYTES:
         raise CensusError("proc_environment_too_large")
@@ -350,6 +390,41 @@ def process_source(pid: int, expected_blob: str) -> dict[str, Any]:
     }
 
 
+def service_generation_snapshot(unit: str) -> dict[str, Any]:
+    code, stdout, _stderr = run_read_only(
+        SYSTEMCTL,
+        [
+            "show",
+            unit,
+            "--no-pager",
+            "--property=LoadState",
+            "--property=ActiveState",
+            "--property=SubState",
+            "--property=MainPID",
+        ],
+        allow_failure=True,
+    )
+    values = parse_key_value_lines(stdout.decode("utf-8", "strict")) if stdout else {}
+    pid_text = values.get("MainPID", "")
+    pid = int(pid_text) if pid_text.isdigit() else 0
+    active_running = (
+        code == 0
+        and values.get("LoadState") == "loaded"
+        and values.get("ActiveState") == "active"
+        and values.get("SubState") == "running"
+        and pid > 0
+    )
+    try:
+        start_ticks = read_proc_start_ticks(pid) if active_running else None
+    except CensusError:
+        start_ticks = None
+    return {
+        "active_running": active_running,
+        "main_pid": pid,
+        "start_ticks": start_ticks,
+    }
+
+
 def service_snapshot(role: str) -> dict[str, Any]:
     unit = UNITS[role]
     props = [
@@ -377,6 +452,7 @@ def service_snapshot(role: str) -> dict[str, Any]:
         and values.get("SubState") == "running"
         and pid > 0,
         "main_pid": pid,
+        "process_start_ticks": None,
         "systemd_no_new_privileges": values.get("NoNewPrivileges") == "yes",
     }
     if not snapshot["active_running"]:
@@ -398,6 +474,7 @@ def service_snapshot(role: str) -> dict[str, Any]:
         )
         return snapshot
     try:
+        start_ticks = read_proc_start_ticks(pid)
         status = parse_proc_status(
             read_bounded(pathlib.Path(f"/proc/{pid}/status")).decode("utf-8", "strict")
         )
@@ -406,6 +483,7 @@ def service_snapshot(role: str) -> dict[str, Any]:
             ENV_KEYS[role],
         )
     except (OSError, UnicodeDecodeError, CensusError):
+        start_ticks = None
         status = {
             "effective_uid": None,
             "effective_gid": None,
@@ -413,6 +491,7 @@ def service_snapshot(role: str) -> dict[str, Any]:
             "cap_net_admin": None,
         }
         environ = {}
+    snapshot["process_start_ticks"] = start_ticks
     snapshot.update(status)
     snapshot["environment"] = environ
     snapshot["source"] = process_source(pid, SOURCE_BLOBS[role]["git_blob_sha1"])
@@ -648,11 +727,23 @@ def collect() -> dict[str, Any]:
     nft = nft_snapshot()
     checkout_blobs = reviewed_checkout_blobs()
 
+    generation_stable = True
+    for role, service in services.items():
+        final_generation = service_generation_snapshot(UNITS[role])
+        service["generation_after"] = final_generation
+        service["generation_stable"] = same_process_generation(
+            int(service.get("main_pid") or 0),
+            service.get("process_start_ticks"),
+            final_generation,
+        )
+        generation_stable = generation_stable and service["generation_stable"]
+
     policy_candidate_observed = (
         hostname == EXPECTED_HOSTNAME
         and os.geteuid() == 0
         and ss_visible
         and all(services[name].get("active_running") for name in services)
+        and generation_stable
         and topology["dispatcher_target_matches_edge_listener"]
         and topology["edge_target_matches_dedicated_gateway"]
         and topology["service_uids_pairwise_distinct"]
@@ -709,6 +800,7 @@ def collect() -> dict[str, Any]:
         "services": services,
         "topology": topology,
         "ss_process_visibility_observed": ss_visible,
+        "all_service_process_generations_stable": generation_stable,
         "rate_state": state,
         "nftables": nft,
         "policy_candidate_observed": policy_candidate_observed,
@@ -757,6 +849,25 @@ def self_test() -> None:
     assert status["effective_gid"] == 1302
     assert status["no_new_privileges"] is True
     assert status["cap_net_admin"] is False
+
+    stat_tail = ["S", *(["0"] * 18), "424242"]
+    stat_line = "77 (node worker) " + " ".join(stat_tail)
+    assert parse_proc_start_ticks(stat_line) == 424242
+    assert same_process_generation(
+        77,
+        424242,
+        {"active_running": True, "main_pid": 77, "start_ticks": 424242},
+    ) is True
+    assert same_process_generation(
+        77,
+        424242,
+        {"active_running": True, "main_pid": 77, "start_ticks": 424243},
+    ) is False
+    assert same_process_generation(
+        77,
+        424242,
+        {"active_running": True, "main_pid": 78, "start_ticks": 424242},
+    ) is False
 
     status_cap = parse_proc_status(
         "Uid:\t1\t2\t3\t4\n"
@@ -838,6 +949,8 @@ def self_test() -> None:
     print("process_environment_output_allowlisted_only=true")
     print("private_key_content_access=false")
     print("nftables_ruleset_live_verified=false")
+    print("process_generation_stability_required=true")
+    print("pid_reuse_or_restart_fails_candidate=true")
     print("live_host_acceptance_claimed=false")
 
 
