@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import os
 from pathlib import Path
 import shutil
@@ -13,6 +14,7 @@ ROOT=Path(__file__).resolve().parents[1]
 OBSERVER=ROOT/"ops/xiphos/apollyon_training_bus_isolation_installed_custody_readonly_v1.py"
 UNIT_SOURCE=ROOT/"ops/xiphos/void-apollyon-training-bus-isolation-v1.service"
 PREENTRY_SOURCE=ROOT/"ops/xiphos/apollyon_training_bus_isolation_preentry_v1.c"
+LOCK_FIXTURE=ROOT/"fixtures/security/apollyon-training-preentry-binary-candidate-lock-v1.json"
 CC="/usr/bin/cc"
 FLAGS=(
     "-std=c11","-O2","-Wall","-Wextra","-Werror",
@@ -70,6 +72,21 @@ def expect_hold(module,reason,fn)->None:
 def main()->int:
     module=load_observer()
     module.self_test()
+
+    lock=json.loads(LOCK_FIXTURE.read_text(encoding="utf-8"))
+    if lock["lock_id"]!=module.EXPECTED_LOCK_ID:
+        raise AssertionError("merged candidate lock ID drift")
+    if lock["candidate"]["candidate_id"]!=module.EXPECTED_CANDIDATE_ID:
+        raise AssertionError("merged candidate ID drift")
+    if lock["candidate"]["binary_sha256"]!=module.EXPECTED_PREENTRY_SHA256:
+        raise AssertionError("merged candidate binary SHA-256 drift")
+    if lock["candidate"]["binary_bytes"]!=module.EXPECTED_PREENTRY_BYTES:
+        raise AssertionError("merged candidate byte count drift")
+    if (
+        lock["next_gate"]!=
+        "installed_apollyon_training_bus_isolation_qualification_v1"
+    ):
+        raise AssertionError("merged candidate lock handoff drift")
 
     unit_bytes=UNIT_SOURCE.read_bytes()
     if module.git_blob_sha1(unit_bytes)!=module.EXPECTED_UNIT_GIT_BLOB_SHA1:
@@ -224,6 +241,7 @@ def main()->int:
         "VOID_APOLLYON_TRAINING_BUS_ISOLATION_"
         "INSTALLED_CUSTODY_READONLY_V1_PROOF_GREEN"
     )
+    print("merged_candidate_lock_bound=true")
     print("exact_locked_candidate_binary_reproduced=true")
     print("exact_reviewed_unit_bytes_bound=true")
     print("stable_no_follow_reads=true")
