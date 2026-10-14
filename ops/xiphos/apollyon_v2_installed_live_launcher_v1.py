@@ -279,13 +279,25 @@ def assert_installed_launcher_identity()->None:
         hold("apollyon_v2_installed_launcher_identity_untrusted")
 
 
-def sanitized_environment()->dict[str,str]:
+def sanitized_environment(private_root:Path)->dict[str,str]:
     for key in FORBIDDEN_ENV:
         if os.environ.get(key):
             hold("apollyon_v2_installed_launcher_loader_environment_forbidden")
+    root=Path(os.path.abspath(os.fspath(private_root)))
+    metadata=os.lstat(root)
+    if (
+        root!=private_root or
+        not stat.S_ISDIR(metadata.st_mode) or
+        stat.S_ISLNK(metadata.st_mode) or
+        metadata.st_uid!=os.geteuid() or
+        stat.S_IMODE(metadata.st_mode)!=0o700 or
+        Path(os.path.realpath(root))!=root
+    ):
+        hold("apollyon_v2_installed_launcher_private_runtime_root_invalid")
     return {
         "PATH":"/usr/sbin:/usr/bin:/sbin:/bin",
         "LC_ALL":"C",
+        "TMPDIR":os.fspath(root),
         "VOID_APOLLYON_V2_INSTALLED_LAUNCHER":MARKER,
     }
 
@@ -316,7 +328,7 @@ def execute_live_impl(argv:list[str])->int:
             completed=subprocess.run(
                 [f"/proc/self/fd/{node_fd}",os.fspath(runner),*argv],
                 pass_fds=(node_fd,),
-                env=sanitized_environment(),
+                env=sanitized_environment(private_root),
                 check=False,
                 timeout=60,
             )
@@ -370,6 +382,21 @@ def self_test()->None:
             RuntimeError("fixture")
         ) is not None:
             raise AssertionError("unexpected exception was classified")
+
+        runtime_root=top/"runtime-root"
+        runtime_root.mkdir(mode=0o700)
+        runtime_env=sanitized_environment(runtime_root)
+        if runtime_env.get("TMPDIR")!=os.fspath(runtime_root):
+            raise AssertionError("runner TMPDIR is not bound to outer private root")
+        nested=runtime_root/"void-apollyon-custody-v2-reviewed-timeout-fixture"
+        nested.mkdir(mode=0o700)
+        (nested/"sentinel").write_text("fixture",encoding="utf-8")
+        cleanup_private_tree(
+            runtime_root,
+            "apollyon_v2_installed_launcher_timeout_containment_cleanup_failed:",
+        )
+        if runtime_root.exists() or nested.exists():
+            raise AssertionError("nested runner tree survived outer cleanup")
 
         # Executable custody rejects group/world-writable binaries and
         # returns one retained descriptor suitable for /proc/self/fd execution.
@@ -524,6 +551,8 @@ def self_test()->None:
     print("post_prepare_source_replacement_inert=true")
     print("live_worktree_invocation_supported=false")
     print("attempt_claim=false")
+    print("runner_tmpdir_bound_to_outer_private_root=true")
+    print("timeout_inner_tree_parent_cleanup=true")
     print("training_execution=false")
 
 
