@@ -61,8 +61,26 @@ That closes PID-reuse ambiguity across the authorization window and is surfaced
 as `training_uid_process_identity_stable_across_authorization=true`.
 
 Only exit status 1 is accepted as explicit denial. RefuseManualStart/Stop remain
-defense-in-depth unit facts; they no longer independently justify
-`runtime_can_control_service=false`.
+defense-in-depth unit facts.
+
+The collector intentionally does **not** convert these endpoint observations
+into an absolute service-control claim. It cannot prove that the training
+execution boundary lacks a pre-authenticated system-bus descriptor inherited or
+received under different credentials, nor can two endpoint snapshots rule out a
+connection that exists only between those snapshots. Its service-control
+evidence therefore reports:
+
+```text
+inherited_system_bus_descriptor_absence_required=true
+inherited_system_bus_descriptor_absence_proven=false
+absolute_runtime_service_control_denial_proven=false
+runtime_can_control_service=null
+```
+
+The V2 policy requires the missing provenance proof to be true, so this current
+collector deliberately HOLDS before live source-policy qualification. A later
+reviewed training-launch/runtime isolation gate must close that descriptor
+provenance boundary; this collector does not manufacture it.
 
 It emits VOID_APOLLYON_CUSTODY_HOST_POLICY_EVIDENCE_V2 version 2 with a separate
 `service_control` transcript. It performs no filesystem/service mutation,
